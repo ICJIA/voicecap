@@ -33,17 +33,34 @@ async function launchBrowser(): Promise<Browser> {
   }
 }
 
-/**
- * Wide enough that the whole pages table is on screen: axe can't check the contrast of cells
- * scrolled out of view inside the table's scroll region, and reports them as incomplete.
- */
 const VIEWPORT = { width: 3000, height: 1600 };
 
 async function openReport(options: BrowserContextOptions = {}): Promise<Page> {
   const context = await browser.newContext({ viewport: VIEWPORT, ...options });
   const page = await context.newPage();
   await page.goto(reportUrl);
+  // Page scripts (and so the style injection) can't run with JavaScript disabled.
+  if (options.javaScriptEnabled !== false) await showWholeTable(page);
   return page;
+}
+
+/**
+ * The pages table is wider than main's max-width, so it scrolls sideways inside its region, and
+ * axe can't reliably check the contrast of cells clipped by that region: depending on the
+ * platform's rendering it reports them as incomplete ("partially obscured"), which happened on
+ * Linux in CI. Lay the whole table out unclipped, in a viewport wide enough for it. Colors don't
+ * depend on layout, so this checks the same contrast.
+ */
+async function showWholeTable(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content:
+      ".page-header, main, .page-footer { max-width: none !important; }" +
+      " .table-scroll { overflow: visible !important; }",
+  });
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  if (width > VIEWPORT.width) {
+    await page.setViewportSize({ width: width + 40, height: VIEWPORT.height });
+  }
 }
 
 /**
@@ -162,6 +179,7 @@ describe("report accessibility (axe-core in Chromium)", () => {
     const withoutScript = reportHtml.replace(/<script>[\s\S]*?<\/script>/, "");
     expect(withoutScript).not.toContain("<script>");
     await page.setContent(withoutScript, { waitUntil: "load" });
+    await showWholeTable(page);
     await expect(page.locator("#filters").isVisible()).resolves.toBe(false);
     expect(await visibleRows(page)).toBe(totalRows);
     expect(await violations(page)).toEqual([]);
