@@ -40,13 +40,17 @@ Paste this as your first message:
 >
 >    Keep code changes inside the driver layer as far as possible.
 >
-> My preferences: never add a `Co-Authored-By` or any other AI attribution trailer to commit messages. Commit and push only when I ask. Ask me before building rather than silently working around something that conflicts with how Guidepup or NVDA actually work.
+> My preferences: never add a `Co-Authored-By` or any other AI attribution trailer to commit messages. Commit and push only when I ask. Don't publish to npm: the first release will be 0.2.0, after Phase B, and I'll say when. Ask me before building rather than silently working around something that conflicts with how Guidepup or NVDA actually work.
 
 ## 3. State at handoff
 
 - **Phase A is complete.** 351 tests in 30 files pass. `pnpm lint`, `pnpm typecheck`, and `pnpm build` are clean, the built CLI passes a smoke test against the fixture, and the packed tarball installs and runs.
 - **CI** (`.github/workflows/ci.yml`) runs lint, type checks, tests, a build, and a CLI smoke test on Ubuntu, macOS, and Windows with Node 22 and 24, and all six jobs passed. On Windows it also checks under Git Bash that `--page /about` is caught as a rewritten path. If the latest run on `main` shows a failure, fix that first.
-- **Publishing:** `./publish.sh` (see the README's "Publishing to npm"). Nothing has been published to npm yet.
+- **Publishing: wait until Phase B is done** (decided 2026-09-26). Nothing is on npm, and 0.1.0 won't be published, because its default NVDA driver doesn't exist yet. Publish Phase B as 0.2.0:
+  1. Add a `## [0.2.0]` entry to `CHANGELOG.md`.
+  2. Run `./publish.sh --dry-run minor`, then `./publish.sh minor`.
+
+  A bare `./publish.sh` would try to publish 0.1.0; its tag is on an older commit, so the script would stop.
 - **Pinned for Phase B**, current on npm on 2026-09-26: `@guidepup/guidepup` 0.34.0, `@guidepup/setup` 0.28.0, `@guidepup/playwright` 0.19.1 (only its `navigateToWebContent` code is ported, not the package). Phase A doesn't install Guidepup yet. `playwright` is a devDependency today (used by the report's axe test) and should become a dependency in Phase B.
 - **Stubs waiting for Phase B:**
   - `createDriver` in `src/drivers/index.ts` throws "built in Phase B" for `guidepup` on Windows.
