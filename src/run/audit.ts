@@ -155,6 +155,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
         ...(options.fetch ? { fetch: options.fetch } : {}),
         logger,
       });
+      if (resolved.pages.length === 0) throw noPagesError(resolved.source, resolved.skipped.length);
       const createdAt = now();
       run = {
         schemaVersion: 1,
@@ -248,7 +249,8 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   let outcome: RunAuditResult["outcome"];
   try {
     for (const note of await ctx.driver.cleanupStale()) logger.info(`Cleaned up: ${note}`);
-    await driverSession.start();
+    throwIfAborted(ctx.signal);
+    await driverSession.start(ctx.signal);
     const info = await ctx.driver.getEnvironmentInfo();
     const environment: EnvironmentRecord = {
       ...info,
@@ -310,7 +312,13 @@ async function transcribePages(
   environment: EnvironmentRecord,
 ): Promise<"completed" | "stopped"> {
   const { run, config, outDir, logger, signal, now } = ctx;
-  const todo = run.pages.filter((page) => page.status === "pending" || page.status === "failed");
+  // Pages never tried come first; pages that failed in an earlier session are retried last, so a
+  // resumed run always makes progress even if those pages fail again.
+  const retried = new Set(run.pages.filter((page) => page.status === "failed"));
+  const todo = [
+    ...run.pages.filter((page) => page.status === "pending"),
+    ...run.pages.filter((page) => retried.has(page)),
+  ];
   const durations: number[] = [];
   let consecutiveFailures = 0;
   let sinceRestart = 0;
@@ -325,7 +333,7 @@ async function transcribePages(
   for (const [index, page] of todo.entries()) {
     throwIfAborted(signal);
     if (sinceRestart >= config.restartEvery) {
-      await driverSession.restart(`every ${config.restartEvery} pages`);
+      await driverSession.restart(`every ${config.restartEvery} pages`, signal);
       sinceRestart = 0;
     }
     const startedAt = isoLocal(now());
@@ -371,11 +379,14 @@ async function transcribePages(
       }),
     );
 
-    if (outcome.status === "failed") {
-      consecutiveFailures++;
+    // An HTTP error means the site answered: the screen reader and browser are fine, so it neither
+    // counts toward stopping the run nor needs a restart. A page that already failed in an earlier
+    // session doesn't count either, or a resumed run could never get past it.
+    if (outcome.status === "failed" && outcome.failure === "environment") {
+      if (!retried.has(page)) consecutiveFailures++;
       if (consecutiveFailures >= config.maxConsecutiveFailures) return "stopped";
       if (index < todo.length - 1) {
-        await driverSession.restart("after a failed page");
+        await driverSession.restart("after a failed page", signal);
         sinceRestart = 0;
       }
     } else if (outcome.status === "done") {
@@ -431,6 +442,8 @@ function applyOutcome(
   config: VoicecapConfig,
 ): void {
   page.status = outcome.status;
+  if (outcome.failure) page.failure = outcome.failure;
+  else delete page.failure;
   page.attempts += outcome.attempts;
   page.session = session;
   page.startedAt = startedAt;
@@ -469,6 +482,20 @@ function skipText(outcome: PageOutcome): string {
   if (skip.reason === "redirect-off-origin")
     return `redirected to another origin (${skip.finalUrl ?? "?"})`;
   return skip.reason;
+}
+
+/** Nothing left to transcribe: say why, instead of "completing" an empty run. */
+function noPagesError(source: RunJson["source"], skipped: number): UsageError {
+  const parts = [`${source.listed} listed`];
+  if (source.invalid.length > 0) parts.push(`${source.invalid.length} invalid`);
+  if (source.duplicates > 0) parts.push(`${source.duplicates} duplicates`);
+  if (skipped > 0) parts.push(`${skipped} skipped (another origin, or not HTML)`);
+  if (source.excludedByFilter > 0)
+    parts.push(`${source.excludedByFilter} left out by --include/--exclude`);
+  if (source.excludedByLimit > 0) parts.push(`${source.excludedByLimit} left out by --limit`);
+  return new UsageError(
+    `No pages to transcribe (${parts.join(", ")}). Check --site, the page source, and any --include or --exclude patterns.`,
+  );
 }
 
 function checkPasses(passes: readonly string[]): PassName[] {

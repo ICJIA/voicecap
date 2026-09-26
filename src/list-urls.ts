@@ -2,11 +2,10 @@ import path from "node:path";
 
 import { resolvePages } from "./pages/resolve.js";
 import { samplePages, type SampleGroup } from "./pages/sample.js";
-import { parseSiteUrl } from "./pages/url.js";
+import { displayPath, parseSiteUrl } from "./pages/url.js";
 import { writeFileAtomic } from "./util/atomic-write.js";
 import { UsageError } from "./util/errors.js";
 import type { Logger } from "./util/log.js";
-import { displayPath } from "./pages/url.js";
 
 export interface ListUrlsOptions {
   /** The site, as given to --site. */

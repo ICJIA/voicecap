@@ -199,6 +199,16 @@ describe("tab pass", () => {
     expect(result.stopReason).toBe("left-document");
   });
 
+  it("doesn't mistake distinct controls that sound the same for a focus trap", async () => {
+    const downloads = Array.from({ length: 12 }, (_, i) => ({
+      spoken: "Download, link",
+      focused: element("Download", { href: `/files/report-${i}.pdf`, inMain: true }),
+    }));
+    const result = await run({ stops: downloads }, "tab");
+    expect(result.stopReason).toBe("left-document");
+    expect(result.steps).toHaveLength(13);
+  });
+
   it("stops a one-element focus trap at the repeat safety net", async () => {
     const trap = Array.from({ length: 50 }, () => ({
       spoken: "Close, button",

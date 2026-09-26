@@ -4,7 +4,7 @@ import { UsageError } from "../util/errors.js";
 import { localStamp } from "../util/time.js";
 import { runDir, runsDir } from "./paths.js";
 
-const MAX_NAME = 40;
+const MAX_NAME = 24;
 
 /** --run-name as a folder-safe suffix: letters, digits, ".", "_" and "-"; spaces become "-". */
 export function sanitizeRunName(name: string): string {

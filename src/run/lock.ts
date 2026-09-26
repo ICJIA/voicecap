@@ -38,7 +38,9 @@ export async function acquireRunLock(outDir: string): Promise<() => Promise<void
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const holder = await readLock(file);
-      if (holder && holder.host === os.hostname() && isAlive(holder.pid)) {
+      const bootedAt = Date.now() - os.uptime() * 1000;
+      const beforeBoot = holder !== null && Date.parse(holder.startedAt) < bootedAt;
+      if (holder && holder.host === os.hostname() && !beforeBoot && isAlive(holder.pid)) {
         throw new EnvironmentError(
           `Another voicecap run (process ${holder.pid}, started ${holder.startedAt}) is using ${outDir}. Wait for it to finish, or stop it first.`,
         );

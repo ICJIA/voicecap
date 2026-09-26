@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createJiti } from "jiti";
 
@@ -75,11 +76,23 @@ async function readConfigFile(file: string): Promise<unknown> {
     if (file.endsWith(".json")) {
       return JSON.parse((await readFile(file, "utf8")).replace(/^\uFEFF/, ""));
     }
-    const jiti = createJiti(import.meta.url, { fsCache: false, moduleCache: false });
+    const jiti = createJiti(import.meta.url, {
+      fsCache: false,
+      moduleCache: false,
+      // Run with npx, the site folder has no node_modules: point the package's own name at this
+      // copy, so `import { defineConfig } from "@icjia/voicecap"` works in any config.
+      alias: { "@icjia/voicecap": selfEntry() },
+    });
     return await jiti.import(file, { default: true });
   } catch (error) {
     throw new ConfigError(`Could not load ${file}: ${errorMessage(error)}`, { cause: error });
   }
+}
+
+/** voicecap's entry point: dist/index.js when installed, src/index.ts when running from source. */
+function selfEntry(): string {
+  const built = fileURLToPath(new URL("../index.js", import.meta.url));
+  return existsSync(built) ? built : fileURLToPath(new URL("../index.ts", import.meta.url));
 }
 
 function describe(source: string | null): string {

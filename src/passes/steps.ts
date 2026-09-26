@@ -1,5 +1,6 @@
 import type { Speech } from "../drivers/types.js";
 import type { DriverCommand, StepRecord } from "../model.js";
+import { formatDuration } from "../util/time.js";
 
 /** A driver call took longer than its timeout; the page runner restarts the driver and retries. */
 export class StepTimeoutError extends Error {
@@ -7,7 +8,7 @@ export class StepTimeoutError extends Error {
     readonly what: string,
     readonly ms: number,
   ) {
-    super(`${what} did not finish within ${Math.round(ms / 1000)}s`);
+    super(`${what} did not finish within ${formatDuration(ms)}`);
     this.name = "StepTimeoutError";
   }
 }

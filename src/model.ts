@@ -159,10 +159,18 @@ export interface FlagResult {
   count?: number;
 }
 
+/**
+ * Why a page failed. "page": the site answered with an HTTP error, so the screen reader and
+ * browser are fine. "environment": a timeout or a driver error, which may mean they aren't.
+ */
+export type FailureKind = "page" | "environment";
+
 export interface PageRecord extends PageRef {
   /** Line in the page list file, when the source is a file. */
   line?: number;
   status: PageStatus;
+  /** Set when status is "failed". */
+  failure?: FailureKind;
   attempts: number;
   finalUrl?: string;
   httpStatus?: number | null;

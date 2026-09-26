@@ -6,7 +6,7 @@ import path from "node:path";
 const RETRYABLE_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 
 export interface AtomicWriteOptions {
-  /** How long to keep retrying a refused rename. Default 2 s. */
+  /** How long to keep retrying a refused rename. Default 10 s (antivirus scans, sync clients). */
   retryForMs?: number;
   /** Replaces fs.rename (tests). */
   rename?: (from: string, to: string) => Promise<void>;
@@ -48,7 +48,7 @@ async function renameWithRetry(
   options: AtomicWriteOptions,
 ): Promise<void> {
   const rename = options.rename ?? ((a: string, b: string) => fsp.rename(a, b));
-  const deadline = Date.now() + (options.retryForMs ?? 2000);
+  const deadline = Date.now() + (options.retryForMs ?? 10_000);
   let delay = 25;
   for (;;) {
     try {

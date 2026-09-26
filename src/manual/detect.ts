@@ -43,8 +43,9 @@ export function splitLines(text: string): string[] {
 }
 
 /**
- * An NVDA log if a log-entry header appears among the first 20 non-empty lines (an excerpt may
- * start mid-entry); otherwise Speech Viewer text, which has no such headers.
+ * An NVDA log if a log-entry header appears among the first 2,000 non-empty lines (an excerpt may
+ * start mid-entry, even inside a long traceback); otherwise Speech Viewer text, which has no such
+ * headers. Mistaking a log for Speech Viewer text would skip the privacy warning, so look far.
  */
 export function detectManualFormat(text: string): ManualInputFormat {
   let seen = 0;
@@ -52,7 +53,7 @@ export function detectManualFormat(text: string): ManualInputFormat {
     if (line.trim() === "") continue;
     if (LOG_HEADER.test(line)) return "nvda-log";
     seen += 1;
-    if (seen >= 20) break;
+    if (seen >= 2000) break;
   }
   return "speech-viewer";
 }

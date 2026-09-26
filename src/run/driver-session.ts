@@ -1,5 +1,5 @@
 import type { ScreenReaderDriver } from "../drivers/types.js";
-import { withTimeout } from "../passes/steps.js";
+import { InterruptedError, withTimeout } from "../passes/steps.js";
 import { EnvironmentError, errorMessage, VoicecapError } from "../util/errors.js";
 import type { Logger } from "../util/log.js";
 
@@ -13,15 +13,16 @@ export class DriverSession {
     private readonly logger: Logger,
   ) {}
 
-  async start(): Promise<void> {
+  async start(signal?: AbortSignal): Promise<void> {
     try {
       await withTimeout(
         `Starting the ${this.driver.name} driver`,
         () => this.driver.start(),
         this.startTimeoutMs,
+        signal,
       );
     } catch (error) {
-      if (error instanceof VoicecapError) throw error;
+      if (error instanceof VoicecapError || error instanceof InterruptedError) throw error;
       throw new EnvironmentError(
         `Could not start the ${this.driver.name} driver: ${errorMessage(error)}`,
         { cause: error },
@@ -30,12 +31,12 @@ export class DriverSession {
   }
 
   /** Stop and start again: after a timeout, a failed page, or every N pages. */
-  async restart(reason: string): Promise<void> {
+  async restart(reason: string, signal?: AbortSignal): Promise<void> {
     this.logger.info(`Restarting the screen reader and browser (${reason}).`);
     await this.driver.stop().catch((error: unknown) => {
       this.logger.warn(`Stopping the ${this.driver.name} driver failed: ${errorMessage(error)}`);
     });
-    await this.start();
+    await this.start(signal);
   }
 
   /** Final stop. Safe to call more than once, including while a signal is being handled. */

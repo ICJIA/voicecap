@@ -160,9 +160,7 @@ describe("importing an NVDA log", () => {
   it("warns about privacy on every log import, and about typing it finds", async () => {
     const { session } = await importLog({ date: "2026-09-25" });
     expect(logger.text("warn")).toContain(LOG_PRIVACY_WARNING);
-    expect(logger.text("warn")).toMatch(
-      /typed into form fields \(15 keystrokes\).*--redact-typing/s,
-    );
+    expect(logger.text("warn")).toMatch(/typed into form fields.*--redact-typing/s);
     expect(session.warnings).toHaveLength(1);
     expect(session.warnings[0]).toMatch(/--redact-typing/);
     expect(session.entries.map((entry) => entry.text)).toContain("kb(desktop):g");
@@ -369,5 +367,52 @@ describe("the files on disk", () => {
       "flawed-0123456789",
       "home",
     ]);
+  });
+});
+
+describe("redaction with a --from / --to window", () => {
+  /** A log where the password field is announced before the window and typed into inside it. */
+  function passwordLog(): string {
+    const key = (time: string, gesture: string) =>
+      `IO - inputCore.InputManager.executeGesture (${time}) - winInputHook (7496):\r\nInput: kb(desktop):${gesture}`;
+    const speak = (time: string, ...items: string[]) =>
+      `IO - speech.speech.speak (${time}) - MainThread (5140):\r\nSpeaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), ${items
+        .map((item) => `'${item}'`)
+        .join(", ")}]`;
+    return (
+      [
+        "INFO - __main__ (10:00:00.000) - MainThread (5140):\r\nStarting NVDA version 2026.2 x86",
+        key("10:04:58.000", "tab"),
+        speak("10:04:58.050", "Password", "password edit", "protected"),
+        ...[..."hunter2"].flatMap((char, i) => [
+          key(`10:05:0${i + 1}.000`, char),
+          speak(`10:05:0${i + 1}.040`, "star"),
+        ]),
+        key("10:05:09.000", "tab"),
+        speak("10:05:09.050", "Sign in", "button"),
+      ].join("\r\n") + "\r\n"
+    );
+  }
+
+  it("redacts typing into a field entered before the window starts", async () => {
+    await writeFile(logFile, passwordLog());
+    const { session, files } = await importLog({
+      redactTyping: true,
+      from: "10:05",
+      date: "2026-09-26",
+    });
+    const texts = session.entries.map((entry) => entry.text);
+    for (const char of "hunter2") expect(texts).not.toContain(char);
+    expect(texts).toContain(REDACTED_TEXT);
+    expect(session.redaction.keystrokes).toBeGreaterThan(0);
+    const txt = await readFile(files.txt, "utf8");
+    expect(txt).not.toMatch(/\[h\]|\[u\]|hunter/);
+    expect(txt).toContain("Sign in, button");
+  });
+
+  it("warns about typing inside the window even when the field was entered before it", async () => {
+    await writeFile(logFile, passwordLog());
+    await importLog({ from: "10:05", date: "2026-09-26" });
+    expect(logger.text("warn")).toMatch(/typed into form fields.*--redact-typing/s);
   });
 });

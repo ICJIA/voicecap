@@ -1,6 +1,6 @@
 import type { FocusedElement, ScreenReaderDriver } from "../drivers/types.js";
 import type { StopReason } from "../model.js";
-import { sameSpeech, type StepRecorder } from "./steps.js";
+import { normalizeSpeech, type StepRecorder } from "./steps.js";
 
 export interface TabPassOptions {
   cap: number;
@@ -44,10 +44,23 @@ export async function tabPass(
       },
     );
     if (step.inDocument === false) return { stopReason: "left-document", initialFocus, warnings };
-    run = prev !== null && sameSpeech(step.spoken, prev) ? run + 1 : 1;
+    // A focus trap keeps focus on the same element. Distinct controls that sound the same (a
+    // column of "Download, link") differ in their element, so they aren't repeats.
+    const current = focusSignature(step.spoken, step.focused ?? null);
+    run = prev !== null && current === prev ? run + 1 : 1;
     if (run >= options.repeatLimit) return { stopReason: "repeat-limit", initialFocus, warnings };
-    prev = step.spoken;
+    prev = current;
   }
+}
+
+function focusSignature(spoken: string, focused: FocusedElement | null): string {
+  return JSON.stringify([
+    normalizeSpeech(spoken),
+    focused?.tag,
+    focused?.role,
+    focused?.name,
+    focused?.href,
+  ]);
 }
 
 export function describeElement(element: FocusedElement): string {

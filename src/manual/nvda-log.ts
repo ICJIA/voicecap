@@ -3,8 +3,13 @@ import { LOG_HEADER, splitLines } from "./detect.js";
 import { ReprParseError, parseReprList, scavengeStrings } from "./python-repr.js";
 
 const DAY_MS = 86_400_000;
-/** A backwards jump in time of day larger than this is a midnight crossing, not thread jitter. */
-const CROSSING_THRESHOLD_MS = 12 * 3_600_000;
+/**
+ * A backwards jump in time of day larger than this is a midnight crossing, not thread jitter or a
+ * daylight-saving change (one hour). NVDA often runs for days, so an overnight gap (17:00, then
+ * 09:00 the next morning) is a crossing too. A gap of more than a whole day can't be seen in
+ * times of day at all: check the session date, or give --date.
+ */
+const CROSSING_THRESHOLD_MS = 2 * 3_600_000;
 
 export interface LogEntry {
   level: string;

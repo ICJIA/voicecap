@@ -170,6 +170,7 @@ function readLog(text: string, context: ReadContext & { warnings: string[] }): R
   logger.warn(LOG_PRIVACY_WARNING);
 
   const selected = selectWindow(parsed.events, parsed.startMs ?? 0, from, to);
+  const inWindow = new Set(selected);
   const shown = selected.filter(isTranscribed);
   const first = shown[0];
   const last = shown.at(-1);
@@ -195,19 +196,30 @@ function readLog(text: string, context: ReadContext & { warnings: string[] }): R
   const at = (event: LogEvent) => `${addDays(dayZero, event.day)}T${event.time}`;
 
   const redact = Boolean(options.redactTyping);
-  const typing = processTyping(selected, {
+  // Track focus across the whole log, then apply the --from/--to window: a field entered before
+  // the window starts is still a field, and what's typed into it must still be redacted.
+  const typingOptions = {
     editableRoles: options.config.manual.editableRoles,
     focusKeys: options.config.manual.focusKeys,
-    redact,
-  });
-  if (!redact && typing.typingDetected > 0) {
+  };
+  const detected = processTyping(parsed.events, { ...typingOptions, redact: true });
+  const typing = redact
+    ? detected
+    : processTyping(parsed.events, { ...typingOptions, redact: false });
+  const entries = typing.entries.filter((entry) => inWindow.has(entry.event));
+  const typingInWindow = detected.entries.some(
+    (entry) => entry.redacted && inWindow.has(entry.event),
+  );
+  if (!redact && typingInWindow) {
     const message =
-      `This log seems to contain text typed into form fields (${typing.typingDetected} ` +
-      "keystrokes), which may include passwords or personal data. The clean transcript and the " +
-      "raw copy keep it. Import it again with --redact-typing, and never commit an unredacted log.";
+      "This log seems to contain text typed into form fields, which may include passwords or " +
+      "personal data. The clean transcript and the raw copy keep it. Import it again with " +
+      "--redact-typing, and never commit an unredacted log.";
     logger.warn(message);
     warnings.push(message);
   }
+  const markers = (type: "key" | "speech") =>
+    entries.filter((entry) => entry.redacted && entry.type === type).length;
 
   return {
     baseId: `${addDays(dayZero, first.day)}_${first.time.slice(0, 2)}${first.time.slice(3, 5)}`,
@@ -223,11 +235,11 @@ function readLog(text: string, context: ReadContext & { warnings: string[] }): R
     nvdaVersion: parsed.nvdaVersion,
     redaction: {
       applied: redact,
-      keystrokes: typing.redactedKeystrokes,
-      speech: typing.redactedSpeech,
+      keystrokes: markers("key"),
+      speech: markers("speech"),
       note: redact ? REDACTION_NOTE : null,
     },
-    entries: typing.entries.map((entry) => ({
+    entries: entries.map((entry) => ({
       at: at(entry.event),
       type: entry.type,
       text: entry.text,

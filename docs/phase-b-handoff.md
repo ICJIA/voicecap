@@ -1,6 +1,6 @@
 # Phase B handoff: picking up on Windows
 
-Phase A was finished on macOS on 2026-09-26 and pushed to the `phase-a` branch of https://github.com/cschweda/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
+Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/cschweda/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
 
 ## 1. Set up the Windows machine (you, before starting Claude Code)
 
@@ -18,8 +18,7 @@ node --version                      # needs 22.12 or later
 npm install -g pnpm@10              # per-user; no admin needed
 npm install -g @anthropic-ai/claude-code   # or follow https://docs.claude.com/en/docs/claude-code/setup
 git clone https://github.com/cschweda/voicecap.git
-cd voicecap
-git checkout phase-a
+cd voicecap                         # main has Phase A (tag v0.1.0)
 claude                              # start Claude Code in the repo
 ```
 
@@ -29,7 +28,7 @@ Close any copy of NVDA you have running before testing; voicecap shuts NVDA down
 
 Paste this as your first message:
 
-> I'm continuing work on **voicecap** (this repo, branch `phase-a`). Phase A is done: everything except the real NVDA driver, built on macOS with the replay driver. I'm now on my Windows machine, in Git Bash inside Windows Terminal, as a normal (non-admin) user, to do **Phase B**.
+> I'm continuing work on **voicecap** (this repo; Phase A is on `main`, tagged `v0.1.0`). Phase A is done: everything except the real NVDA driver, built on macOS with the replay driver. I'm now on my Windows machine, in Git Bash inside Windows Terminal, as a normal (non-admin) user, to do **Phase B**.
 >
 > 1. Read `docs/phase-b-handoff.md` first. Then read `docs/build-prompt.md` (the spec; Phase B is under "Deliverables"), `docs/plan.md` (the approved plan; I accepted all its recommendations), `README.md`, and `CHANGELOG.md`.
 > 2. Check the environment and run the Phase A checks before changing anything: `pnpm install`, `pnpm exec playwright install chromium`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Tell me about any Windows-specific failures.
@@ -45,8 +44,9 @@ Paste this as your first message:
 
 ## 3. State at handoff
 
-- **Phase A is complete.** 343 tests in 30 files pass on macOS (Node 22.22). `pnpm lint`, `pnpm typecheck`, and `pnpm build` are clean, and the built CLI passes a smoke test against the fixture.
-- **CI** (`.github/workflows/ci.yml`) runs lint, type checks, tests, a build, and a CLI smoke test on Ubuntu, macOS, and Windows with Node 22 and 24. On Windows it also checks under Git Bash that `--page /about` is caught as a rewritten path. Check the latest run for the `phase-a` branch on GitHub: any Windows failure there is the first thing to fix.
+- **Phase A is complete.** 351 tests in 30 files pass. `pnpm lint`, `pnpm typecheck`, and `pnpm build` are clean, the built CLI passes a smoke test against the fixture, and the packed tarball installs and runs.
+- **CI** (`.github/workflows/ci.yml`) runs lint, type checks, tests, a build, and a CLI smoke test on Ubuntu, macOS, and Windows with Node 22 and 24, and all six jobs passed. On Windows it also checks under Git Bash that `--page /about` is caught as a rewritten path. If the latest run on `main` shows a failure, fix that first.
+- **Publishing:** `./publish.sh` (see the README's "Publishing to npm"). Nothing has been published to npm yet.
 - **Pinned for Phase B**, current on npm on 2026-09-26: `@guidepup/guidepup` 0.34.0, `@guidepup/setup` 0.28.0, `@guidepup/playwright` 0.19.1 (only its `navigateToWebContent` code is ported, not the package). Phase A doesn't install Guidepup yet. `playwright` is a devDependency today (used by the report's axe test) and should become a dependency in Phase B.
 - **Stubs waiting for Phase B:**
   - `createDriver` in `src/drivers/index.ts` throws "built in Phase B" for `guidepup` on Windows.
@@ -87,6 +87,27 @@ Paste this as your first message:
   - a machine-wide lock (only one NVDA);
   - cleaning up NVDA and Chrome processes left by a crash (`driver.cleanupStale()`);
   - the warning printed before NVDA starts, because it shuts down any running NVDA.
+
+### Follow-ups from the Phase A code review
+
+An independent review of Phase A found two critical and four important issues, all fixed and tested before `v0.1.0`:
+- HTTP errors no longer count toward the consecutive-failure stop, and resumed runs make progress.
+- Redaction now tracks focus across the whole log when `--from`/`--to` is used.
+- Runs with no pages are refused.
+- Overnight gaps in logs count as midnight crossings.
+- A config can import `@icjia/voicecap` under npx.
+- The tab pass's safety net now compares the focused element.
+
+Still open (smaller, deliberately left for later):
+- **Concurrent reviews.** `reviews.json` has no protection against two `review` commands at once: the last writer wins, so an entry can be lost. Add a short lock, or re-read just before the rename.
+- **Large runs.** At 2,000 pages, regenerating the live report after each `review` rewrites every compare diff, and after a flag-rule change it re-reads every transcript. Cache both, outside the sealed run folder.
+- **Ctrl+C during the sitemap fetch** isn't honored (it only takes seconds). Pass the signal into `fetch`.
+- **Stop rules exist twice.** `scripts/build-replay-fixture.ts` has its own copy of them; keep it in sync with `src/passes/`, or import from there.
+- **Same-name buttons.** In the tab pass, distinct buttons with the same name and no link target still look like repeats to the safety net.
+- **Worth deciding:**
+  - stop-rule settings (`repeatLimit`, `read.endConfirmations`) aren't in the resume hash (compare does note config differences);
+  - two listed URLs that redirect to the same page are transcribed twice;
+  - `--site http://` for an https-only site skips every page when it loads, instead of warning up front.
 
 ### Where things are
 

@@ -146,6 +146,21 @@ describe("parseNvdaLog", () => {
     expect(result.crossings).toBe(0);
     expect(result.events.map((event) => event.day)).toEqual([0, 0]);
   });
+
+  it("counts an overnight gap as a new day, but not a daylight-saving hour", () => {
+    const entry = (time: string) => [
+      `IO - inputCore.InputManager.executeGesture (${time}) - winInputHook (2):`,
+      "Input: kb(desktop):downArrow",
+    ];
+    const overnight = parseNvdaLog(
+      [...entry("16:59:00.000"), ...entry("17:00:00.000"), ...entry("09:00:00.000")].join("\n"),
+    );
+    expect(overnight.crossings).toBe(1);
+    expect(overnight.events.map((event) => event.day)).toEqual([0, 0, 1]);
+
+    const fallBack = parseNvdaLog([...entry("01:59:30.000"), ...entry("01:00:10.000")].join("\n"));
+    expect(fallBack.crossings).toBe(0);
+  });
 });
 
 describe("normalizeSpeechItem", () => {

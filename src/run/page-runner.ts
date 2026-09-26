@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import type { PageInfo } from "../drivers/types.js";
 import type {
   EnvironmentRecord,
+  FailureKind,
   FileHash,
   PageRecord,
   PassName,
@@ -41,6 +42,8 @@ export interface PageContext {
 
 export interface PageOutcome {
   status: "done" | "failed" | "skipped";
+  /** For failed pages: an HTTP error ("page") or a timeout or driver error ("environment"). */
+  failure?: FailureKind;
   attempts: number;
   durationMs: number;
   passes: Partial<Record<PassName, PassSummary>>;
@@ -54,6 +57,8 @@ export interface PageOutcome {
 
 interface Attempt {
   kind: "done" | "failed" | "skipped" | "retry";
+  /** For failures and retries: whether the site or the environment failed. */
+  failure?: FailureKind;
   /** For retries: whether the screen reader and browser need restarting first. */
   restart?: boolean;
   error?: string;
@@ -81,12 +86,15 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     const result = await runAttempt(ctx);
     if (result.kind === "retry" && attempt < MAX_ATTEMPTS) {
       errors.push(`Attempt ${attempt} failed (${result.error ?? "unknown error"}); retrying.`);
-      if (result.restart) await ctx.session.restart(`retrying ${ctx.page.url}`);
+      if (result.restart) await ctx.session.restart(`retrying ${ctx.page.url}`, ctx.signal);
       continue;
     }
     if (result.error) errors.push(result.error);
     return {
       status: result.kind === "retry" ? "failed" : result.kind,
+      ...(result.kind === "retry" || result.kind === "failed"
+        ? { failure: result.failure ?? "environment" }
+        : {}),
       attempts: attempt,
       durationMs: Math.round(clock() - started),
       passes: result.passes,
@@ -104,7 +112,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const { page, session } = ctx;
   const dir = pageDir(ctx.outDir, ctx.run.id, page.slug);
   // A retry (or a resumed page) starts from an empty folder, so no stale file survives.
-  await rm(dir, { recursive: true, force: true });
+  await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 
   const pageTimeout = new AbortController();
   const signal = AbortSignal.any([ctx.signal, pageTimeout.signal]);
@@ -141,10 +149,16 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         const skip = skipFor(ctx, info);
         if (skip) return { ...attempt, kind: "skipped", skip };
         if (info.status !== null && info.status >= 500) {
-          return { ...attempt, kind: "retry", restart: false, error: `HTTP ${info.status}` };
+          return {
+            ...attempt,
+            kind: "retry",
+            restart: false,
+            failure: "page",
+            error: `HTTP ${info.status}`,
+          };
         }
         if (info.status !== null && info.status >= 400) {
-          return { ...attempt, kind: "failed", error: `HTTP ${info.status}` };
+          return { ...attempt, kind: "failed", failure: "page", error: `HTTP ${info.status}` };
         }
       } else if (info.finalUrl !== attempt.finalUrl) {
         warnings.push(

@@ -200,6 +200,22 @@ describe("a complete run", () => {
   });
 });
 
+describe("nothing to transcribe", () => {
+  it("stops with a usage error, before creating a run or starting the driver", async () => {
+    const dir = await setup(["https://www.example.com/elsewhere", "/files/report.pdf"]);
+    const driver = new ScriptedDriver(sitePages());
+    await expect(runAudit(options(dir, driver))).rejects.toThrow(
+      /No pages to transcribe \(2 listed, 2 skipped/,
+    );
+    await expect(
+      runAudit({ ...options(dir, driver), pages: "pages.json", include: ["nwes/*"] }),
+    ).rejects.toThrow(/No pages to transcribe/);
+    expect(driver.starts).toBe(0);
+    expect(existsSync(path.join(outDir(dir), "runs"))).toBe(false);
+    expect(existsSync(path.join(outDir(dir), "latest.txt"))).toBe(false);
+  });
+});
+
 describe("failures", () => {
   it("records a failing page, keeps going, and exits 3", async () => {
     const dir = await setup();
@@ -268,6 +284,45 @@ describe("failures", () => {
     expect(run.status).toBe("incomplete");
     expect(run.sessions[0]?.endReason).toBe("environment-failure");
     expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "pending"]);
+  });
+
+  it("treats HTTP errors as page problems: five 404s in a row don't stop the run", async () => {
+    const missing = ["/gone-1", "/gone-2", "/gone-3", "/gone-4", "/gone-5"];
+    const dir = await setup(["/", ...missing, "/about"]);
+    const driver = new ScriptedDriver([
+      ...sitePages(),
+      ...missing.map((p) => ({ url: `${SITE}${p}`, status: 404 })),
+    ]);
+    const result = await runAudit(options(dir, driver));
+    expect(result).toMatchObject({ outcome: "completed", exitCode: 3, failedPages: 5 });
+    const run = await readRunJson(outDir(dir), result.runId);
+    expect(run.pages.at(-1)?.status).toBe("done");
+    expect(run.pages.filter((p) => p.failure === "page")).toHaveLength(5);
+    expect(driver.starts).toBe(1); // no restarts: the browser and screen reader were fine
+  });
+
+  it("resumes a stopped run past the pages that failed, and can still complete", async () => {
+    const dir = await setup(["/", "/about", "/resources"]);
+    const broken = new Error("NVDA is not responding");
+    const failing = () =>
+      new ScriptedDriver(sitePages({ home: { openError: broken }, about: { openError: broken } }));
+    const stopped = await runAudit({
+      ...options(dir, failing()),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(stopped.outcome).toBe("stopped");
+
+    // Still broken for the same two pages: the pending page goes first, the retries don't count.
+    const second = failing();
+    const resumed = await runAudit({
+      ...options(dir, second),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(resumed).toMatchObject({ runId: stopped.runId, outcome: "completed", exitCode: 3 });
+    expect(second.opened[0]).toBe(`${SITE}/resources`);
+    const run = await readRunJson(outDir(dir), resumed.runId);
+    expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "done"]);
+    expect(run.pages[0]?.failure).toBe("environment");
   });
 
   it("restarts NVDA and the browser every N pages", async () => {

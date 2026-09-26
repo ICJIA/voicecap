@@ -132,6 +132,13 @@ export function environmentDifferences(base: RunJson, run: RunJson): string[] {
       `Run ${before ? run.id : base.id} has no recorded environment, so tooling differences can't be ruled out.`,
     );
   }
+  // Stop rules (repeatLimit, read.endConfirmations, phrasing) live in the config, so a different
+  // config can change transcripts even when nothing else did.
+  if (base.configSha256 && run.configSha256 && base.configSha256 !== run.configSha256) {
+    messages.push(
+      `The voicecap config differs (run ${base.id} → run ${run.id}); stop rules or NVDA settings may have changed.`,
+    );
+  }
   return messages;
 }
 

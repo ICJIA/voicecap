@@ -36,6 +36,16 @@ describe("loadConfig", () => {
     expect(loaded.config.passes).toEqual(DEFAULT_CONFIG.passes);
   });
 
+  it("lets a config import defineConfig from @icjia/voicecap with no node_modules (npx)", async () => {
+    const dir = await tmp();
+    await writeFile(
+      path.join(dir, "voicecap.config.ts"),
+      'import { defineConfig } from "@icjia/voicecap";\nexport default defineConfig({ reviewer: "Alias Test" });\n',
+    );
+    const loaded = await loadConfig({ cwd: dir });
+    expect(loaded.config.reviewer).toBe("Alias Test");
+  });
+
   it("merges nested settings over the defaults, replacing arrays", () => {
     const config = resolveConfig({
       stepCaps: { read: 100 },
