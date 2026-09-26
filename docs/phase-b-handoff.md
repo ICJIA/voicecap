@@ -2,47 +2,14 @@
 
 Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/cschweda/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
 
-## 1. Set up the Windows machine (you, before starting Claude Code)
+## 1. Setting up the machine and starting the chat
 
-In **Windows Terminal → PowerShell**:
+Follow [`WINDOWS-SETUP.md`](../WINDOWS-SETUP.md) at the repository root. It covers:
+- which window to use (PowerShell only to install Git and Node, Git Bash for everything else);
+- each setup step;
+- the prompt to paste into a new Claude Code chat.
 
-```powershell
-winget install --id Git.Git -e
-winget install --id OpenJS.NodeJS.LTS -e
-```
-
-Node's installer is machine-wide, so it may ask for administrator rights once (on a managed PC, IT may need to run it). Close and reopen Windows Terminal, then open a **Git Bash** tab (the `˅` next to the `+` lists it). Everything from here on is in Git Bash, as your normal user:
-
-```bash
-node --version                      # needs 22.12 or later
-npm install -g pnpm@10              # per-user; no admin needed
-npm install -g @anthropic-ai/claude-code   # or follow https://docs.claude.com/en/docs/claude-code/setup
-git clone https://github.com/cschweda/voicecap.git
-cd voicecap                         # main has Phase A (tag v0.1.0)
-claude                              # start Claude Code in the repo
-```
-
-Close any copy of NVDA you have running before testing; voicecap shuts NVDA down when it starts.
-
-## 2. What to say in the new chat
-
-Paste this as your first message:
-
-> I'm continuing work on **voicecap** (this repo; Phase A is on `main`, tagged `v0.1.0`). Phase A is done: everything except the real NVDA driver, built on macOS with the replay driver. I'm now on my Windows machine, in Git Bash inside Windows Terminal, as a normal (non-admin) user, to do **Phase B**.
->
-> 1. Read `docs/phase-b-handoff.md` first. Then read `docs/build-prompt.md` (the spec; Phase B is under "Deliverables"), `docs/plan.md` (the approved plan; I accepted all its recommendations), `README.md`, and `CHANGELOG.md`.
-> 2. Check the environment and run the Phase A checks before changing anything: `pnpm install`, `pnpm exec playwright install chromium`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Tell me about any Windows-specific failures.
-> 3. Before writing the driver, re-verify the Guidepup facts in the build prompt against the exact versions you'll pin. Check npm for newer releases than the ones listed in the handoff, and use the actual method names; don't guess.
-> 4. Then give me a short plan for Phase B and wait for my OK. Phase B means:
->    - the Guidepup NVDA driver (`src/drivers/guidepup-nvda.ts`), `voicecap setup`, and `voicecap doctor`;
->    - running the real driver yourself against the fixture (`pnpm fixture:serve`);
->    - replacing `fixture/replay-run` with real captured output, retuning the flag phrasing, and putting measured run times in the README.
->
->    Keep code changes inside the driver layer as far as possible.
->
-> My preferences: never add a `Co-Authored-By` or any other AI attribution trailer to commit messages. Commit and push only when I ask. Don't publish to npm: the first release will be 0.2.0, after Phase B, and I'll say when. Ask me before building rather than silently working around something that conflicts with how Guidepup or NVDA actually work.
-
-## 3. State at handoff
+## 2. State at handoff
 
 - **Phase A is complete.** 351 tests in 30 files pass. `pnpm lint`, `pnpm typecheck`, and `pnpm build` are clean, the built CLI passes a smoke test against the fixture, and the packed tarball installs and runs.
 - **CI** (`.github/workflows/ci.yml`) runs lint, type checks, tests, a build, and a CLI smoke test on Ubuntu, macOS, and Windows with Node 22 and 24, and all six jobs passed. On Windows it also checks under Git Bash that `--page /about` is caught as a rewritten path. If the latest run on `main` shows a failure, fix that first.

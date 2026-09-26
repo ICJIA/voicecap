@@ -500,7 +500,7 @@ pnpm fixture:replay  # regenerate fixture/replay-run from fixture/replay-src
 
 `fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a Speech Viewer capture, an NVDA log excerpt, and a hand-written replay run; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows.
 
-`docs/build-prompt.md` is the specification, `docs/plan.md` the approved plan, and `docs/phase-b-handoff.md` explains how to continue with Phase B on Windows.
+`docs/build-prompt.md` is the specification, `docs/plan.md` the approved plan, and `docs/phase-b-handoff.md` explains how to continue with Phase B on Windows. `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
 
 ### Publishing to npm
 
