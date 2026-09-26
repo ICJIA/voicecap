@@ -1,0 +1,4 @@
+url,label,template,notes
+/,“Home” – FY27,home,Café notes
+/duplicates/,Duplicate lines – “Back to top”,content,
+http://127.0.0.1:4747/flawed/,Flawed – résumé page,content,naïve links

@@ -1,1 +1,8 @@
 * text=auto eol=lf
+*.pdf binary
+
+# Fixtures that must keep their Windows line endings (CRLF) or Windows-1252 encoding.
+fixture/pages.csv -text
+fixture/pages-windows-1252.csv -text
+fixture/manual/speech-viewer.txt -text
+fixture/manual/nvda-io-log.txt -text

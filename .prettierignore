@@ -1,0 +1,7 @@
+dist/
+coverage/
+fixture/
+transcripts/
+docs/
+pnpm-lock.yaml
+*.md

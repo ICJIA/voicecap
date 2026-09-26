@@ -1,0 +1,76 @@
+{
+  "url": "http://127.0.0.1:4747/",
+  "read": [
+    { "command": "toBottom", "items": ["content info landmark", "© 2026 Voicecap Test Agency"] },
+    { "command": "toTop", "items": ["same page", "link", "Skip to main content"] },
+    ["banner landmark", "same page", "link", "Voicecap Test Agency"],
+    ["Main", "navigation landmark", "list", "with 4 items", "same page", "link", "Home"],
+    ["link", "Duplicate lines"],
+    ["link", "Flawed page"],
+    ["link", "Contact"],
+    ["out of list", "main landmark", "heading", "level 1", "Welcome to the Voicecap Test Agency"],
+    ["This site is a test fixture for voicecap, which records what the NVDA screen reader says on each "],
+    ["page."],
+    ["heading", "level 2", "Search"],
+    ["search landmark", "Search this site ", "edit", "button", "Search"],
+    ["heading", "level 2", "Latest news"],
+    ["list", "with 2 items", "link", "Grant applications open October 1"],
+    ["link", "New research on pretrial services"],
+    ["out of list", "heading", "level 2", "About the agency"],
+    ["The Voicecap Test Agency is fictional. Its pages exist only to exercise voicecap."],
+    ["content info landmark", "© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"]
+  ],
+  "headings": [
+    ["main landmark", "Welcome to the Voicecap Test Agency", "heading", "level 1"],
+    ["Search", "heading", "level 2"],
+    ["Latest news", "heading", "level 2"],
+    ["About the agency", "heading", "level 2"],
+    ["no next heading"]
+  ],
+  "tab": [
+    {
+      "items": ["Skip to main content", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Skip to main content", "inMain": false, "href": "#main" }
+    },
+    {
+      "items": ["banner landmark", "Voicecap Test Agency", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Voicecap Test Agency", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["Main", "navigation landmark", "list", "with 4 items", "Home", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Home", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["Duplicate lines", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Duplicate lines", "inMain": false, "href": "/duplicates/" }
+    },
+    {
+      "items": ["Flawed page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Flawed page", "inMain": false, "href": "/flawed/" }
+    },
+    {
+      "items": ["Contact", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Contact", "inMain": false, "href": "/contact/" }
+    },
+    {
+      "items": ["Search this site", "edit", "blank"],
+      "focused": { "tag": "input", "role": "textbox", "name": "Search this site", "inMain": true, "href": null }
+    },
+    {
+      "items": ["Search", "button"],
+      "focused": { "tag": "button", "role": "button", "name": "Search", "inMain": true, "href": null }
+    },
+    {
+      "items": ["list", "with 2 items", "Grant applications open October 1", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Grant applications open October 1", "inMain": true, "href": "/duplicates/" }
+    },
+    {
+      "items": ["New research on pretrial services", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "New research on pretrial services", "inMain": true, "href": "/flawed/" }
+    },
+    { "items": ["Address and search bar", "edit", "127.0.0.1:4747"], "inDocument": false }
+  ]
+}

@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.1.0",
+  "replayed": false,
+  "run": "2026-09-20_0930_hand-written",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4747/duplicates/",
+    "key": "http://127.0.0.1:4747/duplicates",
+    "slug": "duplicates-65d92f2c5b",
+    "finalUrl": "http://127.0.0.1:4747/duplicates/"
+  },
+  "capturedAt": "2026-09-20T09:31:46-05:00",
+  "durationMs": 12271,
+  "stepCount": 9,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "hand-written",
+      "version": "1"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "152.0.7815.60"
+    },
+    "os": "Windows 11 (hand-written fixture)",
+    "screenReaderSettings": {
+      "speech": {
+        "synth": "oneCore",
+        "symbolLevel": 100,
+        "trustVoiceLanguage": true,
+        "autoLanguageSwitching": true,
+        "autoDialectSwitching": false,
+        "reportLanguage": false
+      },
+      "documentFormatting": {
+        "reportLinks": true,
+        "reportLinkType": true,
+        "reportGraphics": true,
+        "reportHeadings": true,
+        "reportLists": true,
+        "reportLandmarks": true,
+        "reportTables": true,
+        "reportClickable": true,
+        "reportArticles": false,
+        "reportFigures": true,
+        "reportGroupings": true
+      },
+      "virtualBuffers": {
+        "maxLineLength": 100,
+        "linesPerPage": 25,
+        "useScreenLayout": true,
+        "autoPassThroughOnFocusChange": true,
+        "autoPassThroughOnCaretMove": false,
+        "passThroughAudioIndication": true,
+        "autoSayAllOnPageLoad": false,
+        "trapNonCommandGestures": true
+      },
+      "keyboard": {
+        "NVDAModifierKeys": 6,
+        "keyboardLayout": "desktop",
+        "speakTypedCharacters": 1,
+        "speakTypedWords": 0,
+        "speakCommandKeys": false,
+        "speechInterruptForCharacters": true,
+        "speechInterruptForEnter": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4747/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.1.0",
+      "configSha256": "hand-written"
+    },
+    "runId": "2026-09-20_0930_hand-written",
+    "runStartedAt": "2026-09-20T09:30:00-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1478,
+      "offsetMs": 1478,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, Voicecap Test Agency, link",
+      "durationMs": 1303,
+      "offsetMs": 2781,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Voicecap Test Agency",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, list, with 4 items, Home, link",
+      "durationMs": 1582,
+      "offsetMs": 4363,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Home",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Duplicate lines, same page, link",
+      "durationMs": 1354,
+      "offsetMs": 5717,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Duplicate lines",
+        "inMain": false,
+        "href": "/duplicates/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Flawed page, link",
+      "durationMs": 1256,
+      "offsetMs": 6973,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Flawed page",
+        "inMain": false,
+        "href": "/flawed/"
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1301,
+      "offsetMs": 8274,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "out of list, main landmark, Back to top, same page, link",
+      "durationMs": 1257,
+      "offsetMs": 9531,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Back to top",
+        "inMain": true,
+        "href": "#top"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "content info landmark, Back to top, same page, link",
+      "durationMs": 1289,
+      "offsetMs": 10820,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Back to top",
+        "inMain": false,
+        "href": "#top"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "Address and search bar, edit, 127.0.0.1:4747/duplicates/",
+      "durationMs": 1451,
+      "offsetMs": 12271,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

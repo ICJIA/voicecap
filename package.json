@@ -1,0 +1,80 @@
+{
+  "name": "@icjia/voicecap",
+  "version": "0.1.0",
+  "description": "Drive NVDA through a website's pages, save what it speaks as reviewable transcripts, and report automated coverage and human review.",
+  "keywords": [
+    "accessibility",
+    "a11y",
+    "nvda",
+    "screen reader",
+    "transcript",
+    "audit",
+    "guidepup",
+    "playwright"
+  ],
+  "license": "MIT",
+  "author": "Christopher Schweda",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cschweda/voicecap.git"
+  },
+  "type": "module",
+  "bin": {
+    "voicecap": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixture:serve": "tsx scripts/serve-fixture.ts",
+    "fixture:replay": "tsx scripts/build-replay-fixture.ts",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "csv-parse": "^7.0.3",
+    "diff": "^9.0.0",
+    "fast-xml-parser": "^5.11.1",
+    "jiti": "^2.7.0",
+    "jsonc-parser": "^3.3.1",
+    "picomatch": "^4.0.7",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.4",
+    "@types/picomatch": "^4.0.3",
+    "axe-core": "^4.13.0",
+    "eslint": "^10.11.0",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
+  }
+}

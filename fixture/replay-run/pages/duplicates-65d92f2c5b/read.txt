@@ -1,0 +1,42 @@
+# voicecap transcript: read pass
+# Page: http://127.0.0.1:4747/duplicates/
+# Final URL: http://127.0.0.1:4747/duplicates/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-09-20_0930_hand-written (started 2026-09-20T09:30:00-05:00)
+# Captured: 2026-09-20T09:31:07-05:00
+# Steps: 19 (stopped: end reached)
+# Duration: 27s
+# Errors: none
+# Warnings: none
+# Page source: sitemap http://127.0.0.1:4747/sitemap.xml
+# Driver: hand-written 1 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en)
+# Browser: Chrome 152.0.7815.60
+# OS: Windows 11 (hand-written fixture)
+# voicecap: 0.1.0 (config sha256 hand-written)
+# NVDA speech: autoDialectSwitching=false, autoLanguageSwitching=true, reportLanguage=false, symbolLevel=100, synth="oneCore", trustVoiceLanguage=true
+# NVDA documentFormatting: reportArticles=false, reportClickable=true, reportFigures=true, reportGraphics=true, reportGroupings=true, reportHeadings=true, reportLandmarks=true, reportLinkType=true, reportLinks=true, reportLists=true, reportTables=true
+# NVDA virtualBuffers: autoPassThroughOnCaretMove=false, autoPassThroughOnFocusChange=true, autoSayAllOnPageLoad=false, linesPerPage=25, maxLineLength=100, passThroughAudioIndication=true, trapNonCommandGestures=true, useScreenLayout=true
+# NVDA keyboard: NVDAModifierKeys=6, keyboardLayout="desktop", speakCommandKeys=false, speakTypedCharacters=1, speakTypedWords=0, speechInterruptForCharacters=true, speechInterruptForEnter=true
+
+[to bottom] content info landmark, same page, link, Back to top
+[to top] same page, link, Skip to main content
+banner landmark, link, Voicecap Test Agency
+Main, navigation landmark, list, with 4 items, link, Home
+same page, link, Duplicate lines
+link, Flawed page
+link, Contact
+out of list, main landmark, heading, level 1, Duplicate lines
+This page tests how voicecap detects the end of a page.
+heading, level 2, Grant deadlines
+Applications are due October 31.
+Applications are due October 31.
+same page, link, Back to top
+heading, level 2, Questions
+Email the grants unit with any questions.
+content info landmark, © 2026 Voicecap Test Agency
+same page, link, Back to top
+same page, link, Back to top
+same page, link, Back to top

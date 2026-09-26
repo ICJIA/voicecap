@@ -1,0 +1,7 @@
+﻿url,label,template,notes
+/,Home,home,
+/duplicates/,"Duplicate lines, end-of-page test",content,"The last line, ""Back to top"", also appears earlier."
+
+http://127.0.0.1:4747/flawed/,Flawed page,content,"Generic link text,
+an unlabeled button, and no skip link."
+,Row with no URL (invalid on purpose),,

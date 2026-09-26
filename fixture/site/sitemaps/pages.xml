@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- The three fixture pages. -->
+  <url><loc>http://127.0.0.1:4747/</loc></url>
+  <url><loc>http://127.0.0.1:4747/duplicates/</loc></url>
+  <url><loc>http://127.0.0.1:4747/flawed/</loc></url>
+  <!-- Redirects to another origin: recorded as skipped when loaded. -->
+  <url><loc>http://127.0.0.1:4747/contact/</loc></url>
+  <!-- No file extension, but the response is RSS, not HTML: skipped when loaded. -->
+  <url><loc>http://127.0.0.1:4747/feed/</loc></url>
+  <!-- Another origin: skipped before the run. -->
+  <url><loc>https://www.example.com/partner/</loc></url>
+</urlset>

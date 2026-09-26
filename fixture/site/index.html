@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home | Voicecap Test Agency</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+        color: #1b1b1b;
+        background: #ffffff;
+      }
+      a {
+        color: #0b4f9c;
+      }
+      a:focus,
+      button:focus,
+      input:focus {
+        outline: 3px solid #b34700;
+        outline-offset: 2px;
+      }
+      .skip-link {
+        position: absolute;
+        left: -10000px;
+        top: 0;
+        padding: 0.5rem 1rem;
+        background: #ffffff;
+      }
+      .skip-link:focus {
+        left: 0.5rem;
+      }
+      header,
+      nav,
+      main,
+      footer {
+        padding: 0.5rem 1.5rem;
+      }
+      header {
+        background: #eef3f8;
+      }
+      nav ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      footer {
+        border-top: 1px solid #5c5c5c;
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <a href="/">Voicecap Test Agency</a>
+    </header>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/duplicates/">Duplicate lines</a></li>
+        <li><a href="/flawed/">Flawed page</a></li>
+        <li><a href="/contact/">Contact</a></li>
+      </ul>
+    </nav>
+    <main id="main">
+      <h1>Welcome to the Voicecap Test Agency</h1>
+      <p>
+        This site is a test fixture for voicecap, which records what the NVDA screen reader says
+        on each page.
+      </p>
+      <h2>Search</h2>
+      <form role="search" action="/search/">
+        <label for="q">Search this site</label>
+        <input id="q" name="q" type="text" />
+        <button type="submit">Search</button>
+      </form>
+      <h2>Latest news</h2>
+      <ul>
+        <li><a href="/duplicates/">Grant applications open October 1</a></li>
+        <li><a href="/flawed/">New research on pretrial services</a></li>
+      </ul>
+      <h2>About the agency</h2>
+      <p>The Voicecap Test Agency is fictional. Its pages exist only to exercise voicecap.</p>
+    </main>
+    <footer>
+      <p>© 2026 Voicecap Test Agency</p>
+    </footer>
+  </body>
+</html>

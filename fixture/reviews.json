@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "pages": {
+    "http://127.0.0.1:4747/": [
+      {
+        "status": "reviewed",
+        "reviewer": "Sample Reviewer",
+        "at": "2026-09-21T10:15:00-05:00",
+        "note": "Skip link comes first in the tab pass; headings start at level 1.",
+        "run": "2026-09-20_0930_hand-written",
+        "url": "http://127.0.0.1:4747/",
+        "files": {
+          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
+          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
+          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
+          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
+          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
+          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+        },
+        "content": {
+          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
+          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+        }
+      },
+      {
+        "status": "issue",
+        "reviewer": "Second Reviewer",
+        "at": "2026-09-22T14:40:00-05:00",
+        "note": "In the read pass the search field is announced only as \"edit\" after its label; confirm the label with a manual NVDA test.",
+        "run": "2026-09-20_0930_hand-written",
+        "url": "http://127.0.0.1:4747/",
+        "files": {
+          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
+          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
+          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
+          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
+          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
+          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+        },
+        "content": {
+          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
+          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+        }
+      },
+      {
+        "status": "fixed",
+        "reviewer": "Sample Reviewer",
+        "at": "2026-09-24T09:05:00-05:00",
+        "note": "Resolved: the field is announced as \"Search this site, edit\" when it gets focus (tab pass step 7).",
+        "run": "2026-09-20_0930_hand-written",
+        "url": "http://127.0.0.1:4747/",
+        "files": {
+          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
+          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
+          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
+          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
+          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
+          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+        },
+        "content": {
+          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
+          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+        }
+      }
+    ],
+    "http://127.0.0.1:4747/flawed": [
+      {
+        "status": "issue",
+        "reviewer": "Sample Reviewer",
+        "at": "2026-09-21T10:40:00-05:00",
+        "note": "Three \"Read more\" links, an image-only link read as \"chart\", an unlabeled edit and button, no skip link, and the first heading is level 2.",
+        "run": "2026-09-20_0930_hand-written",
+        "url": "http://127.0.0.1:4747/flawed/",
+        "files": {
+          "read.txt": "e56d1f4ddc1173f8aa7df3d89b0992f9eb6e8cf082c7fc0e90d7be21e1b31da7",
+          "read.json": "59dab2dbd7f10a72f569d6504a041b5c2741f46426460f6a9b33f059c3ea4a2b",
+          "headings.txt": "265ccb72f75e68c71b809bccfb895112dbd8112ec4896916d5d5c9233254acda",
+          "headings.json": "50cb3c45cf754324708902260710e023927e3c125591c52c7fecea250a6a43ae",
+          "tab.txt": "f1bc0af05c87dde923bc81a2d75c766905113baaf49b1eda65b3d8cb1be7e417",
+          "tab.json": "b050d537619cc70c1c883d006b64fdd9da231bf4db833128bad7055b550d92dc"
+        },
+        "content": {
+          "read": "5b52926f1cb7735b1be8254b1c1ad1a26223c43a2edb8d4da55a073d4794b8fd",
+          "headings": "a905b68cf278fb73dab6174b678941ba14b55cf001ee225869153f94df2f8c1b",
+          "tab": "296174e3523a9ee08ee71bd1705142d0f89ffcd47a76449aaf878d50909f3abd"
+        }
+      }
+    ],
+    "http://127.0.0.1:4747/duplicates": [
+      {
+        "status": "reviewed",
+        "reviewer": "Second Reviewer",
+        "at": "2026-09-19T16:20:00-05:00",
+        "note": "Reviewed before the footer's \"Back to top\" link was added, so the read transcript has changed since.",
+        "run": "2026-09-19_1600_hand-written",
+        "url": "http://127.0.0.1:4747/duplicates/",
+        "files": {
+          "read.txt": "5f5886605653999b6aae8908912f3d761d2231b3c8b6cc253034385723b4deeb",
+          "read.json": "f35160e6d386d8b3a4bb6dda19c2cc1bcedc653fdf5c53bff242667c5990de47",
+          "headings.txt": "2a271e4a09a3a8e02cd6c99ffe2dbc041b6c0d16570ba467183c95caf7506925",
+          "headings.json": "1af84180076de9dd34fe8fd7cebb89dc90672223da38e5223f496f571e23fdf5",
+          "tab.txt": "4e6fe7f7e86fcc68ee4c44d6ab608be5b829254bf94a9ca21cb05547ac4f2bc8",
+          "tab.json": "04d24e80e21e015a0e081b3844ecfa68ec04fb49c992d69d11e2100e0ebc9f40"
+        },
+        "content": {
+          "read": "82aea20f586dc8a456aced317ced8a8eee58483f3067fc8405fe2dac7b8ec678",
+          "headings": "93ca27bb608d184e9596655dad43936e7f1124e5995b1562bdb1c5bb7cac9eeb",
+          "tab": "e8d4499064828af63e771a8ee223bd4452553750c801b2984cbd9a13a024087f"
+        }
+      }
+    ]
+  }
+}
