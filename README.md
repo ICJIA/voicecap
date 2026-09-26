@@ -215,7 +215,7 @@ Walks the page line by line in browse mode (Down Arrow) to the end. NVDA has no 
 2. returns to the top (Ctrl+Home) and reads down;
 3. stops when that line is spoken and the next step repeats it, then presses Down once more to confirm (`read.endConfirmations`).
 
-Two identical lines in a row mid-page, such as back-to-back "Read more" links, don't stop it, and neither does a last line that also appears earlier. When NVDA moves onto the last line it also announces containers it enters (like "content info landmark"), but it leaves them out when it repeats the line; voicecap matches the repeat against the end of what Ctrl+End said, so this doesn't matter. The pass also stops if the same speech repeats `repeatLimit` times in a row (a safety net) or at the step cap (default 400), and records which condition stopped it.
+Two identical lines in a row mid-page, such as back-to-back "Read more" links, don't stop it, and neither does a last line that also appears earlier. (A run of three or more identical lines mid-page that also matches the last line can still end it early; raise `read.endConfirmations` if your pages have those.) When NVDA moves onto the last line it also announces containers it enters (like "content info landmark"), but it leaves them out when it repeats the line; voicecap matches the repeat against the end of what Ctrl+End said, so this doesn't matter. The pass also stops if the same speech repeats `repeatLimit` times in a row (a safety net) or at the step cap (default 400), and records which condition stopped it.
 
 ### headings
 
@@ -277,6 +277,8 @@ A curated run of about 100 pages takes roughly 10 hours, and an exhaustive run o
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
 - **Ctrl+C** saves state, shuts down NVDA and the browser, and exits with code 130; the page in progress is redone on resume. Press Ctrl+C a second time to exit immediately.
 - **One run per output folder** at a time (a lock file, taken over if the process that held it is gone).
+- **HTTP errors are page problems.** A page that answers 404 (or 5xx, after one retry) is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA. Only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
+- **Avoid synced folders** (OneDrive, Dropbox) for the output: sync clients and antivirus scans can hold files open. voicecap retries, but a folder they keep locked can still stop a run. If Git on Windows complains about long paths in `transcripts/`, run `git config core.longpaths true`.
 
 ## Reviews: the audit trail
 
@@ -341,6 +343,8 @@ The redaction is a heuristic, and it has limits. It relies on NVDA announcing an
 - pasted text that NVDA reads back;
 - error messages that quote what you typed, and autocomplete suggestions;
 - input methods (IME) and typing in other applications.
+
+It errs on the side of hiding things. After focus leaves a field by mouse click, speech stays redacted until the next focus key (Tab, Escape, …), which can hide ordinary page speech. Enter counts as leaving a field, so further typing in a multi-line field after Enter is only caught when NVDA logs it as a typed word. With `--from`/`--to`, redaction still follows focus from the start of the log, so a field entered before the window is handled.
 
 Check the clean transcript before committing it, and never commit an unredacted raw log.
 
@@ -497,6 +501,26 @@ pnpm fixture:replay  # regenerate fixture/replay-run from fixture/replay-src
 `fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a Speech Viewer capture, an NVDA log excerpt, and a hand-written replay run; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows.
 
 `docs/build-prompt.md` is the specification, `docs/plan.md` the approved plan, and `docs/phase-b-handoff.md` explains how to continue with Phase B on Windows.
+
+### Publishing to npm
+
+Always publish with `publish.sh`, from an up-to-date `main`. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`).
+
+```bash
+./publish.sh --dry-run        # every check, plus a dry-run publish; changes nothing
+./publish.sh                  # first publish: package.json's version; afterwards: next patch version
+./publish.sh minor            # or patch, major, current, or an exact version like 1.2.3
+./publish.sh minor 123456     # with an npm 2FA code (skips the confirmation prompt)
+```
+
+It stops before publishing unless:
+- you're logged in to npm, the version isn't published yet, and `CHANGELOG.md` has an entry for it;
+- CI passed for the commit (checked when the GitHub CLI is available);
+- lint, typecheck, tests, and build pass;
+- the package contains `dist/` and the docs (no source, tests, or fixtures);
+- the packed tarball installs in a scratch project and `voicecap --version` prints the new version.
+
+It restores `package.json` if anything fails before publishing. After publishing it commits the version bump, tags `vX.Y.Z`, and pushes.
 
 ## License
 

@@ -38,6 +38,9 @@
   "engines": {
     "node": ">=22.12"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@10.33.4",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

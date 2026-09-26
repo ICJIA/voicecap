@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-26
+
 ### Added
 
 Phase A: everything except the real NVDA driver, working on Windows, macOS, and Linux with the replay driver.
@@ -41,7 +43,11 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 - **Programmatic API**: `runAudit`, `listUrls`, `addReview`, `addManualSession`, `generateReport`, `loadConfig`, `defineConfig`, and the data-format types.
 - **Test fixture**: a static site with a flawed page and a duplicate-lines page, sitemaps, page lists, a sample review history, a Speech Viewer capture, an NVDA log excerpt, and a hand-written replay run with its generator.
 - **Tests and CI**: a Vitest suite (including axe-core checks of the generated report) and GitHub Actions CI on Ubuntu, macOS, and Windows.
+- **`publish.sh`**: publishes to npm only after every check passes, including installing and running the packed tarball.
 
 ### Not yet
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
+
+[Unreleased]: https://github.com/cschweda/voicecap/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/cschweda/voicecap/releases/tag/v0.1.0
