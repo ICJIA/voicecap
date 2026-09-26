@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Voicecap Test Agency news</title>
+    <link>http://127.0.0.1:4747/</link>
+    <description>Served at /feed/ with Content-Type application/rss+xml: not an HTML page, so voicecap skips it when loaded.</description>
+    <item>
+      <title>Grant applications open October 1</title>
+      <link>http://127.0.0.1:4747/duplicates/</link>
+    </item>
+  </channel>
+</rss>

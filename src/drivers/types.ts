@@ -1,0 +1,109 @@
+/**
+ * The driver layer. A driver owns both the screen reader and the browser, so nothing outside
+ * src/drivers/ touches Guidepup or Playwright. The interface is expressed in actions, not
+ * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
+ */
+
+/**
+ * Everything the screen reader said in response to one action.
+ *
+ * Every driver must use Guidepup's format (verified in @guidepup/guidepup 0.34.0): the text
+ * items of one utterance are trimmed, runs of whitespace collapsed, and joined with ", ";
+ * utterances are joined with ". ". An empty string means silence. Keeping one format lets the
+ * core's matching and the flag rules work the same for every driver.
+ */
+export type Speech = string;
+
+export interface ScreenReaderDriver {
+  /** "guidepup", "replay", or "at-driver". */
+  readonly name: string;
+
+  /** Start the screen reader and the browser. Throws EnvironmentError if they can't start. */
+  start(): Promise<void>;
+  /** Stop both. Idempotent, and safe to call from a signal handler. */
+  stop(): Promise<void>;
+  getEnvironmentInfo(): Promise<EnvironmentInfo>;
+  /** Clean up screen reader or browser processes left behind by a crashed run. Returns what it did. */
+  cleanupStale(): Promise<string[]>;
+
+  /**
+   * Load the page fresh, wait until it's ready, bring the browser to the front (or throw
+   * ForegroundError), and move the screen reader into the web content.
+   *
+   * On return the browse-mode cursor is at the top of the document, nothing is focused, and
+   * the browser's sequential focus starting point is at the top of the document.
+   * If the response isn't HTML, it returns straight after loading and the core skips the page.
+   */
+  openPage(url: string): Promise<PageInfo>;
+
+  /** Move to the next line in browse mode (NVDA: Down Arrow). */
+  nextLine(): Promise<Speech>;
+  /** Move to the next heading (NVDA: H). */
+  nextHeading(): Promise<Speech>;
+  /** Move focus to the next focusable element (Tab). */
+  nextFocusable(): Promise<Speech>;
+  /** Move to the top of the document (NVDA: Ctrl+Home). */
+  toTop(): Promise<Speech>;
+  /** Move to the bottom of the document (NVDA: Ctrl+End). */
+  toBottom(): Promise<Speech>;
+
+  /** False once focus has left the page document, e.g. into the browser's address bar. */
+  focusInDocument(): Promise<boolean>;
+  /** The focused element as the browser sees it; null when nothing is focused (the body). */
+  focusedElement(): Promise<FocusedElement | null>;
+}
+
+export interface PageInfo {
+  /** URL after redirects. */
+  finalUrl: string;
+  /** HTTP status of the final response, when known. */
+  status: number | null;
+  /** Content-Type of the final response, when known. */
+  contentType: string | null;
+  title: string | null;
+}
+
+export interface FocusedElement {
+  /** Lowercase tag name, e.g. "a". */
+  tag: string;
+  /** Computed ARIA role, when known. */
+  role: string | null;
+  /** Accessible name ("" when it has none). */
+  name: string;
+  /** Whether the element is inside the main landmark. */
+  inMain: boolean;
+  /** The href attribute of links (used to recognize skip links), otherwise null. */
+  href: string | null;
+}
+
+export type CaptureMode = "complete" | "initial";
+
+export interface EnvironmentInfo {
+  driver: { name: string; version: string };
+  screenReader: {
+    name: string;
+    /** e.g. "2026.2" */
+    version: string;
+    /** Guidepup's build id, e.g. "0.2.1-2026.2" */
+    build: string | null;
+    language: string | null;
+  } | null;
+  capture: CaptureMode;
+  browser: { name: string; version: string } | null;
+  os: string;
+  /**
+   * Screen reader settings in effect, by section. For NVDA at least speech,
+   * documentFormatting, virtualBuffers (browse mode), and keyboard.
+   */
+  screenReaderSettings: Record<string, unknown>;
+  /** Present when the output is replayed rather than captured from a live screen reader. */
+  replay?: { from: string; sourceRun: string; sourceDriver: string };
+}
+
+/** The browser couldn't be brought to the front, so keystrokes would reach the wrong window. */
+export class ForegroundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ForegroundError";
+  }
+}

@@ -1,0 +1,214 @@
+INFO - __main__ (23:57:41.102) - MainThread (5140):
+Starting NVDA version 2026.2 AMD64
+INFO - core.main (23:57:41.520) - MainThread (5140):
+Config dir: C:\Users\tester\AppData\Roaming\nvda
+INFO - config.ConfigManager._loadConfig (23:57:41.552) - MainThread (5140):
+Loading config: C:\Users\tester\AppData\Roaming\nvda\nvda.ini
+INFO - core.main (23:57:41.788) - MainThread (5140):
+Windows version: Windows 11 24H2 (10.0.26100.4652) workstation AMD64
+INFO - core.main (23:57:41.789) - MainThread (5140):
+Using Python version 3.13.5 (tags/v3.13.5:6cb20a2, Jun 11 2025, 16:15:46) [MSC v.1943 64 bit (AMD64)]
+INFO - core.main (23:57:41.789) - MainThread (5140):
+Using comtypes version 1.4.11
+INFO - core.main (23:57:41.795) - MainThread (5140):
+Using configobj version 5.1.0 with validate version 1.0.1
+INFO - synthDriverHandler.setSynth (23:57:42.310) - MainThread (5140):
+Loaded synthDriver oneCore
+INFO - core.main (23:57:42.911) - MainThread (5140):
+Using wx version 4.2.3 msw (phoenix) wxWidgets 3.2.7
+DEBUGWARNING - touchHandler.touchSupported (23:57:42.915) - MainThread (5140):
+No touch devices found
+INFO - braille.initialize (23:57:42.932) - MainThread (5140):
+Using liblouis version 3.34.0
+INFO - core.main (23:57:43.204) - MainThread (5140):
+NVDA initialized
+DEBUGWARNING - NVDAObjects.IAccessible.IAccessible._get_IAccessibleRole (23:57:43.398) - MainThread (5140):
+IAccessible role failed
+IO - speech.speech.speak (23:57:43.410) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'Voicecap Test Agency - Google Chrome']
+IO - speech.speech.speak (23:57:43.452) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'Voicecap Test Agency', 'document']
+IO - inputCore.InputManager.executeGesture (23:57:55.617) - winInputHook (7496):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (23:57:55.664) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'Voicecap Test Agency - Google Chrome']
+IO - inputCore.InputManager.executeGesture (23:58:02.114) - winInputHook (7496):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (23:58:02.170) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (23:58:04.231) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:04.279) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (23:58:05.902) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:05.951) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'Main', 'navigation landmark', 'list', 'with 4 items', 'link', 'Home']
+IO - inputCore.InputManager.executeGesture (23:58:07.013) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:07.060) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Duplicate lines']
+IO - inputCore.InputManager.executeGesture (23:58:07.884) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:07.930) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Flawed page']
+IO - inputCore.InputManager.executeGesture (23:58:08.790) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:08.834) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Contact']
+IO - inputCore.InputManager.executeGesture (23:58:10.152) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:10.203) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Welcome to the Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (23:58:12.470) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (23:58:12.521) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'This site is a test fixture for voicecap.', BreakCommand(time=100), 'Nothing here changes.']
+IO - inputCore.InputManager.executeGesture (23:58:14.338) - winInputHook (7496):
+Input: kb(desktop):h
+IO - speech.speech.speak (23:58:14.390) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Search']
+ERROR - eventHandler.executeEvent (23:58:15.644) - MainThread (5140):
+error executing event: nameChange on <NVDAObjects.IAccessible.chromium.Document object at 0x000001F4A2C3B510> with extra args of {}
+Traceback (most recent call last):
+  File "eventHandler.pyc", line 321, in executeEvent
+  File "eventHandler.pyc", line 109, in __init__
+  File "eventHandler.pyc", line 117, in next
+  File "NVDAObjects\IAccessible\__init__.pyc", line 1612, in event_nameChange
+  File "baseObject.pyc", line 64, in __get__
+  File "NVDAObjects\IAccessible\__init__.pyc", line 845, in _get_name
+_ctypes.COMError: (-2147467259, 'Unspecified error', (None, None, None, 0, None))
+IO - inputCore.InputManager.executeGesture (23:58:17.006) - winInputHook (7496):
+Input: kb(desktop):tab
+IO - speech.speech.speak (23:58:17.071) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'search landmark', 'Search this site', 'edit', 'blank']
+IO - inputCore.InputManager.executeGesture (23:58:19.201) - winInputHook (7496):
+Input: kb(desktop):g
+IO - speech.speech.speak (23:58:19.239) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'g', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:19.613) - winInputHook (7496):
+Input: kb(desktop):r
+IO - speech.speech.speak (23:58:19.651) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'r', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:20.025) - winInputHook (7496):
+Input: kb(desktop):a
+IO - speech.speech.speak (23:58:20.063) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'a', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:20.437) - winInputHook (7496):
+Input: kb(desktop):n
+IO - speech.speech.speak (23:58:20.475) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'n', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:20.849) - winInputHook (7496):
+Input: kb(desktop):t
+IO - speech.speech.speak (23:58:20.887) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 't', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:21.261) - winInputHook (7496):
+Input: kb(desktop):space
+IO - speech.speech.speakTypedCharacters (23:58:21.264) - MainThread (5140):
+typed word: grant
+IO - speech.speech.speak (23:58:21.302) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'space', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (23:58:21.673) - winInputHook (7496):
+Input: kb(desktop):d
+IO - speech.speech.speak (23:58:21.711) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'd', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:22.085) - winInputHook (7496):
+Input: kb(desktop):e
+IO - speech.speech.speak (23:58:22.123) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'e', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:22.497) - winInputHook (7496):
+Input: kb(desktop):a
+IO - speech.speech.speak (23:58:22.535) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'a', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:22.909) - winInputHook (7496):
+Input: kb(desktop):d
+IO - speech.speech.speak (23:58:22.947) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'd', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:23.321) - winInputHook (7496):
+Input: kb(desktop):l
+IO - speech.speech.speak (23:58:23.359) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'l', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:23.733) - winInputHook (7496):
+Input: kb(desktop):i
+IO - speech.speech.speak (23:58:23.771) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'i', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:24.145) - winInputHook (7496):
+Input: kb(desktop):n
+IO - speech.speech.speak (23:58:24.183) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'n', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:24.557) - winInputHook (7496):
+Input: kb(desktop):e
+IO - speech.speech.speak (23:58:24.595) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 'e', EndUtteranceCommand(), CharacterModeCommand(False)]
+IO - inputCore.InputManager.executeGesture (23:58:24.969) - winInputHook (7496):
+Input: kb(desktop):s
+IO - speech.speech.speak (23:58:25.007) - MainThread (5140):
+Speaking [CharacterModeCommand(True), LangChangeCommand ('en_US'), 's', EndUtteranceCommand(), CharacterModeCommand(False)]
+DEBUGWARNING - NVDAObjects.IAccessible.ia2TextMozilla.MozillaCompoundTextInfo._getControlFieldForObject (23:58:26.300) - MainThread (5140):
+Could not get control field for object
+IO - inputCore.InputManager.executeGesture (00:00:03.118) - winInputHook (7496):
+Input: kb(desktop):enter
+IO - speech.speech.speakTypedCharacters (00:00:03.121) - MainThread (5140):
+typed word: deadlines
+IO - speech.speech.speak (00:00:04.020) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'Search results - Voicecap Test Agency', 'document']
+IO - speech.speech.speak (00:00:04.311) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Skip to main content', EndUtteranceCommand()]
+IO - speech.speech.speak (00:00:04.902) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'link', 'Voicecap Test Agency', EndUtteranceCommand()]
+IO - inputCore.InputManager.executeGesture (00:00:09.520) - winInputHook (7496):
+Input: kb(desktop):tab
+IO - speech.speech.speak (00:00:09.566) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'Skip to main content', 'link']
+WARNING - NVDAObjects.IAccessible.chromium.Document._get_treeInterceptorClass (00:00:09.600) - MainThread (5140):
+Tree interceptor not ready for document
+IO - inputCore.InputManager.executeGesture (00:00:12.004) - winInputHook (7496):
+Input: kb(desktop):h
+IO - speech.speech.speak (00:00:12.051) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'heading', 'level 1', 'Welcome to the Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (00:00:14.487) - winInputHook (7496):
+Input: kb(desktop):h
+IO - speech.speech.speak (00:00:14.532) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Search']
+IO - inputCore.InputManager.executeGesture (00:00:16.215) - winInputHook (7496):
+Input: kb(desktop):h
+IO - speech.speech.speak (00:00:16.259) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Latest news']
+IO - inputCore.InputManager.executeGesture (00:00:18.903) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:00:18.952) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 2 items', 'link', 'Grant applications open October\xa01']
+IO - inputCore.InputManager.executeGesture (00:00:20.118) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:00:20.166) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'link', 'New research on pretrial services']
+IO - inputCore.InputManager.executeGesture (00:00:22.640) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:00:22.688) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'heading', 'level 2', 'About the agency']
+IO - inputCore.InputManager.executeGesture (00:00:24.071) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:00:24.118) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), "The agency's fixture pages are for testing only."]
+IO - inputCore.InputManager.executeGesture (00:00:26.334) - winInputHook (7496):
+Input: kb(desktop):shift+tab
+IO - speech.speech.speak (00:00:26.390) - MainThread (5140):
+Speaking [CancellableSpeech (still valid), LangChangeCommand ('en_US'), 'Search', 'button']
+IO - inputCore.InputManager.executeGesture (00:00:28.802) - winInputHook (7496):
+Input: kb(desktop):NVDA+space
+IO - speech.speech.speak (00:00:28.851) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'browse mode']
+IO - inputCore.InputManager.executeGesture (00:00:31.456) - winInputHook (7496):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (00:00:31.508) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (00:00:33.090) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:00:33.137) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+IO - inputCore.InputManager.executeGesture (00:01:40.233) - winInputHook (7496):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (00:01:40.281) - MainThread (5140):
+Speaking [LangChangeCommand ('en_US'), '© 2026 Voicecap Test Agency']
+INFO - core.main (00:01:52.770) - MainThread (5140):
+Exiting

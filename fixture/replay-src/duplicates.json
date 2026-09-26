@@ -1,0 +1,65 @@
+{
+  "url": "http://127.0.0.1:4747/duplicates/",
+  "read": [
+    { "command": "toBottom", "items": ["content info landmark", "same page", "link", "Back to top"] },
+    { "command": "toTop", "items": ["same page", "link", "Skip to main content"] },
+    ["banner landmark", "link", "Voicecap Test Agency"],
+    ["Main", "navigation landmark", "list", "with 4 items", "link", "Home"],
+    ["same page", "link", "Duplicate lines"],
+    ["link", "Flawed page"],
+    ["link", "Contact"],
+    ["out of list", "main landmark", "heading", "level 1", "Duplicate lines"],
+    ["This page tests how voicecap detects the end of a page."],
+    ["heading", "level 2", "Grant deadlines"],
+    ["Applications are due October 31."],
+    ["Applications are due October 31."],
+    ["same page", "link", "Back to top"],
+    ["heading", "level 2", "Questions"],
+    ["Email the grants unit with any questions."],
+    ["content info landmark", "© 2026 Voicecap Test Agency"],
+    ["same page", "link", "Back to top"],
+    ["same page", "link", "Back to top"],
+    ["same page", "link", "Back to top"]
+  ],
+  "headings": [
+    ["main landmark", "Duplicate lines", "heading", "level 1"],
+    ["Grant deadlines", "heading", "level 2"],
+    ["Questions", "heading", "level 2"],
+    ["no next heading"]
+  ],
+  "tab": [
+    {
+      "items": ["Skip to main content", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Skip to main content", "inMain": false, "href": "#main" }
+    },
+    {
+      "items": ["banner landmark", "Voicecap Test Agency", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Voicecap Test Agency", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["Main", "navigation landmark", "list", "with 4 items", "Home", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Home", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["Duplicate lines", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Duplicate lines", "inMain": false, "href": "/duplicates/" }
+    },
+    {
+      "items": ["Flawed page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Flawed page", "inMain": false, "href": "/flawed/" }
+    },
+    {
+      "items": ["Contact", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Contact", "inMain": false, "href": "/contact/" }
+    },
+    {
+      "items": ["out of list", "main landmark", "Back to top", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Back to top", "inMain": true, "href": "#top" }
+    },
+    {
+      "items": ["content info landmark", "Back to top", "same page", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Back to top", "inMain": false, "href": "#top" }
+    },
+    { "items": ["Address and search bar", "edit", "127.0.0.1:4747/duplicates/"], "inDocument": false }
+  ]
+}

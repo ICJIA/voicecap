@@ -1,0 +1,293 @@
+/**
+ * The files voicecap writes: run.json, transcript JSON, reviews.json, and manual sessions.
+ * Each carries a schemaVersion so later versions can read older output.
+ */
+import type { CaptureMode, EnvironmentInfo, FocusedElement } from "./drivers/types.js";
+
+export type { CaptureMode };
+
+export const PASS_NAMES = ["read", "headings", "tab"] as const;
+export type PassName = (typeof PASS_NAMES)[number];
+
+export type DriverCommand = "toTop" | "toBottom" | "nextLine" | "nextHeading" | "nextFocusable";
+
+export type StopReason =
+  /** read: the last line was spoken, then repeated (NVDA has no end-of-document message) */
+  | "end-reached"
+  | "no-next-heading"
+  /** tab: focus moved out of the page, into browser UI */
+  | "left-document"
+  /** safety net: the same speech too many times in a row */
+  | "repeat-limit"
+  | "step-cap"
+  | "timeout"
+  | "error";
+
+export interface StepRecord {
+  /** 1-based step number. */
+  n: number;
+  command: DriverCommand;
+  spoken: string;
+  durationMs: number;
+  /** Time since the pass started, at the end of this step. */
+  offsetMs: number;
+  /** Tab pass only: whether focus was still in the page document. */
+  inDocument?: boolean;
+  /** Tab pass only: the focused element after this step. */
+  focused?: FocusedElement | null;
+}
+
+/** Where a run's pages came from. For settings hashes, a sitemap is identified by URL only. */
+export type PageSource =
+  { kind: "sitemap"; url: string } | { kind: "pages"; file: string; sha256: string };
+
+/** The environment record: stored per session in run.json and repeated in every transcript. */
+export interface EnvironmentRecord extends EnvironmentInfo {
+  pageSource: PageSource;
+  voicecap: { version: string; configSha256: string };
+  runId: string;
+  runStartedAt: string;
+}
+
+export interface PageRef {
+  /** Absolute URL as listed: the first form listed, with relative paths resolved against the site. */
+  url: string;
+  /** Canonical URL (see canonicalKey): the page's identity across runs, reviews, and manual sessions. */
+  key: string;
+  slug: string;
+  label?: string;
+  template?: string;
+  notes?: string;
+}
+
+/** One pass of one page: pages/<slug>/<pass>.json. The .txt is rendered from this. */
+export interface TranscriptJson {
+  schemaVersion: 1;
+  /** voicecap version that wrote the file. */
+  voicecap: string;
+  replayed: boolean;
+  run: string;
+  pass: PassName;
+  page: PageRef & { finalUrl: string };
+  capturedAt: string;
+  durationMs: number;
+  stepCount: number;
+  stopReason: StopReason;
+  warnings: string[];
+  errors: string[];
+  /** Tab pass only: what was focused before the first Tab (should be nothing). */
+  initialFocus?: FocusedElement | null;
+  environment: EnvironmentRecord;
+  steps: StepRecord[];
+}
+
+/** Everything that decides whether an incomplete run can be resumed. */
+export interface RunSettings {
+  site: string;
+  source: PageSource;
+  passes: PassName[];
+  include: string[];
+  exclude: string[];
+  limit: number | null;
+  driver: string;
+  replayFrom: string | null;
+  capture: CaptureMode;
+  stepCaps: Record<PassName, number>;
+  nvdaSettings: Record<string, unknown>;
+  browser: { channel: string; fallbackToChromium: boolean };
+}
+
+export interface InvalidEntry {
+  /** Line in the page list file, when known. */
+  line: number | null;
+  value: string;
+  reason: string;
+}
+
+export interface SourceDetails {
+  kind: "sitemap" | "pages";
+  /** Sitemap runs: every sitemap document fetched (index and children). */
+  sitemaps?: { url: string; urls: number; sha256?: string; error?: string }[];
+  /** Page list runs: the file as given, its SHA-256, format, and the encoding it was decoded with. */
+  file?: string;
+  sha256?: string;
+  format?: "csv" | "json";
+  encoding?: "utf-8" | "windows-1252";
+  /** Entries in the source before normalization and filtering. */
+  listed: number;
+  duplicates: number;
+  invalid: InvalidEntry[];
+  excludedByFilter: number;
+  excludedByLimit: number;
+  warnings: string[];
+}
+
+export type SkipReason =
+  "off-origin" | "non-html-extension" | "non-html-response" | "redirect-off-origin";
+
+export interface SkippedRecord {
+  url: string;
+  reason: SkipReason;
+  finalUrl?: string;
+  contentType?: string | null;
+  status?: number | null;
+  line?: number;
+}
+
+export interface FileHash {
+  sha256: string;
+  bytes: number;
+}
+
+export interface PassSummary {
+  steps: number;
+  stopReason: StopReason;
+  durationMs: number;
+  /** SHA-256 of the TXT body (step lines only, not the header): what "changed" compares. */
+  contentSha256: string;
+  errors: string[];
+  warnings: string[];
+}
+
+export type PageStatus = "pending" | "done" | "failed" | "skipped";
+
+export interface FlagResult {
+  /** Rule id, e.g. "generic-link-text". */
+  rule: string;
+  message: string;
+  pass?: PassName;
+  count?: number;
+}
+
+export interface PageRecord extends PageRef {
+  /** Line in the page list file, when the source is a file. */
+  line?: number;
+  status: PageStatus;
+  attempts: number;
+  finalUrl?: string;
+  httpStatus?: number | null;
+  /** Set when the page was skipped after loading (non-HTML response, redirect off-origin). */
+  skip?: SkippedRecord;
+  /** The session (1-based) that produced the current transcripts. */
+  session?: number;
+  startedAt?: string;
+  durationMs?: number;
+  passes: Partial<Record<PassName, PassSummary>>;
+  /** Transcript files in pages/<slug>/, by file name ("read.txt", "read.json", ...). */
+  files: Record<string, FileHash>;
+  flags: FlagResult[];
+  errors: string[];
+}
+
+export interface SessionRecord {
+  /** 1-based. */
+  n: number;
+  startedAt: string;
+  endedAt: string | null;
+  /** null when the session never ended cleanly (crash, power loss). */
+  endReason: "completed" | "interrupted" | "environment-failure" | "error" | null;
+  pagesDone: number;
+  /** null if the driver never started. */
+  environment: EnvironmentRecord | null;
+}
+
+export interface RunJson {
+  schemaVersion: 1;
+  id: string;
+  name: string | null;
+  status: "incomplete" | "completed";
+  createdAt: string;
+  completedAt: string | null;
+  site: string;
+  settings: RunSettings;
+  settingsHash: string;
+  configSha256: string;
+  /** SHA-256 of the flag rules the stored flags were computed with. */
+  flagRulesSha256: string;
+  replayed: boolean;
+  source: SourceDetails;
+  /** Base run of the --compare this run was made with, recorded at completion. */
+  compareTo: string | null;
+  sessions: SessionRecord[];
+  /** Every skipped URL: before the run (off-origin, extension) and on load (response, redirect). */
+  skipped: SkippedRecord[];
+  pages: PageRecord[];
+}
+
+export const REVIEW_STATUSES = ["unreviewed", "reviewed", "issue", "fixed"] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+/** One review decision. Entries are never edited or deleted; the latest is the current status. */
+export interface ReviewEntry {
+  status: ReviewStatus;
+  reviewer: string;
+  at: string;
+  note: string | null;
+  /** Run whose transcripts were reviewed. */
+  run: string | null;
+  /** The page URL as listed in that run. */
+  url: string;
+  /** SHA-256 of each transcript file for the page in that run, by file name. */
+  files: Record<string, string>;
+  /** SHA-256 of each pass's TXT body in that run: compared to detect "changed since review". */
+  content: Partial<Record<PassName, string>>;
+}
+
+/** transcripts/reviews.json */
+export interface ReviewsFile {
+  schemaVersion: 1;
+  /** By canonical page URL. */
+  pages: Record<string, ReviewEntry[]>;
+}
+
+export type ManualInputFormat = "nvda-log" | "speech-viewer";
+
+export interface ManualEntry {
+  /** Local ISO date and time; null for Speech Viewer input, which has no timestamps. */
+  at: string | null;
+  type: "key" | "speech";
+  text: string;
+  /** True when the text was replaced by "[typed text redacted]". */
+  redacted?: boolean;
+}
+
+/** manual/<slug>/<id>.json */
+export interface ManualSessionJson {
+  schemaVersion: 1;
+  voicecap: string;
+  /** Session id and file stem: the session's local start date and time, e.g. 2026-09-26_1405. */
+  id: string;
+  page: { url: string; key: string; slug: string };
+  input: {
+    format: ManualInputFormat;
+    /** Base name of the imported file. */
+    fileName: string;
+    sha256: string;
+    bytes: number;
+    /** The unmodified original, or why it wasn't kept. Paths are relative to this JSON file. */
+    raw: { kept: true; path: string } | { kept: false; reason: "no-raw" | "withheld-for-privacy" };
+  };
+  session: {
+    /** Local date the session started, YYYY-MM-DD. */
+    date: string;
+    dateSource: "option" | "file-modified";
+    /** Local ISO start and end, when known (logs). */
+    start: string | null;
+    end: string | null;
+    /** The --from / --to window applied, if any. */
+    from: string | null;
+    to: string | null;
+    crossesMidnight: boolean;
+  };
+  nvdaVersion: string | null;
+  importedAt: string;
+  reviewer: string;
+  redaction: {
+    applied: boolean;
+    keystrokes: number;
+    speech: number;
+    note: string | null;
+  };
+  warnings: string[];
+  entries: ManualEntry[];
+}

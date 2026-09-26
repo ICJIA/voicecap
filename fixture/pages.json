@@ -1,0 +1,19 @@
+[
+  "/",
+  {
+    "url": "/duplicates/",
+    "label": "Duplicate lines",
+    "template": "content",
+    "notes": "Two identical consecutive lines; the last line also appears earlier."
+  },
+  {
+    "url": "http://127.0.0.1:4747/flawed/",
+    "label": "Flawed page",
+    "template": "content",
+    "notes": "Generic link text, an unlabeled button, and no skip link."
+  },
+  {
+    "url": "http://[not-a-host]/broken/",
+    "label": "Malformed URL (invalid on purpose)"
+  }
+]

@@ -1,0 +1,56 @@
+/** Process exit codes. Documented in the README; keep them stable. */
+export const ExitCode = {
+  /** The command (or run) completed. Heuristic flags never change this. */
+  ok: 0,
+  /** Invalid usage or config, including an unreadable page source. */
+  usage: 1,
+  /** The environment is unusable (e.g. NVDA won't start). */
+  environment: 2,
+  /** A run completed but some pages failed. */
+  pagesFailed: 3,
+  /** Interrupted (Ctrl+C); state was saved. */
+  interrupted: 130,
+} as const;
+
+/** An error voicecap reports to the user as a plain message, without a stack trace. */
+export class VoicecapError extends Error {
+  readonly exitCode: number;
+
+  constructor(message: string, exitCode: number = ExitCode.usage, options?: ErrorOptions) {
+    super(message, options);
+    this.name = new.target.name;
+    this.exitCode = exitCode;
+  }
+}
+
+/** Bad arguments or input files. Exit code 1. */
+export class UsageError extends VoicecapError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, ExitCode.usage, options);
+  }
+}
+
+/** An invalid or unreadable voicecap config. Exit code 1. */
+export class ConfigError extends VoicecapError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, ExitCode.usage, options);
+  }
+}
+
+/** The machine can't run the requested work (screen reader, browser, network). Exit code 2. */
+export class EnvironmentError extends VoicecapError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, ExitCode.environment, options);
+  }
+}
+
+/** A feature that exists in the interface but isn't built yet. Exit code 1. */
+export class NotImplementedError extends VoicecapError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, ExitCode.usage, options);
+  }
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

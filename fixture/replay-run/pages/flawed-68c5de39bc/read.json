@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.1.0",
+  "replayed": false,
+  "run": "2026-09-20_0930_hand-written",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4747/flawed/",
+    "key": "http://127.0.0.1:4747/flawed",
+    "slug": "flawed-68c5de39bc",
+    "finalUrl": "http://127.0.0.1:4747/flawed/"
+  },
+  "capturedAt": "2026-09-20T09:32:01-05:00",
+  "durationMs": 48538,
+  "stepCount": 34,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "hand-written",
+      "version": "1"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "152.0.7815.60"
+    },
+    "os": "Windows 11 (hand-written fixture)",
+    "screenReaderSettings": {
+      "speech": {
+        "synth": "oneCore",
+        "symbolLevel": 100,
+        "trustVoiceLanguage": true,
+        "autoLanguageSwitching": true,
+        "autoDialectSwitching": false,
+        "reportLanguage": false
+      },
+      "documentFormatting": {
+        "reportLinks": true,
+        "reportLinkType": true,
+        "reportGraphics": true,
+        "reportHeadings": true,
+        "reportLists": true,
+        "reportLandmarks": true,
+        "reportTables": true,
+        "reportClickable": true,
+        "reportArticles": false,
+        "reportFigures": true,
+        "reportGroupings": true
+      },
+      "virtualBuffers": {
+        "maxLineLength": 100,
+        "linesPerPage": 25,
+        "useScreenLayout": true,
+        "autoPassThroughOnFocusChange": true,
+        "autoPassThroughOnCaretMove": false,
+        "passThroughAudioIndication": true,
+        "autoSayAllOnPageLoad": false,
+        "trapNonCommandGestures": true
+      },
+      "keyboard": {
+        "NVDAModifierKeys": 6,
+        "keyboardLayout": "desktop",
+        "speakTypedCharacters": 1,
+        "speakTypedWords": 0,
+        "speakCommandKeys": false,
+        "speechInterruptForCharacters": true,
+        "speechInterruptForEnter": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4747/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.1.0",
+      "configSha256": "hand-written"
+    },
+    "runId": "2026-09-20_0930_hand-written",
+    "runStartedAt": "2026-09-20T09:30:00-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, © 2026 Voicecap Test Agency",
+      "durationMs": 1297,
+      "offsetMs": 1297
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "banner landmark, link, Voicecap Test Agency",
+      "durationMs": 1303,
+      "offsetMs": 2600
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, list, with 11 items, link, Home",
+      "durationMs": 1595,
+      "offsetMs": 4195
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "link, About",
+      "durationMs": 1431,
+      "offsetMs": 5626
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Grants",
+      "durationMs": 1541,
+      "offsetMs": 7167
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "link, Research",
+      "durationMs": 1314,
+      "offsetMs": 8481
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "link, News",
+      "durationMs": 1359,
+      "offsetMs": 9840
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Events",
+      "durationMs": 1482,
+      "offsetMs": 11322
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Data",
+      "durationMs": 1553,
+      "offsetMs": 12875
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Publications",
+      "durationMs": 1404,
+      "offsetMs": 14279
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "link, Careers",
+      "durationMs": 1436,
+      "offsetMs": 15715
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1533,
+      "offsetMs": 17248
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "link, Accessibility",
+      "durationMs": 1358,
+      "offsetMs": 18606
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 2, Resources",
+      "durationMs": 1573,
+      "offsetMs": 20179
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "Reports, data, and training from the agency.",
+      "durationMs": 1527,
+      "offsetMs": 21706
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Annual report",
+      "durationMs": 1455,
+      "offsetMs": 23161
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "Our 2025 annual report is now available.",
+      "durationMs": 1319,
+      "offsetMs": 24480
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "link, Read more",
+      "durationMs": 1441,
+      "offsetMs": 25921
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Crime data",
+      "durationMs": 1357,
+      "offsetMs": 27278
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "Explore statewide crime trends.",
+      "durationMs": 1493,
+      "offsetMs": 28771
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "link, Read more",
+      "durationMs": 1382,
+      "offsetMs": 30153
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Training",
+      "durationMs": 1272,
+      "offsetMs": 31425
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "Register for upcoming training sessions.",
+      "durationMs": 1551,
+      "offsetMs": 32976
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "link, Read more",
+      "durationMs": 1323,
+      "offsetMs": 34299
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "Need the grant guide?, link, Click here",
+      "durationMs": 1382,
+      "offsetMs": 35681
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "link, graphic, chart",
+      "durationMs": 1582,
+      "offsetMs": 37263
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Newsletter",
+      "durationMs": 1433,
+      "offsetMs": 38696
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "Sign up for updates.",
+      "durationMs": 1426,
+      "offsetMs": 40122
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "edit",
+      "durationMs": 1315,
+      "offsetMs": 41437
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "button",
+      "durationMs": 1438,
+      "offsetMs": 42875
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "content info landmark, © 2026 Voicecap Test Agency",
+      "durationMs": 1407,
+      "offsetMs": 44282
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "© 2026 Voicecap Test Agency",
+      "durationMs": 1555,
+      "offsetMs": 45837
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "© 2026 Voicecap Test Agency",
+      "durationMs": 1302,
+      "offsetMs": 47139
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "© 2026 Voicecap Test Agency",
+      "durationMs": 1399,
+      "offsetMs": 48538
+    }
+  ]
+}

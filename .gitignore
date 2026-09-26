@@ -1,7 +1,15 @@
 node_modules/
 dist/
+coverage/
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
 *.log
+/transcripts/
+
+# Local environment files (may hold secrets); sample files are fine to commit.
+.env
+.env.*
+!.env.sample
+!.env.example

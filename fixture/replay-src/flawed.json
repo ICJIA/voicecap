@@ -1,0 +1,126 @@
+{
+  "url": "http://127.0.0.1:4747/flawed/",
+  "read": [
+    { "command": "toBottom", "items": ["content info landmark", "© 2026 Voicecap Test Agency"] },
+    { "command": "toTop", "items": ["banner landmark", "link", "Voicecap Test Agency"] },
+    ["Main", "navigation landmark", "list", "with 11 items", "link", "Home"],
+    ["link", "About"],
+    ["link", "Grants"],
+    ["link", "Research"],
+    ["link", "News"],
+    ["link", "Events"],
+    ["link", "Data"],
+    ["link", "Publications"],
+    ["link", "Careers"],
+    ["link", "Contact"],
+    ["link", "Accessibility"],
+    ["out of list", "main landmark", "heading", "level 2", "Resources"],
+    ["Reports, data, and training from the agency."],
+    ["heading", "level 3", "Annual report"],
+    ["Our 2025 annual report is now available."],
+    ["link", "Read more"],
+    ["heading", "level 3", "Crime data"],
+    ["Explore statewide crime trends."],
+    ["link", "Read more"],
+    ["heading", "level 3", "Training"],
+    ["Register for upcoming training sessions."],
+    ["link", "Read more"],
+    ["Need the grant guide? ", "link", "Click here"],
+    ["link", "graphic", "chart"],
+    ["heading", "level 3", "Newsletter"],
+    ["Sign up for updates."],
+    ["edit"],
+    ["button"],
+    ["content info landmark", "© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"],
+    ["© 2026 Voicecap Test Agency"]
+  ],
+  "headings": [
+    ["main landmark", "Resources", "heading", "level 2"],
+    ["Annual report", "heading", "level 3"],
+    ["Crime data", "heading", "level 3"],
+    ["Training", "heading", "level 3"],
+    ["Newsletter", "heading", "level 3"],
+    ["no next heading"]
+  ],
+  "tab": [
+    {
+      "items": ["banner landmark", "Voicecap Test Agency", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Voicecap Test Agency", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["Main", "navigation landmark", "list", "with 11 items", "Home", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Home", "inMain": false, "href": "/" }
+    },
+    {
+      "items": ["About", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "About", "inMain": false, "href": "/about/" }
+    },
+    {
+      "items": ["Grants", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Grants", "inMain": false, "href": "/grants/" }
+    },
+    {
+      "items": ["Research", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Research", "inMain": false, "href": "/research/" }
+    },
+    {
+      "items": ["News", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "News", "inMain": false, "href": "/news/" }
+    },
+    {
+      "items": ["Events", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Events", "inMain": false, "href": "/events/" }
+    },
+    {
+      "items": ["Data", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Data", "inMain": false, "href": "/data/" }
+    },
+    {
+      "items": ["Publications", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Publications", "inMain": false, "href": "/publications/" }
+    },
+    {
+      "items": ["Careers", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Careers", "inMain": false, "href": "/careers/" }
+    },
+    {
+      "items": ["Contact", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Contact", "inMain": false, "href": "/contact/" }
+    },
+    {
+      "items": ["Accessibility", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Accessibility", "inMain": false, "href": "/accessibility/" }
+    },
+    {
+      "items": ["out of list", "main landmark", "Read more", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Read more", "inMain": true, "href": "/reports/annual/" }
+    },
+    {
+      "items": ["Read more", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Read more", "inMain": true, "href": "/data/" }
+    },
+    {
+      "items": ["Read more", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Read more", "inMain": true, "href": "/training/" }
+    },
+    {
+      "items": ["Click here", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "Click here", "inMain": true, "href": "/files/grant-guide.pdf" }
+    },
+    {
+      "items": ["chart", "graphic", "link"],
+      "focused": { "tag": "a", "role": "link", "name": "", "inMain": true, "href": "/data/" }
+    },
+    {
+      "items": ["edit", "blank"],
+      "focused": { "tag": "input", "role": "textbox", "name": "", "inMain": true, "href": null }
+    },
+    {
+      "items": ["button"],
+      "focused": { "tag": "button", "role": "button", "name": "", "inMain": true, "href": null }
+    },
+    { "items": ["Address and search bar", "edit", "127.0.0.1:4747/flawed/"], "inDocument": false }
+  ]
+}

@@ -1,0 +1,386 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.1.0",
+  "replayed": false,
+  "run": "2026-09-20_0930_hand-written",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4747/flawed/",
+    "key": "http://127.0.0.1:4747/flawed",
+    "slug": "flawed-68c5de39bc",
+    "finalUrl": "http://127.0.0.1:4747/flawed/"
+  },
+  "capturedAt": "2026-09-20T09:33:05-05:00",
+  "durationMs": 27963,
+  "stepCount": 20,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "hand-written",
+      "version": "1"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "152.0.7815.60"
+    },
+    "os": "Windows 11 (hand-written fixture)",
+    "screenReaderSettings": {
+      "speech": {
+        "synth": "oneCore",
+        "symbolLevel": 100,
+        "trustVoiceLanguage": true,
+        "autoLanguageSwitching": true,
+        "autoDialectSwitching": false,
+        "reportLanguage": false
+      },
+      "documentFormatting": {
+        "reportLinks": true,
+        "reportLinkType": true,
+        "reportGraphics": true,
+        "reportHeadings": true,
+        "reportLists": true,
+        "reportLandmarks": true,
+        "reportTables": true,
+        "reportClickable": true,
+        "reportArticles": false,
+        "reportFigures": true,
+        "reportGroupings": true
+      },
+      "virtualBuffers": {
+        "maxLineLength": 100,
+        "linesPerPage": 25,
+        "useScreenLayout": true,
+        "autoPassThroughOnFocusChange": true,
+        "autoPassThroughOnCaretMove": false,
+        "passThroughAudioIndication": true,
+        "autoSayAllOnPageLoad": false,
+        "trapNonCommandGestures": true
+      },
+      "keyboard": {
+        "NVDAModifierKeys": 6,
+        "keyboardLayout": "desktop",
+        "speakTypedCharacters": 1,
+        "speakTypedWords": 0,
+        "speakCommandKeys": false,
+        "speechInterruptForCharacters": true,
+        "speechInterruptForEnter": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4747/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.1.0",
+      "configSha256": "hand-written"
+    },
+    "runId": "2026-09-20_0930_hand-written",
+    "runStartedAt": "2026-09-20T09:30:00-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, Voicecap Test Agency, link",
+      "durationMs": 1556,
+      "offsetMs": 1556,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Voicecap Test Agency",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, list, with 11 items, Home, link",
+      "durationMs": 1498,
+      "offsetMs": 3054,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Home",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "About, link",
+      "durationMs": 1334,
+      "offsetMs": 4388,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "About",
+        "inMain": false,
+        "href": "/about/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Grants, link",
+      "durationMs": 1444,
+      "offsetMs": 5832,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Grants",
+        "inMain": false,
+        "href": "/grants/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Research, link",
+      "durationMs": 1567,
+      "offsetMs": 7399,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Research",
+        "inMain": false,
+        "href": "/research/"
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "News, link",
+      "durationMs": 1262,
+      "offsetMs": 8661,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "News",
+        "inMain": false,
+        "href": "/news/"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Events, link",
+      "durationMs": 1385,
+      "offsetMs": 10046,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Events",
+        "inMain": false,
+        "href": "/events/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Data, link",
+      "durationMs": 1456,
+      "offsetMs": 11502,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Data",
+        "inMain": false,
+        "href": "/data/"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "Publications, link",
+      "durationMs": 1307,
+      "offsetMs": 12809,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Publications",
+        "inMain": false,
+        "href": "/publications/"
+      }
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "Careers, link",
+      "durationMs": 1339,
+      "offsetMs": 14148,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Careers",
+        "inMain": false,
+        "href": "/careers/"
+      }
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1436,
+      "offsetMs": 15584,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "Accessibility, link",
+      "durationMs": 1261,
+      "offsetMs": 16845,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Accessibility",
+        "inMain": false,
+        "href": "/accessibility/"
+      }
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "out of list, main landmark, Read more, link",
+      "durationMs": 1320,
+      "offsetMs": 18165,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Read more",
+        "inMain": true,
+        "href": "/reports/annual/"
+      }
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "Read more, link",
+      "durationMs": 1403,
+      "offsetMs": 19568,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Read more",
+        "inMain": true,
+        "href": "/data/"
+      }
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "Read more, link",
+      "durationMs": 1500,
+      "offsetMs": 21068,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Read more",
+        "inMain": true,
+        "href": "/training/"
+      }
+    },
+    {
+      "n": 16,
+      "command": "nextFocusable",
+      "spoken": "Click here, link",
+      "durationMs": 1260,
+      "offsetMs": 22328,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Click here",
+        "inMain": true,
+        "href": "/files/grant-guide.pdf"
+      }
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "chart, graphic, link",
+      "durationMs": 1409,
+      "offsetMs": 23737,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "",
+        "inMain": true,
+        "href": "/data/"
+      }
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "edit, blank",
+      "durationMs": 1389,
+      "offsetMs": 25126,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "button",
+      "durationMs": 1421,
+      "offsetMs": 26547,
+      "inDocument": true,
+      "focused": {
+        "tag": "button",
+        "role": "button",
+        "name": "",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 20,
+      "command": "nextFocusable",
+      "spoken": "Address and search bar, edit, 127.0.0.1:4747/flawed/",
+      "durationMs": 1416,
+      "offsetMs": 27963,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

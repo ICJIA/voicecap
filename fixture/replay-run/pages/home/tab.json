@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.1.0",
+  "replayed": false,
+  "run": "2026-09-20_0930_hand-written",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4747/",
+    "key": "http://127.0.0.1:4747/",
+    "slug": "home",
+    "finalUrl": "http://127.0.0.1:4747/"
+  },
+  "capturedAt": "2026-09-20T09:30:48-05:00",
+  "durationMs": 15487,
+  "stepCount": 11,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "hand-written",
+      "version": "1"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "152.0.7815.60"
+    },
+    "os": "Windows 11 (hand-written fixture)",
+    "screenReaderSettings": {
+      "speech": {
+        "synth": "oneCore",
+        "symbolLevel": 100,
+        "trustVoiceLanguage": true,
+        "autoLanguageSwitching": true,
+        "autoDialectSwitching": false,
+        "reportLanguage": false
+      },
+      "documentFormatting": {
+        "reportLinks": true,
+        "reportLinkType": true,
+        "reportGraphics": true,
+        "reportHeadings": true,
+        "reportLists": true,
+        "reportLandmarks": true,
+        "reportTables": true,
+        "reportClickable": true,
+        "reportArticles": false,
+        "reportFigures": true,
+        "reportGroupings": true
+      },
+      "virtualBuffers": {
+        "maxLineLength": 100,
+        "linesPerPage": 25,
+        "useScreenLayout": true,
+        "autoPassThroughOnFocusChange": true,
+        "autoPassThroughOnCaretMove": false,
+        "passThroughAudioIndication": true,
+        "autoSayAllOnPageLoad": false,
+        "trapNonCommandGestures": true
+      },
+      "keyboard": {
+        "NVDAModifierKeys": 6,
+        "keyboardLayout": "desktop",
+        "speakTypedCharacters": 1,
+        "speakTypedWords": 0,
+        "speakCommandKeys": false,
+        "speechInterruptForCharacters": true,
+        "speechInterruptForEnter": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4747/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.1.0",
+      "configSha256": "hand-written"
+    },
+    "runId": "2026-09-20_0930_hand-written",
+    "runStartedAt": "2026-09-20T09:30:00-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1478,
+      "offsetMs": 1478,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, Voicecap Test Agency, same page, link",
+      "durationMs": 1446,
+      "offsetMs": 2924,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Voicecap Test Agency",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, list, with 4 items, Home, same page, link",
+      "durationMs": 1375,
+      "offsetMs": 4299,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Home",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Duplicate lines, link",
+      "durationMs": 1561,
+      "offsetMs": 5860,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Duplicate lines",
+        "inMain": false,
+        "href": "/duplicates/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Flawed page, link",
+      "durationMs": 1256,
+      "offsetMs": 7116,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Flawed page",
+        "inMain": false,
+        "href": "/flawed/"
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1301,
+      "offsetMs": 8417,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Search this site, edit, blank",
+      "durationMs": 1256,
+      "offsetMs": 9673,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Search this site",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Search, button",
+      "durationMs": 1508,
+      "offsetMs": 11181,
+      "inDocument": true,
+      "focused": {
+        "tag": "button",
+        "role": "button",
+        "name": "Search",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "list, with 2 items, Grant applications open October 1, link",
+      "durationMs": 1490,
+      "offsetMs": 12671,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Grant applications open October 1",
+        "inMain": true,
+        "href": "/duplicates/"
+      }
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "New research on pretrial services, link",
+      "durationMs": 1327,
+      "offsetMs": 13998,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "New research on pretrial services",
+        "inMain": true,
+        "href": "/flawed/"
+      }
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Address and search bar, edit, 127.0.0.1:4747",
+      "durationMs": 1489,
+      "offsetMs": 15487,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

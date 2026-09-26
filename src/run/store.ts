@@ -1,0 +1,71 @@
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+
+import type { RunJson } from "../model.js";
+import { writeFileAtomic } from "../util/atomic-write.js";
+import { UsageError, VoicecapError } from "../util/errors.js";
+import { latestPath, runJsonPath, runsDir } from "./paths.js";
+
+export async function readRunJson(outDir: string, runId: string): Promise<RunJson> {
+  const file = runJsonPath(outDir, runId);
+  if (!existsSync(file)) throw new UsageError(`No run "${runId}" in ${runsDir(outDir)}.`);
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as RunJson;
+  } catch (error) {
+    throw new UsageError(`Could not read ${file}: it is not valid JSON.`, { cause: error });
+  }
+}
+
+/** Every run with a readable run.json, oldest first. Unreadable folders are skipped. */
+export async function listRuns(outDir: string): Promise<RunJson[]> {
+  const dir = runsDir(outDir);
+  if (!existsSync(dir)) return [];
+  const runs: RunJson[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    try {
+      runs.push(JSON.parse(await readFile(runJsonPath(outDir, entry.name), "utf8")) as RunJson);
+    } catch {
+      // Not a run folder, or a damaged run.json; resume and reports ignore it.
+    }
+  }
+  return runs.sort(
+    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id),
+  );
+}
+
+/** The id in latest.txt: the most recently completed run. */
+export async function readLatestRunId(outDir: string): Promise<string | null> {
+  const file = latestPath(outDir);
+  if (!existsSync(file)) return null;
+  const id = (await readFile(file, "utf8")).trim();
+  return id === "" ? null : id;
+}
+
+export async function writeLatestRunId(outDir: string, runId: string): Promise<void> {
+  await writeFileAtomic(latestPath(outDir), `${runId}\n`);
+}
+
+/**
+ * Write run.json atomically. Completed runs are sealed: once run.json on disk says "completed",
+ * nothing in the run folder may change, so this refuses.
+ */
+export async function writeRunJson(outDir: string, run: RunJson): Promise<void> {
+  await assertRunWritable(outDir, run.id);
+  await writeFileAtomic(runJsonPath(outDir, run.id), `${JSON.stringify(run, null, 2)}\n`);
+}
+
+/** Throws if the run on disk is completed. Call before writing anything into a run folder. */
+export async function assertRunWritable(outDir: string, runId: string): Promise<void> {
+  const file = runJsonPath(outDir, runId);
+  if (!existsSync(file)) return;
+  let status: string | undefined;
+  try {
+    status = (JSON.parse(await readFile(file, "utf8")) as RunJson).status;
+  } catch {
+    return;
+  }
+  if (status === "completed") {
+    throw new VoicecapError(`Run ${runId} is completed; its folder is never modified.`);
+  }
+}
