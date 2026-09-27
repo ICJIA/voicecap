@@ -9,10 +9,11 @@ import { AtDriverNvdaDriver } from "../src/drivers/at-driver-nvda.js";
 import { createDriver, selectDriver } from "../src/drivers/index.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import { handleInterrupts } from "../src/run/signals.js";
-import { EnvironmentError, NotImplementedError, UsageError } from "../src/util/errors.js";
-import { createMemoryLogger } from "../src/util/log.js";
+import { EnvironmentError, UsageError } from "../src/util/errors.js";
+import { createMemoryLogger, silentLogger } from "../src/util/log.js";
 
 const SRC = fileURLToPath(new URL("../src/", import.meta.url));
+const context = { config: DEFAULT_CONFIG, logger: silentLogger };
 
 describe("driver selection", () => {
   it("--replay-from selects the replay driver, whatever the config says", () => {
@@ -30,12 +31,18 @@ describe("driver selection", () => {
   it("NVDA drivers explain that NVDA needs Windows", async () => {
     for (const name of ["guidepup", "at-driver"] as const) {
       await expect(
-        createDriver({ name, replayFrom: null, replayLabel: null }, "darwin"),
+        createDriver({ name, replayFrom: null, replayLabel: null }, context, "darwin"),
       ).rejects.toBeInstanceOf(EnvironmentError);
     }
-    await expect(
-      createDriver({ name: "guidepup", replayFrom: null, replayLabel: null }, "win32"),
-    ).rejects.toBeInstanceOf(NotImplementedError);
+  });
+
+  it("creates the Guidepup NVDA driver on Windows, without starting NVDA", async () => {
+    const driver = await createDriver(
+      { name: "guidepup", replayFrom: null, replayLabel: null },
+      context,
+      "win32",
+    );
+    expect(driver.name).toBe("guidepup");
   });
 });
 

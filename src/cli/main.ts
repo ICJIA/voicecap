@@ -11,7 +11,7 @@ import { runAudit } from "../run/audit.js";
 import { regenerateLiveReport } from "../run/live-report.js";
 import { DEFAULT_OUT_DIR } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
-import { ExitCode, NotImplementedError, UsageError, VoicecapError } from "../util/errors.js";
+import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
 import { voicecapVersion } from "../util/version.js";
@@ -286,15 +286,20 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("setup")
     .description("Windows: install the NVDA build that voicecap's pinned Guidepup expects")
-    .action(() => {
-      throw notYet("setup");
+    .action(async () => {
+      const { config } = await loadConfig({ cwd: ctx.cwd });
+      const { runSetup } = await import("../drivers/guidepup/setup.js");
+      await runSetup({ config, logger });
+      setExit(ExitCode.ok);
     });
 
   program
     .command("doctor")
     .description("check the environment and print a summary to paste into a bug report")
-    .action(() => {
-      throw notYet("doctor");
+    .action(async () => {
+      const { config } = await loadConfig({ cwd: ctx.cwd });
+      const { runDoctor } = await import("../drivers/guidepup/doctor.js");
+      setExit(await runDoctor({ config, logger }));
     });
 
   return program;
@@ -371,12 +376,4 @@ function positiveInt(option: string) {
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
-}
-
-function notYet(command: string): NotImplementedError {
-  return new NotImplementedError(
-    process.platform === "win32"
-      ? `voicecap ${command} isn't available yet: it arrives with the NVDA driver (Phase B).`
-      : `voicecap ${command} works with NVDA, which runs only on Windows, and it isn't available yet: it arrives with the NVDA driver (Phase B).`,
-  );
 }

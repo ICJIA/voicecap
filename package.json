@@ -36,7 +36,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.19"
   },
   "publishConfig": {
     "access": "public"
@@ -50,10 +50,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fixture:serve": "tsx scripts/serve-fixture.ts",
-    "fixture:replay": "tsx scripts/build-replay-fixture.ts",
+    "fixture:reviews": "tsx scripts/fixture-reviews.ts",
+    "fixture:capture": "tsx scripts/capture-fixture.ts --write",
+    "test:nvda": "tsx scripts/capture-fixture.ts",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@guidepup/guidepup": "0.34.0",
+    "@guidepup/setup": "0.28.0",
     "commander": "^15.0.0",
     "csv-parse": "^7.0.3",
     "diff": "^9.0.0",
@@ -61,6 +65,7 @@
     "jiti": "^2.7.0",
     "jsonc-parser": "^3.3.1",
     "picomatch": "^4.0.7",
+    "playwright": "^1.63.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -70,7 +75,6 @@
     "@types/picomatch": "^4.0.3",
     "axe-core": "^4.13.0",
     "eslint": "^10.11.0",
-    "playwright": "^1.63.0",
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

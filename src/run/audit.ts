@@ -130,7 +130,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     browser: config.browser,
   };
   // Creating the driver first means a wrong platform fails before any folder is touched.
-  const driver = options.driver ?? (await createDriver(selection));
+  const driver = options.driver ?? (await createDriver(selection, { config, logger }));
 
   const outDir = path.resolve(cwd, options.out ?? DEFAULT_OUT_DIR);
   await mkdir(outDir, { recursive: true });
