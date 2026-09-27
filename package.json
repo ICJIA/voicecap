@@ -16,7 +16,7 @@
   "author": "Christopher Schweda",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cschweda/voicecap.git"
+    "url": "git+https://github.com/ICJIA/voicecap.git"
   },
   "type": "module",
   "bin": {

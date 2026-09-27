@@ -1,6 +1,6 @@
 # voicecap
 
-[![CI](https://github.com/cschweda/voicecap/actions/workflows/ci.yml/badge.svg)](https://github.com/cschweda/voicecap/actions/workflows/ci.yml)
+[![CI](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml/badge.svg)](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml)
 
 voicecap drives the NVDA screen reader through a website's pages (from its sitemap or a page list you curate), saves what NVDA says as text transcripts you can skim and diff, and produces an accessible HTML report of automated coverage and human review.
 
@@ -40,7 +40,7 @@ voicecap needs **Node.js 22.19 or later** (24 recommended). You run it with `npx
 **Try it on any OS** with the replay driver and the test fixture in this repository:
 
 ```bash
-git clone https://github.com/cschweda/voicecap.git && cd voicecap
+git clone https://github.com/ICJIA/voicecap.git && cd voicecap
 pnpm install && pnpm build
 node dist/cli.js --site http://127.0.0.1:4747 --pages fixture/pages.json --replay-from fixture/replay-run
 # then open transcripts/report.html
@@ -561,4 +561,4 @@ It restores `package.json` if anything fails before publishing. After publishing
 
 ## License
 
-[MIT](LICENSE) © 2026 Christopher Schweda
+[MIT](LICENSE) © 2026 Illinois Criminal Justice Information Authority (ICJIA)

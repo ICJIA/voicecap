@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
 Phase B: the real NVDA driver, checked end to end with NVDA 2026.2 and Chrome 153 on Windows 11.
 
 ### Added
@@ -28,6 +30,7 @@ Phase B: the real NVDA driver, checked end to end with NVDA 2026.2 and Chrome 15
 - The flag phrasing was checked against real NVDA output; no rules needed changing. The fixture README records what NVDA 2026.2 actually says, including two differences from Phase A's source-based expectations: an image without alt text is read ("Unlabeled graphic"), and transcripts have NVDA's names for symbols (`copyright`, `bullet`).
 - voicecap now needs Node.js 22.19 or later (`@guidepup/setup` requires it).
 - `playwright` is now a dependency, and `@guidepup/guidepup` and `@guidepup/setup` are pinned exactly.
+- The repository moved to [github.com/ICJIA/voicecap](https://github.com/ICJIA/voicecap), and the copyright holder is now the Illinois Criminal Justice Information Authority (ICJIA).
 
 ### Fixed
 
@@ -78,5 +81,6 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/cschweda/voicecap/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/cschweda/voicecap/releases/tag/v0.1.0
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ICJIA/voicecap/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/ICJIA/voicecap/releases/tag/v0.1.0

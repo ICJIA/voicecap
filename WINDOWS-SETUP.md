@@ -45,7 +45,7 @@ npm installs these for your user only, so no administrator rights are needed. (C
 
 ```bash
 mkdir -p ~/code && cd ~/code
-git clone https://github.com/cschweda/voicecap.git
+git clone https://github.com/ICJIA/voicecap.git
 cd voicecap
 ```
 

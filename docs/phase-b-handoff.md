@@ -26,12 +26,12 @@ Phase B was built on Windows 11 (Git Bash, non-admin) and checked end to end wit
 **Still open:**
 - The Phase A review's smaller items, listed below under "Follow-ups from the Phase A code review".
 - The NVDA lock is per Windows user (`%LOCALAPPDATA%`), while NVDA's port is shared by the computer. A machine-wide lock was considered in the Phase B review and declined; the README lists it as a limitation.
-- An upstream Guidepup issue about the unquoted shell spawn (spaces and `& ( , ; = ^` in the path), for the owner to file.
+- An upstream Guidepup issue about the unquoted shell spawn (spaces and `& ( , ; = ^` in the path), for the owner to file: the draft is in [`guidepup-issue-draft.md`](guidepup-issue-draft.md).
 - Guidepup's reconnect also writes to NVDA from an async `secureConnect` listener that nothing waits for. If the connection dies in the instant after it's made, that rejection is still unhandled; only the stop-speech key presses are covered.
 - A page that fails with a foreground error (someone used the computer) is recorded as failed without an immediate retry. The core retries timeouts once; retrying foreground errors the same way is a small change in `src/run/page-runner.ts`.
 - Publishing 0.2.0 (section 2 below).
 
-Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/cschweda/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
+Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/ICJIA/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
 
 ## 1. Setting up the machine and starting the chat
 
@@ -61,7 +61,7 @@ Follow [`WINDOWS-SETUP.md`](../WINDOWS-SETUP.md) at the repository root. It cove
 - **Sitemap runs** (Q2) are identified by URL only for resuming, and a resumed run uses the page list stored at its start. Page list files are identified by their content hash.
 - **The resume settings hash** (Q3) also covers the NVDA settings overrides and the browser.
 - **Failures** (Q4). The driver restarts after any failed page, and after 5 failures in a row the run stops with exit code 2, resumable.
-- **License** (Q5): MIT, © 2026 Christopher Schweda.
+- **License** (Q5): MIT, © 2026 Christopher Schweda; the copyright passed to the Illinois Criminal Justice Information Authority (ICJIA) on 2026-09-27, when the repository moved to github.com/ICJIA/voicecap.
 
 ### Facts learned in Phase A that Phase B needs
 
