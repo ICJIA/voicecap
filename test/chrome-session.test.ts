@@ -9,7 +9,12 @@ import { chromium, type Browser, type CDPSession, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import { ChromeSession, launchChrome, resolveBrowser } from "../src/drivers/guidepup/chrome.js";
+import {
+  chromeArgs,
+  ChromeSession,
+  launchChrome,
+  resolveBrowser,
+} from "../src/drivers/guidepup/chrome.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { startFixtureServer, type FixtureServer } from "../scripts/serve-fixture.js";
 
@@ -107,13 +112,14 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   // A real loss (another window in front) was checked on Windows with headed Chrome: the blur
   // arrives with document.hasFocus() false, and it counts even after focus comes back. Headless
-  // Chrome can't lose focus to another window, but a blur while the page has no focus stands in.
+  // Chrome can't lose focus to another window (and whether it reports focus at all varies), so the
+  // page makes document.hasFocus() say no, then blurs its window.
   it("counts a blur that leaves the page without focus", async () => {
     const session = await launch();
-    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 800);</script>`;
+    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => { document.hasFocus = () => false; dispatchEvent(new FocusEvent("blur")); }, 800);</script>`;
     await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
-    await delay(1400); // nothing focused yet: headless Chrome reports no focus
-    expect((await session.focusState()).losses).toBe(1);
+    await delay(1400);
+    expect(await session.focusState()).toEqual({ focused: false, losses: 1 });
   });
 
   it("doesn't count a blur while the page still has focus", async () => {
@@ -239,6 +245,37 @@ describe("closing a browser that doesn't answer", () => {
   });
 });
 
+describe("the browser's command line", () => {
+  const profile = "C:\\Temp\\voicecap-chrome-x";
+  const disabledFeatures = (args: string[]) =>
+    args
+      .find((arg) => arg.startsWith("--disable-features="))
+      ?.split("=")[1]
+      ?.split(",") ?? [];
+
+  it("keeps every sandbox for an installed browser", () => {
+    const args = chromeArgs(profile, {
+      name: "Chrome",
+      path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    });
+    expect(disabledFeatures(args)).not.toContain("NetworkServiceSandbox");
+    expect(args).not.toContain("--no-sandbox");
+  });
+
+  // Seen on GitHub's Windows runners, then on a Windows 11 PC: Chrome's sandbox can't read
+  // Playwright's download (a user folder, with no access for app containers), so the network
+  // service crashes as the browser starts and restarts, aborting a page load under way.
+  it("turns off only the network service's sandbox for Playwright's own Chromium", () => {
+    const args = chromeArgs(profile, {
+      name: "Chromium",
+      path: "C:\\Users\\pat\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe",
+      playwrightBuild: true,
+    });
+    expect(disabledFeatures(args)).toContain("NetworkServiceSandbox");
+    expect(args).not.toContain("--no-sandbox");
+  });
+});
+
 describe("choosing the browser", () => {
   const found = (paths: string[]) => (candidate: string) => paths.includes(candidate);
   const env = { LOCALAPPDATA: "C:\\Users\\pat\\AppData\\Local", PROGRAMFILES: "C:\\Program Files" };
@@ -265,7 +302,7 @@ describe("choosing the browser", () => {
         found(["C:\\pw\\chrome.exe"]),
         "C:\\pw\\chrome.exe",
       ),
-    ).toEqual({ name: "Chromium", path: "C:\\pw\\chrome.exe" });
+    ).toEqual({ name: "Chromium", path: "C:\\pw\\chrome.exe", playwrightBuild: true });
   });
 
   it("explains what to install when neither is there", () => {
