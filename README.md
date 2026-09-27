@@ -9,7 +9,7 @@ It doesn't replace listening to a site with a screen reader. It makes that revie
 - **Transcripts** of everything NVDA says, one line per keystroke, that a person can skim much faster than listening to, and that can be diffed between runs to catch regressions.
 - **An audit trail** of what was transcribed automatically, what a person reviewed (with a full, append-only history), and what was tested by hand with NVDA.
 
-> **Status: Phase A.** Everything except the real NVDA driver works today on Windows, macOS, and Linux, using the **replay driver** (which plays back a recorded run). The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` arrive in **Phase B**, on Windows. Until then, running with the default driver prints a message saying so. Run times in this README are estimates until Phase B measures them.
+> **Status.** voicecap runs NVDA on Windows through its Guidepup driver, checked end to end against real NVDA 2026.2 with Chrome 153. Everything else (reports, reviews, manual sessions, and the whole pipeline under the **replay driver**, which plays back a recorded run) works on Windows, macOS, and Linux.
 
 ## Contents
 
@@ -35,7 +35,7 @@ It doesn't replace listening to a site with a screen reader. It makes that revie
 
 ## Quick start
 
-voicecap needs **Node.js 22.12 or later**. You run it with `npx`; pnpm is only needed to develop voicecap itself.
+voicecap needs **Node.js 22.19 or later** (24 recommended). You run it with `npx`; pnpm is only needed to develop voicecap itself.
 
 **Try it on any OS** with the replay driver and the test fixture in this repository:
 
@@ -48,7 +48,7 @@ node dist/cli.js --site http://127.0.0.1:4747 --pages fixture/pages.json --repla
 
 **Before voicecap is published to npm**, run it from a clone instead of `npx`: after `pnpm build`, use `node /path/to/voicecap/dist/cli.js` wherever this README says `npx @icjia/voicecap` (or run `pnpm link --global` in the clone to get a `voicecap` command).
 
-**On a real site, with NVDA (Windows, Phase B):**
+**On a real site, with NVDA (Windows):**
 
 ```bash
 npx @icjia/voicecap setup      # once: install the NVDA build voicecap's Guidepup expects
@@ -69,17 +69,30 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 
    Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too). Close and reopen Windows Terminal afterwards so both are on your PATH.
 
-2. **Open Git Bash** in Windows Terminal: the tab drop-down (the `˅` next to the `+`) lists "Git Bash" once Git is installed. You can make it the default profile in Windows Terminal's settings. Check with `node --version` (22.12 or later) and `git --version`.
+2. **Open Git Bash** in Windows Terminal: the tab drop-down (the `˅` next to the `+`) lists "Git Bash" once Git is installed. You can make it the default profile in Windows Terminal's settings. Check with `node --version` (22.19 or later) and `git --version`.
 
 3. **Only if you'll develop voicecap:** install pnpm with `corepack enable pnpm` (or `npm install -g pnpm`). Running voicecap needs only Node and `npx`.
 
-4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup` *(Phase B)*. This downloads the portable NVDA build that voicecap's pinned Guidepup version expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed.
+4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first.
 
-5. **Check everything:** `npx @icjia/voicecap doctor` *(Phase B)*. It confirms the NVDA build, that no other NVDA is running, that NVDA starts and its speech can be captured, and that the browser launches and comes to the front. It prints a summary you can paste into a bug report.
+   - **If your Windows user folder has a space in its path** (`C:\Users\Jane Doe`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a folder without spaces, such as `C:\guidepup`, open a new terminal, and run setup again.
+   - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
+
+5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether another NVDA is running, that NVDA starts and its speech is captured, that the browser comes to the front, and that NVDA speaks English. It prints a summary you can paste into a bug report:
+
+   ```
+   OK    NVDA build: 0.2.1-2026.2 (NVDA 2026.2), installed at C:\Users\…\nvda.exe
+   OK    Other NVDA: none running
+   OK    Browser: Chrome 153.0.8010.53 (C:\Program Files\Google\Chrome\Application\chrome.exe)
+   OK    NVDA speech: captured ("heading, level 1, voicecap doctor check" / "Doctor button, button"), 1.3 s per step
+   OK    Foreground: the browser came to the front (checked with NVDA+T)
+   OK    NVDA language: en-US
+   ```
 
 6. **Before a run:**
    - **Close your own copy of NVDA.** voicecap shuts down any running NVDA when it starts (Guidepup does this), and it warns you first.
-   - **Keep the desktop awake and unlocked.** Keystrokes go to whichever window is in front, so a locked screen, a screen saver, or a minimized Remote Desktop window (Windows stops drawing it) breaks a run. In Settings → System → Power & battery → Screen and sleep, set both to "Never" while plugged in.
+   - **Don't use the computer during a run.** NVDA's keystrokes go to whichever window is in front. voicecap brings its browser to the front for every page, checks it with NVDA+T, and throws away any step during which another window came forward, but each click elsewhere costs a page (it's recorded as failed). NVDA speaks aloud throughout, and NVDA's Speech Viewer window opens beside the browser.
+   - **Keep the desktop awake and unlocked.** A locked screen, a screen saver, or a minimized Remote Desktop window (Windows stops drawing it) breaks a run. In Settings → System → Power & battery → Screen and sleep, set both to "Never" while plugged in.
    - **Turn on Do Not Disturb** (Settings → System → Notifications) so notifications don't get read into transcripts.
    - **Pause Windows Update** restarts during long runs (Settings → Windows Update → Pause updates). If a restart happens anyway, voicecap resumes where it stopped.
 
@@ -126,8 +139,8 @@ voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--ex
 voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note "..."] [--reviewer <name>] [--run <run-id>] [--out <dir>]
 voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--out <dir>]
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--out <dir>]
-voicecap setup     # Windows (Phase B)
-voicecap doctor    # Windows (Phase B)
+voicecap setup     # Windows: install the NVDA build voicecap's Guidepup expects
+voicecap doctor    # Windows: check NVDA, the browser, and speech capture; print a summary
 ```
 
 Wherever a command takes a page, give a full URL or a root-relative path (`/about`). Paths resolve against the site of the latest run.
@@ -203,9 +216,9 @@ With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL p
 
 ## What voicecap does on each page
 
-For each page, voicecap runs up to three **passes** in a real browser with NVDA running. Before each pass it loads the page fresh, waits until it's ready (network idle, plus an optional `readySelector` and settle delay for sites like Nuxt that keep rendering after load), makes sure the browser window is in front (keystrokes go to whichever window is in front; if it can't be brought forward, the page is recorded as an error rather than transcribing the wrong window), and moves NVDA into the page.
+For each page, voicecap runs up to three **passes** in a real browser with NVDA running. Before each pass it loads the page fresh, in a new browser with a new profile (so no page's speech depends on the pages before it: no "visited" links, cookies, or saved state), and waits until it's ready (network idle, plus an optional `readySelector` and settle delay for sites like Nuxt that keep rendering after load). Then it brings the browser window to the front and checks with NVDA+T (report title) that NVDA sees it there: keystrokes go to whichever window is in front, so if the browser can't be brought forward, the page is recorded as an error rather than transcribing the wrong window. Finally it moves NVDA to the top of the page, in browse mode.
 
-voicecap captures **everything** NVDA says after each keystroke. That costs about a second per step, which is the right trade for an audit trail.
+voicecap captures **everything** NVDA says after each keystroke: it waits until NVDA has been quiet for a second, so a step takes about 1.3 seconds. That's the right trade for an audit trail. A step during which another window came to the front is thrown away and the page recorded as failed, so another window's speech never ends up in a transcript.
 
 ### read
 
@@ -223,7 +236,9 @@ From the top, moves heading to heading (H) until NVDA says "no next heading".
 
 ### tab
 
-Starts with nothing focused and presses Tab, recording what NVDA says at each focus stop and the focused element as the browser sees it: tag, role, accessible name, link target, and whether it's inside the main landmark. It stops when focus leaves the page for the browser's own interface (detected by the browser, not from speech), at the repeat safety net (a one-element focus trap), or at the step cap. If the page had already focused something before the first Tab, the pass records a warning.
+Starts with nothing focused and presses Tab, recording what NVDA says at each focus stop and the focused element as the browser sees it: tag, role, accessible name, link target, and whether it's inside the main landmark. It stops when focus leaves the page for the browser's own interface (Chrome's toolbar; detected by the browser, not from speech), at the repeat safety net (a one-element focus trap), or at the step cap. If the page had already focused something before the first Tab, the pass records a warning.
+
+The first Tab goes to the browser directly; the rest go through NVDA. In browse mode NVDA handles Tab itself, moving to the first focusable element *after its cursor*, and its cursor starts on the first line of the page, which is usually the skip link. Sent through NVDA, the first Tab would skip the skip link.
 
 ### Progress
 
@@ -269,7 +284,14 @@ Committing `transcripts/` preserves the audit trail alongside the site's code; n
 
 ## Long runs, interruptions, and resuming
 
-A curated run of about 100 pages takes roughly 10 hours, and an exhaustive run over a 2,000-page sitemap more than a week (estimates: about 1.3–1.6 s per step, roughly 6 minutes for a page with 250 steps across the three passes; Phase B replaces these with measurements). Interruptions are normal: reboots, Windows Update, power cuts.
+**Measured run times** (Windows 11, NVDA 2026.2, Chrome 153): each step takes **1.3 seconds** (voicecap waits for a second of silence after every keystroke), and each page adds about **17 seconds**, about 6 per pass, to load the page in a fresh browser, bring it to the front, and move NVDA to the top. So a page takes about 1.3 s × its steps + 17 s:
+
+| Pages | Steps per page (all three passes) | Time per page | 100 pages | 2,000 pages |
+| --- | --- | --- | --- | --- |
+| Five sampled pages of i2i.illinois.gov (measured) | 46–68 | 78–106 s, 92 s on average | about 2½ hours | about 2 days |
+| A long page | 250 | about 6 minutes | about 10 hours | about 8½ days |
+
+Count a page's steps as its lines in browse mode, plus its headings, plus its focusable elements. Interruptions are normal: reboots, Windows Update, power cuts.
 
 - **Resuming.** At the start of a run voicecap stores the page list and a hash of the settings that matter (site, page source, passes, filters, limit, driver, capture mode, step caps, NVDA settings, browser). `run.json` is rewritten after every page (atomically: a temporary file is flushed to disk and renamed, with retries while Windows holds the file). Running the same command again resumes the most recent incomplete run with the same settings, skipping pages already done (failed pages are retried). Otherwise voicecap starts a new run and says why. `--fresh` always starts a new run.
 - **Sitemap runs resume with the page list stored when they started**, so a sitemap that changed in the meantime (a new news item, say) doesn't block resuming. A page list file is identified by its contents, so editing it starts a new run.
@@ -353,9 +375,12 @@ Check the clean transcript before committing it, and never commit an unredacted 
 To check that an automated transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
 
 1. Open Speech Viewer, load the page, press Ctrl+Home, then Down Arrow until the end, and save the Speech Viewer text.
-2. Compare it with `read.txt` (skip the header block and the `[to bottom]` line). Normalize the separators first: Speech Viewer separates items with two spaces and utterances with new lines, while transcripts separate items with ", " and put all the utterances of one keystroke on one line, joined with ". ".
+2. Compare it with `read.txt` (skip the header block and the `[to bottom]` line). Normalize first:
+   - **Separators.** Speech Viewer separates items with two spaces and utterances with new lines; transcripts separate items with ", " and put all the utterances of one keystroke on one line, joined with ". ".
+   - **Symbols.** Speech Viewer shows the text before NVDA turns symbols into words; transcripts have the words NVDA speaks. So Speech Viewer's `© 2026` and `•` are `copyright 2026` and `bullet` in a transcript (NVDA's English symbol names, at its default symbol level).
+   - **Empty items.** Transcripts keep NVDA's empty text items (`edit, , button` for an empty field); Speech Viewer shows them as extra spaces.
 
-`fixture/manual/speech-viewer.txt` is such a capture for the fixture's home page, and the fixture tests compare it with the replay transcript.
+`fixture/manual/speech-viewer.txt` is a real capture of the fixture's home page, and the fixture tests compare it with the fixture run's read transcript this way. On Windows, `pnpm test:nvda` repeats the whole check against live NVDA.
 
 ## Reading the report
 
@@ -461,7 +486,7 @@ await generateReport({ outDir: "transcripts", config, logger: createConsoleLogge
 
 A driver owns both the screen reader and the browser, so the rest of voicecap never touches Guidepup or Playwright. The `ScreenReaderDriver` interface (`src/drivers/types.ts`) is expressed in actions (open a page, next line, next heading, next focusable, to top, to bottom, focus checks); voicecap's core decides when a pass stops from what the driver returns, so replay exercises the same stop logic as a real run.
 
-- **`guidepup`** (default, Phase B): NVDA through [Guidepup](https://github.com/guidepup/guidepup) with Playwright as a library. Windows only.
+- **`guidepup`** (default): NVDA through [Guidepup](https://github.com/guidepup/guidepup), with the browser driven by Playwright as a library. Windows only. It launches the browser itself (with a new profile for each page load) and attaches Playwright to it, because a browser launched by Playwright pretends to have focus, and the driver relies on real focus to keep keystrokes out of other windows. It removes Guidepup's own Ctrl+C handlers (they stop NVDA but never exit), so voicecap saves its state first and stops NVDA exactly once.
 - **`replay`**: no screen reader or browser. It plays back a run folder (`--replay-from`), matched by URL: each pass's recorded steps in order, then NVDA's end behavior (the last line repeats, "no next heading", focus leaves the page). Replayed output is labeled as such in every transcript and report.
 - **`at-driver`**: a stub for the W3C [AT Driver](https://w3c.github.io/at-driver/) protocol. Every method throws "not implemented"; the comments show how each maps to AT Driver messages.
 
@@ -470,10 +495,12 @@ A driver owns both the screen reader and the browser, so the rest of voicecap ne
 Guidepup changes its API across versions and releases often, so voicecap pins `@guidepup/guidepup` and `@guidepup/setup` exactly and upgrades them together:
 
 1. `pnpm add -E @guidepup/guidepup@<version> @guidepup/setup@<version>`.
-2. Re-check the driver (`src/drivers/guidepup-nvda.ts`) against the new versions' source: method names, capture behavior, signal handling.
+2. Re-check the driver against the new versions' source (`src/drivers/guidepup/nvda.ts` lists what it relies on): method names, capture behavior, signal handling, where the NVDA build is installed.
 3. Re-run `voicecap setup`: a new Guidepup can pin a new NVDA build (it reads `manifest.json` from the installed `@guidepup/guidepup`).
-4. Re-run the fixture checks on Windows and compare with the previous transcripts (`--compare`).
+4. On Windows, run `pnpm test:nvda`: it runs voicecap with real NVDA on the fixture site and checks end-of-page detection, "no next heading", the tab pass starting at the skip link, and complete capture against Speech Viewer. Then `pnpm fixture:capture` replaces the fixture's recorded run; review the transcript changes with `git diff`, and update the flag phrasing in `src/config/defaults.ts` if NVDA's wording changed.
 5. For a temporary fix in Guidepup itself, use `pnpm patch @guidepup/guidepup` and `pnpm patch-commit` rather than forking it.
+
+`npm install` of voicecap also fetches ffmpeg (about 30 MB): `@guidepup/setup` has an optional dependency for screen-recording its macOS setup, which voicecap never uses. If your network blocks the download, npm skips it and voicecap works the same.
 
 Completing the AT Driver stub would mean installing the NVDA AT Automation add-on and server ([Prime-Access-Consulting/nvda-at-automation](https://github.com/Prime-Access-Consulting/nvda-at-automation), a WebSocket server on `ws://localhost:3031` by default), implementing `src/drivers/at-driver-nvda.ts` along its comments (browser work stays with Playwright), and running the same fixture checks.
 
@@ -481,8 +508,11 @@ Completing the AT Driver stub would mean installing the NVDA AT Automation add-o
 
 - **Timing.** Screen reader automation is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
-- **English phrasing.** Stop detection and flags match NVDA's English wording.
-- **Run times** are estimates until Phase B measures them (see [Long runs](#long-runs-interruptions-and-resuming)).
+- **English phrasing.** Stop detection and flags match NVDA's English wording; `voicecap doctor` warns when NVDA's language isn't English (NVDA follows the Windows display language).
+- **The computer is voicecap's during a run.** NVDA's keystrokes go to the window in front. voicecap confirms its browser is in front for every page and throws away any step during which another window came forward, but that page is then recorded as failed. Pop-up dialogs (Windows Update, chat apps) have the same effect.
+- **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser, retries the page once, and records it as failed if it happens again.
+- **Folders with spaces.** Guidepup 0.34.0 can't start NVDA from a path with a space; see [Windows setup](#windows-setup-for-someone-new-to-windows).
+- **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
 - **What automation can't judge.** A transcript shows what NVDA said, not whether it made sense: reading order that is technically right but confusing, alt text that is present but unhelpful, whether a page is usable. That still takes a person.
 
 ## Development
@@ -495,19 +525,21 @@ pnpm lint            # ESLint + Prettier
 pnpm typecheck
 pnpm build
 pnpm fixture:serve   # serve the test fixture at http://127.0.0.1:4747
-pnpm fixture:replay  # regenerate fixture/replay-run from fixture/replay-src
+pnpm test:nvda       # Windows: run voicecap with real NVDA on the fixture and check the results
+pnpm fixture:capture # Windows: the same, then replace the fixture's recorded run with it
+pnpm fixture:reviews # rebuild fixture/reviews.json from the recorded run
 ```
 
-`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a Speech Viewer capture, an NVDA log excerpt, and a hand-written replay run; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows.
+`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, and a run recorded with real NVDA that the replay driver plays back; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
 
-`docs/build-prompt.md` is the specification, `docs/plan.md` the approved plan, and `docs/phase-b-handoff.md` explains how to continue with Phase B on Windows. `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
+`docs/build-prompt.md` is the specification, `docs/plan.md` the approved plan, and `docs/phase-b-handoff.md` the notes for Phase B (the real NVDA driver). `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
 
 ### Publishing to npm
 
-Always publish with `publish.sh`, from an up-to-date `main`. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`).
+Always publish with `publish.sh`, from an up-to-date `main`. It's a bash script, so on Windows run it from Git Bash. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`).
 
 ```bash
-./publish.sh --dry-run        # every check, plus a dry-run publish; changes nothing
+./publish.sh --dry-run        # every check, plus a dry-run publish; changes nothing (and doesn't log you in to npm)
 ./publish.sh                  # first publish: package.json's version; afterwards: next patch version
 ./publish.sh minor            # or patch, major, current, or an exact version like 1.2.3
 ./publish.sh minor 123456     # with an npm 2FA code (skips the confirmation prompt)

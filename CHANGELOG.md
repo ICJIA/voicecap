@@ -4,6 +4,32 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+Phase B: the real NVDA driver, checked end to end with NVDA 2026.2 and Chrome 153 on Windows 11.
+
+### Added
+
+- **The Guidepup NVDA driver** (`driver: "guidepup"`, the default; Windows only): NVDA through `@guidepup/guidepup` 0.34.0, with the browser driven by Playwright.
+  - Every page load gets a new browser with a new profile, so no page's transcript depends on the pages before it.
+  - Keystrokes only reach the browser. For every load, the driver brings the browser to the front and confirms it with NVDA+T. A step during which another window came forward, even briefly, is discarded as a foreground error, so another window's speech never ends up in a transcript.
+  - The tab pass starts at the first focusable element: its first Tab goes to the browser directly. Through NVDA in browse mode, it would skip the element under NVDA's cursor, usually the skip link.
+  - The environment record has Guidepup's NVDA build, the NVDA version, NVDA's language, the browser, the Windows version, and NVDA's speech-related settings (the values that differ from NVDA's defaults).
+  - Only one voicecap drives NVDA at a time on a computer. voicecap warns before it shuts down an NVDA that's already running, and closes browsers and deletes profiles that a crashed run left behind.
+  - NVDA is stopped exactly once, by voicecap: Guidepup's own signal handlers are removed, a hung Guidepup stop falls back to shutting NVDA down directly, and NVDA and the browser are shut down even if the process exits abruptly.
+- **`voicecap setup`**: installs the NVDA build that voicecap's pinned Guidepup expects, with voicecap's own pinned `@guidepup/setup` 0.28.0. It installs Playwright's Chromium if the configured browser isn't installed, and explains the fix when the install folder's path has a space in it (Guidepup can't start NVDA from such a path).
+- **`voicecap doctor`**: checks Windows, Node.js, the NVDA build, other running NVDA copies, the browser, speech capture, the foreground check, and NVDA's language, and prints a summary to paste into a bug report. Exits 2 if something voicecap needs doesn't work.
+- **`pnpm test:nvda` and `pnpm fixture:capture`** (Windows, for development): run voicecap with real NVDA on the fixture site and check end-of-page detection (including the page with duplicate lines), "no next heading", the tab pass starting at the skip link, and complete capture compared with NVDA's Speech Viewer. `fixture:capture` then replaces the fixture's recorded run.
+
+### Changed
+
+- The fixture's replay run is now a real NVDA run, with a real Speech Viewer capture, in place of the hand-written one. `pnpm fixture:replay` and `fixture/replay-src/` are gone; `pnpm fixture:reviews` rebuilds the sample `reviews.json`.
+- The flag phrasing was checked against real NVDA output; no rules needed changing. The fixture README records what NVDA 2026.2 actually says, including two differences from Phase A's source-based expectations: an image without alt text is read ("Unlabeled graphic"), and transcripts have NVDA's names for symbols (`copyright`, `bullet`).
+- voicecap now needs Node.js 22.19 or later (`@guidepup/setup` requires it).
+- `playwright` is now a dependency, and `@guidepup/guidepup` and `@guidepup/setup` are pinned exactly.
+
+### Fixed
+
+- `publish.sh --dry-run` no longer logs you in to npm: without a login it warns and carries on, so a dry run changes nothing. The whole dry run was checked in Git Bash on Windows.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added

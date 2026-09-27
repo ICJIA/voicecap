@@ -1,5 +1,28 @@
 # Phase B handoff: picking up on Windows
 
+## Status: Phase B done (2026-09-27)
+
+Phase B was built on Windows 11 (Git Bash, non-admin) and checked end to end with real NVDA 2026.2 (Guidepup build 0.2.1-2026.2) and Chrome 153. The rest of this file is the original handoff, kept for its background.
+
+**What was built** (details in `CHANGELOG.md` and `README.md`):
+- The Guidepup NVDA driver: `src/drivers/guidepup-nvda.ts` (the driver's logic, tested with a fake desktop in `test/guidepup-driver.test.ts`) and `src/drivers/guidepup/` (Guidepup adapter, browser, Windows helpers, `setup`, `doctor`).
+- `pnpm test:nvda` / `pnpm fixture:capture` (`scripts/capture-fixture.ts`), which run the four Phase B checks against live NVDA. `fixture/replay-run` is now a real run.
+
+**Facts that turned out differently from the notes below:**
+- *Focus.* A browser launched by Playwright emulates focus (`document.hasFocus()` is always true), so the driver launches Chrome itself and attaches with `connectOverCDP({ noDefaults: true })`. Even then, Chrome reports focus for a window that has never really been in front, so every page load confirms the window with NVDA+T against a unique marker title. After that, the page's blur events show any loss of focus.
+- *navigateToWebContent.* Alt+Esc window cycling was dropped (it brought other windows forward and NVDA read them). The NVDA+Space toggles were dropped too: entering focus mode focuses the element under NVDA's cursor. Instead the driver raises its window (minimize and restore, no keystrokes) before the first NVDA command of each load. A window in front that keeps changing (a terminal with a spinner) keeps NVDA talking, and Guidepup waits for silence before every captured command, so NVDA+T would never return.
+- *The tab pass.* With nothing focused, NVDA's browse mode handles Tab itself and moves to the first focusable element after its cursor (the skip link, after Ctrl+Home), skipping it. So the first Tab goes to Chrome directly (`page.keyboard.press`, captured with Guidepup's `capture()`), and later Tabs go through NVDA.
+- *Leaving the page* focuses Chrome's toolbar ("Tab search, button"), not the address bar.
+- *Symbols.* Guidepup's capture has NVDA's spoken symbol names ("copyright", "bullet"); Speech Viewer shows the characters.
+- *Signals.* Playwright's own SIGINT handler exits the process (code 130), so it's turned off too, not just Guidepup's.
+- *Guidepup 0.34.0* spawns nvda.exe unquoted through the shell (paths with spaces fail; `voicecap setup` and `doctor` explain the fix) and triggers Node 24's DEP0190 warning (hidden). `getSettings()` reads Guidepup's `nvda.ini`, which holds only non-default values.
+- *@guidepup/setup 0.28.0* needs Node 22.19 (undici 8) and pulls in ffmpeg-static through an optional dependency (macOS recording only).
+
+**Still open:**
+- The Phase A review's smaller items, listed below under "Follow-ups from the Phase A code review".
+- A page that fails with a foreground error (someone used the computer) is recorded as failed without an immediate retry. The core retries timeouts once; retrying foreground errors the same way is a small change in `src/run/page-runner.ts`.
+- Publishing 0.2.0 (section 2 below).
+
 Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/cschweda/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
 
 ## 1. Setting up the machine and starting the chat
