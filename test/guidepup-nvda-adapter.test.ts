@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import net, { type AddressInfo } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { WindowsKeyCodes } from "@guidepup/guidepup";
 import type * as GuidepupModule from "@guidepup/guidepup";
 import { describe, expect, it } from "vitest";
 
@@ -184,16 +183,23 @@ describe("Guidepup's key presses that nobody waits for", () => {
     expect(unhandled).toEqual([]);
   });
 
-  it("fail quietly in Guidepup's own client once voicecap has loaded Guidepup", async () => {
-    await loadGuidepupNvda(INSTALL);
-    const { NVDAClient } = await import("@guidepup/guidepup/lib/windows/NVDA/NVDAClient.js");
-    const unhandled = await unhandledRejectionsDuring(() => {
-      // Not a connected client, so the press fails, as it does once NVDA has died.
-      void NVDAClient.prototype.sendKeyCode.call({} as never, { keyCode: [WindowsKeyCodes.Down] });
-      return Promise.resolve();
-    });
-    expect(unhandled).toEqual([]);
-  });
+  // Guidepup can only be loaded where it has a screen reader: on Linux, importing it throws.
+  it.skipIf(process.platform !== "win32" && process.platform !== "darwin")(
+    "fail quietly in Guidepup's own client once voicecap has loaded Guidepup",
+    async () => {
+      await loadGuidepupNvda(INSTALL);
+      const { NVDAClient } = await import("@guidepup/guidepup/lib/windows/NVDA/NVDAClient.js");
+      const { WindowsKeyCodes } = await import("@guidepup/guidepup");
+      const unhandled = await unhandledRejectionsDuring(() => {
+        // Not a connected client, so the press fails, as it does once NVDA has died.
+        void NVDAClient.prototype.sendKeyCode.call({} as never, {
+          keyCode: [WindowsKeyCodes.Down],
+        });
+        return Promise.resolve();
+      });
+      expect(unhandled).toEqual([]);
+    },
+  );
 
   it("don't change how the rest of the process handles unhandled rejections", async () => {
     const before = process.listeners("unhandledRejection");

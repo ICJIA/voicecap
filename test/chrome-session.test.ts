@@ -107,13 +107,14 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
 
   // A real loss (another window in front) was checked on Windows with headed Chrome: the blur
   // arrives with document.hasFocus() false, and it counts even after focus comes back. Headless
-  // Chrome can't lose focus to another window, but a blur while the page has no focus stands in.
+  // Chrome can't lose focus to another window (and whether it reports focus at all varies), so the
+  // page makes document.hasFocus() say no, then blurs its window.
   it("counts a blur that leaves the page without focus", async () => {
     const session = await launch();
-    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 800);</script>`;
+    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => { document.hasFocus = () => false; dispatchEvent(new FocusEvent("blur")); }, 800);</script>`;
     await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
-    await delay(1400); // nothing focused yet: headless Chrome reports no focus
-    expect((await session.focusState()).losses).toBe(1);
+    await delay(1400);
+    expect(await session.focusState()).toEqual({ focused: false, losses: 1 });
   });
 
   it("doesn't count a blur while the page still has focus", async () => {

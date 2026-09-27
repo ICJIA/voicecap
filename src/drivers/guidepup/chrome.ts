@@ -174,7 +174,14 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
     // that answers with a download mustn't put files in the user's Downloads folder.
     const browserCdp = await browser.newBrowserCDPSession();
     await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
-    const page = context.pages()[0] ?? (await context.newPage());
+    // Chrome opens its first tab (about:blank, from the command line) as it starts, and a slow
+    // start can be attached to before that tab exists. Wait for it, and for its load, rather than
+    // open a second tab: Chrome's startup can still navigate a tab opened meanwhile, aborting the
+    // page load under way in it (seen on GitHub's Windows runners as net::ERR_ABORTED).
+    const page =
+      context.pages()[0] ??
+      (await Promise.race([context.waitForEvent("page", { timeout: timeoutMs }), calledOff]));
+    await Promise.race([page.waitForLoadState("load", { timeout: timeoutMs }), calledOff]);
     const cdp = await context.newCDPSession(page);
     if (signal?.aborted) throw new Error("the launch was called off");
     return new ChromeSession(executable, child, profileDir, browser, page, cdp);
