@@ -1,8 +1,8 @@
 # voicecap test fixture
 
-A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a hand-written run to replay, sample reviews, and manual-session captures. Phase B also uses the site to check the real NVDA driver end to end.
+A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, and manual-session captures.
 
-Everything here is fictional. The run in `replay-run/` was **written by hand**. It is not output from a real NVDA session, and its environment record says so (`driver: hand-written`, OS "Windows 11 (hand-written fixture)").
+The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 2026.2 with Chrome 153 on Windows 11, captured with `pnpm fixture:capture`. Its environment record says exactly what produced it. Everything on the site itself is fictional.
 
 ## Contents
 
@@ -17,11 +17,10 @@ Everything here is fictional. The run in `replay-run/` was **written by hand**. 
 | `site/sitemap.xml`, `site/sitemaps/*.xml` | A `<sitemapindex>` with two child sitemaps. They list the three pages; `/contact/`, which redirects to another origin; `/feed/`; an off-origin URL; and the PDF. |
 | `site/404.html` | The server's not-found page. |
 | `pages.json`, `pages.csv`, `pages-windows-1252.csv` | Page lists covering a subset of the site. They include a relative path, labeled entries, and an invalid row. The CSV files keep Windows line endings, and the last is in Excel's Windows-1252 encoding. |
-| `replay-src/*.json` | The hand-written source of the replay run. It holds each page's steps as NVDA speech items, plus run metadata and sample review entries. |
-| `replay-run/` | A complete run folder generated from `replay-src/` by voicecap's own writers: `run.json`, then `pages/<slug>/{read,headings,tab}.{txt,json}`. The replay driver replays it (`--replay-from fixture/replay-run`). |
-| `reviews.json` | A sample review history. The home page goes reviewed → issue → fixed. The flawed page has an open issue. The duplicates page was reviewed against an earlier, fictional run, so it shows as changed since review. |
-| `manual/speech-viewer.txt` | A Speech Viewer capture of the home page read with Down Arrow, from Ctrl+Home through the first repeat of the last line. Windows line endings. |
-| `manual/nvda-io-log.txt` | An NVDA log excerpt at Input/output level, for manual-session import. It includes log noise, typing into the search field, and a session that crosses midnight. Windows line endings. |
+| `replay-run/` | A real run folder, exactly as voicecap wrote it (including its `report.html` snapshot): `run.json`, then `pages/<slug>/{read,headings,tab}.{txt,json}`. The replay driver replays it (`--replay-from fixture/replay-run`). |
+| `reviews.json` | A sample review history for that run, built by `pnpm fixture:reviews`. The home page goes reviewed → issue → fixed. The flawed page has an open issue. The duplicates page was reviewed against an earlier, fictional run, so it shows as changed since review. |
+| `manual/speech-viewer.txt` | A real Speech Viewer capture of the home page read with Down Arrow, from Ctrl+Home through the first repeat of the last line, read from NVDA's Speech Viewer window by `pnpm fixture:capture`. Windows line endings. |
+| `manual/nvda-io-log.txt` | An NVDA log excerpt at Input/output level, written by hand in NVDA's log format, for manual-session import. It includes log noise, typing into the search field, and a session that crosses midnight. Windows line endings. |
 
 `.gitattributes` marks the CRLF and Windows-1252 files `-text`, so Git never converts them.
 
@@ -40,50 +39,40 @@ Routes:
 - `/feed/` serves RSS.
 - Anything else is a 404 HTML page. Paths that escape `site/` are refused.
 
-## Regenerating the replay run
+## Capturing the run with real NVDA
 
-Edit `replay-src/`, then run:
+On Windows, after `voicecap setup`:
 
 ```sh
-pnpm fixture:replay
+pnpm test:nvda          # run voicecap with NVDA on this site and check the results; the fixture is left alone
+pnpm fixture:capture    # the same, then replace replay-run/, reviews.json, and manual/speech-viewer.txt
+pnpm fixture:reviews    # only rebuild reviews.json from replay-run/
 ```
 
-This rewrites `replay-run/`, `reviews.json`, and `manual/speech-viewer.txt`, deterministically. `test/fixture.test.ts` fails if they fall out of step with `replay-src/`.
+A capture takes about 5 minutes, during which NVDA speaks and browser windows come and go: don't use the keyboard or mouse. It serves the site itself (or uses `pnpm fixture:serve` if that's running), runs voicecap over the sitemap, then reads the home page again with NVDA's Speech Viewer open. It checks:
 
-The generator checks every pass against the core's stop rules (docs/plan.md section 5, default config: `endConfirmations: 1`, `repeatLimit: 10`). Replaying the run therefore stops exactly where each recording ends: read at `end-reached`, headings at `no-next-heading`, tab at `left-document`.
+- every read pass ends at the end of the page, including the page with duplicate lines;
+- every headings pass ends on "no next heading";
+- the home and duplicates tab passes start at the skip link and end with focus leaving the page;
+- complete capture: Speech Viewer shows the same speech as the home page's read pass.
 
-The run has no `report.html` snapshot. `voicecap report --run 2026-09-20_0930_hand-written` renders one.
+If a check fails, nothing is replaced and the run is kept for inspection. `--from <run folder>` checks (and with `--write`, installs) a run made earlier instead of making a new one.
 
-**Phase B replaces `replay-run/` with output captured from real NVDA** on this site, retunes the flag phrasing to match, and records the real phrasing in place of the assumptions below.
+Re-capture after upgrading Guidepup, NVDA, or Chrome, and review the transcript changes with `git diff` before committing. `test/replay.test.ts` replays the run through voicecap's core and expects the recorded stops and content, and `test/fixture.test.ts` checks the run's files, hashes, and the Speech Viewer capture.
 
-## Where the phrasing comes from
+## What NVDA says (NVDA 2026.2, Chrome 153)
 
-The steps follow NVDA's source (nvaccess/nvda `master`, September 2026) for Chrome in browse mode with default settings. Speech strings use Guidepup's format: each item trimmed and joined with `", "`. That format was verified in `@guidepup/guidepup` 0.34.0's `NVDAClient.js`.
+Observed in this run. Phase A predicted the phrasing from NVDA's source; where the prediction was wrong, that's noted.
 
-- **Role, state, and landmark words** (`controlTypes/role.py`, `controlTypes/state.py`, `aria.py`): "link", "heading", "edit", "button", "graphic", "list"; "banner", "navigation", "main", "search", and "content info" landmarks, spoken as e.g. "main landmark".
-- **Line reading** (Down Arrow, `OutputReason.CARET`; `speech/speech.py` `getControlFieldSpeech`): the role comes before the text, as in "heading, level 1, Welcome…" and "link, Home".
-  - Link states come before the role: "same page, link".
-  - Containers (landmarks, lists) are spoken only when entered, as in "list, with 4 items". Lists also say "out of list" when left; landmarks say nothing when left.
-  - Landmarks always report their name (`virtualBuffers/__init__.py` sets `alwaysReportName`), as in "Main, navigation landmark".
-- **Quick navigation (H) and focus (Tab)** (`_shouldSpeakContentFirst`): the content comes first, as in "Resources, heading, level 2" and "Read more, link".
-- **"no next heading"**: `browseMode.py`.
-- **Same-page links** (`utils/urlUtils.py` `isSamePageURL`, `documentFormatting.reportLinkType` on by default): a link whose target is the current page is "same page", ignoring fragments. That includes the home page's links to `/`, not just `#` links.
-- **Empty controls** (`nvdaHelper/vbufBackends/gecko_ia2/gecko_ia2.cpp`): an interactive control with no content gets a space so it can be reached. That's why the unlabeled edit and button are read as "edit" and "button". A non-interactive image without alt is not rendered at all.
-- **Linked images**: an image-only link without alt is named after its image file by `getNameForURL` (`nvdaHelper/vbufBase/utils.cpp`), so NVDA says "link, graphic, chart".
-- **Line wrapping**: browse-mode lines wrap at `virtualBuffers.maxLineLength` (100). The home page's first paragraph (102 characters) is therefore two lines.
-- **Speech Viewer** (`speechViewer.py`): items joined with two spaces, one speech sequence per line.
-  - Both Speech Viewer and Guidepup's Remote Access capture receive the sequence in `speech.speak()` before symbol processing. That's why "©" stays a character rather than becoming "copyright".
-- **End of page** (plan Q1): NVDA re-speaks the last line without the containers it announced on arrival. On the home and flawed pages the last line enters the footer, so arrival says "content info landmark, © 2026…" and the repeats say "© 2026…".
-  - The core needs the pair of repeats plus one confirmation, so those read passes end with the arrival and three identical lines.
-  - On the duplicates page the last line doesn't enter a new container, so it ends with the arrival and two repeats.
-  - Ctrl+End from the top speaks the last line with its context, and it ends with ", " plus the repeated line.
-
-## Uncertainties (check in Phase B)
-
-- **Visited links.** Chrome may also report links to the current page, or to pages visited earlier in the same browser profile, as "visited". The fixture assumes a fresh profile and leaves "visited" out. If the Phase B driver keeps one profile across pages, transcripts would depend on the order pages were visited.
-- **Whitespace-only items.** NVDA sends text chunks as-is, including the space rendered for empty controls and spaces between inline controls. Guidepup trims items but keeps empty ones, so real output may contain empty items (e.g. `edit, ` or `, button`). The fixture writes these steps without them.
-- **Line break position.** The fixture assumes the wrap happens at the last space before the 100-character limit, leaving "page." on its own line.
-- **Unlabeled linked image.** The derived name may come from the link URL instead of the image file ("data" rather than "chart").
-- **Focus-mode fields.** Tabbing to a text field switches to focus mode. NVDA then reports the object (`speakObject`) and may also announce focus ancestors such as landmarks. The fixture writes only "Search this site, edit, blank" and "edit, blank".
-- **Leaving the page.** The fixture assumes Tab past the last element focuses Chrome's address bar ("Address and search bar, edit, 127.0.0.1:4747/flawed/"). Chrome may focus a different toolbar control first. NVDA may also report the selected URL differently.
-- **Settings.** The recorded NVDA settings are a plausible subset of NVDA's defaults, not Guidepup's actual configuration (e.g. whether it turns off say-all on page load). Step timings (about 1.25–1.6 s each) are synthetic.
+- **Speech format.** Guidepup trims each text item, joins items with `", "`, and joins utterances with `". "`. Empty items survive: the home page's search line is `search landmark, Search this site, edit, , button, Search` (the empty text field).
+- **Symbols are spoken by name in transcripts** (`copyright 2026`, `bullet`), because Guidepup receives NVDA's speech (over NVDA Remote Access) after symbol processing. Speech Viewer shows the characters (`© 2026`, `•`). *Phase A assumed both kept the characters.*
+- **Line reading** (Down Arrow): the role comes before the text (`heading, level 1, Welcome to the Voicecap Test Agency`, `link, Home`), link states before the role (`same page, link, Home`), and containers only when entered (`list, with 4 items`; `out of list`). Landmarks report their names (`Main, navigation landmark`).
+- **Focus (Tab) and quick navigation (H)**: the content comes first (`Read more, link`, `Resources, heading, level 2`). When focus enters landmarks, they're announced first, as separate utterances when a field takes focus: `main landmark. search landmark. Search this site, edit, blank`.
+- **End of page**: arriving on the last line announces the containers entered (`content info landmark, copyright 2026 Voicecap Test Agency`); Down Arrow on it repeats the line without them (`copyright 2026 Voicecap Test Agency`). On the duplicates page the container was entered one line earlier, so the arrival and the repeats are identical (`same page, link, Back to top`).
+- **Line wrapping** at 100 characters: the home page's first paragraph is two lines, the second being `page.`.
+- **"no next heading"** after the last heading.
+- **Same-page links** say `same page`, including links to `/` on the home page. No link says `visited`: each page load uses a fresh browser profile.
+- **Images.** An image without alt that isn't a link *is* read in NVDA 2026.2: `Unlabeled graphic, To get missing image descriptions, open the context menu.` *(Phase A assumed it was silent.)* The image-only link is named after its file: `link, Unlabeled graphic, chart` when read, `chart, Unlabeled graphic, link` on focus.
+- **Unlabeled controls**: the text field and the icon-only button are `edit` and `button` when read, `edit, blank` and `button` on focus.
+- **Leaving the page**: Tab past the last element focuses Chrome's toolbar, not the address bar: `Home Voicecap Test Agency - Google Chrome, region. Tab search, button, collapsed`. voicecap detects it from the page losing focus, not from this speech.
+- **The first Tab** reaches the skip link, because the driver sends it to Chrome directly. Sent through NVDA in browse mode, it moves to the first focusable element *after* NVDA's cursor, and Ctrl+Home puts the cursor on the skip link, so the skip link would be skipped.

@@ -52,7 +52,7 @@ async function replay(source: { pages?: string; sitemap?: string }) {
   return { result, run: await readRunJson(path.join(cwd, "transcripts"), result.runId), cwd };
 }
 
-describe("replaying the hand-written fixture run", () => {
+describe("replaying the fixture run", () => {
   it("detects exactly the stop reasons and content recorded for every page and pass", async () => {
     const source = await fixtureRun();
     const { result, run } = await replay({ pages: path.join(ROOT, "fixture", "pages.json") });
@@ -104,8 +104,8 @@ describe("replaying the hand-written fixture run", () => {
     expect(run.replayed).toBe(true);
     expect(run.sessions[0]?.environment?.driver.name).toBe("replay");
     expect(run.sessions[0]?.environment?.replay).toMatchObject({
-      sourceRun: "2026-09-20_0930_hand-written",
-      sourceDriver: "hand-written",
+      sourceRun: (await fixtureRun()).id,
+      sourceDriver: "guidepup",
     });
     const json = JSON.parse(
       await readFile(

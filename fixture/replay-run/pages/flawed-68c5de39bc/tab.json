@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "voicecap": "0.1.0",
   "replayed": false,
-  "run": "2026-09-20_0930_hand-written",
+  "run": "2026-09-27_0749_real-nvda",
   "pass": "tab",
   "page": {
     "url": "http://127.0.0.1:4747/flawed/",
@@ -10,8 +10,8 @@
     "slug": "flawed-68c5de39bc",
     "finalUrl": "http://127.0.0.1:4747/flawed/"
   },
-  "capturedAt": "2026-09-20T09:33:05-05:00",
-  "durationMs": 27963,
+  "capturedAt": "2026-09-27T07:52:59-05:00",
+  "durationMs": 27628,
   "stepCount": 20,
   "stopReason": "left-document",
   "warnings": [],
@@ -19,61 +19,45 @@
   "initialFocus": null,
   "environment": {
     "driver": {
-      "name": "hand-written",
-      "version": "1"
+      "name": "guidepup",
+      "version": "0.34.0"
     },
     "screenReader": {
       "name": "NVDA",
       "version": "2026.2",
       "build": "0.2.1-2026.2",
-      "language": "en"
+      "language": "en-US"
     },
     "capture": "complete",
     "browser": {
       "name": "Chrome",
-      "version": "152.0.7815.60"
+      "version": "153.0.8010.53"
     },
-    "os": "Windows 11 (hand-written fixture)",
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
     "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
       "speech": {
         "synth": "oneCore",
-        "symbolLevel": 100,
-        "trustVoiceLanguage": true,
-        "autoLanguageSwitching": true,
-        "autoDialectSwitching": false,
-        "reportLanguage": false
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
       },
-      "documentFormatting": {
-        "reportLinks": true,
-        "reportLinkType": true,
-        "reportGraphics": true,
-        "reportHeadings": true,
-        "reportLists": true,
-        "reportLandmarks": true,
-        "reportTables": true,
-        "reportClickable": true,
-        "reportArticles": false,
-        "reportFigures": true,
-        "reportGroupings": true
-      },
+      "documentFormatting": {},
       "virtualBuffers": {
-        "maxLineLength": 100,
-        "linesPerPage": 25,
-        "useScreenLayout": true,
-        "autoPassThroughOnFocusChange": true,
-        "autoPassThroughOnCaretMove": false,
-        "passThroughAudioIndication": true,
-        "autoSayAllOnPageLoad": false,
-        "trapNonCommandGestures": true
+        "autoSayAllOnPageLoad": false
       },
-      "keyboard": {
-        "NVDAModifierKeys": 6,
-        "keyboardLayout": "desktop",
-        "speakTypedCharacters": 1,
-        "speakTypedWords": 0,
-        "speakCommandKeys": false,
-        "speechInterruptForCharacters": true,
-        "speechInterruptForEnter": true
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
       }
     },
     "pageSource": {
@@ -82,18 +66,18 @@
     },
     "voicecap": {
       "version": "0.1.0",
-      "configSha256": "hand-written"
+      "configSha256": "default"
     },
-    "runId": "2026-09-20_0930_hand-written",
-    "runStartedAt": "2026-09-20T09:30:00-05:00"
+    "runId": "2026-09-27_0749_real-nvda",
+    "runStartedAt": "2026-09-27T07:49:14-05:00"
   },
   "steps": [
     {
       "n": 1,
       "command": "nextFocusable",
-      "spoken": "banner landmark, Voicecap Test Agency, link",
-      "durationMs": 1556,
-      "offsetMs": 1556,
+      "spoken": "Voicecap Test Agency, link",
+      "durationMs": 1315,
+      "offsetMs": 1316,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -107,8 +91,8 @@
       "n": 2,
       "command": "nextFocusable",
       "spoken": "Main, navigation landmark, list, with 11 items, Home, link",
-      "durationMs": 1498,
-      "offsetMs": 3054,
+      "durationMs": 1313,
+      "offsetMs": 2629,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -122,8 +106,8 @@
       "n": 3,
       "command": "nextFocusable",
       "spoken": "About, link",
-      "durationMs": 1334,
-      "offsetMs": 4388,
+      "durationMs": 1310,
+      "offsetMs": 3939,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -137,8 +121,8 @@
       "n": 4,
       "command": "nextFocusable",
       "spoken": "Grants, link",
-      "durationMs": 1444,
-      "offsetMs": 5832,
+      "durationMs": 1309,
+      "offsetMs": 5248,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -152,8 +136,8 @@
       "n": 5,
       "command": "nextFocusable",
       "spoken": "Research, link",
-      "durationMs": 1567,
-      "offsetMs": 7399,
+      "durationMs": 1306,
+      "offsetMs": 6554,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -167,8 +151,8 @@
       "n": 6,
       "command": "nextFocusable",
       "spoken": "News, link",
-      "durationMs": 1262,
-      "offsetMs": 8661,
+      "durationMs": 1310,
+      "offsetMs": 7864,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -182,8 +166,8 @@
       "n": 7,
       "command": "nextFocusable",
       "spoken": "Events, link",
-      "durationMs": 1385,
-      "offsetMs": 10046,
+      "durationMs": 1305,
+      "offsetMs": 9170,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -197,8 +181,8 @@
       "n": 8,
       "command": "nextFocusable",
       "spoken": "Data, link",
-      "durationMs": 1456,
-      "offsetMs": 11502,
+      "durationMs": 1311,
+      "offsetMs": 10481,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -212,8 +196,8 @@
       "n": 9,
       "command": "nextFocusable",
       "spoken": "Publications, link",
-      "durationMs": 1307,
-      "offsetMs": 12809,
+      "durationMs": 1306,
+      "offsetMs": 11787,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -227,8 +211,8 @@
       "n": 10,
       "command": "nextFocusable",
       "spoken": "Careers, link",
-      "durationMs": 1339,
-      "offsetMs": 14148,
+      "durationMs": 1307,
+      "offsetMs": 13094,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -242,8 +226,8 @@
       "n": 11,
       "command": "nextFocusable",
       "spoken": "Contact, link",
-      "durationMs": 1436,
-      "offsetMs": 15584,
+      "durationMs": 1313,
+      "offsetMs": 14407,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -257,8 +241,8 @@
       "n": 12,
       "command": "nextFocusable",
       "spoken": "Accessibility, link",
-      "durationMs": 1261,
-      "offsetMs": 16845,
+      "durationMs": 1317,
+      "offsetMs": 15724,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -271,9 +255,9 @@
     {
       "n": 13,
       "command": "nextFocusable",
-      "spoken": "out of list, main landmark, Read more, link",
-      "durationMs": 1320,
-      "offsetMs": 18165,
+      "spoken": "main landmark, Read more, link",
+      "durationMs": 1311,
+      "offsetMs": 17035,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -287,8 +271,8 @@
       "n": 14,
       "command": "nextFocusable",
       "spoken": "Read more, link",
-      "durationMs": 1403,
-      "offsetMs": 19568,
+      "durationMs": 1313,
+      "offsetMs": 18348,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -302,8 +286,8 @@
       "n": 15,
       "command": "nextFocusable",
       "spoken": "Read more, link",
-      "durationMs": 1500,
-      "offsetMs": 21068,
+      "durationMs": 1309,
+      "offsetMs": 19656,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -317,8 +301,8 @@
       "n": 16,
       "command": "nextFocusable",
       "spoken": "Click here, link",
-      "durationMs": 1260,
-      "offsetMs": 22328,
+      "durationMs": 1314,
+      "offsetMs": 20970,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -331,9 +315,9 @@
     {
       "n": 17,
       "command": "nextFocusable",
-      "spoken": "chart, graphic, link",
-      "durationMs": 1409,
-      "offsetMs": 23737,
+      "spoken": "chart, Unlabeled graphic, link",
+      "durationMs": 1308,
+      "offsetMs": 22278,
       "inDocument": true,
       "focused": {
         "tag": "a",
@@ -347,8 +331,8 @@
       "n": 18,
       "command": "nextFocusable",
       "spoken": "edit, blank",
-      "durationMs": 1389,
-      "offsetMs": 25126,
+      "durationMs": 1315,
+      "offsetMs": 23594,
       "inDocument": true,
       "focused": {
         "tag": "input",
@@ -362,8 +346,8 @@
       "n": 19,
       "command": "nextFocusable",
       "spoken": "button",
-      "durationMs": 1421,
-      "offsetMs": 26547,
+      "durationMs": 1300,
+      "offsetMs": 24893,
       "inDocument": true,
       "focused": {
         "tag": "button",
@@ -376,9 +360,9 @@
     {
       "n": 20,
       "command": "nextFocusable",
-      "spoken": "Address and search bar, edit, 127.0.0.1:4747/flawed/",
-      "durationMs": 1416,
-      "offsetMs": 27963,
+      "spoken": "Resources Voicecap Test Agency - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2734,
+      "offsetMs": 27628,
       "inDocument": false,
       "focused": null
     }

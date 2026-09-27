@@ -4,22 +4,24 @@
 # Label: -
 # Template: -
 # Notes: -
-# Run: 2026-09-20_0930_hand-written (started 2026-09-20T09:30:00-05:00)
-# Captured: 2026-09-20T09:30:48-05:00
+# Run: 2026-09-27_0749_real-nvda (started 2026-09-27T07:49:14-05:00)
+# Captured: 2026-09-27T07:50:24-05:00
 # Steps: 11 (stopped: left the document)
-# Duration: 15s
+# Duration: 16s
 # Errors: none
 # Warnings: none
 # Page source: sitemap http://127.0.0.1:4747/sitemap.xml
-# Driver: hand-written 1 (capture: complete)
-# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en)
-# Browser: Chrome 152.0.7815.60
-# OS: Windows 11 (hand-written fixture)
-# voicecap: 0.1.0 (config sha256 hand-written)
-# NVDA speech: autoDialectSwitching=false, autoLanguageSwitching=true, reportLanguage=false, symbolLevel=100, synth="oneCore", trustVoiceLanguage=true
-# NVDA documentFormatting: reportArticles=false, reportClickable=true, reportFigures=true, reportGraphics=true, reportGroupings=true, reportHeadings=true, reportLandmarks=true, reportLinkType=true, reportLinks=true, reportLists=true, reportTables=true
-# NVDA virtualBuffers: autoPassThroughOnCaretMove=false, autoPassThroughOnFocusChange=true, autoSayAllOnPageLoad=false, linesPerPage=25, maxLineLength=100, passThroughAudioIndication=true, trapNonCommandGestures=true, useScreenLayout=true
-# NVDA keyboard: NVDAModifierKeys=6, keyboardLayout="desktop", speakCommandKeys=false, speakTypedCharacters=1, speakTypedWords=0, speechInterruptForCharacters=true, speechInterruptForEnter=true
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 153.0.8010.53
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.1.0 (config sha256 default)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
 
 Skip to main content, same page, link
 banner landmark, Voicecap Test Agency, same page, link
@@ -27,8 +29,8 @@ Main, navigation landmark, list, with 4 items, Home, same page, link
 Duplicate lines, link
 Flawed page, link
 Contact, link
-Search this site, edit, blank
+main landmark. search landmark. Search this site, edit, blank
 Search, button
 list, with 2 items, Grant applications open October 1, link
 New research on pretrial services, link
-Address and search bar, edit, 127.0.0.1:4747
+Home Voicecap Test Agency - Google Chrome, region. Tab search, button, collapsed

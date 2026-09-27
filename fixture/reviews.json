@@ -5,64 +5,64 @@
       {
         "status": "reviewed",
         "reviewer": "Sample Reviewer",
-        "at": "2026-09-21T10:15:00-05:00",
+        "at": "2026-09-28T09:53:00-05:00",
         "note": "Skip link comes first in the tab pass; headings start at level 1.",
-        "run": "2026-09-20_0930_hand-written",
+        "run": "2026-09-27_0749_real-nvda",
         "url": "http://127.0.0.1:4747/",
         "files": {
-          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
-          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
-          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
-          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
-          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
-          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+          "read.txt": "5ab4ed82212bccff74cba5d5dc4631e2d38dd8a1ee85b4398683c2e901625194",
+          "read.json": "ec35835c2571c30332f3e1a0f2729f3eb0dc978db77e4a2f4031d026886c3b01",
+          "headings.txt": "4c60c68ca0ec06ce363cce8d5089ca452d9032597bde43575b581d403561d65c",
+          "headings.json": "d56b7180699f0f906bf487e8a6e148c6559640ba2404d6c9515929851cceae60",
+          "tab.txt": "c3fdf4ed3509a1a2ac8bc895f5e0ca7cf5f6ed5f3ea9897f871166963eafc7b8",
+          "tab.json": "c23f57ae457565b4e36e5f2c0e7bf282e161d074c60453f75782a2a15106c1f0"
         },
         "content": {
-          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "read": "52a22d52ee29b071ded19e2715625519d0d5602c9815e90f6da673deb446d6c8",
           "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
-          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+          "tab": "daa98851c39b23549899c3fa99c41c8b3e7f04b7e72192c85af7349a8355fcc8"
         }
       },
       {
         "status": "issue",
         "reviewer": "Second Reviewer",
-        "at": "2026-09-22T14:40:00-05:00",
-        "note": "In the read pass the search field is announced only as \"edit\" after its label; confirm the label with a manual NVDA test.",
-        "run": "2026-09-20_0930_hand-written",
+        "at": "2026-09-29T14:53:00-05:00",
+        "note": "In the read pass the search field is announced as \"Search this site, edit\" with an empty item after it; confirm with a manual NVDA test.",
+        "run": "2026-09-27_0749_real-nvda",
         "url": "http://127.0.0.1:4747/",
         "files": {
-          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
-          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
-          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
-          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
-          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
-          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+          "read.txt": "5ab4ed82212bccff74cba5d5dc4631e2d38dd8a1ee85b4398683c2e901625194",
+          "read.json": "ec35835c2571c30332f3e1a0f2729f3eb0dc978db77e4a2f4031d026886c3b01",
+          "headings.txt": "4c60c68ca0ec06ce363cce8d5089ca452d9032597bde43575b581d403561d65c",
+          "headings.json": "d56b7180699f0f906bf487e8a6e148c6559640ba2404d6c9515929851cceae60",
+          "tab.txt": "c3fdf4ed3509a1a2ac8bc895f5e0ca7cf5f6ed5f3ea9897f871166963eafc7b8",
+          "tab.json": "c23f57ae457565b4e36e5f2c0e7bf282e161d074c60453f75782a2a15106c1f0"
         },
         "content": {
-          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "read": "52a22d52ee29b071ded19e2715625519d0d5602c9815e90f6da673deb446d6c8",
           "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
-          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+          "tab": "daa98851c39b23549899c3fa99c41c8b3e7f04b7e72192c85af7349a8355fcc8"
         }
       },
       {
         "status": "fixed",
         "reviewer": "Sample Reviewer",
-        "at": "2026-09-24T09:05:00-05:00",
-        "note": "Resolved: the field is announced as \"Search this site, edit\" when it gets focus (tab pass step 7).",
-        "run": "2026-09-20_0930_hand-written",
+        "at": "2026-10-01T09:53:00-05:00",
+        "note": "Resolved: when the field gets focus it is announced as \"Search this site, edit, blank\" (tab pass step 7).",
+        "run": "2026-09-27_0749_real-nvda",
         "url": "http://127.0.0.1:4747/",
         "files": {
-          "read.txt": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
-          "read.json": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
-          "headings.txt": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
-          "headings.json": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
-          "tab.txt": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
-          "tab.json": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245"
+          "read.txt": "5ab4ed82212bccff74cba5d5dc4631e2d38dd8a1ee85b4398683c2e901625194",
+          "read.json": "ec35835c2571c30332f3e1a0f2729f3eb0dc978db77e4a2f4031d026886c3b01",
+          "headings.txt": "4c60c68ca0ec06ce363cce8d5089ca452d9032597bde43575b581d403561d65c",
+          "headings.json": "d56b7180699f0f906bf487e8a6e148c6559640ba2404d6c9515929851cceae60",
+          "tab.txt": "c3fdf4ed3509a1a2ac8bc895f5e0ca7cf5f6ed5f3ea9897f871166963eafc7b8",
+          "tab.json": "c23f57ae457565b4e36e5f2c0e7bf282e161d074c60453f75782a2a15106c1f0"
         },
         "content": {
-          "read": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "read": "52a22d52ee29b071ded19e2715625519d0d5602c9815e90f6da673deb446d6c8",
           "headings": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
-          "tab": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c"
+          "tab": "daa98851c39b23549899c3fa99c41c8b3e7f04b7e72192c85af7349a8355fcc8"
         }
       }
     ],
@@ -70,22 +70,22 @@
       {
         "status": "issue",
         "reviewer": "Sample Reviewer",
-        "at": "2026-09-21T10:40:00-05:00",
-        "note": "Three \"Read more\" links, an image-only link read as \"chart\", an unlabeled edit and button, no skip link, and the first heading is level 2.",
-        "run": "2026-09-20_0930_hand-written",
+        "at": "2026-09-28T10:53:00-05:00",
+        "note": "Three \"Read more\" links, a \"Click here\" link, an image-only link, an unlabeled edit and button, no skip link, and the first heading is level 2.",
+        "run": "2026-09-27_0749_real-nvda",
         "url": "http://127.0.0.1:4747/flawed/",
         "files": {
-          "read.txt": "e56d1f4ddc1173f8aa7df3d89b0992f9eb6e8cf082c7fc0e90d7be21e1b31da7",
-          "read.json": "59dab2dbd7f10a72f569d6504a041b5c2741f46426460f6a9b33f059c3ea4a2b",
-          "headings.txt": "265ccb72f75e68c71b809bccfb895112dbd8112ec4896916d5d5c9233254acda",
-          "headings.json": "50cb3c45cf754324708902260710e023927e3c125591c52c7fecea250a6a43ae",
-          "tab.txt": "f1bc0af05c87dde923bc81a2d75c766905113baaf49b1eda65b3d8cb1be7e417",
-          "tab.json": "b050d537619cc70c1c883d006b64fdd9da231bf4db833128bad7055b550d92dc"
+          "read.txt": "d5a122bb6b53be57f7633522228d7ba2b36cfb0b5c26ad9ebecbc5d8779b6320",
+          "read.json": "6a2e26c3afdbd2c31a068aa3ccfdc5b1b5d6530837e1e0dff8af5c0dba6ce758",
+          "headings.txt": "3ae7c7bdb272d0e66050efa3cd1f3711ad2504186bdcb6368aa67ef800d40bff",
+          "headings.json": "42cb8f88e460b11585ab11da65e70186f347d7e5d88eca0706ae884c6638e6a4",
+          "tab.txt": "ded99c7e97281d656e0c7d33c5f06dc66dd89a1264ede61563347df7ed74a590",
+          "tab.json": "bd4cfc74cef92674639445a4d184e7dbccc10f7743ab7418fb7984b0ed0abf75"
         },
         "content": {
-          "read": "5b52926f1cb7735b1be8254b1c1ad1a26223c43a2edb8d4da55a073d4794b8fd",
+          "read": "6c8a1744bfccfe7ee2e0755aeec9df3a87ccd7e768636ab848780158cd18ae84",
           "headings": "a905b68cf278fb73dab6174b678941ba14b55cf001ee225869153f94df2f8c1b",
-          "tab": "296174e3523a9ee08ee71bd1705142d0f89ffcd47a76449aaf878d50909f3abd"
+          "tab": "5cc46d35ad85072c0d6cdc9fdc16b9fd246229887706f83a81c2df53802183db"
         }
       }
     ],
@@ -93,22 +93,22 @@
       {
         "status": "reviewed",
         "reviewer": "Second Reviewer",
-        "at": "2026-09-19T16:20:00-05:00",
+        "at": "2026-09-26T11:53:00-05:00",
         "note": "Reviewed before the footer's \"Back to top\" link was added, so the read transcript has changed since.",
-        "run": "2026-09-19_1600_hand-written",
+        "run": "2026-09-26_1600_real-nvda",
         "url": "http://127.0.0.1:4747/duplicates/",
         "files": {
-          "read.txt": "5f5886605653999b6aae8908912f3d761d2231b3c8b6cc253034385723b4deeb",
-          "read.json": "f35160e6d386d8b3a4bb6dda19c2cc1bcedc653fdf5c53bff242667c5990de47",
-          "headings.txt": "2a271e4a09a3a8e02cd6c99ffe2dbc041b6c0d16570ba467183c95caf7506925",
-          "headings.json": "1af84180076de9dd34fe8fd7cebb89dc90672223da38e5223f496f571e23fdf5",
-          "tab.txt": "4e6fe7f7e86fcc68ee4c44d6ab608be5b829254bf94a9ca21cb05547ac4f2bc8",
-          "tab.json": "04d24e80e21e015a0e081b3844ecfa68ec04fb49c992d69d11e2100e0ebc9f40"
+          "read.txt": "1045d47582e21692a761e3effa19f6fb10297c03d6b1d4f1f4c9f0765d212762",
+          "read.json": "d6b89e8b7946e4c8c9f777bb3fa8410d5b4077c62093e5f30debe71af0546a4d",
+          "headings.txt": "28bd38a70ed227e6c87fe64482e25c589696f9841bccca5c72de7695be3b5803",
+          "headings.json": "2ff7567a1d7a81c1c1993dc2e2336c68cf294a0c1e1883c30bd9ace928bec7d5",
+          "tab.txt": "da19ab83d562365518e597f854c1b48921151c611c346c61790e74eb60401226",
+          "tab.json": "22026dc7e37f6bfb7105b5db7e1088f306ef490de48a4e538d26bc5c348e6684"
         },
         "content": {
-          "read": "82aea20f586dc8a456aced317ced8a8eee58483f3067fc8405fe2dac7b8ec678",
+          "read": "387838a176e71039b5424349b9a66442cdfca202fed289d75beb788d5c451859",
           "headings": "93ca27bb608d184e9596655dad43936e7f1124e5995b1562bdb1c5bb7cac9eeb",
-          "tab": "e8d4499064828af63e771a8ee223bd4452553750c801b2984cbd9a13a024087f"
+          "tab": "5e53a8d76c999c88b020797619bc9f27451a6f5ed7a16062d653e6225ab4bfeb"
         }
       }
     ]

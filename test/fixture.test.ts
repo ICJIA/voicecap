@@ -6,19 +6,10 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { PassName, ReviewsFile, RunJson, TranscriptJson } from "../src/model.js";
-import { canonicalKey } from "../src/pages/url.js";
 import { contentSha256, extractBody, renderTranscriptTxt } from "../src/transcripts/format.js";
 import { sha256 } from "../src/util/hash.js";
-import {
-  detectStop,
-  guidepupSpeech,
-  loadPageSource,
-  loadRunSource,
-  passSteps,
-  REPLAY_RUN_DIR,
-  REVIEWS_FILE,
-  SPEECH_VIEWER_FILE,
-} from "../scripts/build-replay-fixture.js";
+import { REPLAY_RUN_DIR, REVIEWS_FILE, SPEECH_VIEWER_FILE } from "../scripts/fixture-reviews.js";
+import { comparableStep, speechViewerLines } from "../scripts/speech-viewer.js";
 import {
   CONTACT_REDIRECT,
   startFixtureServer,
@@ -181,17 +172,20 @@ describe("fixture server", () => {
   });
 });
 
-describe("hand-written replay run", () => {
-  it("is labeled as hand-written, never as real NVDA output", async () => {
+describe("the fixture run (real NVDA, captured with pnpm fixture:capture)", () => {
+  it("is a completed run of the Guidepup NVDA driver, not a replay", async () => {
     const run = await readRun();
     expect(run.status).toBe("completed");
     expect(run.replayed).toBe(false);
-    expect(run.settings.driver).toBe("hand-written");
+    expect(run.settings.driver).toBe("guidepup");
     expect(run.sessions).toHaveLength(1);
-    expect(run.sessions[0]!.environment?.driver.name).toBe("hand-written");
+    const environment = run.sessions[0]!.environment;
+    expect(environment?.driver.name).toBe("guidepup");
+    expect(environment?.screenReader?.name).toBe("NVDA");
+    expect(environment?.os).toMatch(/^Windows /);
     const home = await transcriptOf(`${FIXTURE_ORIGIN}/`, "read");
-    expect(home.environment.driver.name).toBe("hand-written");
-    expect(home.environment.os).toContain("hand-written");
+    expect(home.environment.driver.name).toBe("guidepup");
+    expect(home.replayed).toBe(false);
   });
 
   it("records every file's SHA-256 and size correctly", async () => {
@@ -233,33 +227,14 @@ describe("hand-written replay run", () => {
     }
   });
 
-  it("matches the hand-written source (regenerate with pnpm fixture:replay)", async () => {
-    const run = await readRun();
-    const source = await loadRunSource();
-    for (const file of source.pages) {
-      const pageSource = await loadPageSource(file);
-      const page = run.pages.find((candidate) => candidate.key === canonicalKey(pageSource.url));
-      expect(page, file).toBeDefined();
-      for (const pass of PASSES) {
-        const json = await readTranscript(page!.slug, pass);
-        expect(spoken(json), `${file} ${pass}`).toEqual(
-          passSteps(pageSource, pass).map((step) => guidepupSpeech(step.items)),
-        );
-      }
-    }
-  });
-
-  it("stops each pass exactly where the core's stop rules would", async () => {
+  // test/replay.test.ts replays this run through the core and gets the same stops and content.
+  it("ends each pass naturally: end of page, no next heading, focus leaving the page", async () => {
     const run = await readRun();
     const expected = { read: "end-reached", headings: "no-next-heading", tab: "left-document" };
     for (const page of run.pages.filter((candidate) => candidate.status === "done")) {
       for (const pass of PASSES) {
         const json = await readTranscript(page.slug, pass);
-        expect(json.stopReason).toBe(expected[pass]);
-        expect(detectStop(pass, json.steps), `${page.slug} ${pass}`).toEqual({
-          steps: json.steps.length,
-          stopReason: json.stopReason,
-        });
+        expect(json.stopReason, `${page.slug} ${pass}`).toBe(expected[pass]);
       }
     }
   });
@@ -334,13 +309,14 @@ describe("hand-written replay run", () => {
         url: `${FIXTURE_ORIGIN}/contact/`,
         reason: "redirect-off-origin",
         finalUrl: CONTACT_REDIRECT,
-        status: 302,
+        // What www.example.com answered when the run was captured.
+        status: 404,
       },
       {
         url: `${FIXTURE_ORIGIN}/feed/`,
         reason: "non-html-response",
         finalUrl: `${FIXTURE_ORIGIN}/feed/`,
-        contentType: "application/rss+xml",
+        contentType: "application/rss+xml; charset=utf-8",
         status: 200,
       },
     ]);
@@ -402,22 +378,13 @@ describe("Speech Viewer capture", () => {
     expect(text.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
   });
 
-  it("matches the replay home read pass once separators are normalized", async () => {
+  it("matches the home read pass once separators and symbols are normalized", async () => {
     const text = (await readFile(SPEECH_VIEWER_FILE)).toString("utf8");
-    // Speech Viewer separates items with two spaces and keeps each item's own whitespace;
-    // Guidepup trims items and joins them with ", ".
-    const normalized = text
-      .split("\r\n")
-      .filter((line) => line !== "")
-      .map((line) =>
-        line
-          .split(/\s{2,}/)
-          .map((item) => item.trim())
-          .filter((item) => item !== "")
-          .join(", "),
-      );
+    // Speech Viewer separates items with two spaces and shows symbols as characters ("©");
+    // transcripts join items with ", " and have NVDA's spoken names ("copyright").
     const read = spoken(await transcriptOf(`${FIXTURE_ORIGIN}/`, "read"));
     // From Ctrl+Home through the first Down Arrow on the last line.
-    expect(normalized).toEqual(read.slice(1, -2));
+    expect(speechViewerLines(text)).toEqual(read.slice(1, -2).map(comparableStep));
+    expect(text).toContain("©");
   });
 });

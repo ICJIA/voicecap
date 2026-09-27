@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "voicecap": "0.1.0",
   "replayed": false,
-  "run": "2026-09-20_0930_hand-written",
+  "run": "2026-09-27_0749_real-nvda",
   "pass": "read",
   "page": {
     "url": "http://127.0.0.1:4747/duplicates/",
@@ -10,69 +10,53 @@
     "slug": "duplicates-65d92f2c5b",
     "finalUrl": "http://127.0.0.1:4747/duplicates/"
   },
-  "capturedAt": "2026-09-20T09:31:07-05:00",
-  "durationMs": 27039,
+  "capturedAt": "2026-09-27T07:50:55-05:00",
+  "durationMs": 24264,
   "stepCount": 19,
   "stopReason": "end-reached",
   "warnings": [],
   "errors": [],
   "environment": {
     "driver": {
-      "name": "hand-written",
-      "version": "1"
+      "name": "guidepup",
+      "version": "0.34.0"
     },
     "screenReader": {
       "name": "NVDA",
       "version": "2026.2",
       "build": "0.2.1-2026.2",
-      "language": "en"
+      "language": "en-US"
     },
     "capture": "complete",
     "browser": {
       "name": "Chrome",
-      "version": "152.0.7815.60"
+      "version": "153.0.8010.53"
     },
-    "os": "Windows 11 (hand-written fixture)",
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
     "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
       "speech": {
         "synth": "oneCore",
-        "symbolLevel": 100,
-        "trustVoiceLanguage": true,
-        "autoLanguageSwitching": true,
-        "autoDialectSwitching": false,
-        "reportLanguage": false
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
       },
-      "documentFormatting": {
-        "reportLinks": true,
-        "reportLinkType": true,
-        "reportGraphics": true,
-        "reportHeadings": true,
-        "reportLists": true,
-        "reportLandmarks": true,
-        "reportTables": true,
-        "reportClickable": true,
-        "reportArticles": false,
-        "reportFigures": true,
-        "reportGroupings": true
-      },
+      "documentFormatting": {},
       "virtualBuffers": {
-        "maxLineLength": 100,
-        "linesPerPage": 25,
-        "useScreenLayout": true,
-        "autoPassThroughOnFocusChange": true,
-        "autoPassThroughOnCaretMove": false,
-        "passThroughAudioIndication": true,
-        "autoSayAllOnPageLoad": false,
-        "trapNonCommandGestures": true
+        "autoSayAllOnPageLoad": false
       },
-      "keyboard": {
-        "NVDAModifierKeys": 6,
-        "keyboardLayout": "desktop",
-        "speakTypedCharacters": 1,
-        "speakTypedWords": 0,
-        "speakCommandKeys": false,
-        "speechInterruptForCharacters": true,
-        "speechInterruptForEnter": true
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
       }
     },
     "pageSource": {
@@ -81,144 +65,144 @@
     },
     "voicecap": {
       "version": "0.1.0",
-      "configSha256": "hand-written"
+      "configSha256": "default"
     },
-    "runId": "2026-09-20_0930_hand-written",
-    "runStartedAt": "2026-09-20T09:30:00-05:00"
+    "runId": "2026-09-27_0749_real-nvda",
+    "runStartedAt": "2026-09-27T07:49:14-05:00"
   },
   "steps": [
     {
       "n": 1,
       "command": "toBottom",
       "spoken": "content info landmark, same page, link, Back to top",
-      "durationMs": 1310,
-      "offsetMs": 1310
+      "durationMs": 1276,
+      "offsetMs": 1276
     },
     {
       "n": 2,
       "command": "toTop",
       "spoken": "same page, link, Skip to main content",
-      "durationMs": 1575,
-      "offsetMs": 2885
+      "durationMs": 1273,
+      "offsetMs": 2550
     },
     {
       "n": 3,
       "command": "nextLine",
       "spoken": "banner landmark, link, Voicecap Test Agency",
-      "durationMs": 1400,
-      "offsetMs": 4285
+      "durationMs": 1275,
+      "offsetMs": 3825
     },
     {
       "n": 4,
       "command": "nextLine",
       "spoken": "Main, navigation landmark, list, with 4 items, link, Home",
-      "durationMs": 1329,
-      "offsetMs": 5614
+      "durationMs": 1276,
+      "offsetMs": 5102
     },
     {
       "n": 5,
       "command": "nextLine",
       "spoken": "same page, link, Duplicate lines",
-      "durationMs": 1451,
-      "offsetMs": 7065
+      "durationMs": 1279,
+      "offsetMs": 6381
     },
     {
       "n": 6,
       "command": "nextLine",
       "spoken": "link, Flawed page",
-      "durationMs": 1353,
-      "offsetMs": 8418
+      "durationMs": 1279,
+      "offsetMs": 7660
     },
     {
       "n": 7,
       "command": "nextLine",
       "spoken": "link, Contact",
-      "durationMs": 1398,
-      "offsetMs": 9816
+      "durationMs": 1274,
+      "offsetMs": 8934
     },
     {
       "n": 8,
       "command": "nextLine",
       "spoken": "out of list, main landmark, heading, level 1, Duplicate lines",
-      "durationMs": 1419,
-      "offsetMs": 11235
+      "durationMs": 1276,
+      "offsetMs": 10211
     },
     {
       "n": 9,
       "command": "nextLine",
       "spoken": "This page tests how voicecap detects the end of a page.",
-      "durationMs": 1438,
-      "offsetMs": 12673
+      "durationMs": 1280,
+      "offsetMs": 11491
     },
     {
       "n": 10,
       "command": "nextLine",
       "spoken": "heading, level 2, Grant deadlines",
-      "durationMs": 1599,
-      "offsetMs": 14272
+      "durationMs": 1276,
+      "offsetMs": 12767
     },
     {
       "n": 11,
       "command": "nextLine",
       "spoken": "Applications are due October 31.",
-      "durationMs": 1333,
-      "offsetMs": 15605
+      "durationMs": 1271,
+      "offsetMs": 14038
     },
     {
       "n": 12,
       "command": "nextLine",
       "spoken": "Applications are due October 31.",
-      "durationMs": 1430,
-      "offsetMs": 17035
+      "durationMs": 1279,
+      "offsetMs": 15317
     },
     {
       "n": 13,
       "command": "nextLine",
       "spoken": "same page, link, Back to top",
-      "durationMs": 1475,
-      "offsetMs": 18510
+      "durationMs": 1277,
+      "offsetMs": 16594
     },
     {
       "n": 14,
       "command": "nextLine",
       "spoken": "heading, level 2, Questions",
-      "durationMs": 1559,
-      "offsetMs": 20069
+      "durationMs": 1278,
+      "offsetMs": 17872
     },
     {
       "n": 15,
       "command": "nextLine",
       "spoken": "Email the grants unit with any questions.",
-      "durationMs": 1488,
-      "offsetMs": 21557
+      "durationMs": 1280,
+      "offsetMs": 19152
     },
     {
       "n": 16,
       "command": "nextLine",
-      "spoken": "content info landmark, © 2026 Voicecap Test Agency",
-      "durationMs": 1352,
-      "offsetMs": 22909
+      "spoken": "content info landmark, copyright 2026 Voicecap Test Agency",
+      "durationMs": 1276,
+      "offsetMs": 20427
     },
     {
       "n": 17,
       "command": "nextLine",
       "spoken": "same page, link, Back to top",
-      "durationMs": 1513,
-      "offsetMs": 24422
+      "durationMs": 1282,
+      "offsetMs": 21709
     },
     {
       "n": 18,
       "command": "nextLine",
       "spoken": "same page, link, Back to top",
-      "durationMs": 1260,
-      "offsetMs": 25682
+      "durationMs": 1275,
+      "offsetMs": 22984
     },
     {
       "n": 19,
       "command": "nextLine",
       "spoken": "same page, link, Back to top",
-      "durationMs": 1357,
-      "offsetMs": 27039
+      "durationMs": 1280,
+      "offsetMs": 24264
     }
   ]
 }

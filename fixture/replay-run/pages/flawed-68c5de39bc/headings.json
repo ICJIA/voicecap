@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "voicecap": "0.1.0",
   "replayed": false,
-  "run": "2026-09-20_0930_hand-written",
+  "run": "2026-09-27_0749_real-nvda",
   "pass": "headings",
   "page": {
     "url": "http://127.0.0.1:4747/flawed/",
@@ -10,69 +10,53 @@
     "slug": "flawed-68c5de39bc",
     "finalUrl": "http://127.0.0.1:4747/flawed/"
   },
-  "capturedAt": "2026-09-20T09:32:53-05:00",
-  "durationMs": 8597,
+  "capturedAt": "2026-09-27T07:52:27-05:00",
+  "durationMs": 7671,
   "stepCount": 6,
   "stopReason": "no-next-heading",
   "warnings": [],
   "errors": [],
   "environment": {
     "driver": {
-      "name": "hand-written",
-      "version": "1"
+      "name": "guidepup",
+      "version": "0.34.0"
     },
     "screenReader": {
       "name": "NVDA",
       "version": "2026.2",
       "build": "0.2.1-2026.2",
-      "language": "en"
+      "language": "en-US"
     },
     "capture": "complete",
     "browser": {
       "name": "Chrome",
-      "version": "152.0.7815.60"
+      "version": "153.0.8010.53"
     },
-    "os": "Windows 11 (hand-written fixture)",
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
     "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
       "speech": {
         "synth": "oneCore",
-        "symbolLevel": 100,
-        "trustVoiceLanguage": true,
-        "autoLanguageSwitching": true,
-        "autoDialectSwitching": false,
-        "reportLanguage": false
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
       },
-      "documentFormatting": {
-        "reportLinks": true,
-        "reportLinkType": true,
-        "reportGraphics": true,
-        "reportHeadings": true,
-        "reportLists": true,
-        "reportLandmarks": true,
-        "reportTables": true,
-        "reportClickable": true,
-        "reportArticles": false,
-        "reportFigures": true,
-        "reportGroupings": true
-      },
+      "documentFormatting": {},
       "virtualBuffers": {
-        "maxLineLength": 100,
-        "linesPerPage": 25,
-        "useScreenLayout": true,
-        "autoPassThroughOnFocusChange": true,
-        "autoPassThroughOnCaretMove": false,
-        "passThroughAudioIndication": true,
-        "autoSayAllOnPageLoad": false,
-        "trapNonCommandGestures": true
+        "autoSayAllOnPageLoad": false
       },
-      "keyboard": {
-        "NVDAModifierKeys": 6,
-        "keyboardLayout": "desktop",
-        "speakTypedCharacters": 1,
-        "speakTypedWords": 0,
-        "speakCommandKeys": false,
-        "speechInterruptForCharacters": true,
-        "speechInterruptForEnter": true
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
       }
     },
     "pageSource": {
@@ -81,53 +65,53 @@
     },
     "voicecap": {
       "version": "0.1.0",
-      "configSha256": "hand-written"
+      "configSha256": "default"
     },
-    "runId": "2026-09-20_0930_hand-written",
-    "runStartedAt": "2026-09-20T09:30:00-05:00"
+    "runId": "2026-09-27_0749_real-nvda",
+    "runStartedAt": "2026-09-27T07:49:14-05:00"
   },
   "steps": [
     {
       "n": 1,
       "command": "nextHeading",
       "spoken": "main landmark, Resources, heading, level 2",
-      "durationMs": 1543,
-      "offsetMs": 1543
+      "durationMs": 1282,
+      "offsetMs": 1282
     },
     {
       "n": 2,
       "command": "nextHeading",
       "spoken": "Annual report, heading, level 3",
-      "durationMs": 1497,
-      "offsetMs": 3040
+      "durationMs": 1280,
+      "offsetMs": 2562
     },
     {
       "n": 3,
       "command": "nextHeading",
       "spoken": "Crime data, heading, level 3",
-      "durationMs": 1555,
-      "offsetMs": 4595
+      "durationMs": 1279,
+      "offsetMs": 3842
     },
     {
       "n": 4,
       "command": "nextHeading",
       "spoken": "Training, heading, level 3",
-      "durationMs": 1276,
-      "offsetMs": 5871
+      "durationMs": 1279,
+      "offsetMs": 5121
     },
     {
       "n": 5,
       "command": "nextHeading",
       "spoken": "Newsletter, heading, level 3",
-      "durationMs": 1399,
-      "offsetMs": 7270
+      "durationMs": 1274,
+      "offsetMs": 6394
     },
     {
       "n": 6,
       "command": "nextHeading",
       "spoken": "no next heading",
-      "durationMs": 1327,
-      "offsetMs": 8597
+      "durationMs": 1277,
+      "offsetMs": 7671
     }
   ]
 }
