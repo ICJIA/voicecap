@@ -13,6 +13,10 @@ set -euo pipefail
 #   ./publish.sh minor 123456    also pass an npm 2FA code (skips the y/N prompt, so the
 #                                code doesn't expire while waiting)
 #   ./publish.sh --dry-run [...] run every check and a dry-run publish; change nothing
+#                                (if you're not logged in to npm, it warns instead of
+#                                logging you in)
+#
+# Works in Git Bash on Windows as well as on macOS and Linux.
 #
 # Before anything is published, it checks that:
 #   - you're in the voicecap root, on main, up to date with origin/main, with a clean tree;
@@ -91,11 +95,16 @@ git fetch --quiet origin "$BRANCH" --tags
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse "origin/$BRANCH")" ]] ||
   die "$BRANCH and origin/$BRANCH differ. Pull or push first."
 
-if ! npm whoami >/dev/null 2>&1; then
+if npm whoami >/dev/null 2>&1; then
+  info "npm user: $(npm whoami)"
+elif [[ "$DRY_RUN" == true ]]; then
+  # Logging in writes a token to ~/.npmrc, and a dry run changes nothing.
+  warn "Not logged in to npm. The dry run continues; a real publish will ask you to log in."
+else
   warn "Not logged in to npm. Logging in now..."
   npm login
+  info "npm user: $(npm whoami)"
 fi
-info "npm user: $(npm whoami)"
 
 # ─── Which version ──────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 # Setting up voicecap on Windows
 
-This is the checklist for continuing voicecap (Phase B) on a new Windows machine.
+This is the checklist for developing voicecap on a new Windows machine. (It was written to start Phase B, the real NVDA driver, which is now done; the prompt in step 6 is kept for reference.)
 
 ## Which window do I use?
 
@@ -29,7 +29,7 @@ In Windows Terminal, click the **`˅`** next to the **`+`** and choose **Git Bas
 Check that everything is there:
 
 ```bash
-node --version    # v22.12 or later
+node --version    # v22.19 or later (24 recommended)
 git --version
 ```
 
@@ -54,6 +54,15 @@ Keep the repository out of folders that OneDrive syncs (Documents and Desktop of
 ## 5. Close your own NVDA
 
 If you run NVDA yourself, close it before testing: voicecap shuts NVDA down when it starts.
+
+Then install voicecap's NVDA and check the machine (Git Bash, in the repository):
+
+```bash
+pnpm install && pnpm build
+node dist/cli.js setup     # downloads Guidepup's portable NVDA build (about 100 MB)
+node dist/cli.js doctor    # starts NVDA and Chrome for about 20 seconds; hands off the keyboard and mouse
+pnpm test:nvda             # optional: the real-NVDA checks on the fixture site (about 5 minutes)
+```
 
 ## 6. Start Claude Code and paste the prompt (Git Bash)
 

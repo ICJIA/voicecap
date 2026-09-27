@@ -97,13 +97,18 @@ describe("usage errors (exit 1)", () => {
     expect(pattern.err).toContain("--include");
   });
 
-  it("says setup and doctor aren't available yet", async () => {
-    for (const command of ["setup", "doctor"]) {
-      const result = await cli([command]);
-      expect(result.code).toBe(1);
-      expect(result.err).toContain("isn't available yet");
-    }
-  });
+  // On Windows these do real work (download NVDA, start it); test/setup-doctor.test.ts covers them.
+  it.skipIf(process.platform === "win32")(
+    "setup and doctor explain that NVDA needs Windows (exit 2)",
+    async () => {
+      const setup = await cli(["setup"]);
+      expect(setup.code).toBe(2);
+      expect(setup.err).toContain("only runs on Windows");
+      const doctor = await cli(["doctor"]);
+      expect(doctor.code).toBe(2);
+      expect(doctor.out).toContain("FAIL  Windows:");
+    },
+  );
 
   it("exits 2 when the default driver can't run here", async () => {
     if (process.platform === "win32") return;

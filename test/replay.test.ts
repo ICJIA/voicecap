@@ -52,7 +52,7 @@ async function replay(source: { pages?: string; sitemap?: string }) {
   return { result, run: await readRunJson(path.join(cwd, "transcripts"), result.runId), cwd };
 }
 
-describe("replaying the hand-written fixture run", () => {
+describe("replaying the fixture run", () => {
   it("detects exactly the stop reasons and content recorded for every page and pass", async () => {
     const source = await fixtureRun();
     const { result, run } = await replay({ pages: path.join(ROOT, "fixture", "pages.json") });
@@ -76,14 +76,58 @@ describe("replaying the hand-written fixture run", () => {
     }
   });
 
-  it("shows the flawed page's problems as flags", async () => {
+  // The flawed page (fixture/site/flawed/) has three "Read more" links and one "Click here", an
+  // image without alt text and an image-only link without it, an unlabeled field, an icon-only
+  // button, 12 links before main and no skip link, and an h2 as its first heading. NVDA 2026.2
+  // reads an image without alt text as "unlabeled graphic".
+  it("raises exactly the flawed page's problems as flags, and none for the other pages", async () => {
     const { run } = await replay({ pages: path.join(ROOT, "fixture", "pages.json") });
     const flawed = run.pages.find((page) => page.url.endsWith("/flawed/"));
-    expect(flawed?.flags.map((flag) => flag.rule)).toEqual(
-      expect.arrayContaining(["generic-link-text", "unlabeled", "headings", "tab-before-main"]),
-    );
-    const home = run.pages.find((page) => page.slug === "home");
-    expect(home?.flags).toEqual([]);
+    expect(flawed?.flags).toEqual([
+      {
+        rule: "generic-link-text",
+        pass: "read",
+        count: 4,
+        message:
+          'Generic link text announced 4 times in the read pass: "read more" ×3, "click here" ×1.',
+      },
+      {
+        rule: "generic-link-text",
+        pass: "tab",
+        count: 4,
+        message:
+          'Generic link text announced 4 times in the tab pass: "read more" ×3, "click here" ×1.',
+      },
+      {
+        rule: "unlabeled",
+        pass: "read",
+        count: 4,
+        message:
+          'Unlabeled or poorly labeled items in the read pass: "unlabeled graphic" ×2, "button" ×1, "edit" ×1.',
+      },
+      {
+        rule: "unlabeled",
+        pass: "tab",
+        count: 3,
+        message:
+          'Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1, "unlabeled graphic" ×1.',
+      },
+      {
+        rule: "headings",
+        pass: "headings",
+        message: "The first heading is level 2, not level 1.",
+      },
+      {
+        rule: "tab-before-main",
+        pass: "tab",
+        count: 12,
+        message:
+          "12 focus stops before main content, and the first stop isn't a skip link (possible missing skip link).",
+      },
+    ]);
+    const others = run.pages.filter((page) => page.status === "done" && page !== flawed);
+    expect(others).toHaveLength(2);
+    for (const page of others) expect(page.flags, page.slug).toEqual([]);
   });
 
   it("replays a sitemap run, skipping what the recording skipped", async () => {
@@ -104,8 +148,8 @@ describe("replaying the hand-written fixture run", () => {
     expect(run.replayed).toBe(true);
     expect(run.sessions[0]?.environment?.driver.name).toBe("replay");
     expect(run.sessions[0]?.environment?.replay).toMatchObject({
-      sourceRun: "2026-09-20_0930_hand-written",
-      sourceDriver: "hand-written",
+      sourceRun: (await fixtureRun()).id,
+      sourceDriver: "guidepup",
     });
     const json = JSON.parse(
       await readFile(

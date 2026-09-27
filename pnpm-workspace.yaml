@@ -1,2 +1,6 @@
 onlyBuiltDependencies:
   - esbuild
+# ffmpeg-static comes with @guidepup/setup's optional @guidepup/record (macOS screen recording),
+# which voicecap never uses; skip its ffmpeg download.
+ignoredBuiltDependencies:
+  - ffmpeg-static

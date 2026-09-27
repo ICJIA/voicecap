@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="voicecap 0.1.0">
+<title>NVDA transcript report: snapshot of run 2026-09-27_0749_real-nvda</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #4d4d4d;
+  --border: #767676;
+  --rule: #d0d0d0;
+  --surface: #f3f3f3;
+  --stripe: #f8f8f8;
+  --link: #0b57d0;
+  --visited: #6a1b9a;
+  --focus: #0b57d0;
+  --focus-halo: #ffffff;
+  --danger-bg: #fde8e8;
+  --danger-fg: #5c0f0f;
+  --danger-border: #b3261e;
+  --warning-bg: #fff4ce;
+  --warning-fg: #3d2c00;
+  --warning-border: #8a6100;
+  --info-bg: #e8f0fe;
+  --info-fg: #0b2a5c;
+  --info-border: #0b57d0;
+  --bad: #b3261e;
+  --good: #1e6b30;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #e8e8e8;
+    --muted: #bdbdbd;
+    --border: #8f8f8f;
+    --rule: #3a3a3a;
+    --surface: #1f1f1f;
+    --stripe: #181818;
+    --link: #8ab4f8;
+    --visited: #d7aefb;
+    --focus: #8ab4f8;
+    --focus-halo: #121212;
+    --danger-bg: #3d1212;
+    --danger-fg: #ffd6d6;
+    --danger-border: #ff8a80;
+    --warning-bg: #3a2e00;
+    --warning-fg: #ffe8a3;
+    --warning-border: #e0b640;
+    --info-bg: #0d2342;
+    --info-fg: #d6e4ff;
+    --info-border: #8ab4f8;
+    --bad: #ff8a80;
+    --good: #8fd19e;
+  }
+}
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--bg); color: var(--fg); }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--fg);
+}
+a { color: var(--link); text-decoration: underline; text-underline-offset: 0.15em; }
+a:visited { color: var(--visited); }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible,
+summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--focus-halo);
+}
+main:focus { outline: none; }
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -10rem;
+  z-index: 10;
+  padding: 0.5rem 1rem;
+  background: var(--bg);
+  color: var(--link);
+  border: 2px solid var(--focus);
+}
+.skip-link:focus { top: 0.5rem; }
+.page-header, main, .page-footer { max-width: 110rem; margin: 0 auto; padding: 0 1.25rem; }
+.page-header { padding-top: 1.25rem; border-bottom: 1px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 0.75rem; }
+.brand img { max-height: 3.5rem; max-width: 12rem; }
+.agency { margin: 0; font-weight: 600; }
+h1 { font-size: 1.75rem; line-height: 1.25; margin: 0.5rem 0 0.25rem; }
+h2 { font-size: 1.4rem; line-height: 1.3; margin: 2rem 0 0.75rem; }
+h3 { font-size: 1.1rem; line-height: 1.35; margin: 1.5rem 0 0.5rem; }
+.subtitle { margin: 0 0 0.75rem; color: var(--muted); }
+.toc ul { list-style: none; margin: 0; padding: 0 0 0.75rem; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.toc a { display: inline-block; padding: 0.25rem 0; min-height: 24px; }
+.banner {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid;
+  border-left-width: 0.5rem;
+  border-radius: 0.25rem;
+}
+.banner p { margin: 0.25rem 0; }
+.banner .banner-title { font-weight: 700; font-size: 1.05rem; }
+.banner-danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+.banner-warning { background: var(--warning-bg); color: var(--warning-fg); border-color: var(--warning-border); }
+.banner-info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.banner a { color: inherit; }
+.summary-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+.summary-list div { border-left: 3px solid var(--rule); padding-left: 0.75rem; }
+.summary-list dt { color: var(--muted); font-size: 0.95rem; }
+.summary-list dd { margin: 0; font-size: 1.15rem; font-weight: 600; overflow-wrap: anywhere; }
+.details-list dt { font-weight: 600; margin-top: 0.5rem; }
+.details-list dd { margin: 0 0 0.25rem 0; overflow-wrap: anywhere; }
+.filters { margin: 0 0 0.75rem; }
+.filters fieldset { border: 1px solid var(--border); border-radius: 0.25rem; padding: 0.75rem 1rem 1rem; margin: 0; }
+.filters legend { font-weight: 600; padding: 0 0.25rem; }
+.filter-controls { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-end; }
+.filter-controls > div { display: flex; flex-direction: column; gap: 0.25rem; }
+.filter-controls .check { flex-direction: row; align-items: center; gap: 0.5rem; min-height: 2.5rem; }
+select, button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.75rem;
+}
+button { cursor: pointer; background: var(--surface); }
+input[type="checkbox"] { width: 24px; height: 24px; margin: 0; accent-color: var(--link); }
+.row-count { font-weight: 600; margin: 0.5rem 0; }
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  max-width: 100%;
+}
+table { border-collapse: collapse; width: 100%; }
+caption { text-align: left; padding: 0.5rem 0.75rem; font-weight: 600; }
+th, td { text-align: left; vertical-align: top; padding: 0.5rem 0.75rem; border-top: 1px solid var(--rule); }
+thead th { background: var(--surface); border-top: 0; border-bottom: 2px solid var(--border); white-space: nowrap; }
+tbody tr:nth-child(even) { background: var(--stripe); }
+.pages-table td, .pages-table th[scope="row"] { min-width: 9rem; }
+.pages-table th[scope="row"] { min-width: 16rem; font-weight: 400; }
+.pages-table th[scope="row"] .page-name { font-weight: 600; }
+.pages-table .flags-cell { min-width: 16rem; }
+.pages-table .review-cell { min-width: 11rem; }
+.pages-table .links-cell { min-width: 12rem; }
+.url, .mono, .url-wrap { overflow-wrap: anywhere; word-break: break-word; }
+.url { display: block; color: var(--muted); font-size: 0.9rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9rem; }
+td a, th a, .links a, .history a, .sessions a { display: inline-block; min-height: 24px; overflow-wrap: anywhere; }
+ul.links, ul.flags { margin: 0; padding: 0; list-style: none; }
+ul.links li, ul.flags li { margin: 0 0 0.25rem; }
+ul.flags li { padding-left: 0.75rem; border-left: 3px solid var(--warning-border); }
+.status-bad { color: var(--bad); font-weight: 600; }
+.status-good { color: var(--good); font-weight: 600; }
+.muted, .none { color: var(--muted); }
+.meta { display: block; color: var(--muted); font-size: 0.9rem; }
+details { margin: 0.5rem 0; }
+summary { cursor: pointer; min-height: 24px; padding: 0.25rem 0; }
+.history ol, .sessions ul { padding-left: 1.5rem; }
+.history li, .sessions li { margin-bottom: 0.75rem; }
+.history p, .sessions p { margin: 0.125rem 0; }
+.page-footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; padding-bottom: 2rem; color: var(--muted); }
+.page-footer p { margin: 0.25rem 0; }
+@media print {
+  .filters, .skip-link { display: none !important; }
+  .table-scroll { overflow: visible; border: 0; }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="page-header">
+<h1>NVDA transcript report</h1>
+<p class="subtitle">Snapshot of run <span class="mono">2026-09-27_0749_real-nvda</span> of <a href="http://127.0.0.1:4747">http://127.0.0.1:4747</a>, taken when the run completed (<time datetime="2026-09-27T07:53:07-05:00">2026-09-27 07:53</time>).</p>
+<nav class="toc" aria-label="Report sections"><ul><li><a href="#summary">Summary</a></li><li><a href="#pages">Pages</a></li><li><a href="#skipped">Skipped URLs</a></li><li><a href="#history">Review history</a></li><li><a href="#manual">Manual sessions</a></li><li><a href="#environment">Environment</a></li><li><a href="#about">About this report</a></li></ul></nav>
+</header>
+<main id="main" tabindex="-1">
+<section>
+<h2 id="summary">Summary</h2>
+<dl class="summary-list"><div><dt>Page source</dt><dd>Full sitemap: <a href="http://127.0.0.1:4747/sitemap.xml">http://127.0.0.1:4747/sitemap.xml</a></dd></div><div><dt>Driver and capture mode</dt><dd>guidepup 0.34.0, capture: complete</dd></div><div><dt>Pages in this run</dt><dd>5</dd></div><div><dt>Pages transcribed</dt><dd>3</dd></div><div><dt>Pages reviewed</dt><dd>0</dd></div><div><dt>Changed since their last review</dt><dd>0</dd></div><div><dt>Pages manually tested</dt><dd>0</dd></div><div><dt>Open issues</dt><dd>0</dd></div><div><dt>Pages with errors</dt><dd>0</dd></div><div><dt>Pages with heuristic flags</dt><dd>1</dd></div><div><dt>Skipped URLs</dt><dd>4</dd></div></dl>
+<p>Run <span class="mono">2026-09-27_0749_real-nvda</span> (“real-nvda”) started <time datetime="2026-09-27T07:49:14-05:00">2026-09-27 07:49</time>, completed <time datetime="2026-09-27T07:53:07-05:00">2026-09-27 07:53</time>, in 1 session. Passes: read, headings, tab.</p>
+<details><summary>Page source details</summary><dl class="details-list"><dt>Entries listed</dt><dd>7</dd><dt>Duplicates merged</dt><dd>0</dd><dt>Excluded by --include / --exclude</dt><dd>0</dd><dt>Excluded by --limit</dt><dd>0</dd><dt>Sitemaps fetched</dt><dd><ul class="links"><li><span class="mono">http://127.0.0.1:4747/sitemap.xml</span>: 2 URLs</li><li><span class="mono">http://127.0.0.1:4747/sitemaps/pages.xml</span>: 6 URLs</li><li><span class="mono">http://127.0.0.1:4747/sitemaps/files.xml</span>: 1 URL</li></ul></dd></dl></details>
+</section>
+<section>
+<h2 id="pages">Pages</h2>
+<form id="filters" class="filters" hidden>
+<fieldset>
+<legend>Filter the pages table</legend>
+<div class="filter-controls"><div><label for="filter-flagged">Heuristic flags</label><select id="filter-flagged"><option value="">All pages</option><option value="yes">Flagged</option><option value="no">Not flagged</option></select></div><div><label for="filter-review">Review status</label><select id="filter-review"><option value="">Any status</option><option value="unreviewed">Not reviewed</option><option value="reviewed">Reviewed, no issues</option><option value="issue">Issue found</option><option value="fixed">Fixed</option></select></div><div class="check"><input type="checkbox" id="filter-changed"><label for="filter-changed">Changed since review</label></div><div class="check"><input type="checkbox" id="filter-manual"><label for="filter-manual">Manually tested</label></div><div><button type="reset">Clear filters</button></div></div>
+</fieldset>
+</form>
+<p id="row-count" class="row-count" role="status">Showing 5 of 5 pages</p>
+<div class="table-scroll" role="region" aria-labelledby="pages-caption" tabindex="0">
+<table id="pages-table" class="pages-table">
+<caption id="pages-caption">Pages in run 2026-09-27_0749_real-nvda (5 pages). Scroll sideways for more columns.</caption>
+<thead><tr><th scope="col">Page</th><th scope="col">Template</th><th scope="col">Run status</th><th scope="col">Read pass</th><th scope="col">Headings pass</th><th scope="col">Tab pass</th><th scope="col">Heuristic flags</th><th scope="col">Current review</th><th scope="col">Review entries</th><th scope="col">Changed since review</th><th scope="col">Manual sessions</th><th scope="col">Transcripts</th></tr></thead>
+<tbody>
+<tr data-flagged="no" data-review="unreviewed" data-changed="no" data-manual="no" data-template="(none)"><th scope="row"><a class="page-name url-wrap" href="http://127.0.0.1:4747/">http://127.0.0.1:4747/</a></th><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span class="status-good">Done</span></td><td>21 steps<span class="meta">end reached</span></td><td>5 steps<span class="meta">no next heading</span></td><td>11 steps<span class="meta">left the document</span></td><td class="flags-cell"><span class="none">None</span></td><td class="review-cell"><span class="none">Not reviewed</span></td><td><span class="none">None</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="links-cell"><span class="none">None</span></td><td class="links-cell"><ul class="links"><li>Read: <a href="pages/home/read.txt">TXT<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/</span></a> <a href="pages/home/read.json">JSON<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/</span></a></li><li>Headings: <a href="pages/home/headings.txt">TXT<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/</span></a> <a href="pages/home/headings.json">JSON<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/</span></a></li><li>Tab: <a href="pages/home/tab.txt">TXT<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/</span></a> <a href="pages/home/tab.json">JSON<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/</span></a></li></ul></td></tr>
+<tr data-flagged="no" data-review="unreviewed" data-changed="no" data-manual="no" data-template="(none)"><th scope="row"><a class="page-name url-wrap" href="http://127.0.0.1:4747/duplicates/">http://127.0.0.1:4747/duplicates/</a></th><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span class="status-good">Done</span></td><td>19 steps<span class="meta">end reached</span></td><td>4 steps<span class="meta">no next heading</span></td><td>9 steps<span class="meta">left the document</span></td><td class="flags-cell"><span class="none">None</span></td><td class="review-cell"><span class="none">Not reviewed</span></td><td><span class="none">None</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="links-cell"><span class="none">None</span></td><td class="links-cell"><ul class="links"><li>Read: <a href="pages/duplicates-65d92f2c5b/read.txt">TXT<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/duplicates/</span></a> <a href="pages/duplicates-65d92f2c5b/read.json">JSON<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/duplicates/</span></a></li><li>Headings: <a href="pages/duplicates-65d92f2c5b/headings.txt">TXT<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/duplicates/</span></a> <a href="pages/duplicates-65d92f2c5b/headings.json">JSON<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/duplicates/</span></a></li><li>Tab: <a href="pages/duplicates-65d92f2c5b/tab.txt">TXT<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/duplicates/</span></a> <a href="pages/duplicates-65d92f2c5b/tab.json">JSON<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/duplicates/</span></a></li></ul></td></tr>
+<tr data-flagged="yes" data-review="unreviewed" data-changed="no" data-manual="no" data-template="(none)"><th scope="row"><a class="page-name url-wrap" href="http://127.0.0.1:4747/flawed/">http://127.0.0.1:4747/flawed/</a></th><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span class="status-good">Done</span></td><td>35 steps<span class="meta">end reached</span></td><td>6 steps<span class="meta">no next heading</span></td><td>20 steps<span class="meta">left the document</span></td><td class="flags-cell"><ul class="flags"><li>Generic link text announced 4 times in the read pass: &quot;read more&quot; ×3, &quot;click here&quot; ×1.</li><li>Generic link text announced 4 times in the tab pass: &quot;read more&quot; ×3, &quot;click here&quot; ×1.</li><li>Unlabeled or poorly labeled items in the read pass: &quot;unlabeled graphic&quot; ×2, &quot;button&quot; ×1, &quot;edit&quot; ×1.</li><li>Unlabeled or poorly labeled items in the tab pass: &quot;button&quot; ×1, &quot;edit&quot; ×1, &quot;unlabeled graphic&quot; ×1.</li><li>The first heading is level 2, not level 1.</li><li>12 focus stops before main content, and the first stop isn&#39;t a skip link (possible missing skip link).</li></ul></td><td class="review-cell"><span class="none">Not reviewed</span></td><td><span class="none">None</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="links-cell"><span class="none">None</span></td><td class="links-cell"><ul class="links"><li>Read: <a href="pages/flawed-68c5de39bc/read.txt">TXT<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/flawed/</span></a> <a href="pages/flawed-68c5de39bc/read.json">JSON<span class="visually-hidden"> read pass transcript for http://127.0.0.1:4747/flawed/</span></a></li><li>Headings: <a href="pages/flawed-68c5de39bc/headings.txt">TXT<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/flawed/</span></a> <a href="pages/flawed-68c5de39bc/headings.json">JSON<span class="visually-hidden"> headings pass transcript for http://127.0.0.1:4747/flawed/</span></a></li><li>Tab: <a href="pages/flawed-68c5de39bc/tab.txt">TXT<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/flawed/</span></a> <a href="pages/flawed-68c5de39bc/tab.json">JSON<span class="visually-hidden"> tab pass transcript for http://127.0.0.1:4747/flawed/</span></a></li></ul></td></tr>
+<tr data-flagged="no" data-review="unreviewed" data-changed="no" data-manual="no" data-template="(none)"><th scope="row"><a class="page-name url-wrap" href="http://127.0.0.1:4747/contact/">http://127.0.0.1:4747/contact/</a><span class="url">Final URL: https://www.example.com/contact/</span></th><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td>Skipped<span class="meta">Redirected to a different origin</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="flags-cell"><span class="none">None</span></td><td class="review-cell"><span class="none">Not reviewed</span></td><td><span class="none">None</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="links-cell"><span class="none">None</span></td><td class="links-cell"><span class="none">None</span></td></tr>
+<tr data-flagged="no" data-review="unreviewed" data-changed="no" data-manual="no" data-template="(none)"><th scope="row"><a class="page-name url-wrap" href="http://127.0.0.1:4747/feed/">http://127.0.0.1:4747/feed/</a></th><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td>Skipped<span class="meta">The response wasn&#39;t HTML</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="flags-cell"><span class="none">None</span></td><td class="review-cell"><span class="none">Not reviewed</span></td><td><span class="none">None</span></td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td><td class="links-cell"><span class="none">None</span></td><td class="links-cell"><span class="none">None</span></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section>
+<h2 id="skipped">Skipped URLs</h2>
+<p>4 URLs were skipped and not transcribed.</p>
+<details><summary>Show the skipped URLs</summary>
+<table class="skipped-table">
+<caption>Skipped URLs and why</caption>
+<thead><tr><th scope="col">URL</th><th scope="col">Reason</th><th scope="col">Details</th></tr></thead>
+<tbody>
+<tr><td class="url-wrap">https://www.example.com/partner/</td><td>On a different origin from the site</td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td></tr>
+<tr><td class="url-wrap">http://127.0.0.1:4747/files/annual-report.pdf</td><td>Not an HTML page (by file extension)</td><td><span aria-hidden="true">—</span><span class="visually-hidden">Not applicable</span></td></tr>
+<tr><td class="url-wrap">http://127.0.0.1:4747/contact/</td><td>Redirected to a different origin</td><td>Final URL: https://www.example.com/contact/<br>HTTP 404</td></tr>
+<tr><td class="url-wrap">http://127.0.0.1:4747/feed/</td><td>The response wasn&#39;t HTML</td><td>Final URL: http://127.0.0.1:4747/feed/<br>Content type: application/rss+xml; charset=utf-8<br>HTTP 200</td></tr>
+</tbody>
+</table>
+</details>
+</section>
+<section>
+<h2 id="history">Review history</h2>
+<p>Every review decision, oldest first. Entries are never edited or deleted; a correction is a new entry, and the latest entry is the page's current status.</p>
+<p>No reviews have been recorded yet.</p>
+</section>
+<section>
+<h2 id="manual">Manual NVDA sessions</h2>
+<p>Hands-on NVDA sessions imported with <code>voicecap manual add</code>.</p>
+<p>No manual sessions have been imported yet.</p>
+</section>
+<section>
+<h2 id="environment">Environment</h2>
+<table class="sessions-table">
+<caption>Sessions of this run (each start or resume)</caption>
+<thead><tr><th scope="col">Session</th><th scope="col">Started</th><th scope="col">Ended</th><th scope="col">How it ended</th><th scope="col">Pages done</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>2026-09-27T07:49:14-05:00</td><td>2026-09-27T07:53:07-05:00</td><td>completed</td><td>5</td></tr>
+</tbody>
+</table>
+<dl class="details-list"><dt>Page source</dt><dd>sitemap http://127.0.0.1:4747/sitemap.xml</dd><dt>Driver</dt><dd>guidepup 0.34.0 (capture: complete)</dd><dt>Screen reader</dt><dd>NVDA 2026.2 (build 0.2.1-2026.2, language en-US)</dd><dt>Browser</dt><dd>Chrome 153.0.8010.53</dd><dt>OS</dt><dd>Windows 11 Pro 25H2 (10.0.26200)</dd><dt>voicecap</dt><dd>0.1.0 (config sha256 default)</dd><dt>NVDA speech</dt><dd>oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice=&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM&quot;, oneCore.volume=100, synth=&quot;oneCore&quot;</dd><dt>NVDA documentFormatting</dt><dd>(empty)</dd><dt>NVDA virtualBuffers</dt><dd>autoSayAllOnPageLoad=false</dd><dt>NVDA keyboard</dt><dd>(empty)</dd><dt>NVDA general</dt><dd>askToExit=false, language=&quot;Windows&quot;, loggingLevel=&quot;OFF&quot;, playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false</dd><dt>NVDA recorded</dt><dd>&quot;only settings that differ from NVDA 2026.2&#39;s defaults (Guidepup&#39;s configuration plus voicecap&#39;s nvdaSettings)&quot;</dd></dl>
+</section>
+<section>
+<h2 id="about">About this report</h2>
+<p>voicecap drove the NVDA screen reader through each page and saved what it said as text transcripts, so a person can skim them faster than listening and diff them between runs. The transcripts support human review; they don't replace it.</p>
+<dl class="details-list"><dt>Passes</dt><dd>Read: every line from top to bottom in browse mode. Headings: heading by heading. Tab: every focus stop, from the top of the page until focus leaves it.</dd><dt>Stop reasons</dt><dd>End reached: the last line was spoken and then repeated, which is how NVDA behaves at the end of a page. No next heading: NVDA said so. Left the document: Tab moved focus into the browser. Repeat limit: the same speech came many times in a row, so the pass stopped as a safety net. Step cap: the pass hit its maximum number of steps.</dd><dt>Heuristic flags</dt><dd>Point to things a person should check, such as generic link text or unlabeled controls. They never fail a page.</dd><dt>Changed since review</dt><dd>The page's transcript lines differ from the ones recorded with its latest review.</dd></dl>
+</section>
+</main>
+<footer class="page-footer">
+<p>Generated by voicecap 0.1.0 on 2026-09-27T07:53:07-05:00.</p>
+<p>This snapshot was taken when the run completed. <a href="../../report.html">Open the live report</a> for later reviews and manual sessions.</p>
+</footer>
+<script>
+(function () {
+  "use strict";
+  var form = document.getElementById("filters");
+  var table = document.getElementById("pages-table");
+  var status = document.getElementById("row-count");
+  if (!form || !table || !status || !table.tBodies[0]) return;
+  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var total = rows.length;
+  function control(id) { return document.getElementById(id); }
+  var flagged = control("filter-flagged");
+  var review = control("filter-review");
+  var changed = control("filter-changed");
+  var manual = control("filter-manual");
+  var template = control("filter-template");
+  var compare = control("filter-compare");
+  function pages(n) { return n.toLocaleString("en-US") + (n === 1 ? " page" : " pages"); }
+  function apply() {
+    var shown = 0;
+    rows.forEach(function (row) {
+      var d = row.dataset;
+      var match =
+        (!flagged || flagged.value === "" || d.flagged === flagged.value) &&
+        (!review || review.value === "" || d.review === review.value) &&
+        (!changed || !changed.checked || d.changed === "yes") &&
+        (!manual || !manual.checked || d.manual === "yes") &&
+        (!template || template.value === "" || d.template === template.value) &&
+        (!compare || !compare.checked || d.compare === "changed");
+      row.hidden = !match;
+      if (match) shown += 1;
+    });
+    var text = "Showing " + shown.toLocaleString("en-US") + " of " + pages(total);
+    if (status.textContent !== text) status.textContent = text;
+  }
+  form.addEventListener("change", apply);
+  form.addEventListener("input", apply);
+  form.addEventListener("submit", function (event) { event.preventDefault(); apply(); });
+  form.addEventListener("reset", function () { window.setTimeout(apply, 0); });
+  form.hidden = false;
+  apply();
+})();
+</script>
+</body>
+</html>

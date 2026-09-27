@@ -5,7 +5,8 @@
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
-import { EnvironmentError, NotImplementedError, UsageError } from "../util/errors.js";
+import { EnvironmentError, UsageError } from "../util/errors.js";
+import type { Logger } from "../util/log.js";
 import type { ScreenReaderDriver } from "./types.js";
 
 export type DriverName = VoicecapConfig["driver"];
@@ -40,8 +41,15 @@ export function selectDriver(
   return { name: config.driver, replayFrom: null, replayLabel: null };
 }
 
+/** What a driver needs from the run: the config (browser, capture, NVDA settings, readiness) and a logger. */
+export interface DriverContext {
+  config: VoicecapConfig;
+  logger: Logger;
+}
+
 export async function createDriver(
   selection: DriverSelection,
+  context: DriverContext,
   platform: NodeJS.Platform = process.platform,
 ): Promise<ScreenReaderDriver> {
   switch (selection.name) {
@@ -56,9 +64,8 @@ export async function createDriver(
     }
     case "guidepup": {
       requireWindows("guidepup", platform);
-      throw new NotImplementedError(
-        "The guidepup driver (real NVDA) is built in Phase B. Until then, use --replay-from <run folder>.",
-      );
+      const { createGuidepupNvdaDriver } = await import("./guidepup-nvda.js");
+      return createGuidepupNvdaDriver(context, platform);
     }
   }
 }

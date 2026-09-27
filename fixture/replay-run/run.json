@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "2026-09-20_0930_hand-written",
-  "name": "hand-written",
+  "id": "2026-09-27_0749_real-nvda",
+  "name": "real-nvda",
   "status": "completed",
-  "createdAt": "2026-09-20T09:30:00-05:00",
-  "completedAt": "2026-09-20T09:33:38-05:00",
+  "createdAt": "2026-09-27T07:49:14-05:00",
+  "completedAt": "2026-09-27T07:53:07-05:00",
   "site": "http://127.0.0.1:4747",
   "settings": {
     "site": "http://127.0.0.1:4747",
@@ -20,7 +20,7 @@
     "include": [],
     "exclude": [],
     "limit": null,
-    "driver": "hand-written",
+    "driver": "guidepup",
     "replayFrom": null,
     "capture": "complete",
     "stepCaps": {
@@ -34,16 +34,22 @@
       "fallbackToChromium": true
     }
   },
-  "settingsHash": "74708928fa5629558fe151b23e094db5ef1ff94431ddcc03fbe484b015fde107",
-  "configSha256": "hand-written",
-  "flagRulesSha256": "",
+  "settingsHash": "eb023c9fdeefd4e3c56585c1ff466027fd0904adde47e0d86b8d004a35bac1d5",
+  "configSha256": "default",
+  "flagRulesSha256": "674ac111d6276e6c7d616486290355e93963f954b3edc703de4c83568787fdfb",
   "replayed": false,
   "source": {
     "kind": "sitemap",
+    "listed": 7,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": [],
     "sitemaps": [
       {
         "url": "http://127.0.0.1:4747/sitemap.xml",
-        "urls": 0,
+        "urls": 2,
         "sha256": "4a0641fec8dd4b2fa28d07f28e210a63786dde2060dcf4913939e3b2af60512f"
       },
       {
@@ -56,79 +62,57 @@
         "urls": 1,
         "sha256": "7bed833c34bfa2e630d2ee7a4e80f5b97e6fa84fbacff2e6b4982ffc8ade7510"
       }
-    ],
-    "listed": 7,
-    "duplicates": 0,
-    "invalid": [],
-    "excludedByFilter": 0,
-    "excludedByLimit": 0,
-    "warnings": []
+    ]
   },
   "compareTo": null,
   "sessions": [
     {
       "n": 1,
-      "startedAt": "2026-09-20T09:30:00-05:00",
-      "endedAt": "2026-09-20T09:33:38-05:00",
+      "startedAt": "2026-09-27T07:49:14-05:00",
+      "endedAt": "2026-09-27T07:53:07-05:00",
       "endReason": "completed",
-      "pagesDone": 3,
+      "pagesDone": 5,
       "environment": {
         "driver": {
-          "name": "hand-written",
-          "version": "1"
+          "name": "guidepup",
+          "version": "0.34.0"
         },
         "screenReader": {
           "name": "NVDA",
           "version": "2026.2",
           "build": "0.2.1-2026.2",
-          "language": "en"
+          "language": "en-US"
         },
         "capture": "complete",
         "browser": {
           "name": "Chrome",
-          "version": "152.0.7815.60"
+          "version": "153.0.8010.53"
         },
-        "os": "Windows 11 (hand-written fixture)",
+        "os": "Windows 11 Pro 25H2 (10.0.26200)",
         "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
           "speech": {
             "synth": "oneCore",
-            "symbolLevel": 100,
-            "trustVoiceLanguage": true,
-            "autoLanguageSwitching": true,
-            "autoDialectSwitching": false,
-            "reportLanguage": false
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
           },
-          "documentFormatting": {
-            "reportLinks": true,
-            "reportLinkType": true,
-            "reportGraphics": true,
-            "reportHeadings": true,
-            "reportLists": true,
-            "reportLandmarks": true,
-            "reportTables": true,
-            "reportClickable": true,
-            "reportArticles": false,
-            "reportFigures": true,
-            "reportGroupings": true
-          },
+          "documentFormatting": {},
           "virtualBuffers": {
-            "maxLineLength": 100,
-            "linesPerPage": 25,
-            "useScreenLayout": true,
-            "autoPassThroughOnFocusChange": true,
-            "autoPassThroughOnCaretMove": false,
-            "passThroughAudioIndication": true,
-            "autoSayAllOnPageLoad": false,
-            "trapNonCommandGestures": true
+            "autoSayAllOnPageLoad": false
           },
-          "keyboard": {
-            "NVDAModifierKeys": 6,
-            "keyboardLayout": "desktop",
-            "speakTypedCharacters": 1,
-            "speakTypedWords": 0,
-            "speakCommandKeys": false,
-            "speechInterruptForCharacters": true,
-            "speechInterruptForEnter": true
+          "keyboard": {},
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "OFF",
+            "preventDisplayTurningOff": true
           }
         },
         "pageSource": {
@@ -137,10 +121,10 @@
         },
         "voicecap": {
           "version": "0.1.0",
-          "configSha256": "hand-written"
+          "configSha256": "default"
         },
-        "runId": "2026-09-20_0930_hand-written",
-        "runStartedAt": "2026-09-20T09:30:00-05:00"
+        "runId": "2026-09-27_0749_real-nvda",
+        "runStartedAt": "2026-09-27T07:49:14-05:00"
       }
     }
   ],
@@ -155,16 +139,16 @@
     },
     {
       "url": "http://127.0.0.1:4747/contact/",
-      "reason": "redirect-off-origin",
       "finalUrl": "https://www.example.com/contact/",
-      "status": 302
+      "status": 404,
+      "reason": "redirect-off-origin"
     },
     {
       "url": "http://127.0.0.1:4747/feed/",
-      "reason": "non-html-response",
       "finalUrl": "http://127.0.0.1:4747/feed/",
-      "contentType": "application/rss+xml",
-      "status": 200
+      "status": 200,
+      "reason": "non-html-response",
+      "contentType": "application/rss+xml; charset=utf-8"
     }
   ],
   "pages": [
@@ -174,23 +158,19 @@
       "slug": "home",
       "status": "done",
       "attempts": 1,
-      "finalUrl": "http://127.0.0.1:4747/",
-      "httpStatus": 200,
-      "session": 1,
-      "startedAt": "2026-09-20T09:30:01-05:00",
       "passes": {
         "read": {
           "steps": 21,
           "stopReason": "end-reached",
-          "durationMs": 29998,
-          "contentSha256": "72a36625c30e0cc0c0eecf869ff8ed55b709fd996057ffb0c24656b83a8db7eb",
+          "durationMs": 26845,
+          "contentSha256": "52a22d52ee29b071ded19e2715625519d0d5602c9815e90f6da673deb446d6c8",
           "errors": [],
           "warnings": []
         },
         "headings": {
           "steps": 5,
           "stopReason": "no-next-heading",
-          "durationMs": 7465,
+          "durationMs": 6380,
           "contentSha256": "fe22b4623e8e03c1276bcc9b5825055c5ca571e91e0e65f64733805e3049f04d",
           "errors": [],
           "warnings": []
@@ -198,41 +178,45 @@
         "tab": {
           "steps": 11,
           "stopReason": "left-document",
-          "durationMs": 15487,
-          "contentSha256": "76cc68bf0efcf26116dce05974541574e539d503b44cdd25b54edf0a85a8f68c",
+          "durationMs": 15877,
+          "contentSha256": "daa98851c39b23549899c3fa99c41c8b3e7f04b7e72192c85af7349a8355fcc8",
           "errors": [],
           "warnings": []
         }
       },
       "files": {
         "read.txt": {
-          "sha256": "8a90ce316f61d71d3a948a01937826866c7924182ec6ae86ba0b916482645002",
-          "bytes": 2404
+          "sha256": "5ab4ed82212bccff74cba5d5dc4631e2d38dd8a1ee85b4398683c2e901625194",
+          "bytes": 2260
         },
         "read.json": {
-          "sha256": "daf715c6fb185414684815cadfe55d960da2285bdde55808c7d476c884e353e7",
-          "bytes": 5948
+          "sha256": "ec35835c2571c30332f3e1a0f2729f3eb0dc978db77e4a2f4031d026886c3b01",
+          "bytes": 5583
         },
         "headings.txt": {
-          "sha256": "fcd73f23015605725bad04f80a934024158b6d2b433f29665f6e2567ef758d96",
-          "bytes": 1631
+          "sha256": "4c60c68ca0ec06ce363cce8d5089ca452d9032597bde43575b581d403561d65c",
+          "bytes": 1434
         },
         "headings.json": {
-          "sha256": "5da4e8becf3e89193a22d4d4439be88c9f95b63b41f8148bed2229a093c28872",
-          "bytes": 3204
+          "sha256": "d56b7180699f0f906bf487e8a6e148c6559640ba2404d6c9515929851cceae60",
+          "bytes": 2786
         },
         "tab.txt": {
-          "sha256": "eebba3ebfb99bc0737a5d3242e7332564b0f08adac0c7af4e56a70b3d0740dd9",
-          "bytes": 1861
+          "sha256": "c3fdf4ed3509a1a2ac8bc895f5e0ca7cf5f6ed5f3ea9897f871166963eafc7b8",
+          "bytes": 1732
         },
         "tab.json": {
-          "sha256": "d1c334e317c00da69d1aa723fafaf6614ad346cc90cffde8b87e9dad57aa9245",
-          "bytes": 6149
+          "sha256": "c23f57ae457565b4e36e5f2c0e7bf282e161d074c60453f75782a2a15106c1f0",
+          "bytes": 5799
         }
       },
       "flags": [],
       "errors": [],
-      "durationMs": 62550
+      "session": 1,
+      "startedAt": "2026-09-27T07:49:20-05:00",
+      "durationMs": 64030,
+      "finalUrl": "http://127.0.0.1:4747/",
+      "httpStatus": 200
     },
     {
       "url": "http://127.0.0.1:4747/duplicates/",
@@ -240,23 +224,19 @@
       "slug": "duplicates-65d92f2c5b",
       "status": "done",
       "attempts": 1,
-      "finalUrl": "http://127.0.0.1:4747/duplicates/",
-      "httpStatus": 200,
-      "session": 1,
-      "startedAt": "2026-09-20T09:31:04-05:00",
       "passes": {
         "read": {
           "steps": 19,
           "stopReason": "end-reached",
-          "durationMs": 27039,
-          "contentSha256": "625f65650a326376b3c550fa65722331a61af9a3ce3291b20b2c4b89e112f4c9",
+          "durationMs": 24264,
+          "contentSha256": "9652637902f964ea6d430249b680910d301885b4e938fd144fa41179923a08b4",
           "errors": [],
           "warnings": []
         },
         "headings": {
           "steps": 4,
           "stopReason": "no-next-heading",
-          "durationMs": 5819,
+          "durationMs": 5113,
           "contentSha256": "93ca27bb608d184e9596655dad43936e7f1124e5995b1562bdb1c5bb7cac9eeb",
           "errors": [],
           "warnings": []
@@ -264,41 +244,45 @@
         "tab": {
           "steps": 9,
           "stopReason": "left-document",
-          "durationMs": 12271,
-          "contentSha256": "e8d4499064828af63e771a8ee223bd4452553750c801b2984cbd9a13a024087f",
+          "durationMs": 13207,
+          "contentSha256": "5e53a8d76c999c88b020797619bc9f27451a6f5ed7a16062d653e6225ab4bfeb",
           "errors": [],
           "warnings": []
         }
       },
       "files": {
         "read.txt": {
-          "sha256": "9ba983dafc8546729776a590e17cce544bca74322cdd636dc665193a6f410b17",
-          "bytes": 2206
+          "sha256": "b26a827bcb475ec197d1dd22aa12ed250be61abf08858cbc7f764239cb3a8081",
+          "bytes": 2016
         },
         "read.json": {
-          "sha256": "7874738ebe2010802d452193184d09f09ee8eed08b5dae272fb7d185ba7598c9",
-          "bytes": 5525
+          "sha256": "60a45d01d5bef6767a28713538c5cef1d8c53545f3c125edac53b34cb802b332",
+          "bytes": 5114
         },
         "headings.txt": {
-          "sha256": "eef52c993cb9a89257ff4182d3531a9eba58749ce239d33a511dc8ec68b54103",
-          "bytes": 1605
+          "sha256": "750a7e945c4d47567accced45df6ae9dcb6f086ca99433242a474d5be147b16f",
+          "bytes": 1408
         },
         "headings.json": {
-          "sha256": "9546cccdd9d2c6579a09d97aeb8fefeec4a3bc622109dcd0d9ce35972f1d9125",
-          "bytes": 3078
+          "sha256": "ae24af36de3439504e776f9ac58a10d199c8d15eaf55363967d263ffa702a67c",
+          "bytes": 2660
         },
         "tab.txt": {
-          "sha256": "837c95ac1bc7a07c791cd0dbec6f27412cd109ef3b0fe97f21c23113cc067d19",
-          "bytes": 1847
+          "sha256": "9efbd2d9007d6a6c05dff7b3ec0215f0c83a61f5f66bececef17545935040b9c",
+          "bytes": 1672
         },
         "tab.json": {
-          "sha256": "f6e31f9ceeb2f8c64f6f5117c0efeab9acf89e278b1472b8ee216f62ca551d5a",
-          "bytes": 5483
+          "sha256": "83959037832a656259d3b0e77adbd53d0a5d1fdec68252895afc19db9ad0efa3",
+          "bytes": 5087
         }
       },
       "flags": [],
       "errors": [],
-      "durationMs": 54729
+      "session": 1,
+      "startedAt": "2026-09-27T07:50:24-05:00",
+      "durationMs": 60044,
+      "finalUrl": "http://127.0.0.1:4747/duplicates/",
+      "httpStatus": 200
     },
     {
       "url": "http://127.0.0.1:4747/flawed/",
@@ -306,23 +290,19 @@
       "slug": "flawed-68c5de39bc",
       "status": "done",
       "attempts": 1,
-      "finalUrl": "http://127.0.0.1:4747/flawed/",
-      "httpStatus": 200,
-      "session": 1,
-      "startedAt": "2026-09-20T09:31:58-05:00",
       "passes": {
         "read": {
-          "steps": 34,
+          "steps": 35,
           "stopReason": "end-reached",
-          "durationMs": 48538,
-          "contentSha256": "5b52926f1cb7735b1be8254b1c1ad1a26223c43a2edb8d4da55a073d4794b8fd",
+          "durationMs": 44691,
+          "contentSha256": "6c8a1744bfccfe7ee2e0755aeec9df3a87ccd7e768636ab848780158cd18ae84",
           "errors": [],
           "warnings": []
         },
         "headings": {
           "steps": 6,
           "stopReason": "no-next-heading",
-          "durationMs": 8597,
+          "durationMs": 7671,
           "contentSha256": "a905b68cf278fb73dab6174b678941ba14b55cf001ee225869153f94df2f8c1b",
           "errors": [],
           "warnings": []
@@ -330,41 +310,81 @@
         "tab": {
           "steps": 20,
           "stopReason": "left-document",
-          "durationMs": 27963,
-          "contentSha256": "296174e3523a9ee08ee71bd1705142d0f89ffcd47a76449aaf878d50909f3abd",
+          "durationMs": 27628,
+          "contentSha256": "5cc46d35ad85072c0d6cdc9fdc16b9fd246229887706f83a81c2df53802183db",
           "errors": [],
           "warnings": []
         }
       },
       "files": {
         "read.txt": {
-          "sha256": "e56d1f4ddc1173f8aa7df3d89b0992f9eb6e8cf082c7fc0e90d7be21e1b31da7",
-          "bytes": 2395
+          "sha256": "d5a122bb6b53be57f7633522228d7ba2b36cfb0b5c26ad9ebecbc5d8779b6320",
+          "bytes": 2320
         },
         "read.json": {
-          "sha256": "59dab2dbd7f10a72f569d6504a041b5c2741f46426460f6a9b33f059c3ea4a2b",
-          "bytes": 7596
+          "sha256": "6a2e26c3afdbd2c31a068aa3ccfdc5b1b5d6530837e1e0dff8af5c0dba6ce758",
+          "bytes": 7426
         },
         "headings.txt": {
-          "sha256": "265ccb72f75e68c71b809bccfb895112dbd8112ec4896916d5d5c9233254acda",
-          "bytes": 1646
+          "sha256": "3ae7c7bdb272d0e66050efa3cd1f3711ad2504186bdcb6368aa67ef800d40bff",
+          "bytes": 1449
         },
         "headings.json": {
-          "sha256": "50cb3c45cf754324708902260710e023927e3c125591c52c7fecea250a6a43ae",
-          "bytes": 3365
+          "sha256": "42cb8f88e460b11585ab11da65e70186f347d7e5d88eca0706ae884c6638e6a4",
+          "bytes": 2947
         },
         "tab.txt": {
-          "sha256": "f1bc0af05c87dde923bc81a2d75c766905113baaf49b1eda65b3d8cb1be7e417",
-          "bytes": 1900
+          "sha256": "ded99c7e97281d656e0c7d33c5f06dc66dd89a1264ede61563347df7ed74a590",
+          "bytes": 1716
         },
         "tab.json": {
-          "sha256": "b050d537619cc70c1c883d006b64fdd9da231bf4db833128bad7055b550d92dc",
-          "bytes": 8908
+          "sha256": "bd4cfc74cef92674639445a4d184e7dbccc10f7743ab7418fb7984b0ed0abf75",
+          "bytes": 8502
         }
       },
-      "flags": [],
+      "flags": [
+        {
+          "rule": "generic-link-text",
+          "pass": "read",
+          "count": 4,
+          "message": "Generic link text announced 4 times in the read pass: \"read more\" ×3, \"click here\" ×1."
+        },
+        {
+          "rule": "generic-link-text",
+          "pass": "tab",
+          "count": 4,
+          "message": "Generic link text announced 4 times in the tab pass: \"read more\" ×3, \"click here\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 4,
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×2, \"button\" ×1, \"edit\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 3,
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"button\" ×1, \"edit\" ×1, \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "headings",
+          "pass": "headings",
+          "message": "The first heading is level 2, not level 1."
+        },
+        {
+          "rule": "tab-before-main",
+          "pass": "tab",
+          "count": 12,
+          "message": "12 focus stops before main content, and the first stop isn't a skip link (possible missing skip link)."
+        }
+      ],
       "errors": [],
-      "durationMs": 94698
+      "session": 1,
+      "startedAt": "2026-09-27T07:51:24-05:00",
+      "durationMs": 95544,
+      "finalUrl": "http://127.0.0.1:4747/flawed/",
+      "httpStatus": 200
     },
     {
       "url": "http://127.0.0.1:4747/contact/",
@@ -372,21 +392,21 @@
       "slug": "contact-b7e445e36e",
       "status": "skipped",
       "attempts": 1,
-      "finalUrl": "https://www.example.com/contact/",
-      "httpStatus": 302,
-      "skip": {
-        "url": "http://127.0.0.1:4747/contact/",
-        "reason": "redirect-off-origin",
-        "finalUrl": "https://www.example.com/contact/",
-        "status": 302
-      },
-      "session": 1,
-      "startedAt": "2026-09-20T09:33:33-05:00",
-      "durationMs": 2100,
       "passes": {},
       "files": {},
       "flags": [],
-      "errors": []
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-27T07:52:59-05:00",
+      "durationMs": 5235,
+      "finalUrl": "https://www.example.com/contact/",
+      "httpStatus": 404,
+      "skip": {
+        "url": "http://127.0.0.1:4747/contact/",
+        "finalUrl": "https://www.example.com/contact/",
+        "status": 404,
+        "reason": "redirect-off-origin"
+      }
     },
     {
       "url": "http://127.0.0.1:4747/feed/",
@@ -394,22 +414,22 @@
       "slug": "feed-63b52453e5",
       "status": "skipped",
       "attempts": 1,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-27T07:53:05-05:00",
+      "durationMs": 541,
       "finalUrl": "http://127.0.0.1:4747/feed/",
       "httpStatus": 200,
       "skip": {
         "url": "http://127.0.0.1:4747/feed/",
-        "reason": "non-html-response",
         "finalUrl": "http://127.0.0.1:4747/feed/",
-        "contentType": "application/rss+xml",
-        "status": 200
-      },
-      "session": 1,
-      "startedAt": "2026-09-20T09:33:35-05:00",
-      "durationMs": 2100,
-      "passes": {},
-      "files": {},
-      "flags": [],
-      "errors": []
+        "status": 200,
+        "reason": "non-html-response",
+        "contentType": "application/rss+xml; charset=utf-8"
+      }
     }
   ]
 }

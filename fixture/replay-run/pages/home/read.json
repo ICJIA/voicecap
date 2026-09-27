@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "voicecap": "0.1.0",
   "replayed": false,
-  "run": "2026-09-20_0930_hand-written",
+  "run": "2026-09-27_0749_real-nvda",
   "pass": "read",
   "page": {
     "url": "http://127.0.0.1:4747/",
@@ -10,69 +10,53 @@
     "slug": "home",
     "finalUrl": "http://127.0.0.1:4747/"
   },
-  "capturedAt": "2026-09-20T09:30:04-05:00",
-  "durationMs": 29998,
+  "capturedAt": "2026-09-27T07:49:51-05:00",
+  "durationMs": 26845,
   "stepCount": 21,
   "stopReason": "end-reached",
   "warnings": [],
   "errors": [],
   "environment": {
     "driver": {
-      "name": "hand-written",
-      "version": "1"
+      "name": "guidepup",
+      "version": "0.34.0"
     },
     "screenReader": {
       "name": "NVDA",
       "version": "2026.2",
       "build": "0.2.1-2026.2",
-      "language": "en"
+      "language": "en-US"
     },
     "capture": "complete",
     "browser": {
       "name": "Chrome",
-      "version": "152.0.7815.60"
+      "version": "153.0.8010.53"
     },
-    "os": "Windows 11 (hand-written fixture)",
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
     "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
       "speech": {
         "synth": "oneCore",
-        "symbolLevel": 100,
-        "trustVoiceLanguage": true,
-        "autoLanguageSwitching": true,
-        "autoDialectSwitching": false,
-        "reportLanguage": false
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
       },
-      "documentFormatting": {
-        "reportLinks": true,
-        "reportLinkType": true,
-        "reportGraphics": true,
-        "reportHeadings": true,
-        "reportLists": true,
-        "reportLandmarks": true,
-        "reportTables": true,
-        "reportClickable": true,
-        "reportArticles": false,
-        "reportFigures": true,
-        "reportGroupings": true
-      },
+      "documentFormatting": {},
       "virtualBuffers": {
-        "maxLineLength": 100,
-        "linesPerPage": 25,
-        "useScreenLayout": true,
-        "autoPassThroughOnFocusChange": true,
-        "autoPassThroughOnCaretMove": false,
-        "passThroughAudioIndication": true,
-        "autoSayAllOnPageLoad": false,
-        "trapNonCommandGestures": true
+        "autoSayAllOnPageLoad": false
       },
-      "keyboard": {
-        "NVDAModifierKeys": 6,
-        "keyboardLayout": "desktop",
-        "speakTypedCharacters": 1,
-        "speakTypedWords": 0,
-        "speakCommandKeys": false,
-        "speechInterruptForCharacters": true,
-        "speechInterruptForEnter": true
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
       }
     },
     "pageSource": {
@@ -81,158 +65,158 @@
     },
     "voicecap": {
       "version": "0.1.0",
-      "configSha256": "hand-written"
+      "configSha256": "default"
     },
-    "runId": "2026-09-20_0930_hand-written",
-    "runStartedAt": "2026-09-20T09:30:00-05:00"
+    "runId": "2026-09-27_0749_real-nvda",
+    "runStartedAt": "2026-09-27T07:49:14-05:00"
   },
   "steps": [
     {
       "n": 1,
       "command": "toBottom",
-      "spoken": "content info landmark, © 2026 Voicecap Test Agency",
-      "durationMs": 1297,
-      "offsetMs": 1297
+      "spoken": "content info landmark, copyright 2026 Voicecap Test Agency",
+      "durationMs": 1281,
+      "offsetMs": 1281
     },
     {
       "n": 2,
       "command": "toTop",
       "spoken": "same page, link, Skip to main content",
-      "durationMs": 1575,
-      "offsetMs": 2872
+      "durationMs": 1282,
+      "offsetMs": 2563
     },
     {
       "n": 3,
       "command": "nextLine",
       "spoken": "banner landmark, same page, link, Voicecap Test Agency",
-      "durationMs": 1543,
-      "offsetMs": 4415
+      "durationMs": 1277,
+      "offsetMs": 3839
     },
     {
       "n": 4,
       "command": "nextLine",
       "spoken": "Main, navigation landmark, list, with 4 items, same page, link, Home",
-      "durationMs": 1472,
-      "offsetMs": 5887
+      "durationMs": 1278,
+      "offsetMs": 5118
     },
     {
       "n": 5,
       "command": "nextLine",
       "spoken": "link, Duplicate lines",
-      "durationMs": 1308,
-      "offsetMs": 7195
+      "durationMs": 1270,
+      "offsetMs": 6387
     },
     {
       "n": 6,
       "command": "nextLine",
       "spoken": "link, Flawed page",
-      "durationMs": 1353,
-      "offsetMs": 8548
+      "durationMs": 1277,
+      "offsetMs": 7665
     },
     {
       "n": 7,
       "command": "nextLine",
       "spoken": "link, Contact",
-      "durationMs": 1398,
-      "offsetMs": 9946
+      "durationMs": 1276,
+      "offsetMs": 8940
     },
     {
       "n": 8,
       "command": "nextLine",
       "spoken": "out of list, main landmark, heading, level 1, Welcome to the Voicecap Test Agency",
-      "durationMs": 1329,
-      "offsetMs": 11275
+      "durationMs": 1279,
+      "offsetMs": 10219
     },
     {
       "n": 9,
       "command": "nextLine",
       "spoken": "This site is a test fixture for voicecap, which records what the NVDA screen reader says on each",
-      "durationMs": 1271,
-      "offsetMs": 12546
+      "durationMs": 1278,
+      "offsetMs": 11498
     },
     {
       "n": 10,
       "command": "nextLine",
       "spoken": "page.",
-      "durationMs": 1585,
-      "offsetMs": 14131
+      "durationMs": 1278,
+      "offsetMs": 12776
     },
     {
       "n": 11,
       "command": "nextLine",
       "spoken": "heading, level 2, Search",
-      "durationMs": 1579,
-      "offsetMs": 15710
+      "durationMs": 1276,
+      "offsetMs": 14052
     },
     {
       "n": 12,
       "command": "nextLine",
-      "spoken": "search landmark, Search this site, edit, button, Search",
-      "durationMs": 1379,
-      "offsetMs": 17089
+      "spoken": "search landmark, Search this site, edit, , button, Search",
+      "durationMs": 1278,
+      "offsetMs": 15330
     },
     {
       "n": 13,
       "command": "nextLine",
       "spoken": "heading, level 2, Latest news",
-      "durationMs": 1488,
-      "offsetMs": 18577
+      "durationMs": 1280,
+      "offsetMs": 16610
     },
     {
       "n": 14,
       "command": "nextLine",
-      "spoken": "list, with 2 items, link, Grant applications open October 1",
+      "spoken": "list, with 2 items, bullet, link, Grant applications open October 1",
       "durationMs": 1275,
-      "offsetMs": 19852
+      "offsetMs": 17886
     },
     {
       "n": 15,
       "command": "nextLine",
-      "spoken": "link, New research on pretrial services",
-      "durationMs": 1462,
-      "offsetMs": 21314
+      "spoken": "bullet, link, New research on pretrial services",
+      "durationMs": 1279,
+      "offsetMs": 19164
     },
     {
       "n": 16,
       "command": "nextLine",
       "spoken": "out of list, heading, level 2, About the agency",
-      "durationMs": 1313,
-      "offsetMs": 22627
+      "durationMs": 1279,
+      "offsetMs": 20443
     },
     {
       "n": 17,
       "command": "nextLine",
       "spoken": "The Voicecap Test Agency is fictional. Its pages exist only to exercise voicecap.",
-      "durationMs": 1502,
-      "offsetMs": 24129
+      "durationMs": 1276,
+      "offsetMs": 21719
     },
     {
       "n": 18,
       "command": "nextLine",
-      "spoken": "content info landmark, © 2026 Voicecap Test Agency",
-      "durationMs": 1546,
-      "offsetMs": 25675
+      "spoken": "content info landmark, copyright 2026 Voicecap Test Agency",
+      "durationMs": 1281,
+      "offsetMs": 23000
     },
     {
       "n": 19,
       "command": "nextLine",
-      "spoken": "© 2026 Voicecap Test Agency",
-      "durationMs": 1344,
-      "offsetMs": 27019
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1281,
+      "offsetMs": 24280
     },
     {
       "n": 20,
       "command": "nextLine",
-      "spoken": "© 2026 Voicecap Test Agency",
-      "durationMs": 1441,
-      "offsetMs": 28460
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1283,
+      "offsetMs": 25563
     },
     {
       "n": 21,
       "command": "nextLine",
-      "spoken": "© 2026 Voicecap Test Agency",
-      "durationMs": 1538,
-      "offsetMs": 29998
+      "spoken": "copyright 2026 Voicecap Test Agency",
+      "durationMs": 1282,
+      "offsetMs": 26845
     }
   ]
 }

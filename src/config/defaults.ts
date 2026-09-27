@@ -1,8 +1,11 @@
 import type { VoicecapConfig } from "./schema.js";
 
 /**
- * Defaults for every setting. NVDA phrasing assumes NVDA's English interface; Phase B retunes it
- * against real captured output.
+ * Defaults for every setting. The NVDA phrasing (stop detection and flag rules) assumes NVDA's
+ * English interface. It was checked against real output from NVDA 2026.2 with Chrome 153 (the
+ * fixture run in fixture/replay-run): on the flawed page every rule fires for the right steps, and
+ * the well-built pages raise none. NVDA 2026.2 reads an image without alt text as "Unlabeled
+ * graphic" (plus a hint about image descriptions), which the "unlabeled" phrase catches.
  */
 export const DEFAULT_CONFIG: VoicecapConfig = {
   driver: "guidepup",
