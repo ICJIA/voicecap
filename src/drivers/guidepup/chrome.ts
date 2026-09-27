@@ -81,6 +81,8 @@ export function browserCandidates(channel: string, env: NodeJS.ProcessEnv): stri
 export interface BrowserExecutable {
   name: string;
   path: string;
+  /** Playwright's own Chromium, downloaded into the user's folder rather than installed. */
+  playwrightBuild?: boolean;
 }
 
 /**
@@ -93,7 +95,7 @@ export function resolveBrowser(
   exists: (file: string) => boolean = existsSync,
   chromiumPath: string = chromium.executablePath(),
 ): BrowserExecutable {
-  const playwrightChromium = { name: "Chromium", path: chromiumPath };
+  const playwrightChromium = { name: "Chromium", path: chromiumPath, playwrightBuild: true };
   const installChromium = `Install Playwright's Chromium with: npx @icjia/voicecap setup`;
   if (config.channel === "chromium") {
     if (exists(chromiumPath)) return playwrightChromium;
@@ -141,7 +143,7 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
   const profileDir = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
   const child = spawn(
     executable.path,
-    [...chromeArgs(profileDir), ...(options.extraArgs ?? []), "about:blank"],
+    [...chromeArgs(profileDir, executable), ...(options.extraArgs ?? []), "about:blank"],
     { stdio: "ignore" },
   );
   const spawnError = new Promise<never>((_, reject) => child.once("error", reject));
@@ -174,14 +176,7 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
     // that answers with a download mustn't put files in the user's Downloads folder.
     const browserCdp = await browser.newBrowserCDPSession();
     await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
-    // Chrome opens its first tab (about:blank, from the command line) as it starts, and a slow
-    // start can be attached to before that tab exists. Wait for it, and for its load, rather than
-    // open a second tab: Chrome's startup can still navigate a tab opened meanwhile, aborting the
-    // page load under way in it (seen on GitHub's Windows runners as net::ERR_ABORTED).
-    const page =
-      context.pages()[0] ??
-      (await Promise.race([context.waitForEvent("page", { timeout: timeoutMs }), calledOff]));
-    await Promise.race([page.waitForLoadState("load", { timeout: timeoutMs }), calledOff]);
+    const page = context.pages()[0] ?? (await context.newPage());
     const cdp = await context.newCDPSession(page);
     if (signal?.aborted) throw new Error("the launch was called off");
     return new ChromeSession(executable, child, profileDir, browser, page, cdp);
@@ -196,7 +191,17 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
   }
 }
 
-function chromeArgs(profileDir: string): string[] {
+/**
+ * The browser's command line. Playwright's own Chromium keeps its sandboxes except the network
+ * service's: Chrome's sandbox can't read the download (a user folder, with no access for app
+ * containers), so that service would crash as the browser starts and restart, aborting a page
+ * load under way. Seen on GitHub's Windows runners, then on a Windows 11 PC. An installed Chrome or
+ * Edge keeps every sandbox.
+ */
+export function chromeArgs(profileDir: string, executable: BrowserExecutable): string[] {
+  const disabled = executable.playwrightBuild
+    ? [...DISABLED_FEATURES, "NetworkServiceSandbox"]
+    : DISABLED_FEATURES;
   return [
     "--remote-debugging-port=0",
     `--user-data-dir=${profileDir}`,
@@ -219,7 +224,7 @@ function chromeArgs(profileDir: string): string[] {
     "--metrics-recording-only",
     "--no-service-autorun",
     "--password-store=basic",
-    `--disable-features=${DISABLED_FEATURES.join(",")}`,
+    `--disable-features=${disabled.join(",")}`,
     `--window-size=${WINDOW.width},${WINDOW.height}`,
     "--window-position=0,0",
   ];
