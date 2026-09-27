@@ -1,6 +1,6 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Drive NVDA through a website's pages, save what it speaks as reviewable transcripts, and report automated coverage and human review.",
   "keywords": [
     "accessibility",
