@@ -1,5 +1,5 @@
 /** Windows details for the Guidepup driver: processes, the OS version, NVDA's language. */
-import { execFile, spawnSync } from "node:child_process";
+import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
@@ -16,6 +16,100 @@ export async function listProcesses(image: string): Promise<number[]> {
     windowsHide: true,
   });
   return parseTasklist(stdout);
+}
+
+/**
+ * Asks Windows whether this session is locked: WTSQuerySessionInformation's WTSSessionInfoEx
+ * (class 25) for the current session (-1). In WTSINFOEX, the Level (4 bytes) is followed by a
+ * union aligned to 8 bytes (it holds 64-bit times): SessionId at 8, SessionState at 12, and
+ * SessionFlags at 16 (0 locked, 1 unlocked). Checked on Windows 11 against the session's id.
+ */
+const SESSION_STATE = [
+  "Add-Type -Namespace Voicecap -Name Wts -MemberDefinition '",
+  '[DllImport("wtsapi32.dll")] public static extern bool WTSQuerySessionInformation(IntPtr server, int sessionId, int infoClass, out IntPtr buffer, out int bytes);',
+  '[DllImport("wtsapi32.dll")] public static extern void WTSFreeMemory(IntPtr memory);',
+  "';",
+  "$buffer = [IntPtr]::Zero; $bytes = 0;",
+  "if ([Voicecap.Wts]::WTSQuerySessionInformation([IntPtr]::Zero, -1, 25, [ref]$buffer, [ref]$bytes)) {",
+  "$flags = [Runtime.InteropServices.Marshal]::ReadInt32($buffer, 16); [Voicecap.Wts]::WTSFreeMemory($buffer);",
+  "if ($flags -eq 0) { 'locked' } elseif ($flags -eq 1) { 'unlocked' } else { 'unknown' }",
+  "} else { 'unknown' }",
+].join(" ");
+
+/**
+ * Whether this Windows session is locked (Win+L, a screen saver, a lock policy): NVDA can't press
+ * keys or speak then. Null when Windows doesn't say.
+ */
+export async function sessionLocked(): Promise<boolean | null> {
+  const answer = await run(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", SESSION_STATE],
+    { windowsHide: true, timeout: 30_000 },
+  ).then(
+    ({ stdout }) => stdout,
+    () => "",
+  );
+  return parseSessionState(answer);
+}
+
+export function parseSessionState(answer: string): boolean | null {
+  const state = answer.trim();
+  return state === "locked" ? true : state === "unlocked" ? false : null;
+}
+
+/**
+ * Holds ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED (SetThreadExecutionState), says
+ * whether Windows took it, and keeps it until its input closes.
+ */
+const KEEP_AWAKE = [
+  "Add-Type -Namespace Voicecap -Name Power -MemberDefinition '",
+  '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);',
+  "';",
+  "if ([Voicecap.Power]::SetThreadExecutionState(2147483651) -ne 0) { 'awake' } else { 'refused' };",
+  "[void][Console]::In.ReadToEnd()",
+].join(" ");
+
+export interface AwakeRequest {
+  /** Whether Windows took the request. */
+  readonly ready: Promise<boolean>;
+  /** Settles once the request has ended with its helper. */
+  readonly ended: Promise<void>;
+  /** End the request (synchronously, so it can run as the process exits). */
+  release(): void;
+}
+
+/**
+ * Keep Windows from sleeping or turning the screen off (and locking because of either) until
+ * release(), as video players do. A hidden PowerShell holds the request; Windows ends it when that
+ * process exits, which it also does when voicecap exits, however that happens.
+ */
+export function keepAwake(): AwakeRequest {
+  const helper = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", KEEP_AWAKE],
+    { stdio: ["pipe", "pipe", "ignore"], windowsHide: true },
+  );
+  helper.stdin.on("error", () => {});
+  const ended = new Promise<void>((resolve) => {
+    helper.once("exit", () => resolve());
+    helper.once("error", () => resolve());
+  });
+  const ready = new Promise<boolean>((resolve) => {
+    let answer = "";
+    helper.stdout.setEncoding("utf8");
+    helper.stdout.on("data", (chunk: string) => {
+      answer += chunk;
+      if (answer.includes("\n")) resolve(answer.trim() === "awake");
+    });
+    void ended.then(() => resolve(answer.trim() === "awake"));
+  });
+  return {
+    ready,
+    ended,
+    release: () => {
+      helper.kill();
+    },
+  };
 }
 
 /** This Windows ("Windows 11 Pro 25H2 (10.0.26200)") and its display language ("en-US"). */
@@ -160,8 +254,11 @@ export function nvdaLanguage(configured: unknown, uiLocale: string | null): stri
 
 /**
  * Whether NVDA+T (report title) spoke a window whose title starts with `marker`. The comparison
- * ignores case and the punctuation NVDA may drop or say differently, as @guidepup/playwright's
- * nvdaTest fixture does.
+ * ignores case and the punctuation NVDA may drop or say differently.
+ *
+ * Adapted from the window-title check in navigateToWebContent, @guidepup/playwright 0.19.1,
+ * lib/nvdaTest.js, by Craig Morten, MIT License. Unlike the original, the marker must be followed
+ * by the end of the title or a space.
  */
 export function titleMatches(spoken: string, marker: string): boolean {
   const said = cleanTitle(spoken);

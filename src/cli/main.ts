@@ -299,7 +299,14 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .action(async () => {
       const { config } = await loadConfig({ cwd: ctx.cwd });
       const { runDoctor } = await import("../drivers/guidepup/doctor.js");
-      setExit(await runDoctor({ config, logger }));
+      // Ctrl+C stops the live check and shuts NVDA and the browser down, as in a run.
+      const controller = new AbortController();
+      const unhook = ctx.signal ? () => {} : handleInterrupts(controller, logger);
+      try {
+        setExit(await runDoctor({ config, logger, signal: ctx.signal ?? controller.signal }));
+      } finally {
+        unhook();
+      }
     });
 
   return program;

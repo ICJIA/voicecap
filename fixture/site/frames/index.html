@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frames | Voicecap Test Agency</title>
+  </head>
+  <body>
+    <!--
+      Not in the sitemap or pages.json: only pnpm test:nvda and the Chrome session tests use this
+      page. Tabbing into and out of a frame must not look like another window taking the
+      foreground (the driver counts the window's blur events, and focus moving into a frame blurs
+      the window too). The second frame is from another site, as embedded videos and maps are,
+      so Chrome runs it in a process of its own.
+    -->
+    <main>
+      <h1>Frames</h1>
+      <p><a href="#before">Before the frames</a></p>
+      <iframe title="Same site" src="inner.html" width="320" height="60"></iframe>
+      <iframe id="other-site" title="Another site" width="320" height="60"></iframe>
+      <p><a href="#after">After the frames</a></p>
+    </main>
+    <script>
+      // The same server under its other name is another site: 127.0.0.1 and localhost.
+      const other = location.hostname === "localhost" ? "127.0.0.1" : "localhost";
+      document.getElementById("other-site").src =
+        `${location.protocol}//${other}:${location.port}/frames/other-site.html`;
+    </script>
+  </body>
+</html>

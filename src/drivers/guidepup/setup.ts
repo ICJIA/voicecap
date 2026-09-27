@@ -21,7 +21,7 @@ import { resolveBrowser, type BrowserExecutable } from "./chrome.js";
 import {
   guidepupInstall,
   readGuidepupPackage,
-  spaceInPathMessage,
+  unsafePathMessage,
   type GuidepupInstall,
   type GuidepupPackage,
 } from "./paths.js";
@@ -52,7 +52,8 @@ export async function runSetup(
       "voicecap setup installs NVDA, which only runs on Windows. On macOS and Linux, use the replay driver: --replay-from <run folder>.",
     );
   }
-  if (/\s/.test(install.cacheDir)) throw new EnvironmentError(spaceInPathMessage(install));
+  const unsafePath = unsafePathMessage(install);
+  if (unsafePath) throw new EnvironmentError(unsafePath);
 
   logger.info(
     `Installing NVDA for voicecap: Guidepup's NVDA build ${install.build}, which @guidepup/guidepup ${guidepup.version} expects, with @guidepup/setup ${deps.setupCli.version}.`,
@@ -87,15 +88,19 @@ async function ensureBrowser(
   options: { config: VoicecapConfig; logger: Logger },
   deps: SetupDeps,
 ): Promise<BrowserExecutable> {
+  const { channel, fallbackToChromium } = options.config.browser;
+  const chromiumConfigured = channel === "chromium";
   try {
     return deps.resolveBrowser();
   } catch (error) {
-    if (!(error instanceof EnvironmentError) || !options.config.browser.fallbackToChromium) {
+    if (!(error instanceof EnvironmentError) || !(chromiumConfigured || fallbackToChromium)) {
       throw error;
     }
   }
   options.logger.info(
-    `The configured browser (${options.config.browser.channel}) isn't installed, so voicecap will use Playwright's Chromium. Installing it now. (For transcripts that match what most people use, install Google Chrome.)`,
+    chromiumConfigured
+      ? "Installing Playwright's Chromium, the configured browser."
+      : `The configured browser (${channel}) isn't installed, so voicecap will use Playwright's Chromium. Installing it now. (For transcripts that match what most people use, install Google Chrome.)`,
   );
   const code = await deps.runNode(
     deps.playwrightCli,
@@ -103,8 +108,11 @@ async function ensureBrowser(
     path.dirname(deps.playwrightCli),
   );
   if (code !== 0) {
+    const next = chromiumConfigured
+      ? "It downloads from Playwright's servers: behind a proxy, set HTTPS_PROXY (and NO_PROXY), then run voicecap setup again."
+      : "Install Google Chrome instead, then run voicecap setup again.";
     throw new EnvironmentError(
-      `Installing Playwright's Chromium failed (exit code ${code}); its messages are above. Install Google Chrome instead, then run voicecap setup again.`,
+      `Installing Playwright's Chromium failed (exit code ${code}); its messages are above. ${next}`,
     );
   }
   return deps.resolveBrowser();

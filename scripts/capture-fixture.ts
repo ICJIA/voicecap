@@ -10,7 +10,9 @@
  * - every read pass ends at the end of the page, including the page with duplicate lines;
  * - every headings pass ends on "no next heading";
  * - the home and duplicates tab passes start at the skip link and end by leaving the page;
- * - complete capture: NVDA's Speech Viewer shows the same speech as the home page's read pass.
+ * - complete capture: NVDA's Speech Viewer shows the same speech as the home page's read pass;
+ * - Tab goes into and out of a frame, and one from another site (/frames/, not in the sitemap),
+ *   without a foreground error.
  *
  * NVDA speaks and browser windows come and go for about 5 minutes: nobody may use the computer.
  */
@@ -21,9 +23,11 @@ import path from "node:path";
 import { resolveConfig } from "../src/config/load.js";
 import { createGuidepupNvdaDriver } from "../src/drivers/guidepup-nvda.js";
 import type { PassName, RunJson, TranscriptJson } from "../src/model.js";
+import { InterruptedError, withTimeout } from "../src/passes/steps.js";
 import { runAudit } from "../src/run/audit.js";
 import { readRunJson } from "../src/run/store.js";
 import { handleInterrupts } from "../src/run/signals.js";
+import { errorMessage } from "../src/util/errors.js";
 import { createConsoleLogger, type Logger } from "../src/util/log.js";
 import { REPLAY_RUN_DIR, SPEECH_VIEWER_FILE, writeFixtureReviews } from "./fixture-reviews.js";
 import { FIXTURE_HOST, FIXTURE_PORT, startFixtureServer } from "./serve-fixture.js";
@@ -85,6 +89,7 @@ async function main(): Promise<number> {
         signal: controller.signal,
       });
       runDir = path.join(work, "transcripts", "runs", result.runId);
+      if (controller.signal.aborted) return 130;
       if (result.exitCode !== 0) {
         outcome.failures.push(`the run ended with exit code ${result.exitCode}`);
       }
@@ -94,8 +99,9 @@ async function main(): Promise<number> {
     await checkRun(run, runDir, outcome);
 
     const home = await transcript(run, runDir, `${SITE}/`, "read");
-    const viewer = home ? await captureSpeechViewer(home, config, logger) : null;
+    const viewer = home ? await captureSpeechViewer(home, config, logger, controller.signal) : null;
     if (home && viewer) checkSpeechViewer(home, viewer, outcome);
+    await checkFrames(config, logger, controller.signal, outcome);
 
     report(logger, outcome);
     if (outcome.failures.length > 0) {
@@ -113,6 +119,10 @@ async function main(): Promise<number> {
     }
     await rm(work, { recursive: true, force: true, maxRetries: 5 });
     return 0;
+  } catch (error) {
+    if (!(error instanceof InterruptedError)) throw error;
+    logger.warn("Interrupted.");
+    return 130;
   } finally {
     unhook();
     await server?.close();
@@ -194,22 +204,31 @@ async function checkRun(run: RunJson, runDir: string, outcome: Outcome): Promise
 /**
  * Read the home page again with Speech Viewer open, from Ctrl+Home through the first Down Arrow
  * on the last line (the read pass's steps without Ctrl+End and the core's two extra repeats),
- * and return the Speech Viewer text of just those steps, with Windows line endings.
+ * and return the Speech Viewer text of just those steps, with Windows line endings. Each step
+ * has a run's timeout, and Ctrl+C stops it.
  */
 async function captureSpeechViewer(
   read: TranscriptJson,
   config: ReturnType<typeof resolveConfig>,
   logger: Logger,
+  signal: AbortSignal,
 ): Promise<string> {
   const steps = read.steps.length - 3;
+  const { stepMs, driverStartMs } = config.timeouts;
+  const within = <T>(what: string, action: () => Promise<T>, ms = stepMs) =>
+    withTimeout(what, action, ms, signal);
   const driver = createGuidepupNvdaDriver({ config, logger });
-  await driver.start();
   try {
-    await driver.openPage(`${SITE}/`);
-    const before = await readSpeechViewer();
-    await driver.toTop();
-    for (let i = 1; i < steps; i++) await driver.nextLine();
-    const after = await readSpeechViewer();
+    await within("Starting NVDA and the browser", () => driver.start(), driverStartMs);
+    await within(
+      "Opening the home page",
+      () => driver.openPage(`${SITE}/`),
+      config.readiness.networkIdleTimeoutMs + stepMs,
+    );
+    const before = await within("Reading Speech Viewer", readSpeechViewer);
+    await within("Moving to the top", () => driver.toTop());
+    for (let i = 1; i < steps; i++) await within(`Line ${i + 1}`, () => driver.nextLine());
+    const after = await within("Reading Speech Viewer", readSpeechViewer);
     if (!after.startsWith(before)) throw new Error("The Speech Viewer text changed unexpectedly.");
     return after
       .slice(before.length)
@@ -219,6 +238,56 @@ async function captureSpeechViewer(
       .join("");
   } finally {
     await driver.stop();
+  }
+}
+
+/**
+ * Tab through /frames/: into the frame and out again. Focus moving into a frame blurs the page's
+ * window, which the driver must not take for another window coming forward.
+ */
+async function checkFrames(
+  config: ReturnType<typeof resolveConfig>,
+  logger: Logger,
+  signal: AbortSignal,
+  outcome: Outcome,
+): Promise<void> {
+  const { stepMs, driverStartMs } = config.timeouts;
+  const within = <T>(what: string, action: () => Promise<T>, ms = stepMs) =>
+    withTimeout(what, action, ms, signal);
+  const driver = createGuidepupNvdaDriver({ config, logger });
+  const spoken: string[] = [];
+  try {
+    await within("Starting NVDA and the browser", () => driver.start(), driverStartMs);
+    await within(
+      "Opening the frames page",
+      () => driver.openPage(`${SITE}/frames/`),
+      config.readiness.networkIdleTimeoutMs + stepMs,
+    );
+    for (let tab = 1; tab <= 8; tab++) {
+      spoken.push(await within(`Tab ${tab}`, () => driver.nextFocusable()));
+      if (!(await driver.focusInDocument())) break;
+    }
+  } catch (error) {
+    if (error instanceof InterruptedError) throw error;
+    outcome.failures.push(`frames: ${errorMessage(error)} (NVDA said ${JSON.stringify(spoken)})`);
+    return;
+  } finally {
+    await driver.stop();
+  }
+  const expected = [
+    "Before the frames",
+    "Inside the frame",
+    "Inside the other site's frame",
+    "After the frames",
+  ];
+  const found = expected.map((name) => spoken.findIndex((speech) => speech.includes(name)));
+  const inOrder = found.every((index, i) => index >= 0 && (i === 0 || index > (found[i - 1] ?? 0)));
+  if (inOrder) {
+    outcome.notes.push(`Tab went into and out of the frame: ${JSON.stringify(spoken)}`);
+  } else {
+    outcome.failures.push(
+      `frames: Tab should reach ${expected.join(", ")} in that order; NVDA said ${JSON.stringify(spoken)}`,
+    );
   }
 }
 
@@ -238,7 +307,7 @@ function report(logger: Logger, outcome: Outcome): void {
   for (const note of outcome.notes) logger.info(note);
   if (outcome.failures.length === 0) {
     logger.info(
-      "All checks passed: end of page, no next heading, skip link first, complete capture.",
+      "All checks passed: end of page, no next heading, skip link first, complete capture, frames.",
     );
   } else {
     for (const failure of outcome.failures) logger.error(failure);

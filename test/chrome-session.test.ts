@@ -105,13 +105,47 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     });
   });
 
-  it("counts the page's window losing focus, even if focus comes back", async () => {
+  // A real loss (another window in front) was checked on Windows with headed Chrome: the blur
+  // arrives with document.hasFocus() false, and it counts even after focus comes back. Headless
+  // Chrome can't lose focus to another window, but a blur while the page has no focus stands in.
+  it("counts a blur that leaves the page without focus", async () => {
     const session = await launch();
-    const page = `<title>blur</title><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 600);</script>`;
+    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 800);</script>`;
     await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
-    expect((await session.focusState()).losses).toBe(0);
-    await delay(1200);
+    await delay(1400); // nothing focused yet: headless Chrome reports no focus
     expect((await session.focusState()).losses).toBe(1);
+  });
+
+  it("doesn't count a blur while the page still has focus", async () => {
+    const session = await launch();
+    const page = `<title>blur</title><a href="#a">link</a><script>setTimeout(() => dispatchEvent(new FocusEvent("blur")), 800);</script>`;
+    await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
+    await session.pressTab(); // headless Chrome reports focus once something in the page has it
+    await delay(1400);
+    expect(await session.focusState()).toEqual({ focused: true, losses: 0 });
+  });
+
+  it("doesn't count focus moving into a frame as the window losing focus", async () => {
+    const session = await launch();
+    const page = `<title>frames</title><a href="#a">before</a><iframe srcdoc="<a href='#b'>inside</a>"></iframe><a href="#c">after</a>`;
+    await session.load(`data:text/html,${encodeURIComponent(page)}`, 15_000);
+    await session.pressTab();
+    await session.pressTab(); // into the frame
+    expect(await session.focusState()).toEqual({ focused: true, losses: 0 });
+    await session.pressTab(); // back out
+    expect(await session.focusState()).toEqual({ focused: true, losses: 0 });
+  });
+
+  it("doesn't count focus moving into a frame from another site, in its own process", async () => {
+    const session = await launch();
+    await session.load(new URL("frames/", server.url).href, 15_000);
+    await session.waitUntilReady({ readySelector: null, settleMs: 0, networkIdleTimeoutMs: 5_000 });
+    // Before the frames, into the same-site frame, into the other site's, after the frames.
+    for (let tab = 1; tab <= 4; tab++) {
+      await session.pressTab();
+      expect(await session.focusState(), `after Tab ${tab}`).toEqual({ focused: true, losses: 0 });
+    }
+    expect((await session.focusedElement())?.name).toBe("After the frames");
   });
 
   it("doesn't count focus moving between elements of the page", async () => {
@@ -137,6 +171,29 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
         networkIdleTimeoutMs: 500,
       }),
     ).rejects.toThrow(/#never-there/);
+  });
+
+  it("stops a browser that's still starting when the launch is called off", async () => {
+    const calledOff = new AbortController();
+    const launching = launchChrome({
+      browser: { channel: "chromium", fallbackToChromium: false },
+      env: process.env,
+      extraArgs: HEADLESS,
+      signal: calledOff.signal,
+    });
+    setTimeout(() => calledOff.abort(), 20);
+    await expect(launching).rejects.toThrow(EnvironmentError);
+  });
+
+  it("doesn't start a browser at all when the launch was called off already", async () => {
+    await expect(
+      launchChrome({
+        browser: { channel: "chromium", fallbackToChromium: false },
+        env: process.env,
+        extraArgs: HEADLESS,
+        signal: AbortSignal.abort(),
+      }),
+    ).rejects.toThrow(EnvironmentError);
   });
 
   it("uses a fresh profile, deleted when the browser closes", async () => {

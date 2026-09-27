@@ -9,7 +9,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   cleanupOrphans,
+  keepAwake,
   listProcesses,
+  sessionLocked,
   windowsSystemInfo,
 } from "../src/drivers/guidepup/windows.js";
 
@@ -34,6 +36,25 @@ function alive(pid: number): boolean {
 }
 
 describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", () => {
+  // Whether it's locked right now depends on the person at the computer (a real lock was checked
+  // by hand); CI runners have no interactive desktop to ask about.
+  it.skipIf(process.env.CI !== undefined)(
+    "tell whether this Windows session is locked",
+    async () => {
+      expect([true, false]).toContain(await sessionLocked());
+    },
+  );
+
+  it("keep Windows awake until released", async () => {
+    const awake = keepAwake();
+    try {
+      expect(await awake.ready).toBe(true);
+    } finally {
+      awake.release();
+    }
+    await awake.ended; // the request ends with its helper
+  });
+
   it("find running processes by image name", async () => {
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);

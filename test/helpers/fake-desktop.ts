@@ -6,6 +6,29 @@ import type {
 } from "../../src/drivers/guidepup-nvda.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
 
+/** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
+export class Gate {
+  /** How many callers have waited on the gate. */
+  waiting = 0;
+  private readonly opened: Promise<void>;
+  private release: () => void = () => {};
+
+  constructor() {
+    this.opened = new Promise((resolve) => {
+      this.release = resolve;
+    });
+  }
+
+  wait(): Promise<void> {
+    this.waiting++;
+    return this.opened;
+  }
+
+  open(): void {
+    this.release();
+  }
+}
+
 /**
  * A fake Windows desktop for the Guidepup driver's tests: which window is in front, what NVDA says,
  * and where keystrokes land. It reproduces what the real exploration runs showed:
@@ -25,6 +48,13 @@ export class FakeDesktop {
    * it's in front, and Guidepup, which waits for silence before each captured command, hangs.
    */
   otherKeepsTalking = false;
+  /**
+   * The page keeps NVDA talking (a live region, a carousel), so a captured command waits for
+   * silence, which comes only when the page goes away.
+   */
+  pageKeepsTalking = false;
+  /** Windows is locked: NVDA can't press keys or speak. */
+  locked = false;
   /** Keys that reached a window that wasn't the browser: must stay empty. */
   readonly strayKeys: string[] = [];
   /** Everything that happened, in order, e.g. "alert", "nvda:start", "key:toTop". */
@@ -33,6 +63,12 @@ export class FakeDesktop {
   readonly sessions: FakeSession[] = [];
   /** Runs before a key reaches the browser, to simulate something stealing the foreground. */
   beforeKey: ((key: string) => void) | null = null;
+  /** Holds browser launches until opened. A launch that's held can be killed. */
+  launchGate: Gate | null = null;
+  /** Launches held by the gate come up even when killed (the kill came too late). */
+  launchesOutliveKill = false;
+  /** The version the next browser launched reports (browsers update themselves). */
+  browserVersion = "153.0.8010.53";
   /** Speech for keys the browser receives; default "<key> speech". */
   speech: (key: string, session: FakeSession) => Speech = (key) => `${key} speech`;
 
@@ -42,10 +78,34 @@ export class FakeDesktop {
   }
 
   set front(value: "browser" | "other") {
-    if (this.frontWindow === "browser" && value === "other") this.sessions.at(-1)?.loseFocus();
+    if (this.frontWindow === "browser" && value === "other") this.frontBrowser?.loseFocus();
     this.frontWindow = value;
+    this.changed();
   }
 
+  /** Whether the window in front keeps NVDA talking. */
+  keepsNvdaTalking(): boolean {
+    if (this.front === "other") return this.otherKeepsTalking;
+    return this.pageKeepsTalking && this.frontBrowser !== undefined;
+  }
+
+  private readonly watchers: (() => void)[] = [];
+
+  /** Call back whenever the window in front, or a browser, changes. */
+  watch(watcher: () => void): void {
+    this.watchers.push(watcher);
+  }
+
+  changed(): void {
+    for (const watcher of this.watchers) watcher();
+  }
+
+  /** The browser whose window is in front whenever a browser is: the newest one still open. */
+  get frontBrowser(): FakeSession | undefined {
+    return this.sessions.filter((session) => !session.closed).at(-1);
+  }
+
+  /** The newest browser launched (open or not). */
   get session(): FakeSession {
     const session = this.sessions.at(-1);
     if (!session) throw new Error("no browser session");
@@ -60,7 +120,9 @@ export class FakeDesktop {
       return `${this.otherTitle} reacts to ${key}`;
     }
     this.events.push(`key:${key}`);
-    return this.session.receive(key);
+    const page = this.frontBrowser;
+    if (!page) throw new Error("no browser open");
+    return page.receive(key);
   }
 }
 
@@ -71,7 +133,16 @@ export class FakeNvda implements NvdaControl {
   forceQuits = 0;
   /** Makes stop() hang until forceQuit() is called. */
   stopHangs = false;
+  /** Holds start() until opened; shutting NVDA down directly meanwhile makes the start fail. */
+  startGate: Gate | null = null;
+  /** NVDA died: keys sent through it go nowhere, and it says nothing. */
+  crashed = false;
   private releaseStop: (() => void) | null = null;
+  private failStart: (() => void) | null = null;
+  /** Commands under way, which stop() waits for, as Guidepup's does. */
+  private readonly commands = new Set<Promise<Speech>>();
+  /** Commands waiting for NVDA to fall silent before sending their key. */
+  private readonly silencing = new Set<{ resume: () => void; fail: () => void }>();
   settingsInEffect: Record<string, unknown> = {
     general: { language: "Windows", loggingLevel: "OFF" },
     speech: { synth: "oneCore" },
@@ -79,59 +150,105 @@ export class FakeNvda implements NvdaControl {
     remote: { enabled: true },
   };
 
-  constructor(private readonly desktop: FakeDesktop) {}
+  constructor(private readonly desktop: FakeDesktop) {
+    desktop.watch(() => {
+      if (desktop.keepsNvdaTalking()) return;
+      for (const command of [...this.silencing]) command.resume();
+    });
+  }
 
   start(options: { capture: CaptureMode; settings: Record<string, unknown> }): Promise<void> {
     this.desktop.events.push("nvda:start");
-    this.started = true;
     this.startOptions = options;
-    return Promise.resolve();
-  }
-
-  stop(): Promise<void> {
-    this.desktop.events.push("nvda:stop");
-    if (!this.stopHangs) {
-      this.started = false;
+    const gate = this.startGate;
+    if (!gate) {
+      this.started = true;
       return Promise.resolve();
     }
-    return new Promise((resolve) => {
-      this.releaseStop = () => {
-        this.started = false;
-        resolve();
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      this.failStart = () => {
+        settled = true;
+        reject(new Error("NVDA cannot be started"));
       };
+      void gate.wait().then(() => {
+        if (settled) return;
+        this.failStart = null;
+        this.started = true;
+        resolve();
+      });
     });
+  }
+
+  /** Like Guidepup's stop: it waits for the commands under way. */
+  async stop(): Promise<void> {
+    this.desktop.events.push("nvda:stop");
+    await Promise.allSettled([...this.commands]);
+    if (this.stopHangs) {
+      await new Promise<void>((resolve) => {
+        this.releaseStop = resolve;
+      });
+    }
+    this.started = false;
   }
 
   forceQuit(): void {
     this.forceQuits++;
     this.desktop.events.push("nvda:force-quit");
+    this.started = false;
     this.releaseStop?.();
+    this.failStart?.();
+    this.failStart = null;
+    for (const command of [...this.silencing]) command.fail();
   }
 
   press(key: NvdaKey, options: { capture?: boolean } = {}): Promise<Speech> {
-    if (!this.started) return Promise.reject(new Error("NVDA is not running"));
-    if (
-      options.capture !== false &&
-      this.desktop.front === "other" &&
-      this.desktop.otherKeepsTalking
-    ) {
+    const command = this.run(key, options);
+    this.commands.add(command);
+    const done = () => this.commands.delete(command);
+    command.then(done, done);
+    return command;
+  }
+
+  private async run(key: NvdaKey, options: { capture?: boolean }): Promise<Speech> {
+    if (!this.started) throw new Error("NVDA is not running");
+    if (this.crashed || this.desktop.locked) return "";
+    // Guidepup silences NVDA before a captured command's key, waiting while something keeps
+    // NVDA talking; the key then goes to whichever window is in front by then.
+    if (options.capture !== false && this.desktop.keepsNvdaTalking()) {
       this.desktop.events.push(`hung:${key}`);
-      return new Promise(() => {});
+      await new Promise<void>((resolve, reject) => {
+        const command = {
+          resume: () => {
+            this.silencing.delete(command);
+            resolve();
+          },
+          fail: () => {
+            this.silencing.delete(command);
+            reject(new Error("Cannot connect to NVDA"));
+          },
+        };
+        this.silencing.add(command);
+      });
     }
     if (key === "reportTitle") {
       const title =
         this.desktop.front === "browser"
-          ? `${this.desktop.session.title} - Google Chrome`
+          ? `${this.desktop.frontBrowser?.title ?? ""} - Google Chrome`
           : this.desktop.otherTitle;
-      return Promise.resolve(options.capture === false ? "" : title);
+      return options.capture === false ? "" : title;
     }
     const spoken = this.desktop.deliver(key);
-    return Promise.resolve(options.capture === false ? "" : spoken);
+    return options.capture === false ? "" : spoken;
   }
 
   async speechDuring(action: () => Promise<void>): Promise<Speech> {
     await action();
-    return this.desktop.session.lastSpoken;
+    return this.crashed || this.desktop.locked ? "" : (this.desktop.frontBrowser?.lastSpoken ?? "");
+  }
+
+  isRunning(): Promise<boolean> {
+    return Promise.resolve(this.started && !this.crashed);
   }
 
   settings(): Record<string, unknown> {
@@ -148,10 +265,17 @@ export interface FakePage {
 
 export class FakeSession implements BrowserSession {
   readonly name = "Chrome";
-  readonly version = "153.0.8010.53";
+  readonly version: string;
   title = "";
   closed = false;
+  killed = false;
   loaded: string[] = [];
+  /** The time limit given with each load (0: none). */
+  loadTimeouts: number[] = [];
+  /** Holds the next focus readings until opened. */
+  focusGate: Gate | null = null;
+  /** Holds close() until opened. */
+  closeGate: Gate | null = null;
   /** Whether the window has really been in front (Chrome's focus reports are wrong before). */
   private activated: boolean;
   /** Focus is in Chrome's own toolbar (Tab went past the last element). */
@@ -170,10 +294,12 @@ export class FakeSession implements BrowserSession {
     private readonly pages: Record<string, FakePage>,
   ) {
     this.activated = desktop.front === "browser";
+    this.version = desktop.browserVersion;
   }
 
-  load(url: string): Promise<LoadResult> {
+  load(url: string, timeoutMs: number): Promise<LoadResult> {
     this.loaded.push(url);
+    this.loadTimeouts.push(timeoutMs);
     const page = this.pages[url] ?? {};
     this.title = page.title ?? "Fake page";
     this.inToolbar = false;
@@ -204,10 +330,11 @@ export class FakeSession implements BrowserSession {
     });
   }
 
-  focusState(): Promise<{ focused: boolean; losses: number }> {
+  async focusState(): Promise<{ focused: boolean; losses: number }> {
+    await this.focusGate?.wait();
     if (this.desktop.front === "browser") this.activated = true;
     const focused = this.activated ? this.desktop.front === "browser" && !this.inToolbar : true;
-    return Promise.resolve({ focused, losses: this.losses });
+    return { focused, losses: this.losses };
   }
 
   /** The page's window lost focus (a blur event). */
@@ -240,14 +367,19 @@ export class FakeSession implements BrowserSession {
     return Promise.resolve(this.focused);
   }
 
-  close(): Promise<void> {
-    this.closed = true;
+  async close(): Promise<void> {
     this.desktop.events.push("browser:close");
-    return Promise.resolve();
+    await this.closeGate?.wait();
+    const wasInFront = this === this.desktop.frontBrowser && this.desktop.front === "browser";
+    this.closed = true;
+    // The browser in front went away: Windows brings another window forward.
+    if (wasInFront) this.desktop.front = "other";
+    this.desktop.changed();
   }
 
   abandon(): void {
     this.closed = true;
+    this.killed = true;
     this.desktop.events.push("browser:kill");
   }
 

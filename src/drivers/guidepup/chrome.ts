@@ -126,11 +126,17 @@ export interface LaunchChromeOptions {
   extraArgs?: string[];
   /** How long Chrome gets to start and accept the connection. */
   timeoutMs?: number;
+  /** Calls the launch off: a browser that's still starting is killed, and the launch fails. */
+  signal?: AbortSignal;
 }
 
 /** Start a browser with a new profile, attached through Playwright. */
 export async function launchChrome(options: LaunchChromeOptions): Promise<ChromeSession> {
   const executable = resolveBrowser(options.browser, options.env);
+  const { signal } = options;
+  if (signal?.aborted) {
+    throw new EnvironmentError(`${executable.name} wasn't started: the launch was called off.`);
+  }
   const timeoutMs = options.timeoutMs ?? 30_000;
   const profileDir = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
   const child = spawn(
@@ -140,16 +146,37 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
   );
   const spawnError = new Promise<never>((_, reject) => child.once("error", reject));
   spawnError.catch(() => {});
+  let callOff = () => {};
+  const calledOff = new Promise<never>((_, reject) => {
+    callOff = () => {
+      child.kill();
+      reject(new Error("the launch was called off"));
+    };
+  });
+  calledOff.catch(() => {});
+  signal?.addEventListener("abort", callOff, { once: true });
   try {
-    const port = await Promise.race([readDevToolsPort(profileDir, child, timeoutMs), spawnError]);
-    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {
-      noDefaults: true,
-      timeout: timeoutMs,
-    });
+    const port = await Promise.race([
+      readDevToolsPort(profileDir, child, timeoutMs),
+      spawnError,
+      calledOff,
+    ]);
+    const browser = await Promise.race([
+      chromium.connectOverCDP(`http://127.0.0.1:${port}`, {
+        noDefaults: true,
+        timeout: timeoutMs,
+      }),
+      calledOff,
+    ]);
     const context = browser.contexts()[0];
     if (!context) throw new Error("the browser has no default context");
+    // Playwright leaves downloads alone for a browser it attaches to without defaults: a page
+    // that answers with a download mustn't put files in the user's Downloads folder.
+    const browserCdp = await browser.newBrowserCDPSession();
+    await browserCdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
     const page = context.pages()[0] ?? (await context.newPage());
     const cdp = await context.newCDPSession(page);
+    if (signal?.aborted) throw new Error("the launch was called off");
     return new ChromeSession(executable, child, profileDir, browser, page, cdp);
   } catch (error) {
     child.kill();
@@ -157,6 +184,8 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
     throw new EnvironmentError(`${executable.name} didn't start: ${errorMessage(error)}`, {
       cause: error,
     });
+  } finally {
+    signal?.removeEventListener("abort", callOff);
   }
 }
 
@@ -198,7 +227,10 @@ async function readDevToolsPort(
   const file = path.join(profileDir, "DevToolsActivePort");
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`it exited with code ${child.exitCode}`);
+    // A browser that was killed has a signal instead of an exit code (on Windows too).
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(`it exited (${child.exitCode ?? child.signalCode ?? ""})`);
+    }
     try {
       const port = Number(readFileSync(file, "utf8").split("\n")[0]?.trim());
       if (Number.isInteger(port) && port > 0) return port;
@@ -251,15 +283,18 @@ const DESCRIBE_ELEMENT = `function () {
 }`;
 
 /**
- * Counts the page window's focus losses (blur events on the window itself; focus moving between
- * elements doesn't reach this listener). A loss is noticed even when focus has come back, as
- * when the user clicks another window and then the browser again.
+ * Counts the times the page's window lost focus, so a loss is noticed even when focus has come
+ * back (the user clicked another window, then the browser again). Only blur events on the window
+ * itself are seen; focus moving between elements doesn't reach this listener. Focus moving into
+ * a frame also blurs the window, but the page still has focus then, so it doesn't count.
+ * (While focus is inside a frame, a switch to another window blurs the frame's window instead;
+ * the page not having focus afterwards still shows a switch that lasted.)
  */
 const WATCH_FOCUS = `(() => {
   if (typeof window.__voicecapFocusLosses !== "number") {
     window.__voicecapFocusLosses = 0;
     window.addEventListener("blur", (event) => {
-      if (event.target === window) window.__voicecapFocusLosses += 1;
+      if (event.target === window && !document.hasFocus()) window.__voicecapFocusLosses += 1;
     });
   }
 })()`;

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { browserCandidates } from "../src/drivers/guidepup/chrome.js";
-import { guidepupInstall, nvdaVersionFromBuild } from "../src/drivers/guidepup/paths.js";
+import {
+  guidepupInstall,
+  nvdaVersionFromBuild,
+  shellUnsafePart,
+} from "../src/drivers/guidepup/paths.js";
 import {
   describeWindows,
   nvdaLanguage,
+  parseSessionState,
   parseTasklist,
   titleMatches,
 } from "../src/drivers/guidepup/windows.js";
@@ -37,6 +42,46 @@ describe("Guidepup's NVDA install location", () => {
     expect(guidepupInstall("0.2.1-2026.2", {}, "C:\\Users\\pat").cacheDir).toBe(
       "C:\\Users\\pat\\AppData\\Local\\guidepup",
     );
+  });
+});
+
+// Guidepup starts nvda.exe with spawn(path, args, { shell: true }), which doesn't quote the path.
+// Measured with Node 24 on Windows 11 (the NVDA path and its --config-path argument both live in
+// Guidepup's folder): cmd.exe splits the path at whitespace, & ( , ; and =, drops ^ from the
+// argument, and expands %NAME% when NAME is a variable.
+describe("paths Guidepup can't start NVDA from", () => {
+  it.each([
+    ["C:\\Users\\Jane Doe\\AppData\\Local\\guidepup", " "],
+    ["C:\\Users\\R&D\\AppData\\Local\\guidepup", "&"],
+    ["C:\\Users\\Pat (Work)\\guidepup", " "],
+    ["C:\\Users\\Pat(Work)\\guidepup", "("],
+    ["C:\\Users\\a,b\\guidepup", ","],
+    ["C:\\Users\\a;b\\guidepup", ";"],
+    ["C:\\Users\\a=b\\guidepup", "="],
+    ["C:\\Users\\a^b\\guidepup", "^"],
+    ["C:\\%USERNAME%\\guidepup", "%USERNAME%"],
+  ])("rejects %s", (dir, part) => {
+    expect(shellUnsafePart(dir)).toBe(part);
+  });
+
+  it.each([
+    "C:\\Users\\pat\\AppData\\Local\\guidepup",
+    "C:\\guidepup",
+    "C:\\Users\\O'Brien\\AppData\\Local\\guidepup",
+    "C:\\Users\\José\\AppData\\Local\\guidepup",
+    "C:\\Users\\a)b!c#d@e$f+g[h]i{j}k~l`m\\guidepup",
+    "C:\\Users\\100%\\guidepup",
+  ])("accepts %s", (dir) => {
+    expect(shellUnsafePart(dir)).toBeNull();
+  });
+});
+
+describe("the Windows session's lock state", () => {
+  it("is read from the helper's answer, and unknown when there's no clear answer", () => {
+    expect(parseSessionState("locked\r\n")).toBe(true);
+    expect(parseSessionState("unlocked\r\n")).toBe(false);
+    expect(parseSessionState("unknown\r\n")).toBeNull();
+    expect(parseSessionState("")).toBeNull();
   });
 });
 

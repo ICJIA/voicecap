@@ -59,20 +59,34 @@ export function guidepupInstall(
   };
 }
 
-/** The machine-wide lock that lets only one voicecap drive NVDA at a time. */
+/**
+ * The lock that lets only one voicecap drive NVDA at a time. It's per Windows user, while NVDA's
+ * port is shared by the whole computer: two users running voicecap at once aren't prevented.
+ */
 export function nvdaLockFile(env: NodeJS.ProcessEnv, homedir: string): string {
   const localAppData = envValue(env, "LOCALAPPDATA") ?? path.join(homedir, "AppData", "Local");
   return path.join(localAppData, "voicecap", "nvda.lock");
 }
 
 /**
- * Guidepup 0.34.0 starts NVDA with spawn(path, args, { shell: true }), which doesn't quote the
- * path, so NVDA can't start from a folder whose path has a space (C:\Users\Jane Doe\...).
+ * The first part of a folder's path that Guidepup 0.34.0 can't start NVDA from, or null. Guidepup
+ * starts nvda.exe with spawn(path, ["--config-path", ...], { shell: true }), which doesn't quote
+ * them, and both live in Guidepup's folder. Measured with Node 24 on Windows 11: cmd.exe splits
+ * the path at whitespace, & ( , ; and =, drops ^ from the argument, and expands %NAME% when NAME
+ * is a variable.
  */
-export function spaceInPathMessage(install: GuidepupInstall): string {
+export function shellUnsafePart(dir: string): string | null {
+  return /\s|[&(,;=^]|%[^%]*%/.exec(dir)?.[0] ?? null;
+}
+
+/** Why NVDA can't start from Guidepup's folder and what to do about it, or null if it can. */
+export function unsafePathMessage(install: GuidepupInstall): string | null {
+  const part = shellUnsafePart(install.cacheDir);
+  if (part === null) return null;
+  const what = /^\s$/.test(part) ? "a space" : `"${part}"`;
   return [
-    `Guidepup's NVDA is in ${install.cacheDir}, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the shell without quoting its path).`,
-    "Choose a folder without spaces, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
+    `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
+    "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
     "  mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
     "then open a new terminal and run: npx @icjia/voicecap setup",
   ].join("\n");

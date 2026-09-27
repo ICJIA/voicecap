@@ -75,7 +75,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 
 4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first.
 
-   - **If your Windows user folder has a space in its path** (`C:\Users\Jane Doe`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a folder without spaces, such as `C:\guidepup`, open a new terminal, and run setup again.
+   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup`, open a new terminal, and run setup again.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
 
 5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether another NVDA is running, that NVDA starts and its speech is captured, that the browser comes to the front, and that NVDA speaks English. It prints a summary you can paste into a bug report:
@@ -92,7 +92,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 6. **Before a run:**
    - **Close your own copy of NVDA.** voicecap shuts down any running NVDA when it starts (Guidepup does this), and it warns you first.
    - **Don't use the computer during a run.** NVDA's keystrokes go to whichever window is in front. voicecap brings its browser to the front for every page, checks it with NVDA+T, and throws away any step during which another window came forward, but each click elsewhere costs a page (it's recorded as failed). NVDA speaks aloud throughout, and NVDA's Speech Viewer window opens beside the browser.
-   - **Keep the desktop awake and unlocked.** A locked screen, a screen saver, or a minimized Remote Desktop window (Windows stops drawing it) breaks a run. In Settings → System → Power & battery → Screen and sleep, set both to "Never" while plugged in.
+   - **Keep the computer unlocked.** On a locked computer, NVDA can't press keys or speak, and voicecap stops with "Windows is locked". voicecap keeps Windows from sleeping or turning the screen off while it runs, but it can't stop a lock: Win+L, a screen saver set to lock, or a workplace lock policy. If you step away, leave it unlocked. A minimized Remote Desktop window (Windows stops drawing it) breaks a run too.
    - **Turn on Do Not Disturb** (Settings → System → Notifications) so notifications don't get read into transcripts.
    - **Pause Windows Update** restarts during long runs (Settings → Windows Update → Pause updates). If a restart happens anyway, voicecap resumes where it stopped.
 
@@ -289,7 +289,7 @@ Committing `transcripts/` preserves the audit trail alongside the site's code; n
 | Pages | Steps per page (all three passes) | Time per page | 100 pages | 2,000 pages |
 | --- | --- | --- | --- | --- |
 | Five sampled pages of i2i.illinois.gov (measured) | 46–68 | 78–106 s, 92 s on average | about 2½ hours | about 2 days |
-| A long page | 250 | about 6 minutes | about 10 hours | about 8½ days |
+| A long page | 250 | about 6 minutes | about 9½ hours | about 8 days |
 
 Count a page's steps as its lines in browse mode, plus its headings, plus its focusable elements. Interruptions are normal: reboots, Windows Update, power cuts.
 
@@ -297,6 +297,8 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 - **Sitemap runs resume with the page list stored when they started**, so a sitemap that changed in the meantime (a new news item, say) doesn't block resuming. A page list file is identified by its contents, so editing it starts a new run.
 - **A failing page never stops the run**: it's recorded, reported, and the run moves on. Steps and whole pages have timeouts; after a timeout voicecap restarts NVDA and the browser and retries the page once before recording it as failed. After `maxConsecutiveFailures` failed pages in a row (default 5), voicecap stops with exit code 2 instead of marking every remaining page failed; fix the problem and rerun to resume.
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
+- **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser; the page is retried when you resume.
+- **If the browser updates itself** during a run (Chrome does, in the background), the page being opened when the new version starts fails, and voicecap stops with exit code 2 when it restarts the browser for the next page, so the version recorded with the transcripts stays true. Run the same command again to resume with the new version recorded; the failed page is retried. (On the last page, the run completes instead, with that page failed: exit code 3.)
 - **Ctrl+C** saves state, shuts down NVDA and the browser, and exits with code 130; the page in progress is redone on resume. Press Ctrl+C a second time to exit immediately.
 - **One run per output folder** at a time (a lock file, taken over if the process that held it is gone).
 - **HTTP errors are page problems.** A page that answers 404 (or 5xx, after one retry) is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA. Only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
@@ -509,9 +511,12 @@ Completing the AT Driver stub would mean installing the NVDA AT Automation add-o
 - **Timing.** Screen reader automation is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
 - **English phrasing.** Stop detection and flags match NVDA's English wording; `voicecap doctor` warns when NVDA's language isn't English (NVDA follows the Windows display language).
-- **The computer is voicecap's during a run.** NVDA's keystrokes go to the window in front. voicecap confirms its browser is in front for every page and throws away any step during which another window came forward, but that page is then recorded as failed. Pop-up dialogs (Windows Update, chat apps) have the same effect.
+- **The computer is voicecap's during a run.** NVDA's keystrokes go to the window in front. voicecap confirms its browser is in front for every page and checks it before and after every step, throwing away any step during which another window came forward, but that page is then recorded as failed. A window that comes forward in the moment before a keystroke (Guidepup silences NVDA first, which takes at least a quarter of a second) can still receive that one keystroke. Pop-up dialogs (Windows Update, chat apps) have the same effect.
+- **Frames.** voicecap notices another window coming forward from the page's focus events. While focus is inside a frame (an embedded video, map, or form), a switch to another window is noticed only if it lasts until the end of the step.
+- **One user at a time.** The lock that lets only one voicecap drive NVDA is per Windows user, but NVDA's connection (port 6837 on 127.0.0.1) is shared by the whole computer: don't run voicecap as two Windows users at once.
+- **Shared computers.** While a page is open, its browser listens for remote debugging on 127.0.0.1 (with a throwaway profile), where other users of the same computer could connect. On a single-user desktop that doesn't matter.
 - **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser, retries the page once, and records it as failed if it happens again.
-- **Folders with spaces.** Guidepup 0.34.0 can't start NVDA from a path with a space; see [Windows setup](#windows-setup-for-someone-new-to-windows).
+- **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
 - **What automation can't judge.** A transcript shows what NVDA said, not whether it made sense: reading order that is technically right but confusing, alt text that is present but unhelpful, whether a page is usable. That still takes a person.
 

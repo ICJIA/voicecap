@@ -11,6 +11,7 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 | `site/index.html` | A well-built home page: skip link, landmarks, one h1, a labeled search field, and two lists of links. |
 | `site/duplicates/index.html` | End-of-page detection. It has two identical consecutive lines ("Applications are due October 31."). Its last line ("Back to top", at the end of the footer) also appears earlier on the page. |
 | `site/flawed/index.html` | Deliberately flawed page. No skip link, and 12 focus stops before main content. The first heading is an h2. It has three "Read more" links and one "Click here" link. It also has an image without alt, an image-only link without alt, an unlabeled text field, and an icon-only button with no name. |
+| `site/frames/` | A page with a link, a frame from the same site, a frame from another site (the same server as `localhost`, so Chrome runs it in its own process, as it does embedded videos and maps), and another link. Not in the sitemap: only `pnpm test:nvda` and the Chrome session tests use it, to check that Tab goes into and out of frames without a foreground error (focus moving into a frame blurs the page's window). |
 | `site/files/annual-report.pdf` | A tiny valid PDF, listed in the sitemap so voicecap skips it by extension. |
 | `site/images/chart.png` | The image the flawed page uses. |
 | `site/feed/feed.xml` | Served at `/feed/` as `application/rss+xml`: a URL with no file extension whose response isn't HTML. |
@@ -54,7 +55,8 @@ A capture takes about 5 minutes, during which NVDA speaks and browser windows co
 - every read pass ends at the end of the page, including the page with duplicate lines;
 - every headings pass ends on "no next heading";
 - the home and duplicates tab passes start at the skip link and end with focus leaving the page;
-- complete capture: Speech Viewer shows the same speech as the home page's read pass.
+- complete capture: Speech Viewer shows the same speech as the home page's read pass;
+- Tab on `/frames/` reaches the link before the frames, the one in each frame, and the one after them, in that order.
 
 If a check fails, nothing is replaced and the run is kept for inspection. `--from <run folder>` checks (and with `--write`, installs) a run made earlier instead of making a new one.
 
