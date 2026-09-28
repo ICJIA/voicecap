@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
+The audit record: one transcripts home with a folder per site and per day, records that `voicecap verify` can check, `voicecap init` to set up a run, and `--page`.
+
 ### Added
 
 - **`voicecap verify [--site <url>] [--out <dir>]`**: checks the records in the transcripts home against their seals and recorded hashes. A completed run's `run.json`, each manual session's `session.json`, and each review entry now carry a `seal` (a SHA-256 of the record itself); review entries also carry `seq` and `prev`, chaining the whole review history. `verify` checks every site's runs (their seals and every recorded page file), manual sessions (their seals, transcripts, and kept raw copies), and the review chain, printing one line per problem it finds and exiting 0 when everything matches, 3 when something doesn't. It catches an edited record, a reordered review entry, and a deleted entry that a later entry follows. Deleting the newest review entries, or a whole run or manual session, leaves nothing for `verify` to find: only Git history shows it.
@@ -98,6 +102,7 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ICJIA/voicecap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ICJIA/voicecap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ICJIA/voicecap/releases/tag/v0.1.0
