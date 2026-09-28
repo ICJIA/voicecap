@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { loadConfig, type LoadedConfig } from "./config/load.js";
 import { importManualSession } from "./manual/import.js";
 import type { ManualSessionJson } from "./model.js";
@@ -9,6 +7,7 @@ import { ensureGitFiles } from "./run/git-files.js";
 import { regenerateLiveReport } from "./run/live-report.js";
 import { resolveHome } from "./run/paths.js";
 import { chooseSiteDir } from "./run/site-dir.js";
+import { resolveUserPath } from "./util/git-bash.js";
 import { createConsoleLogger, type Logger } from "./util/log.js";
 
 export interface AddManualSessionOptions {
@@ -71,7 +70,7 @@ export async function addManualSession(
   await ensureGitFiles(home);
   const result = await importManualSession({
     outDir,
-    file: path.resolve(cwd, options.file),
+    file: resolveUserPath(cwd, options.file),
     page,
     reviewer: reviewer.name,
     config,

@@ -152,6 +152,8 @@ Git Bash rewrites command-line arguments that start with `/` into Windows paths,
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
+With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--replay-from`, and the files `manual add` and `list-urls` take all accept it.
+
 ## Commands and options
 
 ### Run an audit

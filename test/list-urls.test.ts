@@ -9,6 +9,7 @@ import { readPageList } from "../src/pages/page-list.js";
 import { samplePages, urlPattern } from "../src/pages/sample.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
+import { gitBashForm } from "./helpers/git-bash.js";
 
 const SITE_DIR = new URL("../fixture/site/", import.meta.url);
 const ORIGIN = "http://127.0.0.1:4747";
@@ -63,6 +64,18 @@ describe("listUrls", () => {
     // Skipped URLs are reported, not exported.
     expect(logger.text("info")).toMatch(/Skipped 1 URL not on/);
     expect(logger.text("info")).toMatch(/Wrote 5 URLs to pages\.csv/);
+  });
+
+  // Git Bash translates /c/... itself, except with MSYS_NO_PATHCONV=1 set.
+  it.runIf(process.platform === "win32")("writes to a file written Git Bash's way", async () => {
+    const result = await listUrls({
+      site: ORIGIN,
+      sitemap: `${ORIGIN}/sitemap.xml`,
+      output: gitBashForm(path.join(dir, "git-bash.csv")),
+      cwd: dir,
+      fetch: fetchFrom(),
+    });
+    expect(result).toEqual({ file: path.join(dir, "git-bash.csv"), count: 5 });
   });
 
   it("writes a file that reads back as a page list", async () => {

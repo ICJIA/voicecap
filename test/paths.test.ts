@@ -32,6 +32,13 @@ describe("resolveHome", () => {
       path.join(cwd, "transcripts"),
     );
   });
+
+  // Git Bash translates /d/vt itself, except with MSYS_NO_PATHCONV=1 set.
+  it.runIf(process.platform === "win32")("reads a home written Git Bash's way on Windows", () => {
+    const cwd = "C:\\work";
+    expect(resolveHome({ out: "/d/vt", env: {}, cwd })).toBe("D:\\vt");
+    expect(resolveHome({ env: { VOICECAP_TRANSCRIPTS: "/d/vt" }, cwd })).toBe("D:\\vt");
+  });
 });
 
 describe("runDir", () => {

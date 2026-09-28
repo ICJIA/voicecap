@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import os from "node:os";
-import path from "node:path";
 
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
@@ -221,7 +220,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         const result = await listUrls({
           site: options.site,
           sitemap: options.sitemap,
-          output: path.resolve(ctx.cwd, output),
+          output,
           include: options.include,
           exclude: options.exclude,
           limit: options.limit ?? null,

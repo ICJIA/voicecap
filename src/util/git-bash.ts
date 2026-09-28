@@ -1,4 +1,30 @@
+import path from "node:path";
+
 import { UsageError } from "./errors.js";
+
+/** A single Windows drive letter written Git Bash's way, e.g. "/c/Users/me". */
+const GIT_BASH_DRIVE = /^\/([A-Za-z])(\/.*)?$/;
+
+/**
+ * `value`, translated from Git Bash's form for a Windows path (one drive letter, e.g.
+ * "/c/Users/me") to the Windows form ("C:/Users/me"), on Windows only. Git Bash translates it
+ * itself for the programs it starts, but not with MSYS_NO_PATHCONV=1 set, and never in an answer
+ * typed into `init`. Anything else, or off Windows, is returned unchanged.
+ */
+export function fromGitBash(value: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32") return value;
+  const match = GIT_BASH_DRIVE.exec(value);
+  return match ? `${match[1]!.toUpperCase()}:${match[2] ?? "/"}` : value;
+}
+
+/** A path someone gave voicecap, resolved against `cwd`, with Git Bash's form read as above. */
+export function resolveUserPath(
+  cwd: string,
+  value: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return path.resolve(cwd, fromGitBash(value, platform));
+}
 
 /** A Windows drive path, e.g. C:/Program Files/Git/about or C:\Users\me. */
 const WINDOWS_PATH = /^[a-zA-Z]:[\\/]/;

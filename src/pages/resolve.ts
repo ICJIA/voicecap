@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { InvalidEntry, PageRef, PageSource, SkippedRecord, SourceDetails } from "../model.js";
 import { UsageError } from "../util/errors.js";
-import { assertNotRewritten } from "../util/git-bash.js";
+import { assertNotRewritten, resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
 import type { Logger } from "../util/log.js";
 import { applyFilters } from "./filter.js";
@@ -60,7 +60,7 @@ export async function pageSourceFor(options: {
     return { kind: "urls", urls: resolvePageUrlOption(pageUrls, options.site!) };
   }
   const cwd = options.cwd ?? process.cwd();
-  const absolute = path.resolve(cwd, pagesFile!);
+  const absolute = resolveUserPath(cwd, pagesFile!);
   let bytes: Uint8Array;
   try {
     bytes = await readFile(absolute);
@@ -105,7 +105,7 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     source = baseDetails("sitemap", entries.length, result.warnings);
     source.sitemaps = result.documents;
   } else if (pagesFile !== undefined) {
-    const absolute = path.resolve(cwd, pagesFile);
+    const absolute = resolveUserPath(cwd, pagesFile);
     const list = await readPageList(absolute);
     const file = recordedPath(cwd, absolute);
     pageSource = { kind: "pages", file, sha256: list.sha256 };

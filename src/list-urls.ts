@@ -5,6 +5,7 @@ import { samplePages, type SampleGroup } from "./pages/sample.js";
 import { displayPath, parseSiteUrl } from "./pages/url.js";
 import { writeFileAtomic } from "./util/atomic-write.js";
 import { UsageError } from "./util/errors.js";
+import { resolveUserPath } from "./util/git-bash.js";
 import type { Logger } from "./util/log.js";
 
 export interface ListUrlsOptions {
@@ -46,7 +47,7 @@ interface Row {
  */
 export async function listUrls(options: ListUrlsOptions): Promise<ListUrlsResult> {
   const cwd = options.cwd ?? process.cwd();
-  const file = path.resolve(cwd, options.output);
+  const file = resolveUserPath(cwd, options.output);
   const format = outputFormat(file);
   if (options.sample !== undefined && (!Number.isInteger(options.sample) || options.sample < 1)) {
     throw new UsageError(`--sample must be a whole number of at least 1 (got ${options.sample}).`);

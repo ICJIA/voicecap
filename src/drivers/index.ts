@@ -6,6 +6,7 @@ import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
 import { EnvironmentError, UsageError } from "../util/errors.js";
+import { fromGitBash } from "../util/git-bash.js";
 import type { Logger } from "../util/log.js";
 import type { ScreenReaderDriver } from "./types.js";
 
@@ -15,7 +16,7 @@ export interface DriverSelection {
   name: DriverName;
   /** Replay driver: the run folder, absolute. */
   replayFrom: string | null;
-  /** Replay driver: the folder as the user wrote it, for transcripts and settings. */
+  /** Replay driver: the folder as the user wrote it (Git Bash's form read), for transcripts and settings. */
   replayLabel: string | null;
 }
 
@@ -32,10 +33,11 @@ export function selectDriver(
         "The replay driver needs a run folder: pass --replay-from <dir> or set replayFrom in voicecap.config.",
       );
     }
+    const folder = fromGitBash(replayFrom);
     return {
       name: "replay",
-      replayFrom: path.resolve(cwd, replayFrom),
-      replayLabel: replayFrom.split(path.sep).join("/"),
+      replayFrom: path.resolve(cwd, folder),
+      replayLabel: folder.split(path.sep).join("/"),
     };
   }
   return { name: config.driver, replayFrom: null, replayLabel: null };

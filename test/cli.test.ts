@@ -12,6 +12,7 @@ import type { Readiness } from "../src/init/readiness.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson } from "../src/model.js";
 import { manualSessionDir, runDir } from "../src/run/paths.js";
+import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -680,5 +681,70 @@ describe("voicecap init", () => {
     expect(Date.now() - pressed).toBeLessThan(5_000);
     expect(screen).toContain("Checking https://dvfr.illinois.gov…\n");
     stdin.end();
+  });
+});
+
+// Git Bash translates /c/Users/me into C:/Users/me for the programs it starts, but not with
+// MSYS_NO_PATHCONV=1 set (as for --page /about/), so voicecap reads that form itself.
+describe.skipIf(process.platform !== "win32")("paths written Git Bash's way", () => {
+  it("runs from a page list and a replay folder written Git Bash's way", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "voicecap-git-bash-"));
+    const run = await cli([
+      "--site",
+      SITE,
+      "--pages",
+      gitBashForm(fixture("pages.json")),
+      "--replay-from",
+      gitBashForm(fixture("replay-run")),
+      "--out",
+      home,
+    ]);
+    expect(run.err).not.toContain("Error:");
+    expect(run.code).toBe(0);
+    expect(existsSync(path.join(home, "127.0.0.1_4747", "report.html"))).toBe(true);
+  });
+
+  it("finds the home from --out or VOICECAP_TRANSCRIPTS written Git Bash's way", async () => {
+    const home = gitBashForm(path.join(await oneSiteHome(), "transcripts"));
+    const review = await cli([
+      "review",
+      "--page",
+      "/",
+      "--status",
+      "reviewed",
+      "--reviewer",
+      "Pat Reviewer",
+      "--out",
+      home,
+    ]);
+    expect(review.err).not.toContain("Error:");
+    expect(review.code).toBe(0);
+    expect((await cli(["report", "--out", home])).code).toBe(0);
+    const verify = await cli(["verify"], undefined, { VOICECAP_TRANSCRIPTS: home });
+    expect(verify.code).toBe(0);
+    expect(verify.out).toContain("1 review checked: everything matches.");
+  });
+
+  it("imports a manual session from a file written Git Bash's way", async () => {
+    const cwd = await oneSiteHome();
+    const manual = await cli(
+      [
+        "manual",
+        "add",
+        gitBashForm(fixture("manual", "nvda-io-log.txt")),
+        "--page",
+        "/",
+        "--redact-typing",
+        "--reviewer",
+        "Pat Reviewer",
+        "--date",
+        "2026-09-25",
+      ],
+      cwd,
+    );
+    expect(manual.err).not.toContain("Error:");
+    expect(manual.code).toBe(0);
+    const siteDir = path.join(cwd, "transcripts", "127.0.0.1_4747");
+    expect(existsSync(manualSessionDir(siteDir, "2026-09-25_2357", "home"))).toBe(true);
   });
 });

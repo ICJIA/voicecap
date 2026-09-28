@@ -10,6 +10,7 @@ import { pageSourceFor, resolvePages } from "../src/pages/resolve.js";
 import { parseSiteUrl } from "../src/pages/url.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
+import { gitBashForm } from "./helpers/git-bash.js";
 
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 const SITE_DIR = new URL("../fixture/site/", import.meta.url);
@@ -184,6 +185,22 @@ describe("resolvePages: normalization and dedupe", () => {
 });
 
 describe("resolvePages: page list files", () => {
+  // Git Bash translates /c/... itself, except with MSYS_NO_PATHCONV=1 set.
+  it.runIf(process.platform === "win32")("reads a page list written Git Bash's way", async () => {
+    const pagesFile = gitBashForm(path.join(REPO, "fixture", "pages.json"));
+    const result = await resolvePages({ site, pagesFile, cwd: REPO });
+    expect(result.pageSource).toMatchObject({ kind: "pages", file: "fixture/pages.json" });
+    expect(result.pages.map((p) => p.url)).toEqual([
+      `${ORIGIN}/`,
+      `${ORIGIN}/duplicates/`,
+      `${ORIGIN}/flawed/`,
+    ]);
+    expect(await pageSourceFor({ pagesFile, cwd: REPO })).toMatchObject({
+      kind: "pages",
+      file: "fixture/pages.json",
+    });
+  });
+
   it("reads fixture/pages.json relative to cwd", async () => {
     const logger = createMemoryLogger();
     const result = await resolvePages({ site, pagesFile: "fixture/pages.json", cwd: REPO, logger });

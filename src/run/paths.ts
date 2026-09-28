@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { resolveUserPath } from "../util/git-bash.js";
+
 /**
  * The transcripts home: `.gitattributes` and `.gitignore` at its top (written once, by
  * ./git-files.js), then one folder per site (siteFolder, below):
@@ -73,8 +75,9 @@ export function siteFolder(site: string | URL): string {
 
 /**
  * The audit home: `--out` if given, else `VOICECAP_TRANSCRIPTS` (ignored if blank), else
- * `DEFAULT_OUT_DIR`, resolved against `cwd`. `VOICECAP_TRANSCRIPTS` is read from `env` only, so
- * pass `process.env` to honor it.
+ * `DEFAULT_OUT_DIR`, resolved against `cwd`, with a Windows path written Git Bash's way
+ * ("/c/Users/me") read as that path. `VOICECAP_TRANSCRIPTS` is read from `env` only, so pass
+ * `process.env` to honor it.
  */
 export function resolveHome(options: {
   out?: string | null;
@@ -82,7 +85,7 @@ export function resolveHome(options: {
   cwd: string;
 }): string {
   const fromEnv = options.env?.VOICECAP_TRANSCRIPTS?.trim();
-  return path.resolve(options.cwd, options.out ?? (fromEnv ? fromEnv : DEFAULT_OUT_DIR));
+  return resolveUserPath(options.cwd, options.out ?? (fromEnv ? fromEnv : DEFAULT_OUT_DIR));
 }
 
 /** A site's folder under the home. */

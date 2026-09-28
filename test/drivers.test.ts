@@ -22,6 +22,17 @@ describe("driver selection", () => {
     expect(path.isAbsolute(selection.replayFrom ?? "")).toBe(true);
   });
 
+  it.runIf(process.platform === "win32")(
+    "reads a --replay-from folder written Git Bash's way on Windows",
+    () => {
+      const selection = selectDriver(DEFAULT_CONFIG, "/d/runs/replay-run", "C:\\work");
+      expect(selection).toMatchObject({
+        replayFrom: "D:\\runs\\replay-run",
+        replayLabel: "D:/runs/replay-run",
+      });
+    },
+  );
+
   it("driver: replay without a folder is a usage error", () => {
     expect(() => selectDriver({ ...DEFAULT_CONFIG, driver: "replay" }, null, "/work")).toThrow(
       UsageError,

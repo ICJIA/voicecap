@@ -5,6 +5,7 @@ import { readPageList } from "../pages/page-list.js";
 import { resolvePageUrl, sameOrigin } from "../pages/url.js";
 import { DEFAULT_OUT_DIR, resolveHome, siteFolder } from "../run/paths.js";
 import { UsageError } from "../util/errors.js";
+import { fromGitBash } from "../util/git-bash.js";
 import { localDate } from "../util/time.js";
 import { composeArgs, formatCommand, quoteArg, type PageChoice } from "./compose.js";
 import type { Prompter } from "./prompt.js";
@@ -292,19 +293,4 @@ async function askHome(deps: WizardDeps, site: URL): Promise<string | null> {
  */
 function unquote(answer: string): string {
   return /^(["']).*\1$/s.test(answer) ? answer.slice(1, -1) : answer;
-}
-
-/** A single Windows drive letter written Git Bash's way, e.g. "/c/Users/win". */
-const GIT_BASH_DRIVE = /^\/([A-Za-z])(\/.*)?$/;
-
-/**
- * `value`, translated from Git Bash's form for a Windows path (one drive letter, e.g.
- * "/c/Users/win") to the Windows form ("C:/Users/win"), on `platform === "win32"` only: a typed
- * answer never goes through Git Bash's own argv path conversion, so this reads it the way someone
- * used to typing paths that way means it. Anything else, or off Windows, is returned unchanged.
- */
-function fromGitBash(value: string, platform: NodeJS.Platform): string {
-  if (platform !== "win32") return value;
-  const match = GIT_BASH_DRIVE.exec(value);
-  return match ? `${match[1]!.toUpperCase()}:${match[2] ?? "/"}` : value;
 }
