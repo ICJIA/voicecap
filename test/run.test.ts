@@ -623,14 +623,16 @@ describe("interrupting and resuming", () => {
 
   it("--fresh always starts a new run", async () => {
     const dir = await setup();
+    // Both runs in one minute: on the real clock, a minute can turn between them.
+    const now = () => new Date(2026, 8, 27, 11, 2);
     const controller = new AbortController();
     controller.abort();
     const first = await runAudit(
-      options(dir, new ScriptedDriver(sitePages()), { signal: controller.signal }),
+      options(dir, new ScriptedDriver(sitePages()), { signal: controller.signal, now }),
     );
     const logger = createMemoryLogger();
     const second = await runAudit({
-      ...options(dir, new ScriptedDriver(sitePages())),
+      ...options(dir, new ScriptedDriver(sitePages()), { now }),
       fresh: true,
       logger,
     });
