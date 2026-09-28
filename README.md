@@ -16,13 +16,13 @@ That lets a reviewer:
 
 Everything goes into one record that voicecap never rewrites, and `voicecap verify` checks that the recorded files still match what voicecap wrote.
 
-voicecap doesn't replace testing by people who use screen readers. It makes that testing faster, repeatable, and documented. It runs on Windows with NVDA and Chrome: https://github.com/ICJIA/voicecap
+voicecap makes screen reader testing faster, repeatable, and documented. It runs on Windows with NVDA and Chrome: https://github.com/ICJIA/voicecap
 
 ---
 
 voicecap drives the NVDA screen reader through a website's pages (from its sitemap or a page list you curate), saves what NVDA says as text transcripts you can skim and diff, and produces an accessible HTML report of automated coverage and human review.
 
-It doesn't replace listening to a site with a screen reader. It makes that review faster and keeps an honest audit trail:
+It makes screen reader testing faster and keeps an honest audit trail:
 
 - **Transcripts** of everything NVDA says, one line per keystroke, that a person can skim much faster than listening to, and that can be diffed between runs to catch regressions.
 - **An audit trail** of what was transcribed automatically, what a person reviewed (with a full, append-only history), and what was tested by hand with NVDA.
@@ -455,6 +455,8 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 
 ## Reviews: the audit trail
 
+A reviewer reads a page's transcripts and catches what automated checkers such as axe can't: reading order that is technically right but confusing, alt text that is present but unhelpful, a page that is hard to use. `voicecap review` records what they found:
+
 ```bash
 voicecap review --page /grants/fy27-jag --status issue --note "Table headers not announced"
 voicecap review --page /grants/fy27-jag --status fixed --note "Headers added in #412"
@@ -667,7 +669,6 @@ Completing the AT Driver stub would mean installing the NVDA AT Automation add-o
 - **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser, retries the page once, and records it as failed if it happens again.
 - **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
-- **What automation can't judge.** A transcript shows what NVDA said, not whether it made sense: reading order that is technically right but confusing, alt text that is present but unhelpful, whether a page is usable. That still takes a person.
 
 ## Development
 
