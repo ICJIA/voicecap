@@ -2,7 +2,7 @@
  * voicecap's programmatic API. The CLI (voicecap) is a thin layer over these functions.
  *
  *   import { runAudit } from "@icjia/voicecap";
- *   const result = await runAudit({ site: "https://example.illinois.gov", pages: "pages.csv" });
+ *   const result = await runAudit({ site: "https://dvfr.illinois.gov", pages: "pages.csv" });
  */
 export { runAudit } from "./run/audit.js";
 export type { RunAuditOptions, RunAuditResult } from "./run/audit.js";
@@ -13,6 +13,12 @@ export { addManualSession } from "./manual-add.js";
 export type { AddManualSessionOptions, AddManualSessionResult } from "./manual-add.js";
 export { regenerateLiveReport as generateReport } from "./run/live-report.js";
 export type { LiveReportOptions as GenerateReportOptions } from "./run/live-report.js";
+// The site folder generateReport takes: siteDirFor(resolveHome(...), site), or chooseSiteDir's
+// pick, as review and manual add make it.
+export { resolveHome, siteDirFor, siteFolder } from "./run/paths.js";
+export { chooseSiteDir } from "./run/site-dir.js";
+export { verifyHome } from "./verify.js";
+export type { VerifyHomeOptions, VerifyResult, VerifySiteResult } from "./verify.js";
 export { defineConfig, loadConfig, resolveConfig } from "./config/load.js";
 export type { LoadedConfig } from "./config/load.js";
 export type { UserConfig, VoicecapConfig } from "./config/schema.js";

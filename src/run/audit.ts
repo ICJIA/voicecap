@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
@@ -23,14 +23,16 @@ import type { PassSettings } from "../passes/index.js";
 import { InterruptedError, throwIfAborted } from "../passes/steps.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { EnvironmentError, ExitCode, UsageError } from "../util/errors.js";
+import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
 import { withCurrentFlags } from "./flags.js";
+import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
 import { processPage, type PageOutcome } from "./page-runner.js";
-import { DEFAULT_OUT_DIR, liveCompareDir, runCompareDir, runDir } from "./paths.js";
+import { liveCompareDir, resolveHome, runCompareDir, runDir, siteDirFor } from "./paths.js";
 import { estimateRemaining, progressLine, type PassProgress } from "./progress.js";
 import { chooseRun, settingsHash } from "./resume.js";
 import { allocateRunId, sanitizeRunName } from "./run-id.js";
@@ -39,9 +41,10 @@ import { listRuns, writeLatestRunId, writeRunJson } from "./store.js";
 export interface RunAuditOptions {
   /** The site's URL; pages must be on its origin. */
   site: string;
-  /** Exactly one page source: a sitemap URL or a page list file (.csv or .json). */
+  /** Exactly one page source: a sitemap URL, a page list file (.csv or .json), or --page URLs. */
   sitemap?: string | null;
   pages?: string | null;
+  pageUrls?: string[] | null;
   limit?: number | null;
   include?: string[];
   exclude?: string[];
@@ -53,12 +56,17 @@ export interface RunAuditOptions {
   compare?: string | null;
   /** Always start a new run instead of resuming. */
   fresh?: boolean;
-  /** Output folder. Default "transcripts". */
+  /**
+   * The transcripts home; the run goes in the site's folder inside it. Default:
+   * VOICECAP_TRANSCRIPTS, else "transcripts".
+   */
   out?: string;
   runName?: string | null;
   /** Replay a run folder instead of running NVDA. */
   replayFrom?: string | null;
   cwd?: string;
+  /** Where VOICECAP_TRANSCRIPTS is read from. Default: process.env. */
+  env?: NodeJS.ProcessEnv;
   /** Default: voicecap.config.* in cwd. */
   config?: LoadedConfig;
   logger?: Logger;
@@ -74,6 +82,10 @@ export interface RunAuditOptions {
 
 export interface RunAuditResult {
   runId: string;
+  /** The site's folder in the home, absolute. */
+  siteDir: string;
+  /** The run's folder, absolute. */
+  runDir: string;
   outcome: "completed" | "interrupted" | "stopped";
   /** 0 completed, 3 completed with failed pages, 2 stopped (environment), 130 interrupted. */
   exitCode: number;
@@ -88,11 +100,6 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const now = options.now ?? (() => new Date());
   const signal = options.signal ?? new AbortController().signal;
 
-  if (Boolean(options.sitemap) === Boolean(options.pages)) {
-    throw new UsageError(
-      "Give exactly one page source: --sitemap <url> or --pages <file> (not both, not neither).",
-    );
-  }
   const site = parseSiteUrl(options.site);
   const loaded = options.config ?? (await loadConfig({ cwd }));
   const { config } = loaded;
@@ -111,6 +118,8 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const pageSource = await pageSourceFor({
     sitemap: options.sitemap ?? undefined,
     pagesFile: options.pages ?? undefined,
+    pageUrls: options.pageUrls ?? undefined,
+    site,
     cwd,
   });
   const settings: RunSettings = {
@@ -132,9 +141,11 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // Creating the driver first means a wrong platform fails before any folder is touched.
   const driver = options.driver ?? (await createDriver(selection, { config, logger }));
 
-  const outDir = path.resolve(cwd, options.out ?? DEFAULT_OUT_DIR);
+  const home = resolveHome({ out: options.out, env: options.env ?? process.env, cwd });
+  const outDir = siteDirFor(home, site);
   await mkdir(outDir, { recursive: true });
-  await ensureGitattributes(outDir);
+  await ensureGitFiles(home);
+  noteOldLayout(home, logger);
   const release = await acquireRunLock(outDir);
   try {
     const decision = chooseRun(await listRuns(outDir), settings, options.fresh ?? false);
@@ -148,6 +159,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
         site,
         sitemap: options.sitemap ?? undefined,
         pagesFile: options.pages ?? undefined,
+        pageUrls: options.pageUrls ?? undefined,
         include,
         exclude,
         limit,
@@ -277,19 +289,20 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   }
 
   const failedPages = run.pages.filter((page) => page.status === "failed").length;
+  const folders = { siteDir: outDir, runDir: runDir(outDir, run.id) };
   if (outcome === "interrupted") {
     await end("interrupted");
     logger.warn(
       `Interrupted. Progress is saved in ${run.id}; run the same command again to resume.`,
     );
-    return { runId: run.id, outcome, exitCode: ExitCode.interrupted, run, failedPages };
+    return { runId: run.id, ...folders, outcome, exitCode: ExitCode.interrupted, run, failedPages };
   }
   if (outcome === "stopped") {
     await end("environment-failure");
     logger.error(
       `Stopped after ${config.maxConsecutiveFailures} failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then run the same command again to resume ${run.id}.`,
     );
-    return { runId: run.id, outcome, exitCode: ExitCode.environment, run, failedPages };
+    return { runId: run.id, ...folders, outcome, exitCode: ExitCode.environment, run, failedPages };
   }
 
   await complete(ctx, session);
@@ -298,6 +311,7 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   }
   return {
     runId: run.id,
+    ...folders,
     outcome,
     exitCode: failedPages > 0 ? ExitCode.pagesFailed : ExitCode.ok,
     run,
@@ -412,9 +426,14 @@ async function complete(ctx: ExecuteContext, session: SessionRecord): Promise<vo
     sessionRecord.endedAt = run.completedAt;
     sessionRecord.endReason = "completed";
   }
+  // Sealed last, once every other field is final: the seal covers every field, so none may change
+  // after this. The sealed run.json itself is written below, after the snapshot.
+  run.seal = sealOf(run);
   Object.assign(ctx.run, run);
 
-  // The snapshot (and any compare diffs) go into the run folder before run.json seals it.
+  // The snapshot (and any compare diffs) go into the run folder while run.json on disk still says
+  // incomplete. Writing the completed run.json closes the folder: assertRunWritable refuses any
+  // later write into it, run.json included.
   await generateReport({
     outDir,
     run,
@@ -517,13 +536,22 @@ function checkCount(flag: string, value: number | null | undefined): number | nu
   return value;
 }
 
-const GITATTRIBUTES = `# Written by voicecap. Git must not change line endings in these files: the SHA-256
-# hashes in run.json and reviews.json only match the files byte for byte.
-* -text
-`;
+/** voicecap 0.2.0's layout, at the home's top: neither read nor moved by later versions. */
+const OLD_LAYOUT_FOLDERS = ["runs", "manual"] as const;
 
-/** Keep Git from rewriting transcripts, which would break their recorded hashes. */
-async function ensureGitattributes(outDir: string): Promise<void> {
-  const file = path.join(outDir, ".gitattributes");
-  if (!existsSync(file)) await writeFile(file, GITATTRIBUTES);
+/**
+ * Say once when the home still has voicecap 0.2.0's runs/ or manual/ folders (and the files
+ * beside them), naming the ones that are there, so the owner knows they're left alone on
+ * purpose rather than lost.
+ */
+function noteOldLayout(home: string, logger: Logger): void {
+  const present = OLD_LAYOUT_FOLDERS.filter((name) => existsSync(path.join(home, name)));
+  if (present.length === 0) return;
+  const one = present.length === 1;
+  const folders = new Intl.ListFormat("en").format(present.map((name) => `${name}/`));
+  logger.info(
+    `${home} has voicecap 0.2.0's ${folders} ${one ? "folder" : "folders"}. ` +
+      `${one ? "It isn't" : "They aren't"} read any more, and ` +
+      `${one ? "it's left as it is" : "they're left as they are"}.`,
+  );
 }

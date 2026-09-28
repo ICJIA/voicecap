@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { RunJson, RunSettings } from "../model.js";
+import { describePageUrls } from "../pages/describe.js";
 import { hashJson } from "../util/hash.js";
 
 export function settingsHash(settings: RunSettings): string {
@@ -86,6 +87,7 @@ function show(value: unknown): string {
     if (record.kind === "pages") {
       return `page list ${String(record.file)} (sha256 ${String(record.sha256).slice(0, 12)}…)`;
     }
+    if (record.kind === "urls") return describePageUrls(record.urls as string[]);
     return JSON.stringify(value);
   }
   return typeof value === "string" ? value : JSON.stringify(value);

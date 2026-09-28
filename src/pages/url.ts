@@ -25,13 +25,21 @@ export function parseSiteUrl(input: string): URL {
     url = new URL(input.trim());
   } catch {
     throw new UsageError(
-      `--site must be a full URL such as https://example.illinois.gov (got "${input}").`,
+      `--site must be a full URL such as https://dvfr.illinois.gov (got "${input}").`,
     );
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new UsageError(`--site must be an http or https URL (got "${input}").`);
   }
   return new URL(`${url.origin}/`);
+}
+
+/**
+ * Whether a page is given as a full URL: it starts with a scheme ("https:", even "https:/host/",
+ * or "mailto:"). Anything else is a path, resolved against a site.
+ */
+export function hasScheme(input: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(input.trim());
 }
 
 /**
@@ -43,7 +51,7 @@ export function resolvePageUrl(input: string, site: URL): URL | null {
   if (value === "") return null;
   let url: URL;
   try {
-    url = /^[a-z][a-z0-9+.-]*:/i.test(value) ? new URL(value) : new URL(value, site.origin + "/");
+    url = hasScheme(value) ? new URL(value) : new URL(value, site.origin + "/");
   } catch {
     return null;
   }

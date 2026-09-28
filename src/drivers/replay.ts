@@ -219,7 +219,7 @@ export class ReplayDriver implements ScreenReaderDriver {
     }
     if (this.recordings.size === 0) {
       throw new UsageError(
-        `No transcripts to replay in ${this.label}. Point --replay-from at a run folder (runs/<run-id>).`,
+        `No transcripts to replay in ${this.label}. Point --replay-from at a run folder (<site>/<date>/<rest>).`,
       );
     }
     this.loaded = true;

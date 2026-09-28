@@ -2,6 +2,24 @@
 
 [![CI](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml/badge.svg)](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml)
 
+## voicecap in brief
+
+voicecap is a free, open-source tool from the Illinois Criminal Justice Information Authority (ICJIA) that captures what a screen reader user actually hears on a website.
+
+Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap drives NVDA, one of the two most widely used screen readers, through a site's pages the way a blind visitor would: reading from top to bottom, jumping from heading to heading, and tabbing through links and buttons. It saves everything NVDA says as plain-text transcripts.
+
+That lets a reviewer:
+
+- skim what NVDA says on a page much faster than listening to it;
+- compare runs to see exactly what changed after an update;
+- record what they reviewed and found, and add their own hands-on NVDA sessions.
+
+Everything goes into one record that voicecap never rewrites, and `voicecap verify` checks that the recorded files still match what voicecap wrote.
+
+voicecap doesn't replace testing by people who use screen readers. It makes that testing faster, repeatable, and documented. It runs on Windows with NVDA and Chrome: https://github.com/ICJIA/voicecap
+
+---
+
 voicecap drives the NVDA screen reader through a website's pages (from its sitemap or a page list you curate), saves what NVDA says as text transcripts you can skim and diff, and produces an accessible HTML report of automated coverage and human review.
 
 It doesn't replace listening to a site with a screen reader. It makes that review faster and keeps an honest audit trail:
@@ -19,6 +37,7 @@ It doesn't replace listening to a site with a screen reader. It makes that revie
 - [Page sources](#page-sources)
 - [What voicecap does on each page](#what-voicecap-does-on-each-page)
 - [The transcripts folder](#the-transcripts-folder)
+- [The audit record](#the-audit-record)
 - [Long runs, interruptions, and resuming](#long-runs-interruptions-and-resuming)
 - [Reviews: the audit trail](#reviews-the-audit-trail)
 - [Manual NVDA sessions](#manual-nvda-sessions)
@@ -43,18 +62,47 @@ voicecap needs **Node.js 22.19 or later** (24 recommended). You run it with `npx
 git clone https://github.com/ICJIA/voicecap.git && cd voicecap
 pnpm install && pnpm build
 node dist/cli.js --site http://127.0.0.1:4747 --pages fixture/pages.json --replay-from fixture/replay-run
-# then open transcripts/report.html
+# then open transcripts/127.0.0.1_4747/report.html
 ```
 
-**Before voicecap is published to npm**, run it from a clone instead of `npx`: after `pnpm build`, use `node /path/to/voicecap/dist/cli.js` wherever this README says `npx @icjia/voicecap` (or run `pnpm link --global` in the clone to get a `voicecap` command).
+**On a real site, answer a few questions and voicecap composes the command for you:**
 
-**On a real site, with NVDA (Windows):**
-
-```bash
-npx @icjia/voicecap setup      # once: install the NVDA build voicecap's Guidepup expects
-npx @icjia/voicecap doctor     # check the environment
-npx @icjia/voicecap --site https://example.illinois.gov --pages ./pages.csv
 ```
+$ npx @icjia/voicecap init
+
+Website: i2i.illinois.gov
+Checking https://i2i.illinois.gov…
+  → https://i2i.illinois.gov (it answers)
+Looking for the site's sitemap…
+Where are the pages?
+  1. The site's sitemap: https://i2i.illinois.gov/sitemap-index.xml
+  2. A sitemap at another address
+  3. A page list file (.csv or .json)
+  4. One page
+Choose [1]:
+How many pages? A number, or Enter for all [all]: 5
+Transcripts home [C:\Users\cschw\code\voicecap-transcripts]:
+  → this run goes into C:\Users\cschw\code\voicecap-transcripts\i2i.illinois.gov\2026-09-27\
+
+Your command:
+  npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5
+Run the same command again later to resume where it stopped.
+
+NVDA will speak and take over the keyboard until the run ends.
+Run it now? [y/N]:
+```
+
+### Starting voicecap
+
+**What's needed:** Node.js 22.19 or later. For real runs: Windows, `voicecap setup` once (voicecap's own copy of NVDA, no administrator rights), and preferably Google Chrome. Nothing else: no Git, no separate NVDA, no Playwright.
+
+**Without installing:** `npx @icjia/voicecap init`. npx downloads voicecap the first time and reuses it; `npx @icjia/voicecap@latest init` picks up a newer version. In Git Bash, type `init` rather than relying on the bare command: Git Bash's own window (mintty) doesn't always let Node see a terminal, so `npx @icjia/voicecap` alone can print the usage error there instead of starting the questions.
+
+**Or install it once:** `npm install -g @icjia/voicecap`, then `voicecap init` (and `voicecap setup`, `voicecap doctor`, `voicecap --site …`) in Git Bash, PowerShell, or cmd. On Windows 11 this creates `voicecap`, `voicecap.cmd`, and `voicecap.ps1` commands, with no administrator rights needed; `npm install -g @icjia/voicecap@latest` updates it. The command `init` prints is quoted for Git Bash and PowerShell; in cmd, its single quotes must become double quotes (or answer "Run it now?" with y, which uses no shell).
+
+npm may warn that it skipped `ffmpeg-static`'s install script: harmless, since only `@guidepup/setup`'s macOS screen recording uses it.
+
+The command `init` prints always starts with `npx @icjia/voicecap`, so it works on any computer with Node.js; with a global install, `voicecap` can replace it.
 
 ## Windows setup (for someone new to Windows)
 
@@ -100,7 +148,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 
 Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Three ways around it:
 
-- use full URLs: `--page https://example.illinois.gov/about` (always works);
+- use full URLs: `--page https://dvfr.illinois.gov/about/` (always works);
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
@@ -109,16 +157,17 @@ Git Bash rewrites command-line arguments that start with `/` into Windows paths,
 ### Run an audit
 
 ```bash
-npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file>) [options]
+npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url>...) [options]
 ```
 
-`--site` is required, plus exactly one page source; giving both or neither is an error.
+`--site` is required, plus exactly one kind of page source: `--sitemap`, `--pages`, or one or more `--page`; giving none of them, or a mix, is an error.
 
 | Option | Meaning |
 | --- | --- |
 | `--site <url>` | The site. Pages must be on its origin. |
 | `--sitemap <url>` | Take pages from a sitemap: a `<urlset>` or a `<sitemapindex>` (child sitemaps are read too; gzip is fine). |
 | `--pages <file>` | Take pages from a page list: `.csv` or `.json` (see [Page sources](#page-sources)). |
+| `--page <url>` | Take this page: a full URL, or a path like `/faq/`, resolved against `--site` (repeatable). |
 | `--limit <n>` | Transcribe at most n pages (after include and exclude). |
 | `--include <pattern>` | Only URL paths matching. Glob by default; `re:` for a regular expression. Repeatable. |
 | `--exclude <pattern>` | Skip URL paths matching. Same syntax. Repeatable. |
@@ -126,7 +175,7 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file>) [options]
 | `--max-steps <n>` | Override every pass's step cap. |
 | `--compare <run-id\|previous>` | Compare with an earlier run in the report. `previous` is the most recent earlier completed run with the same page source. |
 | `--fresh` | Start a new run even if an interrupted run with the same settings could be resumed. |
-| `--out <dir>` | Output folder (default `./transcripts`). |
+| `--out <dir>` | The transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). |
 | `--run-name <name>` | Add a name to the run's folder, e.g. `2026-09-26_1405_exhaustive`. |
 | `--replay-from <dir>` | Use the replay driver: play back a run folder instead of running NVDA. |
 
@@ -136,14 +185,15 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file>) [options]
 
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
-voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note "..."] [--reviewer <name>] [--run <run-id>] [--out <dir>]
-voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--out <dir>]
-voicecap report [--run <run-id>] [--compare <run-id|previous>] [--out <dir>]
+voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note "..."] [--reviewer <name>] [--run <run-id>] [--site <url>] [--out <dir>]
+voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--site <url>] [--out <dir>]
+voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
+voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # Windows: install the NVDA build voicecap's Guidepup expects
 voicecap doctor    # Windows: check NVDA, the browser, and speech capture; print a summary
 ```
 
-Wherever a command takes a page, give a full URL or a root-relative path (`/about`). Paths resolve against the site of the latest run.
+Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, and `report` work in one site's folder in the transcripts home: give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all (see [The audit record](#the-audit-record)).
 
 ### Exit codes
 
@@ -152,7 +202,7 @@ Wherever a command takes a page, give a full URL or a root-relative path (`/abou
 | 0 | The run (or command) completed. Heuristic flags never change this. |
 | 1 | Invalid usage or config (including an unreadable page source). |
 | 2 | The environment is unusable, e.g. NVDA won't start, or several pages in a row failed. |
-| 3 | The run completed, but some pages failed. |
+| 3 | The run completed, but some pages failed. `voicecap verify` also uses 3, for something recorded that doesn't match. |
 | 130 | Interrupted with Ctrl+C. State was saved; run the same command again to resume. |
 
 ## Page sources
@@ -171,7 +221,7 @@ For the routine case: a list you curate, such as about 10 routes for each of a s
 url,label,template,notes
 /,Home,home,
 /grants/fy27-jag,FY27 JAG,grant,"Long page, check the table"
-https://example.illinois.gov/news/2026-09-01-announcement,,news,
+https://dvfr.illinois.gov/meetings/,,meetings,
 ```
 
 Quoted fields, blank lines, a byte-order mark, and Windows (CRLF) line endings are all fine. In Excel, save as **"CSV UTF-8 (Comma delimited)"**. Excel's plain "CSV (Comma delimited)" is Windows-1252, not UTF-8; voicecap reads that too but warns, because other tools may not.
@@ -187,9 +237,19 @@ Quoted fields, blank lines, a byte-order mark, and Windows (CRLF) line endings a
 
 Entries may be absolute URLs or root-relative paths, resolved against `--site`. Malformed or missing URLs are reported with their line numbers, and the run continues with the valid entries. A CSV without a `url` column is an error.
 
+### One page (`--page`)
+
+For checking a single page, or just a few: repeat `--page`, once per page.
+
+```bash
+npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/ --page https://dvfr.illinois.gov/about/
+```
+
+Each value is a full URL or a root-relative path (`/faq/`), resolved against `--site`, and goes through the same cleanup as a sitemap or page list (see below): off-origin, non-HTML, and duplicate pages are skipped and reported the same way, and `--include`, `--exclude`, and `--limit` still apply. Use full URLs, as above, in Git Bash: a value starting with `/` is rewritten into a Windows path before voicecap ever sees it (see "Git Bash and paths that start with "/"", earlier in this README).
+
 ### How the list is cleaned up
 
-For both sources:
+For all three sources:
 
 - **Duplicates.** Fragments (`#section`) are dropped, and `/about` and `/about/` count as the same page (the form listed first is the one loaded). Different query strings are different pages.
 - **Other origins are skipped** and logged. If most URLs are on another origin, voicecap says so prominently: sitemaps that list `http://` or `www.` variants of the site are a common misconfiguration.
@@ -201,7 +261,7 @@ For both sources:
 To curate a list from a big sitemap:
 
 ```bash
-voicecap list-urls --site https://example.illinois.gov --sitemap https://example.illinois.gov/sitemap.xml pages.csv
+voicecap list-urls --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml pages.csv
 ```
 
 This writes `url` plus empty `label`, `template`, and `notes` columns, with the same filtering a run uses. Open it in a spreadsheet, delete rows, fill in labels and templates, save as CSV UTF-8, and run with `--pages pages.csv`.
@@ -209,7 +269,7 @@ This writes `url` plus empty `label`, `template`, and `notes` columns, with the 
 ### Drafting a sample
 
 ```bash
-voicecap list-urls --site https://example.illinois.gov --sitemap https://example.illinois.gov/sitemap.xml --sample 10 pages.csv
+voicecap list-urls --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --sample 10 pages.csv
 ```
 
 With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL path pattern, with the pattern in the `template` column. The pattern is the page's parent path plus `/*` (`/news/*`, `/researchhub/articles/*`); top-level pages share `/*` and the home page is its own group. Pages are picked evenly spaced through each group, and voicecap prints what it chose and why. A run never samples on its own: the page list decides.
@@ -250,23 +310,22 @@ voicecap prints one line per page with an estimate of the time left:
 
 ## The transcripts folder
 
-Everything goes in `transcripts/` in the current folder (`--out` changes this):
+Everything goes in the transcripts home: `--out <dir>`, else the `VOICECAP_TRANSCRIPTS` environment variable, else `./transcripts` in the current folder. Inside it, each site you run voicecap against gets its own folder:
 
 ```
 transcripts/
-  report.html              ← live report: latest completed run plus current reviews and manual sessions
-  latest.txt               ← id of the most recently completed run
-  reviews.json             ← append-only review history, by page; persists across runs
-  .gitattributes           ← keeps Git from changing line endings (see below)
-  runs/
-    2026-09-26_1405/       ← one folder per run: local date and time, plus --run-name if given
-      run.json             ← run metadata, environment, transcript hashes, and resume state
-      report.html          ← snapshot of the report when the run completed
-      pages/<page-slug>/
-        read.txt  read.json  headings.txt  headings.json  tab.txt  tab.json
-      compare/<base-run>/  ← diffs, when the run used --compare
-  manual/<page-slug>/      ← manual NVDA sessions
-  compare/<base>__<run>/   ← diffs made by `voicecap report --compare`
+  dvfr.illinois.gov/                 ← one folder per site (its host name, plus _port if the URL has one)
+    2026-09-26/
+      1405/                         ← one folder per run: local date and time, plus --run-name if given
+        run.json                   ← run metadata, environment, transcript hashes, resume state, and seal
+        report.html                ← snapshot of the report when the run completed
+        pages/<page-slug>/
+          read.txt  read.json  headings.txt  headings.json  tab.txt  tab.json
+        attempts/<page-slug>/1/    ← an earlier attempt at a retried or resumed page, kept
+        compare/<base-run>/        ← diffs, when the run used --compare
+    reviews.json                   ← append-only review history, by page; persists across runs
+    report.html  latest.txt        ← live report, and the id of the most recently completed run
+    compare/<base>__<run>/         ← diffs made by `voicecap report --compare`
 ```
 
 - **Runs never overwrite each other**, and a run folder is never modified after the run completes. Two runs started in the same minute get `-2`, `-3`, and so on.
@@ -276,11 +335,99 @@ transcripts/
 - **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, or page list file with its SHA-256), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings.
 - **Hashes.** `run.json` records the SHA-256 of every transcript file (integrity) and of each pass's TXT body without the header (content). "Changed since review" and `--compare` use the content hashes, because headers include timestamps and run ids.
 
-### Committing transcripts to Git
+## The audit record
 
-Committing `transcripts/` preserves the audit trail alongside the site's code; not committing it keeps the repository small (an exhaustive run writes six files per page). If you commit it, keep the `.gitattributes` voicecap writes (`* -text`): without it, Git on Windows may convert line endings on checkout and the recorded hashes would no longer match the files.
+voicecap can keep a permanent, non-destructive record of every run and every manual session, for audit and legal purposes: one private Git repository, pushed often, where the runs for any site can be counted and every file can be trusted not to have changed. Point every voicecap command at one folder outside your site's own repository — the **transcripts home** — and give that folder to Git on its own.
 
-> **Never commit an unredacted raw NVDA log.** At Input/output level NVDA logs every keystroke, including passwords typed into forms. See [Manual NVDA sessions](#manual-nvda-sessions).
+### Layout
+
+```
+voicecap-transcripts/
+  .gitattributes  .gitignore          ← written once, at the top (see below)
+  dvfr.illinois.gov/                  ← one folder per site
+    2026-09-27/                       ← one folder per day with a run or manual session
+      1102/                           ← an automated run
+        run.json  report.html
+        pages/faq/read.txt ...
+        attempts/faq/1/read.txt ...   ← an earlier, retried attempt at a page, kept
+      1415_manual_faq/                ← a manual NVDA session on /faq/
+        session.json  session.txt  raw/nvda-log.txt
+    reviews.json                      ← append-only review history
+    report.html  latest.txt           ← regenerated views
+    compare/                          ← regenerated diffs
+    .voicecap.lock                    ← only while a run writes here
+  i2i.illinois.gov/
+    2026-09-27/
+      1044_before-redesign/
+```
+
+The site folder is the site's host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, and `report` work in one site's folder at a time: give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
+
+The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, and `verify` never take it for a site.
+
+### What's guaranteed
+
+- **A completed run is never modified again.** `run.json` records every transcript file's SHA-256 as it's written, and once the run completes, the whole record is sealed (see "Checking the record," below).
+- **Reviews are append-only.** A correction is a new entry in `reviews.json`, never an edit to an earlier one.
+- **A retried or resumed page keeps its earlier attempt**, moved to `attempts/<slug>/<n>/` instead of being overwritten. Reports and comparisons ignore it.
+- **voicecap 0.2.0's layout is left alone.** If a home still has its `runs/` or `manual/` folders, they're never read or moved; a run just says once that it saw them.
+
+### Checking the record: `voicecap verify`
+
+```bash
+voicecap verify [--site <url>] [--out <dir>]
+```
+
+Every record voicecap finishes writing is sealed: a completed run's `run.json`, each manual session's `session.json`, and each review entry carry a `seal`, a SHA-256 of the record itself. Review entries also chain to the one before them (`seq`, `prev`). A reordered entry, or a deleted one that a later entry follows, breaks the chain; an edited one no longer matches its own seal, including the newest entry, which no later entry points to yet.
+
+`verify` checks every site folder in the home, or one with `--site`: each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; and the whole review chain. It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
+
+So `verify` catches an edited record, a reordered review entry, and a deleted entry that a later entry follows. It doesn't check the regenerated views (a site's `report.html`, `latest.txt`, and `compare/`), a run's own `report.html` and `compare/` diffs, or kept earlier attempts.
+
+**What it can't catch on its own:** someone who edits a record and recomputes its seal, and every later seal and `prev`; and someone who deletes the newest review entries, or a whole run or manual session, which leaves nothing for `verify` to find: only Git history shows it. Git history pushed to a protected branch catches both, since rewriting commits that are already pushed takes a force-push, and a branch protected against force-pushes refuses it — which is why the setup below has you protect the branch and push often.
+
+### What `.gitignore` keeps out, and why
+
+voicecap writes `.gitattributes` and `.gitignore` at the home's top the first time it needs them, and never overwrites them, so your own edits or additions stay. `.gitattributes` (`* -text`) keeps Git from changing line endings on checkout, which would otherwise make the recorded hashes stop matching the files. `.gitignore` keeps out:
+
+- **`.voicecap.lock`**, the marker a run holds while it's writing.
+- **Manual sessions' raw NVDA logs** (`**/*_manual_*/raw/`). At Input/output level, NVDA's log records every keystroke, including passwords typed into forms — not something to put in Git. The raw copy's SHA-256 stays in `session.json` either way, so a home missing a raw copy isn't something `verify` will flag.
+- **Temporary files a crash can leave behind** (`.*.tmp`). voicecap writes each file under a temporary name first, then renames it into place.
+- **Files the operating system adds** to folders you open: `.DS_Store` (macOS), `Thumbs.db` and `desktop.ini` (Windows).
+
+> **Never commit an unredacted raw NVDA log.** See [Manual NVDA sessions](#manual-nvda-sessions).
+
+### Setting it up
+
+**Windows, in Git Bash:**
+
+```bash
+mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts && git init
+gh repo create voicecap-transcripts --private --source .
+setx VOICECAP_TRANSCRIPTS 'C:\Users\cschw\code\voicecap-transcripts'
+```
+
+`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal.
+
+**macOS:** the same, with `~/webdev/voicecap-transcripts`, and in `~/.zshrc`:
+
+```bash
+export VOICECAP_TRANSCRIPTS=~/webdev/voicecap-transcripts
+```
+
+**After runs, reviews, or manual sessions:**
+
+```bash
+git add -A && git commit -m "voicecap runs"
+git push -u origin HEAD   # the first time
+git push                  # after that
+```
+
+`git commit -S` signs the commit, if you want proof of who committed.
+
+**Once, after the first push:** on GitHub, protect the default branch against force pushes and deletion, in the repository's Settings → Rules → Rulesets, or Settings → Branches → Branch protection rules. Whether a private repository can use these depends on your GitHub plan.
+
+Keep the repository private: manual sessions can carry reviewer names, notes, and typed text.
 
 ## Long runs, interruptions, and resuming
 
@@ -311,7 +458,7 @@ voicecap review --page /grants/fy27-jag --status issue --note "Table headers not
 voicecap review --page /grants/fy27-jag --status fixed --note "Headers added in #412"
 ```
 
-Each page has a full, append-only history in `transcripts/reviews.json`. Every entry records the status (`unreviewed`, `reviewed` with no issues, `issue` found, `fixed`), the reviewer, a timestamp, the note, the run reviewed (by default the latest run with transcripts for the page; `--run` picks another), and the SHA-256 hashes of that run's transcripts for the page. Entries are never edited or deleted: a correction is a new entry, and the latest entry is the page's current status. voicecap refuses to overwrite a `reviews.json` it can't read.
+Each page has a full, append-only history in its site's `reviews.json` (see [The audit record](#the-audit-record)). Every entry records the status (`unreviewed`, `reviewed` with no issues, `issue` found, `fixed`), the reviewer, a timestamp, the note, the run reviewed (by default the latest run with transcripts for the page; `--run` picks another), and the SHA-256 hashes of that run's transcripts for the page. Entries are never edited or deleted: a correction is a new entry, and the latest entry is the page's current status. Each entry is sealed and chained to the one before it, so `voicecap verify` can catch an edited or reordered entry, and a deleted one that a later entry follows; deleting the newest entries leaves nothing for it to find (see [Checking the record](#checking-the-record-voicecap-verify)). voicecap refuses to overwrite a `reviews.json` it can't read.
 
 The reviewer name comes from `--reviewer`, then the `VOICECAP_REVIEWER` environment variable, then `git config user.name`, then `reviewer` in the config. voicecap won't record a review without one.
 
@@ -319,7 +466,7 @@ A page is **changed since review** when its transcripts in the run shown differ 
 
 ## Manual NVDA sessions
 
-`voicecap manual add` imports a hands-on NVDA session for a page into `transcripts/manual/<page-slug>/`. voicecap recognizes two kinds of input.
+`voicecap manual add` imports a hands-on NVDA session for a page into its site's folder in the transcripts home, under `<date>/<time>_manual_<page-slug>/` (see [The audit record](#the-audit-record)). voicecap recognizes two kinds of input.
 
 ### Speech Viewer
 
@@ -374,7 +521,7 @@ Check the clean transcript before committing it, and never commit an unredacted 
 
 ## Verifying transcript fidelity
 
-To check that an automated transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
+This is a different question from `voicecap verify` (see [The audit record](#the-audit-record)), which checks that a recorded file hasn't changed since voicecap wrote it. To check that an automated transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
 
 1. Open Speech Viewer, load the page, press Ctrl+Home, then Down Arrow until the end, and save the Speech Viewer text.
 2. Compare it with `read.txt` (skip the header block and the `[to bottom]` line). Normalize first:
@@ -424,7 +571,7 @@ export default defineConfig({
   readiness: { readySelector: "#__nuxt main", settleMs: 1000 },
   reviewer: "Your Name",
   report: {
-    title: "NVDA transcripts: example.illinois.gov",
+    title: "NVDA transcripts: dvfr.illinois.gov",
     agency: "Illinois Criminal Justice Information Authority",
     logo: "data:image/png;base64,iVBORw0KGgo...",
   },
@@ -472,17 +619,17 @@ import {
   runAudit,
 } from "@icjia/voicecap";
 
-const result = await runAudit({ site: "https://example.illinois.gov", pages: "pages.csv" });
+const result = await runAudit({ site: "https://dvfr.illinois.gov", pages: "pages.csv" });
 console.log(result.runId, result.exitCode);
 
 await addReview({ page: "/about", status: "reviewed", reviewer: "Pat Reviewer" });
 await addManualSession({ file: "nvda.log", page: "/about", redactTyping: true });
 
 const { config } = await loadConfig();
-await generateReport({ outDir: "transcripts", config, logger: createConsoleLogger() });
+await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogger() });
 ```
 
-`runAudit` accepts every CLI option, plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, and `driver` (any object implementing `ScreenReaderDriver`). The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
+`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, and `driver` (any object implementing `ScreenReaderDriver`). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
 
 ## Drivers
 

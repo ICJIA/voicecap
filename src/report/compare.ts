@@ -5,7 +5,8 @@ import path from "node:path";
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from "diff";
 
 import type { EnvironmentRecord, PageRecord, PageRef, PassName, RunJson } from "../model.js";
-import { pageDir, runsDir } from "../run/paths.js";
+import { describePageUrls } from "../pages/describe.js";
+import { DATE_FOLDER, pageDir } from "../run/paths.js";
 import { assertRunWritable, listRuns, readRunJson } from "../run/store.js";
 import { extractBody } from "../transcripts/format.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
@@ -182,12 +183,17 @@ function samePageSource(a: RunJson, b: RunJson): boolean {
   const y = b.settings.source;
   if (x.kind === "sitemap" && y.kind === "sitemap") return x.url === y.url;
   if (x.kind === "pages" && y.kind === "pages") return x.file === y.file;
+  if (x.kind === "urls" && y.kind === "urls") {
+    return x.urls.length === y.urls.length && x.urls.every((url, i) => url === y.urls[i]);
+  }
   return false;
 }
 
 function describeSource(run: RunJson): string {
   const source = run.settings.source;
-  return source.kind === "sitemap" ? `sitemap ${source.url}` : `page list ${source.file}`;
+  if (source.kind === "sitemap") return `sitemap ${source.url}`;
+  if (source.kind === "pages") return `page list ${source.file}`;
+  return describePageUrls(source.urls);
 }
 
 async function passDiff(
@@ -252,10 +258,11 @@ function pageRef(page: PageRecord): PageRef {
 
 async function assertDiffDirWritable(outDir: string, diffDir: string): Promise<void> {
   // Diffs may be written into a run folder only while that run is still being completed.
-  const relative = path.relative(runsDir(outDir), diffDir);
+  const relative = path.relative(outDir, diffDir);
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return;
-  const runId = relative.split(path.sep)[0];
-  if (runId) await assertRunWritable(outDir, runId);
+  const [date, rest] = relative.split(path.sep);
+  if (!date || !rest || !DATE_FOLDER.test(date)) return;
+  await assertRunWritable(outDir, `${date}_${rest}`);
 }
 
 /** The tooling fields that can change what NVDA says, as display strings, in report order. */

@@ -1,14 +1,15 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 
 import type { RunJson } from "../model.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError, VoicecapError } from "../util/errors.js";
-import { latestPath, runJsonPath, runsDir } from "./paths.js";
+import { DATE_FOLDER, latestPath, runJsonPath } from "./paths.js";
 
 export async function readRunJson(outDir: string, runId: string): Promise<RunJson> {
   const file = runJsonPath(outDir, runId);
-  if (!existsSync(file)) throw new UsageError(`No run "${runId}" in ${runsDir(outDir)}.`);
+  if (!existsSync(file)) throw new UsageError(`No run "${runId}" in ${outDir}.`);
   try {
     return JSON.parse(await readFile(file, "utf8")) as RunJson;
   } catch (error) {
@@ -16,17 +17,25 @@ export async function readRunJson(outDir: string, runId: string): Promise<RunJso
   }
 }
 
-/** Every run with a readable run.json, oldest first. Unreadable folders are skipped. */
+/**
+ * Every run with a readable run.json, oldest first. Each dated folder under the site folder is
+ * checked; anything in there without one (a damaged run.json, or, later, a manual session) is
+ * skipped, and resume and reports ignore it.
+ */
 export async function listRuns(outDir: string): Promise<RunJson[]> {
-  const dir = runsDir(outDir);
-  if (!existsSync(dir)) return [];
+  if (!existsSync(outDir)) return [];
   const runs: RunJson[] = [];
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    try {
-      runs.push(JSON.parse(await readFile(runJsonPath(outDir, entry.name), "utf8")) as RunJson);
-    } catch {
-      // Not a run folder, or a damaged run.json; resume and reports ignore it.
+  for (const dateEntry of await readdir(outDir, { withFileTypes: true })) {
+    if (!dateEntry.isDirectory() || !DATE_FOLDER.test(dateEntry.name)) continue;
+    const dateDir = path.join(outDir, dateEntry.name);
+    for (const runEntry of await readdir(dateDir, { withFileTypes: true })) {
+      if (!runEntry.isDirectory()) continue;
+      const runId = `${dateEntry.name}_${runEntry.name}`;
+      try {
+        runs.push(JSON.parse(await readFile(runJsonPath(outDir, runId), "utf8")) as RunJson);
+      } catch {
+        // Not a run folder, or a damaged run.json; resume and reports ignore it.
+      }
     }
   }
   return runs.sort(

@@ -1,20 +1,28 @@
+import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { loadConfig } from "../config/load.js";
+import { createPrompter, InputEndedError } from "../init/prompt.js";
+import { checkReadiness, type Readiness } from "../init/readiness.js";
+import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
 import { PASS_NAMES, REVIEW_STATUSES, type PassName, type ReviewStatus } from "../model.js";
+import { InterruptedError } from "../passes/steps.js";
 import { addReview } from "../reviews/review.js";
 import { runAudit } from "../run/audit.js";
 import { regenerateLiveReport } from "../run/live-report.js";
-import { DEFAULT_OUT_DIR } from "../run/paths.js";
+import { resolveHome } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
+import { chooseSiteDir } from "../run/site-dir.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
 import { voicecapVersion } from "../util/version.js";
+import { verifyHome } from "../verify.js";
 
 export interface CliContext {
   stdout: OutputStream;
@@ -25,12 +33,19 @@ export interface CliContext {
   signal?: AbortSignal;
   /** Tests: replaces fetch for sitemaps. */
   fetch?: typeof fetch;
+  /** init's input, and what decides whether it's a terminal. Default: process.stdin. */
+  stdin: NodeJS.ReadableStream;
+  /** Whether no arguments at all should start init. Default: stdin and stdout are both a terminal. */
+  interactive: boolean;
+  /** Tests: replaces init's "can this computer run the composed command" check. */
+  readiness?: () => Readiness;
 }
 
 interface RunOptions {
   site?: string;
   sitemap?: string;
   pages?: string;
+  page: string[];
   limit?: number;
   include: string[];
   exclude: string[];
@@ -38,10 +53,12 @@ interface RunOptions {
   maxSteps?: number;
   compare?: string;
   fresh?: boolean;
-  out: string;
+  out?: string;
   runName?: string;
   replayFrom?: string;
 }
+
+const OUT_HELP = "transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)";
 
 /** Run the voicecap CLI and return its exit code. */
 export async function main(argv: string[], context: Partial<CliContext> = {}): Promise<number> {
@@ -50,6 +67,8 @@ export async function main(argv: string[], context: Partial<CliContext> = {}): P
     stderr: process.stderr,
     cwd: process.cwd(),
     env: process.env,
+    stdin: process.stdin,
+    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
     ...context,
   };
   const logger = createConsoleLogger(ctx.stdout, ctx.stderr);
@@ -57,8 +76,10 @@ export async function main(argv: string[], context: Partial<CliContext> = {}): P
   const program = buildProgram(ctx, logger, (code) => {
     exitCode = code;
   });
+  // A bare `voicecap` in a terminal is friendlier as init's questions than as a usage error.
+  const startArgv = argv.length === 0 && ctx.interactive ? ["init"] : argv;
   try {
-    await program.parseAsync(argv, { from: "user" });
+    await program.parseAsync(startArgv, { from: "user" });
   } catch (error) {
     if (error instanceof CommanderError) return error.exitCode === 0 ? ExitCode.ok : ExitCode.usage;
     if (error instanceof VoicecapError) {
@@ -90,6 +111,12 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
     .option("--site <url>", "the site's URL; pages must be on its origin")
     .option("--sitemap <url>", "take pages from this sitemap (<urlset> or <sitemapindex>)")
     .option("--pages <file>", "take pages from a page list (.csv or .json)")
+    .option(
+      "--page <url>",
+      "take this page: a full URL, or a path like /faq/ (repeatable)",
+      collect,
+      [],
+    )
     .option("--limit <n>", "transcribe at most n pages", positiveInt("--limit"))
     .option(
       "--include <pattern>",
@@ -107,23 +134,65 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
     .option("--max-steps <n>", "override every pass's step cap", positiveInt("--max-steps"))
     .option("--compare <run>", 'compare with a run id, or "previous"')
     .option("--fresh", "start a new run instead of resuming an interrupted one")
-    .option("--out <dir>", "output folder", DEFAULT_OUT_DIR)
+    .option("--out <dir>", OUT_HELP)
     .option("--run-name <name>", "add a name to the run's folder")
     .option("--replay-from <dir>", "replay a run folder instead of running NVDA (replay driver)")
     .addHelpText(
       "after",
       `
 Examples:
-  npx @icjia/voicecap --site https://example.illinois.gov --pages ./pages.csv
-  npx @icjia/voicecap --site https://example.illinois.gov --sitemap https://example.illinois.gov/sitemap.xml
-  voicecap review --page /about --status reviewed --note "Reads well"
+  npx @icjia/voicecap init
+  npx @icjia/voicecap --site https://dvfr.illinois.gov --pages ./pages.csv
+  npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml
+  npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/
+  voicecap review --page https://dvfr.illinois.gov/about/ --status reviewed --note "Reads well"
   voicecap report --compare previous
 
 Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
-3 completed but some pages failed, 130 interrupted (state saved).`,
+3 completed but some pages failed (for verify, something recorded doesn't match),
+130 interrupted (state saved).`,
     )
     .action(async (options: RunOptions) => {
       setExit(await runCommand(options, ctx, logger));
+    });
+
+  program
+    .command("init")
+    .description("answer a few questions and compose a run command, with the option to run it")
+    .action(async () => {
+      const prompter = createPrompter({
+        input: ctx.stdin,
+        output: ctx.stdout,
+        terminal: isTerminalStream(ctx.stdin),
+      });
+      try {
+        const result = await runWizard({
+          prompter,
+          fetch: ctx.fetch ?? fetch,
+          cwd: ctx.cwd,
+          env: ctx.env,
+          now: () => new Date(),
+          readiness:
+            ctx.readiness ??
+            (() =>
+              checkReadiness({
+                platform: process.platform,
+                env: ctx.env,
+                homedir: os.homedir(),
+                exists: existsSync,
+              })),
+          signal: prompter.interrupted,
+        });
+        // Closing releases the terminal's raw mode before a run installs its own Ctrl+C handling.
+        prompter.close();
+        // Not interactive, so the composed arguments always make a run, never init again.
+        setExit(result.run ? await main(result.args, { ...ctx, interactive: false }) : ExitCode.ok);
+      } catch (error) {
+        prompter.close();
+        if (error instanceof InputEndedError) setExit(ExitCode.usage);
+        else if (error instanceof InterruptedError) setExit(ExitCode.interrupted);
+        else throw error;
+      }
     });
 
   program
@@ -181,7 +250,11 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "who reviewed (default: VOICECAP_REVIEWER, then git config user.name)",
     )
     .option("--run <run-id>", "the run reviewed (default: the latest run with the page)")
-    .option("--out <dir>", "output folder", DEFAULT_OUT_DIR)
+    .option(
+      "--site <url>",
+      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+    )
+    .option("--out <dir>", OUT_HELP)
     .action(
       async (options: {
         page: string;
@@ -189,7 +262,8 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         note?: string;
         reviewer?: string;
         run?: string;
-        out: string;
+        site?: string;
+        out?: string;
       }) => {
         await addReview({
           page: options.page,
@@ -197,6 +271,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
           note: options.note ?? null,
           reviewer: options.reviewer ?? null,
           run: options.run ?? null,
+          site: options.site ?? null,
           out: options.out,
           cwd: ctx.cwd,
           env: ctx.env,
@@ -225,7 +300,11 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "--reviewer <name>",
       "who did the session (default: VOICECAP_REVIEWER, then git config user.name)",
     )
-    .option("--out <dir>", "output folder", DEFAULT_OUT_DIR)
+    .option(
+      "--site <url>",
+      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+    )
+    .option("--out <dir>", OUT_HELP)
     .action(
       async (
         file: string,
@@ -238,7 +317,8 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
           keepRaw?: boolean;
           raw: boolean;
           reviewer?: string;
-          out: string;
+          site?: string;
+          out?: string;
         },
       ) => {
         await addManualSession({
@@ -251,6 +331,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
           keepRaw: options.keepRaw ?? false,
           noRaw: !options.raw,
           reviewer: options.reviewer ?? null,
+          site: options.site ?? null,
           out: options.out,
           cwd: ctx.cwd,
           env: ctx.env,
@@ -262,17 +343,20 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
   program
     .command("report")
-    .description("regenerate the live report (<out>/report.html)")
+    .description("regenerate a site's live report (<out>/<site>/report.html)")
     .option(
       "--run <run-id>",
       "show this run instead of the latest completed one (it may be incomplete)",
     )
     .option("--compare <run>", 'compare with a run id, or "previous"')
-    .option("--out <dir>", "output folder", DEFAULT_OUT_DIR)
-    .action(async (options: { run?: string; compare?: string; out: string }) => {
+    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option("--out <dir>", OUT_HELP)
+    .action(async (options: { run?: string; compare?: string; site?: string; out?: string }) => {
+      const home = resolveHome({ out: options.out, env: ctx.env, cwd: ctx.cwd });
+      const outDir = await chooseSiteDir({ home, site: options.site ?? null });
       const { config } = await loadConfig({ cwd: ctx.cwd });
       const file = await regenerateLiveReport({
-        outDir: path.resolve(ctx.cwd, options.out),
+        outDir,
         config,
         logger,
         runId: options.run ?? null,
@@ -281,6 +365,22 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       });
       logger.info(`Report: ${file ?? "(none)"}`);
       setExit(ExitCode.ok);
+    });
+
+  program
+    .command("verify")
+    .description("check that the records voicecap wrote still match their hashes and seals")
+    .option("--site <url>", "the site's URL (default: every site in the home)")
+    .option("--out <dir>", OUT_HELP)
+    .addHelpText(
+      "after",
+      `
+Exit codes: 0 everything matches, 3 something recorded has changed, is missing, or can't be checked.`,
+    )
+    .action(async (options: { site?: string; out?: string }) => {
+      const home = resolveHome({ out: options.out, env: ctx.env, cwd: ctx.cwd });
+      const result = await verifyHome({ home, site: options.site ?? null, logger });
+      setExit(result.problems === 0 ? ExitCode.ok : ExitCode.verifyProblems);
     });
 
   program
@@ -314,7 +414,9 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
 async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger): Promise<number> {
   if (!options.site) {
-    throw new UsageError("Missing --site <url>. Run voicecap --help for usage.");
+    throw new UsageError(
+      "Missing --site <url>. Run voicecap init to answer a few questions instead, or voicecap --help for usage.",
+    );
   }
   checkUrlOptions(options);
   const controller = new AbortController();
@@ -324,6 +426,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       site: options.site,
       sitemap: options.sitemap ?? null,
       pages: options.pages ?? null,
+      ...(options.page.length > 0 ? { pageUrls: options.page } : {}),
       limit: options.limit ?? null,
       include: options.include,
       exclude: options.exclude,
@@ -335,6 +438,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       runName: options.runName ?? null,
       replayFrom: options.replayFrom ?? null,
       cwd: ctx.cwd,
+      env: ctx.env,
       logger,
       signal: ctx.signal ?? controller.signal,
       ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
@@ -349,11 +453,13 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
 function checkUrlOptions(options: {
   site?: string;
   sitemap?: string;
+  page?: string[];
   include: string[];
   exclude: string[];
 }): void {
   if (options.site) assertNotRewritten("--site", options.site);
   if (options.sitemap) assertNotRewritten("--sitemap", options.sitemap);
+  for (const page of options.page ?? []) assertNotRewritten("--page", page);
   for (const pattern of options.include) assertNotRewritten("--include", pattern);
   for (const pattern of options.exclude) assertNotRewritten("--exclude", pattern);
 }
@@ -383,4 +489,9 @@ function positiveInt(option: string) {
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+/** Whether `stream` is a real terminal (a TTY), as `NodeJS.ReadStream` marks one. */
+function isTerminalStream(stream: NodeJS.ReadableStream): boolean {
+  return (stream as { isTTY?: boolean }).isTTY === true;
 }

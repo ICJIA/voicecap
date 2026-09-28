@@ -8,7 +8,7 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import type { RunJson } from "../src/model.js";
 import { buildReportModel, generateReport, renderReport } from "../src/report/index.js";
-import { liveCompareDir, runDir, runJsonPath } from "../src/run/paths.js";
+import { linkPath, liveCompareDir, runDir, runJsonPath, runReportPath } from "../src/run/paths.js";
 import { writeRunJson } from "../src/run/store.js";
 import {
   LOGO,
@@ -80,6 +80,30 @@ describe("generateReport", () => {
     expect(items.get("Pages with errors")).toBe("1");
     expect(items.get("Pages with heuristic flags")).toBe("1");
     expect(items.get("Skipped URLs")).toBe("3");
+  });
+
+  it("describes a --page run with describePageUrls and lists every URL given", async () => {
+    const outDir = await tempOutDir();
+    const urls = [
+      "https://dvfr.illinois.gov/",
+      "https://dvfr.illinois.gov/about/",
+      "https://dvfr.illinois.gov/faq/",
+    ];
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      source: { kind: "urls", urls },
+      pages: [{ path: "/faq/" }],
+    });
+    const html = await readFile(
+      (await generateReport({ outDir, run, target: "live", config })).file,
+      "utf8",
+    );
+    expect(summary(html).get("Page source")).toBe(
+      "3 pages (https://dvfr.illinois.gov/, https://dvfr.illinois.gov/about/, https://dvfr.illinois.gov/faq/)",
+    );
+    const detailRow = html.match(/<dt>Pages given with --page<\/dt><dd>([\s\S]*?)<\/dd>/);
+    expect(detailRow).not.toBeNull();
+    for (const url of urls) expect(detailRow![1]).toContain(url);
   });
 
   it("has every column, and rows carry their filter data", async () => {
@@ -172,15 +196,15 @@ describe("generateReport", () => {
       expect(brokenLinks(html, file)).toEqual([]);
       // Transcripts, manual sessions, and diffs are all linked.
       expect(html).toMatch(/pages\/[^"]+\/read\.txt/);
-      expect(html).toMatch(/manual\/[^"]+\/2026-09-25_2358\.txt/);
+      expect(html).toMatch(/2026-09-25\/2358_manual_[^"/]+\/session\.txt/);
       expect(html).toMatch(/read\.diff\.txt/);
     }
     const liveHtml = await readFile(live.file, "utf8");
-    expect(liveHtml).toContain(`runs/${run.id}/report.html`);
+    expect(liveHtml).toContain(linkPath(outDir, runReportPath(outDir, run.id)));
     const snapshotHtml = await readFile(snapshot.file, "utf8");
     expect(snapshotHtml).toContain('href="../../report.html"');
     expect(snapshotHtml).toContain('href="pages/');
-    expect(snapshotHtml).toContain('href="../../manual/');
+    expect(snapshotHtml).toContain('href="../../2026-09-25/');
   });
 
   it("has no external assets", async () => {

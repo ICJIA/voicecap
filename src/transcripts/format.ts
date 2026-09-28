@@ -6,6 +6,7 @@ import type {
   StopReason,
   TranscriptJson,
 } from "../model.js";
+import { describePageUrls } from "../pages/describe.js";
 import { sha256 } from "../util/hash.js";
 import { formatDuration } from "../util/time.js";
 
@@ -102,7 +103,9 @@ export function environmentLines(env: EnvironmentRecord): string[] {
   const source =
     env.pageSource.kind === "sitemap"
       ? `sitemap ${env.pageSource.url}`
-      : `page list ${env.pageSource.file} (sha256 ${env.pageSource.sha256})`;
+      : env.pageSource.kind === "pages"
+        ? `page list ${env.pageSource.file} (sha256 ${env.pageSource.sha256})`
+        : describePageUrls(env.pageSource.urls);
   const reader = env.screenReader
     ? `${env.screenReader.name} ${env.screenReader.version} (build ${env.screenReader.build ?? "unknown"}, language ${env.screenReader.language ?? "unknown"})`
     : "none";

@@ -226,6 +226,48 @@ describe("resolveCompareBase", () => {
     expect((await resolveCompareBase(outDir, sitemapRun, "previous")).id).toBe("2026-09-22_0800");
   });
 
+  it("matches --page runs by their ordered URL list", async () => {
+    const outDir = await tempOutDir();
+    await history(outDir);
+    const urls = ["https://dvfr.illinois.gov/about/", "https://dvfr.illinois.gov/faq/"];
+    const earlier = await writeSyntheticRun(outDir, {
+      id: "2026-09-21_0800",
+      createdAt: "2026-09-21T08:00:00-05:00",
+      source: { kind: "urls", urls },
+      pages: [{ path: "/" }],
+    });
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-27_0800",
+      createdAt: "2026-09-27T08:00:00-05:00",
+      source: { kind: "urls", urls },
+      pages: [{ path: "/" }],
+    });
+    expect((await resolveCompareBase(outDir, run, "previous")).id).toBe(earlier.id);
+  });
+
+  it("doesn't match --page runs whose URL lists are in a different order", async () => {
+    const outDir = await tempOutDir();
+    await writeSyntheticRun(outDir, {
+      id: "2026-09-20_0930",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: {
+        kind: "urls",
+        urls: ["https://dvfr.illinois.gov/about/", "https://dvfr.illinois.gov/faq/"],
+      },
+      pages: [{ path: "/" }],
+    });
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: {
+        kind: "urls",
+        urls: ["https://dvfr.illinois.gov/faq/", "https://dvfr.illinois.gov/about/"],
+      },
+      pages: [{ path: "/" }],
+    });
+    await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(UsageError);
+  });
+
   it("accepts a completed run id and rejects incomplete, missing, or the same run", async () => {
     const outDir = await tempOutDir();
     const { older, run } = await history(outDir);
@@ -240,6 +282,18 @@ describe("resolveCompareBase", () => {
     const run = await writeSyntheticRun(outDir, { id: "2026-09-26_1405", pages: [{ path: "/" }] });
     await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
       /No earlier completed run with the same page source \(page list pages\.csv\)/,
+    );
+  });
+
+  it("describes a --page run's page source in the no-match error", async () => {
+    const outDir = await tempOutDir();
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      source: { kind: "urls", urls: ["https://dvfr.illinois.gov/faq/"] },
+      pages: [{ path: "/" }],
+    });
+    await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
+      /No earlier completed run with the same page source \(page https:\/\/dvfr\.illinois\.gov\/faq\/\)/,
     );
   });
 });

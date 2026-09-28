@@ -11,6 +11,7 @@ import type {
   SkipReason,
   SkippedRecord,
 } from "../model.js";
+import { describePageUrls } from "../pages/describe.js";
 import { liveReportPath, pageDir, runReportPath } from "../run/paths.js";
 import { environmentLines, stopReasonText } from "../transcripts/format.js";
 import { REPORT_SCRIPT } from "./client.js";
@@ -124,7 +125,9 @@ function summarySection(model: ReportModel): string {
   const sourceText =
     source.kind === "sitemap"
       ? `Full sitemap: <a href="${esc(source.url)}">${esc(source.url)}</a>`
-      : `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
+      : source.kind === "pages"
+        ? `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`
+        : esc(describePageUrls(source.urls));
   const item = (term: string, value: string) => `<div><dt>${term}</dt><dd>${value}</dd></div>`;
   const count = (n: number) => n.toLocaleString("en-US");
   const items = [
@@ -172,6 +175,13 @@ function sourceDetails(model: ReportModel): string {
       ? [
           `<dt>Page list file</dt><dd class="mono">${esc(pageSource.file)}</dd>`,
           `<dt>Page list SHA-256</dt><dd class="mono">${esc(pageSource.sha256)}</dd>`,
+        ]
+      : []),
+    ...(pageSource.kind === "urls"
+      ? [
+          `<dt>Pages given with --page</dt><dd><ul class="links">${pageSource.urls
+            .map((url) => `<li><span class="mono">${esc(url)}</span></li>`)
+            .join("")}</ul></dd>`,
         ]
       : []),
     `<dt>Entries listed</dt><dd>${source.listed.toLocaleString("en-US")}</dd>`,

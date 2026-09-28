@@ -15,8 +15,9 @@ import {
 import { listManualSessions } from "../src/manual/list.js";
 import { REDACTED_TEXT } from "../src/manual/redact.js";
 import type { ManualSessionJson } from "../src/model.js";
+import { manualSessionDir } from "../src/run/paths.js";
 import { UsageError } from "../src/util/errors.js";
-import { sha256 } from "../src/util/hash.js";
+import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type MemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 
@@ -77,12 +78,12 @@ async function readJson(file: string): Promise<ManualSessionJson> {
 describe("importing an NVDA log", () => {
   it("writes a clean transcript, the JSON, and an unmodified raw copy", async () => {
     const { session, files } = await importLog({ date: "2026-09-25" });
-    const dir = path.join(outDir, "manual", "home");
+    const dir = manualSessionDir(outDir, session.id, "home");
     expect(session.id).toBe("2026-09-25_2357");
     expect(files).toEqual({
-      json: path.join(dir, "2026-09-25_2357.json"),
-      txt: path.join(dir, "2026-09-25_2357.txt"),
-      raw: path.join(dir, "raw", "2026-09-25_2357.nvda-log.txt"),
+      json: path.join(dir, "session.json"),
+      txt: path.join(dir, "session.txt"),
+      raw: path.join(dir, "raw", "nvda-log.txt"),
     });
     expect(await readJson(files.json)).toEqual(session);
 
@@ -93,7 +94,7 @@ describe("importing an NVDA log", () => {
       fileName: "nvda.log",
       sha256: sha256(original),
       bytes: original.length,
-      raw: { kept: true, path: "raw/2026-09-25_2357.nvda-log.txt" },
+      raw: { kept: true, path: "raw/nvda-log.txt" },
     });
     expect(session.page).toEqual(PAGE);
     expect(session.reviewer).toBe("Test Reviewer");
@@ -142,7 +143,7 @@ describe("importing an NVDA log", () => {
     expect(header).toContain("# voicecap manual session: NVDA log");
     expect(header).toContain("# Page: http://127.0.0.1:4747/");
     expect(header).toContain(`# Input: nvda.log (NVDA log, `);
-    expect(header).toContain("# Raw copy: raw/2026-09-25_2357.nvda-log.txt");
+    expect(header).toContain("# Raw copy: raw/nvda-log.txt");
     expect(header).toContain(
       "# Session: 2026-09-25T23:57:43.410 to 2026-09-26T00:01:40.281 (crosses midnight)",
     );
@@ -213,7 +214,7 @@ describe("importing an NVDA log", () => {
       "2026-09-25_2357-2",
       "2026-09-25_2357-3",
     ]);
-    expect(listed[0]!.rawPath).toBe("manual/home/raw/2026-09-25_2357.nvda-log.txt");
+    expect(listed[0]!.rawPath).toBe("2026-09-25/2357_manual_home/raw/nvda-log.txt");
     expect(listed[1]!.rawPath).toBeNull();
   });
 
@@ -222,14 +223,14 @@ describe("importing an NVDA log", () => {
     expect(files.raw).toBeNull();
     expect(session.input.raw).toEqual({ kept: false, reason: "no-raw" });
     expect(session.input.sha256).toBe(sha256(await readFile(logFile)));
-    expect(existsSync(path.join(outDir, "manual", "home", "raw"))).toBe(false);
+    expect(existsSync(path.join(manualSessionDir(outDir, session.id, "home"), "raw"))).toBe(false);
     expect(await readFile(files.txt, "utf8")).toContain("# Raw copy: not kept (--no-raw)");
   });
 
   it("with --redact-typing, removes the typing and withholds the raw log", async () => {
     const { session, files } = await importLog({ date: "2026-09-25", redactTyping: true });
     expect(files.raw).toBeNull();
-    expect(existsSync(path.join(outDir, "manual", "home", "raw"))).toBe(false);
+    expect(existsSync(path.join(manualSessionDir(outDir, session.id, "home"), "raw"))).toBe(false);
     expect(session.input.raw).toEqual({ kept: false, reason: "withheld-for-privacy" });
     expect(session.input.sha256).toBe(sha256(await readFile(logFile)));
     expect(session.redaction.applied).toBe(true);
@@ -256,7 +257,7 @@ describe("importing an NVDA log", () => {
       keepRaw: true,
     });
     expect(files.raw).not.toBeNull();
-    expect(session.input.raw).toEqual({ kept: true, path: "raw/2026-09-25_2357.nvda-log.txt" });
+    expect(session.input.raw).toEqual({ kept: true, path: "raw/nvda-log.txt" });
     expect(logger.text("warn")).toMatch(/--keep-raw keeps the unredacted log/);
     expect(session.warnings.join("\n")).toMatch(/defeats the redaction/);
   });
@@ -306,7 +307,7 @@ describe("importing a Speech Viewer capture", () => {
     expect(session.input).toMatchObject({
       format: "speech-viewer",
       fileName: "speech-viewer.txt",
-      raw: { kept: true, path: "raw/2026-09-26_1405.speech-viewer.txt" },
+      raw: { kept: true, path: "raw/speech-viewer.txt" },
     });
     expect(session.session).toEqual({
       date: "2026-09-26",
@@ -363,10 +364,76 @@ describe("the files on disk", () => {
   it("keep one folder per page", async () => {
     await importLog({ date: "2026-09-25" });
     await importLog({ date: "2026-09-25", page: { ...PAGE, slug: "flawed-0123456789" } });
-    expect((await readdir(path.join(outDir, "manual"))).sort()).toEqual([
-      "flawed-0123456789",
-      "home",
+    expect((await readdir(path.join(outDir, "2026-09-25"))).sort()).toEqual([
+      "2357_manual_flawed-0123456789",
+      "2357_manual_home",
     ]);
+  });
+});
+
+describe("dated folders", () => {
+  it("puts a session in its date's folder under the site", async () => {
+    const { session, files } = await importLog({ date: "2026-09-27" });
+    expect(session.id).toBe("2026-09-27_2357");
+    const dir = manualSessionDir(outDir, session.id, "home");
+    expect(files).toEqual({
+      json: path.join(dir, "session.json"),
+      txt: path.join(dir, "session.txt"),
+      raw: path.join(dir, "raw", "nvda-log.txt"),
+    });
+    expect(session.input.raw).toEqual({ kept: true, path: "raw/nvda-log.txt" });
+    expect(await readJson(files.json)).toEqual(session);
+  });
+
+  it("gives a second import of the same session its own folder", async () => {
+    const first = await importLog({ date: "2026-09-27" });
+    const before = {
+      json: await readFile(first.files.json),
+      txt: await readFile(first.files.txt),
+      raw: await readFile(first.files.raw!),
+    };
+    const second = await importLog({ date: "2026-09-27" });
+    expect(first.session.id).toBe("2026-09-27_2357");
+    expect(second.session.id).toBe("2026-09-27_2357-2");
+    const dir2 = manualSessionDir(outDir, "2026-09-27_2357-2", "home");
+    expect(second.files).toEqual({
+      json: path.join(dir2, "session.json"),
+      txt: path.join(dir2, "session.txt"),
+      raw: path.join(dir2, "raw", "nvda-log.txt"),
+    });
+    // Neither file of the first import was touched by the second.
+    expect(await readFile(first.files.json)).toEqual(before.json);
+    expect(await readFile(first.files.txt)).toEqual(before.txt);
+    expect(await readFile(first.files.raw!)).toEqual(before.raw);
+  });
+
+  it("lists sessions from the dated folders for the report", async () => {
+    await importLog({ date: "2026-09-27" });
+    await importLog({ date: "2026-09-27" });
+    const listed = await listManualSessions(outDir);
+    expect(listed.map((entry) => entry.json.id)).toEqual(["2026-09-27_2357", "2026-09-27_2357-2"]);
+    expect(listed[0]).toMatchObject({
+      jsonPath: "2026-09-27/2357_manual_home/session.json",
+      txtPath: "2026-09-27/2357_manual_home/session.txt",
+      rawPath: "2026-09-27/2357_manual_home/raw/nvda-log.txt",
+    });
+    expect(listed[1]).toMatchObject({
+      jsonPath: "2026-09-27/2357_manual_home-2/session.json",
+      txtPath: "2026-09-27/2357_manual_home-2/session.txt",
+      rawPath: "2026-09-27/2357_manual_home-2/raw/nvda-log.txt",
+    });
+  });
+});
+
+describe("sealing", () => {
+  it("records the transcript's hash and seals the session", async () => {
+    const { session, files } = await importLog({ date: "2026-09-25" });
+    const txtBytes = await readFile(files.txt);
+    expect(session.transcript).toEqual({ sha256: sha256(txtBytes), bytes: txtBytes.length });
+
+    const written = await readJson(files.json);
+    expect(written.transcript).toEqual(session.transcript);
+    expect(written.seal).toBe(sealOf(written));
   });
 });
 

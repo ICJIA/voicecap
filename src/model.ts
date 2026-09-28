@@ -39,7 +39,10 @@ export interface StepRecord {
 
 /** Where a run's pages came from. For settings hashes, a sitemap is identified by URL only. */
 export type PageSource =
-  { kind: "sitemap"; url: string } | { kind: "pages"; file: string; sha256: string };
+  | { kind: "sitemap"; url: string }
+  | { kind: "pages"; file: string; sha256: string }
+  /** --page, one or more times: resolved absolute URLs, fragment dropped, in the order given. */
+  | { kind: "urls"; urls: string[] };
 
 /** The environment record: stored per session in run.json and repeated in every transcript. */
 export interface EnvironmentRecord extends EnvironmentInfo {
@@ -105,7 +108,7 @@ export interface InvalidEntry {
 }
 
 export interface SourceDetails {
-  kind: "sitemap" | "pages";
+  kind: "sitemap" | "pages" | "urls";
   /** Sitemap runs: every sitemap document fetched (index and children). */
   sitemaps?: { url: string; urls: number; sha256?: string; error?: string }[];
   /** Page list runs: the file as given, its SHA-256, format, and the encoding it was decoded with. */
@@ -220,6 +223,11 @@ export interface RunJson {
   /** Every skipped URL: before the run (off-origin, extension) and on load (response, redirect). */
   skipped: SkippedRecord[];
   pages: PageRecord[];
+  /**
+   * SHA-256 seal of this record (see sealOf), set once every other field is final at completion.
+   * Absent while the run is incomplete, and on runs written before this field existed.
+   */
+  seal?: string;
 }
 
 export const REVIEW_STATUSES = ["unreviewed", "reviewed", "issue", "fixed"] as const;
@@ -239,9 +247,21 @@ export interface ReviewEntry {
   files: Record<string, string>;
   /** SHA-256 of each pass's TXT body in that run: compared to detect "changed since review". */
   content: Partial<Record<PassName, string>>;
+  /**
+   * This entry's 1-based position in reviews.json's chain, counted across every page in the order
+   * entries were appended. Absent on entries recorded before this field existed.
+   */
+  seq?: number;
+  /**
+   * The `seal` of the entry before this one in that chain, or null for the first. Absent on
+   * entries recorded before this field existed.
+   */
+  prev?: string | null;
+  /** SHA-256 seal of this entry (see sealOf). Absent on entries recorded before this field existed. */
+  seal?: string;
 }
 
-/** transcripts/reviews.json */
+/** <site>/reviews.json, a site folder's review history (see reviewsPath) */
 export interface ReviewsFile {
   schemaVersion: 1;
   /** By canonical page URL. */
@@ -259,11 +279,14 @@ export interface ManualEntry {
   redacted?: boolean;
 }
 
-/** manual/<slug>/<id>.json */
+/** <date>/<time>_manual_<slug>/session.json (see manualSessionDir) */
 export interface ManualSessionJson {
   schemaVersion: 1;
   voicecap: string;
-  /** Session id and file stem: the session's local start date and time, e.g. 2026-09-26_1405. */
+  /**
+   * Session id: the session's local start date and time, e.g. 2026-09-26_1405. Names its folder
+   * (manualSessionDir); a second session with the same start time gets "-2", "-3", ...
+   */
   id: string;
   page: { url: string; key: string; slug: string };
   input: {
@@ -298,4 +321,8 @@ export interface ManualSessionJson {
   };
   warnings: string[];
   entries: ManualEntry[];
+  /** session.txt's SHA-256 and size. Absent on sessions imported before this field existed. */
+  transcript?: FileHash;
+  /** SHA-256 seal of this record (see sealOf). Absent on sessions imported before this field existed. */
+  seal?: string;
 }

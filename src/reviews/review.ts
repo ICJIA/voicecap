@@ -1,10 +1,10 @@
-import path from "node:path";
-
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import { REVIEW_STATUSES, type ReviewEntry, type ReviewStatus, type RunJson } from "../model.js";
 import { resolvePageArgument } from "../pages/page-argument.js";
+import { ensureGitFiles } from "../run/git-files.js";
 import { regenerateLiveReport } from "../run/live-report.js";
-import { DEFAULT_OUT_DIR } from "../run/paths.js";
+import { resolveHome } from "../run/paths.js";
+import { chooseSiteDir } from "../run/site-dir.js";
 import { listRuns, readRunJson } from "../run/store.js";
 import { UsageError } from "../util/errors.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
@@ -21,10 +21,17 @@ export interface AddReviewOptions {
   reviewer?: string | null;
   /** The run reviewed. Default: the latest run with transcripts for the page. */
   run?: string | null;
+  /**
+   * The site's URL: a path page resolves against it, and a full URL must be on it. Default: the
+   * page's site when it's a full URL, else the home's only site.
+   */
+  site?: string | null;
+  /** The transcripts home. Default: VOICECAP_TRANSCRIPTS, else "transcripts". */
   out?: string;
   cwd?: string;
   config?: LoadedConfig;
   logger?: Logger;
+  /** Where VOICECAP_TRANSCRIPTS and VOICECAP_REVIEWER are read from. Default: process.env. */
   env?: NodeJS.ProcessEnv;
   now?: Date;
   /** Regenerate the live report afterwards. Default true. */
@@ -33,6 +40,7 @@ export interface AddReviewOptions {
 
 export interface AddReviewResult {
   key: string;
+  /** The new entry as reviews.json holds it: sealed, and chained with seq and prev. */
   entry: ReviewEntry;
   /** The page's full history, oldest first, including the new entry. */
   history: ReviewEntry[];
@@ -43,17 +51,19 @@ export interface AddReviewResult {
 export async function addReview(options: AddReviewOptions): Promise<AddReviewResult> {
   const cwd = options.cwd ?? process.cwd();
   const logger = options.logger ?? createConsoleLogger();
+  const env = options.env ?? process.env;
   if (!(REVIEW_STATUSES as readonly string[]).includes(options.status)) {
     throw new UsageError(
       `--status must be one of ${REVIEW_STATUSES.join(", ")} (got "${String(options.status)}").`,
     );
   }
-  const outDir = path.resolve(cwd, options.out ?? DEFAULT_OUT_DIR);
+  const home = resolveHome({ out: options.out, env, cwd });
+  const outDir = await chooseSiteDir({ home, site: options.site, page: options.page });
   const { config } = options.config ?? (await loadConfig({ cwd }));
-  const page = await resolvePageArgument(options.page, outDir);
+  const page = await resolvePageArgument(options.page, outDir, options.site);
   const reviewer = resolveReviewer({
     option: options.reviewer,
-    ...(options.env ? { env: options.env } : {}),
+    env,
     configReviewer: config.reviewer,
     cwd,
   });
@@ -84,8 +94,12 @@ export async function addReview(options: AddReviewOptions): Promise<AddReviewRes
       Object.entries(record.passes).map(([pass, summary]) => [pass, summary.contentSha256]),
     ),
   };
+  // Only now, with every check passed, is the home guaranteed to end up holding a new file.
+  await ensureGitFiles(home);
   const reviews = await appendReview(outDir, page.key, entry);
   const history = reviews.pages[page.key] ?? [entry];
+  // What the file holds: the entry with its seq, prev, and seal.
+  const recorded = history.at(-1) ?? entry;
   logger.info(
     `Recorded "${entry.status}" for ${record.url} by ${reviewer.name} against run ${run.id} (${history.length} review ${history.length === 1 ? "entry" : "entries"} for this page).`,
   );
@@ -94,7 +108,7 @@ export async function addReview(options: AddReviewOptions): Promise<AddReviewRes
     options.regenerateReport === false
       ? null
       : await regenerateLiveReport({ outDir, config, logger });
-  return { key: page.key, entry, history, reportFile };
+  return { key: page.key, entry: recorded, history, reportFile };
 }
 
 /** The most recent run (complete or not) with transcripts for the page. */

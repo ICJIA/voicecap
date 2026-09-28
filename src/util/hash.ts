@@ -13,6 +13,12 @@ export function hashJson(value: unknown): string {
   return sha256(canonicalJson(value));
 }
 
+/** The seal of a record: hashJson of it with its own `seal` field left out (if it has one). */
+export function sealOf(record: object): string {
+  const { seal: _seal, ...rest } = record as Record<string, unknown>;
+  return hashJson(rest);
+}
+
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (value !== null && typeof value === "object") {

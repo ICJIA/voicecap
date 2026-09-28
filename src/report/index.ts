@@ -27,13 +27,14 @@ export type { ReportInput, ReportModel, ReportRow, ReportSummary } from "./model
 export { renderReport } from "./render.js";
 
 export interface GenerateReportOptions {
-  /** The transcripts folder. */
+  /** The site's folder in the transcripts home. */
   outDir: string;
   /** The run to show, in memory; it may be incomplete. */
   run: RunJson;
   /**
    * "live" writes <outDir>/report.html (latest run plus current reviews and manual sessions).
-   * "snapshot" writes runs/<id>/report.html; the caller does this just before sealing the run.
+   * "snapshot" writes <outDir>/<date>/<rest>/report.html; the caller does this just before
+   * writing the completed run.json, which closes the run's folder.
    */
   target: "live" | "snapshot";
   config: VoicecapConfig;
@@ -44,7 +45,7 @@ export interface GenerateReportOptions {
 
 /**
  * Write the HTML report: one self-contained, accessible file. Reviews and manual sessions are read
- * from the transcripts folder; flags are taken from the run's page records as given.
+ * from the site's folder; flags are taken from the run's page records as given.
  */
 export async function generateReport(
   options: GenerateReportOptions,

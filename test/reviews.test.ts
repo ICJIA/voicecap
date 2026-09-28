@@ -1,16 +1,23 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import type { PageRecord, ReviewEntry } from "../src/model.js";
 import { changedSinceReview } from "../src/reviews/changed.js";
+import { addReview } from "../src/reviews/review.js";
 import { resolveReviewer } from "../src/reviews/reviewer.js";
 import { appendReview, latestReview, readReviews } from "../src/reviews/store.js";
+import { runAudit } from "../src/run/audit.js";
+import { sealOf } from "../src/util/hash.js";
+import { createMemoryLogger } from "../src/util/log.js";
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), "voicecap-reviews-"));
 const KEY = "https://example.illinois.gov/about";
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
 
 function entry(status: ReviewEntry["status"], note: string | null = null): ReviewEntry {
   return {
@@ -47,6 +54,33 @@ describe("review history", () => {
     const data = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
     expect(data.note).toBe("kept");
     expect(Object.keys(data.pages as object).sort()).toEqual([KEY, "other"].sort());
+
+    // The pre-existing entry predates seq/prev/seal: the new one starts the chain at 1 rather
+    // than trying to continue from it.
+    const pages = data.pages as Record<string, ReviewEntry[]>;
+    expect(pages.other?.[0]?.seq).toBeUndefined();
+    expect(pages[KEY]?.[0]).toMatchObject({ seq: 1, prev: null });
+  });
+
+  it("chains review entries across pages", async () => {
+    const out = await tmp();
+    const otherKey = "https://example.illinois.gov/contact";
+    await appendReview(out, KEY, entry("issue"));
+    await appendReview(out, otherKey, entry("reviewed"));
+    await appendReview(out, KEY, entry("fixed"));
+
+    // Read back from disk: the chain must hold for what's actually written, not just in memory.
+    const reviews = await readReviews(out);
+    const a = reviews.pages[KEY]!;
+    const b = reviews.pages[otherKey]!;
+    expect(a.map((e) => e.seq)).toEqual([1, 3]);
+    expect(b.map((e) => e.seq)).toEqual([2]);
+    expect(a[0]?.prev).toBeNull();
+    expect(b[0]?.prev).toBe(a[0]?.seal);
+    expect(a[1]?.prev).toBe(b[0]?.seal);
+    for (const written of [a[0]!, b[0]!, a[1]!]) {
+      expect(written.seal).toBe(sealOf(written));
+    }
   });
 
   it("never overwrites a damaged history", async () => {
@@ -59,6 +93,32 @@ describe("review history", () => {
     expect(await readFile(file, "utf8")).toBe("{ this is not json");
     await writeFile(file, JSON.stringify({ schemaVersion: 1, pages: { [KEY]: "not an array" } }));
     await expect(readReviews(out)).rejects.toThrow(/doesn't look like a voicecap review history/);
+  });
+});
+
+describe("addReview", () => {
+  it("returns the entry as reviews.json holds it: sealed and chained", async () => {
+    const dir = await tmp();
+    const common = { out: path.join(dir, "home"), cwd: dir, env: {}, logger: createMemoryLogger() };
+    const run = await runAudit({
+      ...common,
+      site: "http://127.0.0.1:4747",
+      pages: fixture("pages.json"),
+      replayFrom: fixture("replay-run"),
+    });
+    expect(run.outcome).toBe("completed");
+    const review = (status: ReviewEntry["status"]) =>
+      addReview({ ...common, page: "/flawed/", status, reviewer: "Pat Reviewer" });
+
+    const first = await review("reviewed");
+    const second = await review("issue");
+    expect(first.entry).toMatchObject({ seq: 1, prev: null });
+    expect(first.entry.seal).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.entry).toMatchObject({ seq: 2, prev: first.entry.seal });
+    expect(second.entry.seal).toMatch(/^[0-9a-f]{64}$/);
+    expect(second.history.at(-1)).toEqual(second.entry);
+    const stored = (await readReviews(run.siteDir)).pages[second.key];
+    expect(stored).toEqual([first.entry, second.entry]);
   });
 });
 

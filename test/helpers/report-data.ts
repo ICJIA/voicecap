@@ -24,7 +24,7 @@ import type {
 import { pageSlug } from "../../src/pages/slug.js";
 import { canonicalKey } from "../../src/pages/url.js";
 import { appendReview } from "../../src/reviews/store.js";
-import { manualPageDir, pageDir } from "../../src/run/paths.js";
+import { manualSessionDir, pageDir } from "../../src/run/paths.js";
 import { writeRunJson } from "../../src/run/store.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { writeTranscript } from "../../src/transcripts/write.js";
@@ -269,14 +269,16 @@ export async function writeSyntheticRun(outDir: string, spec: SyntheticRun): Pro
     replayed: spec.replayed ?? false,
     source: {
       kind: source.kind,
-      ...(source.kind === "pages"
-        ? {
-            file: source.file,
-            sha256: source.sha256,
-            format: "csv" as const,
-            encoding: "utf-8" as const,
-          }
-        : { sitemaps: [{ url: source.url, urls: spec.pages.length }] }),
+      ...(source.kind === "sitemap"
+        ? { sitemaps: [{ url: source.url, urls: spec.pages.length }] }
+        : source.kind === "pages"
+          ? {
+              file: source.file,
+              sha256: source.sha256,
+              format: "csv" as const,
+              encoding: "utf-8" as const,
+            }
+          : {}),
       listed: spec.pages.length + (spec.skipped?.length ?? 0),
       duplicates: 0,
       invalid: [],
@@ -338,7 +340,7 @@ export async function addReview(
   return entry;
 }
 
-/** Write a manual session (JSON, TXT, and optionally the raw original) for a page. */
+/** Write a manual session (session.json, session.txt, and optionally raw/) in its dated folder. */
 export async function addManualSession(
   outDir: string,
   pagePath: string,
@@ -354,7 +356,7 @@ export async function addManualSession(
   const key = canonicalKey(url);
   const slug = pageSlug(key);
   const format = options.format ?? "nvda-log";
-  const rawName = `${id}.${format}.txt`;
+  const rawName = `${format}.txt`;
   const raw = options.raw ?? "kept";
   const json: ManualSessionJson = {
     schemaVersion: 1,
@@ -392,11 +394,11 @@ export async function addManualSession(
       { at: "2026-09-25T23:58:11-05:00", type: "speech", text: "heading, level 1, Welcome" },
     ],
   };
-  const dir = manualPageDir(outDir, slug);
+  const dir = manualSessionDir(outDir, id, slug);
   await mkdir(path.join(dir, "raw"), { recursive: true });
-  await writeFile(path.join(dir, `${id}.json`), `${JSON.stringify(json, null, 2)}\n`);
+  await writeFile(path.join(dir, "session.json"), `${JSON.stringify(json, null, 2)}\n`);
   await writeFile(
-    path.join(dir, `${id}.txt`),
+    path.join(dir, "session.txt"),
     "# manual session\n\n[downArrow]\nheading, level 1, Welcome\n",
   );
   if (raw === "kept") await writeFile(path.join(dir, "raw", rawName), "raw original\n");

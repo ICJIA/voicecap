@@ -8,6 +8,8 @@ export const ExitCode = {
   environment: 2,
   /** A run completed but some pages failed. */
   pagesFailed: 3,
+  /** voicecap verify found something recorded that has changed, is missing, or can't be checked. */
+  verifyProblems: 3,
   /** Interrupted (Ctrl+C); state was saved. */
   interrupted: 130,
 } as const;

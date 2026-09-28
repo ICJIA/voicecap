@@ -4,6 +4,23 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **`voicecap verify [--site <url>] [--out <dir>]`**: checks the records in the transcripts home against their seals and recorded hashes. A completed run's `run.json`, each manual session's `session.json`, and each review entry now carry a `seal` (a SHA-256 of the record itself); review entries also carry `seq` and `prev`, chaining the whole review history. `verify` checks every site's runs (their seals and every recorded page file), manual sessions (their seals, transcripts, and kept raw copies), and the review chain, printing one line per problem it finds and exiting 0 when everything matches, 3 when something doesn't. It catches an edited record, a reordered review entry, and a deleted entry that a later entry follows. Deleting the newest review entries, or a whole run or manual session, leaves nothing for `verify` to find: only Git history shows it.
+- **Programmatic API**: `verifyHome`; `resolveHome`, `siteFolder`, `siteDirFor`, and `chooseSiteDir`, to find a site's folder in the transcripts home; `siteDir` and `runDir` on `runAudit`'s result; `site` on `addReview` and `addManualSession`; and `env` and `pageUrls` (`--page`'s values: full URLs or root-relative paths) on `runAudit`.
+- **`voicecap init`**: answers a few plain questions (the website, where its pages are, how many, and the transcripts home) and prints the finished `npx @icjia/voicecap …` command, ready to copy, keep, and run again to resume. It offers to run the command right away on a computer that can (Windows, with voicecap's own NVDA installed). `voicecap` with no arguments starts `init` too, in a terminal; without one (scripts, CI, and sometimes Git Bash's own window), the "Missing --site" usage error stays, now pointing to `init`.
+- **`--page <url>`**: a third, repeatable page source for a run, alongside `--sitemap` and `--pages`. Each value is a full URL or a root-relative path, resolved against `--site`, and goes through the same off-origin, non-HTML, and duplicate handling as the other sources; `--include`, `--exclude`, and `--limit` still apply. It's recorded in `run.json` and every transcript, and described consistently in the report, transcript headers, run comparison, and resume.
+
+### Changed
+
+- **The transcripts home now holds one folder per site**, each with its own dated run and manual-session folders (`<site>/<date>/<time>/`, `<site>/<date>/<time>_manual_<slug>/`), `reviews.json`, live report, and `compare/`, instead of one shared `runs/` and `manual/` folder. The home now comes from `--out`, else the `VOICECAP_TRANSCRIPTS` environment variable, else `./transcripts`.
+- **`review`, `manual add`, and `report` take `--site <url>`** to pick the site's folder; without it, the site comes from a full `--page` URL, else the home's only site folder (a usage error names the folders when there are several and neither is given).
+- **A retried or resumed page keeps its earlier attempt**, moved to `attempts/<slug>/<n>/` in the run's folder instead of being overwritten; reports and comparisons ignore it.
+- **`.gitattributes` and a new `.gitignore`** are written at the home's top the first time they're needed, and never overwritten, so the owner's own edits stay. `.gitignore` keeps out manual sessions' raw NVDA logs (`**/*_manual_*/raw/`), which can hold typed passwords, along with the run lock (`.voicecap.lock`), the temporary files a crash can leave behind (`.*.tmp`), and the files an operating system adds to folders (`.DS_Store`, `Thumbs.db`, `desktop.ini`).
+- **voicecap 0.2.0's `runs/` and `manual/` folders, if a home still has them, are no longer read or moved**; a run notes once that it saw them and left them alone.
+- **`generateReport`'s `outDir` now means a site's folder** in the transcripts home, not the home itself, which breaks 0.2.0 callers: pass `runAudit`'s `siteDir`, or find one with `resolveHome` and `siteDirFor`.
+- **`PageSource` has a third variant, `{ kind: "urls"; urls: string[] }`**, for a run's `--page` pages (their resolved URLs, in the order given), recorded in `run.json` and in each transcript's environment record. It's a compile-time change for TypeScript code that switches over `PageSource`'s `kind` exhaustively: add a case for `"urls"`.
+
 ## [0.2.0] - 2026-09-27
 
 Phase B: the real NVDA driver, checked end to end with NVDA 2026.2 and Chrome 153 on Windows 11.

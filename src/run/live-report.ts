@@ -8,6 +8,7 @@ import { liveCompareDir } from "./paths.js";
 import { readLatestRunId, readRunJson } from "./store.js";
 
 export interface LiveReportOptions {
+  /** The site's folder in the transcripts home, not the home itself (see siteDirFor). */
   outDir: string;
   config: VoicecapConfig;
   logger: Logger;
@@ -20,9 +21,9 @@ export interface LiveReportOptions {
 }
 
 /**
- * Regenerate transcripts/report.html: the latest completed run (or --run) plus the current
- * review history and manual sessions. `review`, `manual add`, and `voicecap report` call this.
- * Returns the report's path, or null when there's no run to show yet.
+ * Regenerate a site folder's live report.html: the latest completed run (or --run) plus the
+ * current review history and manual sessions. `review`, `manual add`, and `voicecap report` call
+ * this. Returns the report's path, or null when there's no run to show yet.
  */
 export async function regenerateLiveReport(options: LiveReportOptions): Promise<string | null> {
   const { outDir, config, logger } = options;

@@ -5,7 +5,7 @@ import { acquireLockFile } from "../util/lock-file.js";
 export const LOCK_FILE = ".voicecap.lock";
 
 /**
- * Take the output folder's run lock, so two runs never write the same transcripts folder at once.
+ * Take a site folder's run lock, so two runs never write the same site's folder at once.
  * A lock left by a process that no longer exists (a crash, a reboot) is taken over.
  * Returns a function that releases the lock.
  */

@@ -266,12 +266,51 @@ describe("resolvePages: page list files", () => {
   });
 });
 
+describe("resolvePages: --page", () => {
+  it("takes pages given with --page, full URLs or paths", async () => {
+    const result = await resolvePages({
+      site,
+      pageUrls: ["/duplicates/", `${ORIGIN}/flawed/#top`],
+    });
+    expect(result.pages.map((p) => p.url)).toEqual([`${ORIGIN}/duplicates/`, `${ORIGIN}/flawed/`]);
+    expect(result.pageSource).toEqual({
+      kind: "urls",
+      urls: [`${ORIGIN}/duplicates/`, `${ORIGIN}/flawed/`],
+    });
+    expect(result.source.kind).toBe("urls");
+  });
+
+  it("skips a --page on another site, as page lists do", async () => {
+    const result = await resolvePages({
+      site,
+      pageUrls: ["https://dvfr.illinois.gov/faq/", "/"],
+    });
+    expect(result.pages).toHaveLength(1);
+    expect(result.skipped).toEqual([
+      { url: "https://dvfr.illinois.gov/faq/", reason: "off-origin" },
+    ]);
+  });
+
+  it("rejects a --page that isn't a page", async () => {
+    await expect(resolvePages({ site, pageUrls: ["ftp://x/"] })).rejects.toThrow(UsageError);
+    await expect(resolvePages({ site, pageUrls: ["ftp://x/"] })).rejects.toThrow(
+      `--page "ftp://x/" isn't a page URL or a path like /faq/.`,
+    );
+  });
+
+  it("catches a --page Git Bash rewrote", async () => {
+    await expect(resolvePages({ site, pageUrls: ["C:/Program Files/Git/faq/"] })).rejects.toThrow(
+      /Git Bash rewrote it/,
+    );
+  });
+});
+
 describe("resolvePages: arguments", () => {
   it("requires exactly one page source", async () => {
-    await expect(resolvePages({ site })).rejects.toThrow(/--sitemap <url> or --pages <file>/);
+    await expect(resolvePages({ site })).rejects.toThrow(/--page <url>/);
     await expect(
       resolvePages({ site, sitemap: `${ORIGIN}/sitemap.xml`, pagesFile: "pages.csv" }),
-    ).rejects.toThrow(/not both/);
+    ).rejects.toThrow(/one kind of page source/);
   });
 
   it("requires a full sitemap URL", async () => {
@@ -312,5 +351,19 @@ describe("pageSourceFor", () => {
 
   it("reports a missing file", async () => {
     await expect(pageSourceFor({ pagesFile: "nope.csv", cwd: dir })).rejects.toThrow(UsageError);
+  });
+
+  it("keeps a --page query string and drops its fragment", async () => {
+    expect(await pageSourceFor({ site, pageUrls: ["/faq/?a=1&b=2#top"] })).toEqual({
+      kind: "urls",
+      urls: [`${ORIGIN}/faq/?a=1&b=2`],
+    });
+  });
+
+  it("takes one kind of page source", async () => {
+    await expect(
+      pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, pageUrls: ["/a"], site }),
+    ).rejects.toThrow(/Use one kind of page source/);
+    await expect(pageSourceFor({ site })).rejects.toThrow(/--page <url>/);
   });
 });

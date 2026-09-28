@@ -4,10 +4,10 @@ import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
 import type { ManualEntry, ManualInputFormat, ManualSessionJson } from "../model.js";
-import { manualPageDir } from "../run/paths.js";
+import { manualSessionDir } from "../run/paths.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError, errorMessage } from "../util/errors.js";
-import { sha256 } from "../util/hash.js";
+import { sealOf, sha256 } from "../util/hash.js";
 import { silentLogger, type Logger } from "../util/log.js";
 import { isoLocal, localDate } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
@@ -29,7 +29,7 @@ export const LOG_PRIVACY_WARNING =
   "--redact-typing removes the typing it can detect.";
 
 export interface ImportManualSessionOptions {
-  /** The transcripts folder. */
+  /** The site's folder in the transcripts home. */
   outDir: string;
   /** Speech Viewer text or an NVDA log (nvda.log / nvda-old.log). */
   file: string;
@@ -59,9 +59,10 @@ export interface ManualImportResult {
 }
 
 /**
- * Import a hands-on NVDA session into manual/<slug>/: a clean transcript (.txt), the entries with
- * metadata (.json), and the unmodified original under raw/ (named so it never ends in .log, which
- * many repositories ignore). Doesn't regenerate the report.
+ * Import a hands-on NVDA session into its own dated folder (manualSessionDir): a clean transcript
+ * (session.txt), the entries with metadata (session.json), and the unmodified original under raw/
+ * (named after its format, so it never ends in .log, which many repositories ignore). Doesn't
+ * regenerate the report.
  */
 export async function importManualSession(
   options: ImportManualSessionOptions,
@@ -92,9 +93,8 @@ export async function importManualSession(
       ? readLog(text, { from, to, dateOption, modified, options, logger, warnings })
       : readSpeechViewer(text, { from, to, dateOption, modified, options, logger });
 
-  const dir = manualPageDir(options.outDir, options.page.slug);
-  const id = uniqueSessionId(dir, parsed.baseId);
-  const rawName = `${id}.${format}.txt`;
+  const { id, dir } = allocateManualSession(options.outDir, parsed.baseId, options.page.slug);
+  const rawName = `${format}.txt`;
   let raw: ManualSessionJson["input"]["raw"];
   if (options.noRaw) {
     raw = { kept: false, reason: "no-raw" };
@@ -132,14 +132,19 @@ export async function importManualSession(
     entries: parsed.entries,
   };
 
+  const txt = renderManualSessionTxt(session);
+  const txtBytes = Buffer.from(txt, "utf8");
+  session.transcript = { sha256: sha256(txtBytes), bytes: txtBytes.length };
+  session.seal = sealOf(session);
+
   const files = {
-    json: path.join(dir, `${id}.json`),
-    txt: path.join(dir, `${id}.txt`),
+    json: path.join(dir, "session.json"),
+    txt: path.join(dir, "session.txt"),
     raw: raw.kept ? path.join(dir, "raw", rawName) : null,
   };
   // The JSON is written last: listManualSessions only sees complete imports.
   if (files.raw) await writeFileAtomic(files.raw, bytes);
-  await writeFileAtomic(files.txt, renderManualSessionTxt(session));
+  await writeFileAtomic(files.txt, txt);
   await writeFileAtomic(files.json, `${JSON.stringify(session, null, 2)}\n`);
   return { session, files };
 }
@@ -355,16 +360,20 @@ export function renderManualSessionTxt(session: ManualSessionJson): string {
   return `${[...header, "", ...body].join("\n")}\n`;
 }
 
-function uniqueSessionId(dir: string, base: string): string {
+/**
+ * A free folder for a hands-on session: baseId's folder (manualSessionDir), or baseId-2, baseId-3,
+ * ... for the first one that doesn't exist yet. A second import of the same session (same page,
+ * same start time) gets its own folder instead of overwriting the first.
+ */
+export function allocateManualSession(
+  siteDir: string,
+  baseId: string,
+  slug: string,
+): { id: string; dir: string } {
   for (let n = 1; ; n += 1) {
-    const id = n === 1 ? base : `${base}-${n}`;
-    const names = [
-      `${id}.json`,
-      `${id}.txt`,
-      path.join("raw", `${id}.nvda-log.txt`),
-      path.join("raw", `${id}.speech-viewer.txt`),
-    ];
-    if (!names.some((name) => existsSync(path.join(dir, name)))) return id;
+    const id = n === 1 ? baseId : `${baseId}-${n}`;
+    const dir = manualSessionDir(siteDir, id, slug);
+    if (!existsSync(dir)) return { id, dir };
   }
 }
 

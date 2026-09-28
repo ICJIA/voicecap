@@ -3,38 +3,44 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ManualSessionJson } from "../model.js";
-import { manualRoot } from "../run/paths.js";
+import { DATE_FOLDER } from "../run/paths.js";
 
 export interface ManualSessionFile {
   json: ManualSessionJson;
-  /** Paths relative to the transcripts folder, with forward slashes. */
+  /** Paths relative to the site folder, with forward slashes. */
   jsonPath: string;
   txtPath: string;
   rawPath: string | null;
 }
 
-/** Every imported manual session (manual/<slug>/<id>.json), sorted by page then session id. */
+/**
+ * Every imported manual session (<date>/<time>_manual_<slug>/session.json), sorted by page then
+ * session id. Each dated folder is checked; only its `*_manual_*` children with a readable
+ * session.json count, so a run's own folder (no "_manual_" in its name) is never picked up.
+ */
 export async function listManualSessions(outDir: string): Promise<ManualSessionFile[]> {
-  const root = manualRoot(outDir);
-  if (!existsSync(root)) return [];
+  if (!existsSync(outDir)) return [];
   const sessions: ManualSessionFile[] = [];
-  for (const slugEntry of await readdir(root, { withFileTypes: true })) {
-    if (!slugEntry.isDirectory()) continue;
-    const dir = path.join(root, slugEntry.name);
-    for (const file of await readdir(dir)) {
-      if (!file.endsWith(".json")) continue;
+  for (const dateEntry of await readdir(outDir, { withFileTypes: true })) {
+    if (!dateEntry.isDirectory() || !DATE_FOLDER.test(dateEntry.name)) continue;
+    const dateDir = path.join(outDir, dateEntry.name);
+    for (const sessionEntry of await readdir(dateDir, { withFileTypes: true })) {
+      if (!sessionEntry.isDirectory() || !sessionEntry.name.includes("_manual_")) continue;
+      const dir = path.join(dateDir, sessionEntry.name);
       let json: ManualSessionJson;
       try {
-        json = JSON.parse(await readFile(path.join(dir, file), "utf8")) as ManualSessionJson;
+        json = JSON.parse(
+          await readFile(path.join(dir, "session.json"), "utf8"),
+        ) as ManualSessionJson;
       } catch {
         continue;
       }
       if (json.schemaVersion !== 1 || typeof json.id !== "string") continue;
-      const rel = (name: string) => ["manual", slugEntry.name, name].join("/");
+      const rel = (name: string) => [dateEntry.name, sessionEntry.name, name].join("/");
       sessions.push({
         json,
-        jsonPath: rel(file),
-        txtPath: rel(`${json.id}.txt`),
+        jsonPath: rel("session.json"),
+        txtPath: rel("session.txt"),
         rawPath: json.input.raw.kept ? rel(json.input.raw.path) : null,
       });
     }

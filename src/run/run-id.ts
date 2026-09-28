@@ -1,8 +1,9 @@
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
 
 import { UsageError } from "../util/errors.js";
-import { localStamp } from "../util/time.js";
-import { runDir, runsDir } from "./paths.js";
+import { localDate, localStamp } from "../util/time.js";
+import { runDir } from "./paths.js";
 
 const MAX_NAME = 24;
 
@@ -33,7 +34,7 @@ export async function allocateRunId(
   now: Date,
   name: string | null,
 ): Promise<string> {
-  await mkdir(runsDir(outDir), { recursive: true });
+  await mkdir(path.join(outDir, localDate(now)), { recursive: true });
   const base = name ? `${localStamp(now)}_${sanitizeRunName(name)}` : localStamp(now);
   for (let n = 1; ; n++) {
     const id = n === 1 ? base : `${base}-${n}`;

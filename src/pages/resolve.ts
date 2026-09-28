@@ -3,6 +3,7 @@ import path from "node:path";
 
 import type { InvalidEntry, PageRef, PageSource, SkippedRecord, SourceDetails } from "../model.js";
 import { UsageError } from "../util/errors.js";
+import { assertNotRewritten } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
 import type { Logger } from "../util/log.js";
 import { applyFilters } from "./filter.js";
@@ -14,9 +15,11 @@ import { canonicalKey, nonHtmlExtension, resolvePageUrl, sameOrigin } from "./ur
 export interface ResolvePagesOptions {
   /** The site's origin (see parseSiteUrl). */
   site: URL;
-  /** Exactly one of sitemap and pagesFile. */
+  /** Exactly one of sitemap, pagesFile, and pageUrls. */
   sitemap?: string;
   pagesFile?: string;
+  /** --page, one or more times: full URLs or paths, resolved against site. */
+  pageUrls?: readonly string[];
   include?: readonly string[];
   exclude?: readonly string[];
   limit?: number | null;
@@ -42,15 +45,20 @@ const EXAMPLES = 3;
 /**
  * Identify a page source without fetching anything, for the resume check. A sitemap is its URL;
  * a page list is its path (relative to cwd, with forward slashes, when inside cwd) plus the
- * SHA-256 of its contents.
+ * SHA-256 of its contents; --page values are their resolved URLs (site is required for these).
  */
 export async function pageSourceFor(options: {
   sitemap?: string;
   pagesFile?: string;
+  pageUrls?: readonly string[];
+  site?: URL;
   cwd?: string;
 }): Promise<PageSource> {
-  const { sitemap, pagesFile } = requireOneSource(options);
+  const { sitemap, pagesFile, pageUrls } = requireOneSource(options);
   if (sitemap !== undefined) return { kind: "sitemap", url: parseSitemapUrl(sitemap) };
+  if (pageUrls !== undefined) {
+    return { kind: "urls", urls: resolvePageUrlOption(pageUrls, options.site!) };
+  }
   const cwd = options.cwd ?? process.cwd();
   const absolute = path.resolve(cwd, pagesFile!);
   let bytes: Uint8Array;
@@ -70,7 +78,7 @@ export async function pageSourceFor(options: {
  * then apply --include, --exclude, and --limit, in that order.
  */
 export async function resolvePages(options: ResolvePagesOptions): Promise<ResolvedPages> {
-  const { sitemap, pagesFile } = requireOneSource(options);
+  const { sitemap, pagesFile, pageUrls } = requireOneSource(options);
   const cwd = options.cwd ?? process.cwd();
   const logger = options.logger;
   const site = options.site;
@@ -96,8 +104,8 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     entries = result.urls.map((item) => ({ value: item.loc, line: null }));
     source = baseDetails("sitemap", entries.length, result.warnings);
     source.sitemaps = result.documents;
-  } else {
-    const absolute = path.resolve(cwd, pagesFile!);
+  } else if (pagesFile !== undefined) {
+    const absolute = path.resolve(cwd, pagesFile);
     const list = await readPageList(absolute);
     const file = recordedPath(cwd, absolute);
     pageSource = { kind: "pages", file, sha256: list.sha256 };
@@ -109,6 +117,11 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     source.format = list.format;
     source.encoding = list.encoding;
     for (const warning of list.warnings) logger?.warn(warning);
+  } else {
+    const urls = resolvePageUrlOption(pageUrls!, site);
+    pageSource = { kind: "urls", urls };
+    entries = urls.map((value) => ({ value, line: null }));
+    source = baseDetails("urls", urls.length, []);
   }
 
   // Resolve, then dedupe by canonical URL, keeping the form listed first.
@@ -207,20 +220,39 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
 function requireOneSource(options: {
   sitemap?: string | undefined;
   pagesFile?: string | undefined;
+  pageUrls?: readonly string[] | undefined;
 }): {
   sitemap?: string;
   pagesFile?: string;
+  pageUrls?: readonly string[];
 } {
   const hasSitemap = options.sitemap !== undefined && options.sitemap !== "";
   const hasPages = options.pagesFile !== undefined && options.pagesFile !== "";
-  if (hasSitemap === hasPages) {
-    throw new UsageError(
-      hasSitemap
-        ? "Use either --sitemap or --pages, not both."
-        : "Give a page source: --sitemap <url> or --pages <file>.",
-    );
+  const hasPageUrls = options.pageUrls !== undefined && options.pageUrls.length > 0;
+  const count = [hasSitemap, hasPages, hasPageUrls].filter(Boolean).length;
+  if (count === 0) {
+    throw new UsageError("Give a page source: --sitemap <url>, --pages <file>, or --page <url>.");
   }
-  return hasSitemap ? { sitemap: options.sitemap! } : { pagesFile: options.pagesFile! };
+  if (count > 1) {
+    throw new UsageError("Use one kind of page source: --sitemap, --pages, or --page, not a mix.");
+  }
+  if (hasSitemap) return { sitemap: options.sitemap! };
+  if (hasPages) return { pagesFile: options.pagesFile! };
+  return { pageUrls: options.pageUrls! };
+}
+
+/**
+ * Resolve --page's values against the site into absolute URLs, fragment dropped, in the order
+ * given. Rejects a value Git Bash rewrote into a Windows path, or one that isn't a page URL or a
+ * root-relative path.
+ */
+function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
+  return values.map((value) => {
+    assertNotRewritten("--page", value);
+    const url = resolvePageUrl(value, site);
+    if (!url) throw new UsageError(`--page "${value}" isn't a page URL or a path like /faq/.`);
+    return url.href;
+  });
 }
 
 function parseSitemapUrl(input: string): string {
@@ -231,7 +263,7 @@ function parseSitemapUrl(input: string): string {
     // fall through
   }
   throw new UsageError(
-    `--sitemap must be a full URL such as https://example.illinois.gov/sitemap.xml (got "${input}").`,
+    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml (got "${input}").`,
   );
 }
 
@@ -244,7 +276,11 @@ function recordedPath(cwd: string, absolute: string): string {
   return absolute;
 }
 
-function baseDetails(kind: "sitemap" | "pages", listed: number, warnings: string[]): SourceDetails {
+function baseDetails(
+  kind: "sitemap" | "pages" | "urls",
+  listed: number,
+  warnings: string[],
+): SourceDetails {
   return {
     kind,
     listed,
@@ -257,7 +293,9 @@ function baseDetails(kind: "sitemap" | "pages", listed: number, warnings: string
 }
 
 function describeSource(source: PageSource): string {
-  return source.kind === "sitemap" ? `the sitemap ${source.url}` : `the page list ${source.file}`;
+  if (source.kind === "sitemap") return `the sitemap ${source.url}`;
+  if (source.kind === "pages") return `the page list ${source.file}`;
+  return "the pages given with --page";
 }
 
 function logSummary(

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,8 +13,18 @@ import type { RunJson } from "../src/model.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
+import {
+  attemptsDir,
+  pageDir,
+  runCompareDir,
+  runDir,
+  runReportPath,
+  siteFolder,
+} from "../src/run/paths.js";
 import { readRunJson, writeRunJson } from "../src/run/store.js";
+import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
+import { verifyHome } from "../src/verify.js";
 import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
 
 const SITE = "https://example.illinois.gov";
@@ -99,6 +109,8 @@ function options(
     site: SITE,
     pages: "pages.json",
     cwd: dir,
+    // Never the VOICECAP_TRANSCRIPTS of whoever runs the tests.
+    env: {},
     ...(driver ? { driver } : {}),
     config: config(),
     logger: createMemoryLogger(),
@@ -106,7 +118,8 @@ function options(
   };
 }
 
-const outDir = (dir: string) => path.join(dir, "transcripts");
+/** SITE's folder in the default home, where these runs go. */
+const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(SITE));
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
 async function snapshotFolder(dir: string): Promise<Record<string, string>> {
@@ -131,12 +144,15 @@ describe("a complete run", () => {
     expect(result.exitCode).toBe(0);
 
     const out = outDir(dir);
-    const runFolder = path.join(out, "runs", result.runId);
+    const runFolder = runDir(out, result.runId);
     expect(result.runId).toMatch(/^\d{4}-\d{2}-\d{2}_\d{4}$/);
     expect((await readFile(path.join(out, "latest.txt"), "utf8")).trim()).toBe(result.runId);
     expect(existsSync(path.join(out, "report.html"))).toBe(true);
     expect(existsSync(path.join(runFolder, "report.html"))).toBe(true);
-    expect(await readFile(path.join(out, ".gitattributes"), "utf8")).toContain("* -text");
+    expect(await readFile(path.join(dir, "transcripts", ".gitattributes"), "utf8")).toContain(
+      "* -text",
+    );
+    expect(existsSync(path.join(out, ".gitattributes"))).toBe(false);
 
     const run = await readRunJson(out, result.runId);
     expect(run.status).toBe("completed");
@@ -200,6 +216,152 @@ describe("a complete run", () => {
   });
 });
 
+describe("--page", () => {
+  it("runs the pages given with --page, and tells runs apart by them", async () => {
+    const dir = await setup();
+    const first = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { pages: null, pageUrls: [`${SITE}/about`] }),
+    );
+    expect(first.outcome).toBe("completed");
+    expect(first.run.pages).toHaveLength(1);
+    expect(first.run.settings.source).toEqual({ kind: "urls", urls: [`${SITE}/about`] });
+
+    const same = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { pages: null, pageUrls: [`${SITE}/about`] }),
+    );
+    expect(same.run.settingsHash).toBe(first.run.settingsHash);
+
+    const different = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        pages: null,
+        pageUrls: [`${SITE}/resources`],
+      }),
+    );
+    expect(different.run.settingsHash).not.toBe(first.run.settingsHash);
+  });
+});
+
+describe("the home", () => {
+  it("puts a run in the site's folder in the home", async () => {
+    const dir = await setup();
+    const home = path.join(dir, "records");
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { out: "records" }),
+    );
+    expect(result.siteDir).toBe(path.join(home, siteFolder(SITE)));
+    expect(path.isAbsolute(result.runDir)).toBe(true);
+    expect(existsSync(path.join(result.runDir, "run.json"))).toBe(true);
+  });
+
+  it("takes the home from VOICECAP_TRANSCRIPTS when there's no --out", async () => {
+    const dir = await setup();
+    const home = path.join(dir, "from-env");
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { env: { VOICECAP_TRANSCRIPTS: home } }),
+    );
+    expect(result.siteDir).toBe(path.join(home, siteFolder(SITE)));
+    expect(existsSync(path.join(result.runDir, "run.json"))).toBe(true);
+    expect(existsSync(path.join(dir, "transcripts"))).toBe(false);
+  });
+
+  it("works in a home whose path has a space and an accent", async () => {
+    const dir = await setup();
+    const home = path.join(dir, "Jané Doe", "voicecap-transcripts");
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages()), { out: home }));
+    expect(result).toMatchObject({ outcome: "completed", exitCode: 0 });
+    const run = await readRunJson(path.join(home, siteFolder(SITE)), result.runId);
+    expect(run.status).toBe("completed");
+  });
+});
+
+describe("voicecap 0.2.0's layout", () => {
+  it("leaves 0.2.0-layout folders alone, and says so once", async () => {
+    const dir = await setup();
+    const home = path.join(dir, "transcripts");
+    const oldRun = path.join(home, "runs", "2026-09-26_1405", "run.json");
+    const oldManual = path.join(home, "manual", "home", "2026-09-26_1405.json");
+    await mkdir(path.dirname(oldRun), { recursive: true });
+    await writeFile(oldRun, "old run\n");
+    await mkdir(path.dirname(oldManual), { recursive: true });
+    await writeFile(oldManual, "old manual\n");
+
+    const logger = createMemoryLogger();
+    const result = await runAudit({ ...options(dir, new ScriptedDriver(sitePages())), logger });
+    expect(result.outcome).toBe("completed");
+
+    // Neither 0.2.0-layout file was read or moved.
+    expect(await readFile(oldRun, "utf8")).toBe("old run\n");
+    expect(await readFile(oldManual, "utf8")).toBe("old manual\n");
+
+    const notes = logger.entries.filter((entry) => entry.message.includes("read any more"));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.message).toBe(
+      `${home} has voicecap 0.2.0's runs/ and manual/ folders. They aren't read any more, ` +
+        "and they're left as they are.",
+    );
+  });
+});
+
+describe("dated run folders", () => {
+  it("puts a run in <site>/<date>/<time>/", async () => {
+    const dir = await setup();
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { now: () => new Date(2026, 8, 27, 11, 2) }),
+    );
+    expect(result.runDir).toBe(path.join(outDir(dir), "2026-09-27", "1102"));
+  });
+
+  it("gives a second run in the same minute its own folder, and resumes the unfinished one", async () => {
+    const dir = await setup();
+    const now = () => new Date(2026, 8, 27, 11, 2);
+
+    const first = await runAudit(options(dir, new ScriptedDriver(sitePages()), { now }));
+    expect(first).toMatchObject({ runId: "2026-09-27_1102", outcome: "completed" });
+    expect(first.runDir).toBe(path.join(outDir(dir), "2026-09-27", "1102"));
+
+    const controller = new AbortController();
+    const second = new ScriptedDriver(sitePages());
+    const openPage = second.openPage.bind(second);
+    second.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, second, { now, signal: controller.signal }));
+    expect(interrupted).toMatchObject({ runId: "2026-09-27_1102-2", outcome: "interrupted" });
+    expect(interrupted.runDir).toBe(path.join(outDir(dir), "2026-09-27", "1102-2"));
+
+    const third = await runAudit(options(dir, new ScriptedDriver(sitePages()), { now }));
+    expect(third).toMatchObject({ runId: "2026-09-27_1102-2", outcome: "completed" });
+  });
+
+  it("keeps a run that passes midnight in the folder of the day it started", async () => {
+    const dir = await setup();
+    let calls = 0;
+    const now = () => (calls++ === 0 ? new Date(2026, 8, 27, 23, 59) : new Date(2026, 8, 28, 0, 1));
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages()), { now }));
+    expect(result).toMatchObject({ runId: "2026-09-27_2359", outcome: "completed" });
+    expect(result.runDir).toBe(path.join(outDir(dir), "2026-09-27", "2359"));
+    const run = await readRunJson(outDir(dir), result.runId);
+    for (const page of run.pages) {
+      for (const file of Object.keys(page.files)) {
+        expect(existsSync(path.join(result.runDir, "pages", page.slug, file))).toBe(true);
+      }
+    }
+  });
+
+  it("finds the previous run of the same site for --compare previous", async () => {
+    const dir = await setup();
+    const first = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { now: () => new Date(2026, 8, 26, 9, 0) }),
+    );
+    const second = await runAudit({
+      ...options(dir, new ScriptedDriver(sitePages()), { now: () => new Date(2026, 8, 27, 9, 0) }),
+      compare: "previous",
+    });
+    expect(second.run.compareTo).toBe(first.runId);
+  });
+});
+
 describe("nothing to transcribe", () => {
   it("stops with a usage error, before creating a run or starting the driver", async () => {
     const dir = await setup(["https://www.example.com/elsewhere", "/files/report.pdf"]);
@@ -211,8 +373,9 @@ describe("nothing to transcribe", () => {
       runAudit({ ...options(dir, driver), pages: "pages.json", include: ["nwes/*"] }),
     ).rejects.toThrow(/No pages to transcribe/);
     expect(driver.starts).toBe(0);
-    expect(existsSync(path.join(outDir(dir), "runs"))).toBe(false);
     expect(existsSync(path.join(outDir(dir), "latest.txt"))).toBe(false);
+    // Left empty, so review, manual add, and report don't take it for a site (chooseSiteDir).
+    expect(await readdir(outDir(dir))).toEqual([]);
   });
 });
 
@@ -250,6 +413,45 @@ describe("failures", () => {
     expect(page).toMatchObject({ status: "done", attempts: 2 });
     expect(page?.errors[0]).toMatch(/Attempt 1 failed/);
     expect(driver.starts).toBe(2);
+  });
+
+  it("keeps the first attempt at a page that timed out, and reports only the final one", async () => {
+    const dir = await setup(["/about"]);
+    let hung = false;
+    const driver = new ScriptedDriver(sitePages(), {
+      hang: (command) => {
+        if (command === "nextLine" && !hung) {
+          hung = true;
+          return true;
+        }
+        return false;
+      },
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.exitCode).toBe(0);
+    const out = outDir(dir);
+    const run = await readRunJson(out, result.runId);
+    const page = run.pages[0]!;
+    expect(page).toMatchObject({ status: "done", attempts: 2 });
+
+    // The timed-out first attempt's partial transcript is kept, not deleted.
+    const kept = path.join(attemptsDir(out, result.runId, page.slug), "1");
+    expect(await readdir(kept)).toEqual(["read.json", "read.txt"]);
+
+    // The page record only names files from the final attempt, in pages/<slug>/.
+    const runFolder = runDir(out, result.runId);
+    expect(Object.keys(page.files).sort()).toEqual([
+      "headings.json",
+      "headings.txt",
+      "read.json",
+      "read.txt",
+      "tab.json",
+      "tab.txt",
+    ]);
+    for (const [file, hash] of Object.entries(page.files)) {
+      const bytes = await readFile(path.join(runFolder, "pages", page.slug, file));
+      expect(sha256(bytes), file).toBe(hash.sha256);
+    }
   });
 
   it("records the page as failed when the retry times out too", async () => {
@@ -384,6 +586,41 @@ describe("interrupting and resuming", () => {
     );
   });
 
+  it("keeps a page's partial transcripts from before an interruption when the run resumes", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    let aboutLoads = 0;
+    first.openPage = (url) => {
+      // Interrupted as /about loads for its second pass: its read pass is already written.
+      if (url.endsWith("/about") && ++aboutLoads === 2) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    expect(interrupted.outcome).toBe("interrupted");
+    const out = outDir(dir);
+    const about = (await readRunJson(out, interrupted.runId)).pages[1]!;
+    expect(about).toMatchObject({ url: `${SITE}/about`, status: "pending" });
+    const partial = pageDir(out, interrupted.runId, about.slug);
+    expect(await readdir(partial)).toEqual(["read.json", "read.txt"]);
+    const partialRead = await readFile(path.join(partial, "read.txt"));
+
+    const resumed = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(resumed).toMatchObject({ runId: interrupted.runId, outcome: "completed" });
+    const kept = path.join(attemptsDir(out, resumed.runId, about.slug), "1");
+    expect(await readdir(kept)).toEqual(["read.json", "read.txt"]);
+    expect(await readFile(path.join(kept, "read.txt"))).toEqual(partialRead);
+    expect(await readdir(partial)).toEqual([
+      "headings.json",
+      "headings.txt",
+      "read.json",
+      "read.txt",
+      "tab.json",
+      "tab.txt",
+    ]);
+  });
+
   it("--fresh always starts a new run", async () => {
     const dir = await setup();
     const controller = new AbortController();
@@ -404,11 +641,62 @@ describe("interrupting and resuming", () => {
 });
 
 describe("completed runs are sealed", () => {
+  it("seals a run when it completes, but not while it's still interrupted", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    expect(interrupted.outcome).toBe("interrupted");
+
+    const out = outDir(dir);
+    const incomplete = await readRunJson(out, interrupted.runId);
+    expect(incomplete.status).toBe("incomplete");
+    expect(incomplete.seal).toBeUndefined();
+
+    const resumed = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(resumed).toMatchObject({ runId: interrupted.runId, outcome: "completed" });
+    const run = await readRunJson(out, resumed.runId);
+    expect(run.status).toBe("completed");
+    expect(run.seal).toBe(sealOf(run));
+  });
+
+  it("seals a run resumed with changed flag rules as it's written", async () => {
+    const dir = await setup(["/resources", "/", "/about"]);
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    expect(interrupted.outcome).toBe("interrupted");
+    const out = outDir(dir);
+    const before = await readRunJson(out, interrupted.runId);
+    expect(before.pages[0]?.flags.map((flag) => flag.rule)).toContain("generic-link-text");
+
+    // Resumed with a flag rule turned off: every page's flags are recomputed as it completes.
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        config: config({ flags: { genericLinkText: { enabled: false } } }),
+      }),
+    );
+    expect(resumed).toMatchObject({ runId: interrupted.runId, outcome: "completed" });
+    const run = await readRunJson(out, resumed.runId);
+    expect(run.pages[0]?.flags.map((flag) => flag.rule)).not.toContain("generic-link-text");
+    expect(run.seal).toBe(sealOf(run));
+  });
+
   it("never modifies a run folder after completion", async () => {
     const dir = await setup();
     const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
     const out = outDir(dir);
-    const folder = path.join(out, "runs", result.runId);
+    const folder = runDir(out, result.runId);
     const before = await snapshotFolder(folder);
 
     const quiet = createMemoryLogger();
@@ -416,6 +704,7 @@ describe("completed runs are sealed", () => {
       page: "/about",
       status: "reviewed",
       cwd: dir,
+      env: {},
       config: config(),
       logger: quiet,
     });
@@ -446,15 +735,7 @@ describe("--compare", () => {
     expect(run.compareTo).toBe(first.runId);
 
     const slug = run.pages.find((p) => p.url.endsWith("/about"))!.slug;
-    const inRun = path.join(
-      out,
-      "runs",
-      second.runId,
-      "compare",
-      first.runId,
-      slug,
-      "read.diff.txt",
-    );
+    const inRun = path.join(runCompareDir(out, second.runId, first.runId), slug, "read.diff.txt");
     const live = path.join(
       out,
       "compare",
@@ -470,12 +751,40 @@ describe("--compare", () => {
     }
   });
 
+  it("leaves a home that verify finds nothing wrong with", async () => {
+    const dir = await setup();
+    const first = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const changed = sitePages({
+      about: {
+        lines: ["heading, level 1, About us", "We are a changed example.", "© 2026 Example Agency"],
+      },
+    });
+    const second = await runAudit({
+      ...options(dir, new ScriptedDriver(changed)),
+      compare: "previous",
+    });
+    expect(second.run.compareTo).toBe(first.runId);
+    // Diffs in the run's own folder and in the site's compare/.
+    expect(await readdir(path.join(second.runDir, "compare"))).toEqual([first.runId]);
+    expect(await readdir(path.join(second.siteDir, "compare"))).toEqual([
+      `${first.runId}__${second.runId}`,
+    ]);
+
+    const logger = createMemoryLogger();
+    const result = await verifyHome({ home: path.join(dir, "transcripts"), logger });
+    expect(logger.entries.map((entry) => entry.message)).toEqual([
+      "example.illinois.gov: 2 runs (0 incomplete), 0 manual sessions, 0 reviews checked: everything matches.",
+    ]);
+    expect(result.problems).toBe(0);
+  });
+
   it("rejects --compare previous before doing any work when there is no earlier run", async () => {
     const dir = await setup();
     const driver = new ScriptedDriver(sitePages());
     await expect(runAudit({ ...options(dir, driver), compare: "previous" })).rejects.toThrow();
     expect(driver.starts).toBe(0);
-    expect(existsSync(path.join(outDir(dir), "runs"))).toBe(false);
+    // No run was created before the missing base was reported.
+    expect(await readdir(outDir(dir))).toEqual([]);
   });
 });
 
@@ -488,7 +797,7 @@ describe("replay", () => {
 
     const replayed = await runAudit({
       ...options(dir, undefined),
-      replayFrom: path.join("transcripts", "runs", recorded.runId),
+      replayFrom: runDir(path.join("transcripts", siteFolder(SITE)), recorded.runId),
     });
     expect(replayed.exitCode).toBe(0);
     const run = await readRunJson(out, replayed.runId);
@@ -505,12 +814,9 @@ describe("replay", () => {
         );
       }
     }
-    const txt = await readFile(
-      path.join(out, "runs", replayed.runId, "pages", "home", "read.txt"),
-      "utf8",
-    );
+    const txt = await readFile(path.join(pageDir(out, replayed.runId, "home"), "read.txt"), "utf8");
     expect(txt.split("\n")[1]).toMatch(/^# REPLAYED from .*: not a live NVDA session$/);
-    const report = await readFile(path.join(out, "runs", replayed.runId, "report.html"), "utf8");
+    const report = await readFile(runReportPath(out, replayed.runId), "utf8");
     expect(report.toLowerCase()).toContain("not a live nvda session");
   });
 });

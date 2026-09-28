@@ -75,27 +75,34 @@ async function main(): Promise<number> {
       `NVDA speaks and browser windows come and go for about ${from ? "a minute" : "5 minutes"}. Don't use the keyboard or mouse until this finishes.`,
     );
     let runDir: string;
+    let runId: string;
     if (from) {
       runDir = path.resolve(from);
+      // No RunAuditResult here, so rebuild the id from the dated folder: <site>/<date>/<rest>/.
+      runId = `${path.basename(path.dirname(runDir))}_${path.basename(runDir)}`;
     } else {
       const started = Date.now();
       const result = await runAudit({
         site: SITE,
         sitemap: `${SITE}/sitemap.xml`,
         runName: "real-nvda",
+        // In the temporary folder even when VOICECAP_TRANSCRIPTS names a real home.
+        out: path.join(work, "transcripts"),
         cwd: work,
         config: { config, file: null, sha256: "default" },
         logger,
         signal: controller.signal,
       });
-      runDir = path.join(work, "transcripts", "runs", result.runId);
+      runDir = result.runDir;
+      runId = result.runId;
       if (controller.signal.aborted) return 130;
       if (result.exitCode !== 0) {
         outcome.failures.push(`the run ended with exit code ${result.exitCode}`);
       }
       outcome.notes.push(`Run ${result.runId}: ${Math.round((Date.now() - started) / 1000)} s`);
     }
-    const run = await readRunJson(path.dirname(path.dirname(runDir)), path.basename(runDir));
+    // The site folder is always two levels above the run folder (<site>/<date>/<rest>/).
+    const run = await readRunJson(path.dirname(path.dirname(runDir)), runId);
     await checkRun(run, runDir, outcome);
 
     const home = await transcript(run, runDir, `${SITE}/`, "read");

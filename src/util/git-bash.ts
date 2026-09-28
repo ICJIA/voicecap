@@ -19,7 +19,7 @@ export function assertNotRewritten(option: string, value: string): void {
     [
       `${option} "${value}" looks like a Windows path, not a URL.`,
       cause,
-      "To fix it, use a full URL (https://example.illinois.gov/about), leave off the leading slash in",
+      "To fix it, use a full URL (https://dvfr.illinois.gov/about/), leave off the leading slash in",
       "patterns (--include 'news/*'), or turn the rewriting off with MSYS_NO_PATHCONV=1, e.g.",
       `  MSYS_NO_PATHCONV=1 npx @icjia/voicecap ${option} /about ...`,
     ].join("\n"),

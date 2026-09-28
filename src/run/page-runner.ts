@@ -1,5 +1,3 @@
-import { rm } from "node:fs/promises";
-
 import type { PageInfo } from "../drivers/types.js";
 import type {
   EnvironmentRecord,
@@ -19,6 +17,7 @@ import { writeTranscript } from "../transcripts/write.js";
 import { errorMessage } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
+import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
 import { pageDir } from "./paths.js";
 
@@ -111,8 +110,9 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
 async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const { page, session } = ctx;
   const dir = pageDir(ctx.outDir, ctx.run.id, page.slug);
-  // A retry (or a resumed page) starts from an empty folder, so no stale file survives.
-  await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  // A retry (or a resumed page) starts from an empty folder; any earlier attempt is moved into
+  // attempts/<slug>/ rather than deleted.
+  await keepEarlierAttempt(ctx.outDir, ctx.run.id, page.slug);
 
   const pageTimeout = new AbortController();
   const signal = AbortSignal.any([ctx.signal, pageTimeout.signal]);

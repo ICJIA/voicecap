@@ -9,6 +9,7 @@ import type { EnvironmentRecord, TranscriptJson } from "../src/model.js";
 import {
   bodyLines,
   contentSha256,
+  environmentLines,
   extractBody,
   renderTranscriptTxt,
   stepLine,
@@ -143,6 +144,16 @@ describe("TXT transcripts", () => {
     };
     expect(stepLine(step, "tab")).toBe("Home, link");
     expect(stepLine({ ...step, command: "toTop" }, "headings")).toBe("[to top] Home, link");
+  });
+});
+
+describe("environmentLines", () => {
+  it("describes a --page source with describePageUrls", () => {
+    const lines = environmentLines({
+      ...environment,
+      pageSource: { kind: "urls", urls: ["https://dvfr.illinois.gov/faq/"] },
+    });
+    expect(lines).toContain("Page source: page https://dvfr.illinois.gov/faq/");
   });
 });
 

@@ -9,6 +9,7 @@ import { resolveConfig } from "../src/config/load.js";
 import { ReplayDriver } from "../src/drivers/replay.js";
 import type { RunJson } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
+import { pageDir, siteFolder } from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
 import { createMemoryLogger } from "../src/util/log.js";
 
@@ -37,6 +38,9 @@ async function fixtureRun(): Promise<RunJson> {
   return JSON.parse(await readFile(path.join(FIXTURE_RUN, "run.json"), "utf8")) as RunJson;
 }
 
+/** SITE's folder in the default home. */
+const siteDir = (cwd: string) => path.join(cwd, "transcripts", siteFolder(SITE));
+
 async function replay(source: { pages?: string; sitemap?: string }) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap-replay-"));
   const result = await runAudit({
@@ -45,11 +49,12 @@ async function replay(source: { pages?: string; sitemap?: string }) {
     ...(source.sitemap ? { sitemap: source.sitemap } : {}),
     replayFrom: FIXTURE_RUN,
     cwd,
+    env: {},
     config: { config: resolveConfig({}), file: null, sha256: "test" },
     logger: createMemoryLogger(),
     fetch: fixtureFetch,
   });
-  return { result, run: await readRunJson(path.join(cwd, "transcripts"), result.runId), cwd };
+  return { result, run: await readRunJson(siteDir(cwd), result.runId), cwd };
 }
 
 describe("replaying the fixture run", () => {
@@ -152,10 +157,7 @@ describe("replaying the fixture run", () => {
       sourceDriver: "guidepup",
     });
     const json = JSON.parse(
-      await readFile(
-        path.join(cwd, "transcripts", "runs", run.id, "pages", "home", "tab.json"),
-        "utf8",
-      ),
+      await readFile(path.join(pageDir(siteDir(cwd), run.id, "home"), "tab.json"), "utf8"),
     ) as { replayed: boolean };
     expect(json.replayed).toBe(true);
   });

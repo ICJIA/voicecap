@@ -1,6 +1,6 @@
 # Phase B handoff: picking up on Windows
 
-## Status: Phase B done (2026-09-27)
+## Status: Phase B done and published as 0.2.0 (2026-09-27)
 
 Phase B was built on Windows 11 (Git Bash, non-admin) and checked end to end with real NVDA 2026.2 (Guidepup build 0.2.1-2026.2) and Chrome 153. The rest of this file is the original handoff, kept for its background.
 
@@ -29,7 +29,6 @@ Phase B was built on Windows 11 (Git Bash, non-admin) and checked end to end wit
 - An upstream Guidepup issue about the unquoted shell spawn (spaces and `& ( , ; = ^` in the path), for the owner to file: the draft is in [`guidepup-issue-draft.md`](guidepup-issue-draft.md).
 - Guidepup's reconnect also writes to NVDA from an async `secureConnect` listener that nothing waits for. If the connection dies in the instant after it's made, that rejection is still unhandled; only the stop-speech key presses are covered.
 - A page that fails with a foreground error (someone used the computer) is recorded as failed without an immediate retry. The core retries timeouts once; retrying foreground errors the same way is a small change in `src/run/page-runner.ts`.
-- Publishing 0.2.0 (section 2 below).
 
 Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/ICJIA/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
 
@@ -104,7 +103,7 @@ Still open (smaller, deliberately left for later):
 - **Concurrent reviews.** `reviews.json` has no protection against two `review` commands at once: the last writer wins, so an entry can be lost. Add a short lock, or re-read just before the rename.
 - **Large runs.** At 2,000 pages, regenerating the live report after each `review` rewrites every compare diff, and after a flag-rule change it re-reads every transcript. Cache both, outside the sealed run folder.
 - **Ctrl+C during the sitemap fetch** isn't honored (it only takes seconds). Pass the signal into `fetch`.
-- **Stop rules exist twice.** `scripts/build-replay-fixture.ts` has its own copy of them; keep it in sync with `src/passes/`, or import from there.
+- **Stop rules exist twice:** resolved in Phase B. `scripts/build-replay-fixture.ts`, which had its own copy, was removed when the fixture became a real NVDA run.
 - **Same-name buttons.** In the tab pass, distinct buttons with the same name and no link target still look like repeats to the safety net.
 - **Worth deciding:**
   - stop-rule settings (`repeatLimit`, `read.endConfirmations`) aren't in the resume hash (compare does note config differences);
@@ -116,6 +115,7 @@ Still open (smaller, deliberately left for later):
 - **Spec and plan:** `docs/build-prompt.md`, `docs/plan.md`; a requirement → test map is in section 16 of the plan.
 - **Driver interface:** `src/drivers/types.ts`. Replay driver: `src/drivers/replay.ts`. Driver selection: `src/drivers/index.ts`.
 - **Core:** stop logic is in `src/passes/`; the run engine (resume, timeouts, retries, restarts, signals) is in `src/run/`.
+- **The transcripts home** (added after this Phase B handoff was written): one folder per site under `--out`/`VOICECAP_TRANSCRIPTS`/`./transcripts`, each with dated run and manual-session folders, sealed records, and kept retry attempts, instead of the shared `runs/`/`manual/` folders above. Layout: `src/run/paths.ts`. Which site a command without `--site` uses: `src/run/site-dir.ts`. `.gitattributes`/`.gitignore`: `src/run/git-files.ts`. Kept attempts: `src/run/attempts.ts`. Integrity checking (`voicecap verify`): `src/verify.ts`. Design: `docs/superpowers/specs/2026-09-27-audit-record-design.md`.
 - **Fixture:**
   - The site is in `fixture/site/`, served by `pnpm fixture:serve` at http://127.0.0.1:4747.
   - The replay source is in `fixture/replay-src/`; `pnpm fixture:replay` regenerates `fixture/replay-run/` and `fixture/reviews.json`. The generator checks each recording against the core's stop rules.

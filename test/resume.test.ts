@@ -139,6 +139,21 @@ describe("chooseRun", () => {
     );
   });
 
+  it("explains a changed --page list with describePageUrls", () => {
+    const pageA = "https://dvfr.illinois.gov/faq/";
+    const pageB = "https://dvfr.illinois.gov/about/";
+    const before = { ...settings, source: { kind: "urls" as const, urls: [pageA] } };
+    const after = { ...settings, source: { kind: "urls" as const, urls: [pageA, pageB] } };
+    const decision = chooseRun(
+      [run("r1", "2026-09-20T09:00:00-05:00", "incomplete", before)],
+      after,
+      false,
+    );
+    expect(decision.resume).toBeNull();
+    expect(decision.message).toContain(`page ${pageA}`);
+    expect(decision.message).toContain(`2 pages (${pageA}, ${pageB})`);
+  });
+
   it("identifies sitemap runs by URL only, so a changed sitemap still resumes", () => {
     const sitemap = {
       ...settings,

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -48,11 +48,17 @@ describe("run ids", () => {
 describe("run store", () => {
   it("lists runs oldest first and skips damaged folders", async () => {
     const out = await tmp();
-    await writeRunJson(out, minimalRun("b", "2026-09-21T09:00:00-05:00"));
-    await writeRunJson(out, minimalRun("a", "2026-09-20T09:00:00-05:00"));
-    await writeFile(path.join(out, "runs", "junk.txt"), "not a run");
-    await writeFile(path.join(runDir(out, "b"), "..", "c-broken"), "");
-    expect((await listRuns(out)).map((run) => run.id)).toEqual(["a", "b"]);
+    await writeRunJson(out, minimalRun("2026-09-21_0900", "2026-09-21T09:00:00-05:00"));
+    await writeRunJson(out, minimalRun("2026-09-20_0900", "2026-09-20T09:00:00-05:00"));
+    // A folder that isn't a date (voicecap 0.2.0's top-level manual/ folder, say) is skipped.
+    await mkdir(path.join(out, "manual", "faq"), { recursive: true });
+    // Within a date folder: a file, and a folder with no run.json, are both skipped.
+    await writeFile(path.join(out, "2026-09-21", "junk.txt"), "not a run");
+    await mkdir(path.join(out, "2026-09-21", "no-run-json"));
+    expect((await listRuns(out)).map((run) => run.id)).toEqual([
+      "2026-09-20_0900",
+      "2026-09-21_0900",
+    ]);
   });
 
   it("seals a completed run: run.json can't be written again", async () => {
