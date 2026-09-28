@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-28
+
 ### Fixed
 
 - **On Windows, a path written Git Bash's way (`/c/Users/me/…`) is read as that Windows path** by `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--replay-from`, `manual add`, and `list-urls`, as `init` already did. Git Bash translates these itself, but not with `MSYS_NO_PATHCONV=1` set (the fix voicecap suggests for `--page /about`), and voicecap then read `/c/Users/me` as `C:\c\Users\me`.
@@ -106,7 +108,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ICJIA/voicecap/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ICJIA/voicecap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ICJIA/voicecap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ICJIA/voicecap/releases/tag/v0.1.0
