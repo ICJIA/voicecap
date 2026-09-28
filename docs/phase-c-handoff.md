@@ -33,6 +33,7 @@ The owner's standing rules, from Phases A and B:
 
   On 2026-09-28 a subagent on Windows sent a printed command through `cmd /c` to test its quoting. cmd split it at `&`, dropped `--replay-from`, and started a real run, which stopped the owner's own NVDA.
 - **macOS security settings stay with the owner.** Never disable System Integrity Protection, edit the TCC database, or change Privacy & Security settings without asking. Permissions granted by hand in System Settings are the expected route.
+- **Don't write that voicecap doesn't replace screen reader testing.** Its NVDA and VoiceOver runs are the screen reader testing that was asked for, and wording like "doesn't replace testing by people who use screen readers" makes the work sound unfinished. The README's three such lines came out on 2026-09-28. Say what voicecap and its reviewers do, and keep Known limitations to technical ones.
 
 ## Where things stand
 
@@ -47,12 +48,12 @@ The owner's standing rules, from Phases A and B:
   - `init`, instead of offering to run the command: "voicecap runs NVDA, which only runs on Windows. Run this command on a Windows computer." (`src/init/readiness.ts`);
   - `setup` and `doctor`: refuse, and `doctor` reports a FAIL (`src/drivers/guidepup/setup.ts`, `doctor.ts`).
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
-- **Deferred minor findings** from the audit-record and `init` work (about 60, each with a reason) are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
+- **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
 
 ## The goal
 
 - **VoiceOver on macOS as a second screen reader, chosen by platform.** The owner asked for auto-detection: the same commands use NVDA on Windows and VoiceOver on the Mac.
-- **NVDA stays the core.** In WebAIM's 2024 survey, JAWS was the main desktop screen reader for 40.5% of respondents, NVDA for 37.7%, and VoiceOver for 9.7%. VoiceOver is a second opinion: it catches different problems and covers Mac users.
+- **NVDA stays the core, and VoiceOver adds the Mac.** VoiceOver reads pages differently from NVDA, so it catches problems NVDA doesn't, and it's the screen reader Mac users have.
 - **Out of scope:** VoiceOver on the iPhone (Guidepup can't drive it), JAWS, and Orca on Linux (`@guidepup/setup` 0.28.0 mentions it; a possible later phase).
 
 ## What's already in place
