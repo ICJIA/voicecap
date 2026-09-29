@@ -8,9 +8,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
-import type { Readiness } from "../src/init/readiness.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson } from "../src/model.js";
+import type { PlatformReadiness } from "../src/readiness/model.js";
 import { manualSessionDir, runDir } from "../src/run/paths.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
@@ -27,12 +27,13 @@ function capture() {
   };
 }
 
-/** Extra CliContext fields only the init tests need; every other call leaves these at their defaults. */
+/** Extra CliContext fields only some tests need; every other call leaves these at their defaults. */
 interface CliExtra {
   stdin?: NodeJS.ReadableStream;
   interactive?: boolean;
   fetch?: typeof fetch;
-  readiness?: () => Readiness;
+  platformReadiness?: () => Promise<PlatformReadiness>;
+  platform?: NodeJS.Platform;
 }
 
 async function cli(
@@ -52,6 +53,9 @@ async function cli(
     signal: new AbortController().signal,
     interactive: false,
     ...extra,
+    // Never the real platform: a test that forgets platformReadiness fails safely on Linux's
+    // module instead of running the real Mac (or Windows) readiness on the owner's machine.
+    platform: extra.platform ?? "linux",
   });
   return { code, out: stdout.text(), err: stderr.text(), cwd: dir };
 }
@@ -61,6 +65,38 @@ function linesStream(lines: readonly string[] = []): PassThrough {
   const input = new PassThrough();
   input.end(lines.map((line) => `${line}\n`).join(""));
   return input;
+}
+
+/**
+ * `init` at a terminal: `lines` typed ahead ("" is Enter), and a real stdout stream, since
+ * readline's terminal mode needs one. Linux, unless `extra` says otherwise, as in cli().
+ */
+async function initAtTerminal(lines: readonly string[], extra: CliExtra = {}) {
+  const stdin = Object.assign(new PassThrough(), { isTTY: true });
+  let screen = "";
+  const stdout = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      screen += chunk.toString();
+      callback();
+    },
+  });
+  stdin.write(lines.map((line) => `${line}\n`).join(""));
+  try {
+    const code = await main(["init"], {
+      stdout,
+      stderr: capture().stream,
+      cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+      env: {},
+      signal: new AbortController().signal,
+      interactive: false,
+      stdin,
+      ...extra,
+      platform: extra.platform ?? "linux",
+    });
+    return { code, out: screen };
+  } finally {
+    stdin.end();
+  }
 }
 
 /** A default home with one site's folder in it, from a replay run. Returns the folder it's in. */
@@ -81,6 +117,50 @@ async function oneSiteHome(): Promise<string> {
 async function contents(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true })).sort();
 }
+
+/** A computer that isn't ready: one quick check FAILs, with its problem. */
+const NOT_READY: PlatformReadiness = {
+  screenReader: "NVDA",
+  cannotRunYet: null,
+  readyTip: null,
+  liveTestNotice: [],
+  checkingNotice: [],
+  liveTest: null,
+  machineInfo: () => Promise.resolve({ lines: [], screenReader: "NVDA", system: "Fake OS" }),
+  quickChecks: () => [
+    {
+      id: "quick",
+      run: () =>
+        Promise.resolve({
+          id: "quick",
+          status: "FAIL",
+          summary: "Quick check is broken",
+          problem: {
+            title: "Something's wrong",
+            whatsWrong: "It's broken.",
+            fix: ["Fix it."],
+            setupHelps: false,
+          },
+        }),
+    },
+  ],
+};
+
+/** A computer that's ready to run, with nothing to walk through and no live test unless overridden. */
+function readyPlatform(overrides: Partial<PlatformReadiness> = {}): PlatformReadiness {
+  return {
+    screenReader: "NVDA",
+    cannotRunYet: null,
+    readyTip: null,
+    liveTestNotice: [],
+    checkingNotice: [],
+    liveTest: null,
+    machineInfo: () => Promise.resolve({ lines: [], screenReader: "NVDA", system: "Fake OS" }),
+    quickChecks: () => [],
+    ...overrides,
+  };
+}
+const READY = readyPlatform();
 
 describe("usage errors (exit 1)", () => {
   it("prints help and the version with exit 0", async () => {
@@ -144,18 +224,65 @@ describe("usage errors (exit 1)", () => {
     expect(pattern.err).toContain("--include");
   });
 
-  // On Windows these do real work (download NVDA, start it); test/setup-doctor.test.ts covers them.
-  it.skipIf(process.platform === "win32")(
-    "setup and doctor explain that NVDA needs Windows (exit 2)",
-    async () => {
-      const setup = await cli(["setup"]);
-      expect(setup.code).toBe(2);
-      expect(setup.err).toContain("only runs on Windows");
-      const doctor = await cli(["doctor"]);
-      expect(doctor.code).toBe(2);
-      expect(doctor.out).toContain("FAIL  Windows:");
-    },
-  );
+  // setup's Mac and Windows paths download files and change VoiceOver's settings, so no CLI test
+  // goes near them: test/setup-mac.test.ts and test/setup.test.ts cover them with fakes. This one
+  // proves main.ts's wiring on every platform, with Linux and a fake platform injected, and with
+  // both setup modules replaced by ones that refuse to run, in case the platform isn't honored.
+  it("setup prints the preflight and exits 2 where there's no screen reader to set up", async () => {
+    const refuse = () => {
+      throw new Error("A test must never run the real setup.");
+    };
+    vi.resetModules();
+    vi.doMock("../src/drivers/voiceover/setup-mac.js", () => ({
+      realMacSetupDeps: refuse,
+      runMacSetup: refuse,
+    }));
+    vi.doMock("../src/drivers/guidepup/setup.js", () => ({
+      realSetupDeps: refuse,
+      runSetup: refuse,
+    }));
+    try {
+      const { main: mainWithoutSetup } = await import("../src/cli/main.js");
+      const stdout = capture();
+      const stderr = capture();
+      const code = await mainWithoutSetup(["setup"], {
+        stdout: stdout.stream,
+        stderr: stderr.stream,
+        cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        stdin: linesStream(),
+        platform: "linux",
+        platformReadiness: () => Promise.resolve(NOT_READY),
+      });
+
+      expect(stderr.text()).toBe("");
+      expect(code).toBe(2);
+      expect(stdout.text()).toMatch(/^voicecap preflight, \d{4}-\d{2}-\d{2} \d{2}:\d{2}\n/);
+      expect(stdout.text()).toContain("  FAIL  Quick check is broken");
+      expect(stdout.text()).toContain("Not ready: 1 problem.\n\n1. Something's wrong");
+      expect(stdout.text()).not.toContain("Checking this Mac");
+    } finally {
+      vi.doUnmock("../src/drivers/voiceover/setup-mac.js");
+      vi.doUnmock("../src/drivers/guidepup/setup.js");
+      vi.resetModules();
+    }
+  });
+
+  // doctor's own platform checks (Windows, Mac, Linux) are covered by test/doctor.test.ts and
+  // test/readiness-*.test.ts; here a fake PlatformReadiness only proves main.ts's wiring, so this
+  // runs on every platform, without going near the real Mac or Windows readiness code.
+  it("doctor prints the FAIL line and exits 2 when the platform isn't ready", async () => {
+    const doctor = await cli(
+      ["doctor"],
+      undefined,
+      {},
+      { platformReadiness: () => Promise.resolve(NOT_READY) },
+    );
+    expect(doctor.code).toBe(2);
+    expect(doctor.out).toContain("FAIL  Quick check is broken");
+  });
 
   it("exits 2 when the default driver can't run here", async () => {
     if (process.platform === "win32") return;
@@ -534,6 +661,7 @@ describe("voicecap init", () => {
       {
         stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
         fetch: realSitesFetch(),
+        platformReadiness: () => Promise.resolve(READY),
       },
     );
     expect(run.code).toBe(0);
@@ -543,7 +671,12 @@ describe("voicecap init", () => {
   });
 
   it("starts init with no arguments in a terminal", async () => {
-    const run = await cli([], undefined, {}, { interactive: true, stdin: linesStream() });
+    const run = await cli(
+      [],
+      undefined,
+      {},
+      { interactive: true, stdin: linesStream(), platformReadiness: () => Promise.resolve(READY) },
+    );
     expect(run.out).toContain("Website:");
   });
 
@@ -562,12 +695,225 @@ describe("voicecap init", () => {
       {
         stdin: linesStream(["dvfr.illinois.gov"]),
         fetch: realSitesFetch(),
+        platformReadiness: () => Promise.resolve(READY),
       },
     );
     expect(run.code).toBe(1);
     // Proves the wizard actually ran (asked and got past the website) rather than failing some
     // other way, e.g. "init" not being a recognized command.
     expect(run.out).toContain("Website:");
+  });
+
+  it("says the platform's checking notice before its checks begin", async () => {
+    const stdout = capture();
+    let shown: string | null = null;
+    const platform: PlatformReadiness = {
+      ...NOT_READY,
+      checkingNotice: ["Checking this computer. Click Allow if you're asked."],
+      // The preflight's first call.
+      machineInfo: () => {
+        shown = stdout.text();
+        return NOT_READY.machineInfo();
+      },
+    };
+    const code = await main(["init"], {
+      stdout: stdout.stream,
+      stderr: capture().stream,
+      cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+      env: {},
+      signal: new AbortController().signal,
+      interactive: false,
+      stdin: linesStream(),
+      // A direct main() call, so it skips cli()'s safe default: never the real Mac readiness.
+      platform: "linux",
+      platformReadiness: () => Promise.resolve(platform),
+    });
+    expect(code).toBe(2);
+    expect(shown).toBe("Checking this computer. Click Allow if you're asked.\n\n");
+    expect(stdout.text()).toMatch(
+      /^Checking this computer\. Click Allow if you're asked\.\n\nvoicecap preflight, /,
+    );
+  });
+
+  // A terminal prompter puts the terminal in raw mode, where Ctrl+C reaches only the prompter, and
+  // the checks don't listen to it. Made at the first question, it leaves Ctrl+C to stop the checks.
+  it("makes no prompter until its first question, leaving the terminal as it is during the checks", async () => {
+    const rawModes: boolean[] = [];
+    const stdin = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode(mode: boolean) {
+        rawModes.push(mode);
+        return this;
+      },
+    });
+    // A real stream, since readline's terminal mode needs one.
+    const stdout = new Writable({
+      write(_chunk: Buffer, _encoding, callback) {
+        callback();
+      },
+    });
+    let duringChecks: boolean[] | null = null;
+    const platform = readyPlatform({
+      quickChecks: () => [
+        {
+          id: "quick",
+          run: () => {
+            duringChecks = [...rawModes];
+            return Promise.resolve({ id: "quick", status: "OK", summary: "Quick is fine" });
+          },
+        },
+      ],
+    });
+    // Ctrl+C, typed ahead: it reaches the first question.
+    stdin.write("\u0003");
+    const code = await main(["init"], {
+      stdout,
+      stderr: capture().stream,
+      cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+      env: {},
+      signal: new AbortController().signal,
+      interactive: false,
+      stdin,
+      // A direct main() call, so it skips cli()'s safe default: never the real Mac readiness.
+      platform: "linux",
+      platformReadiness: () => Promise.resolve(platform),
+    });
+    expect(duringChecks).toEqual([]);
+    // The first question put the terminal in raw mode, and closing the prompter took it out.
+    expect(rawModes).toEqual([true, false]);
+    expect(code).toBe(130);
+    stdin.end();
+  });
+
+  it("prints the preflight and stops before any question when the computer isn't ready", async () => {
+    const run = await cli(
+      ["init"],
+      undefined,
+      {},
+      { stdin: linesStream(), platformReadiness: () => Promise.resolve(NOT_READY) },
+    );
+    expect(run.code).toBe(2);
+    expect(run.out).toContain("Not ready: 1 problem.");
+    expect(run.out).not.toContain("Website:");
+  });
+
+  it("runs the wizard as today once the live test is declined", async () => {
+    const platform = readyPlatform({
+      liveTestNotice: ["This starts NVDA and opens a page in a browser, briefly."],
+      liveTest: () =>
+        Promise.resolve([{ id: "live", status: "OK", summary: "NVDA spoke as expected" }]),
+    });
+    const run = await initAtTerminal(["n", "dvfr.illinois.gov", "", "", "", ""], {
+      fetch: realSitesFetch(),
+      platformReadiness: () => Promise.resolve(platform),
+    });
+    expect(run.code).toBe(0);
+    expect(run.out).toContain("Test NVDA now?");
+    expect(run.out).toContain(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml",
+    );
+    // The order the brief pins down: the preflight, then the live-test offer, then the wizard.
+    const verdict = run.out.indexOf("Ready: this computer can run NVDA for voicecap.");
+    const offer = run.out.indexOf("Test NVDA now?");
+    const website = run.out.indexOf("Website:");
+    expect(verdict).toBeGreaterThanOrEqual(0);
+    expect(verdict).toBeLessThan(offer);
+    expect(offer).toBeLessThan(website);
+  });
+
+  it("exits 2 with the problem when the live test is accepted and fails", async () => {
+    const platform = readyPlatform({
+      liveTestNotice: ["This starts NVDA and opens a page in a browser, briefly."],
+      liveTest: () =>
+        Promise.resolve([
+          {
+            id: "live",
+            status: "FAIL",
+            summary: "NVDA never spoke",
+            problem: {
+              title: "NVDA didn't speak",
+              whatsWrong: "The live test got no speech from NVDA.",
+              fix: ["Try again."],
+              setupHelps: false,
+            },
+          },
+        ]),
+    });
+    const run = await initAtTerminal(["y"], {
+      platformReadiness: () => Promise.resolve(platform),
+    });
+    expect(run.code).toBe(2);
+    expect(run.out).toContain("Test NVDA now?");
+    expect(run.out).toContain("Not ready: 1 problem.");
+    expect(run.out).toContain("NVDA didn't speak");
+    expect(run.out).not.toContain("Website:");
+  });
+
+  // As setup does: piped answers are the wizard's, so offering the test would shift them by one.
+  it("doesn't offer the live test when its input isn't a terminal", async () => {
+    let liveTests = 0;
+    const platform = readyPlatform({
+      liveTestNotice: ["This starts NVDA and opens a page in a browser, briefly."],
+      liveTest: () => {
+        liveTests++;
+        return Promise.resolve([]);
+      },
+    });
+    const run = await cli(
+      ["init"],
+      undefined,
+      {},
+      {
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        fetch: realSitesFetch(),
+        platformReadiness: () => Promise.resolve(platform),
+      },
+    );
+    expect(run.code).toBe(0);
+    expect(run.out).not.toContain("This starts NVDA");
+    expect(run.out).not.toContain("Test NVDA now?");
+    expect(liveTests).toBe(0);
+    expect(run.out).toContain(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml",
+    );
+  });
+
+  it("shows cannotRunYet's reason instead of offering to run", async () => {
+    // The real reason the Mac's readiness module gives (readiness-mac.ts) until its driver exists.
+    const reasonText =
+      "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
+    const platform = readyPlatform({ screenReader: "VoiceOver", cannotRunYet: reasonText });
+    const run = await cli(
+      ["init"],
+      undefined,
+      {},
+      {
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        fetch: realSitesFetch(),
+        platformReadiness: () => Promise.resolve(platform),
+      },
+    );
+    expect(run.code).toBe(0);
+    const command = run.out.indexOf("Your command:");
+    const reason = run.out.indexOf(reasonText);
+    expect(command).toBeGreaterThanOrEqual(0);
+    expect(reason).toBeGreaterThan(command);
+    expect(run.out).not.toContain("Run it now?");
+  });
+
+  it("says the ready screen reader will speak and take over the keyboard", async () => {
+    const run = await cli(
+      ["init"],
+      undefined,
+      {},
+      {
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        fetch: realSitesFetch(),
+        platformReadiness: () => Promise.resolve(READY),
+      },
+    );
+    expect(run.code).toBe(0);
+    expect(run.out).toContain("NVDA will speak and take over the keyboard until the run ends.");
   });
 
   it("runs the command when told to", async () => {
@@ -597,7 +943,7 @@ describe("voicecap init", () => {
       {
         stdin: linesStream([SITE, "", "", "", "y"]),
         fetch: fetchHomeOnly,
-        readiness: () => ({ canRun: true }),
+        platformReadiness: () => Promise.resolve(READY),
       },
     );
 
@@ -632,6 +978,9 @@ describe("voicecap init", () => {
         signal: new AbortController().signal,
         interactive: true,
         stdin: linesStream(),
+        // A direct main() call, so it skips cli()'s safe default: never the real Mac readiness.
+        platform: "linux",
+        platformReadiness: () => Promise.resolve(READY),
       });
 
       expect(asked).toBe(1);
@@ -671,6 +1020,9 @@ describe("voicecap init", () => {
       interactive: false,
       stdin,
       fetch: waitsForAbort,
+      // A direct main() call, so it skips cli()'s safe default: never the real Mac readiness.
+      platform: "linux",
+      platformReadiness: () => Promise.resolve(READY),
     });
     stdin.write("dvfr.illinois.gov\n");
     await checking;

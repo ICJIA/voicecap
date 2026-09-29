@@ -33,7 +33,7 @@ export class DriverSession {
   /** Stop and start again: after a timeout, a failed page, or every N pages. */
   async restart(reason: string, signal?: AbortSignal): Promise<void> {
     this.logger.info(`Restarting the screen reader and browser (${reason}).`);
-    await this.driver.stop().catch((error: unknown) => {
+    await this.driver.stop({ restarting: true }).catch((error: unknown) => {
       this.logger.warn(`Stopping the ${this.driver.name} driver failed: ${errorMessage(error)}`);
     });
     await this.start(signal);

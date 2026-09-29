@@ -202,6 +202,12 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     ).rejects.toThrow(EnvironmentError);
   });
 
+  // The Mac live test brings the browser to the front through System Events, by process id.
+  it("knows its browser's process id", async () => {
+    const session = await launch();
+    expect(session.pid).toEqual(expect.any(Number));
+  });
+
   it("uses a fresh profile, deleted when the browser closes", async () => {
     const session = await launch();
     expect(existsSync(session.profileDir)).toBe(true);

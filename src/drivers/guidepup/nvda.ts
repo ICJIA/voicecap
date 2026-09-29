@@ -33,7 +33,7 @@ type Guidepup = typeof GuidepupModule;
 type KeyCommand = Parameters<Guidepup["nvda"]["perform"]>[0];
 
 /** The events Guidepup's teardown handlers listen for. */
-const GUIDEPUP_EVENTS = ["SIGINT", "SIGTERM", "SIGQUIT", "SIGHUP", "beforeExit"];
+export const GUIDEPUP_EVENTS = ["SIGINT", "SIGTERM", "SIGQUIT", "SIGHUP", "beforeExit"];
 /** NVDA's Remote Access port, where Guidepup connects (NVDA_PORT in lib/windows/NVDA/constants.js). */
 const NVDA_PORT = 6837;
 /** Less time than any command Guidepup captures takes (see checkCaptured). */

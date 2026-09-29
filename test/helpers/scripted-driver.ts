@@ -51,6 +51,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   readonly name = "scripted";
   starts = 0;
   stops = 0;
+  /** The options each stop() was called with, in order. */
+  readonly stopOptions: ({ restarting?: boolean } | undefined)[] = [];
   readonly opened: string[] = [];
   readonly calls: Command[] = [];
 
@@ -75,8 +77,9 @@ export class ScriptedDriver implements ScreenReaderDriver {
     return Promise.resolve();
   }
 
-  stop(): Promise<void> {
+  stop(options?: { restarting?: boolean }): Promise<void> {
     this.stops++;
+    this.stopOptions.push(options);
     return Promise.resolve();
   }
 

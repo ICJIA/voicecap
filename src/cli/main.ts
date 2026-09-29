@@ -1,16 +1,17 @@
-import { existsSync } from "node:fs";
-import os from "node:os";
-
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { loadConfig } from "../config/load.js";
-import { createPrompter, InputEndedError } from "../init/prompt.js";
-import { checkReadiness, type Readiness } from "../init/readiness.js";
+import type { VoicecapConfig } from "../config/schema.js";
+import { createPrompter, deferPrompter, InputEndedError, type Prompter } from "../init/prompt.js";
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
 import { PASS_NAMES, REVIEW_STATUSES, type PassName, type ReviewStatus } from "../model.js";
 import { InterruptedError } from "../passes/steps.js";
+import { offerLiveTest } from "../readiness/guided.js";
+import type { PlatformReadiness } from "../readiness/model.js";
+import { runPreflight } from "../readiness/preflight.js";
+import { renderCheckingNotice, renderPreflight } from "../readiness/render.js";
 import { addReview } from "../reviews/review.js";
 import { runAudit } from "../run/audit.js";
 import { regenerateLiveReport } from "../run/live-report.js";
@@ -36,8 +37,13 @@ export interface CliContext {
   stdin: NodeJS.ReadableStream;
   /** Whether no arguments at all should start init. Default: stdin and stdout are both a terminal. */
   interactive: boolean;
-  /** Tests: replaces init's "can this computer run the composed command" check. */
-  readiness?: () => Readiness;
+  /**
+   * Tests: replaces the platform readiness check of doctor, init, and setup's preflight and live
+   * test.
+   */
+  platformReadiness?: () => Promise<PlatformReadiness>;
+  /** Which operating system's init, setup, and doctor to run; tests set it. Default: process.platform. */
+  platform: NodeJS.Platform;
 }
 
 interface RunOptions {
@@ -68,6 +74,7 @@ export async function main(argv: string[], context: Partial<CliContext> = {}): P
     env: process.env,
     stdin: process.stdin,
     interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+    platform: process.platform,
     ...context,
   };
   const logger = createConsoleLogger(ctx.stdout, ctx.stderr);
@@ -159,27 +166,55 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .command("init")
     .description("answer a few questions and compose a run command, with the option to run it")
     .action(async () => {
-      const prompter = createPrompter({
-        input: ctx.stdin,
-        output: ctx.stdout,
-        terminal: isTerminalStream(ctx.stdin),
-      });
+      // Made only at the first question: a terminal prompter keeps Ctrl+C to itself, and the
+      // checks don't listen to it. Until then, Ctrl+C stops init and its checks at once.
+      const prompter = deferPrompter(() =>
+        createPrompter({
+          input: ctx.stdin,
+          output: ctx.stdout,
+          terminal: isTerminalStream(ctx.stdin),
+        }),
+      );
       try {
+        const platform = ctx.platformReadiness
+          ? await ctx.platformReadiness()
+          : await loadPlatform(ctx, logger, "npx @icjia/voicecap init");
+        const notice = renderCheckingNotice(platform.checkingNotice);
+        if (notice) logger.info(notice);
+        const preflight = await runPreflight(platform);
+        logger.info(
+          renderPreflight(preflight, {
+            kind: "preflight",
+            when: new Date(),
+            screenReader: platform.screenReader,
+            tip: platform.readyTip,
+            offerSetup: true,
+          }),
+        );
+        if (!preflight.ready) {
+          prompter.close();
+          setExit(ExitCode.environment);
+          return;
+        }
+        // Offered only to someone at a terminal, as setup does: piped answers are the wizard's.
+        const liveTestExit = isTerminalStream(ctx.stdin)
+          ? await offerLiveTest(platform, { prompter, logger })
+          : ExitCode.ok;
+        if (liveTestExit !== ExitCode.ok) {
+          prompter.close();
+          setExit(liveTestExit);
+          return;
+        }
         const result = await runWizard({
           prompter,
           fetch: ctx.fetch ?? fetch,
           cwd: ctx.cwd,
           env: ctx.env,
           now: () => new Date(),
-          readiness:
-            ctx.readiness ??
-            (() =>
-              checkReadiness({
-                platform: process.platform,
-                env: ctx.env,
-                homedir: os.homedir(),
-                exists: existsSync,
-              })),
+          readiness: () =>
+            platform.cannotRunYet === null
+              ? { canRun: true, screenReader: platform.screenReader! }
+              : { canRun: false, reason: platform.cannotRunYet },
           signal: prompter.interrupted,
         });
         // Closing releases the terminal's raw mode before a run installs its own Ctrl+C handling.
@@ -384,31 +419,106 @@ Exit codes: 0 everything matches, 3 something recorded has changed, is missing, 
 
   program
     .command("setup")
-    .description("Windows: install the NVDA build that voicecap's pinned Guidepup expects")
+    .description("install and check what voicecap needs on this computer")
     .action(async () => {
+      if (ctx.platform !== "darwin" && ctx.platform !== "win32") {
+        setExit(await setupWithoutScreenReader(ctx, logger));
+        return;
+      }
       const { config } = await loadConfig({ cwd: ctx.cwd });
-      const { runSetup } = await import("../drivers/guidepup/setup.js");
-      await runSetup({ config, logger });
-      setExit(ExitCode.ok);
+      // Made only at the first question: until then, Ctrl+C stops setup and its downloads at once,
+      // as it always has. A terminal prompter keeps Ctrl+C to itself until its next question.
+      const prompter = isTerminalStream(ctx.stdin)
+        ? deferPrompter(() =>
+            createPrompter({ input: ctx.stdin, output: ctx.stdout, terminal: true }),
+          )
+        : null;
+      try {
+        setExit(await setupScreenReader(ctx, { config, logger, prompter }));
+      } catch (error) {
+        if (error instanceof InputEndedError) setExit(ExitCode.usage);
+        else if (error instanceof InterruptedError) setExit(ExitCode.interrupted);
+        else throw error;
+      } finally {
+        prompter?.close();
+      }
     });
 
   program
     .command("doctor")
-    .description("check the environment and print a summary to paste into a bug report")
+    .description("check this computer and print a summary to paste into a bug report")
     .action(async () => {
-      const { config } = await loadConfig({ cwd: ctx.cwd });
-      const { runDoctor } = await import("../drivers/guidepup/doctor.js");
-      // Ctrl+C stops the live check and shuts NVDA and the browser down, as in a run.
+      const { interruptMessage, runDoctor } = await import("../readiness/doctor.js");
+      const platform = ctx.platformReadiness
+        ? await ctx.platformReadiness()
+        : await loadPlatform(ctx, logger, "npx @icjia/voicecap doctor");
+      // Ctrl+C stops the live test and shuts the screen reader and the browser down, as in a run.
       const controller = new AbortController();
-      const unhook = ctx.signal ? () => {} : handleInterrupts(controller, logger);
+      const unhook = ctx.signal
+        ? () => {}
+        : handleInterrupts(controller, logger, {
+            message: interruptMessage(platform.screenReader),
+          });
       try {
-        setExit(await runDoctor({ config, logger, signal: ctx.signal ?? controller.signal }));
+        setExit(await runDoctor({ platform, logger, signal: ctx.signal ?? controller.signal }));
       } finally {
         unhook();
       }
     });
 
   return program;
+}
+
+/**
+ * setup on a Mac (the guided setup) or on Windows (the NVDA install). A test's platform readiness,
+ * when given, replaces the one behind the preflight and the live test.
+ */
+async function setupScreenReader(
+  ctx: CliContext,
+  options: { config: VoicecapConfig; logger: Logger; prompter: Prompter | null },
+): Promise<number> {
+  const platformReadiness = ctx.platformReadiness;
+  if (ctx.platform === "darwin") {
+    const { realMacSetupDeps, runMacSetup } = await import("../drivers/voiceover/setup-mac.js");
+    const deps = realMacSetupDeps(options);
+    return runMacSetup(
+      options,
+      platformReadiness ? { ...deps, platform: platformReadiness } : deps,
+    );
+  }
+  const { realSetupDeps, runSetup } = await import("../drivers/guidepup/setup.js");
+  const deps = realSetupDeps(options);
+  return runSetup(options, platformReadiness ? { ...deps, platformReadiness } : deps);
+}
+
+/** setup where voicecap has no screen reader to drive (Linux): the preflight says why. */
+async function setupWithoutScreenReader(ctx: CliContext, logger: Logger): Promise<number> {
+  const { runPreflight } = await import("../readiness/preflight.js");
+  const { finishSetup } = await import("../readiness/guided.js");
+  const platform = ctx.platformReadiness
+    ? await ctx.platformReadiness()
+    : await loadPlatform(ctx, logger, "npx @icjia/voicecap setup");
+  const notice = renderCheckingNotice(platform.checkingNotice);
+  if (notice) logger.info(notice);
+  return finishSetup(platform, await runPreflight(platform), { logger, prompter: null });
+}
+
+/** The readiness module for ctx.platform, with the project's config. */
+async function loadPlatform(
+  ctx: CliContext,
+  logger: Logger,
+  again: string,
+): Promise<PlatformReadiness> {
+  const { config } = await loadConfig({ cwd: ctx.cwd });
+  const { loadPlatformReadiness } = await import("../drivers/readiness.js");
+  return loadPlatformReadiness({
+    platform: ctx.platform,
+    config,
+    logger,
+    env: ctx.env,
+    cwd: ctx.cwd,
+    again,
+  });
 }
 
 async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger): Promise<number> {

@@ -10,6 +10,7 @@ import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import type { UserConfig } from "../src/config/schema.js";
 import { ForegroundError } from "../src/drivers/types.js";
 import type { RunJson } from "../src/model.js";
+import type { Check, CheckRunner, PlatformReadiness, Problem } from "../src/readiness/model.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
@@ -22,6 +23,7 @@ import {
   siteFolder,
 } from "../src/run/paths.js";
 import { readRunJson, writeRunJson } from "../src/run/store.js";
+import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
@@ -532,6 +534,8 @@ describe("failures", () => {
     const driver = new ScriptedDriver(sitePages());
     await runAudit({ ...options(dir, driver), config: config({ restartEvery: 1 }) });
     expect(driver.starts).toBe(3);
+    // Only the final stop gives back what the run took, such as the person's own NVDA.
+    expect(driver.stopOptions).toEqual([{ restarting: true }, { restarting: true }, undefined]);
   });
 });
 
@@ -820,5 +824,94 @@ describe("replay", () => {
     expect(txt.split("\n")[1]).toMatch(/^# REPLAYED from .*: not a live NVDA session$/);
     const report = await readFile(runReportPath(out, replayed.runId), "utf8");
     expect(report.toLowerCase()).toContain("not a live nvda session");
+  });
+});
+
+describe("readiness checks before a real run", () => {
+  const problem: Problem = {
+    title: "NVDA isn't installed",
+    whatsWrong: "voicecap couldn't find NVDA on this computer.",
+    fix: ["Install NVDA from https://nvaccess.org."],
+    setupHelps: true,
+  };
+
+  function fakeRunner(id: string, check: Check): CheckRunner {
+    return { id, run: () => Promise.resolve(check) };
+  }
+
+  /** A platform module whose quick checks are exactly `checks`, naming NVDA on Windows. */
+  function fakeReadiness(checks: Check[]): () => Promise<PlatformReadiness> {
+    return () =>
+      Promise.resolve({
+        screenReader: "NVDA",
+        cannotRunYet: null,
+        readyTip: null,
+        liveTestNotice: [],
+        checkingNotice: [],
+        liveTest: null,
+        machineInfo: () =>
+          Promise.resolve({
+            lines: [],
+            screenReader: "NVDA 2026.2",
+            system: "Windows 11 Pro 24H2",
+          }),
+        quickChecks: () => checks.map((check) => fakeRunner(check.id, check)),
+      });
+  }
+
+  it("rejects before touching the site folder when a check FAILs", async () => {
+    const dir = await setup();
+    const driver = new ScriptedDriver(sitePages());
+    const readiness = fakeReadiness([
+      { id: "nvda", status: "FAIL", summary: "NVDA isn't installed", problem },
+    ]);
+    const error: unknown = await runAudit(options(dir, driver, { readiness })).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(EnvironmentError);
+    expect((error as EnvironmentError).exitCode).toBe(2);
+    expect((error as Error).message).toMatch(/^Not ready: 1 problem\./);
+    expect(driver.starts).toBe(0);
+    expect(existsSync(outDir(dir))).toBe(false);
+  });
+
+  it("logs the pass summary and WARN lines, then runs normally, when checks are ready", async () => {
+    const dir = await setup();
+    const logger = createMemoryLogger();
+    const driver = new ScriptedDriver(sitePages());
+    const readiness = fakeReadiness([
+      { id: "log-level", status: "WARN", summary: "NVDA's log level is Debug" },
+    ]);
+    const result = await runAudit({ ...options(dir, driver, { readiness }), logger });
+    expect(result.outcome).toBe("completed");
+    expect(logger.text()).toContain(
+      "Checks passed: NVDA 2026.2 on Windows 11 Pro 24H2\n  WARN  NVDA's log level is Debug",
+    );
+  });
+
+  it("never checks a replay run, even when readiness is given", async () => {
+    const dir = await setup();
+    const recorded = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    let calls = 0;
+    const readiness = () => {
+      calls++;
+      return fakeReadiness([])();
+    };
+    const replayed = await runAudit({
+      ...options(dir, undefined),
+      replayFrom: runDir(path.join("transcripts", siteFolder(SITE)), recorded.runId),
+      readiness,
+    });
+    expect(replayed.exitCode).toBe(0);
+    expect(calls).toBe(0);
+  });
+
+  it("runs no checks when a driver is given directly and no readiness is set", async () => {
+    const dir = await setup();
+    const logger = createMemoryLogger();
+    const driver = new ScriptedDriver(sitePages());
+    const result = await runAudit({ ...options(dir, driver), logger });
+    expect(result.outcome).toBe("completed");
+    expect(logger.text()).not.toMatch(/Checks passed:|Not ready:/);
   });
 });

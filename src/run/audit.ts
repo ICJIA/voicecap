@@ -4,7 +4,8 @@ import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
-import { createDriver, selectDriver } from "../drivers/index.js";
+import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
+import { loadPlatformReadiness } from "../drivers/readiness.js";
 import type { ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
 import {
@@ -21,6 +22,9 @@ import { pageSourceFor, resolvePages } from "../pages/resolve.js";
 import { displayPath, parseSiteUrl } from "../pages/url.js";
 import type { PassSettings } from "../passes/index.js";
 import { InterruptedError, throwIfAborted } from "../passes/steps.js";
+import type { PlatformReadiness } from "../readiness/model.js";
+import { runPreflight } from "../readiness/preflight.js";
+import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { EnvironmentError, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
@@ -78,6 +82,13 @@ export interface RunAuditOptions {
   clock?: () => number;
   /** Use this driver instead of the one the config selects (tests, custom drivers). */
   driver?: ScreenReaderDriver;
+  /**
+   * Replaces the readiness check before a real run (tests). The check never runs for a replay
+   * run, whether or not this is given.
+   */
+  readiness?: () => Promise<PlatformReadiness>;
+  /** Which platform's readiness check a real run uses. Default: process.platform. Tests only. */
+  platform?: NodeJS.Platform;
 }
 
 export interface RunAuditResult {
@@ -138,6 +149,9 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     nvdaSettings: config.nvdaSettings,
     browser: config.browser,
   };
+  // Quick checks before anything real happens: not ready throws before any folder or lock is
+  // touched; ready logs a one-line summary and any warnings, then the run proceeds as usual.
+  await checkReadiness({ selection, config, options, logger, cwd });
   // Creating the driver first means a wrong platform fails before any folder is touched.
   const driver = options.driver ?? (await createDriver(selection, { config, logger }));
 
@@ -534,6 +548,45 @@ function checkCount(flag: string, value: number | null | undefined): number | nu
     throw new UsageError(`${flag} must be a whole number of at least 1 (got ${value}).`);
   }
   return value;
+}
+
+/**
+ * Quick checks (about 2 seconds) before a real run touches anything. Not ready: throws
+ * EnvironmentError with the "Not ready" block, before the site folder, the run lock, or NVDA are
+ * touched. Ready: logs the one-line pass summary and any WARN lines, then the run proceeds as
+ * usual. Never runs for a replay run. Otherwise runs when a test supplies `options.readiness`, or
+ * the run selected guidepup and is really on Windows, with no test driver standing in for it.
+ */
+async function checkReadiness(args: {
+  selection: DriverSelection;
+  config: VoicecapConfig;
+  options: RunAuditOptions;
+  logger: Logger;
+  cwd: string;
+}): Promise<void> {
+  const { selection, config, options, logger, cwd } = args;
+  if (selection.name === "replay") return;
+  const platform = options.platform ?? process.platform;
+  const runsChecks =
+    options.readiness !== undefined ||
+    (!options.driver && selection.name === "guidepup" && platform === "win32");
+  if (!runsChecks) return;
+
+  const readiness = options.readiness
+    ? await options.readiness()
+    : await loadPlatformReadiness({
+        platform,
+        config,
+        logger,
+        env: options.env ?? process.env,
+        cwd,
+        again: "the same command",
+      });
+  const result = await runPreflight(readiness);
+  if (!result.ready) {
+    throw new EnvironmentError(renderProblems(result.checks, { offerSetup: true }));
+  }
+  logger.info(renderRunSummary(result));
 }
 
 /** voicecap 0.2.0's layout, at the home's top: neither read nor moved by later versions. */

@@ -189,3 +189,26 @@ export function createPrompter(io: {
 
   return { ask, choose, confirm, say, close, interrupted: interruptedController.signal };
 }
+
+/**
+ * A Prompter that makes the real one with `create` only when first used: a question, a line said,
+ * or `interrupted` read. A terminal prompter puts the terminal in raw mode, where Ctrl+C reaches
+ * only the prompter: it aborts `interrupted` and fails the next question, while whatever is
+ * running (a download, say) carries on. Until the first use, the terminal is left as it was, so
+ * Ctrl+C during setup's downloads stops them, and setup, before it changes anything. `close()`
+ * before the first use does nothing.
+ */
+export function deferPrompter(create: () => Prompter): Prompter {
+  let prompter: Prompter | null = null;
+  const real = (): Prompter => (prompter ??= create());
+  return {
+    ask: (question, options) => real().ask(question, options),
+    choose: (question, choices, defaultIndex) => real().choose(question, choices, defaultIndex),
+    confirm: (question, defaultYes) => real().confirm(question, defaultYes),
+    say: (text) => real().say(text),
+    close: () => prompter?.close(),
+    get interrupted() {
+      return real().interrupted;
+    },
+  };
+}

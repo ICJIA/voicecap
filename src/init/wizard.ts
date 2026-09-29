@@ -9,8 +9,10 @@ import { fromGitBash } from "../util/git-bash.js";
 import { localDate } from "../util/time.js";
 import { composeArgs, formatCommand, quoteArg, type PageChoice } from "./compose.js";
 import type { Prompter } from "./prompt.js";
-import type { Readiness } from "./readiness.js";
 import { checkSite, checkSitemap, findSitemap, normalizeSiteAnswer, withScheme } from "./site.js";
+
+/** Whether this computer can run the composed command now, or the one-line reason it can't. */
+export type Readiness = { canRun: true; screenReader: string } | { canRun: false; reason: string };
 
 /** What `runWizard` works with, all injectable for tests. */
 export interface WizardDeps {
@@ -55,9 +57,9 @@ const HOME_TIP =
  * Ask `init`'s questions in order: the website, where the pages are, how many (for a sitemap or a
  * page list), and the transcripts home. Then show the command (with what to change for cmd when it
  * has a single-quoted value, and the folder to run it from when it depends on one) and, where this
- * computer can run it, warn that NVDA takes over and ask whether to run it now; elsewhere, say why
- * it can't. A wrong answer is explained and asked again. The prompter's InterruptedError and
- * InputEndedError propagate, and closing the prompter is left to the caller.
+ * computer can run it, warn that the screen reader takes over and ask whether to run it now;
+ * elsewhere, say why it can't. A wrong answer is explained and asked again. The prompter's
+ * InterruptedError and InputEndedError propagate, and closing the prompter is left to the caller.
  */
 export async function runWizard(deps: WizardDeps): Promise<WizardResult> {
   const { prompter } = deps;
@@ -85,7 +87,9 @@ export async function runWizard(deps: WizardDeps): Promise<WizardResult> {
     prompter.say(readiness.reason);
     return { args, command, run: false };
   }
-  prompter.say("NVDA will speak and take over the keyboard until the run ends.");
+  prompter.say(
+    `${readiness.screenReader} will speak and take over the keyboard until the run ends.`,
+  );
   return { args, command, run: await prompter.confirm("Run it now?", false) };
 }
 

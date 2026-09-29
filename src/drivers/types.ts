@@ -20,8 +20,13 @@ export interface ScreenReaderDriver {
 
   /** Start the screen reader and the browser. Throws EnvironmentError if they can't start. */
   start(): Promise<void>;
-  /** Stop both. Idempotent, and safe to call from a signal handler. */
-  stop(): Promise<void>;
+  /**
+   * Stop both. Idempotent, and safe to call from a signal handler.
+   *
+   * restarting: the core will start the driver again at once (a mid-run restart), so don't give
+   * anything back yet.
+   */
+  stop(options?: { restarting?: boolean }): Promise<void>;
   getEnvironmentInfo(): Promise<EnvironmentInfo>;
   /** Clean up screen reader or browser processes left behind by a crashed run. Returns what it did. */
   cleanupStale(): Promise<string[]>;

@@ -24,6 +24,9 @@
  *   browsers (directly, if a command is under way), so a command already handed to Guidepup can't
  *   send its key to the window that comes forward, and a call that was under way stops before its
  *   next command, so it can't type into the page of a restarted driver.
+ * - The person's own NVDA, which Guidepup's NVDA shuts down as it starts, is started again from
+ *   where it ran once NVDA and the browsers are down: at the final stop() (a mid-run restart keeps
+ *   it off), or as the process exits.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -50,6 +53,9 @@ import {
   listProcesses,
   keepAwake,
   nvdaLanguage,
+  ownNvdaPaths,
+  restartNvda,
+  restartNvdaDetached,
   sessionLocked,
   titleMatches,
   windowsSystemInfo,
@@ -147,6 +153,15 @@ export interface GuidepupDriverDeps {
   launchBrowser: (signal: AbortSignal) => Promise<BrowserSession>;
   /** Process ids of running NVDA copies (any NVDA, not just Guidepup's). */
   runningNvda: () => Promise<number[]>;
+  /**
+   * Where the person's own running NVDA was started from (not Guidepup's NVDA), each path once.
+   * Throws when Windows can't tell.
+   */
+  ownNvda: () => Promise<string[]>;
+  /** Start the person's own NVDA again from its path; resolves once Windows has started it. */
+  restartNvda: (exe: string) => Promise<void>;
+  /** The same without waiting (synchronously), for when the process is exiting. */
+  restartNvdaDetached: (exe: string) => void;
   /** The machine-wide lock: only one voicecap drives NVDA at a time. */
   lockFile: string;
   system: () => SystemInfo;
@@ -178,6 +193,9 @@ export function createGuidepupNvdaDriver(
     launchBrowser: (signal) =>
       launchChrome({ browser: options.config.browser, env: process.env, signal }),
     runningNvda: () => listProcesses("nvda.exe"),
+    ownNvda: () => ownNvdaPaths(install),
+    restartNvda,
+    restartNvdaDetached,
     lockFile: nvdaLockFile(process.env, os.homedir()),
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),
@@ -220,9 +238,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   /** Every browser launched and not yet closed, with its close once that has begun. */
   private readonly browsers = new Map<BrowserSession, Promise<void> | null>();
   private stopping: Promise<void> | null = null;
+  /** Whether the stop under way is the final one, not a mid-run restart's: it gives back NVDA. */
+  private finalStop = false;
+  /** Guidepup stops that outlived their time and haven't finished yet. */
+  private readonly unfinishedStops = new Set<Promise<void>>();
   private releaseLock: (() => Promise<void>) | null = null;
   /** Windows kept awake while the driver runs. */
   private awake: { release(): void } | null = null;
+  /** Where the person's own NVDA ran from before Guidepup's NVDA shut it down: to start again. */
+  private ownNvdaExes: string[] = [];
   private session: BrowserSession | null = null;
   /** Whether the current session has loaded a page (the next load gets a fresh browser). */
   private sessionUsed = false;
@@ -258,9 +282,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   }
 
   /**
-   * Take the lock (unless cleanupStale() has), start NVDA, and launch the first browser. If the
-   * start fails, or stop() overtakes it, it shuts down the NVDA and browser it started itself;
-   * the lock is stop()'s to release.
+   * Take the lock (unless cleanupStale() has), note the person's own NVDA, start NVDA, and launch
+   * the first browser. If the start fails, or stop() overtakes it, it shuts down the NVDA and
+   * browser it started itself; the lock is stop()'s to release, and the person's NVDA the final
+   * stop()'s to start again (Guidepup's NVDA may have shut it down before failing).
    */
   private async startUp(generation: number): Promise<void> {
     const { install } = this.deps;
@@ -271,13 +296,27 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.awake ??= this.deps.keepAwake();
       const running = await this.deps.runningNvda();
       this.checkLive(generation);
+      // Asked once: after a mid-run restart the person's NVDA is still off, and asking again would
+      // forget it.
+      const ownNvdaExes =
+        this.ownNvdaExes.length > 0 ? this.ownNvdaExes : await this.ownNvdaRunning();
+      this.checkLive(generation);
       if (running.length > 0) {
+        const afterwards =
+          ownNvdaExes.length > 0
+            ? "voicecap will turn your NVDA back on when it has finished."
+            : "Start your NVDA again when voicecap has finished.";
         this.options.logger.alert(
-          `NVDA is running (process ${running.join(", ")}). voicecap shuts it down now and starts its own copy (Guidepup's NVDA ${install.build}). Start your NVDA again when voicecap has finished.`,
+          `NVDA is running (process ${running.join(", ")}). voicecap shuts it down now and starts its own copy (Guidepup's NVDA ${install.build}). ${afterwards}`,
         );
       }
       const nvda = await this.deps.loadNvda();
       this.checkLive(generation);
+      // Noted only now: Guidepup's start begins by quitting whichever NVDA is running. A start that
+      // failed or was stopped before this point left the person's NVDA running, and starting it
+      // again would restart it.
+      this.ownNvdaExes = ownNvdaExes;
+      this.syncExitHook();
       await this.startNvda(nvda, generation);
       this.checkLive(generation);
       const settings = nvda.settings();
@@ -323,9 +362,12 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.setNvdaState("running");
   }
 
-  stop(): Promise<void> {
+  stop(options: { restarting?: boolean } = {}): Promise<void> {
+    // A final stop gives the person's NVDA back, even when it joins a restart's stop under way.
+    if (options.restarting !== true) this.finalStop = true;
     this.stopping ??= this.shutDown().finally(() => {
       this.stopping = null;
+      this.finalStop = false;
     });
     return this.stopping;
   }
@@ -348,13 +390,22 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     // the page goes quiet, and with the page's browser closed, the key would go to another window.
     await this.shutDownNvda();
     await Promise.all([...this.browsers.keys()].map((session) => this.closeBrowser(session)));
+    // A mid-run restart keeps the person's NVDA noted, and off, until the final stop, which starts
+    // it again before letting go of the NVDA lock, so that no other voicecap's NVDA is starting
+    // meanwhile. That holds only while this driver has the lock: a restart whose start couldn't
+    // take it back has none, and a restore put off until the process exits (see
+    // giveBackOwnNvda) comes after the lock below is released.
+    if (this.finalStop) await this.giveBackOwnNvda();
     this.letSleep();
     const release = this.releaseLock;
     this.releaseLock = null;
     await release?.();
   }
 
-  /** Shut NVDA and every browser down synchronously: the process is exiting. */
+  /**
+   * Shut NVDA and every browser down synchronously, then start the person's own NVDA again: the
+   * process is exiting.
+   */
   abandon(): void {
     this.generation++;
     this.session = null;
@@ -365,8 +416,80 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     }
     for (const session of this.browsers.keys()) session.abandon();
     this.browsers.clear();
+    this.restartOwnNvdaDetached();
     this.letSleep();
     this.syncExitHook();
+  }
+
+  /**
+   * Where the person's own NVDA is running from. None when Windows can't tell: the checks before
+   * the run have said so already, and not knowing mustn't stop a run.
+   */
+  private async ownNvdaRunning(): Promise<string[]> {
+    try {
+      return await this.deps.ownNvda();
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * The final stop's restore, once nothing of Guidepup's can shut the person's NVDA down again:
+   * Guidepup's start keeps waiting for its NVDA after a direct shutdown (then starts it again, or
+   * quits whichever NVDA is running when it gives up), and its stop ends with that quit. Until
+   * then the note stays, and so does the exit hook: abandon() shuts NVDA down, then starts theirs.
+   * The NVDA lock isn't kept for that: shutDown() releases it straight after this returns.
+   */
+  private async giveBackOwnNvda(): Promise<void> {
+    if (this.ownNvdaExes.length === 0) return;
+    const guidepupBusy =
+      this.pending.size > 0 || this.nvdaState !== "stopped" || this.unfinishedStops.size > 0;
+    if (guidepupBusy) {
+      this.options.logger.warn("Your NVDA will be turned back on when voicecap exits.");
+      return;
+    }
+    await this.restartOwnNvda();
+  }
+
+  /**
+   * Start the person's own NVDA again from each noted path, once, and say so once Windows has. A
+   * path stays noted until its start has been tried: the PowerShell starting it ends with
+   * voicecap, so if the process exits meanwhile, abandon() starts it too.
+   */
+  private async restartOwnNvda(): Promise<void> {
+    for (const exe of [...this.ownNvdaExes]) {
+      if (!this.ownNvdaExes.includes(exe)) continue; // abandon() has started it meanwhile
+      try {
+        await this.deps.restartNvda(exe);
+        this.options.logger.info(`Turned your NVDA back on (${exe}).`);
+      } catch (error) {
+        this.warnNotRestarted(error);
+      }
+      this.ownNvdaExes = this.ownNvdaExes.filter((noted) => noted !== exe);
+      this.syncExitHook();
+    }
+  }
+
+  /**
+   * restartOwnNvda() without waiting: the process is exiting. Nothing confirms the start, so
+   * nothing says NVDA is back on.
+   */
+  private restartOwnNvdaDetached(): void {
+    const exes = this.ownNvdaExes;
+    this.ownNvdaExes = [];
+    for (const exe of exes) {
+      try {
+        this.deps.restartNvdaDetached(exe);
+      } catch (error) {
+        this.warnNotRestarted(error);
+      }
+    }
+  }
+
+  private warnNotRestarted(error: unknown): void {
+    this.options.logger.warn(
+      `Couldn't turn your NVDA back on (${errorMessage(error)}). Start it the way you usually do: an installed NVDA starts with Ctrl+Alt+N.`,
+    );
   }
 
   getEnvironmentInfo(): Promise<EnvironmentInfo> {
@@ -673,9 +796,13 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.syncExitHook();
   }
 
-  /** Shut NVDA and the browsers down if the process exits while any of them is running. */
+  /**
+   * Shut NVDA and the browsers down if the process exits while any of them is running, and start
+   * the person's own NVDA again if that's still to do.
+   */
   private syncExitHook(): void {
-    const needed = this.nvdaState !== "stopped" || this.browsers.size > 0;
+    const needed =
+      this.nvdaState !== "stopped" || this.browsers.size > 0 || this.ownNvdaExes.length > 0;
     if (needed === this.exitHooked) return;
     this.exitHooked = needed;
     if (needed) process.on("exit", this.onExit);
@@ -716,6 +843,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     nvda.forceQuit();
     if (!(await this.settlesWithin(stopped, STOP_TIMEOUT_MS))) {
       this.options.logger.warn("Guidepup still hasn't finished stopping NVDA.");
+      // Its stop still ends by quitting whichever NVDA is running, so the person's must wait.
+      this.unfinishedStops.add(stopped);
+      void stopped.finally(() => {
+        this.unfinishedStops.delete(stopped);
+      });
     }
   }
 

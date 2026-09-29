@@ -27,12 +27,13 @@ It makes screen reader testing faster and keeps an honest audit trail:
 - **Transcripts** of everything NVDA says, one line per keystroke, that a person can skim much faster than listening to, and that can be diffed between runs to catch regressions.
 - **An audit trail** of what was transcribed automatically, what a person reviewed (with a full, append-only history), and what was tested by hand with NVDA.
 
-> **Status.** voicecap runs NVDA on Windows through its Guidepup driver, checked end to end against real NVDA 2026.2 with Chrome 153. Everything else (reports, reviews, manual sessions, and the whole pipeline under the **replay driver**, which plays back a recorded run) works on Windows, macOS, and Linux.
+> **Status.** voicecap runs NVDA on Windows through its Guidepup driver, checked end to end against real NVDA 2026.2 with Chrome 153. On a Mac, `setup`, `doctor`, and `init` prepare and check VoiceOver, down to a live test that starts it; running audits with VoiceOver comes with its driver, in a later release (see [Mac setup](#mac-setup)). Everything else (reports, reviews, manual sessions, and the whole pipeline under the **replay driver**, which plays back a recorded run) works on Windows, macOS, and Linux.
 
 ## Contents
 
 - [Quick start](#quick-start)
 - [Windows setup (for someone new to Windows)](#windows-setup-for-someone-new-to-windows)
+- [Mac setup](#mac-setup)
 - [Commands and options](#commands-and-options)
 - [Page sources](#page-sources)
 - [What voicecap does on each page](#what-voicecap-does-on-each-page)
@@ -65,10 +66,23 @@ node dist/cli.js --site http://127.0.0.1:4747 --pages fixture/pages.json --repla
 # then open transcripts/127.0.0.1_4747/report.html
 ```
 
-**On a real site, answer a few questions and voicecap composes the command for you:**
+**On a real site, answer a few questions and voicecap composes the command for you.** First it checks this computer (shown in full under [Starting voicecap](#starting-voicecap)):
 
 ```
 $ npx @icjia/voicecap init
+
+voicecap preflight, 2026-09-28 11:10
+
+This computer
+  …
+
+Checks
+  …
+
+Ready: this computer can run NVDA for voicecap.
+
+The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
+Test NVDA now? [y/N]: n
 
 Website: i2i.illinois.gov
 Checking https://i2i.illinois.gov…
@@ -93,6 +107,43 @@ Run it now? [y/N]:
 ```
 
 ### Starting voicecap
+
+**Before it asks anything, `init` checks this computer.** In about two seconds, it shows the machine's own details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready — the same report `voicecap doctor` prints (see [Other commands](#other-commands)). The checks only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and, the first time, asking whether your terminal app may control System Events makes macOS ask you. So on a Mac `init` first says `Checking this Mac. If macOS asks for access to control "System Events", click Allow.` A computer that isn't ready stops right there, with exit code 2 and exactly what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)). A ready one looks like this, then, when you're at a terminal to answer, offers a 20-second live test before the usual questions:
+
+```
+$ npx @icjia/voicecap init
+
+voicecap preflight, 2026-09-28 11:10
+
+This computer
+  Computer        DESKTOP-4K2P1, user cschw
+  Model           Dell Inc. OptiPlex 7010, Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz, 16 GB memory, 120 GB free of 476 GB
+  System          Windows 11 Pro 24H2 (10.0.26100), x64
+  Node.js         22.19.0
+  voicecap        0.4.0, with @guidepup/guidepup 0.34.0
+  Screen reader   NVDA 2026.2 (Guidepup's build 0.2.1-2026.2)
+  Browser         Chrome 153.0.8010.53
+  Language        English (United States)
+  Transcripts     C:\Users\cschw\code\voicecap-transcripts
+  Guidepup files  C:\Users\cschw\AppData\Local\guidepup
+  Browser path    C:\Program Files\Google\Chrome\Application\chrome.exe
+
+Checks
+  OK    Node.js 22.19.0
+  OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
+  OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
+  OK    No other voicecap is using NVDA
+  OK    Your NVDA isn't running
+  OK    Windows is unlocked
+  OK    Browser: Chrome
+
+Ready: this computer can run NVDA for voicecap.
+
+The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
+Test NVDA now? [y/N]:
+```
+
+Then the usual questions follow (`Website:`, `Where are the pages?`, and so on), as shown above.
 
 **What's needed:** Node.js 22.19 or later. For real runs: Windows, `voicecap setup` once (voicecap's own copy of NVDA, no administrator rights), and preferably Google Chrome. Nothing else: no Git, no separate NVDA, no Playwright.
 
@@ -125,20 +176,13 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 
    - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup`, open a new terminal, and run setup again.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
+   - **Once everything's installed,** setup checks this computer the same way `doctor` does (see [Other commands](#other-commands)) and, if it's ready, offers the same 20-second live test.
 
-5. **Check everything:** `npx @icjia/voicecap doctor`. It checks the NVDA build, whether another NVDA is running, that NVDA starts and its speech is captured, that the browser comes to the front, and that NVDA speaks English. It prints a summary you can paste into a bug report:
-
-   ```
-   OK    NVDA build: 0.2.1-2026.2 (NVDA 2026.2), installed at C:\Users\…\nvda.exe
-   OK    Other NVDA: none running
-   OK    Browser: Chrome 153.0.8010.53 (C:\Program Files\Google\Chrome\Application\chrome.exe)
-   OK    NVDA speech: captured ("heading, level 1, voicecap doctor check" / "Doctor button, button"), 1.3 s per step
-   OK    Foreground: the browser came to the front (checked with NVDA+T)
-   OK    NVDA language: en-US
-   ```
+5. **Check everything:** `npx @icjia/voicecap doctor`. It reports this computer's details, checks the NVDA build, whether another NVDA is running, Windows' lock state, and the browser, then runs a 20-second live test that starts NVDA for real and checks its speech is captured, the browser comes to the front, and NVDA speaks English. It prints one report, with a plain-language fix for anything wrong, that you can paste into a bug report; see [Other commands](#other-commands) for what it looks like.
 
 6. **Before a run:**
-   - **Close your own copy of NVDA.** voicecap shuts down any running NVDA when it starts (Guidepup does this), and it warns you first.
+   - **voicecap checks this computer first.** Every run does the same quick checks as `doctor`, and stops with exit code 2 before touching anything — no site folder, no lock file, no NVDA — if something's wrong (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)).
+   - **Close your own copy of NVDA.** voicecap shuts down any running NVDA when it starts (Guidepup does this), warns you first, and turns it back on again afterwards with your own settings.
    - **Don't use the computer during a run.** NVDA's keystrokes go to whichever window is in front. voicecap brings its browser to the front for every page, checks it with NVDA+T, and throws away any step during which another window came forward, but each click elsewhere costs a page (it's recorded as failed). NVDA speaks aloud throughout, and NVDA's Speech Viewer window opens beside the browser.
    - **Keep the computer unlocked.** On a locked computer, NVDA can't press keys or speak, and voicecap stops with "Windows is locked". voicecap keeps Windows from sleeping or turning the screen off while it runs, but it can't stop a lock: Win+L, a screen saver set to lock, or a workplace lock policy. If you step away, leave it unlocked. A minimized Remote Desktop window (Windows stops drawing it) breaks a run too.
    - **Turn on Do Not Disturb** (Settings → System → Notifications) so notifications don't get read into transcripts.
@@ -153,6 +197,109 @@ Git Bash rewrites command-line arguments that start with `/` into Windows paths,
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
 With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--replay-from`, and the files `manual add` and `list-urls` take all accept it.
+
+## Mac setup
+
+`npx @icjia/voicecap setup`, `doctor`, and `init` all check a Mac the same way they check Windows. Here's `init` on a Mac that's missing one permission:
+
+```
+$ npx @icjia/voicecap init
+
+Checking this Mac. If macOS asks for access to control "System Events", click Allow.
+
+voicecap preflight, 2026-09-28 11:10
+
+This computer
+  Computer        cschweda's Mac mini, user cschweda
+  Model           Mac mini (Mac16,10), Apple M4, 16 GB memory, 72 GB free of 228 GB
+  System          macOS 26.6.2 (25G83), Apple silicon
+  Terminal app    Visual Studio Code (macOS gives permissions to this app)
+  Node.js         22.22.2
+  voicecap        0.4.0, with @guidepup/guidepup 0.34.0
+  Screen reader   VoiceOver 10 (build 993)
+  Browser         Chromium 153.0.8010.12 (Playwright's)
+  Language        English (United States)
+  Transcripts     /Users/cschweda/webdev/voicecap-transcripts
+  Guidepup files  /Users/cschweda/Library/Caches/guidepup
+  Browser path    ~/Library/Caches/ms-playwright/chromium-1243/…
+
+Checks
+  OK    macOS 26 is supported
+  OK    Node.js 22.22.2
+  OK    Terminal app: Visual Studio Code
+  OK    VoiceOver's files for Guidepup are installed
+  OK    VoiceOver can be controlled by AppleScript
+  OK    VoiceOver's welcome screen is off
+  OK    Accessibility: Visual Studio Code is allowed
+  FAIL  Full Disk Access: Visual Studio Code isn't allowed
+  OK    Visual Studio Code can control System Events
+  OK    No other voicecap is using VoiceOver
+  OK    Browser: Chromium
+  WARN  VoiceOver is on: voicecap will use it, then turn it back on with your settings
+
+Not ready: 1 problem.
+
+1. Full Disk Access for Visual Studio Code
+   What's wrong: voicecap keeps its VoiceOver settings apart from yours by linking them into
+   a folder macOS protects, and macOS blocks Visual Studio Code from that folder.
+   How to fix:
+     1. Open System Settings, then Privacy & Security, then Full Disk Access.
+     2. Switch on Visual Studio Code. If it isn't listed, click + and choose it.
+     3. When macOS asks, quit and reopen Visual Studio Code.
+     4. Run npx @icjia/voicecap init again.
+   Or run npx @icjia/voicecap setup, which walks you through it.
+```
+
+`npx @icjia/voicecap setup` walks you through exactly this.
+
+1. **Run the guided setup:** `npx @icjia/voicecap setup`. It:
+   - checks first that voicecap's Guidepup can drive VoiceOver on this version of macOS (12 to 26), and if it can't, stops there, before downloading anything;
+   - installs Guidepup's own copy of VoiceOver's files (voicecap's pinned `@guidepup/setup install voiceover`) and, if Google Chrome isn't installed, Playwright's Chromium — the same as `setup` does for NVDA on Windows;
+   - changes two VoiceOver settings itself, and says so:
+
+     ```
+     Turned off VoiceOver's welcome screen (to undo: defaults delete com.apple.VoiceOverTraining doNotShowSplashScreen).
+     Turned on VoiceOver's own "allow AppleScript" setting (to undo: defaults delete com.apple.VoiceOver4/default SCREnableAppleScript).
+     ```
+
+     The welcome screen would otherwise block voicecap the moment VoiceOver starts. The AppleScript setting is VoiceOver's own switch for accepting AppleScript commands at all — Guidepup's own setup turns on the same one.
+   - then walks you through whatever's still missing, one permission at a time:
+
+     | Permission | Why voicecap needs it |
+     | --- | --- |
+     | VoiceOver Utility → General → "Allow VoiceOver to be controlled with AppleScript" | voicecap sends VoiceOver its commands through AppleScript, which VoiceOver accepts only once you allow it. |
+     | Privacy & Security → Accessibility | voicecap presses VoiceOver's keys through macOS's Accessibility features, which need your OK for your terminal app. |
+     | Privacy & Security → Automation → System Events | voicecap sends VoiceOver's keys through System Events. |
+     | Privacy & Security → Automation → VoiceOver | voicecap drives VoiceOver through AppleScript. Telling whether this one is missing means actually starting VoiceOver and asking it something, so it isn't in the checks above — it turns up in the live test instead (below). |
+     | Privacy & Security → Full Disk Access | voicecap keeps its VoiceOver settings apart from yours by linking them into a folder macOS protects, and macOS blocks your terminal app from that folder. |
+
+     The Full Disk Access check looks at the folder Guidepup will actually use. Where VoiceOver keeps your settings outside the protected folder, it says `Full Disk Access: not needed on this Mac`. And if VoiceOver has never been turned on for your user, your settings don't exist yet, so it says `VoiceOver: not set up for this user yet`: press Command-F5 to turn VoiceOver on, press it again once VoiceOver starts speaking, then run setup again.
+
+     Before each round of checks, setup says `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`, as `init` does. For each permission (except Automation for VoiceOver, which only the live test can find), setup says what it's for, opens System Settings or VoiceOver Utility at the right place (or, if that doesn't open, says so and where to go by hand), tells you exactly what to switch on — naming your terminal app — and waits for Enter (or `s` to skip) before checking again. For example:
+
+     ```
+     Step 2 of 4: Accessibility for Visual Studio Code
+       voicecap presses VoiceOver's keys through macOS's Accessibility features, which need your OK for Visual Studio Code.
+       Opening System Settings at Privacy & Security, Accessibility…
+       Switch on Visual Studio Code. If it isn't listed, click + and choose it.
+     Press Enter when it's on, or type s to skip:
+     ```
+
+     The order is always the AppleScript checkbox, then Accessibility, then System Events, then Full Disk Access. **Full Disk Access comes last**, because it only takes effect once your terminal app quits and reopens: that step ends with `When Visual Studio Code reopens, run npx @icjia/voicecap setup again to finish.` A rerun skips whatever's already fixed.
+   - **Why the terminal app matters.** Every permission above belongs to the app you're running voicecap in — Terminal, Visual Studio Code, or another editor's built-in terminal — not to voicecap itself, because that's the app macOS actually sees asking. voicecap finds it by walking up its own parent processes to the outermost app, and names it throughout ("Terminal app" in the machine details above, and by name in each check and step). Switch to a different terminal app later and you'll need to grant these again; run voicecap over SSH, where there's no app to find at all, and the check fails outright.
+   - **Without a terminal to answer** (stdin isn't a TTY — a script, say), setup still installs everything and changes the two settings, then lists whatever permissions are still missing and exits with code 2 if the computer isn't ready.
+   - Once the computer is ready, setup offers the live test below.
+
+2. **The live test.** Before it asks, voicecap says:
+
+   ```
+   The live test takes about 20 seconds. VoiceOver speaks and takes over the keyboard, so keep your hands off.
+   If macOS asks whether Visual Studio Code can control VoiceOver, click Allow.
+   ```
+
+   Click Allow if macOS asks — that's the Automation-for-VoiceOver permission from the table above, and starting VoiceOver for real is the only way to raise it. The test then starts VoiceOver through Guidepup with voicecap's own settings, brings the browser to the front with a small check page, and confirms VoiceOver can describe what's focused on it, before putting everything back the way it found it (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). `doctor` runs this same test automatically, with the same warning, instead of asking.
+
+**Where the Mac stands today.** `setup`, `doctor`, and `init`'s preflight fully prepare and check a Mac for VoiceOver, right down to the live test actually starting VoiceOver and hearing it back. Running a full audit (`npx @icjia/voicecap --site …`) doesn't work yet: voicecap can't run VoiceOver yet, because that comes with its VoiceOver driver, in a later release. Until then, `init` on a ready Mac shows the finished command and says so, rather than offering to run it now.
 
 ## Commands and options
 
@@ -191,11 +338,82 @@ voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note 
 voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--site <url>] [--out <dir>]
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap verify [--site <url>] [--out <dir>]
-voicecap setup     # Windows: install the NVDA build voicecap's Guidepup expects
-voicecap doctor    # Windows: check NVDA, the browser, and speech capture; print a summary
+voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
+voicecap doctor    # check this computer and print a summary to paste into a bug report
 ```
 
 Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, and `report` work in one site's folder in the transcripts home: give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all (see [The audit record](#the-audit-record)).
+
+**`setup` and `doctor` work the same way on Windows and on a Mac.** `setup` installs what's needed (NVDA on Windows, VoiceOver's files on a Mac) and the browser, and on a Mac also changes two VoiceOver settings and walks you through any missing permission (see [Mac setup](#mac-setup)). `doctor` never installs or changes anything: it only checks (on a Mac, after the same `Checking this Mac…` line as `init`), then, if the computer is ready, runs the same 20-second live test — with no need to answer first, unlike `setup` and `init`, though it gives the same hands-off warning before starting. Both end by printing the same report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict, all in a form you can paste whole into a bug report. For example, on Windows:
+
+```
+$ npx @icjia/voicecap doctor
+
+The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
+voicecap doctor, 2026-09-28 11:10
+
+This computer
+  Computer        DESKTOP-4K2P1, user cschw
+  Model           Dell Inc. OptiPlex 7010, Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz, 16 GB memory, 120 GB free of 476 GB
+  System          Windows 11 Pro 24H2 (10.0.26100), x64
+  Node.js         22.19.0
+  voicecap        0.4.0, with @guidepup/guidepup 0.34.0
+  Screen reader   NVDA 2026.2 (Guidepup's build 0.2.1-2026.2)
+  Browser         Chrome 153.0.8010.53
+  Language        English (United States)
+  Transcripts     C:\Users\cschw\code\voicecap-transcripts
+  Guidepup files  C:\Users\cschw\AppData\Local\guidepup
+  Browser path    C:\Program Files\Google\Chrome\Application\chrome.exe
+
+Checks
+  OK    Node.js 22.19.0
+  OK    Guidepup's folder: C:\Users\cschw\AppData\Local\guidepup
+  OK    NVDA 2026.2 (Guidepup's build 0.2.1-2026.2) is installed
+  OK    No other voicecap is using NVDA
+  OK    Your NVDA isn't running
+  OK    Windows is unlocked
+  OK    Browser: Chrome
+  OK    NVDA speaks: "heading, level 1, voicecap doctor check" / "Doctor button, button" (1.3 s per step)
+  OK    The browser came to the front (checked with NVDA+T)
+  OK    NVDA's language: English (United States)
+
+Ready: this computer can run NVDA for voicecap.
+```
+
+A problem reads the same way as the example under [Mac setup](#mac-setup): a numbered "Not ready" entry with what's wrong and how to fix it, usually ending with a nudge to run `setup`.
+
+### Checks before a run, and getting your screen reader back
+
+**Before NVDA (or, once the VoiceOver driver ships, VoiceOver) starts,** a real run does the same quick checks as `doctor`: about two seconds, reading only — except, on a Mac, that the Full Disk Access check creates and removes a small file, and the System Events check can make macOS ask for your OK, which `init`, `doctor`, and `setup` warn about first (see [Starting voicecap](#starting-voicecap)). If the computer isn't ready, voicecap prints the same "Not ready" diagnosis as `init` and `doctor`, and stops with exit code 2 before anything else happens — no site folder, no lock file, no screen reader touched. If it's ready, voicecap logs one line plus any warnings, for example:
+
+```
+Checks passed: NVDA 2026.2 on Windows 11 Pro 24H2 (10.0.26100)
+  WARN  Your NVDA is running: voicecap will use its own NVDA, then turn yours back on
+```
+
+This only runs for a real NVDA run on Windows (chosen by voicecap's own default driver); a replay run (`--replay-from`) skips it, since it never touches NVDA.
+
+**If NVDA is already running under your own account,** voicecap warns before it takes over:
+
+```
+========================================================================
+WARNING: NVDA is running (process 4821). voicecap shuts it down now and starts its own copy (Guidepup's NVDA 0.2.1-2026.2). voicecap will turn your NVDA back on when it has finished.
+========================================================================
+```
+
+**Once voicecap is done** — the run finished, was interrupted with Ctrl+C, or hit an error — it turns that copy on again, with your own settings, and says so:
+
+```
+Turned your NVDA back on (C:\Program Files\NVDA\nvda.exe).
+```
+
+If it can't, it says why and what to do instead, for example:
+
+```
+Warning: Couldn't turn your NVDA back on (PowerShell didn't start it). Start it the way you usually do: an installed NVDA starts with Ctrl+Alt+N.
+```
+
+On the Mac, the live test does the same for VoiceOver today (real VoiceOver runs are still ahead — see [Mac setup](#mac-setup)): it warns first if VoiceOver is already on, and afterwards restores it, on with your settings or off, exactly as it found it. Turning it back on again is silent when it works; if it doesn't, voicecap says `Couldn't turn VoiceOver back on: press Command-F5` (or `Couldn't turn VoiceOver off: press Command-F5`, if VoiceOver should have gone back off).
 
 ### Exit codes
 

@@ -111,6 +111,9 @@ function setup(options: Setup = {}) {
       orphanCleanups.push("cleaned");
       return Promise.resolve(["Closed 2 browser processes left by an earlier run."]);
     },
+    ownNvda: () => desktop.findOwnNvda(),
+    restartNvda: (exe) => desktop.restartNvda(exe),
+    restartNvdaDetached: (exe) => desktop.restartNvdaDetached(exe),
     // Waits end on the next turn of the event loop, after anything already settled.
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
     marker: () => "k3m9x2",
@@ -122,6 +125,8 @@ function setup(options: Setup = {}) {
 }
 
 const URL_HOME = "http://127.0.0.1:4747/";
+/** The person's own NVDA, installed: not Guidepup's copy. */
+const OWN_NVDA = "C:\\Program Files (x86)\\NVDA\\nvda.exe";
 
 /** Lets pending work (the lock file's disk I/O included) run until the condition holds. */
 async function until(condition: () => boolean): Promise<void> {
@@ -166,6 +171,18 @@ describe("starting the Guidepup NVDA driver", () => {
     const { driver, desktop, logger } = setup({ running: [4321] });
     await driver.start();
     expect(logger.text("alert")).toMatch(/4321/);
+    // Its path isn't known (another user's NVDA, say), so voicecap can't start it again.
+    expect(logger.text("alert")).toMatch(/ Start your NVDA again when voicecap has finished\.$/);
+    expect(desktop.events.indexOf("alert")).toBeLessThan(desktop.events.indexOf("nvda:start"));
+  });
+
+  it("says it will turn the person's NVDA back on when it knows where that NVDA runs from", async () => {
+    const { driver, desktop, logger } = setup({ running: [4321] });
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    expect(logger.text("alert")).toBe(
+      "NVDA is running (process 4321). voicecap shuts it down now and starts its own copy (Guidepup's NVDA 0.2.1-2026.2). voicecap will turn your NVDA back on when it has finished.",
+    );
     expect(desktop.events.indexOf("alert")).toBeLessThan(desktop.events.indexOf("nvda:start"));
   });
 
@@ -783,6 +800,325 @@ describe("stopping while the driver is busy", () => {
     await until(() => desktop.events.includes("nvda:start"));
     driver.abandon();
     expect(nvda.forceQuits).toBe(1);
+  });
+});
+
+// Starting Guidepup's NVDA shuts down any other NVDA, including the one a blind person uses every
+// day, so voicecap starts theirs again afterwards.
+describe("turning the person's own NVDA back on", () => {
+  it("starts it again once NVDA and the browser are down, and only once when stopped twice", async () => {
+    const { driver, desktop, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    expect(desktop.ownNvda).toEqual([]); // Guidepup's NVDA shut it down
+    await driver.openPage(URL_HOME);
+    await driver.stop();
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+    expect(desktop.ownNvda).toEqual([OWN_NVDA]);
+    const restarted = desktop.events.indexOf(`own-nvda:restart:${OWN_NVDA}`);
+    expect(restarted).toBeGreaterThan(desktop.events.indexOf("nvda:stop"));
+    expect(restarted).toBeGreaterThan(desktop.events.lastIndexOf("browser:close"));
+    expect(logger.text("info")).toContain(`Turned your NVDA back on (${OWN_NVDA}).`);
+  });
+
+  it("says it's back on only once Windows has started it", async () => {
+    const { driver, desktop, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const starting = (desktop.restartGate = new Gate());
+    await driver.start();
+    const stopping = driver.stop();
+    await until(() => starting.waiting > 0);
+    expect(logger.text("info")).not.toContain("Turned your NVDA back on");
+    starting.open();
+    await stopping;
+    expect(logger.text("info")).toContain(`Turned your NVDA back on (${OWN_NVDA}).`);
+  });
+
+  it("starts it again without waiting when the process exits, once NVDA and the browser are shut down", async () => {
+    const { driver, desktop, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    driver.abandon();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+    const restarted = desktop.events.indexOf(`own-nvda:restart-detached:${OWN_NVDA}`);
+    expect(restarted).toBeGreaterThan(desktop.events.indexOf("nvda:force-quit"));
+    expect(restarted).toBeGreaterThan(desktop.events.indexOf("browser:kill"));
+    // Nothing waits for it, so nothing claims it's back on.
+    expect(logger.text("info")).not.toContain("Turned your NVDA back on");
+    driver.abandon();
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("starts it again without waiting if the process exits while an earlier start is under way", async () => {
+    const { driver, desktop } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const starting = (desktop.restartGate = new Gate());
+    await driver.start();
+    const stopping = driver.stop();
+    await until(() => starting.waiting > 0);
+    // The PowerShell starting it ends with voicecap, so that start may never happen.
+    driver.abandon();
+    expect(desktop.events).toContain(`own-nvda:restart-detached:${OWN_NVDA}`);
+    starting.open();
+    await stopping;
+    expect(desktop.restarts).toEqual([OWN_NVDA, OWN_NVDA]);
+  });
+
+  it("starts nothing when none of the person's own NVDA was running", async () => {
+    const { driver, desktop, logger } = setup();
+    await driver.start();
+    // Asked before Guidepup's NVDA starts, which would shut the person's down.
+    const beforeStart = desktop.events.slice(0, desktop.events.indexOf("nvda:start"));
+    expect(beforeStart).toContain("own-nvda:find");
+    await driver.stop();
+    driver.abandon();
+    expect(desktop.restarts).toEqual([]);
+    expect(logger.text("info")).not.toContain("NVDA back on");
+  });
+
+  it("says how to start it when it can't be started again, and still finishes stopping", async () => {
+    const { driver, desktop, logger, deps } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    desktop.restartFails = true;
+    await driver.start();
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+    expect(logger.text("warn")).toContain(
+      "Couldn't turn your NVDA back on (PowerShell didn't start it). Start it the way you usually do: an installed NVDA starts with Ctrl+Alt+N.",
+    );
+    expect(logger.text("info")).not.toContain("Turned your NVDA back on");
+    // The NVDA lock was released all the same.
+    await setup({ lockFile: deps.lockFile }).driver.start();
+  });
+
+  it("says the same, without throwing, when that happens as the process exits", async () => {
+    const { driver, desktop, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    desktop.restartFails = true;
+    await driver.start();
+    expect(() => driver.abandon()).not.toThrow();
+    expect(logger.text("warn")).toContain(
+      "Couldn't turn your NVDA back on (spawn EINVAL). Start it the way you usually do: an installed NVDA starts with Ctrl+Alt+N.",
+    );
+  });
+
+  it("still starts when Windows can't tell whether the person's NVDA is running", async () => {
+    const { driver, desktop, nvda } = setup();
+    desktop.ownNvdaFails = true;
+    await driver.start();
+    expect(desktop.events).toContain("own-nvda:find");
+    expect(nvda.started).toBe(true);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([]);
+  });
+
+  it("starts it again after a start that failed, since Guidepup's NVDA may have shut it down", async () => {
+    const { driver, desktop, deps } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    deps.launchBrowser = () => Promise.reject(new Error("Chrome didn't start"));
+    await expect(driver.start()).rejects.toThrow(/Chrome didn't start/);
+    expect(desktop.ownNvda).toEqual([]);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("starts it again if the process exits after a start that failed, before any stop()", async () => {
+    const { driver, desktop, deps } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    deps.launchBrowser = () => Promise.reject(new Error("Chrome didn't start"));
+    const before = process.listeners("exit");
+    await expect(driver.start()).rejects.toThrow(/Chrome didn't start/);
+    // NVDA and the browser are down already. The process exits: only what this test added runs.
+    for (const onExit of process.listeners("exit")) {
+      if (!before.includes(onExit)) onExit(0);
+    }
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("leaves it alone when the driver was stopped before Guidepup's NVDA started", async () => {
+    const { driver, desktop } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const asking = (desktop.ownNvdaGate = new Gate());
+    const start = driver.start();
+    start.catch(() => {});
+    await until(() => asking.waiting > 0);
+    const stopping = driver.stop();
+    asking.open();
+    await stopping;
+    await expect(start).rejects.toThrow(/stopped/);
+    expect(desktop.events).not.toContain("nvda:start");
+    expect(desktop.restarts).toEqual([]);
+    expect(desktop.ownNvda).toEqual([OWN_NVDA]);
+  });
+
+  it("leaves it alone when the driver was stopped while Guidepup was loading", async () => {
+    const { driver, desktop, deps, nvda } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const loading = new Gate();
+    deps.loadNvda = async () => {
+      await loading.wait();
+      return nvda;
+    };
+    const start = driver.start();
+    start.catch(() => {});
+    await until(() => loading.waiting > 0);
+    const stopping = driver.stop();
+    loading.open();
+    await stopping;
+    await expect(start).rejects.toThrow(/stopped/);
+    expect(desktop.events).not.toContain("nvda:start");
+    expect(desktop.restarts).toEqual([]);
+    expect(desktop.ownNvda).toEqual([OWN_NVDA]);
+  });
+
+  it("leaves it alone when Guidepup can't be loaded", async () => {
+    const { driver, desktop, deps } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    deps.loadNvda = () => Promise.reject(new Error("Cannot find module '@guidepup/guidepup'"));
+    await expect(driver.start()).rejects.toThrow(/guidepup/);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([]);
+    expect(desktop.ownNvda).toEqual([OWN_NVDA]);
+  });
+
+  it("starts it again when Guidepup's NVDA fails to start, having shut theirs down", async () => {
+    const { driver, desktop, nvda } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    nvda.startFails = true;
+    await expect(driver.start()).rejects.toThrow(/NVDA didn't start/);
+    expect(desktop.ownNvda).toEqual([]);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("keeps it off through a mid-run restart, and starts it again once after the final stop", async () => {
+    const { driver, desktop } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    await driver.stop({ restarting: true });
+    expect(desktop.restarts).toEqual([]);
+    await driver.start();
+    // Still noted from the first start: asking again would find it off, and forget it.
+    expect(desktop.events.filter((event) => event === "own-nvda:find")).toHaveLength(1);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("starts it again if the process exits during a mid-run restart", async () => {
+    const { driver, desktop } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const before = process.listeners("exit");
+    await driver.start();
+    await driver.stop({ restarting: true });
+    expect(desktop.restarts).toEqual([]);
+    // The process exits before the restart's start: only what this test added runs.
+    for (const onExit of process.listeners("exit")) {
+      if (!before.includes(onExit)) onExit(0);
+    }
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("starts it again when the final stop comes while a restart's stop is under way", async () => {
+    const { driver, desktop } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    const closing = (desktop.session.closeGate = new Gate());
+    const restarting = driver.stop({ restarting: true });
+    await until(() => closing.waiting > 0);
+    const final = driver.stop();
+    closing.open();
+    await Promise.all([restarting, final]);
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("waits until voicecap exits to start it again while Guidepup's NVDA is still starting", async () => {
+    const { driver, desktop, nvda, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    nvda.startGate = new Gate(); // never opens
+    nvda.outlivesForceQuit = true;
+    const before = process.listeners("exit");
+    const start = driver.start();
+    start.catch(() => {});
+    await until(() => desktop.events.includes("nvda:start"));
+    await driver.stop();
+    // Guidepup's start would shut the person's NVDA down again, whenever it got that far.
+    expect(nvda.forceQuits).toBe(1);
+    expect(desktop.restarts).toEqual([]);
+    expect(logger.text("warn")).toContain("Your NVDA will be turned back on when voicecap exits.");
+    // voicecap exits: only what this test added runs.
+    for (const onExit of process.listeners("exit")) {
+      if (!before.includes(onExit)) onExit(0);
+    }
+    expect(nvda.forceQuits).toBe(2);
+    const restarted = desktop.events.indexOf(`own-nvda:restart-detached:${OWN_NVDA}`);
+    expect(restarted).toBeGreaterThan(desktop.events.lastIndexOf("nvda:force-quit"));
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("waits until voicecap exits to start it again while Guidepup is still stopping NVDA", async () => {
+    const { driver, desktop, nvda, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    const before = process.listeners("exit");
+    await driver.start();
+    nvda.stopHangs = true;
+    nvda.outlivesForceQuit = true;
+    await driver.stop();
+    expect(logger.text("warn")).toContain("Guidepup still hasn't finished stopping NVDA.");
+    // Guidepup's stop ends by quitting whichever NVDA is running: the person's, if it were back.
+    expect(desktop.restarts).toEqual([]);
+    expect(logger.text("warn")).toContain("Your NVDA will be turned back on when voicecap exits.");
+    // voicecap exits: only what this test added runs.
+    for (const onExit of process.listeners("exit")) {
+      if (!before.includes(onExit)) onExit(0);
+    }
+    expect(desktop.events).toContain(`own-nvda:restart-detached:${OWN_NVDA}`);
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+
+  it("waits while the stop from a failed start's own clean-up is under way, then starts it at a later stop", async () => {
+    const { driver, desktop, nvda, deps, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    nvda.stopHangs = true;
+    nvda.outlivesForceQuit = true;
+    deps.launchBrowser = () => Promise.reject(new Error("Chrome didn't start"));
+    const before = process.listeners("exit");
+    await expect(driver.start()).rejects.toThrow(/Chrome didn't start/);
+    // The start's clean-up gave up waiting for Guidepup's stop, which ends by quitting whichever
+    // NVDA is running: the person's, if it were back already.
+    expect(logger.text("warn")).toContain("Guidepup still hasn't finished stopping NVDA.");
+    await driver.stop();
+    expect(desktop.restarts).toEqual([]);
+    expect(logger.text("warn")).toContain("Your NVDA will be turned back on when voicecap exits.");
+    nvda.finishStop();
+    await delay(1);
+    await driver.stop();
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+    expect(desktop.ownNvda).toEqual([OWN_NVDA]);
+    expect(process.listeners("exit").filter((onExit) => !before.includes(onExit))).toEqual([]);
+  });
+
+  it("starts it again at once after a stop during a start that finishes in time", async () => {
+    const { driver, desktop, nvda, deps, logger } = setup();
+    desktop.ownNvda = [OWN_NVDA];
+    // No time limit runs out: the start finishes within stop()'s wait for it.
+    const settle = deps.sleep;
+    deps.sleep = (ms, signal) => (signal ? new Promise<void>(() => {}) : settle(ms));
+    const starting = (nvda.startGate = new Gate());
+    const before = process.listeners("exit");
+    const start = driver.start();
+    start.catch(() => {});
+    await until(() => desktop.events.includes("nvda:start"));
+    const stopping = driver.stop();
+    starting.open();
+    await stopping;
+    await expect(start).rejects.toThrow(/stopped/);
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
+    expect(logger.text("warn")).not.toContain("when voicecap exits");
+    expect(process.listeners("exit").filter((onExit) => !before.includes(onExit))).toEqual([]);
   });
 });
 

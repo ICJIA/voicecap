@@ -71,6 +71,43 @@ export class FakeDesktop {
   browserVersion = "153.0.8010.53";
   /** Speech for keys the browser receives; default "<key> speech". */
   speech: (key: string, session: FakeSession) => Speech = (key) => `${key} speech`;
+  /** Where the person's own running NVDA copies were started from (Guidepup's start ends them). */
+  ownNvda: string[] = [];
+  /** Holds the driver's question about the person's own NVDA until opened. */
+  ownNvdaGate: Gate | null = null;
+  /** Windows can't tell whether the person's own NVDA is running (PowerShell didn't answer). */
+  ownNvdaFails = false;
+  /** Starting the person's own NVDA again fails, either way. */
+  restartFails = false;
+  /** Holds the driver's wait for the person's own NVDA to start again until opened. */
+  restartGate: Gate | null = null;
+  /** Every path the driver started the person's own NVDA again from, either way, failures included. */
+  readonly restarts: string[] = [];
+
+  /** The driver's ownNvda(): the person's own NVDA copies running now. */
+  async findOwnNvda(): Promise<string[]> {
+    this.events.push("own-nvda:find");
+    await this.ownNvdaGate?.wait();
+    if (this.ownNvdaFails) throw new Error("PowerShell didn't answer");
+    return [...this.ownNvda];
+  }
+
+  /** The driver's restartNvda(): start the person's own NVDA again, and wait until it has. */
+  async restartNvda(exe: string): Promise<void> {
+    this.restarts.push(exe);
+    this.events.push(`own-nvda:restart:${exe}`);
+    await this.restartGate?.wait();
+    if (this.restartFails) throw new Error("PowerShell didn't start it");
+    this.ownNvda.push(exe);
+  }
+
+  /** The driver's restartNvdaDetached(): the same without waiting, as the process exits. */
+  restartNvdaDetached(exe: string): void {
+    this.restarts.push(exe);
+    this.events.push(`own-nvda:restart-detached:${exe}`);
+    if (this.restartFails) throw new Error("spawn EINVAL");
+    this.ownNvda.push(exe);
+  }
 
   /** Which window is in front. The browser's page sees every switch away as a focus loss. */
   get front(): "browser" | "other" {
@@ -135,6 +172,13 @@ export class FakeNvda implements NvdaControl {
   stopHangs = false;
   /** Holds start() until opened; shutting NVDA down directly meanwhile makes the start fail. */
   startGate: Gate | null = null;
+  /**
+   * forceQuit() doesn't end a start or stop under way, as with Guidepup's own: its start keeps
+   * waiting for NVDA (and starts it again), and its stop still ends by quitting whichever NVDA runs.
+   */
+  outlivesForceQuit = false;
+  /** NVDA doesn't start: start() fails, after Guidepup has shut any other NVDA down. */
+  startFails = false;
   /** NVDA died: keys sent through it go nowhere, and it says nothing. */
   crashed = false;
   private releaseStop: (() => void) | null = null;
@@ -159,7 +203,10 @@ export class FakeNvda implements NvdaControl {
 
   start(options: { capture: CaptureMode; settings: Record<string, unknown> }): Promise<void> {
     this.desktop.events.push("nvda:start");
+    // Guidepup's NVDA shuts down any other NVDA as it starts, the person's own included.
+    this.desktop.ownNvda = [];
     this.startOptions = options;
+    if (this.startFails) return Promise.reject(new Error("NVDA cannot be started"));
     const gate = this.startGate;
     if (!gate) {
       this.started = true;
@@ -192,13 +239,24 @@ export class FakeNvda implements NvdaControl {
     this.started = false;
   }
 
+  /**
+   * Lets a stop that's still hanging (stopHangs, outliving forceQuit()) finish, ending as
+   * Guidepup's does: by quitting whichever NVDA is running, the person's own included.
+   */
+  finishStop(): void {
+    this.desktop.ownNvda = [];
+    this.releaseStop?.();
+  }
+
   forceQuit(): void {
     this.forceQuits++;
     this.desktop.events.push("nvda:force-quit");
     this.started = false;
-    this.releaseStop?.();
-    this.failStart?.();
-    this.failStart = null;
+    if (!this.outlivesForceQuit) {
+      this.releaseStop?.();
+      this.failStart?.();
+      this.failStart = null;
+    }
     for (const command of [...this.silencing]) command.fail();
   }
 

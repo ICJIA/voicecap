@@ -2,7 +2,7 @@ import { PassThrough, Writable } from "node:stream";
 
 import { describe, expect, it } from "vitest";
 
-import { createPrompter, InputEndedError } from "../src/init/prompt.js";
+import { createPrompter, deferPrompter, InputEndedError } from "../src/init/prompt.js";
 import { InterruptedError } from "../src/passes/steps.js";
 
 /** A collecting OutputStream: not a real stream, just enough to satisfy Prompter's writes. */
@@ -260,6 +260,54 @@ describe("interrupted", () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(prompter.interrupted.aborted).toBe(true);
+
+    prompter.close();
+    input.end();
+    output.end();
+  });
+});
+
+describe("deferPrompter", () => {
+  it("creates the real prompter at the first question, and only once", async () => {
+    const input = new PassThrough();
+    const output = capture();
+    let created = 0;
+    const prompter = deferPrompter(() => {
+      created++;
+      return createPrompter({ input, output: output.stream });
+    });
+    expect(created).toBe(0);
+
+    input.write("Alice\ny\n");
+    await expect(prompter.ask("Name")).resolves.toBe("Alice");
+    await expect(prompter.confirm("Go on?", false)).resolves.toBe(true);
+    expect(created).toBe(1);
+    expect(output.text()).toBe("Name: Go on? [y/N]: ");
+
+    prompter.close();
+    input.end();
+  });
+
+  it("closes without creating one when it was never used", () => {
+    let created = 0;
+    const prompter = deferPrompter(() => {
+      created++;
+      return createPrompter({ input: new PassThrough(), output: capture().stream });
+    });
+    prompter.close();
+    expect(created).toBe(0);
+  });
+
+  it("hands on the real prompter's interrupted signal", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const prompter = deferPrompter(() => createPrompter({ input, output, terminal: true }));
+
+    const interrupted = prompter.interrupted;
+    input.write("\u0003");
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(interrupted.aborted).toBe(true);
+    await expect(prompter.ask("Name")).rejects.toThrow(InterruptedError);
 
     prompter.close();
     input.end();

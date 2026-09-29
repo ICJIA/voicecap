@@ -7,11 +7,20 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
   keepAwake,
   listProcesses,
+  ownNvdaPaths,
+  parseComputerModel,
+  parseNvdaProcesses,
+  personsNvda,
+  powershellCommand,
+  powershellString,
+  restartNvda,
   sessionLocked,
+  startProcessScript,
   windowsSystemInfo,
 } from "../src/drivers/guidepup/windows.js";
 
@@ -121,5 +130,161 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
     temps.push(tmp);
     expect(await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"))).toEqual([]);
+  });
+
+  it("say so when a program can't be started again because its file is gone", async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-restart-test-"));
+    temps.push(tmp);
+    // Not named nvda.exe, so Windows can't go looking for the person's real NVDA by that name.
+    const gone = path.join(tmp, "gone", "voicecap-no-such-program.exe");
+    await expect(restartNvda(gone)).rejects.toThrow("PowerShell didn't start it");
+  });
+});
+
+describe("Windows helpers (what PowerShell says)", () => {
+  it("read each nvda.exe's process id and path, with no path when Windows doesn't give one", () => {
+    expect(parseNvdaProcesses("1234|C:\\Program Files (x86)\\NVDA\\nvda.exe\r\n5678|\r\n")).toEqual(
+      [
+        { pid: 1234, path: "C:\\Program Files (x86)\\NVDA\\nvda.exe" },
+        { pid: 5678, path: null },
+      ],
+    );
+  });
+
+  it("find no nvda.exe when nothing is listed, and skip lines that aren't <pid>|<path>", () => {
+    expect(parseNvdaProcesses("")).toEqual([]);
+    expect(parseNvdaProcesses("WARNING: something else\r\n\r\n42|C:\\nvda\\nvda.exe\r\n")).toEqual([
+      { pid: 42, path: "C:\\nvda\\nvda.exe" },
+    ]);
+  });
+
+  const install = {
+    build: "0.2.1-2026.2",
+    cacheDir: "C:\\Users\\pat\\AppData\\Local\\guidepup",
+    nvdaExe:
+      "C:\\Users\\pat\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe",
+  };
+  const OWN_NVDA = "C:\\Program Files (x86)\\NVDA\\nvda.exe";
+
+  it("tell the person's own NVDA from Guidepup's, whatever the spelling, keeping one with no path", () => {
+    const running = [
+      { pid: 1, path: install.nvdaExe },
+      {
+        pid: 2,
+        path: "c:/users/PAT/appdata/local/GUIDEPUP/nvda/all/0.2.1-2026.2/extracted/NVDA.EXE",
+      },
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+    ];
+    expect(personsNvda(running, install.nvdaExe)).toEqual([
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+    ]);
+  });
+
+  it("list where to start the person's own NVDA again from: each path once, none unknown", async () => {
+    const running = [
+      { pid: 1, path: install.nvdaExe },
+      { pid: 2, path: OWN_NVDA },
+      { pid: 3, path: null },
+      { pid: 4, path: "C:\\PROGRAM FILES (X86)\\NVDA\\NVDA.EXE" },
+      { pid: 5, path: "D:\\nvda-portable\\nvda.exe" },
+    ];
+    expect(await ownNvdaPaths(install, () => Promise.resolve(running))).toEqual([
+      OWN_NVDA,
+      "D:\\nvda-portable\\nvda.exe",
+    ]);
+  });
+
+  it("name the computer by maker and model, leaving out a part Windows doesn't give", () => {
+    expect(parseComputerModel("Dell Inc.|OptiPlex 7010\r\n")).toBe("Dell Inc. OptiPlex 7010");
+    expect(parseComputerModel("|Virtual Machine\r\n")).toBe("Virtual Machine");
+    expect(parseComputerModel("|\r\n")).toBeNull();
+    expect(parseComputerModel("")).toBeNull();
+  });
+
+  it("don't repeat the maker when the model already starts with it", () => {
+    expect(parseComputerModel("HP|HP EliteBook 840\r\n")).toBe("HP EliteBook 840");
+    expect(parseComputerModel("HP|hp EliteBook 840\r\n")).toBe("hp EliteBook 840");
+    expect(parseComputerModel("HP|HP\r\n")).toBe("HP");
+    // Only a whole word counts: HPE isn't HP.
+    expect(parseComputerModel("HP|HPE ProLiant DL380\r\n")).toBe("HP HPE ProLiant DL380");
+  });
+
+  it("start a program as a shortcut does, its path read as it is", () => {
+    expect(startProcessScript(OWN_NVDA)).toBe(
+      "Start-Process -FilePath 'C:\\Program Files (x86)\\NVDA\\nvda.exe'",
+    );
+    expect(startProcessScript("C:\\Users\\O'Brien\\NVDA portable\\nvda.exe")).toBe(
+      "Start-Process -FilePath 'C:\\Users\\O''Brien\\NVDA portable\\nvda.exe'",
+    );
+  });
+
+  it("quote a path for PowerShell so that it's read as it is", () => {
+    expect(powershellString("C:\\Users\\O'Brien\\Chrome\\chrome.exe")).toBe(
+      "'C:\\Users\\O''Brien\\Chrome\\chrome.exe'",
+    );
+  });
+
+  it("have PowerShell answer in UTF-8, then run the script unchanged", () => {
+    // Windows PowerShell writes to a pipe in the console's code page, which would garble "José".
+    const script = `Get-CimInstance Win32_Process -Filter "Name='nvda.exe'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`;
+    expect(powershellCommand(script)).toBe(
+      "try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}; " + script,
+    );
+  });
+
+  it("double the curly quotes too, which PowerShell also reads as quotes", () => {
+    expect(powershellString("C:\\Users\\O\u2019Brien\\\u2018x\u2019 \u201Ay\u201B")).toBe(
+      "'C:\\Users\\O\u2019\u2019Brien\\\u2018\u2018x\u2019\u2019 \u201A\u201Ay\u201B\u201B'",
+    );
+  });
+});
+
+describe("Guidepup's folder, when NVDA can't start from it", () => {
+  const install = {
+    build: "0.2.1-2026.2",
+    cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup",
+    nvdaExe:
+      "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup\\nvda\\all\\0.2.1-2026.2\\extracted\\nvda.exe",
+  };
+  const whatsWrong =
+    "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).";
+
+  it("says what's wrong, and how to fix it step by step", () => {
+    expect(unsafePathProblem(install)).toEqual({
+      whatsWrong,
+      fix: [
+        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
+        "Open a new terminal and run: npx @icjia/voicecap setup",
+      ],
+    });
+  });
+
+  it("names a character the command shell treats specially", () => {
+    const problem = unsafePathProblem({
+      ...install,
+      cacheDir: "C:\\Users\\R&D\\AppData\\Local\\guidepup",
+    });
+    expect(problem?.whatsWrong).toContain(
+      'Guidepup\'s NVDA is in C:\\Users\\R&D\\AppData\\Local\\guidepup, and that path has "&" in it.',
+    );
+  });
+
+  it("finds nothing wrong with a folder NVDA can start from", () => {
+    const safe = { ...install, cacheDir: "C:\\Users\\pat\\AppData\\Local\\guidepup" };
+    expect(unsafePathProblem(safe)).toBeNull();
+    expect(unsafePathMessage(safe)).toBeNull();
+  });
+
+  it("says the same in one message, worded as it always has been", () => {
+    expect(unsafePathMessage(install)).toBe(
+      [
+        whatsWrong,
+        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
+        "  mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
+        "then open a new terminal and run: npx @icjia/voicecap setup",
+      ].join("\n"),
+    );
   });
 });

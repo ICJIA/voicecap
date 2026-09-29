@@ -351,6 +351,11 @@ export class ChromeSession implements BrowserSession {
     this.version = browser.version();
   }
 
+  /** The browser's process id, which the Mac live test raises through System Events. */
+  get pid(): number | undefined {
+    return this.child.pid;
+  }
+
   async load(url: string, timeoutMs: number): Promise<LoadResult> {
     // A download never commits, so goto() fails; the main response still tells what it was.
     let mainResponse: Response | null = null;

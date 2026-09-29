@@ -79,16 +79,38 @@ export function shellUnsafePart(dir: string): string | null {
   return /\s|[&(,;=^]|%[^%]*%/.exec(dir)?.[0] ?? null;
 }
 
-/** Why NVDA can't start from Guidepup's folder and what to do about it, or null if it can. */
-export function unsafePathMessage(install: GuidepupInstall): string | null {
+/** The Git Bash command that ends the first fix step for a folder NVDA can't start from. */
+const SAFE_FOLDER_COMMAND =
+  "mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'";
+
+/** Why NVDA can't start from Guidepup's folder and how to fix it, or null if it can. */
+export function unsafePathProblem(
+  install: GuidepupInstall,
+): { whatsWrong: string; fix: string[] } | null {
   const part = shellUnsafePart(install.cacheDir);
   if (part === null) return null;
   const what = /^\s$/.test(part) ? "a space" : `"${part}"`;
+  return {
+    whatsWrong: `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
+    fix: [
+      `Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: ${SAFE_FOLDER_COMMAND}`,
+      "Open a new terminal and run: npx @icjia/voicecap setup",
+    ],
+  };
+}
+
+/**
+ * unsafePathProblem as one message, for an error: the Git Bash command on a line of its own, and
+ * the second step joined on with "then".
+ */
+export function unsafePathMessage(install: GuidepupInstall): string | null {
+  const problem = unsafePathProblem(install);
+  if (problem === null) return null;
+  const [chooseFolder = "", openTerminal = ""] = problem.fix;
   return [
-    `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
-    "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
-    "  mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
-    "then open a new terminal and run: npx @icjia/voicecap setup",
+    problem.whatsWrong,
+    chooseFolder.replace(` ${SAFE_FOLDER_COMMAND}`, () => `\n  ${SAFE_FOLDER_COMMAND}`),
+    `then ${openTerminal.charAt(0).toLowerCase()}${openTerminal.slice(1)}`,
   ].join("\n");
 }
 

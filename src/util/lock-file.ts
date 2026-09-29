@@ -79,6 +79,16 @@ export function isStale(holder: LockHolder): boolean {
   return Date.parse(holder.startedAt) < bootedAt || !isAlive(holder.pid);
 }
 
+/**
+ * The lock's holder, when it's a live process other than this one; null when there's no lock, the
+ * lock is this process's own, or its holder is stale. Shared by every platform's "another
+ * voicecap is using this screen reader" check.
+ */
+export async function activeLockHolder(file: string): Promise<LockHolder | null> {
+  const holder = await readLockHolder(file);
+  return holder && holder.pid !== process.pid && !isStale(holder) ? holder : null;
+}
+
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);

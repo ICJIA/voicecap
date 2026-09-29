@@ -6,9 +6,40 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { PROFILE_PREFIX } from "./paths.js";
+import { PROFILE_PREFIX, type GuidepupInstall } from "./paths.js";
 
 const run = promisify(execFile);
+
+/**
+ * Has PowerShell write its answer in UTF-8, as execFile reads it. Windows PowerShell writes to a
+ * pipe in the console's code page (437 on US English), which garbles a path like C:\Users\José.
+ * A host without a console can't set it, so a failure there is ignored.
+ */
+const UTF8_ANSWER =
+  "try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}; ";
+
+/** A script as powershell() runs it: unchanged, after UTF8_ANSWER. */
+export function powershellCommand(script: string): string {
+  return UTF8_ANSWER + script;
+}
+
+/** Runs a PowerShell script, hidden, for up to 20 seconds; resolves to what it printed. */
+async function powershell(script: string): Promise<string> {
+  const { stdout } = await run(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
+    { windowsHide: true, timeout: 20_000 },
+  );
+  return stdout;
+}
+
+/**
+ * `text` as a PowerShell string that it reads as it is: in single quotes, with each quote inside
+ * doubled. PowerShell takes the curly single quotes for quotes too, so they're doubled as well.
+ */
+export function powershellString(text: string): string {
+  return `'${text.replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`;
+}
 
 /** Process ids of running programs with this image name, e.g. "nvda.exe". */
 export async function listProcesses(image: string): Promise<number[]> {
@@ -16,6 +47,93 @@ export async function listProcesses(image: string): Promise<number[]> {
     windowsHide: true,
   });
   return parseTasklist(stdout);
+}
+
+/** A running nvda.exe. */
+export interface NvdaProcess {
+  pid: number;
+  /** Null when Windows doesn't give it, as for another user's process. */
+  path: string | null;
+}
+
+const NVDA_PROCESSES = `Get-CimInstance Win32_Process -Filter "Name='nvda.exe'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`;
+
+/**
+ * Every running nvda.exe, Guidepup's or anyone else's, with its path, so the person's own NVDA can
+ * be told from Guidepup's. Throws "PowerShell didn't answer" when it can't tell.
+ */
+export async function nvdaProcesses(): Promise<NvdaProcess[]> {
+  const found = await powershell(NVDA_PROCESSES).catch((error: unknown) => {
+    throw new Error("PowerShell didn't answer", { cause: error });
+  });
+  return parseNvdaProcesses(found);
+}
+
+/**
+ * The person's own NVDA among the running nvda.exe: every one but Guidepup's. One whose path
+ * Windows doesn't give counts: Guidepup's NVDA runs as the person running voicecap, so its path is
+ * always given.
+ */
+export function personsNvda(processes: NvdaProcess[], guidepupExe: string): NvdaProcess[] {
+  const guidepups = samePath(guidepupExe);
+  return processes.filter((nvda) => nvda.path === null || samePath(nvda.path) !== guidepups);
+}
+
+/**
+ * Where the person's own running NVDA was started from, each path once, so voicecap can start it
+ * again after Guidepup's NVDA has shut it down. One whose path Windows doesn't give is left out:
+ * it can't be started again. Throws "PowerShell didn't answer" when it can't tell.
+ */
+export async function ownNvdaPaths(
+  install: GuidepupInstall,
+  running: () => Promise<NvdaProcess[]> = nvdaProcesses,
+): Promise<string[]> {
+  const paths = new Map<string, string>();
+  for (const nvda of personsNvda(await running(), install.nvdaExe)) {
+    if (nvda.path !== null && !paths.has(samePath(nvda.path))) {
+      paths.set(samePath(nvda.path), nvda.path);
+    }
+  }
+  return [...paths.values()];
+}
+
+/**
+ * The PowerShell that starts a program as a shortcut does, through ShellExecute: an installed NVDA
+ * asks for UI Access, and Windows can refuse to start such a program any other way.
+ */
+export function startProcessScript(exe: string): string {
+  return `Start-Process -FilePath ${powershellString(exe)}`;
+}
+
+/**
+ * Start the person's own NVDA again from its path. Resolves once Windows has started it; throws
+ * "PowerShell didn't start it" when it hasn't.
+ */
+export async function restartNvda(exe: string): Promise<void> {
+  await powershell(startProcessScript(exe)).catch((error: unknown) => {
+    throw new Error("PowerShell didn't start it", { cause: error });
+  });
+}
+
+/**
+ * restartNvda() without waiting, for when voicecap is exiting: a detached PowerShell starts NVDA,
+ * so the start still happens after voicecap has gone.
+ */
+export function restartNvdaDetached(exe: string): void {
+  const helper = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(startProcessScript(exe))],
+    { detached: true, stdio: "ignore", windowsHide: true },
+  );
+  // Node reports a PowerShell that can't start as an event after spawn() has returned; with
+  // nothing listening, that event would end voicecap.
+  helper.on("error", () => {});
+  helper.unref();
+}
+
+/** A Windows path in one spelling, for comparing: Windows ignores letter case in paths. */
+function samePath(file: string): string {
+  return path.win32.normalize(file).toLowerCase();
 }
 
 /**
@@ -132,6 +250,20 @@ export function windowsSystemInfo(): { os: string; uiLocale: string | null } {
   };
 }
 
+const COMPUTER_MODEL = `Get-CimInstance Win32_ComputerSystem | ForEach-Object { "$($_.Manufacturer)|$($_.Model)" }`;
+
+/** This computer's maker and model, e.g. "Dell Inc. OptiPlex 7010"; null when Windows doesn't say. */
+export async function windowsComputerModel(): Promise<string | null> {
+  return parseComputerModel(await powershell(COMPUTER_MODEL).catch(() => ""));
+}
+
+/** A browser's version, e.g. "142.0.7444.60", from its executable; null when Windows doesn't say. */
+export async function windowsBrowserVersion(file: string): Promise<string | null> {
+  const script = `(Get-Item -LiteralPath ${powershellString(file)}).VersionInfo.ProductVersion`;
+  const version = (await powershell(script).catch(() => "")).trim();
+  return version === "" ? null : version;
+}
+
 /**
  * Clean up after a voicecap run that crashed or was killed: shut down Guidepup's NVDA (found by
  * its exact executable path, so another NVDA is never touched), close browsers whose profile is a
@@ -140,13 +272,12 @@ export function windowsSystemInfo(): { os: string; uiLocale: string | null } {
  */
 export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<string[]> {
   const notes: string[] = [];
-  const quote = (text: string) => `'${text.replaceAll("'", "''")}'`;
   const marker = path.join(tmpDir, PROFILE_PREFIX);
   const script = [
     "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' OR Name='msedge.exe' OR Name='nvda.exe'\"",
     "| ForEach-Object {",
-    `  if ($_.Name -eq 'nvda.exe') { if ($_.ExecutablePath -eq ${quote(nvdaExe)}) { "nvda,$($_.ProcessId)" } }`,
-    `  elseif ($_.CommandLine -and $_.CommandLine.Contains(${quote(marker)})) { "browser,$($_.ProcessId),$($_.ParentProcessId)" }`,
+    `  if ($_.Name -eq 'nvda.exe') { if ($_.ExecutablePath -eq ${powershellString(nvdaExe)}) { "nvda,$($_.ProcessId)" } }`,
+    `  elseif ($_.CommandLine -and $_.CommandLine.Contains(${powershellString(marker)})) { "browser,$($_.ProcessId),$($_.ParentProcessId)" }`,
     "}",
   ].join(" ");
   const found = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
@@ -231,6 +362,34 @@ export function parseTasklist(output: string): number[] {
     if (match) pids.push(Number(match[1]));
   }
   return pids;
+}
+
+/** nvdaProcesses' "<pid>|<path>" lines; an empty path is null, and other lines are skipped. */
+export function parseNvdaProcesses(stdout: string): NvdaProcess[] {
+  const found: NvdaProcess[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const match = /^(\d+)\|(.*)$/.exec(line.trim());
+    if (match) found.push({ pid: Number(match[1]), path: match[2]?.trim() || null });
+  }
+  return found;
+}
+
+/**
+ * "Dell Inc. OptiPlex 7010" from windowsComputerModel's "<Manufacturer>|<Model>" line, leaving out
+ * a blank part. A model that already starts with the maker's name is shown alone: "HP EliteBook
+ * 840", not "HP HP EliteBook 840".
+ */
+export function parseComputerModel(stdout: string): string | null {
+  const [line = ""] = stdout.trim().split(/\r?\n/);
+  const bar = line.indexOf("|");
+  const maker = (bar === -1 ? line : line.slice(0, bar)).trim();
+  const model = (bar === -1 ? "" : line.slice(bar + 1)).trim();
+  const namesMaker =
+    maker !== "" &&
+    model.toLowerCase().startsWith(maker.toLowerCase()) &&
+    (model.length === maker.length || model[maker.length] === " ");
+  const name = namesMaker ? model : [maker, model].filter((part) => part !== "").join(" ");
+  return name === "" ? null : name;
 }
 
 /** "Windows 11 Pro 25H2 (10.0.26200)" from os.version(), os.release(), and the registry's DisplayVersion. */

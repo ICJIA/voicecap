@@ -4,6 +4,19 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **A preflight check at the start of `init`**: before any question, it shows this computer's own details (hardware, screen reader, browser, and paths) and runs quick checks that decide whether NVDA (on Windows) or VoiceOver (on a Mac) is ready, in about two seconds. The checks only read, except on a Mac, where the Full Disk Access check creates and removes a small file, and the System Events check can raise macOS's prompt, which `init` warns about first. A computer that isn't ready stops there with exit code 2 and a numbered, plain-language diagnosis — what's wrong, and how to fix it — for each problem; a ready one, at a terminal, can try a 20-second live test before the wizard's usual questions.
+- **`voicecap setup` and `voicecap doctor` on macOS**: `setup` installs Guidepup's own VoiceOver files and the browser, turns off VoiceOver's welcome screen and turns on VoiceOver's own AppleScript setting (saying how to undo each), then walks through any missing permission — VoiceOver Utility's AppleScript checkbox, Accessibility, Automation for System Events, and Full Disk Access — one at a time, opening System Settings at the right page and naming the terminal app that needs it. `doctor` checks the same things on either platform and always runs the live test, printing one report fit to paste into a bug report. Real VoiceOver runs still wait for the VoiceOver driver, coming in a later release.
+- **The live test**: a 20-second check that starts NVDA or VoiceOver for real, brings the browser to the front, and confirms the screen reader can be heard, then puts everything back. It cleans up on Ctrl+C too, and when the terminal window is closed, it stops the test and cleans up as Ctrl+C does. `init` (at a terminal) offers it after a passing preflight, `setup` offers it at the end, and `doctor` always runs it, each with a hands-off warning first.
+- **Restoring the person's own screen reader**: voicecap notes whether NVDA or VoiceOver is already running before it takes it over, and turns it back on afterwards with the person's own settings — after the live test on both platforms, and after every real NVDA run on Windows. If it can't, it says so and how to do it by hand.
+- **Quick checks before a real run**: before NVDA starts, a run does the same checks `doctor` does (about two seconds). A computer that isn't ready exits 2 with the "Not ready" diagnosis before the site folder, the run lock, or NVDA are touched; a ready one gets one pass line plus any warnings.
+
+### Changed
+
+- **`init` now starts with the preflight** described above, before its usual questions.
+- **`doctor`'s output now leads with this computer's own details, and gives each failing check a numbered, plain-language diagnosis with fix steps**, in place of the previous one-line-per-check summary.
+
 ## [0.3.1] - 2026-09-28
 
 ### Fixed

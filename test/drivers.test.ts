@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +9,7 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { AtDriverNvdaDriver } from "../src/drivers/at-driver-nvda.js";
 import { createDriver, selectDriver } from "../src/drivers/index.js";
 import { InterruptedError } from "../src/passes/steps.js";
-import { handleInterrupts } from "../src/run/signals.js";
+import { handleInterrupts, type SignalSource } from "../src/run/signals.js";
 import { EnvironmentError, UsageError } from "../src/util/errors.js";
 import { createMemoryLogger, silentLogger } from "../src/util/log.js";
 
@@ -124,5 +125,33 @@ describe("Ctrl+C", () => {
     } finally {
       unhook();
     }
+  });
+
+  it("says the caller's own words on the first signal, and a run's when it gives none", () => {
+    const logger = createMemoryLogger();
+    // A stand-in for the process, so no real signal is sent.
+    const emitter = new EventEmitter();
+    const source: SignalSource = {
+      platform: "darwin",
+      on: (signal, listener) => emitter.on(signal, listener),
+      removeListener: (signal, listener) => emitter.removeListener(signal, listener),
+      exit: () => {},
+    };
+    const doctors = handleInterrupts(new AbortController(), logger, {
+      message: (signal) => `${signal}: the caller's own words`,
+      source,
+    });
+    emitter.emit("SIGTERM", "SIGTERM");
+    doctors();
+    const runs = handleInterrupts(new AbortController(), logger, { source });
+    emitter.emit("SIGINT", "SIGINT");
+    runs();
+    expect(logger.text("warn")).toBe(
+      [
+        "SIGTERM: the caller's own words",
+        "SIGINT received: saving state and shutting down NVDA and the browser. Press Ctrl+C again to exit immediately.",
+      ].join("\n"),
+    );
+    expect(emitter.eventNames()).toEqual([]);
   });
 });

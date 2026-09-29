@@ -5,9 +5,7 @@ import { PassThrough } from "node:stream";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { readGuidepupPackage } from "../src/drivers/guidepup/paths.js";
 import { createPrompter, InputEndedError } from "../src/init/prompt.js";
-import { checkReadiness } from "../src/init/readiness.js";
 import { runWizard, type WizardDeps, type WizardResult } from "../src/init/wizard.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
@@ -70,7 +68,7 @@ async function session(
       env: {},
       // Late in the day, local time: west of Greenwich, the UTC date is already the 28th.
       now: () => new Date(2026, 8, 27, 23, 30),
-      readiness: () => ({ canRun: true }),
+      readiness: () => ({ canRun: true, screenReader: "NVDA" }),
       ...deps,
     });
     if (left.length > 0) throw new Error(`Never asked for: ${JSON.stringify(left)}`);
@@ -628,45 +626,5 @@ describe("runWizard", () => {
     await expect(
       session(["i2i.illinois.gov"], { fetch: waitsForAbort, signal: controller.signal }),
     ).rejects.toThrow(InterruptedError);
-  });
-});
-
-describe("checkReadiness", () => {
-  const homedir = "C:\\Users\\jane";
-  const env = { LOCALAPPDATA: "C:\\Users\\jane\\AppData\\Local" };
-
-  it("says NVDA runs only on Windows, anywhere else", () => {
-    for (const platform of ["darwin", "linux"] as const) {
-      expect(checkReadiness({ platform, env, homedir, exists: () => true })).toEqual({
-        canRun: false,
-        reason: NOT_WINDOWS,
-      });
-    }
-  });
-
-  it("points to setup on Windows when Guidepup's NVDA isn't installed", () => {
-    expect(checkReadiness({ platform: "win32", env, homedir, exists: () => false })).toEqual({
-      canRun: false,
-      reason: NOT_INSTALLED,
-    });
-  });
-
-  it("can run on Windows once Guidepup's NVDA is installed", () => {
-    const looked: string[] = [];
-    const readiness = checkReadiness({
-      platform: "win32",
-      env,
-      homedir,
-      exists: (file) => {
-        looked.push(file);
-        return file.endsWith("nvda.exe");
-      },
-    });
-
-    expect(readiness).toEqual({ canRun: true });
-    const build = readGuidepupPackage().nvdaBuild;
-    expect(looked).toEqual([
-      `C:\\Users\\jane\\AppData\\Local\\guidepup\\nvda\\all\\${build}\\extracted\\nvda.exe`,
-    ]);
   });
 });
