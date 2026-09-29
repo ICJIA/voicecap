@@ -20,7 +20,7 @@ Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readines
 - **Found by the run, for the docs:** while the browser is in front (during a live test or a run), Control-C typed on the keyboard goes to the browser, not the terminal. The owner's attempts at step 5 never reached voicecap. The README now says to click the terminal window first.
 - **Found by the run, for the VoiceOver driver:** VO-F4 described Chromium's address bar ("127.0.0.1:… Address and search bar edit text has keyboard focus"), not the check page. voicecap starts Chrome on `about:blank`, which puts focus in the address bar, and it stays there after the page loads. So the driver must move focus into the web content before a pass. The live test's "hears the page" still holds as a check that VoiceOver speaks for that browser window, as Windows' check accepts any speech.
 
-Still to check by hand:
+Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives each check step by step, with the commands, what to look for, and the release steps that follow:
 
 - **On the Windows PC:**
   - `nvdaProcesses` with a non-ASCII character in the Guidepup folder path;
