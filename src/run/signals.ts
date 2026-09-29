@@ -58,7 +58,33 @@ export function stopOnClosedWindow(
 ): () => void {
   const signals: NodeJS.Signals[] = ["SIGTERM", "SIGHUP"];
   if (source.platform === "win32") signals.push("SIGBREAK");
+  return stopOn(signals, controller, source);
+}
 
+/**
+ * For voicecap demo's audit, where the prompter keeps Ctrl+C to itself while the terminal is in raw
+ * mode. If the terminal leaves raw mode during the run, Ctrl+C arrives as a SIGINT instead, which
+ * with no listener would end Node at once, with no exit hooks, leaving the screen reader and the
+ * browser running. The first SIGINT aborts `controller`, as the prompter's Ctrl+C would; a second
+ * exits at once with 130, so exit hooks still run. Nothing is said. Returns a function that
+ * removes the listener.
+ */
+export function stopOnCtrlC(
+  controller: AbortController,
+  source: SignalSource = process,
+): () => void {
+  return stopOn(["SIGINT"], controller, source);
+}
+
+/**
+ * Any of `signals` aborts `controller`, or, once it's aborted (by this or by another listener
+ * sharing it), exits at once with 130.
+ */
+function stopOn(
+  signals: readonly NodeJS.Signals[],
+  controller: AbortController,
+  source: SignalSource,
+): () => void {
   const onSignal = () => {
     if (controller.signal.aborted) source.exit(ExitCode.interrupted);
     else controller.abort(new InterruptedError());

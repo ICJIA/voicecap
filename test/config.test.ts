@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import { defineConfig, loadConfig, resolveConfig } from "../src/config/load.js";
+import { defaultConfig, defineConfig, loadConfig, resolveConfig } from "../src/config/load.js";
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), "voicecap-config-"));
 
@@ -15,6 +15,11 @@ describe("loadConfig", () => {
     expect(loaded.file).toBeNull();
     expect(loaded.config).toEqual(DEFAULT_CONFIG);
     expect(loaded.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  // voicecap demo's settings, whatever config file the current folder has.
+  it("gives voicecap's own settings with no file, as loadConfig does in a folder without one", async () => {
+    expect(defaultConfig()).toEqual(await loadConfig({ cwd: await tmp() }));
   });
 
   it.each([

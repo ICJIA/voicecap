@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ask a question | voicecap demo</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <p class="site-name">voicecap demo</p>
+    </header>
+    <nav aria-label="Tour">
+      <ul>
+        <li><a href="/the-report/">Previous: The report</a></li>
+        <li><a href="/common-mistakes/">Next: Common mistakes (on purpose)</a></li>
+      </ul>
+    </nav>
+    <main id="main">
+      <h1>Ask a question</h1>
+      <p>This form is built well, so a screen reader can say what each field is for.</p>
+      <p>Nothing you type is sent anywhere: this is a demo.</p>
+      <form method="post" action="/ask-a-question/">
+        <p>
+          <label for="name">Your name</label>
+          <input id="name" name="name" type="text" autocomplete="name" />
+        </p>
+        <p>
+          <label for="question">Your question (required)</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="3"
+            cols="36"
+            required
+            aria-describedby="question-hint"
+          ></textarea>
+        </p>
+        <p id="question-hint">Ask anything about voicecap, or about this tour.</p>
+        <fieldset>
+          <legend>How did you hear about voicecap?</legend>
+          <p>
+            <input id="heard-colleague" name="heard" type="radio" value="colleague" />
+            <label for="heard-colleague">From a colleague</label>
+          </p>
+          <p>
+            <input id="heard-readme" name="heard" type="radio" value="readme" />
+            <label for="heard-readme">From its README</label>
+          </p>
+          <p>
+            <input id="heard-other" name="heard" type="radio" value="other" />
+            <label for="heard-other">Somewhere else</label>
+          </p>
+        </fieldset>
+        <p><button type="submit">Send your question</button></p>
+      </form>
+    </main>
+    <footer>
+      <p>This demo site comes with voicecap, and runs only on this computer.</p>
+    </footer>
+  </body>
+</html>

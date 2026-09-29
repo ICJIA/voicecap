@@ -180,7 +180,7 @@ FILES=$(npm pack --dry-run --json --ignore-scripts | node --input-type=commonjs 
   const [pack] = JSON.parse(require("fs").readFileSync(0, "utf8"));
   console.log(pack.files.map((f) => f.path).join("\n"));
 ')
-for required in package.json README.md CHANGELOG.md LICENSE dist/cli.js dist/index.js dist/index.d.ts; do
+for required in package.json README.md CHANGELOG.md LICENSE dist/cli.js dist/index.js dist/index.d.ts demo/site/index.html; do
   grep -qx "$required" <<<"$FILES" || die "The package is missing $required."
 done
 if grep -E '^(src|test|fixture|scripts|docs)/' <<<"$FILES" >/dev/null; then

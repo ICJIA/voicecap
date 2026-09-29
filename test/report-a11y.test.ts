@@ -2,36 +2,19 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-import { AxeBuilder } from "@axe-core/playwright";
-import { chromium, type Browser, type BrowserContextOptions, type Page } from "playwright";
+import type { Browser, BrowserContextOptions, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { generateReport } from "../src/report/index.js";
 import { liveCompareDir } from "../src/run/paths.js";
-import { errorMessage } from "../src/util/errors.js";
+import { launchBrowser, violations } from "./helpers/axe.js";
 import { LOGO, buildRichFixture, tempOutDir } from "./helpers/report-data.js";
-
-const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
 let browser: Browser;
 let reportUrl: string;
 let reportHtml: string;
 let totalRows: number;
-
-async function launchBrowser(): Promise<Browser> {
-  try {
-    return await chromium.launch();
-  } catch (bundled) {
-    try {
-      return await chromium.launch({ channel: "chrome" });
-    } catch {
-      throw new Error(
-        `No browser for the report accessibility test. Run pnpm exec playwright install chromium (${errorMessage(bundled)})`,
-      );
-    }
-  }
-}
 
 const VIEWPORT = { width: 3000, height: 1600 };
 
@@ -61,22 +44,6 @@ async function showWholeTable(page: Page): Promise<void> {
   if (width > VIEWPORT.width) {
     await page.setViewportSize({ width: width + 40, height: VIEWPORT.height });
   }
-}
-
-/**
- * axe violations as readable lines, so a failure says what to fix. Color-contrast checks axe
- * couldn't complete count too: every text node's contrast must actually be verified.
- */
-async function violations(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
-  const unverified = results.incomplete.filter((result) => result.id === "color-contrast");
-  return [...results.violations, ...unverified].map(
-    (violation) =>
-      `${violation.id}: ${violation.help} — ${violation.nodes
-        .slice(0, 3)
-        .map((node) => `${node.target.join(" ")} ${node.failureSummary ?? ""}`)
-        .join(" | ")}`,
-  );
 }
 
 async function visibleRows(page: Page): Promise<number> {

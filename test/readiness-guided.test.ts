@@ -1,5 +1,3 @@
-import { EventEmitter } from "node:events";
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +10,7 @@ import { InterruptedError } from "../src/passes/steps.js";
 import { guideThrough, offerLiveTest } from "../src/readiness/guided.js";
 import type { Check, PlatformReadiness, Problem } from "../src/readiness/model.js";
 import type { SignalSource } from "../src/run/signals.js";
+import { fakeSignals } from "./helpers/fake-signals.js";
 import { scriptedPlatform } from "./helpers/scripted-platform.js";
 import { scriptedScreen } from "./helpers/screen.js";
 
@@ -519,42 +518,6 @@ describe("guideThrough", () => {
     );
   });
 });
-
-/**
- * A stand-in for the process's signals, so no test sends a real one: `send` delivers a signal to
- * whatever listens, `added` records every signal listened for, and `exits` records process.exit.
- */
-function fakeSignals(platform: NodeJS.Platform = "darwin") {
-  const emitter = new EventEmitter();
-  const added: string[] = [];
-  const exits: number[] = [];
-  const source: SignalSource = {
-    platform,
-    on: (signal, listener) => {
-      added.push(signal);
-      emitter.on(signal, listener);
-    },
-    removeListener: (signal, listener) => {
-      emitter.removeListener(signal, listener);
-    },
-    exit: (code) => {
-      exits.push(code);
-    },
-  };
-  return {
-    source,
-    added,
-    exits,
-    send: (signal: NodeJS.Signals) => emitter.emit(signal, signal),
-    /** The signals listened for right now. */
-    listening: () =>
-      emitter
-        .eventNames()
-        .filter((name) => emitter.listenerCount(name) > 0)
-        .map(String)
-        .sort(),
-  };
-}
 
 /**
  * A live test that runs until its signal aborts, then throws InterruptedError, as the real ones

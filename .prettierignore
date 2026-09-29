@@ -1,6 +1,7 @@
 dist/
 coverage/
 fixture/
+voicecap-demo/
 transcripts/
 docs/
 pnpm-lock.yaml

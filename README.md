@@ -35,6 +35,7 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 - [Quick start](#quick-start)
   - [On Windows](#on-windows)
   - [On a Mac](#on-a-mac)
+- [Try it first: npx @icjia/voicecap demo](#try-it-first-npx-icjiavoicecap-demo)
 - [Windows setup (for someone new to Windows)](#windows-setup-for-someone-new-to-windows)
 - [Mac setup](#mac-setup)
 - [Commands and options](#commands-and-options)
@@ -62,7 +63,7 @@ voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to 
 
 ### On Windows
 
-In PowerShell or Git Bash (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows)):
+In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows)):
 
 1. **Set up, once:** `npx @icjia/voicecap setup` installs voicecap's own copy of NVDA, and Playwright's Chromium if Google Chrome isn't installed, with no administrator rights. It ends by checking this computer.
 2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report.
@@ -185,6 +186,22 @@ To install it anyway: `npm install -g @icjia/voicecap`, and `npm install -g @icj
 The command `init` prints always starts with `npx @icjia/voicecap`, so it works on any computer with Node.js. It's quoted for Git Bash, PowerShell, and a Mac's terminal; in cmd, its single quotes must become double quotes (`init` says so when it uses any), or answer "Run it now?" with y, which uses no shell.
 
 npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmpeg (about 30 MB): `@guidepup/setup` can screen-record its own macOS setup with it, which voicecap never does. Either way, voicecap works the same.
+
+## Try it first: `npx @icjia/voicecap demo`
+
+`npx @icjia/voicecap demo` is a guided first run, about 9 minutes, against a small demo site that comes with voicecap. The site runs only on this computer, and only while the tour needs it: nothing is downloaded, and nothing is sent anywhere. The tour goes one step at a time, and each step waits for Enter. Ctrl+C at any of them stops the tour, with nothing left running.
+
+1. **Welcome:** what voicecap does, and what the tour will do.
+2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap doctor`.
+3. **The live test:** about 20 seconds of NVDA speaking. Keep your hands off the keyboard.
+4. **Auditing the demo site:** NVDA reads the demo's seven pages, hands off, for about 6 minutes. The tour shows the command it runs, such as `npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh`. To stop early, click the terminal window first (the browser is in front), then press Ctrl+C.
+5. **The transcripts:** where they are, and the first lines NVDA said on the demo's home page.
+6. **The report:** where it is, its flags, which are all on the "Common mistakes (on purpose)" page, and an offer to open it.
+7. **Your own site:** `npx @icjia/voicecap init` sets up a run.
+
+The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
+
+**On a Mac, for now,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit will do, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report come with voicecap's VoiceOver driver, in a later release; a Windows PC runs the full tour.
 
 ## Windows setup (for someone new to Windows)
 
@@ -389,6 +406,7 @@ voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [-
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
 voicecap doctor    # check this computer and print a summary to paste into a bug report
+voicecap demo      # a guided first run against a demo site that comes with voicecap
 ```
 
 Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, and `report` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.

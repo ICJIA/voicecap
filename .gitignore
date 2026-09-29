@@ -7,6 +7,7 @@ coverage/
 Thumbs.db
 *.log
 /transcripts/
+/voicecap-demo/
 
 # Local environment files (may hold secrets); sample files are fine to commit.
 .env

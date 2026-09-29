@@ -42,6 +42,15 @@ export async function loadConfig(
   return { config, file, sha256: hashJson(config) };
 }
 
+/**
+ * voicecap's own settings, with no config file read: what loadConfig gives in a folder without
+ * one. voicecap demo uses it, so a project's config in the current folder never changes the demo.
+ */
+export function defaultConfig(): LoadedConfig {
+  const config = resolveConfig({});
+  return { config, file: null, sha256: hashJson(config) };
+}
+
 /** Merge a user config over the defaults and validate the result. */
 export function resolveConfig(user: unknown, source: string | null = null): VoicecapConfig {
   if (!isPlainObject(user)) {

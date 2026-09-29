@@ -14,7 +14,7 @@ A small demo site with known content is also a stable target. It can check a new
 
 Success:
 
-- **On a ready Windows PC,** `npx @icjia/voicecap demo` walks a first-time user from the checks to an opened report in about 5 minutes. It explains each step, with nothing else to install or find.
+- **On a ready Windows PC,** `npx @icjia/voicecap demo` walks a first-time user from the checks to an opened report in about 9 minutes. It explains each step, with nothing else to install or find.
 - **On a Mac,** the tour checks the Mac and proves VoiceOver works. It flags a Windows PC as the preferred tour platform for now, up front and in the preflight, and it ends with clear next steps.
 - **The report shows exactly the intended flags.** They're on the "Common mistakes" page, and there are none on the other six.
 - **Nothing is left running** when the tour ends, however it ends. The person's own screen reader is back as it was.
@@ -47,8 +47,8 @@ voicecap demo: a guided first run
 Step 1 of 7 · Welcome
 voicecap drives a real screen reader through a website's pages and saves what it says, so you
 can hear what a screen reader user hears. This tour runs it against a small demo site on this
-computer, using NVDA. It takes about 5 minutes. In step 4, NVDA speaks and takes over the
-keyboard for about 3 minutes.
+computer, using NVDA. It takes about 9 minutes. In step 4, NVDA speaks and takes over the
+keyboard for about 6 minutes.
 
 Press Enter for step 2 (checking this computer), or Ctrl+C to stop here.
 
@@ -66,12 +66,12 @@ Step 3 of 7 · The live test
 The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
 [the live test's checks]
 
-Press Enter for step 4 (auditing the demo site, hands off for about 3 minutes), or Ctrl+C to stop here.
+Press Enter for step 4 (auditing the demo site, hands off for about 6 minutes), or Ctrl+C to stop here.
 
 Step 4 of 7 · Auditing the demo site
 The demo site is running at http://127.0.0.1:4848. voicecap is now running:
   npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh
-For about 3 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop
+For about 6 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop
 early, click this terminal window first, then press Ctrl+C.
 [a normal run's progress lines]
 
@@ -147,7 +147,7 @@ Seven pages. Their text is the tour's narration: as the screen reader reads each
 
 **`/sitemap.xml`** is a `urlset` of the seven pages with absolute URLs. **`/robots.txt`** allows everything and names the sitemap. The server generates both from the address it's actually serving, so any port works.
 
-**Timing.** The target is about 3 minutes for all seven pages with NVDA, and about 5 minutes for the whole tour.
+**Timing.** About 6 minutes for all seven pages with NVDA, and about 9 minutes for the whole tour. **Amended 2026-09-29:** the first targets were 3 and 5 minutes. The final review estimated 6 and 9 from the fixture's recorded NVDA run (about 1.3 seconds a step, plus about 16 seconds a page). The owner's Windows run confirms them before release.
 
 The pages' wording, and the flags, assume NVDA's English interface, as voicecap's flag rules do.
 
@@ -157,7 +157,7 @@ The pages' wording, and the flags, assume NVDA's English interface, as voicecap'
 | --- | --- | --- |
 | `demo/site/` | The seven pages and the stylesheet. `package.json`'s `files` adds `demo`, so they ship. `publish.sh`'s packed-files check already allows it. | Plain HTML and CSS. |
 | `src/demo/server.ts` | Serves `demo/site/` on 127.0.0.1: port 4848 if it's free, else any free port. It generates `/sitemap.xml` and `/robots.txt`, answers a form submission, gives a 404 page, and stops when asked. | Node's `http`, like `scripts/serve-fixture.ts`. The fixture server may reuse its static-file part instead of keeping two copies. |
-| `src/demo/tour.ts` | The seven steps and their wording. The platform's readiness, the prompter, the run, the file opener, and the clock are injected, so tests fake them all. | `loadPlatformReadiness`, `runPreflight` and the renderers for step 2; the platform's `liveTest` for step 3; `runAudit` for step 4, with the demo's origin, `sitemap: "sitemap.xml"`, `out: "voicecap-demo"` and `fresh: true`; the run folder and the live report for steps 5 and 6. |
+| `src/demo/tour.ts` | The seven steps and their wording. The platform's readiness, the prompter, the run, the file opener, and the clock are injected, so tests fake them all. | `loadPlatformReadiness`, `runPreflight` and the renderers for step 2; the platform's `liveTest` for step 3; `runAudit` for step 4, with the demo's origin, `sitemap: "sitemap.xml"`, `out: "voicecap-demo"`, `fresh: true`, step 2's `preflight`, voicecap's default `config`, and `again: "npx @icjia/voicecap demo"` (in place of the run's resume advice); the run folder and the live report for steps 5 and 6. |
 | Step 4's run | The run doesn't repeat the checks step 2 has just done. | A `runAudit` option, or an equivalent the plan settles. |
 | The demo flag | A WARN check line added by the tour on a platform whose preflight can pass while `cannotRunYet` is set. | The readiness model (`Check`). It's the tour's own line, not a platform check. |
 | Opening the report | "Open this file" per platform: `open` on a Mac, Explorer on Windows, `xdg-open` on Linux, with no shell. | A small module in `src/drivers/`, so OS specifics stay in the driver layer. Tests fake it. |
@@ -168,17 +168,20 @@ The pages' wording, and the flags, assume NVDA's English interface, as voicecap'
 | Situation | What happens | Exit |
 | --- | --- | --- |
 | Ctrl+C at any "Press Enter" pause | Stops: *"Stopped. Nothing is left running."* | 130 |
-| Ctrl+C or a closed window during the live test or the audit | The existing cleanup runs: the browser closes, and the screen reader is put back with the person's own settings. Then the demo site stops. Step 4's warning says to click the terminal first, since the browser is in front. | 130 |
-| Not ready at step 2 | The numbered diagnosis, which says when `setup` helps, then *"When this computer is ready, run `npx @icjia/voicecap demo` again."* The demo site hasn't started. | 2 |
+| Ctrl+C or a closed window during the live test or the audit | During the audit, the tour says at once: *"Stopping: shutting down NVDA and the browser. This can take a minute."* The existing cleanup runs: the browser closes, and the screen reader is put back with the person's own settings. Then the demo site stops. A Ctrl+C that arrives as a real signal (if the terminal's key capture is lost) stops the audit the same way, and a second one exits at once. Step 4's warning says to click the terminal first, since the browser is in front. The run's own message says to run the demo again, not to resume. | 130 |
+| Not ready at step 2 | The numbered diagnosis, which says when `setup` helps, then *"When this computer is ready, run `npx @icjia/voicecap demo` again."* On a computer with no screen reader for voicecap (Linux), the last line is instead *"The tour runs on a Windows PC, or on a Mac for the checks: run `npx @icjia/voicecap demo` there."*, and the replay step meant for runs isn't shown. The demo site hasn't started. | 2 |
 | The live test fails | Its problems, as `init` shows them. The tour stops, since an audit would fail the same way. | 2 |
 | A page fails during the audit | As in any run: it's recorded, and the run goes on. Steps 5 and 6 point it out. | 3, as for a run |
+| The audit stops after failed pages in a row | The run's own explanation, then *"Run `npx @icjia/voicecap doctor` to check this computer, then `npx @icjia/voicecap demo` again."* | 2 |
 | The audit can't run (a driver error) | The error, then the demo site stops. | 2 |
+| A `voicecap.config.*` in the current folder | Never read: the tour uses voicecap's own settings, for the checks and the run, and step 4 says so. An invalid file there doesn't stop the demo. | — |
 | Port 4848 is busy | Any free port instead. It isn't an error. | — |
 | An earlier `voicecap-demo/` exists | A new run goes beside the old ones, as in any transcripts folder. | — |
-| No terminal (piped or scripted) | *"voicecap demo is interactive: run it in a terminal."* | 1 |
+| No terminal (piped or scripted) | *"voicecap demo is interactive: run it in a terminal. On Windows, use PowerShell or Windows Terminal, not Git Bash's own window."* | 1 |
+| The input ends at a pause (Ctrl+D) | *"Stopped: the input ended (Ctrl+D). Nothing is left running."* | 1 |
 | The tour finished | | 0 |
 
-The demo site always stops when the tour ends, however it ends.
+The demo site always stops when the tour ends, however it ends. **Amended 2026-09-29,** after the final review: the stopping line, Ctrl+C as a real signal, the run's own advice, Linux's last line, the stopped-run next step, the folder's config, the Git Bash window, and Ctrl+D.
 
 ## Tests
 

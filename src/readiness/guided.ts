@@ -173,11 +173,9 @@ export async function finishSetup(
 }
 
 /**
- * Logs the live test's notice and asks whether to run it (No unless answered). A yes runs it and
- * logs its checks, and its problems when one FAILs. Returns 0 when it passed or was declined (or
- * the platform has none), 2 when it failed, and 130 when it was stopped: by Ctrl+C, through the
- * prompter's `interrupted` signal, or by a closed window's SIGHUP or a SIGTERM (stopOnClosedWindow,
- * listening to `signals`, the process's own unless given).
+ * Logs the live test's notice and asks whether to run it (No unless answered). A yes runs it with
+ * runLiveTest. Returns 0 when it passed or was declined (or the platform has none), and otherwise
+ * what runLiveTest returns.
  */
 export async function offerLiveTest(
   platform: PlatformReadiness,
@@ -190,7 +188,21 @@ export async function offerLiveTest(
   for (const line of platform.liveTestNotice) logger.info(line);
   const screenReader = platform.screenReader ?? "the screen reader";
   if (!(await prompter.confirm(`Test ${screenReader} now?`, false))) return ExitCode.ok;
+  return runLiveTest(liveTest, options);
+}
 
+/**
+ * Runs a platform's live test, with no question first (voicecap demo's step 3 has asked already),
+ * and logs its checks, and its problems when one FAILs. Returns 0 when it passed, 2 when it
+ * failed, and 130 when it was stopped: by Ctrl+C, through the prompter's `interrupted` signal, or
+ * by a closed window's SIGHUP or a SIGTERM (stopOnClosedWindow, listening to `signals`, the
+ * process's own unless given).
+ */
+export async function runLiveTest(
+  liveTest: NonNullable<PlatformReadiness["liveTest"]>,
+  options: { prompter: Prompter; logger: Logger; signals?: SignalSource },
+): Promise<number> {
+  const { prompter, logger } = options;
   const closed = new AbortController();
   const unlisten = stopOnClosedWindow(closed, options.signals);
   let checks: Check[];

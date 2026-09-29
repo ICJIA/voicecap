@@ -68,10 +68,17 @@ function linesStream(lines: readonly string[] = []): PassThrough {
 }
 
 /**
- * `init` at a terminal: `lines` typed ahead ("" is Enter), and a real stdout stream, since
- * readline's terminal mode needs one. Linux, unless `extra` says otherwise, as in cli().
+ * A command at a terminal: `lines` typed ahead ("" is Enter), and a real stdout stream, since
+ * readline's terminal mode needs one. Linux, unless `extra` says otherwise, as in cli(), in a new
+ * empty folder with an empty environment unless `extra` gives them. `run` is main, or a copy of it
+ * loaded with some modules mocked.
  */
-async function initAtTerminal(lines: readonly string[], extra: CliExtra = {}) {
+async function atTerminal(
+  args: string[],
+  lines: readonly string[],
+  extra: CliExtra & { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+  run: typeof main = main,
+) {
   const stdin = Object.assign(new PassThrough(), { isTTY: true });
   let screen = "";
   const stdout = new Writable({
@@ -80,23 +87,29 @@ async function initAtTerminal(lines: readonly string[], extra: CliExtra = {}) {
       callback();
     },
   });
+  const cwd = extra.cwd ?? (await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")));
   stdin.write(lines.map((line) => `${line}\n`).join(""));
   try {
-    const code = await main(["init"], {
+    const code = await run(args, {
       stdout,
       stderr: capture().stream,
-      cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
       env: {},
       signal: new AbortController().signal,
       interactive: false,
       stdin,
       ...extra,
+      cwd,
       platform: extra.platform ?? "linux",
     });
-    return { code, out: screen };
+    return { code, out: screen, cwd };
   } finally {
     stdin.end();
   }
+}
+
+/** `init` at a terminal, as atTerminal. */
+function initAtTerminal(lines: readonly string[], extra: CliExtra = {}) {
+  return atTerminal(["init"], lines, extra);
 }
 
 /** A default home with one site's folder in it, from a replay run. Returns the folder it's in. */
@@ -1202,5 +1215,150 @@ describe.skipIf(process.platform !== "win32")("paths written Git Bash's way", ()
     expect(manual.code).toBe(0);
     const siteDir = path.join(cwd, "transcripts", "127.0.0.1_4747");
     expect(existsSync(manualSessionDir(siteDir, "2026-09-25_2357", "home"))).toBe(true);
+  });
+});
+
+describe("voicecap demo", () => {
+  /** A Mac before the VoiceOver driver: ready, with a passing live test, and no run to start. */
+  function macLike(): PlatformReadiness {
+    return readyPlatform({
+      screenReader: "VoiceOver",
+      cannotRunYet: "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.",
+      liveTestNotice: ["The live test takes about 20 seconds."],
+      liveTest: () =>
+        Promise.resolve([{ id: "liveHear", status: "OK", summary: "VoiceOver hears the page" }]),
+    });
+  }
+
+  it("needs a terminal, and says so before checking anything", async () => {
+    let checked = false;
+    const result = await cli(
+      ["demo"],
+      undefined,
+      {},
+      {
+        stdin: linesStream(["", "", "", ""]),
+        platformReadiness: () => {
+          checked = true;
+          return Promise.resolve(macLike());
+        },
+      },
+    );
+    expect(result.code).toBe(1);
+    expect(result.err).toContain("voicecap demo is interactive: run it in a terminal.");
+    // M6: Git Bash's own window (mintty) doesn't always let Node see a terminal.
+    expect(result.err).toContain(
+      "voicecap demo is interactive: run it in a terminal. On Windows, use PowerShell or Windows Terminal, not Git Bash's own window.\n",
+    );
+    expect(checked).toBe(false);
+  });
+
+  // M10: Ctrl+D at a pause ends the terminal's input. Nothing is running at a pause.
+  it("stops on Ctrl+D at a pause, says so, and exits 1", async () => {
+    const run = await atTerminal(["demo"], ["\u0004"], {
+      platformReadiness: () => Promise.resolve(NOT_READY),
+    });
+    expect(run.code).toBe(1);
+    expect(run.out).toContain("Stopped: the input ended (Ctrl+D). Nothing is left running.\n");
+    expect(run.out).not.toContain("Step 2 of 7");
+  });
+
+  // The next three use Linux's real readiness module, which main.ts loads when no test's readiness
+  // is given. It's safe: Linux has no screen reader to drive, so the tour stops at step 2.
+  it("checks this computer with voicecap's own settings, whatever this folder's config says", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    // I2: a config that can't even load, which would stop anything that read it.
+    await writeFile(
+      path.join(cwd, "voicecap.config.json"),
+      JSON.stringify({ passes: "every one" }),
+    );
+    const run = await atTerminal(["demo"], [""], { cwd });
+    expect(run.code).toBe(2);
+    expect(run.out).toContain("Step 2 of 7 · Checking this computer");
+    expect(run.out).toContain("Not ready: 1 problem.");
+  });
+
+  it("names the demo's own folder as step 2's transcripts home", async () => {
+    // M5: never the person's VOICECAP_TRANSCRIPTS audit record, or ./transcripts.
+    const run = await atTerminal(["demo"], [""], {
+      env: { VOICECAP_TRANSCRIPTS: path.join(os.tmpdir(), "audit-record") },
+    });
+    expect(run.code).toBe(2);
+    expect(run.out).toContain(`\n  Transcripts     ${path.join(run.cwd, "voicecap-demo")}\n`);
+  });
+
+  it("says where the tour runs on Linux, with none of the advice it can't take", async () => {
+    // M8: Linux's fix step for runs adds --replay-from, which demo doesn't take.
+    const run = await atTerminal(["demo"], [""]);
+    expect(run.code).toBe(2);
+    expect(run.out).toContain("1. No screen reader to drive here\n");
+    expect(run.out).toContain("     1. Run real audits on a Windows computer or a Mac.\n");
+    expect(run.out).not.toContain("--replay-from");
+    expect(run.out).not.toContain("When this computer is ready");
+    expect(run.out).toContain(
+      "\n\nThe tour runs on a Windows PC, or on a Mac for the checks: run npx @icjia/voicecap demo there.\n",
+    );
+  });
+
+  it("stops at step 2 when the computer isn't ready, and exits 2", async () => {
+    const run = await atTerminal(["demo"], [""], {
+      platformReadiness: () => Promise.resolve(NOT_READY),
+    });
+    expect(run.code).toBe(2);
+    expect(run.out).toContain("Step 1 of 7 · Welcome");
+    expect(run.out).toContain("Not ready: 1 problem.");
+    expect(run.out).toContain("When this computer is ready, run npx @icjia/voicecap demo again.");
+    expect(run.out).not.toContain("Step 3 of 7");
+  });
+
+  it("stops on Ctrl+C at the first pause, with nothing left running (130)", async () => {
+    const run = await atTerminal(["demo"], ["\u0003"], {
+      platformReadiness: () => Promise.resolve(NOT_READY),
+    });
+    expect(run.code).toBe(130);
+    expect(run.out).toContain("Stopped. Nothing is left running.");
+    expect(run.out).not.toContain("Step 2 of 7");
+  });
+
+  // Every path of the tour is in test/demo-tour.test.ts, with fakes. This proves main.ts's wiring,
+  // on a Mac-like computer, with the demo site, runs, and the opener replaced by modules that
+  // refuse to run: the Mac's tour must never reach them.
+  it("takes a Mac to step 7 without starting the demo site, a run, or the opener", async () => {
+    const refuse = () => {
+      throw new Error("The Mac's tour must never start this.");
+    };
+    vi.resetModules();
+    vi.doMock("../src/demo/server.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      startDemoServer: refuse,
+    }));
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: refuse,
+    }));
+    vi.doMock("../src/drivers/open-file.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      openFile: refuse,
+    }));
+    try {
+      const { main: mainWithRefusals } = await import("../src/cli/main.js");
+      const run = await atTerminal(
+        ["demo"],
+        ["", "", "", ""],
+        { platform: "darwin", platformReadiness: () => Promise.resolve(macLike()) },
+        mainWithRefusals,
+      );
+      expect(run.code).toBe(0);
+      expect(run.out).toContain(
+        "  WARN  The full demo runs on a Windows PC for now: on this Mac, the tour stops after the live test",
+      );
+      expect(run.out).toContain("Step 7 of 7 · Your own site");
+      expect(run.out).not.toContain("Step 5 of 7");
+    } finally {
+      vi.doUnmock("../src/demo/server.js");
+      vi.doUnmock("../src/run/audit.js");
+      vi.doUnmock("../src/drivers/open-file.js");
+      vi.resetModules();
+    }
   });
 });

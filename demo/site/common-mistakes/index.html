@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Common mistakes (on purpose) | voicecap demo</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!--
+      Mistakes on purpose, for voicecap's flags: the first heading is level 2 (headings), a text
+      field with no label and an icon-only button with no name (unlabeled), and three "click
+      here" links (generic-link-text). Everything else is built as well as the other pages.
+    -->
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <p class="site-name">voicecap demo</p>
+    </header>
+    <nav aria-label="Tour">
+      <ul>
+        <li><a href="/ask-a-question/">Previous: Ask a question</a></li>
+      </ul>
+    </nav>
+    <main id="main">
+      <h2>Common mistakes (on purpose)</h2>
+      <p>This page makes three kinds of mistakes on purpose, so voicecap has some to flag.</p>
+      <p>Its first heading is level 2, not 1, so the screen reader says "heading, level 2".</p>
+      <h3>A search box with no label</h3>
+      <div><input type="text" name="search" /></div>
+      <p>The box above has no label, so the screen reader says only "edit".</p>
+      <h3>A button with no name</h3>
+      <div>
+        <button type="button">
+          <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 20 20">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" />
+            <path d="M12.5 12.5 18 18" stroke="currentColor" stroke-width="2" />
+          </svg>
+        </button>
+      </div>
+      <p>The button above shows only an icon, so the screen reader says only "button".</p>
+      <h3>Links that say "click here"</h3>
+      <p>To see how a run works, <a href="/how-a-run-works/">click here</a>.</p>
+      <p>To read about transcripts, <a href="/reading-transcripts/">click here</a>.</p>
+      <p>To learn about the report, <a href="/the-report/">click here</a>.</p>
+      <p>Listed on their own, as screen readers can list links, each says only "click here".</p>
+    </main>
+    <footer>
+      <p>This demo site comes with voicecap, and runs only on this computer.</p>
+    </footer>
+  </body>
+</html>

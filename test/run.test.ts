@@ -10,7 +10,13 @@ import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import type { UserConfig } from "../src/config/schema.js";
 import { ForegroundError } from "../src/drivers/types.js";
 import type { RunJson } from "../src/model.js";
-import type { Check, CheckRunner, PlatformReadiness, Problem } from "../src/readiness/model.js";
+import type {
+  Check,
+  CheckRunner,
+  PlatformReadiness,
+  PreflightResult,
+  Problem,
+} from "../src/readiness/model.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
@@ -730,6 +736,63 @@ describe("interrupting and resuming", () => {
   });
 });
 
+describe("what a run that ends early says to do next", () => {
+  /** A run of SITE's pages that ends early as `ending` says, given `again` if there is one. */
+  async function endedEarly(ending: "interrupted" | "stopped", again?: string) {
+    const dir = await setup();
+    const logger = createMemoryLogger();
+    const controller = new AbortController();
+    if (ending === "interrupted") controller.abort();
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(
+      ending === "stopped"
+        ? sitePages({
+            home: { openError: broken },
+            about: { openError: broken },
+            resources: { openError: broken },
+          })
+        : sitePages(),
+    );
+    const result = await runAudit({
+      ...options(dir, driver, { signal: controller.signal, logger }),
+      config: config({ maxConsecutiveFailures: 2 }),
+      ...(again ? { again } : {}),
+    });
+    expect(result.outcome).toBe(ending);
+    return { entries: logger.entries, runId: result.runId };
+  }
+
+  it("says to run the same command again to resume, word for word as before", async () => {
+    const interrupted = await endedEarly("interrupted");
+    expect(interrupted.entries).toContainEqual({
+      level: "warn",
+      message: `Interrupted. Progress is saved in ${interrupted.runId}; run the same command again to resume.`,
+    });
+    const stopped = await endedEarly("stopped");
+    expect(stopped.entries).toContainEqual({
+      level: "error",
+      message: `Stopped after 2 failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then run the same command again to resume ${stopped.runId}.`,
+    });
+  });
+
+  // voicecap demo's run is --fresh, on a demo site that stops with the tour: it can't resume.
+  it("says to run the caller's own command to start again, when it gives one", async () => {
+    const interrupted = await endedEarly("interrupted", "npx @icjia/voicecap demo");
+    expect(interrupted.entries).toContainEqual({
+      level: "warn",
+      message: `Interrupted. Progress is saved in ${interrupted.runId}; run npx @icjia/voicecap demo to start again.`,
+    });
+    const stopped = await endedEarly("stopped", "npx @icjia/voicecap demo");
+    expect(stopped.entries).toContainEqual({
+      level: "error",
+      message:
+        "Stopped after 2 failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then run npx @icjia/voicecap demo to start again.",
+    });
+    const said = [...interrupted.entries, ...stopped.entries].map((entry) => entry.message);
+    expect(said.join("\n")).not.toContain("the same command");
+  });
+});
+
 describe("completed runs are sealed", () => {
   it("seals a run when it completes, but not while it's still interrupted", async () => {
     const dir = await setup();
@@ -997,5 +1060,51 @@ describe("readiness checks before a real run", () => {
     const result = await runAudit({ ...options(dir, driver), logger });
     expect(result.outcome).toBe("completed");
     expect(logger.text()).not.toMatch(/Checks passed:|Not ready:/);
+  });
+
+  /** A preflight's result, as voicecap demo's step 2 has it: NVDA on Windows, with these checks. */
+  function preflightOf(checks: Check[]): PreflightResult {
+    return {
+      info: { lines: [], screenReader: "NVDA 2026.2", system: "Windows 11 Pro 24H2" },
+      checks,
+      ready: checks.every((check) => check.status !== "FAIL"),
+    };
+  }
+
+  it("uses a preflight it's given instead of checking again", async () => {
+    const dir = await setup();
+    const logger = createMemoryLogger();
+    let checked = 0;
+    const readiness = () => {
+      checked++;
+      return fakeReadiness([])();
+    };
+    const preflight = preflightOf([
+      { id: "ownNvda", status: "WARN", summary: "Your NVDA is running" },
+    ]);
+    const result = await runAudit({
+      ...options(dir, new ScriptedDriver(sitePages()), { readiness, preflight }),
+      logger,
+    });
+    expect(result.outcome).toBe("completed");
+    expect(checked).toBe(0);
+    expect(logger.text()).toContain(
+      "Checks passed: NVDA 2026.2 on Windows 11 Pro 24H2\n  WARN  Your NVDA is running",
+    );
+  });
+
+  it("stops before touching the site folder when the preflight it's given isn't ready", async () => {
+    const dir = await setup();
+    const driver = new ScriptedDriver(sitePages());
+    const preflight = preflightOf([
+      { id: "nvda", status: "FAIL", summary: "NVDA isn't installed", problem },
+    ]);
+    const error: unknown = await runAudit(options(dir, driver, { preflight })).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(EnvironmentError);
+    expect((error as Error).message).toMatch(/^Not ready: 1 problem\./);
+    expect(driver.starts).toBe(0);
+    expect(existsSync(outDir(dir))).toBe(false);
   });
 });

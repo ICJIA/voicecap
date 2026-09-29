@@ -1,7 +1,10 @@
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
-import { loadConfig } from "../config/load.js";
+import { defaultConfig, loadConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
+import { startDemoServer } from "../demo/server.js";
+import { runTour } from "../demo/tour.js";
+import { DEMO_OUT, INPUT_ENDED, NOT_A_TERMINAL } from "../demo/words.js";
 import { createPrompter, deferPrompter, InputEndedError, type Prompter } from "../init/prompt.js";
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
@@ -230,6 +233,52 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         if (error instanceof InputEndedError) setExit(ExitCode.usage);
         else if (error instanceof InterruptedError) setExit(ExitCode.interrupted);
         else throw error;
+      }
+    });
+
+  program
+    .command("demo")
+    .description(
+      "a guided first run: check this computer, then audit a demo site that comes with voicecap",
+    )
+    .action(async () => {
+      // The tour waits for Enter at every step, so it needs someone at a terminal.
+      if (!isTerminalStream(ctx.stdin)) throw new UsageError(NOT_A_TERMINAL);
+      const platform = ctx.platformReadiness
+        ? await ctx.platformReadiness()
+        : await loadPlatform(ctx, logger, "npx @icjia/voicecap demo", {
+            // voicecap's own settings, as the tour's run uses: the demo never reads a
+            // voicecap.config.* in this folder, which could change it or stop it.
+            config: defaultConfig().config,
+            // Step 2's "Transcripts" line names the demo's own folder, where its run goes.
+            env: { ...ctx.env, VOICECAP_TRANSCRIPTS: DEMO_OUT },
+          });
+      // One prompter for the whole tour: in a terminal it keeps Ctrl+C to itself, and its
+      // `interrupted` signal stops the live test and the audit as well as a pause.
+      const prompter = createPrompter({ input: ctx.stdin, output: ctx.stdout, terminal: true });
+      try {
+        setExit(
+          await runTour({
+            platform,
+            os: ctx.platform,
+            prompter,
+            logger,
+            cwd: ctx.cwd,
+            env: ctx.env,
+            now: () => new Date(),
+            startServer: () => startDemoServer(),
+            runAudit,
+            openFile: async (file) =>
+              (await import("../drivers/open-file.js")).openFile(file, { platform: ctx.platform }),
+          }),
+        );
+      } catch (error) {
+        if (!(error instanceof InputEndedError)) throw error;
+        // Ctrl+D at a pause: nothing is running then, since the demo site runs only in step 4.
+        logger.info(INPUT_ENDED);
+        setExit(ExitCode.usage);
+      } finally {
+        prompter.close();
       }
     });
 
@@ -510,19 +559,23 @@ async function setupWithoutScreenReader(ctx: CliContext, logger: Logger): Promis
   return finishSetup(platform, await runPreflight(platform), { logger, prompter: null });
 }
 
-/** The readiness module for ctx.platform, with the project's config. */
+/**
+ * The readiness module for ctx.platform, with the project's config and ctx.env, unless `options`
+ * gives others (voicecap demo's).
+ */
 async function loadPlatform(
   ctx: CliContext,
   logger: Logger,
   again: string,
+  options: { config?: VoicecapConfig; env?: NodeJS.ProcessEnv } = {},
 ): Promise<PlatformReadiness> {
-  const { config } = await loadConfig({ cwd: ctx.cwd });
+  const config = options.config ?? (await loadConfig({ cwd: ctx.cwd })).config;
   const { loadPlatformReadiness } = await import("../drivers/readiness.js");
   return loadPlatformReadiness({
     platform: ctx.platform,
     config,
     logger,
-    env: ctx.env,
+    env: options.env ?? ctx.env,
     cwd: ctx.cwd,
     again,
   });

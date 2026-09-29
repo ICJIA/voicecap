@@ -28,7 +28,12 @@ Still to check by hand:
   - `windowsComputerModel` and `windowsBrowserVersion` on real hardware;
   - after a run, that the person's installed NVDA restarts through `Start-Process`, including one that uses UIAccess;
   - how long the quick checks take, against the README's "about two seconds";
-  - closing the terminal window during `init`'s live test.
+  - closing the terminal window during `init`'s live test;
+  - **`voicecap demo` from start to finish**, from a build of the branch (`node dist/cli.js demo`), or with `npx @icjia/voicecap demo` once it's released:
+    - time step 4 and the whole tour against `AUDIT_MINUTES` (6) and `TOUR_MINUTES` (9) in `src/demo/words.ts`, and change them (and the README and spec) if they're off;
+    - check that the opened report flags `/common-mistakes/` and no other page;
+    - check that the terminal keeps Ctrl+C for itself through the whole audit;
+    - check that Ctrl+C, and closing the window, both stop the audit mid-run and give the owner's own NVDA back.
 - **On this Mac, with the owner's OK:** the supervised run above is done, except for one item: a fresh macOS user account, whose VoiceOver has never been turned on. There, the checks should say "VoiceOver: not set up for this user yet".
 
 Parked, known and left for later:
@@ -90,6 +95,35 @@ Deferred from the readiness reviews (each judged "can wait" by the final review)
   - `describeError`, in both the NVDA driver and the Mac live test;
   - the setup options' shapes.
 - **Docs:** the README's `setup` line adds "(Windows or a Mac)", so it isn't a literal quote of the CLI's own description.
+
+Deferred from the `voicecap demo` reviews (2026-09-29), each judged "can wait" or parked by the final review:
+
+- **Ctrl+C in the tour** (`src/demo/tour.ts`):
+  - A second Ctrl+C while the terminal keeps it for itself does nothing; only a real SIGINT gets the exit on the second press.
+  - A SIGHUP after a Ctrl+C only aborts.
+  - The prompter exists before step 2, so on a Mac, Ctrl+C can't cut short a check that's waiting up to 60 seconds on the System Events prompt.
+  - A late SIGINT, arriving after the run's last abort check, says "Stopping…", yet the tour carries on. The fix: treat `stop.signal.aborted` after a completed run as interrupted.
+  - An alternative the final review suggested: close the prompter during step 4 and use `handleInterrupts`, as `init` does when it hands off to a run.
+- **Words:**
+  - The Ctrl+D message lands on the prompt's line; it needs a blank line first.
+  - A browser that updates itself mid-demo still says "run the same command again to resume" (`guidepup-nvda.ts:744`).
+  - `doctor` is described as "the checks on their own", though it also runs the live test.
+  - README's "pnpm is only for … the replay demo" sits near "Try it first".
+  - `auditIntro`'s first two lines don't go through `paragraph()`.
+- **The CHANGELOG** doesn't list `runAudit`'s new public options `again` and `preflight`. Add them before a release, or mark them internal.
+- **An Enter typed ahead** during step 2's checks answers the pause before the live test (typed-ahead input isn't dropped).
+- **The demo server** (`src/demo/server.ts`, `src/util/static-site.ts`):
+  - `close()` rejects on a second call.
+  - A missing `demo/site/` or `404.html` makes every page a 500; a check at startup would give a clear error.
+  - The 500 and 405 blocks are duplicated in both servers.
+  - The default port, 4848, isn't tested, and neither is `closeAllConnections()`.
+  - Polish: temp folders from the tests aren't removed; the `listen` parameter shadows the module's function; a 405 on `/ask-a-question/` says `Allow: GET, HEAD`, without POST.
+- **Tests:**
+  - No test pins that a replay run ignores `preflight`.
+  - No test checks that step 3 passes the fake signals on.
+  - The throwing-run test doesn't check that listeners are gone.
+  - The fixture server's traversal test is weak for 5 of its 6 cases. This predates the demo; the shared guard is pinned by the demo server's test.
+- **Duplication:** `renderPreflight`'s options are built three times, in `main.ts`, `guided.ts`, and `tour.ts`.
 
 Written on the Windows PC at the end of Phase B and the audit-record work, for a new Claude Code session on the owner's Mac. Notes kept on the PC don't travel, so everything the Mac session needs is here.
 
@@ -153,6 +187,7 @@ The owner's standing rules, from Phases A and B:
   - **VoiceOver API:** `voiceOver.start()`, `next()`, `nextHeading()`, `itemText()`, `lastSpokenPhrase()`, `spokenPhraseLog()`, `perform(voiceOver.keyboardCommands.…)`, and `stop()`. Check the exact names against the installed version; don't guess.
   - **`@guidepup/setup setup`** configures the OS once per machine. Run locally, it "may need some manual steps": https://www.guidepup.dev/docs/guides/manual-voiceover-setup. Its TCC database updates need System Integrity Protection off, which the working rules rule out without the owner. `--macos-ignore-tcc-db` skips them.
   - **`@guidepup/setup install voiceover`** puts VoiceOver's assets in `~/Library/Caches/guidepup/`.
+- **A demo site with known content**, for `voicecap demo` (`docs/superpowers/specs/2026-09-29-demo-design.md`): `demo/site/`, served on 127.0.0.1 by `src/demo/server.ts`. Seven short pages whose text explains voicecap: six built well, and `/common-mistakes/`, with a level 2 first heading, a text field and an icon button with no names, and three "click here" links. It's the VoiceOver driver's test site. Once the driver clears the Mac's `cannotRunYet`, `voicecap demo` runs its whole tour on the Mac with no change to the tour. The pages' wording, and the flags they raise (`headings`, `unlabeled`, `generic-link-text`), assume NVDA's English phrasing; VoiceOver's phrasing for the flags comes with the driver.
 
 ## The hard part is the core, not the driver
 

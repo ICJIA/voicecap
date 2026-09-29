@@ -22,7 +22,7 @@ import { pageSourceFor, resolvePages } from "../pages/resolve.js";
 import { displayPath, parseSiteUrl } from "../pages/url.js";
 import type { PassSettings } from "../passes/index.js";
 import { InterruptedError, throwIfAborted } from "../passes/steps.js";
-import type { PlatformReadiness } from "../readiness/model.js";
+import type { PlatformReadiness, PreflightResult } from "../readiness/model.js";
 import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
@@ -97,6 +97,19 @@ export interface RunAuditOptions {
   readiness?: () => Promise<PlatformReadiness>;
   /** Which platform's readiness check a real run uses. Default: process.platform. Tests only. */
   platform?: NodeJS.Platform;
+  /**
+   * The quick checks' result, when the caller has just run them (voicecap demo's step 2): a real
+   * run uses it instead of checking again. Not ready still stops the run, and ready still logs the
+   * one-line summary. A replay run ignores it, as it ignores `readiness`.
+   */
+  preflight?: PreflightResult;
+  /**
+   * The command that starts over, for a caller whose run can't be resumed: voicecap demo's run is
+   * --fresh, on a demo site that stops with the tour. An interrupted or stopped run then says
+   * "run <again> to start again" instead of "run the same command again to resume". Plain runs
+   * leave it out.
+   */
+  again?: string;
 }
 
 export interface RunAuditResult {
@@ -312,17 +325,20 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
 
   const failedPages = run.pages.filter((page) => page.status === "failed").length;
   const folders = { siteDir: outDir, runDir: runDir(outDir, run.id) };
+  // A caller whose run can't be resumed names the command that starts over (voicecap demo's).
+  const again = ctx.options.again;
+  const startAgain = again ? `run ${again} to start again` : null;
   if (outcome === "interrupted") {
     await end("interrupted");
     logger.warn(
-      `Interrupted. Progress is saved in ${run.id}; run the same command again to resume.`,
+      `Interrupted. Progress is saved in ${run.id}; ${startAgain ?? "run the same command again to resume"}.`,
     );
     return { runId: run.id, ...folders, outcome, exitCode: ExitCode.interrupted, run, failedPages };
   }
   if (outcome === "stopped") {
     await end("environment-failure");
     logger.error(
-      `Stopped after ${config.maxConsecutiveFailures} failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then run the same command again to resume ${run.id}.`,
+      `Stopped after ${config.maxConsecutiveFailures} failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then ${startAgain ?? `run the same command again to resume ${run.id}`}.`,
     );
     return { runId: run.id, ...folders, outcome, exitCode: ExitCode.environment, run, failedPages };
   }
@@ -562,8 +578,10 @@ function checkCount(flag: string, value: number | null | undefined): number | nu
  * Quick checks (about 2 seconds) before a real run touches anything. Not ready: throws
  * EnvironmentError with the "Not ready" block, before the site folder, the run lock, or NVDA are
  * touched. Ready: logs the one-line pass summary and any WARN lines, then the run proceeds as
- * usual. Never runs for a replay run. Otherwise runs when a test supplies `options.readiness`, or
- * the run selected guidepup and is really on Windows, with no test driver standing in for it.
+ * usual. Never runs for a replay run. A caller that has just run the checks passes their result
+ * as `options.preflight`, which is used instead. Otherwise runs when a test supplies
+ * `options.readiness`, or the run selected guidepup and is really on Windows, with no test driver
+ * standing in for it.
  */
 async function checkReadiness(args: {
   selection: DriverSelection;
@@ -574,6 +592,10 @@ async function checkReadiness(args: {
 }): Promise<void> {
   const { selection, config, options, logger, cwd } = args;
   if (selection.name === "replay") return;
+  if (options.preflight) {
+    reportReadiness(options.preflight, logger);
+    return;
+  }
   const platform = options.platform ?? process.platform;
   const runsChecks =
     options.readiness !== undefined ||
@@ -590,7 +612,11 @@ async function checkReadiness(args: {
         cwd,
         again: "the same command",
       });
-  const result = await runPreflight(readiness);
+  reportReadiness(await runPreflight(readiness), logger);
+}
+
+/** Not ready: throws the "Not ready" block. Ready: logs the one-line summary and any warnings. */
+function reportReadiness(result: PreflightResult, logger: Logger): void {
   if (!result.ready) {
     throw new EnvironmentError(renderProblems(result.checks, { offerSetup: true }));
   }
