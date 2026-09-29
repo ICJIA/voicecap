@@ -197,6 +197,11 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
  * containers), so that service would crash as the browser starts and restart, aborting a page
  * load under way. Seen on GitHub's Windows runners, then on a Windows 11 PC. An installed Chrome or
  * Edge keeps every sandbox.
+ *
+ * On macOS, --use-mock-keychain keeps the browser out of the login keychain: otherwise it asks for
+ * its Safe Storage key as the profile's cookie store opens, macOS may show an approval dialog, and
+ * every page load waits for the answer (seen on a Mac; Playwright passes the switch too). Other
+ * platforms ignore it.
  */
 export function chromeArgs(profileDir: string, executable: BrowserExecutable): string[] {
   const disabled = executable.playwrightBuild
@@ -224,6 +229,7 @@ export function chromeArgs(profileDir: string, executable: BrowserExecutable): s
     "--metrics-recording-only",
     "--no-service-autorun",
     "--password-store=basic",
+    "--use-mock-keychain",
     `--disable-features=${disabled.join(",")}`,
     `--window-size=${WINDOW.width},${WINDOW.height}`,
     "--window-position=0,0",

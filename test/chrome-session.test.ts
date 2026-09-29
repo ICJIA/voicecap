@@ -274,6 +274,22 @@ describe("the browser's command line", () => {
     expect(disabledFeatures(args)).toContain("NetworkServiceSandbox");
     expect(args).not.toContain("--no-sandbox");
   });
+
+  // Seen on a Mac: without it, Chrome asks the login keychain for its Safe Storage key as the
+  // profile's cookie store opens, macOS shows an approval dialog, and every page load waits for
+  // the answer. Playwright passes the same switch on macOS.
+  it("keeps the browser out of the macOS keychain", () => {
+    for (const executable of [
+      { name: "Chrome", path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" },
+      {
+        name: "Chromium",
+        path: "/Users/pat/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+        playwrightBuild: true,
+      },
+    ]) {
+      expect(chromeArgs(profile, executable)).toContain("--use-mock-keychain");
+    }
+  });
 });
 
 describe("choosing the browser", () => {
