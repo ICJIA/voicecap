@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-29
+
 ### Added
 
 - **A preflight check at the start of `init`**: before any question, it shows this computer's own details (hardware, screen reader, browser, and paths) and runs quick checks that decide whether NVDA (on Windows) or VoiceOver (on a Mac) is ready, in about two seconds. The checks only read, except on a Mac, where the Full Disk Access check creates and removes a small file, and the System Events check can raise macOS's prompt, which `init` warns about first. A computer that isn't ready stops there with exit code 2 and a numbered, plain-language diagnosis — what's wrong, and how to fix it — for each problem; a ready one, at a terminal, can try a 20-second live test before the wizard's usual questions.
@@ -16,6 +18,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 - **`init` now starts with the preflight** described above, before its usual questions.
 - **`doctor`'s output now leads with this computer's own details, and gives each failing check a numbered, plain-language diagnosis with fix steps**, in place of the previous one-line-per-check summary.
+- **`setup` on Windows now ends with the same preflight**, and exits 2 when the computer still isn't ready (it used to exit 0).
+
+### Fixed
+
+- **On a Mac, the browser voicecap starts no longer asks for the login keychain.** Chrome for Testing asked for its Safe Storage key as each new profile opened, macOS showed an approval dialog, and every page load waited for the answer. voicecap now starts the browser with `--use-mock-keychain`, as Playwright does on macOS.
 
 ## [0.3.1] - 2026-09-28
 
@@ -121,7 +128,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ICJIA/voicecap/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ICJIA/voicecap/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ICJIA/voicecap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ICJIA/voicecap/compare/v0.1.0...v0.2.0

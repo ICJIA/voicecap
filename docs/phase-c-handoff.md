@@ -1,6 +1,6 @@
 # Phase C handoff: VoiceOver on the Mac
 
-## Status: readiness built, not yet released (2026-09-28, after 0.3.1; spike findings below)
+## Status: readiness done, released in 0.4.0 (2026-09-29; spike findings below)
 
 Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readiness-design.md`) and built. The spike is done. The VoiceOver driver (sub-project 2) comes next.
 
