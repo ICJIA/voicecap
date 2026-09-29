@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkSite, checkSitemap, findSitemap, normalizeSiteAnswer } from "../src/init/site.js";
+import { checkSite, checkSitemap, findSitemaps, normalizeSiteAnswer } from "../src/init/site.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 
@@ -217,15 +217,20 @@ describe("checkSitemap", () => {
   });
 });
 
-describe("findSitemap", () => {
-  it("finds i2i.illinois.gov's sitemap index from robots.txt", async () => {
-    const found = await findSitemap(new URL("https://i2i.illinois.gov/"), realSitesFetch());
-    expect(found).toBe("https://i2i.illinois.gov/sitemap-index.xml");
+describe("findSitemaps", () => {
+  const urlset = () => new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 });
+
+  it("offers both of i2i.illinois.gov's sitemaps: the index robots.txt names, then /sitemap.xml", async () => {
+    const found = await findSitemaps(new URL("https://i2i.illinois.gov/"), realSitesFetch());
+    expect(found).toEqual([
+      { url: "https://i2i.illinois.gov/sitemap-index.xml", from: "robots.txt" },
+      { url: "https://i2i.illinois.gov/sitemap.xml", from: "/sitemap.xml" },
+    ]);
   });
 
-  it("finds dvfr.illinois.gov's sitemap from robots.txt", async () => {
-    const found = await findSitemap(new URL("https://dvfr.illinois.gov/"), realSitesFetch());
-    expect(found).toBe("https://dvfr.illinois.gov/sitemap.xml");
+  it("lists dvfr.illinois.gov's sitemap once, since its robots.txt names /sitemap.xml itself", async () => {
+    const found = await findSitemaps(new URL("https://dvfr.illinois.gov/"), realSitesFetch());
+    expect(found).toEqual([{ url: "https://dvfr.illinois.gov/sitemap.xml", from: "robots.txt" }]);
   });
 
   it("matches a Sitemap: line case-insensitively, over CRLF, and resolves it against the origin", async () => {
@@ -233,24 +238,43 @@ describe("findSitemap", () => {
     const fetch = realSitesFetch({
       "https://example.illinois.gov/robots.txt": () =>
         new Response("User-agent: *\r\nSITEMAP: /sitemaps/main.xml\r\n", { status: 200 }),
-      "https://example.illinois.gov/sitemaps/main.xml": () =>
-        new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 }),
+      "https://example.illinois.gov/sitemaps/main.xml": urlset,
     });
-    const found = await findSitemap(site, fetch);
-    expect(found).toBe("https://example.illinois.gov/sitemaps/main.xml");
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([
+      { url: "https://example.illinois.gov/sitemaps/main.xml", from: "robots.txt" },
+    ]);
   });
 
-  it("falls back to /sitemap.xml when there's no robots.txt", async () => {
+  it("lists each sitemap robots.txt names once, in order, leaving out any that isn't one", async () => {
     const site = new URL("https://example.illinois.gov/");
     const fetch = realSitesFetch({
-      "https://example.illinois.gov/sitemap.xml": () =>
-        new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 }),
+      "https://example.illinois.gov/robots.txt": () =>
+        new Response(
+          "Sitemap: /pages.xml\nSitemap: /gone.xml\n" +
+            "Sitemap: https://example.illinois.gov/pages.xml\nSitemap: /news.xml\n",
+          { status: 200 },
+        ),
+      "https://example.illinois.gov/pages.xml": urlset,
+      "https://example.illinois.gov/news.xml": urlset,
     });
-    const found = await findSitemap(site, fetch);
-    expect(found).toBe("https://example.illinois.gov/sitemap.xml");
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([
+      { url: "https://example.illinois.gov/pages.xml", from: "robots.txt" },
+      { url: "https://example.illinois.gov/news.xml", from: "robots.txt" },
+    ]);
   });
 
-  it("returns null when neither robots.txt nor /sitemap.xml answering 200 HTML is a sitemap", async () => {
+  it("finds /sitemap.xml alone when there's no robots.txt", async () => {
+    const site = new URL("https://example.illinois.gov/");
+    const fetch = realSitesFetch({ "https://example.illinois.gov/sitemap.xml": urlset });
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([
+      { url: "https://example.illinois.gov/sitemap.xml", from: "/sitemap.xml" },
+    ]);
+  });
+
+  it("finds none when neither robots.txt nor /sitemap.xml answering 200 HTML is a sitemap", async () => {
     const site = new URL("https://example.illinois.gov/");
     const fetch = realSitesFetch({
       "https://example.illinois.gov/sitemap.xml": () =>
@@ -259,32 +283,58 @@ describe("findSitemap", () => {
           headers: { "content-type": "text/html" },
         }),
     });
-    const found = await findSitemap(site, fetch);
-    expect(found).toBeNull();
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([]);
   });
 
-  it("moves on to the next candidate when one's body times out, instead of throwing", async () => {
+  it("checks them all at once, so a slow sitemap doesn't hold up the others", async () => {
+    const site = new URL("https://example.illinois.gov/");
+    let askedForSitemapXml!: () => void;
+    const sitemapXmlAsked = new Promise<void>((resolve) => (askedForSitemapXml = resolve));
+    const fetch = realSitesFetch({
+      "https://example.illinois.gov/robots.txt": () =>
+        new Response("Sitemap: /slow.xml\n", { status: 200 }),
+      // Answers only once /sitemap.xml has been asked for too: checked one by one, this never ends.
+      "https://example.illinois.gov/slow.xml": async () => {
+        await sitemapXmlAsked;
+        return urlset();
+      },
+      "https://example.illinois.gov/sitemap.xml": () => {
+        askedForSitemapXml();
+        return urlset();
+      },
+    });
+    const found = await findSitemaps(site, fetch);
+    expect(found.map((sitemap) => sitemap.url)).toEqual([
+      "https://example.illinois.gov/slow.xml",
+      "https://example.illinois.gov/sitemap.xml",
+    ]);
+  });
+
+  it("leaves out a candidate whose body times out, instead of throwing", async () => {
     const site = new URL("https://example.illinois.gov/");
     const fetch = realSitesFetch({
       "https://example.illinois.gov/robots.txt": () =>
         new Response("Sitemap: https://example.illinois.gov/sitemap-slow.xml\n", { status: 200 }),
       "https://example.illinois.gov/sitemap-slow.xml": () => bodyTimesOut(),
-      "https://example.illinois.gov/sitemap.xml": () =>
-        new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 }),
+      "https://example.illinois.gov/sitemap.xml": urlset,
     });
-    const found = await findSitemap(site, fetch);
-    expect(found).toBe("https://example.illinois.gov/sitemap.xml");
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([
+      { url: "https://example.illinois.gov/sitemap.xml", from: "/sitemap.xml" },
+    ]);
   });
 
   it("treats a robots.txt body timeout like a missing robots.txt, instead of throwing", async () => {
     const site = new URL("https://example.illinois.gov/");
     const fetch = realSitesFetch({
       "https://example.illinois.gov/robots.txt": () => bodyTimesOut(),
-      "https://example.illinois.gov/sitemap.xml": () =>
-        new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 }),
+      "https://example.illinois.gov/sitemap.xml": urlset,
     });
-    const found = await findSitemap(site, fetch);
-    expect(found).toBe("https://example.illinois.gov/sitemap.xml");
+    const found = await findSitemaps(site, fetch);
+    expect(found).toEqual([
+      { url: "https://example.illinois.gov/sitemap.xml", from: "/sitemap.xml" },
+    ]);
   });
 });
 
@@ -304,7 +354,7 @@ describe("interruption", () => {
       waitsForAbort,
       controller.signal,
     );
-    const findPromise = findSitemap(site, waitsForAbort, controller.signal);
+    const findPromise = findSitemaps(site, waitsForAbort, controller.signal);
     controller.abort();
 
     await expect(sitePromise).rejects.toThrow(InterruptedError);

@@ -11,6 +11,11 @@ import type { Logger } from "./util/log.js";
 export interface ListUrlsOptions {
   /** The site, as given to --site. */
   site: URL | string;
+  /**
+   * The sitemap: its full URL, or a name or path on the site (from its root), as --page paths are
+   * ("sitemap.xml" is https://dvfr.illinois.gov/sitemap.xml for a site on
+   * https://dvfr.illinois.gov). A name that starts with a host is refused: give it with https://.
+   */
   sitemap: string;
   /** Output file: .csv or .json. */
   output: string;

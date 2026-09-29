@@ -45,7 +45,15 @@ import { listRuns, writeLatestRunId, writeRunJson } from "./store.js";
 export interface RunAuditOptions {
   /** The site's URL; pages must be on its origin. */
   site: string;
-  /** Exactly one page source: a sitemap URL, a page list file (.csv or .json), or --page URLs. */
+  /**
+   * Exactly one page source: a sitemap, a page list file (.csv or .json), or --page URLs. The
+   * sitemap is its full URL, or a name or path on the site (from its root), as --page paths are:
+   * "sitemap.xml" and "/sitemap.xml" are both https://dvfr.illinois.gov/sitemap.xml for a site on
+   * https://dvfr.illinois.gov, and a subsite's sitemap is given as its path ("/blog/sitemap.xml").
+   * A name that starts with a host ("dvfr.illinois.gov/sitemap.xml") is refused: give it with
+   * https://. A run knows its sitemap by the full URL, so either form resumes a run the other
+   * started.
+   */
   sitemap?: string | null;
   pages?: string | null;
   pageUrls?: string[] | null;

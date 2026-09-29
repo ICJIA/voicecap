@@ -4,6 +4,12 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **`--sitemap` takes a sitemap's name or path**, such as `--sitemap sitemap.xml`, `/sitemap.xml`, or `/sitemaps/pages.xml`, read on the site from its root, as `--page` paths are, in runs and `list-urls`. A full URL works as before. A run records the sitemap's full URL, so resuming with its name or its full URL finds the same run. An address given without `https://`, such as `--sitemap dvfr.illinois.gov/sitemap.xml`, is refused before anything is fetched, with the full URL to give instead. In Git Bash, a `--sitemap` that begins with `/` is caught and explained, suggesting the name without the slash.
+- **`init` offers every sitemap a site has**: each one its `robots.txt` lists, then `/sitemap.xml`, each labeled with where it was found. A site with one sitemap sees the same menu as before. "A sitemap at another address" now asks for `Sitemap (a full URL, or a name like sitemap.xml)` and takes a name such as `sitemap.xml`; the command `init` composes still has the full URL.
+- **Programmatic API**: `runAudit`'s and `listUrls`'s `sitemap` take a name or path, read on `site` from its root.
+
 ## [0.4.0] - 2026-09-29
 
 ### Added

@@ -32,22 +32,48 @@ const WINDOWS_PATH = /^[a-zA-Z]:[\\/]/;
 const GIT_INSTALL_DIR = /[\\/]Git[\\/]/i;
 
 /**
+ * How the explanation below shows the rewriting and the ways around it: an example that begins
+ * with "/", and the fix. --sitemap reads a name from the site's root with or without the slash
+ * (sitemap.xml is /sitemap.xml), so leaving it off is its first fix; every other option's is a
+ * full URL, or a pattern without the slash.
+ */
+const REWRITE_HELP: Record<string, { example: string; fix: string[] }> = {
+  "--sitemap": {
+    example: "/sitemap.xml",
+    fix: [
+      "To fix it, leave off the leading slash (--sitemap sitemap.xml), use a full URL",
+      "(https://dvfr.illinois.gov/sitemap.xml), or turn the rewriting off with MSYS_NO_PATHCONV=1, e.g.",
+    ],
+  },
+};
+const DEFAULT_REWRITE_HELP = {
+  example: "/about",
+  fix: [
+    "To fix it, use a full URL (https://dvfr.illinois.gov/about/), leave off the leading slash in",
+    "patterns (--include 'news/*'), or turn the rewriting off with MSYS_NO_PATHCONV=1, e.g.",
+  ],
+};
+
+/**
  * Git Bash (MSYS) rewrites arguments that begin with "/" into Windows paths, so --page /about
- * arrives as "C:/Program Files/Git/about". A URL or URL pattern never looks like a drive path, so
- * any such value means the argument was mangled on the way in: explain the cause and the fix.
+ * arrives as "C:/Program Files/Git/about", and --sitemap /sitemap.xml as
+ * "C:/Program Files/Git/sitemap.xml". A URL, a sitemap's name, or a URL pattern never looks like a
+ * drive path, so any such value means the argument was mangled on the way in: explain the cause
+ * and the fix.
  */
 export function assertNotRewritten(option: string, value: string): void {
   if (!WINDOWS_PATH.test(value)) return;
+  const { example, fix } = REWRITE_HELP[option] ?? DEFAULT_REWRITE_HELP;
+  const rewritten = `C:/Program Files/Git${example}`;
   const cause = GIT_INSTALL_DIR.test(value)
-    ? `Git Bash rewrote it: arguments that begin with "/" are turned into Windows paths (for example /about becomes C:/Program Files/Git/about).`
-    : `If you're using Git Bash, it rewrites arguments that begin with "/" into Windows paths (for example /about becomes C:/Program Files/Git/about).`;
+    ? `Git Bash rewrote it: arguments that begin with "/" are turned into Windows paths (for example ${example} becomes ${rewritten}).`
+    : `If you're using Git Bash, it rewrites arguments that begin with "/" into Windows paths (for example ${example} becomes ${rewritten}).`;
   throw new UsageError(
     [
       `${option} "${value}" looks like a Windows path, not a URL.`,
       cause,
-      "To fix it, use a full URL (https://dvfr.illinois.gov/about/), leave off the leading slash in",
-      "patterns (--include 'news/*'), or turn the rewriting off with MSYS_NO_PATHCONV=1, e.g.",
-      `  MSYS_NO_PATHCONV=1 npx @icjia/voicecap ${option} /about ...`,
+      ...fix,
+      `  MSYS_NO_PATHCONV=1 npx @icjia/voicecap ${option} ${example} ...`,
     ].join("\n"),
   );
 }

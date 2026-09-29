@@ -115,7 +115,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
 
   program
     .option("--site <url>", "the site's URL; pages must be on its origin")
-    .option("--sitemap <url>", "take pages from this sitemap (<urlset> or <sitemapindex>)")
+    .option(
+      "--sitemap <url>",
+      "take pages from this sitemap (<urlset> or <sitemapindex>): a full URL, or a name or path on the site (from its root), such as sitemap.xml",
+    )
     .option("--pages <file>", "take pages from a page list (.csv or .json)")
     .option(
       "--page <url>",
@@ -149,7 +152,7 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
 Examples:
   npx @icjia/voicecap init
   npx @icjia/voicecap --site https://dvfr.illinois.gov --pages ./pages.csv
-  npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml
+  npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap sitemap.xml
   npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/
   voicecap review --page https://dvfr.illinois.gov/about/ --status reviewed --note "Reads well"
   voicecap report --compare previous
@@ -235,7 +238,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .description("export a sitemap as a page list, or draft a sample to curate")
     .argument("<output>", "the file to write: .csv or .json")
     .requiredOption("--site <url>", "the site's URL")
-    .requiredOption("--sitemap <url>", "the sitemap to read")
+    .requiredOption(
+      "--sitemap <url>",
+      "the sitemap to read: a full URL, or a name or path on the site (from its root), such as sitemap.xml",
+    )
     .option("--sample <n>", "draft n pages per URL path pattern", positiveInt("--sample"))
     .option("--include <pattern>", "only URL paths matching; repeatable", collect, [])
     .option("--exclude <pattern>", "skip URL paths matching; repeatable", collect, [])

@@ -1,7 +1,7 @@
 /**
  * A fake `fetch` replaying real i2i.illinois.gov and dvfr.illinois.gov responses (home page,
  * robots.txt, and sitemap), for `init`'s site checks (`src/init/site.ts`). Never touches the
- * network.
+ * network. i2i.illinois.gov's /sitemap.xml is a stand-in, not a recording (see I2I_SITEMAP).
  */
 
 const I2I_HOME =
@@ -13,6 +13,11 @@ const I2I_ROBOTS =
   "User-agent: *\nAllow: /\n\nSitemap: https://i2i.illinois.gov/sitemap-index.xml\n";
 const I2I_SITEMAP_INDEX =
   '<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://i2i.illinois.gov/sitemap-0.xml</loc></sitemap></sitemapindex>';
+// i2i.illinois.gov serves /sitemap.xml too, beside the sitemap-index.xml its robots.txt names
+// (Astro's default): the case that made init offer every sitemap a site has. This body is a
+// stand-in, not a recording; init's checks only look for a <urlset> or <sitemapindex>.
+const I2I_SITEMAP =
+  '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://i2i.illinois.gov/</loc></url></urlset>';
 
 const DVFR_ROBOTS = "User-agent: *\nAllow: /\n\nSitemap: https://dvfr.illinois.gov/sitemap.xml\n";
 const DVFR_SITEMAP =
@@ -39,6 +44,8 @@ const RECORDED: Record<string, () => Response> = {
   "https://i2i.illinois.gov/robots.txt": () => respond(I2I_ROBOTS, "text/plain; charset=utf-8"),
   "https://i2i.illinois.gov/sitemap-index.xml": () =>
     respond(I2I_SITEMAP_INDEX, "application/xml; charset=utf-8"),
+  "https://i2i.illinois.gov/sitemap.xml": () =>
+    respond(I2I_SITEMAP, "application/xml; charset=utf-8"),
   "https://dvfr.illinois.gov/robots.txt": () => respond(DVFR_ROBOTS, "text/plain; charset=utf-8"),
   "https://dvfr.illinois.gov/sitemap.xml": () =>
     respond(DVFR_SITEMAP, "application/xml; charset=utf-8"),

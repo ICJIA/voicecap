@@ -101,7 +101,8 @@ describe("runWizard", () => {
       run: false,
     });
     const runFolder = `${path.join(home, "i2i.illinois.gov", "2026-09-27")}${path.sep}`;
-    // The spec's "What someone sees", line for line.
+    // What someone sees, line for line: the spec's example, with both of i2i's sitemaps offered
+    // (its robots.txt names sitemap-index.xml, and it serves /sitemap.xml too).
     expect(screen).toBe(
       [
         "",
@@ -110,10 +111,11 @@ describe("runWizard", () => {
         "  → https://i2i.illinois.gov (it answers)",
         "Looking for the site's sitemap…",
         "Where are the pages?",
-        "  1. The site's sitemap: https://i2i.illinois.gov/sitemap-index.xml",
-        "  2. A sitemap at another address",
-        "  3. A page list file (.csv or .json)",
-        "  4. One page",
+        "  1. The site's sitemap, listed in robots.txt: https://i2i.illinois.gov/sitemap-index.xml",
+        "  2. The site's sitemap at /sitemap.xml: https://i2i.illinois.gov/sitemap.xml",
+        "  3. A sitemap at another address",
+        "  4. A page list file (.csv or .json)",
+        "  5. One page",
         "Choose [1]: ",
         "How many pages? A number, or Enter for all [all]: 5",
         `Transcripts home [${home}]: `,
@@ -196,6 +198,7 @@ describe("runWizard", () => {
     const fetch = realSitesFetch({
       "https://i2i.illinois.gov/robots.txt": notFound,
       "https://i2i.illinois.gov/sitemap-index.xml": notFound,
+      "https://i2i.illinois.gov/sitemap.xml": notFound,
     });
     const { result, screen } = await session(["i2i.illinois.gov", "", "", "", ""], { fetch });
 
@@ -211,6 +214,88 @@ describe("runWizard", () => {
     expect(result.command).toBe(
       "npx @icjia/voicecap --site https://i2i.illinois.gov --page https://i2i.illinois.gov/",
     );
+  });
+
+  it("takes the site's other sitemap, with the rest of the choices one further down", async () => {
+    const second = await session(["i2i.illinois.gov", "2", "", "", ""]);
+    expect(second.result.command).toBe(
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml",
+    );
+
+    const another = await session(["i2i.illinois.gov", "3", "sitemap-0.xml", "y", "", "", ""]);
+    expect(another.screen).toContain(
+      "Choose [1]: 3\n" +
+        "Sitemap (a full URL, or a name like sitemap.xml): sitemap-0.xml\n" +
+        "  → https://i2i.illinois.gov/sitemap-0.xml: HTTP 404.\n",
+    );
+    expect(another.result.command).toBe(
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-0.xml",
+    );
+  });
+
+  it("keeps today's menu for a site with one sitemap", async () => {
+    // dvfr.illinois.gov's robots.txt names /sitemap.xml itself, so it's one sitemap, not two.
+    const listed = await session(["dvfr.illinois.gov", "", "", "", ""]);
+    // Without a robots.txt, /sitemap.xml is found on its own.
+    const alone = await session(["dvfr.illinois.gov", "", "", "", ""], {
+      fetch: realSitesFetch({
+        "https://dvfr.illinois.gov/robots.txt": () => new Response("Not found", { status: 404 }),
+      }),
+    });
+
+    for (const { result, screen } of [listed, alone]) {
+      expect(screen).toContain(
+        "Looking for the site's sitemap…\n" +
+          "Where are the pages?\n" +
+          "  1. The site's sitemap: https://dvfr.illinois.gov/sitemap.xml\n" +
+          "  2. A sitemap at another address\n" +
+          "  3. A page list file (.csv or .json)\n" +
+          "  4. One page\n" +
+          "Choose [1]: \n",
+      );
+      expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    }
+  });
+
+  it("reads a sitemap's name or path, at another address, against the site", async () => {
+    for (const answer of ["sitemap.xml", "/sitemap.xml"]) {
+      const { result, screen } = await session(["dvfr.illinois.gov", "2", answer, "", "", ""]);
+      expect(screen).toContain(
+        `Sitemap (a full URL, or a name like sitemap.xml): ${answer}\nHow many pages? A number, or Enter for all [all]: \n`,
+      );
+      // The command has the full URL, which is unambiguous and safe to copy.
+      expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    }
+
+    const fetch = realSitesFetch({
+      "https://dvfr.illinois.gov/sitemaps/pages.xml": () =>
+        new Response('<?xml version="1.0"?><urlset></urlset>', { status: 200 }),
+    });
+    const nested = await session(["dvfr.illinois.gov", "2", "sitemaps/pages.xml", "", "", ""], {
+      fetch,
+    });
+    expect(nested.result.command).toBe(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemaps/pages.xml",
+    );
+
+    // A name that isn't there is checked as its full URL, which the explanation shows.
+    const missing = await session([
+      "dvfr.illinois.gov",
+      "2",
+      "sitemap-index.xml",
+      "n",
+      "sitemap.xml",
+      "",
+      "",
+      "",
+    ]);
+    expect(missing.screen).toContain(
+      "Sitemap (a full URL, or a name like sitemap.xml): sitemap-index.xml\n" +
+        "  → https://dvfr.illinois.gov/sitemap-index.xml: HTTP 404.\n" +
+        "Use it anyway? [y/N]: n\n" +
+        "Sitemap (a full URL, or a name like sitemap.xml): sitemap.xml\n",
+    );
+    expect(missing.result.command).toBe(DVFR_SITEMAP_COMMAND);
   });
 
   it("writes a page given as a path as a full URL, and asks again for one off the site", async () => {
@@ -344,10 +429,10 @@ describe("runWizard", () => {
       "",
     ]);
     expect(no.screen).toContain(
-      "Sitemap URL: https://dvfr.illinois.gov/\n" +
+      "Sitemap (a full URL, or a name like sitemap.xml): https://dvfr.illinois.gov/\n" +
         "  → https://dvfr.illinois.gov/: not a sitemap (no <urlset> or <sitemapindex>).\n" +
         "Use it anyway? [y/N]: n\n" +
-        "Sitemap URL: https://dvfr.illinois.gov/sitemap.xml\n" +
+        "Sitemap (a full URL, or a name like sitemap.xml): https://dvfr.illinois.gov/sitemap.xml\n" +
         "How many pages? A number, or Enter for all [all]: \n",
     );
     expect(no.result.command).toBe(DVFR_SITEMAP_COMMAND);
@@ -370,7 +455,8 @@ describe("runWizard", () => {
   });
 
   it("asks again for a sitemap address that isn't an http(s) URL", async () => {
-    const hint = "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml.";
+    const hint =
+      "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on the site, such as sitemap.xml.";
     const { result, screen } = await session([
       "dvfr.illinois.gov",
       "2",
@@ -383,14 +469,16 @@ describe("runWizard", () => {
     ]);
 
     expect(screen).toContain(
-      `Sitemap URL: not a url\n${hint}\n` +
-        `Sitemap URL: ftp://dvfr.illinois.gov/sitemap.xml\n${hint}\n` +
-        "Sitemap URL: https://dvfr.illinois.gov/sitemap.xml\n",
+      `Sitemap (a full URL, or a name like sitemap.xml): not a url\n${hint}\n` +
+        `Sitemap (a full URL, or a name like sitemap.xml): ftp://dvfr.illinois.gov/sitemap.xml\n${hint}\n` +
+        "Sitemap (a full URL, or a name like sitemap.xml): https://dvfr.illinois.gov/sitemap.xml\n",
     );
     expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
   });
 
   it("adds https:// to a sitemap address without a scheme, as for the website", async () => {
+    // --sitemap refuses this form, which it would read as a path on the site; typed here, it's
+    // taken as the address it looks like, as the website's answer is.
     const plain = await session([
       "dvfr.illinois.gov",
       "2",
@@ -400,7 +488,7 @@ describe("runWizard", () => {
       "",
     ]);
     expect(plain.screen).toContain(
-      "Sitemap URL: dvfr.illinois.gov/sitemap.xml\n" +
+      "Sitemap (a full URL, or a name like sitemap.xml): dvfr.illinois.gov/sitemap.xml\n" +
         "How many pages? A number, or Enter for all [all]: \n",
     );
     expect(plain.result.command).toBe(DVFR_SITEMAP_COMMAND);

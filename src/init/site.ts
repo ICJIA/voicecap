@@ -1,4 +1,4 @@
-import { hasScheme } from "../pages/url.js";
+import { hasScheme, startsWithHost } from "../pages/url.js";
 import { InterruptedError } from "../passes/steps.js";
 import { errorMessage } from "../util/errors.js";
 
@@ -17,16 +17,14 @@ export type Check = { ok: true } | { ok: false; reason: string };
 export type SiteCheck =
   { ok: true; site: URL; moved: boolean } | { ok: false; site: URL; reason: string };
 
-/** A `host:port` answer (`localhost:3000`, maybe with more after it), whose host looks like a scheme. */
-const HOST_AND_PORT = /^[^/:]+:\d+(?:[/?#]|$)/;
-
 /**
  * `answer` with `https://` added when it has no scheme, as an address typed the short way
  * (`dvfr.illinois.gov`, `dvfr.illinois.gov/sitemap.xml`) has none. A `host:port` answer such as
- * `localhost:3000` counts as having none too.
+ * `localhost:3000` counts as having none too: it starts with its host (see `startsWithHost`), and
+ * nothing with a real scheme does.
  */
 export function withScheme(answer: string): string {
-  return hasScheme(answer) && !HOST_AND_PORT.test(answer) ? answer : `https://${answer}`;
+  return hasScheme(answer) && !startsWithHost(answer) ? answer : `https://${answer}`;
 }
 
 /**
@@ -110,26 +108,37 @@ export async function checkSitemap(
   return { ok: false, reason: "not a sitemap (no <urlset> or <sitemapindex>)" };
 }
 
+/** A sitemap the site has: its URL, and where `findSitemaps` found it. */
+export interface FoundSitemap {
+  url: string;
+  /** Listed on a `Sitemap:` line in the site's robots.txt, or found at /sitemap.xml. */
+  from: "robots.txt" | "/sitemap.xml";
+}
+
 /**
- * Find the site's sitemap: `robots.txt` `Sitemap:` lines (matched case-insensitively, resolved
- * against the site's origin) in order, then `/sitemap.xml`; the first candidate that
- * `checkSitemap` accepts is returned. Null when none does, including when `robots.txt` itself
- * doesn't answer. When `signal` is given and it (not the timeout) is why a request failed, rejects
- * with `InterruptedError` instead of trying the next candidate.
+ * Find every sitemap the site has. The candidates are its `robots.txt` `Sitemap:` lines (matched
+ * case-insensitively, resolved against the site's origin), in order, then `/sitemap.xml` when
+ * robots.txt doesn't list it; a URL listed twice is one candidate. They're checked all at once, so
+ * the search takes at most two 15-second limits (robots.txt, then the checks), and each that
+ * `checkSitemap` accepts is returned, in that order. None is an empty list, including when
+ * `robots.txt` itself doesn't answer. When `signal` is given and it (not a timeout) is why a
+ * request failed, rejects with `InterruptedError`.
  */
-export async function findSitemap(
+export async function findSitemaps(
   site: URL,
   doFetch: typeof globalThis.fetch,
   signal?: AbortSignal,
-): Promise<string | null> {
-  const candidates = [
-    ...(await sitemapLinesFromRobots(site, doFetch, signal)),
-    new URL("/sitemap.xml", site.origin).href,
-  ];
-  for (const candidate of candidates) {
-    if ((await checkSitemap(candidate, doFetch, signal)).ok) return candidate;
-  }
-  return null;
+): Promise<FoundSitemap[]> {
+  const candidates: FoundSitemap[] = [];
+  const add = (url: string, from: FoundSitemap["from"]) => {
+    if (!candidates.some((candidate) => candidate.url === url)) candidates.push({ url, from });
+  };
+  for (const url of await sitemapLinesFromRobots(site, doFetch, signal)) add(url, "robots.txt");
+  add(new URL("/sitemap.xml", site.origin).href, "/sitemap.xml");
+  const checks = await Promise.all(
+    candidates.map((candidate) => checkSitemap(candidate.url, doFetch, signal)),
+  );
+  return candidates.filter((_candidate, index) => checks[index]!.ok);
 }
 
 /** The `Sitemap:` lines in `site`'s `robots.txt`, resolved to absolute URLs, in order. */

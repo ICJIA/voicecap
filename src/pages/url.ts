@@ -42,6 +42,21 @@ export function hasScheme(input: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(input.trim());
 }
 
+/** A `host:port` value (`localhost:3000`, maybe with more after it), whose host looks like a scheme. */
+const HOST_AND_PORT = /^[^/:]+:\d+(?:[/?#]|$)/;
+/** A host name with a dot in it, then a path: `dvfr.illinois.gov/sitemap.xml`. */
+const DOTTED_HOST_AND_PATH = /^[^\s/?#:.]+(?:\.[^\s/?#:.]+)+\//;
+
+/**
+ * Whether `value` is an address written the short way, without its scheme, starting with its
+ * host: a `host:port` (`localhost:3000`, maybe with more after it), or a host name with a dot in
+ * it and then a path (`dvfr.illinois.gov/sitemap.xml`). A name on its own (`sitemap.xml`), a path
+ * (`sitemaps/pages.xml`, `/sitemap.xml`), or a full URL isn't one.
+ */
+export function startsWithHost(value: string): boolean {
+  return HOST_AND_PORT.test(value) || DOTTED_HOST_AND_PATH.test(value);
+}
+
 /**
  * Resolve a page given as a full URL or a root-relative path ("/about") against the site.
  * Returns null for anything that isn't an http(s) page URL.
@@ -57,6 +72,32 @@ export function resolvePageUrl(input: string, site: URL): URL | null {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
   return normalizeUrl(url);
+}
+
+/**
+ * Resolve a sitemap given as a full URL, or as a name or path on the site, read from its root as
+ * --page paths are: "sitemap.xml" and "/sitemap.xml" are both https://dvfr.illinois.gov/sitemap.xml
+ * for any `site` on https://dvfr.illinois.gov, whatever its path, and a sitemap further down is
+ * given as its path ("/blog/sitemap.xml"). A full URL is taken as it is, whatever `site` is.
+ * Returns null for anything that isn't an http(s) URL, and for a name or path that's empty, has a
+ * space in it, or has no `site` to be read on.
+ */
+export function resolveSitemapUrl(input: string, site?: URL): URL | null {
+  const value = input.trim();
+  if (value === "") return null;
+  // A full URL is parsed on its own, as it always was; a name or path, from the site's root.
+  let base: string | undefined;
+  if (!hasScheme(value)) {
+    if (site === undefined || /\s/.test(value)) return null;
+    base = `${site.origin}/`;
+  }
+  let url: URL;
+  try {
+    url = new URL(value, base);
+  } catch {
+    return null;
+  }
+  return url.protocol === "http:" || url.protocol === "https:" ? url : null;
 }
 
 /** Drop the fragment; everything else (including the query string) is kept. */

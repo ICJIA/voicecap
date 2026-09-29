@@ -10,12 +10,23 @@ import { applyFilters } from "./filter.js";
 import { readPageList } from "./page-list.js";
 import { fetchSitemap } from "./sitemap.js";
 import { pageSlug } from "./slug.js";
-import { canonicalKey, nonHtmlExtension, resolvePageUrl, sameOrigin } from "./url.js";
+import {
+  canonicalKey,
+  hasScheme,
+  nonHtmlExtension,
+  resolvePageUrl,
+  resolveSitemapUrl,
+  sameOrigin,
+  startsWithHost,
+} from "./url.js";
 
 export interface ResolvePagesOptions {
   /** The site's origin (see parseSiteUrl). */
   site: URL;
-  /** Exactly one of sitemap, pagesFile, and pageUrls. */
+  /**
+   * Exactly one of sitemap, pagesFile, and pageUrls. The sitemap is its full URL, or a name or
+   * path on the site, from its root (see resolveSitemapUrl).
+   */
   sitemap?: string;
   pagesFile?: string;
   /** --page, one or more times: full URLs or paths, resolved against site. */
@@ -43,9 +54,11 @@ export interface ResolvedPages {
 const EXAMPLES = 3;
 
 /**
- * Identify a page source without fetching anything, for the resume check. A sitemap is its URL;
- * a page list is its path (relative to cwd, with forward slashes, when inside cwd) plus the
- * SHA-256 of its contents; --page values are their resolved URLs (site is required for these).
+ * Identify a page source without fetching anything, for the resume check. A sitemap is its full
+ * URL, however it was given (a name or path is read on site, from its root, as resolvePages reads
+ * it); a page list is its path (relative to cwd, with forward slashes, when inside cwd) plus the
+ * SHA-256 of its contents; --page values are their resolved URLs. site is required for --page
+ * values and for a sitemap given as a name or path.
  */
 export async function pageSourceFor(options: {
   sitemap?: string;
@@ -55,7 +68,9 @@ export async function pageSourceFor(options: {
   cwd?: string;
 }): Promise<PageSource> {
   const { sitemap, pagesFile, pageUrls } = requireOneSource(options);
-  if (sitemap !== undefined) return { kind: "sitemap", url: parseSitemapUrl(sitemap) };
+  if (sitemap !== undefined) {
+    return { kind: "sitemap", url: parseSitemapUrl(sitemap, options.site) };
+  }
   if (pageUrls !== undefined) {
     return { kind: "urls", urls: resolvePageUrlOption(pageUrls, options.site!) };
   }
@@ -95,7 +110,7 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
   const invalid: InvalidEntry[] = [];
 
   if (sitemap !== undefined) {
-    const url = parseSitemapUrl(sitemap);
+    const url = parseSitemapUrl(sitemap, site);
     const result = await fetchSitemap(url, {
       ...(options.fetch ? { fetch: options.fetch } : {}),
       ...(logger ? { logger } : {}),
@@ -255,15 +270,30 @@ function resolvePageUrlOption(values: readonly string[], site: URL): string[] {
   });
 }
 
-function parseSitemapUrl(input: string): string {
-  try {
-    const url = new URL(input.trim());
-    if (url.protocol === "http:" || url.protocol === "https:") return url.href;
-  } catch {
-    // fall through
+/**
+ * --sitemap's full URL: the value itself, or a name or path on `site`, from its root (see
+ * resolveSitemapUrl). Rejects, before anything is fetched: a value Git Bash rewrote into a Windows
+ * path; an address written without https:// (`dvfr.illinois.gov/sitemap.xml`), which would
+ * otherwise be read as a path on the site; a name or path with no site to read it on; and anything
+ * else that isn't a sitemap's address.
+ */
+function parseSitemapUrl(input: string, site: URL | undefined): string {
+  assertNotRewritten("--sitemap", input);
+  const value = input.trim();
+  if (startsWithHost(value)) {
+    throw new UsageError(
+      `--sitemap "${value}" looks like an address without https://: give its full URL (https://${value}), or just its name on --site, such as sitemap.xml.`,
+    );
+  }
+  const url = resolveSitemapUrl(input, site);
+  if (url) return url.href;
+  if (site === undefined && input.trim() !== "" && !hasScheme(input)) {
+    throw new UsageError(
+      `--sitemap "${input}" is read relative to --site, and there's no --site: give --site, or the sitemap's full URL, such as https://dvfr.illinois.gov/sitemap.xml.`,
+    );
   }
   throw new UsageError(
-    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml (got "${input}").`,
+    `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${input}").`,
   );
 }
 

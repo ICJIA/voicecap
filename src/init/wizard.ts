@@ -2,14 +2,21 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { readPageList } from "../pages/page-list.js";
-import { resolvePageUrl, sameOrigin } from "../pages/url.js";
+import { resolvePageUrl, resolveSitemapUrl, sameOrigin, startsWithHost } from "../pages/url.js";
 import { DEFAULT_OUT_DIR, resolveHome, siteFolder } from "../run/paths.js";
 import { UsageError } from "../util/errors.js";
 import { fromGitBash } from "../util/git-bash.js";
 import { localDate } from "../util/time.js";
 import { composeArgs, formatCommand, quoteArg, type PageChoice } from "./compose.js";
 import type { Prompter } from "./prompt.js";
-import { checkSite, checkSitemap, findSitemap, normalizeSiteAnswer, withScheme } from "./site.js";
+import {
+  checkSite,
+  checkSitemap,
+  findSitemaps,
+  normalizeSiteAnswer,
+  withScheme,
+  type FoundSitemap,
+} from "./site.js";
 
 /** Whether this computer can run the composed command now, or the one-line reason it can't. */
 export type Readiness = { canRun: true; screenReader: string } | { canRun: false; reason: string };
@@ -48,7 +55,8 @@ export interface WizardResult {
 
 const SITE_HINT =
   "Enter the site's address, such as dvfr.illinois.gov or https://dvfr.illinois.gov.";
-const SITEMAP_HINT = "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml.";
+const SITEMAP_HINT =
+  "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on the site, such as sitemap.xml.";
 const LIMIT_HINT = "Enter a whole number of at least 1, or press Enter for all.";
 const HOME_TIP =
   'Tip: set VOICECAP_TRANSCRIPTS to keep every run in one place. See "The audit record" in the README.';
@@ -132,44 +140,56 @@ async function askSite(deps: WizardDeps): Promise<URL> {
   }
 }
 
+/** One choice on the "Where are the pages?" menu: its label, and what choosing it asks next. */
+interface MenuChoice {
+  label: string;
+  ask: () => Promise<PageChoice>;
+}
+
 /**
- * Where the pages are. When the site's sitemap is found, it's the first choice and the default;
- * otherwise "One page" is the default. The search can take up to 30 seconds, so it's announced.
+ * Where the pages are. Each sitemap the site has is a choice, in the order `findSitemaps` finds
+ * them, and the first is the default; when there's more than one, each says where it was found.
+ * With none, "One page" is the default. The search can take up to 30 seconds, so it's announced.
  */
 async function askPages(deps: WizardDeps, site: URL): Promise<PageChoice> {
   deps.prompter.say("Looking for the site's sitemap…");
-  const found = await findSitemap(site, deps.fetch, deps.signal);
-  const choices: { label: string; ask: () => Promise<PageChoice> }[] = [
-    { label: "A sitemap at another address", ask: () => askOtherSitemap(deps) },
+  const found = await findSitemaps(site, deps.fetch, deps.signal);
+  const choices: MenuChoice[] = [
+    ...found.map((sitemap): MenuChoice => ({
+      label: found.length === 1 ? `The site's sitemap: ${sitemap.url}` : sitemapLabel(sitemap),
+      ask: () => Promise.resolve({ kind: "sitemap", url: sitemap.url }),
+    })),
+    { label: "A sitemap at another address", ask: () => askOtherSitemap(deps, site) },
     { label: "A page list file (.csv or .json)", ask: () => askPageList(deps) },
     { label: "One page", ask: () => askPage(deps, site) },
   ];
-  if (found !== null) {
-    choices.unshift({
-      label: `The site's sitemap: ${found}`,
-      ask: () => Promise.resolve({ kind: "sitemap", url: found }),
-    });
-  }
   const picked = await deps.prompter.choose(
     "Where are the pages?",
     choices.map((choice) => choice.label),
-    found === null ? choices.length - 1 : 0,
+    found.length === 0 ? choices.length - 1 : 0,
   );
   return choices[picked]!.ask();
 }
 
+/** A found sitemap's label when the site has more than one: where it was found, then its URL. */
+function sitemapLabel(sitemap: FoundSitemap): string {
+  return sitemap.from === "robots.txt"
+    ? `The site's sitemap, listed in robots.txt: ${sitemap.url}`
+    : `The site's sitemap at /sitemap.xml: ${sitemap.url}`;
+}
+
 /**
- * A sitemap at another address: an http(s) URL (`https://` is added when there's no scheme, as for
- * the website) that answers with a sitemap document, or one that doesn't after a yes to "Use it
- * anyway?"; a no asks again.
+ * A sitemap at another address: a full http(s) URL, or a name or path on the site, as `--sitemap`
+ * reads one (see `sitemapAnswer`), that answers with a sitemap document, or one that doesn't after
+ * a yes to "Use it anyway?"; a no asks again. The command gets its full URL either way.
  */
-async function askOtherSitemap(deps: WizardDeps): Promise<PageChoice> {
+async function askOtherSitemap(deps: WizardDeps, site: URL): Promise<PageChoice> {
   const { prompter } = deps;
   for (;;) {
-    const answer = await prompter.ask("Sitemap URL", {
-      check: (value) => (httpUrl(value) === null ? SITEMAP_HINT : null),
+    const answer = await prompter.ask("Sitemap (a full URL, or a name like sitemap.xml)", {
+      check: (value) => (sitemapAnswer(value, site) === null ? SITEMAP_HINT : null),
     });
-    const url = httpUrl(answer)!;
+    const url = sitemapAnswer(answer, site)!;
     const check = await checkSitemap(url, deps.fetch, deps.signal);
     if (check.ok) return { kind: "sitemap", url };
     prompter.say(`  → ${url}: ${check.reason}.`);
@@ -178,16 +198,14 @@ async function askOtherSitemap(deps: WizardDeps): Promise<PageChoice> {
 }
 
 /**
- * The full http(s) URL an answer names, as `--sitemap` reads one (`https://` added when it has no
- * scheme), or null for anything else.
+ * The full URL of the sitemap an answer names, as `--sitemap` reads one: a full http(s) URL, or a
+ * name or path resolved against the site (`sitemap.xml`, `/sitemaps/pages.xml`). An address typed
+ * the short way, starting with its host (`dvfr.illinois.gov/sitemap.xml`, `localhost:3000/…`),
+ * gets `https://`, as for the website. Null for anything else.
  */
-function httpUrl(value: string): string | null {
-  try {
-    const url = new URL(withScheme(value));
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
-  }
+function sitemapAnswer(value: string, site: URL): string | null {
+  const address = startsWithHost(value) ? withScheme(value) : value;
+  return resolveSitemapUrl(address, site)?.href ?? null;
 }
 
 /**

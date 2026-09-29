@@ -330,8 +330,100 @@ describe("resolvePages: arguments", () => {
     ).rejects.toThrow(/one kind of page source/);
   });
 
-  it("requires a full sitemap URL", async () => {
-    await expect(resolvePages({ site, sitemap: "/sitemap.xml" })).rejects.toThrow(UsageError);
+  it("rejects a sitemap that isn't an http(s) URL, a name, or a path", async () => {
+    for (const sitemap of ["ftp://127.0.0.1/sitemap.xml", "  ", "not a sitemap"]) {
+      await expect(resolvePages({ site, sitemap, fetch: fetchFrom() })).rejects.toThrow(
+        `--sitemap must be a full URL such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on --site such as sitemap.xml (got "${sitemap}").`,
+      );
+    }
+  });
+});
+
+describe("resolvePages: a sitemap given by name or path", () => {
+  it("reads a name, a path, or a nested path against the site", async () => {
+    const byName = await resolvePages({ site, sitemap: "sitemap.xml", fetch: fetchFrom() });
+    expect(byName.pageSource).toEqual({ kind: "sitemap", url: `${ORIGIN}/sitemap.xml` });
+    expect(byName.pages.map((p) => p.url)).toEqual([
+      `${ORIGIN}/`,
+      `${ORIGIN}/duplicates/`,
+      `${ORIGIN}/flawed/`,
+      `${ORIGIN}/contact/`,
+      `${ORIGIN}/feed/`,
+    ]);
+    expect(byName.source.sitemaps?.[0]?.url).toBe(`${ORIGIN}/sitemap.xml`);
+
+    const byPath = await resolvePages({ site, sitemap: "/sitemap.xml", fetch: fetchFrom() });
+    expect(byPath.pageSource).toEqual(byName.pageSource);
+
+    for (const sitemap of ["/sitemaps/pages.xml", "sitemaps/pages.xml"]) {
+      const nested = await resolvePages({ site, sitemap, fetch: fetchFrom() });
+      expect(nested.pageSource).toEqual({ kind: "sitemap", url: `${ORIGIN}/sitemaps/pages.xml` });
+      expect(nested.source.sitemaps).toHaveLength(1);
+    }
+  });
+
+  it("reads a name or path from the site's root, whatever path the site has", async () => {
+    const blog = new URL("https://example.com/blog/");
+    for (const sitemap of ["sitemap.xml", "/sitemap.xml"]) {
+      expect(await pageSourceFor({ sitemap, site: blog })).toEqual({
+        kind: "sitemap",
+        url: "https://example.com/sitemap.xml",
+      });
+    }
+    // A subsite's sitemap is given as its path.
+    for (const sitemap of ["/blog/sitemap.xml", "blog/sitemap.xml"]) {
+      expect(await pageSourceFor({ sitemap, site: blog })).toEqual({
+        kind: "sitemap",
+        url: "https://example.com/blog/sitemap.xml",
+      });
+    }
+  });
+
+  it("takes a full URL as it is, on any host", async () => {
+    expect(await pageSourceFor({ sitemap: "https://dvfr.illinois.gov/sitemap.xml", site })).toEqual(
+      { kind: "sitemap", url: "https://dvfr.illinois.gov/sitemap.xml" },
+    );
+  });
+
+  it("refuses an address without https://, before fetching anything", async () => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    for (const sitemap of ["dvfr.illinois.gov/sitemap.xml", "localhost:3000/sitemap.xml"]) {
+      const message = `--sitemap "${sitemap}" looks like an address without https://: give its full URL (https://${sitemap}), or just its name on --site, such as sitemap.xml.`;
+      await expect(resolvePages({ site, sitemap, fetch: counting })).rejects.toThrow(message);
+      await expect(pageSourceFor({ site, sitemap })).rejects.toThrow(message);
+      // With no site too: it's an address, not a name on a site.
+      await expect(pageSourceFor({ sitemap })).rejects.toThrow(message);
+    }
+    expect(fetched).toBe(0);
+  });
+
+  it("needs a site to read a name or path against", async () => {
+    await expect(pageSourceFor({ sitemap: "sitemap.xml" })).rejects.toThrow(UsageError);
+    await expect(pageSourceFor({ sitemap: "/sitemap.xml" })).rejects.toThrow(
+      `--sitemap "/sitemap.xml" is read relative to --site, and there's no --site: give --site, or the sitemap's full URL, such as https://dvfr.illinois.gov/sitemap.xml.`,
+    );
+  });
+
+  it("explains a --sitemap Git Bash rewrote, and suggests the name without the slash", async () => {
+    const rewritten = "C:/Program Files/Git/sitemap.xml";
+    for (const attempt of [
+      () => resolvePages({ site, sitemap: rewritten, fetch: fetchFrom() }),
+      () => pageSourceFor({ site, sitemap: rewritten }),
+    ]) {
+      await expect(attempt()).rejects.toThrow(
+        [
+          `--sitemap "${rewritten}" looks like a Windows path, not a URL.`,
+          `Git Bash rewrote it: arguments that begin with "/" are turned into Windows paths (for example /sitemap.xml becomes C:/Program Files/Git/sitemap.xml).`,
+          "To fix it, leave off the leading slash (--sitemap sitemap.xml), use a full URL",
+          "(https://dvfr.illinois.gov/sitemap.xml), or turn the rewriting off with MSYS_NO_PATHCONV=1, e.g.",
+          "  MSYS_NO_PATHCONV=1 npx @icjia/voicecap --sitemap /sitemap.xml ...",
+        ].join("\n"),
+      );
+    }
   });
 });
 
@@ -341,6 +433,13 @@ describe("pageSourceFor", () => {
       kind: "sitemap",
       url: `${ORIGIN}/sitemap.xml`,
     });
+  });
+
+  // A run resumes when its page source matches, so a sitemap's name and its full URL must match.
+  it("identifies a sitemap given by name or path by its full URL", async () => {
+    const full = await pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, site });
+    expect(await pageSourceFor({ sitemap: "sitemap.xml", site })).toEqual(full);
+    expect(await pageSourceFor({ sitemap: "/sitemap.xml", site })).toEqual(full);
   });
 
   it("identifies a page list by relative path and content hash", async () => {

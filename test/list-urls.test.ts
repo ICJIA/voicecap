@@ -172,6 +172,37 @@ describe("listUrls", () => {
     );
   });
 
+  it("takes the sitemap by name or path, read from the site's root", async () => {
+    const byName = await listUrls({
+      site: ORIGIN,
+      sitemap: "sitemap.xml",
+      output: "by-name.csv",
+      cwd: dir,
+      fetch: fetchFrom(),
+    });
+    expect(byName.count).toBe(5);
+
+    // Whatever path --site has, a name is read from the site's root, as --page paths are, and a
+    // sitemap further down is given as its path.
+    for (const site of [`${ORIGIN}/sitemaps/`, new URL(`${ORIGIN}/sitemaps/`)]) {
+      for (const sitemap of ["sitemap.xml", "/sitemaps/pages.xml"]) {
+        const logger = createMemoryLogger();
+        const result = await listUrls({
+          site,
+          sitemap,
+          output: "from-root.csv",
+          cwd: dir,
+          fetch: fetchFrom(),
+          logger,
+        });
+        expect(result.count).toBe(5);
+        expect(logger.text("info")).toContain(
+          `run: voicecap --site ${ORIGIN} --pages from-root.csv`,
+        );
+      }
+    }
+  });
+
   it("rejects other output extensions and bad sample sizes", async () => {
     const base = { site: ORIGIN, sitemap: `${ORIGIN}/sitemap.xml`, cwd: dir, fetch: fetchFrom() };
     await expect(listUrls({ ...base, output: "pages.txt" })).rejects.toThrow(UsageError);

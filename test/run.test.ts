@@ -243,6 +243,90 @@ describe("--page", () => {
   });
 });
 
+describe("a sitemap given by name", () => {
+  /** Serves a sitemap at `at` listing sitePages()'s pages, and 404s everything else. */
+  function sitemapAt(at: string): typeof fetch {
+    const urlset =
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+      ["/", "/about", "/resources"].map((p) => `<url><loc>${SITE}${p}</loc></url>`).join("") +
+      "</urlset>";
+    return (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return Promise.resolve(
+        url === at ? new Response(urlset) : new Response("Not found", { status: 404 }),
+      );
+    };
+  }
+
+  /** A driver for sitePages() that interrupts the run as it opens the page whose URL ends so. */
+  function interruptingAt(ending: string, controller: AbortController): ScriptedDriver {
+    const driver = new ScriptedDriver(sitePages());
+    const openPage = driver.openPage.bind(driver);
+    driver.openPage = (url) => {
+      if (url.endsWith(ending)) controller.abort();
+      return openPage(url);
+    };
+    return driver;
+  }
+
+  it("knows the run by the sitemap's full URL, so its name or its URL resumes it", async () => {
+    const dir = await setup();
+    const fetch = sitemapAt(`${SITE}/sitemap.xml`);
+    const sitemapRun = (sitemap: string, driver: ScriptedDriver, extra = {}) =>
+      runAudit(options(dir, driver, { pages: null, sitemap, fetch, ...extra }));
+
+    const first = new AbortController();
+    const byName = await sitemapRun("sitemap.xml", interruptingAt("/about", first), {
+      signal: first.signal,
+    });
+    expect(byName.outcome).toBe("interrupted");
+    expect(byName.run.settings.source).toEqual({ kind: "sitemap", url: `${SITE}/sitemap.xml` });
+
+    // The full URL resumes the run the name started.
+    const second = new AbortController();
+    const logger = createMemoryLogger();
+    const byUrl = await sitemapRun(`${SITE}/sitemap.xml`, interruptingAt("/resources", second), {
+      signal: second.signal,
+      logger,
+    });
+    expect(byUrl.runId).toBe(byName.runId);
+    expect(logger.text()).toContain(`Resuming ${byName.runId}: 1 of 3 pages already done.`);
+    expect(byUrl.outcome).toBe("interrupted");
+
+    // And the same name again, or the path, resumes it too.
+    const again = await sitemapRun("/sitemap.xml", new ScriptedDriver(sitePages()));
+    expect(again.runId).toBe(byName.runId);
+    expect(again.outcome).toBe("completed");
+  });
+
+  it("reads a sitemap's name from the site's root, even when --site has a path", async () => {
+    const dir = await setup();
+    const blogRun = (sitemap: string, at: string) =>
+      runAudit(
+        options(dir, new ScriptedDriver(sitePages()), {
+          site: `${SITE}/blog/`,
+          pages: null,
+          sitemap,
+          fetch: sitemapAt(at),
+        }),
+      );
+
+    const atRoot = await blogRun("sitemap.xml", `${SITE}/sitemap.xml`);
+    expect(atRoot.outcome).toBe("completed");
+    expect(atRoot.run.settings.site).toBe(SITE);
+    expect(atRoot.run.settings.source).toEqual({ kind: "sitemap", url: `${SITE}/sitemap.xml` });
+    expect(atRoot.siteDir).toBe(outDir(dir));
+
+    // A subsite's sitemap is given as its path.
+    const subsite = await blogRun("/blog/sitemap.xml", `${SITE}/blog/sitemap.xml`);
+    expect(subsite.outcome).toBe("completed");
+    expect(subsite.run.settings.source).toEqual({
+      kind: "sitemap",
+      url: `${SITE}/blog/sitemap.xml`,
+    });
+  });
+});
+
 describe("the home", () => {
   it("puts a run in the site's folder in the home", async () => {
     const dir = await setup();

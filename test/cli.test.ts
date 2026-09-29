@@ -292,6 +292,105 @@ describe("usage errors (exit 1)", () => {
   });
 });
 
+describe("--sitemap by name", () => {
+  /** Serves the fixture site's files, for sitemap fetches, without a server. */
+  const fixtureFetch: typeof fetch = async (input) => {
+    const url = new URL(
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+    );
+    try {
+      return new Response(await readFile(fixture("site", ...url.pathname.split("/"))));
+    } catch {
+      return new Response("not found", { status: 404 });
+    }
+  };
+
+  it("shows the name form in the help's examples", async () => {
+    const help = await cli(["--help"]);
+    expect(help.out).toContain(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap sitemap.xml\n",
+    );
+  });
+
+  it("runs from a sitemap given by name, and records its full URL", async () => {
+    const run = await cli(
+      ["--site", SITE, "--sitemap", "sitemap.xml", "--replay-from", fixture("replay-run")],
+      undefined,
+      {},
+      { fetch: fixtureFetch },
+    );
+    expect(run.err).not.toContain("Error:");
+    expect(run.code).toBe(0);
+    const out = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+    const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
+    const runJson = JSON.parse(
+      await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
+    ) as RunJson;
+    expect(runJson.settings.source).toEqual({ kind: "sitemap", url: `${SITE}/sitemap.xml` });
+
+    const list = await cli(
+      ["list-urls", "pages.csv", "--site", SITE, "--sitemap", "/sitemaps/pages.xml"],
+      undefined,
+      {},
+      { fetch: fixtureFetch },
+    );
+    expect(list.err).toBe("");
+    expect(list.code).toBe(0);
+    expect(list.out).toContain("Wrote 5 URLs to");
+  });
+
+  it("explains a --sitemap Git Bash rewrote, suggesting the name without the slash", async () => {
+    const run = await cli(["--site", SITE, "--sitemap", "C:/Program Files/Git/sitemap.xml"]);
+    expect(run.code).toBe(1);
+    expect(run.err).toContain("Git Bash rewrote it");
+    expect(run.err).toContain("leave off the leading slash (--sitemap sitemap.xml)");
+    expect(run.err).toContain("MSYS_NO_PATHCONV=1 npx @icjia/voicecap --sitemap /sitemap.xml ...");
+  });
+
+  it("refuses a --sitemap that starts with a host, before fetching anything", async () => {
+    let fetched = 0;
+    const counting: typeof fetch = () => {
+      fetched += 1;
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    };
+    const value = "dvfr.illinois.gov/sitemap.xml";
+    const message = `--sitemap "${value}" looks like an address without https://: give its full URL (https://${value}), or just its name on --site, such as sitemap.xml.`;
+
+    const run = await cli(
+      [
+        "--site",
+        "https://dvfr.illinois.gov",
+        "--sitemap",
+        value,
+        "--replay-from",
+        fixture("replay-run"),
+      ],
+      undefined,
+      {},
+      { fetch: counting },
+    );
+    expect(run.code).toBe(1);
+    expect(run.err).toContain(message);
+
+    const list = await cli(
+      ["list-urls", "pages.csv", "--site", "https://dvfr.illinois.gov", "--sitemap", value],
+      undefined,
+      {},
+      { fetch: counting },
+    );
+    expect(list.code).toBe(1);
+    expect(list.err).toContain(message);
+    expect(fetched).toBe(0);
+  });
+
+  // A run always needs --site, so that's the error, before --sitemap is read.
+  it("asks for --site when a sitemap's name comes without it", async () => {
+    const run = await cli(["--sitemap", "sitemap.xml"]);
+    expect(run.code).toBe(1);
+    expect(run.err).toContain("Missing --site");
+  });
+});
+
 describe("--page", () => {
   it("accepts --page more than once", async () => {
     const run = await cli([
