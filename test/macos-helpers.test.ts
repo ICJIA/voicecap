@@ -462,38 +462,33 @@ function plutilAnswer(
 }
 
 describe("terminalApp", () => {
-  const plist = `${VSCODE_BUNDLE}/Contents/Info.plist`;
-
-  it("names the app from CFBundleDisplayName when it's there", async () => {
+  // Seen on the owner's Mac: System Settings and macOS's permission prompts name an app by its
+  // bundle's file name. VS Code's Info.plist says "Code" and iTerm's says "iTerm2", but System
+  // Settings lists them as "Visual Studio Code" and "iTerm".
+  it("names the app by its bundle's file name, as System Settings lists it", async () => {
+    const plist = `${VSCODE_BUNDLE}/Contents/Info.plist`;
     const commands = fakeCommands([
       psAnswer(VSCODE_CHAIN),
-      plutilAnswer("CFBundleDisplayName", plist, "Visual Studio Code"),
-    ]);
-    expect(await terminalApp(commands.run, 1)).toEqual({
-      name: "Visual Studio Code",
-      bundle: VSCODE_BUNDLE,
-    });
-  });
-
-  it("falls back to CFBundleName when there's no CFBundleDisplayName", async () => {
-    const commands = fakeCommands([
-      psAnswer(VSCODE_CHAIN),
-      plutilAnswer("CFBundleDisplayName", plist, null),
+      plutilAnswer("CFBundleDisplayName", plist, "Code"),
       plutilAnswer("CFBundleName", plist, "Code"),
     ]);
-    expect(await terminalApp(commands.run, 1)).toEqual({ name: "Code", bundle: VSCODE_BUNDLE });
-  });
-
-  it("falls back to the bundle's file name without .app when plutil gives neither", async () => {
-    const commands = fakeCommands([
-      psAnswer(VSCODE_CHAIN),
-      plutilAnswer("CFBundleDisplayName", plist, null),
-      plutilAnswer("CFBundleName", plist, null),
-    ]);
     expect(await terminalApp(commands.run, 1)).toEqual({
       name: "Visual Studio Code",
       bundle: VSCODE_BUNDLE,
     });
+    expect(commands.calls.filter((call) => call.file === "plutil")).toEqual([]);
+  });
+
+  it("names iTerm as System Settings does, not by its Info.plist's iTerm2", async () => {
+    const bundle = "/Applications/iTerm.app";
+    const commands = fakeCommands([
+      psAnswer([
+        { pid: 1, ppid: 2, command: "-zsh" },
+        { pid: 2, ppid: 1, command: `${bundle}/Contents/MacOS/iTerm2` },
+      ]),
+      plutilAnswer("CFBundleName", `${bundle}/Contents/Info.plist`, "iTerm2"),
+    ]);
+    expect(await terminalApp(commands.run, 1)).toEqual({ name: "iTerm", bundle });
   });
 
   it("gives null when no ancestor is inside an app bundle", async () => {

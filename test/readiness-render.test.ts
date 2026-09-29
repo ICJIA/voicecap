@@ -113,6 +113,7 @@ describe("renderPreflight", () => {
       kind: "preflight",
       when,
       screenReader: "VoiceOver",
+      canRunYet: true,
       tip: TIP,
       offerSetup: true,
     });
@@ -127,9 +128,33 @@ describe("renderVerdict", () => {
       checks: [{ id: "node", status: "OK", summary: "22.22.2" }],
       ready: true,
     };
-    const output = renderVerdict(allOk, { screenReader: "VoiceOver", tip: TIP, offerSetup: true });
+    const output = renderVerdict(allOk, {
+      screenReader: "VoiceOver",
+      canRunYet: true,
+      tip: TIP,
+      offerSetup: true,
+    });
     expect(output).toBe(
       "Ready: this computer can run VoiceOver for voicecap.\n" +
+        "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
+    );
+  });
+
+  // A Mac until the VoiceOver driver exists: set up, but nothing can run there yet.
+  it("says the computer is set up, but voicecap can't run the screen reader yet", () => {
+    const allOk: PreflightResult = {
+      info: MACHINE_INFO,
+      checks: [{ id: "node", status: "OK", summary: "22.22.2" }],
+      ready: true,
+    };
+    const output = renderVerdict(allOk, {
+      screenReader: "VoiceOver",
+      canRunYet: false,
+      tip: TIP,
+      offerSetup: true,
+    });
+    expect(output).toBe(
+      "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.\n" +
         "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
     );
   });

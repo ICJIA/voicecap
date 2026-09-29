@@ -146,7 +146,9 @@ function voiceOverRunningAnswer(running: boolean): Answer {
 /** A computer with every check passing: VS Code, Full Disk Access OK, VoiceOver off. */
 const BASE_ANSWERS: Answer[] = [
   psAnswer(VSCODE_CHAIN),
-  plutilAnswer("CFBundleDisplayName", VSCODE_BUNDLE, "Visual Studio Code"),
+  // What VS Code's Info.plist really says. The app is named by its bundle's file name instead, as
+  // System Settings lists it, so every "Visual Studio Code" below comes from the bundle.
+  plutilAnswer("CFBundleDisplayName", VSCODE_BUNDLE, "Code"),
   plutilAnswer("CFBundleShortVersionString", "VoiceOver.app", "10"),
   plutilAnswer("CFBundleVersion", "VoiceOver.app", "993"),
   plutilAnswer("CFBundleShortVersionString", "Chromium.app", "153.0.8010.12"),

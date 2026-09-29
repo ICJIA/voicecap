@@ -40,7 +40,7 @@ Success:
 | Real runs | They do the quick checks first. A failure prints the same diagnosis and exits 2 before any screen reader starts. Replay runs skip the checks. |
 | Machine info | Everything that follows, including identifiers (the computer's name and the user name): the readiness essentials, the hardware, and the paths. |
 | The person's own screen reader | voicecap warns if it's running, then restores it afterwards with the person's own settings. That applies after the live test and after every real run, including on Ctrl+C or an error. |
-| Release | The Mac half ships with the VoiceOver driver, because a ready Mac can't run anything until the driver exists. The Windows half can ship as soon as it's done, when the owner says. |
+| Release | The plan was for the Mac half to ship with the VoiceOver driver, because a ready Mac can't run anything until the driver exists. The Windows half could ship as soon as it's done, when the owner says. **Amended 2026-09-29:** the owner chose to ship both halves together, before the driver, once a supervised run on a real Mac passes. Until the driver exists, a ready Mac says so (see "Until the VoiceOver driver exists"). |
 
 ## What someone sees
 
@@ -215,8 +215,9 @@ This happens after the live test and after every real run, including on Ctrl+C o
 - **Until the VoiceOver driver exists** (sub-project 2), a ready Mac still can't run anything:
   - Real runs on the Mac keep today's message that the configured NVDA driver only runs on Windows. The quick checks before runs apply to NVDA runs on Windows.
   - `init` on a ready Mac shows the command and says: "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer." It doesn't offer "Run it now?".
+  - The verdict of a ready Mac, in `init`'s preflight, `doctor`, and `setup`, reads "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver." It doesn't say the computer "can run VoiceOver". Added 2026-09-29, after the supervised run showed the old line promising too much.
 
-  Sub-project 2 switches both on for VoiceOver.
+  Sub-project 2 switches all three on for VoiceOver.
 
 ## Components
 

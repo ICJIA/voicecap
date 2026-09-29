@@ -116,15 +116,26 @@ export function renderProblems(checks: Check[], options: { offerSetup: boolean }
 }
 
 /**
- * Ready: "Ready: this computer can run <screenReader> for voicecap.", then the tip line if there
- * is one. Otherwise: renderProblems.
+ * Ready: "Ready: this computer can run <screenReader> for voicecap." Or, where voicecap can't run
+ * that screen reader yet (the platform's cannotRunYet: a Mac until the VoiceOver driver exists),
+ * that it's set up but can't run yet. Then the tip line if there is one. Otherwise: renderProblems.
  */
 export function renderVerdict(
   result: PreflightResult,
-  options: { screenReader: string | null; tip: string | null; offerSetup: boolean },
+  options: {
+    screenReader: string | null;
+    canRunYet: boolean;
+    tip: string | null;
+    offerSetup: boolean;
+  },
 ): string {
   if (!result.ready) return renderProblems(result.checks, { offerSetup: options.offerSetup });
-  const lines = [`Ready: this computer can run ${options.screenReader} for voicecap.`];
+  const { screenReader } = options;
+  const lines = [
+    options.canRunYet
+      ? `Ready: this computer can run ${screenReader} for voicecap.`
+      : `Ready: this computer is set up for ${screenReader}, but voicecap can't run ${screenReader} yet: that comes with its ${screenReader} driver.`,
+  ];
   if (options.tip) lines.push(options.tip);
   return lines.join("\n");
 }
@@ -136,6 +147,7 @@ export function renderPreflight(
     kind: "preflight" | "doctor";
     when: Date;
     screenReader: string | null;
+    canRunYet: boolean;
     tip: string | null;
     offerSetup: boolean;
   },

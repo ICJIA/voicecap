@@ -62,6 +62,7 @@ export async function runDoctor(options: {
         kind: "doctor",
         when: now(),
         screenReader: platform.screenReader,
+        canRunYet: platform.cannotRunYet === null,
         tip: platform.readyTip,
         offerSetup: true,
       },

@@ -899,6 +899,11 @@ describe("voicecap init", () => {
     expect(command).toBeGreaterThanOrEqual(0);
     expect(reason).toBeGreaterThan(command);
     expect(run.out).not.toContain("Run it now?");
+    // The preflight's own verdict doesn't promise a run either.
+    expect(run.out).toContain(
+      "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.",
+    );
+    expect(run.out).not.toContain("can run VoiceOver for voicecap");
   });
 
   it("says the ready screen reader will speak and take over the keyboard", async () => {

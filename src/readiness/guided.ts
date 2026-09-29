@@ -163,6 +163,7 @@ export async function finishSetup(
       kind: "preflight",
       when: (options.now ?? (() => new Date()))(),
       screenReader: platform.screenReader,
+      canRunYet: platform.cannotRunYet === null,
       tip: platform.readyTip,
       offerSetup: false,
     }),

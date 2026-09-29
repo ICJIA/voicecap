@@ -4,7 +4,21 @@
 
 Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readiness-design.md`) and built. The spike is done. The VoiceOver driver (sub-project 2) comes next.
 
-**Before any release:** the spec's Release row says the Mac half ships with the VoiceOver driver, because a ready Mac can't run anything until the driver exists. So a release before sub-project 2 must first gate the Mac half, so that Macs keep today's behavior. The Windows half can ship as it is, when the owner says.
+**Releasing:** the plan was for the Mac half to ship with the VoiceOver driver. On 2026-09-29 the owner chose to ship both halves in 0.4.0, once the supervised run on this Mac passes, and the spec's Release row was amended to say so. Until the driver exists, a ready Mac says voicecap can't run VoiceOver yet: `init` after its command, and every verdict ("Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.").
+
+**Supervised run on this Mac (2026-09-29).** Steps 1–4 and 7 were run by the owner in iTerm, and steps 5 and 6 from Claude's session in VS Code. After every step, VoiceOver was back as it had been (on or off, with the owner's own settings), the settings image was unmounted, no test browser was left, and the lock file was gone.
+- **Step 1, `doctor` with VoiceOver off: passed.** All 12 checks and the 4 live-test checks were OK.
+- **Step 2, `doctor` with VoiceOver on: passed.** The warning said VoiceOver was on, and there were no clean-up warnings.
+- **Step 3, `setup`: passed.** It found the VoiceOver files already cached, wrote its two settings with their undo lines, said the checking notice, passed all 12 checks, and passed the offered live test.
+- **Step 4, `init`: passed.** It ran the checks and the offered live test, then the wizard. The site check caught a mistyped address (ENOTFOUND). It ended with the command and the "can't run VoiceOver yet" line, with no "Run it now?".
+- **Step 5, one Control-C: passed.** The signal went to the process group 11 seconds in, with the settings image mounted and the browser up. It printed "Interrupted…" and exited 130 within 3 seconds.
+- **Step 6, two Control-Cs, VoiceOver on: passed.** voicecap exited at once (130). The exit hook detached the image (`hdiutil`, 07:47:44.10), and the owner's VoiceOver restarted right after (07:47:44), so it loaded the owner's settings.
+- **Step 7, the three `SETTINGS_PAGES` addresses: each opened the right page** on macOS 26.
+- **Found by the run, and fixed before release:**
+  - `doctor` and `setup` said a ready Mac "can run VoiceOver for voicecap". Every verdict now uses the line above.
+  - The terminal app was named from its Info.plist, as "Code" and "iTerm2". System Settings and macOS's prompts call them "Visual Studio Code" and "iTerm", so voicecap now uses the app's file name.
+- **Found by the run, for the docs:** while the browser is in front (during a live test or a run), Control-C typed on the keyboard goes to the browser, not the terminal. The owner's attempts at step 5 never reached voicecap. The README now says to click the terminal window first.
+- **Found by the run, for the VoiceOver driver:** VO-F4 described Chromium's address bar ("127.0.0.1:… Address and search bar edit text has keyboard focus"), not the check page. voicecap starts Chrome on `about:blank`, which puts focus in the address bar, and it stays there after the page loads. So the driver must move focus into the web content before a pass. The live test's "hears the page" still holds as a check that VoiceOver speaks for that browser window, as Windows' check accepts any speech.
 
 Still to check by hand:
 
@@ -15,13 +29,7 @@ Still to check by hand:
   - after a run, that the person's installed NVDA restarts through `Start-Process`, including one that uses UIAccess;
   - how long the quick checks take, against the README's "about two seconds";
   - closing the terminal window during `init`'s live test.
-- **On this Mac, with the owner's OK:** a supervised real run.
-  - `setup`, then `doctor`, then `init`, once with VoiceOver on beforehand and once with it off.
-  - Ctrl+C once during the live test.
-  - Afterwards, that VoiceOver is back as it was: on or off, and with the owner's own settings.
-  - Ctrl+C twice during `doctor`'s live test, with VoiceOver on beforehand, so voicecap exits at once and its exit hook does the clean-up: then that VoiceOver comes back with the owner's own settings.
-  - A fresh macOS user account, whose VoiceOver has never been turned on: the checks should say "VoiceOver: not set up for this user yet".
-  - That each `SETTINGS_PAGES` address (`x-apple.systempreferences:…`, for Accessibility, Full Disk Access, and Automation) actually opens System Settings at that exact page on macOS 26. Where one doesn't, the checks' own wording already names the page, so the address stays as it is.
+- **On this Mac, with the owner's OK:** the supervised run above is done, except for one item: a fresh macOS user account, whose VoiceOver has never been turned on. There, the checks should say "VoiceOver: not set up for this user yet".
 
 Parked, known and left for later:
 

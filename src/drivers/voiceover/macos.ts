@@ -221,8 +221,9 @@ async function plutilExtract(run: RunCommand, key: string, plist: string): Promi
 
 /**
  * The terminal app running voicecap: every macOS permission grant belongs to it, not to voicecap
- * itself. Its name is its Info.plist's CFBundleDisplayName, else CFBundleName, else its bundle's
- * file name. Null when voicecap's ancestors never reach an app bundle (over SSH, say).
+ * itself. Its name is its bundle's file name, the one System Settings lists and macOS's prompts
+ * use: "Visual Studio Code" and "iTerm", where their Info.plists say "Code" and "iTerm2". Null
+ * when voicecap's ancestors never reach an app bundle (over SSH, say).
  */
 export async function terminalApp(
   run: RunCommand,
@@ -231,12 +232,7 @@ export async function terminalApp(
   const ps = await run("ps", ["-A", "-o", "pid=,ppid=,comm="], { timeoutMs: SHORT_TIMEOUT_MS });
   const bundle = terminalAppBundle(parseProcessTable(ps.stdout), startPid);
   if (!bundle) return null;
-  const plist = `${bundle}/Contents/Info.plist`;
-  const name =
-    (await plutilExtract(run, "CFBundleDisplayName", plist)) ??
-    (await plutilExtract(run, "CFBundleName", plist)) ??
-    bundleFileName(bundle);
-  return { name, bundle };
+  return { name: bundleFileName(bundle), bundle };
 }
 
 // ---- Permission probes ----

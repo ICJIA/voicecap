@@ -37,12 +37,26 @@ const RESTART_LINE =
 const CHECKING =
   'Checking this Mac. If macOS asks for access to control "System Events", click Allow.';
 
-/** A scripted Mac: its quick checks answer from `script`, and it has the Mac's checking notice. */
+/** The Mac's reason, until the VoiceOver driver exists, that nothing can run there yet. */
+const CANNOT_RUN_YET =
+  "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
+/** A ready Mac's verdict while CANNOT_RUN_YET holds. */
+const READY_NOT_YET =
+  "Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.";
+
+/**
+ * A scripted Mac: its quick checks answer from `script`, and it has the Mac's checking notice and
+ * its reason that nothing can run there yet.
+ */
 function macPlatform(
   script: Parameters<typeof scriptedPlatform>[0],
   overrides: Partial<PlatformReadiness> = {},
 ) {
-  return scriptedPlatform(script, { checkingNotice: [CHECKING], ...overrides });
+  return scriptedPlatform(script, {
+    checkingNotice: [CHECKING],
+    cannotRunYet: CANNOT_RUN_YET,
+    ...overrides,
+  });
 }
 
 const ACCESSIBILITY: Problem = {
@@ -174,10 +188,8 @@ function macSetupWith(
   const commands = fakeCommands([
     [(file, args) => file === "defaults" && args[0] === "write", {}],
     [(file) => file === "ps", { stdout: PROCESSES }],
-    [
-      (file, args) => file === "plutil" && args[1] === "CFBundleDisplayName",
-      { stdout: "Visual Studio Code\n" },
-    ],
+    // What VS Code's Info.plist really says; the app is named by its bundle's file name instead.
+    [(file, args) => file === "plutil" && args[1] === "CFBundleDisplayName", { stdout: "Code\n" }],
   ]);
   const installs: { script: string; args: string[]; cwd: string }[] = [];
   const opened: NonNullable<Problem["open"]>[] = [];
@@ -357,7 +369,8 @@ describe("runMacSetup", () => {
         "voicecap preflight, ",
       ].join("\n"),
     );
-    expect(text).toContain("Ready: this computer can run VoiceOver for voicecap.");
+    expect(text).toContain(READY_NOT_YET);
+    expect(text).not.toContain("can run VoiceOver for voicecap");
     expect(setup.opened).toEqual([SETTINGS_PAGES.accessibility]);
   });
 
@@ -441,7 +454,7 @@ describe("runMacSetup", () => {
     expect(occurrences(text, CHECKING)).toBe(1);
     expect(text).toContain(
       [
-        "Ready: this computer can run VoiceOver for voicecap.",
+        READY_NOT_YET,
         "Tip: turn on Do Not Disturb, so notifications don't interrupt VoiceOver.",
         "",
         ...NOTICE,
