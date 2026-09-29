@@ -12,11 +12,11 @@
 
 voicecap is a free, open-source tool from the Illinois Criminal Justice Information Authority (ICJIA) that captures what a screen reader user actually hears on a website.
 
-Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap drives NVDA, one of the two most widely used screen readers, through a site's pages the way a blind visitor would: reading from top to bottom, jumping from heading to heading, and tabbing through links and buttons. It saves everything NVDA says as plain-text transcripts.
+Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap drives a real screen reader through a site's pages the way a blind visitor would: **NVDA on a Windows PC, and VoiceOver on a Mac**. It reads from top to bottom, jumps from heading to heading, and tabs through links and buttons, and it saves everything the screen reader says as plain-text transcripts. On a Mac, setup, checks, and a live VoiceOver test work today, and full VoiceOver audits come with voicecap's VoiceOver driver.
 
 That lets a reviewer:
 
-- skim what NVDA says on a page much faster than listening to it;
+- skim what the screen reader says on a page much faster than listening to it;
 - compare runs to see exactly what changed after an update;
 - record what they reviewed and found, and add their own hands-on NVDA sessions.
 
