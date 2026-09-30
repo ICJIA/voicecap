@@ -5,7 +5,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { chromium } from "playwright";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
 import {
@@ -127,6 +127,23 @@ function lockDown(pid: number): void {
 }
 
 describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", () => {
+  // The first Add-Type in a fresh Windows session starts the C# compiler cold: about a second on
+  // the Windows PC, but from 4 seconds to over a minute on GitHub's Windows runners (measured
+  // 2026-09-29 and 30, when the keep-awake test, the first to compile, failed at 30 and then 60
+  // seconds). Compiling once here, with room to spare, leaves each test below timing its own helper.
+  beforeAll(() => {
+    spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Add-Type -TypeDefinition 'public static class VoicecapWarmUp { }'",
+      ],
+      { windowsHide: true, timeout: 170_000 },
+    );
+  }, 180_000);
+
   // Whether it's locked right now depends on the person at the computer (a real lock was checked
   // by hand); CI runners have no interactive desktop to ask about.
   it.skipIf(process.env.CI !== undefined)(
@@ -137,7 +154,7 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
   );
 
   // Its helper compiles a little C# (Add-Type) before it answers: about a second on the Windows
-  // PC, but 15 to 30 seconds on GitHub's Windows runners (measured 2026-09-29).
+  // PC. On GitHub's Windows runners, compiling first, it took 4 to 27 seconds when it passed.
   it("keep Windows awake until released", async () => {
     const awake = keepAwake();
     try {
