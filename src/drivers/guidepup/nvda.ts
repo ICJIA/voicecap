@@ -127,6 +127,7 @@ export class GuidepupNvda implements NvdaControl {
     if (this.clock() - began < MIN_CAPTURED_MS) {
       throw new EnvironmentError(
         "Guidepup has lost its connection to NVDA, so it no longer sends keys or hears speech.",
+        { failure: "screen-reader-stopped" },
       );
     }
   }

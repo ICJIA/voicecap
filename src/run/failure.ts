@@ -35,7 +35,8 @@ export function redactHome(text: string, home: string, platform: NodeJS.Platform
   const windows = platform === "win32";
   // A separator left at the end of the home folder (HOME=/Users/pat/) isn't part of it.
   const folder = home.replace(windows ? /[\\/]+$/ : /\/+$/, "");
-  if (folder === "") return text;
+  // Nothing to replace: no folder, or only the root of the file system or (on Windows) of a drive.
+  if (folder === "" || (windows && /^[A-Za-z]:$/.test(folder))) return text;
   const parts = folder.split(windows ? /[\\/]+/ : "/");
   const separator = windows ? String.raw`[\\/]+` : "/";
   // A folder that needs no encoding is spelled the same way twice: one alternative.

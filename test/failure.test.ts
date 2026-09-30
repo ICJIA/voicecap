@@ -16,6 +16,13 @@ describe("causeOf", () => {
     expect(causeOf(new StepTimeoutError("Opening the page", 30_000, "open-timeout"))).toBe(
       "open-timeout",
     );
+    expect(
+      causeOf(
+        new EnvironmentError("The page couldn't be reached: net::ERR_NAME_NOT_RESOLVED", {
+          failure: "unreachable",
+        }),
+      ),
+    ).toBe("unreachable");
   });
 
   it("calls every other error unexpected", () => {
@@ -211,6 +218,19 @@ describe("redactHome", () => {
     expect(redactHome(text, "", "darwin")).toBe(text);
     expect(redactHome(text, "/", "darwin")).toBe(text);
     expect(redactHome("at f (C:\\a.js)", "", "win32")).toBe("at f (C:\\a.js)");
+  });
+
+  // A drive's root is nobody's home folder either: "C:" would be taken out of every path on it.
+  it("leaves the text alone when the home folder is only a drive's root, on Windows", () => {
+    const text = "at f (C:\\Windows\\a.js:1:2) at g (c:/windows/b.js:3:4)";
+    expect(redactHome(text, "C:\\", "win32")).toBe(text);
+    expect(redactHome(text, "C:", "win32")).toBe(text);
+    expect(redactHome(text, "c:/", "win32")).toBe(text);
+    expect(redactHome(text, "\\", "win32")).toBe(text);
+    // A folder on that drive is still a home folder.
+    expect(redactHome(text, "C:\\Windows", "win32")).toBe(
+      "at f (%USERPROFILE%\\a.js:1:2) at g (%USERPROFILE%/b.js:3:4)",
+    );
   });
 });
 

@@ -380,6 +380,27 @@ interface PageDocument {
   querySelector(selector: string): { remove(): void } | null;
 }
 
+/**
+ * What Playwright says when the network won't take a navigation: the first line reads "page.goto:
+ * net::ERR_NAME_NOT_RESOLVED at https://example.gov/", and a call log follows.
+ */
+const NETWORK_ERROR = /^(?:page\.goto: )?(net::ERR_[^\r\n]*)/;
+
+/**
+ * A navigation the network refused (a name that doesn't resolve, a refused or reset connection, an
+ * unreachable address, no internet, and the like) as an EnvironmentError coded "unreachable": the
+ * website couldn't be reached, whether that's the website's fault or the network's. Any other
+ * error is returned as it is.
+ */
+function asUnreachable(error: unknown): unknown {
+  const detail = error instanceof Error ? NETWORK_ERROR.exec(error.message)?.[1] : undefined;
+  if (detail === undefined) return error;
+  return new EnvironmentError(`The page couldn't be reached: ${detail}`, {
+    cause: error,
+    failure: "unreachable",
+  });
+}
+
 export class ChromeSession implements BrowserSession {
   readonly name: string;
   readonly version: string;
@@ -419,7 +440,7 @@ export class ChromeSession implements BrowserSession {
       try {
         response = await this.page.goto(url, { waitUntil: "load", timeout: timeoutMs });
       } catch (error) {
-        if (!mainResponse) throw error;
+        if (!mainResponse) throw asUnreachable(error);
         response = mainResponse;
       }
       // Count the window's focus losses from here on (not possible in a PDF viewer, say).

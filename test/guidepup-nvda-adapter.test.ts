@@ -246,8 +246,12 @@ describe("commands Guidepup didn't send", () => {
 
   it("fail when a captured command comes back too quickly to have been sent", async () => {
     const nvda = withClock(0);
-    await expect(nvda.press("nextLine")).rejects.toThrow(EnvironmentError);
-    await expect(nvda.speechDuring(() => Promise.resolve())).rejects.toThrow(/connection/);
+    const press = nvda.press("nextLine");
+    await expect(press).rejects.toThrow(EnvironmentError);
+    await expect(press).rejects.toMatchObject({ failure: "screen-reader-stopped" });
+    const speech = nvda.speechDuring(() => Promise.resolve());
+    await expect(speech).rejects.toThrow(/connection/);
+    await expect(speech).rejects.toMatchObject({ failure: "screen-reader-stopped" });
   });
 
   it("go through when Guidepup took the time to capture them", async () => {

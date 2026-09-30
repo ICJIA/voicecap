@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import net, { type AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -46,6 +47,15 @@ async function launch(): Promise<ChromeSession> {
   return session;
 }
 
+/** A local port with nothing listening on it: one that was free a moment ago. */
+async function closedPort(): Promise<number> {
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
+
 describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("loads a page and reports where it ended up, its status, and its content type", async () => {
     const session = await launch();
@@ -71,6 +81,31 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     expect((await session.load(new URL("feed/", server.url).href, 15_000)).contentType).toMatch(
       /^application\/rss\+xml/,
     );
+  });
+
+  // With nothing listening, Chromium says net::ERR_CONNECTION_REFUSED. (It refuses some low ports
+  // outright: port 9 gives net::ERR_UNSAFE_PORT, so the test closes a port of its own.)
+  it("says the page couldn't be reached, with a code, when the network refuses the connection", async () => {
+    const session = await launch();
+    const url = `http://127.0.0.1:${await closedPort()}/`;
+    const loading = session.load(url, 15_000);
+    await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(loading).rejects.toMatchObject({
+      failure: "unreachable",
+      message: `The page couldn't be reached: net::ERR_CONNECTION_REFUSED at ${url}`,
+    });
+    // Playwright's own error stays as the cause.
+    await expect(loading).rejects.toHaveProperty(
+      "cause.message",
+      expect.stringContaining("net::ERR_CONNECTION_REFUSED"),
+    );
+  });
+
+  it("leaves a navigation error that isn't the network's as it is", async () => {
+    const session = await launch();
+    const loading = session.load("not a url", 15_000);
+    await expect(loading).rejects.toThrow(/invalid URL/);
+    await expect(loading).rejects.not.toBeInstanceOf(EnvironmentError);
   });
 
   it("sets the page's title and restores it", async () => {
@@ -358,6 +393,107 @@ describe("closing a browser that doesn't answer", () => {
     await session.close();
     expect(killed).toBe(true);
     expect(existsSync(dir)).toBe(false);
+  });
+});
+
+// What Playwright raises for a navigation that fails, without a browser: a page that only navigates.
+describe("a navigation that fails", () => {
+  const URL_PDF = "https://example.gov/report.pdf";
+
+  /** A session whose page fails to navigate with this, after the main response (if any) came. */
+  function failing(error: unknown, response?: { url: string; contentType: string }): ChromeSession {
+    const mainFrame = {};
+    let onResponse: ((response: unknown) => void) | undefined;
+    const page = {
+      mainFrame: () => mainFrame,
+      on: (_event: string, handler: (response: unknown) => void) => {
+        onResponse = handler;
+      },
+      off: () => {},
+      goto: () => {
+        if (response) {
+          onResponse?.({
+            request: () => ({ isNavigationRequest: () => true, frame: () => mainFrame }),
+            url: () => response.url,
+            status: () => 200,
+            headers: () => ({ "content-type": response.contentType }),
+          });
+        }
+        throw error;
+      },
+      evaluate: () => Promise.resolve(),
+    };
+    return new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      { version: () => "153.0.0.0" } as unknown as Browser,
+      page as unknown as Page,
+      {} as CDPSession,
+    );
+  }
+
+  it.each([
+    {
+      label: "Playwright's message, with its call log",
+      message:
+        'page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.gov/\nCall log:\n\u001b[2m  - navigating to "https://example.gov/", waiting until "load"\u001b[22m\n',
+      detail: "net::ERR_NAME_NOT_RESOLVED at https://example.gov/",
+    },
+    {
+      label: "a message without Playwright's prefix",
+      message: "net::ERR_CONNECTION_RESET at https://example.gov/a?b=1",
+      detail: "net::ERR_CONNECTION_RESET at https://example.gov/a?b=1",
+    },
+    {
+      label: "a message with nothing after the code",
+      message: "page.goto: net::ERR_INTERNET_DISCONNECTED",
+      detail: "net::ERR_INTERNET_DISCONNECTED",
+    },
+  ])("says the page couldn't be reached, with a code: $label", async ({ message, detail }) => {
+    const error = new Error(message);
+    const loading = failing(error).load("https://example.gov/", 0);
+    await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(loading).rejects.toMatchObject({
+      failure: "unreachable",
+      message: `The page couldn't be reached: ${detail}`,
+    });
+    await expect(loading).rejects.toHaveProperty("cause", error);
+  });
+
+  it.each([
+    {
+      label: "a timeout",
+      message:
+        'page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to "https://example.gov/", waiting until "load"\n',
+    },
+    {
+      label: "an invalid URL",
+      message: "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL",
+    },
+    {
+      label: "a message that names a network error only later",
+      message: "page.goto: Timeout 30000ms exceeded.\nCall log:\n  - net::ERR_NETWORK_CHANGED",
+    },
+  ])("leaves $label as it is", async ({ message }) => {
+    const error = new Error(message);
+    await expect(failing(error).load("https://example.gov/", 0)).rejects.toBe(error);
+  });
+
+  it("leaves something that isn't an error as it is", async () => {
+    await expect(failing("net::ERR_FAILED").load("https://example.gov/", 0)).rejects.toBe(
+      "net::ERR_FAILED",
+    );
+  });
+
+  // A download never commits, so the navigation fails; the response that came first says what it was.
+  it("takes the main response that came first, whatever the failure", async () => {
+    const aborted = new Error(`page.goto: net::ERR_ABORTED at ${URL_PDF}`);
+    const loaded = await failing(aborted, {
+      url: URL_PDF,
+      contentType: "application/pdf",
+    }).load(URL_PDF, 0);
+    expect(loaded).toEqual({ finalUrl: URL_PDF, status: 200, contentType: "application/pdf" });
   });
 });
 

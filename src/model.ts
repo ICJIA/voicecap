@@ -173,7 +173,8 @@ export type FailureKind = "page" | "environment";
  * causeOf in src/run/failure.ts). "foreground": another window took the foreground from the
  * browser. "locked": the computer was locked. "screen-reader-stopped": the screen reader didn't
  * start or stopped running. "browser": the browser didn't start, or changed during the run.
- * "http": the site answered with an HTTP error (no error is raised for that). "open-timeout",
+ * "http": the site answered with an HTTP error (no error is raised for that). "unreachable": the
+ * website couldn't be reached, which is the website's fault or the network's. "open-timeout",
  * "step-timeout", "page-timeout": the page didn't open in time, a step didn't finish in time, or
  * the whole page took too long. "unexpected": any other error, which may be a fault in voicecap.
  */
@@ -183,6 +184,7 @@ export type FailureCause =
   | "screen-reader-stopped"
   | "browser"
   | "http"
+  | "unreachable"
   | "open-timeout"
   | "step-timeout"
   | "page-timeout"
