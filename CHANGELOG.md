@@ -6,15 +6,28 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ### Added
 
-- **Each page's title**, as the browser reports it, in the page's record in `run.json` (`title`). A page with no title, or one that was tried but never loaded, has none.
-- **Every failed attempt at a page, with its cause.** A page's record (`failedAttempts`) lists each attempt that failed the last time voicecap went through it: its number, when it started and ended (local time, to the millisecond), the pass, the step, and the key, why it failed, the error's message, and whether the screen reader and browser were started again before the next attempt.
-  - The cause is one of a short list: another window came to the front, the computer locked, the screen reader stopped, the browser failed, the website couldn't be reached, a step took too long, and so on.
+- **Each page's title**, as the browser reports it, in the page's record in `run.json` (`title`). A page with no title, or one that was tried but never loaded, has none (`null`), and so does every page of a replayed run.
+- **Every failed attempt at a page, with its cause.** A page's record (`failedAttempts`) lists every attempt that failed, in every session of the run, including those a later attempt made good. Each is written to `run.json` as it happens, before the screen reader and browser are started again, so Ctrl+C, a closed window, a crash, or a restart that fails doesn't lose it.
+  - Each keeps its number, counted across the sessions; when it started and ended (local time, to the millisecond); the pass, the step, and the command it sent (`nextLine`, say, or `openPage` for a page that didn't open); the error's message; and whether the screen reader and browser were started again for the next attempt.
+  - Each keeps why it failed, as a code: `foreground`, `locked`, `screen-reader-stopped`, `browser`, `http`, `unreachable`, `open-timeout`, `step-timeout`, `page-timeout`, or `unexpected` (the README's "What each run records" says what each means). A browser window closed mid-page, a browser or page that crashes, and a browser that isn't installed are the browser's (`browser`); a configured `readySelector` that never appears is a page that didn't open in time (`open-timeout`).
   - An unexpected error, which may be a fault in voicecap itself, also keeps its stack, with the home folder replaced by `%USERPROFILE%` (or `~`).
-- **The listener's statement.** When a session that read pages ends at a terminal, after Ctrl+C too, voicecap asks "Did you listen as NVDA read these pages?" with the choices "Yes, all of them", "Part of them", and "No" (Enter picks No). The session's record in `run.json` (`listener`) keeps the answer, when voicecap asked and when it was answered, and how many pages the session went through, beside the reviewer recorded since 0.5.0. The run's seal covers it.
-  - It isn't asked without a terminal (a script, CI, or Git Bash's own window, mintty, where Node sees no terminal: answer from PowerShell or Windows Terminal), for a replay, for a session that read no pages, or for a session that ended with an error (the browser updating itself mid-run, say). The record then has no statement.
-  - `voicecap demo` doesn't ask.
-- **The computer's details**, in each session's environment record (`machine`): the operating system (edition, version, build with its update revision, and architecture), the processor (name, base speed, physical cores, and logical processors), memory, the display (resolution and refresh rate, and on Windows its scaling), the browser window's fixed size (1280 × 960; none for a replay), the time zone and its offset, the display language, and the versions of Node.js, voicecap, Guidepup, and Playwright. Never the computer's maker, model, or name, or the account's name.
-- **Programmatic API**: `runAudit` takes `askListener`, a function that asks whether the person listened and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer. Without it, nothing is asked.
+- **The listener's statement.** When a session that read pages ends, voicecap asks at the terminal, once NVDA has stopped: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No", typed as 1, 2, or 3; Enter picks No. The session's record in `run.json` keeps the answer (`listener`), with when voicecap asked and when it was answered, beside the reviewer recorded since 0.5.0 and the session's page count (`pagesDone`). The session's end is written before the question, and the run's seal covers the answer.
+  - It's asked however the session ends: when the run completes; after Ctrl+C; when the run stops after too many failed pages in a row; and when an error ends it, after a line that says why (the full explanation follows the answer).
+  - Only an answer typed after the question appears counts: keys pressed during the run are dropped before it shows.
+  - Ctrl+C at the question, or closing the window, gives no answer; the record then has no statement.
+  - It isn't asked without a terminal (a script, or CI), or when the output is redirected to a file; in Git Bash's own window (mintty), which doesn't always let Node see a terminal (run voicecap in PowerShell or Windows Terminal to be asked); for a replay; or for a session that read no pages. `voicecap demo` doesn't ask.
+- **The computer's details**, in each session's environment record (`machine`), and never the computer's maker, model, or name, or the account's name:
+  - the operating system: edition, version, build with its update revision, and architecture;
+  - the processor: name, base speed, physical cores, and logical processors;
+  - memory, and the display: resolution and refresh rate, and on Windows its scaling;
+  - the browser window's fixed size: 1280 × 960 (none for a replay);
+  - the time zone and its offset, and the display language;
+  - the versions of Node.js, voicecap, Guidepup, and Playwright.
+- **Programmatic API**: `runAudit` takes `askListener`, a function called when a session that read pages ends, however it ends (never for a replay), and given `{ screenReader, pagesRead }`. It asks whether the person listened, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer. Without it, nothing is asked.
+
+### Changed
+
+- **A page's `attempts` counts each attempt as it ends,** across sessions, those before a Ctrl+C included. An attempt that Ctrl+C stopped midway still isn't counted.
 
 ## [0.5.0] - 2026-09-30
 

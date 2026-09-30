@@ -29,7 +29,7 @@ Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives ea
   - after a run, that the person's installed NVDA restarts through `Start-Process`, including one that uses UIAccess;
   - how long the quick checks take, against the README's "about two seconds";
   - closing the terminal window during `init`'s live test;
-  - **`voicecap demo` from start to finish**, from a build of the branch (`node dist/cli.js demo`), or with `npx @icjia/voicecap demo` once it's released:
+  - **`voicecap demo` from start to finish**, from a build of the branch (`node dist/cli.js demo`), or with `npx @icjia/voicecap demo`:
     - time step 4 and the whole tour against `AUDIT_MINUTES` (6) and `TOUR_MINUTES` (9) in `src/demo/words.ts`, and change them (and the README and spec) if they're off;
     - check that the opened report flags `/common-mistakes/` and no other page;
     - check that the terminal keeps Ctrl+C for itself through the whole audit;
@@ -183,7 +183,6 @@ Deferred from the `voicecap demo` reviews (2026-09-29), each judged "can wait" o
   - `doctor` is described as "the checks on their own", though it also runs the live test.
   - README's "pnpm is only for … the replay demo" sits near "Try it first".
   - `auditIntro`'s first two lines don't go through `paragraph()`.
-- **The CHANGELOG** doesn't list `runAudit`'s new public options `again` and `preflight`. Add them before a release, or mark them internal.
 - **An Enter typed ahead** during step 2's checks answers the pause before the live test (typed-ahead input isn't dropped).
 - **The demo server** (`src/demo/server.ts`, `src/util/static-site.ts`):
   - `close()` rejects on a second call.
@@ -245,7 +244,7 @@ The owner's standing rules, from Phases A and B:
   - 0.4.0 added readiness: the checks, the live test, and `setup` and `doctor` on macOS; 0.4.1 let `--sitemap` take a sitemap's name.
   - 0.5.0 added `voicecap demo`, the four fixes the Windows checks found (2026-09-29 and 30), a failed page tried up to 5 times, and the reviewer's name on every session. It was merged to `main` from the branch `windows-checks-fixes`.
 - **Being built:** 0.6.0, the shareable report, on the branch `0.6.0-run-records`: plan 1 of 6, the run records.
-- **Tests:** 1,382 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
+- **Tests:** 1,442 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.

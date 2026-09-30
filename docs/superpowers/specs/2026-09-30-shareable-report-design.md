@@ -113,9 +113,11 @@ The mockup shows this order. Each section's first sentence is its point.
 
 voicecap speeds up a person's review. The page shows that review as the records show it, in three parts:
 
-- **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, after Ctrl+C too, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
-  - The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
-  - It isn't asked without a terminal (a script, CI), or after a second Ctrl+C or a closed window. The page then says "not recorded".
+- **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
+  - It's asked however the session ends: completed, after Ctrl+C, stopped after too many failed pages in a row, or ended by an error. After an error, one line says why the session stopped before the question, and the full explanation follows the answer.
+  - Only an answer typed after the question appears counts: keys typed during the run, which wait in the terminal's input, are discarded before the question shows.
+  - The session's end is written before the question. The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
+  - It isn't asked without a terminal (a script, CI), or with the output redirected (to a file, say). Ctrl+C at the question (after an interrupted run, a second Ctrl+C) and a closed window give no answer. The page then says "not recorded".
   - On a Mac, it asks about VoiceOver.
 - **Reading the transcripts, and deciding:** `voicecap review`'s entries, as today: "Reviewed, no issues", "Issue found" with its note, and "Fixed".
 - **Fixing:** the "Fixed" entries, with their notes.
@@ -521,6 +523,9 @@ A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (appro
 ## Facts to confirm at the PC
 
 - **The listener's question after Ctrl+C:** that the terminal still takes an answer once voicecap has shut NVDA down and given the owner's NVDA back.
+- **Keys typed during the run don't answer the question:** that Enter and a number, pressed while the run goes on (with the terminal in front, or not), are dropped, and the question waits for an answer typed after it appears.
+- **Closing the window at the question:** for an interrupted run, that the session's end is in `run.json` with no statement; for a completed run, that the run is sealed, with its session ended and no statement.
+- **A voicecap Chrome window closed mid-page:** that the page's attempt records `browser`, not `unexpected`.
 
 Before stage 2's C:
 
