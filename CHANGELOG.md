@@ -8,6 +8,17 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 - **`voicecap demo`, a guided first run** against a small demo site that comes with voicecap and runs only on this computer. Seven steps, each explained and each waiting for Enter: the welcome, this computer's checks, the live test, an audit of the demo's seven pages (showing the command it runs), the transcripts, the report (with an offer to open it), and what to do next. Its files go in `voicecap-demo/` in the current folder. On a Mac, until the VoiceOver driver, it runs the checks and the VoiceOver live test, then says what the audit will do; a Windows PC runs the full tour.
 
+### Changed
+
+- **The README** says the checks take about three seconds, as measured on a Windows PC, not two.
+
+### Fixed
+
+- **voicecap turns an installed NVDA back on.** An installed NVDA runs with UI Access, at a higher integrity level than voicecap, and the way voicecap asked Windows for its path (WMI's `ExecutablePath`) came back empty. So after a run or the live test, voicecap couldn't start it again, and said to start it by hand. voicecap now reads each `nvda.exe`'s path with `QueryFullProcessImageName`, which Windows allows. Found on Windows 11 with NVDA 2026.2.
+- **The `unlabeled` flag no longer flags labeled form fields in the read pass.** In browse mode, NVDA reads a form field's label as separate text, on the field's line or the line before, so a read-pass line with only "edit" can belong to a labeled field: the demo's labeled textarea was flagged. Form fields (edit, combo box, check box, radio button) now count only in the tab pass, where NVDA says the name first. The new setting `flags.unlabeled.tabOnlyRoles` lists them. `voicecap report` recomputes earlier runs' flags with the new rule.
+- **Chrome that updates itself as voicecap starts it.** With an update waiting and no other Chrome open, the Chrome voicecap started handed over to a new copy of itself, which finished the update and went on with voicecap's profile. voicecap said "Chrome didn't start: it exited (0)" and left the profile behind. Now it closes that copy, says so, and starts Chrome again, once.
+- **After a closed terminal window, your NVDA starts once Guidepup's has quit.** The helper that starts your NVDA as voicecap exits now waits, for up to 20 seconds, until Guidepup's NVDA has quit. Before, it could start yours while Guidepup's was still quitting.
+
 ## [0.4.1] - 2026-09-29
 
 ### Added

@@ -575,7 +575,7 @@ function checkCount(flag: string, value: number | null | undefined): number | nu
 }
 
 /**
- * Quick checks (about 2 seconds) before a real run touches anything. Not ready: throws
+ * Quick checks (about 3 seconds) before a real run touches anything. Not ready: throws
  * EnvironmentError with the "Not ready" block, before the site folder, the run lock, or NVDA are
  * touched. Ready: logs the one-line pass summary and any WARN lines, then the run proceeds as
  * usual. Never runs for a replay run. A caller that has just run the checks passes their result

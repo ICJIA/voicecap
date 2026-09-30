@@ -171,7 +171,7 @@ Then open `transcripts/127.0.0.1_4747/report.html`.
 
 ### The checks, and the live test
 
-**`init`, `doctor`, and `setup` check this computer:** `init` and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about two seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
+**`init`, `doctor`, and `setup` check this computer:** `init` and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
 
 **A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `init` stops there, with exit code 2.
 
@@ -194,7 +194,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 1. **Welcome:** what voicecap does, and what the tour will do.
 2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap doctor`.
 3. **The live test:** about 20 seconds of NVDA speaking. Keep your hands off the keyboard.
-4. **Auditing the demo site:** NVDA reads the demo's seven pages, hands off, for about 6 minutes. The tour shows the command it runs, such as `npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh`. To stop early, click the terminal window first (the browser is in front), then press Ctrl+C.
+4. **Auditing the demo site:** NVDA reads the demo's seven pages, hands off, for about 7 minutes. The tour shows the command it runs, such as `npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh`. To stop early, click the terminal window first (the browser is in front), then press Ctrl+C.
 5. **The transcripts:** where they are, and the first lines NVDA said on the demo's home page.
 6. **The report:** where it is, its flags, which are all on the "Common mistakes (on purpose)" page, and an offer to open it.
 7. **Your own site:** `npx @icjia/voicecap init` sets up a run.
@@ -839,7 +839,7 @@ Flags point a person at pages worth a closer listen. They never fail a page or c
 | Flag | Raised when |
 | --- | --- |
 | `generic-link-text` | A pass announces generic link text at least twice: "click here", "read more", "learn more", "here", "more", … or a link with no name. |
-| `unlabeled` | A button, edit field, or other control is announced with no name ("button", "edit"), a graphic has no description, or NVDA says "unlabeled". |
+| `unlabeled` | A button, edit field, or other control is announced with no name ("button", "edit"), a graphic has no description, or NVDA says "unlabeled". Form fields (edit, combo box, check box, radio button) count only in the tab pass: in the read pass, NVDA reads a field's label as separate text, so "edit" alone there doesn't mean the field has no name. |
 | `read-not-finished` | The read pass stopped at its step cap or the repeat safety net instead of the end of the page. |
 | `headings` | The page has no headings, or its first heading isn't level 1. |
 | `tab-no-stops` | Tab reached no focusable elements. |

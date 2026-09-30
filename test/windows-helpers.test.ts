@@ -1,5 +1,5 @@
-import { spawn, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -12,12 +12,14 @@ import {
   cleanupOrphans,
   keepAwake,
   listProcesses,
+  nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
   parseNvdaProcesses,
   personsNvda,
   powershellCommand,
   powershellString,
+  restartAfterScript,
   restartNvda,
   sessionLocked,
   startProcessScript,
@@ -26,7 +28,11 @@ import {
 
 const temps: string[] = [];
 const orphans: number[] = [];
-afterEach(() => {
+const standIns: ChildProcess[] = [];
+afterEach(async () => {
+  // A stand-in may have left this user no right to it but terminate; Node's own handle still ends
+  // it. Its folder can go once it has exited.
+  await Promise.all(standIns.splice(0).map(stop));
   // A browser that outlives its test keeps the test runner's output pipe open (Windows handle
   // inheritance), which would hang the run: make sure it's gone whatever the test did.
   for (const pid of orphans.splice(0)) {
@@ -41,6 +47,82 @@ function alive(pid: number): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+function stop(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    child.once("exit", () => resolve());
+    child.kill();
+  });
+}
+
+/**
+ * A stand-in for a running nvda.exe: Windows' ping, copied as nvda.exe into a new folder whose
+ * name starts with `prefix`, and started from its full, long-form path. With `-n 60`, it runs for
+ * about a minute.
+ */
+function startStandInNvda(
+  prefix: string,
+  args: string[] = ["-n", "60", "127.0.0.1"],
+): { pid: number; exe: string; child: ChildProcess } {
+  const tmp = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), prefix)));
+  temps.push(tmp);
+  const exe = path.join(tmp, "nvda.exe");
+  copyFileSync(path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "PING.EXE"), exe);
+  const child = spawn(exe, args, { stdio: "ignore" });
+  standIns.push(child);
+  if (child.pid === undefined) throw new Error(`The stand-in ${exe} didn't start.`);
+  return { pid: child.pid, exe, child };
+}
+
+/** Runs a script as voicecap's PowerShell helpers do; resolves when it's done, with its errors. */
+function runPowershell(script: string): Promise<{ stderr: string; at: number }> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
+      { windowsHide: true, timeout: 60_000 },
+      (error, _stdout, stderr) => {
+        if (error?.killed) reject(new Error("PowerShell didn't finish within a minute"));
+        else resolve({ stderr, at: Date.now() });
+      },
+    );
+  });
+}
+
+/**
+ * Leaves this user only the limited query right to a process (with synchronize and terminate), as
+ * Windows does to a program at a higher integrity level, such as an installed NVDA with UI Access:
+ * its path can be asked for, but not its memory or its full information.
+ */
+function lockDown(pid: number): void {
+  const script = [
+    "Add-Type -Namespace VoicecapTest -Name Acl -MemberDefinition '",
+    '[DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);',
+    '[DllImport("advapi32.dll")] public static extern uint SetSecurityInfo(IntPtr handle, int objectType, uint securityInfo, IntPtr owner, IntPtr group, byte[] dacl, IntPtr sacl);',
+    '[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);',
+    "';",
+    "$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value;",
+    // PROCESS_QUERY_LIMITED_INFORMATION 0x1000, SYNCHRONIZE 0x100000, PROCESS_TERMINATE 0x1.
+    '$descriptor = New-Object Security.AccessControl.RawSecurityDescriptor "D:(A;;0x101001;;;$sid)";',
+    "$dacl = New-Object byte[] $descriptor.DiscretionaryAcl.BinaryLength;",
+    "$descriptor.DiscretionaryAcl.GetBinaryForm($dacl, 0);",
+    // WRITE_DAC, then SE_KERNEL_OBJECT (6) and DACL_SECURITY_INFORMATION (4).
+    `$handle = [VoicecapTest.Acl]::OpenProcess(0x40000, $false, ${pid});`,
+    "if ($handle -eq [IntPtr]::Zero) { exit 2 }",
+    "$result = [VoicecapTest.Acl]::SetSecurityInfo($handle, 6, 4, [IntPtr]::Zero, [IntPtr]::Zero, $dacl, [IntPtr]::Zero);",
+    "[void][VoicecapTest.Acl]::CloseHandle($handle);",
+    "exit $result",
+  ].join(" ");
+  const done = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 30_000,
+  });
+  if (done.status !== 0) {
+    throw new Error(`Couldn't lock down process ${pid} (exit ${done.status}): ${done.stderr}`);
   }
 }
 
@@ -68,6 +150,17 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);
   });
+
+  it("read the path of an nvda.exe whose memory Windows won't let voicecap read, as for an installed NVDA", async () => {
+    const nvda = startStandInNvda("voicecap-nvda-test-");
+    lockDown(nvda.pid);
+    expect(await nvdaProcesses()).toContainEqual({ pid: nvda.pid, path: nvda.exe });
+  }, 30_000);
+
+  it("read an nvda.exe's path with letters outside ASCII as they are", async () => {
+    const nvda = startStandInNvda("voicecap-nvda-é-test-");
+    expect(await nvdaProcesses()).toContainEqual({ pid: nvda.pid, path: nvda.exe });
+  }, 30_000);
 
   it("describe this Windows and its display language", () => {
     const info = windowsSystemInfo();
@@ -131,6 +224,29 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     temps.push(tmp);
     expect(await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"))).toEqual([]);
   });
+
+  it("start the person's NVDA again only once Guidepup's NVDA has quit, as voicecap exits", async () => {
+    // A stand-in for Guidepup's NVDA that quits in about 2 seconds, and a person's NVDA whose file
+    // is gone, so the start fails (and opens no window) wherever it happens.
+    const guidepup = startStandInNvda("voicecap-restart-test-", ["-n", "3", "127.0.0.1"]);
+    const exited = new Promise<number>((resolve) => {
+      guidepup.child.once("exit", () => resolve(Date.now()));
+    });
+    const gone = path.join(path.dirname(guidepup.exe), "gone", "voicecap-no-such-program.exe");
+    const tried = await runPowershell(restartAfterScript(gone, guidepup.exe, 20));
+    expect(tried.stderr).toContain("StartProcessCommand"); // it tried, and the file is gone
+    expect(tried.at).toBeGreaterThanOrEqual(await exited);
+  }, 30_000);
+
+  it("start it anyway once the wait for Guidepup's NVDA has run out", async () => {
+    const guidepup = startStandInNvda("voicecap-restart-test-");
+    const gone = path.join(path.dirname(guidepup.exe), "gone", "voicecap-no-such-program.exe");
+    const began = Date.now();
+    const tried = await runPowershell(restartAfterScript(gone, guidepup.exe, 1));
+    expect(tried.stderr).toContain("StartProcessCommand"); // it tried, and the file is gone
+    expect(tried.at - began).toBeLessThan(15_000);
+    expect(guidepup.child.exitCode).toBeNull(); // still running: the start didn't wait for it
+  }, 30_000);
 
   it("say so when a program can't be started again because its file is gone", async () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-restart-test-"));

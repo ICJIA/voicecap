@@ -14,12 +14,12 @@ import { DEMO_SITEMAP } from "./server.js";
 export const TOUR_WIDTH = 96;
 /**
  * How long things take, as the tour says them: the whole tour and step 4's audit in minutes, the
- * live test in seconds. The audit's is from the fixture's real NVDA run (about 1.3 seconds a step,
- * and about 16 seconds more a page) at the demo pages' step counts. Check them against the by-hand
- * run on the Windows PC.
+ * live test in seconds. Measured on the Windows PC (2026-09-29, NVDA 2026.2, Chrome 153 and 154):
+ * a clean audit of the seven pages holds NVDA for about 6½ minutes, about 6:40 from Enter to the
+ * next pause. The whole tour adds the live test and the reading at each pause.
  */
 export const TOUR_MINUTES = 9;
-export const AUDIT_MINUTES = 6;
+export const AUDIT_MINUTES = 7;
 export const LIVE_TEST_SECONDS = 20;
 /** The demo run's transcripts home, in the current folder: the run's --out. */
 export const DEMO_OUT = "voicecap-demo";

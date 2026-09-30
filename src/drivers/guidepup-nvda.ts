@@ -160,7 +160,10 @@ export interface GuidepupDriverDeps {
   ownNvda: () => Promise<string[]>;
   /** Start the person's own NVDA again from its path; resolves once Windows has started it. */
   restartNvda: (exe: string) => Promise<void>;
-  /** The same without waiting (synchronously), for when the process is exiting. */
+  /**
+   * The same without waiting (synchronously), for when the process is exiting: the start happens
+   * once Guidepup's NVDA has quit.
+   */
   restartNvdaDetached: (exe: string) => void;
   /** The machine-wide lock: only one voicecap drives NVDA at a time. */
   lockFile: string;
@@ -191,11 +194,16 @@ export function createGuidepupNvdaDriver(
     install,
     installed: () => existsSync(install.nvdaExe),
     launchBrowser: (signal) =>
-      launchChrome({ browser: options.config.browser, env: process.env, signal }),
+      launchChrome({
+        browser: options.config.browser,
+        env: process.env,
+        signal,
+        onRelaunch: (notice) => options.logger.warn(notice),
+      }),
     runningNvda: () => listProcesses("nvda.exe"),
     ownNvda: () => ownNvdaPaths(install),
     restartNvda,
-    restartNvdaDetached,
+    restartNvdaDetached: (exe) => restartNvdaDetached(exe, install.nvdaExe),
     lockFile: nvdaLockFile(process.env, os.homedir()),
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),

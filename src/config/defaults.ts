@@ -37,6 +37,10 @@ export const DEFAULT_CONFIG: VoicecapConfig = {
       enabled: true,
       passes: ["read", "tab"],
       roles: ["button", "edit", "combo box", "check box", "radio button", "graphic"],
+      // NVDA 2026.2 read a labeled textarea as "Your question (required)", then "edit, required,
+      // multi line" (voicecap demo, 2026-09-29). Focus mode says the name first, so the tab pass
+      // can tell. A button's or a graphic's name is spoken with it in both modes.
+      tabOnlyRoles: ["edit", "combo box", "check box", "radio button"],
       phrases: ["unlabeled", "unlabelled"],
       contextItems: [
         "landmark$",

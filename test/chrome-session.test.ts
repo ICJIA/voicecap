@@ -1,6 +1,6 @@
-import type { ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -215,6 +215,113 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     expect(existsSync(session.profileDir)).toBe(false);
   });
 });
+
+// Seen on Windows 11 (2026-09-29): with an update waiting and no other Chrome open, the Chrome
+// voicecap starts swaps the update in and exits (0), and a new copy goes on with voicecap's profile.
+describe.skipIf(!haveChromium)(
+  "a browser that hands over to a new copy of itself as it starts",
+  () => {
+    const takeovers: number[] = [];
+    /** Profiles handed over to a copy that the launch should have closed. */
+    const handedOver: string[] = [];
+    afterEach(() => {
+      for (const pid of takeovers.splice(0)) {
+        if (alive(pid))
+          spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
+      }
+      // Whatever the launch left behind, should a test fail.
+      for (const dir of handedOver.splice(0)) {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+      }
+    });
+
+    const chromiumOptions = {
+      browser: { channel: "chromium", fallbackToChromium: false },
+      env: process.env,
+      extraArgs: HEADLESS,
+    };
+    const profileOf = (args: string[]) =>
+      args.find((arg) => arg.startsWith("--user-data-dir="))?.slice("--user-data-dir=".length) ??
+      "";
+    /** A start that exits at once with this code, as the one that hands over does. */
+    const exiting = (code: number) =>
+      spawn(process.execPath, ["-e", `process.exit(${code})`], { stdio: "ignore" });
+
+    it.skipIf(process.platform !== "win32")(
+      "closes the copy that took over its profile, and starts the browser again",
+      async () => {
+        const notices: string[] = [];
+        let starts = 0;
+        const session = await launchChrome({
+          ...chromiumOptions,
+          onRelaunch: (notice) => notices.push(notice),
+          spawnBrowser: (file, args) => {
+            starts++;
+            if (starts > 1) return spawn(file, args, { stdio: "ignore" });
+            handedOver.push(profileOf(args));
+            const handing = exiting(0);
+            handing.once("exit", () => {
+              const takeover = spawn(file, args, { stdio: "ignore", detached: true });
+              takeover.unref();
+              if (takeover.pid !== undefined) takeovers.push(takeover.pid);
+            });
+            return handing;
+          },
+        });
+        sessions.push(session);
+        expect((await session.load(server.url, 15_000)).status).toBe(200);
+        expect(starts).toBe(2);
+        expect(notices).toEqual([
+          "Chromium handed over to a new copy of itself as it started, as it does to finish installing an update. voicecap closed that copy and is starting Chromium again.",
+        ]);
+        expect(handedOver.filter((dir) => existsSync(dir))).toEqual([]);
+        expect(takeovers.filter(alive)).toEqual([]);
+      },
+      60_000,
+    );
+
+    it("gives up with the usual error if it hands over again", async () => {
+      const notices: string[] = [];
+      let starts = 0;
+      const launching = launchChrome({
+        ...chromiumOptions,
+        onRelaunch: (notice) => notices.push(notice),
+        spawnBrowser: () => {
+          starts++;
+          return exiting(0);
+        },
+      });
+      await expect(launching).rejects.toThrow("Chromium didn't start: it exited (0)");
+      expect(starts).toBe(2);
+      expect(notices).toHaveLength(1);
+    });
+
+    it("doesn't start again a browser that crashed", async () => {
+      const notices: string[] = [];
+      let starts = 0;
+      const launching = launchChrome({
+        ...chromiumOptions,
+        onRelaunch: (notice) => notices.push(notice),
+        spawnBrowser: () => {
+          starts++;
+          return exiting(3);
+        },
+      });
+      await expect(launching).rejects.toThrow("Chromium didn't start: it exited (3)");
+      expect(starts).toBe(1);
+      expect(notices).toEqual([]);
+    });
+  },
+);
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("closing a browser that doesn't answer", () => {
   it("kills it after a while instead of waiting forever", async () => {

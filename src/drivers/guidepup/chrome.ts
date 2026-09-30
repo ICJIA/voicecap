@@ -22,6 +22,7 @@ import { formatDuration } from "../../util/time.js";
 import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js";
 import type { FocusedElement } from "../types.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
+import { closeBrowsersUsing } from "./windows.js";
 
 /** A fixed window size, so pages lay out (and NVDA splits lines) the same way in every run. */
 const WINDOW = { width: 1280, height: 960 };
@@ -130,22 +131,62 @@ export interface LaunchChromeOptions {
   timeoutMs?: number;
   /** Calls the launch off: a browser that's still starting is killed, and the launch fails. */
   signal?: AbortSignal;
+  /** Starts the browser's process: spawn(), unless a test's. */
+  spawnBrowser?: (file: string, args: string[]) => ChildProcess;
+  /** Says that the browser handed over to a new copy of itself as it started, and starts again. */
+  onRelaunch?: (notice: string) => void;
 }
 
-/** Start a browser with a new profile, attached through Playwright. */
+/**
+ * The browser voicecap started exited before it was ready, with this exit code (or signal). With
+ * 0, it handed over to a new copy of itself: Chrome does that to finish installing an update it had
+ * waiting, when no other Chrome is open (seen on Windows 11, Chrome 153 to 154), and the new copy
+ * goes on with voicecap's profile.
+ */
+class BrowserExited extends Error {
+  constructor(readonly code: number | NodeJS.Signals | null) {
+    super(`it exited (${code ?? ""})`);
+  }
+}
+
+/** The first start handed over; the launch starts the browser again, once. */
+class HandedOver extends Error {}
+
+/**
+ * Start a browser with a new profile, attached through Playwright. A browser that hands over to a
+ * new copy of itself as it starts is started again, once, after that copy is closed.
+ */
 export async function launchChrome(options: LaunchChromeOptions): Promise<ChromeSession> {
   const executable = resolveBrowser(options.browser, options.env);
+  try {
+    return await launchOnce(executable, options, { last: false });
+  } catch (error) {
+    if (!(error instanceof HandedOver)) throw error;
+    options.onRelaunch?.(
+      `${executable.name} handed over to a new copy of itself as it started, as it does to finish installing an update. voicecap closed that copy and is starting ${executable.name} again.`,
+    );
+    return launchOnce(executable, options, { last: true });
+  }
+}
+
+async function launchOnce(
+  executable: BrowserExecutable,
+  options: LaunchChromeOptions,
+  attempt: { last: boolean },
+): Promise<ChromeSession> {
   const { signal } = options;
   if (signal?.aborted) {
     throw new EnvironmentError(`${executable.name} wasn't started: the launch was called off.`);
   }
   const timeoutMs = options.timeoutMs ?? 30_000;
   const profileDir = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
-  const child = spawn(
-    executable.path,
-    [...chromeArgs(profileDir, executable), ...(options.extraArgs ?? []), "about:blank"],
-    { stdio: "ignore" },
-  );
+  const spawnBrowser =
+    options.spawnBrowser ?? ((file, args) => spawn(file, args, { stdio: "ignore" }));
+  const child = spawnBrowser(executable.path, [
+    ...chromeArgs(profileDir, executable),
+    ...(options.extraArgs ?? []),
+    "about:blank",
+  ]);
   const spawnError = new Promise<never>((_, reject) => child.once("error", reject));
   spawnError.catch(() => {});
   let callOff = () => {};
@@ -182,7 +223,11 @@ export async function launchChrome(options: LaunchChromeOptions): Promise<Chrome
     return new ChromeSession(executable, child, profileDir, browser, page, cdp);
   } catch (error) {
     child.kill();
+    // The new copy a browser handed over to has this profile open: close it, so the profile can go.
+    const handedOver = error instanceof BrowserExited && error.code === 0;
+    if (handedOver && process.platform === "win32") await closeBrowsersUsing(profileDir);
     await removeProfile(profileDir);
+    if (handedOver && !attempt.last) throw new HandedOver();
     throw new EnvironmentError(`${executable.name} didn't start: ${errorMessage(error)}`, {
       cause: error,
     });
@@ -247,7 +292,7 @@ async function readDevToolsPort(
   while (Date.now() < deadline) {
     // A browser that was killed has a signal instead of an exit code (on Windows too).
     if (child.exitCode !== null || child.signalCode !== null) {
-      throw new Error(`it exited (${child.exitCode ?? child.signalCode ?? ""})`);
+      throw new BrowserExited(child.exitCode ?? child.signalCode);
     }
     try {
       const port = Number(readFileSync(file, "utf8").split("\n")[0]?.trim());

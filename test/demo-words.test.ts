@@ -75,7 +75,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
         "voicecap drives a real screen reader through a website's pages and saves what it says, so you",
         "can hear what a screen reader user hears. This tour runs it against a small demo site on this",
         "computer, using NVDA. It takes about 9 minutes. In step 4, NVDA speaks and takes over the",
-        "keyboard for about 6 minutes.",
+        "keyboard for about 7 minutes.",
       ].join("\n"),
     );
   });
@@ -91,7 +91,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
       "Press Enter for step 3 (the 20-second live test), or Ctrl+C to stop here",
     );
     expect(pauseBefore(4, true)).toBe(
-      "Press Enter for step 4 (auditing the demo site, hands off for about 6 minutes), or Ctrl+C to stop here",
+      "Press Enter for step 4 (auditing the demo site, hands off for about 7 minutes), or Ctrl+C to stop here",
     );
     expect(pauseBefore(5, true)).toBe(
       "Press Enter for step 5 (the transcripts), or Ctrl+C to stop here",
@@ -123,7 +123,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
         "  npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh",
         "On its own, that command works only while the demo site is running.",
         "The tour uses voicecap's own settings, not a voicecap.config file in this folder.",
-        "For about 6 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop",
+        "For about 7 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop",
         "early, click this terminal window first, then press Ctrl+C.",
       ].join("\n"),
     );

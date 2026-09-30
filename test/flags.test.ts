@@ -143,6 +143,38 @@ describe("unlabeled items", () => {
     expect(flags.find((f) => f.rule === "unlabeled")?.count).toBe(3);
   });
 
+  it("leaves a form field's role alone on a browse line to the tab pass: NVDA reads its label as separate text", () => {
+    // NVDA 2026.2 reading the demo's /ask-a-question/: a labeled textarea, its label a line of its own.
+    const flags = evaluateFlags(
+      {
+        read: read([
+          "Your question (required)",
+          "edit, required, multi line",
+          "out of edit, Ask anything about voicecap, or about this tour.",
+          "Your country",
+          "combo box, collapsed",
+          "Subscribe",
+          "check box, not checked",
+          "Paper copy",
+          "radio button, not checked",
+          "Footer",
+        ]),
+      },
+      rules,
+    );
+    expect(rulesOf(flags)).not.toContain("unlabeled:read");
+  });
+
+  it("flags a form field's role alone on a browse line when the config doesn't leave it to the tab pass", () => {
+    const flags = evaluateFlags(
+      { read: read(["Intro", "edit", "Footer"]) },
+      { ...rules, unlabeled: { ...rules.unlabeled, tabOnlyRoles: [] } },
+    );
+    expect(flags.find((f) => f.rule === "unlabeled")?.message).toBe(
+      'Unlabeled or poorly labeled items in the read pass: "edit" ×1.',
+    );
+  });
+
   it("does not flag labeled controls", () => {
     const flags = evaluateFlags(
       { tab: tab([{ spoken: "Search this site, edit, blank", focused: el("Search this site") }]) },

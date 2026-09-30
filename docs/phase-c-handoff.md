@@ -22,7 +22,7 @@ Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readines
 
 Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives each check step by step, with the commands, what to look for, and the release steps that follow:
 
-- **On the Windows PC:**
+- **On the Windows PC:** done on 2026-09-29; see "Windows checks on the PC" below.
   - `nvdaProcesses` with a non-ASCII character in the Guidepup folder path;
   - whether Windows reports the installed NVDA's `ExecutablePath` (the null-path case);
   - `windowsComputerModel` and `windowsBrowserVersion` on real hardware;
@@ -35,6 +35,69 @@ Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives ea
     - check that the terminal keeps Ctrl+C for itself through the whole audit;
     - check that Ctrl+C, and closing the window, both stop the audit mid-run and give the owner's own NVDA back.
 - **On this Mac, with the owner's OK:** the supervised run above is done, except for one item: a fresh macOS user account, whose VoiceOver has never been turned on. There, the checks should say "VoiceOver: not set up for this user yet".
+
+**Windows checks on the PC (2026-09-29).** The owner ran each check in PowerShell on the Windows PC: an Alienware Aurora ACT1250, Windows 11 Pro 25H2, the installed NVDA 2026.2 (with UI Access), Guidepup's NVDA 0.2.1-2026.2, and Chrome 153.0.8010.53, then 154.0.8037.58. The first runs used `main` at 42a419d, and the rest the branch `windows-checks-fixes`, with Fix 1 and Fix 2 below.
+
+- **Evidence:**
+  - A read-only watcher logged, to the millisecond, every `nvda.exe` start and exit with its path, voicecap's NVDA lock, and its browser profiles.
+  - The demo runs' own records are in `voicecap-demo/127.0.0.1_4848/2026-09-29/`: runs 1315, 1402, 1415, and 1419. That folder is git-ignored.
+- **Part 1 check 1, the demo's timings: a little off.**
+  - Step 4 held NVDA for 6:10.8 (run 1315) and 6:23.7 (run 1402). Each run had one page fail, after the owner bumped the keyboard or the desk.
+  - The stopwatch gave 6:20.95 for run 1315's step 4, and its whole tour took 7:39.
+  - A clean audit comes to about 6:30 of NVDA time, or about 6:40 by stopwatch. So `AUDIT_MINUTES` (6) is short, and `TOUR_MINUTES` (9) holds.
+  - The owner chose 7: `AUDIT_MINUTES` is now 7, and so are the README's and the spec's numbers.
+  - To confirm with one clean run on the final build.
+- **Part 1 check 2, the flags: failed, then passed with Fix 2.**
+  - Run 1315 also flagged `/ask-a-question/` `unlabeled`. In browse mode, NVDA read its labeled textarea's label as a line of its own: "Your question (required)", then "edit, required, multi line".
+  - With Fix 2, run 1402 flagged `/common-mistakes/` only, with `generic-link-text`, `unlabeled`, and `headings`.
+  - No single run finished all seven pages; each page finished in one run or the other.
+- **Part 1 check 3, Ctrl+C: passed** (run 1415).
+  - The tour said "Stopping: …".
+  - About 3 seconds after the shutdown began (14:16:42.6), Guidepup's NVDA had quit, and the owner's NVDA was back (14:16:45.518, process 39060) before the lock was released.
+  - The tour said "Stopped. Nothing is left running.", and nothing voicecap started was left.
+  - The run recorded `interrupted`, with 1 page done and 6 pending.
+- **Part 1 check 4, closing the window: passed** (run 1419).
+  - Nothing voicecap started was left, and the owner's NVDA came back (14:20:45.507, process 9452). The run recorded `interrupted`.
+  - The exit path started the owner's NVDA 1.1 s before Guidepup's NVDA had finished quitting (14:20:46.582). It survived, because NVDA's own start waits for a copy that's still running to quit.
+  - Fixed since, with Fix 4.
+- **Part 2 check 1, an accented Guidepup folder: passed.**
+  - `setup` installed Guidepup's NVDA in `C:\guidepup-é` (401 MB), and `doctor`'s live test started it from there.
+  - The report showed `C:\guidepup-é` without garbling.
+  - During the test, `nvdaProcesses()` read the path exactly, for all three of that NVDA's processes, and didn't count that NVDA as the owner's.
+- **Part 2 check 2, the installed NVDA's path: Windows hid it; fixed with Fix 1.**
+  - The installed NVDA runs with UI Access at High integrity (0x3000), and voicecap's PowerShell at Medium (0x2000).
+  - WMI's `ExecutablePath` came back empty, so the warning said "Afterwards, start yours again the way you usually do".
+  - `QueryFullProcessImageName` gives the path. With Fix 1, the warning says "…then turn yours back on".
+- **Part 2 check 3, the model and browser: passed.**
+  - The Model line read "Alienware Aurora ACT1250, Intel(R) Core(TM) Ultra 7 265F, 32 GB memory, …".
+  - The Browser line showed Chrome's real version: 153.0.8010.53, then 154.0.8037.58 after Chrome updated itself.
+- **Part 2 check 4, the installed NVDA back after a run: failed, then passed with Fix 1.**
+  - Run 1315's live test shut the owner's NVDA down at 13:15:09 and couldn't start it again, since it had no path. The owner restarted it by hand.
+  - With Fix 1, every run and live test turned it back on and said so: runs 1402, 1415, and 1419, `init`'s and `doctor`'s live tests, and a live test that failed.
+  - voicecap's own `restartNvda()`, run by hand with the owner's OK, started the installed NVDA with UI Access through `Start-Process`.
+- **Part 2 check 5, the quick checks' time: about 3 seconds, not the README's "about two".**
+  - The checks take 2.65–3.05 s, plus 0.3 s for Node to start.
+  - The slowest parts: machine info 1.3 s, the owner's-NVDA check 0.7–0.9 s, and the Windows-locked check 0.6 s.
+  - The README now says "about three seconds".
+- **Part 2 check 6, closing the window during `init`'s live test: passed** on the second try. On the first, the window was closed after the test had ended.
+  - The test stopped about 3 s early: 16.2 s, against 18.9–19.3 s for the day's uninterrupted tests.
+  - Guidepup's NVDA quit (14:26:42.414) before the owner's came back (14:26:43.489), and nothing was left.
+- **Found along the way: Chrome updating itself as voicecap starts it.**
+  - Chrome had an update staged, and no other Chrome was open. The Chrome voicecap started swapped in 154.0.8037.58 and exited with code 0.
+  - The new version then carried on with voicecap's profile for about a minute.
+  - The live test said "Chrome didn't start: it exited (0)", and the profile folder was left behind. The next run deleted it.
+  - Fixed with Fix 3, the owner's choice among two designs.
+- **Fix 1** (`src/drivers/guidepup/windows.ts`): `nvdaProcesses()` reads each path with `QueryFullProcessImageName`, which needs only the limited query right, instead of WMI's `ExecutablePath`.
+  - Its test starts a stand-in `nvda.exe` whose access list leaves this user only that right. The test failed before the fix, and passes after it.
+- **Fix 2** (`src/flags/evaluate.ts`, the config): a new setting, `flags.unlabeled.tabOnlyRoles`, lists edit, combo box, check box, and radio button.
+  - A read-pass line with only one of those roles isn't flagged; the tab pass still flags them.
+  - Checked against the day's real transcripts, and against the fixture run's.
+- **Fix 3** (`src/drivers/guidepup/chrome.ts`): when the browser voicecap starts exits with code 0 before it's ready, voicecap closes whatever took over its profile, found by the profile's path in the command line (`closeBrowsersUsing`). It then deletes the profile, says so, and starts the browser again, once.
+  - Its tests, with real Chromium, simulate the hand-over: a start that exits with code 0 while a new copy goes on with the profile. They also check that a second hand-over gives up with the usual error, and that a crash (another exit code) isn't retried.
+  - A narrow gap remains, as before the fix. If the new copy wrote its DevTools port before voicecap noticed the first exit, voicecap would attach to a browser it didn't start. Closing it works (through the DevTools connection). If voicecap were killed, though, the copy would stay open until the next run's clean-up.
+  - On 2026-09-29, voicecap noticed the exit first. The first process exits as soon as it has started the new copy, and voicecap checks every 50 ms, while the new copy needs a few hundred milliseconds to write its port.
+- **Fix 4** (`src/drivers/guidepup/windows.ts`): the helper that starts the owner's NVDA as voicecap exits (`restartAfterScript`) first waits, for up to 20 seconds, until no `nvda.exe` from Guidepup's folder is running.
+  - Its test starts a file that doesn't exist, so the attempt opens no window. Before the fix, the attempt came 1.4 s before a stand-in Guidepup NVDA had quit; now it comes after.
 
 Parked, known and left for later:
 

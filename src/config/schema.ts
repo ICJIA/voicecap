@@ -86,6 +86,11 @@ export const configSchema = z.strictObject({
       passes: z.array(passName),
       /** Role words that, spoken without a name, mean the control is unlabeled. */
       roles: z.array(z.string().min(1)),
+      /**
+       * Roles flagged only in the tab pass, not alone on a read-pass line: in browse mode, NVDA
+       * reads a form field's label as separate text, on the field's line or the line before.
+       */
+      tabOnlyRoles: z.array(z.string().min(1)),
       /** Phrases that always mean something is unlabeled. */
       phrases: z.array(z.string().min(1)),
       /** Context NVDA speaks before a control (landmarks, lists); skipped when looking for a name. */

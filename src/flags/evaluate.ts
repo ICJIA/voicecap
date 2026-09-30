@@ -181,6 +181,8 @@ function unlabeled(
   stateItems: Set<string>,
 ): FlagResult[] {
   const roles = new Set(rule.roles.map(lower));
+  const tabOnly = new Set(rule.tabOnlyRoles.map(lower));
+  const browseRoles = new Set([...roles].filter((role) => !tabOnly.has(role)));
   const phrases = rule.phrases.map(lower);
   const flags: FlagResult[] = [];
   for (const pass of rule.passes) {
@@ -196,9 +198,10 @@ function unlabeled(
         // Focus speech puts the name first, so a leading role means the control has no name.
         if (rest[0] !== undefined && roles.has(rest[0])) label = rest[0];
       } else if (!label) {
-        // Browse speech: flag a line that is nothing but a role (and states).
+        // Browse speech: flag a line that is nothing but a role (and states), unless it's a role
+        // whose label NVDA reads as separate text (tabOnlyRoles).
         const meaningful = rest.filter((item) => !stateItems.has(item));
-        if (meaningful.length === 1 && roles.has(meaningful[0]!)) label = meaningful[0]!;
+        if (meaningful.length === 1 && browseRoles.has(meaningful[0]!)) label = meaningful[0]!;
       }
       if (label) found.set(label, (found.get(label) ?? 0) + 1);
     }
