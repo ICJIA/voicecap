@@ -543,6 +543,9 @@ function applyOutcome(
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;
   if (outcome.httpStatus !== undefined) page.httpStatus = outcome.httpStatus;
+  // A page that has been tried always gets a title, null when there is none to record. Absent means
+  // the page is pending, or the run is from before titles were recorded.
+  page.title = outcome.title ?? null;
   if (outcome.skip) page.skip = outcome.skip;
   else delete page.skip;
 }

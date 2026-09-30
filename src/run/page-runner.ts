@@ -53,6 +53,11 @@ export interface PageOutcome {
   errors: string[];
   finalUrl?: string;
   httpStatus?: number | null;
+  /**
+   * The title the browser reported on the page's first load in its last attempt, null when it had
+   * none. Left out when that attempt never got the page to load.
+   */
+  title?: string | null;
   skip?: SkippedRecord;
 }
 
@@ -68,6 +73,8 @@ interface Attempt {
   files: Record<string, FileHash>;
   finalUrl?: string;
   httpStatus?: number | null;
+  /** From the attempt's first load, like finalUrl and httpStatus. */
+  title?: string | null;
   skip?: SkippedRecord;
 }
 
@@ -109,6 +116,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
       errors,
       ...(result.finalUrl !== undefined ? { finalUrl: result.finalUrl } : {}),
       ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+      ...(result.title !== undefined ? { title: result.title } : {}),
       ...(result.skip ? { skip: result.skip } : {}),
     };
   }
@@ -152,6 +160,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       if (index === 0) {
         attempt.finalUrl = info.finalUrl;
         attempt.httpStatus = info.status;
+        attempt.title = info.title;
         const skip = skipFor(ctx, info);
         if (skip) return { ...attempt, kind: "skipped", skip };
         if (info.status !== null && info.status >= 500) {

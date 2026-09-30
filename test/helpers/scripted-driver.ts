@@ -13,6 +13,8 @@ export interface ScriptedPage {
   finalUrl?: string;
   status?: number;
   contentType?: string;
+  /** The title openPage reports (default: none, reported as null). */
+  title?: string;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -129,7 +131,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
         finalUrl: page.finalUrl ?? url,
         status: page.status ?? 200,
         contentType: page.contentType ?? "text/html; charset=utf-8",
-        title: null,
+        title: page.title ?? null,
       };
     });
   }

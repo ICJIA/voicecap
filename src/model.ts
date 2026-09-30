@@ -177,6 +177,12 @@ export interface PageRecord extends PageRef {
   attempts: number;
   finalUrl?: string;
   httpStatus?: number | null;
+  /**
+   * The title the browser reported on the page's first load in its last attempt: null when the
+   * page has none, or never loaded. Absent while the page is pending, and in runs from before
+   * voicecap recorded it.
+   */
+  title?: string | null;
   /** Set when the page was skipped after loading (non-HTML response, redirect off-origin). */
   skip?: SkippedRecord;
   /** The session (1-based) that produced the current transcripts. */

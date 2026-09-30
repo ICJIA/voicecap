@@ -199,6 +199,48 @@ describe("a complete run", () => {
     expect(driver.stops).toBe(1);
   });
 
+  it("records each page's title, as the browser reported it", async () => {
+    const dir = await setup(["/", "/about"]);
+    const driver = new ScriptedDriver(
+      sitePages({ home: { title: "Welcome | Example Agency" }, about: { title: "About us" } }),
+    );
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages.map((page) => page.title)).toEqual([
+      "Welcome | Example Agency",
+      "About us",
+    ]);
+  });
+
+  it("records a page with no title as null", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(result.run.pages[0]?.title).toBeNull();
+  });
+
+  it("takes a page's title from the first load of its last attempt", async () => {
+    const dir = await setup(["/about"]);
+    let hung = false;
+    const driver = new ScriptedDriver(sitePages(), {
+      hang: (command) => {
+        if (command === "nextLine" && !hung) {
+          hung = true;
+          return true;
+        }
+        return false;
+      },
+    });
+    // Every load reports a new title: "Load 1", "Load 2", and so on.
+    const openPage = driver.openPage.bind(driver);
+    let loads = 0;
+    driver.openPage = async (url) => ({ ...(await openPage(url)), title: `Load ${++loads}` });
+
+    const result = await runAudit(options(dir, driver));
+    // The first attempt times out in its read pass (load 1). The second loads the page for each of
+    // its three passes (loads 2 to 4), and its first load gives the title.
+    expect(loads).toBe(4);
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2, title: "Load 2" });
+  });
+
   it("skips non-HTML responses and redirects to another origin", async () => {
     const dir = await setup(["/", "/feed", "/contact"]);
     const driver = new ScriptedDriver([
@@ -222,6 +264,28 @@ describe("a complete run", () => {
         }),
       ]),
     );
+  });
+
+  it("records the title of a page it opened and then skipped or failed", async () => {
+    const dir = await setup(["/", "/feed", "/contact", "/gone"]);
+    const driver = new ScriptedDriver([
+      ...sitePages().slice(0, 1),
+      // As the real driver does, this reports no title for a response that isn't HTML.
+      { url: `${SITE}/feed`, contentType: "application/rss+xml" },
+      {
+        url: `${SITE}/contact`,
+        finalUrl: "https://forms.example.com/contact",
+        title: "Contact us",
+      },
+      { url: `${SITE}/gone`, status: 404, title: "Page not found" },
+    ]);
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages.map((page) => [page.status, page.title])).toEqual([
+      ["done", null],
+      ["skipped", null],
+      ["skipped", "Contact us"],
+      ["failed", "Page not found"],
+    ]);
   });
 });
 
@@ -635,6 +699,27 @@ describe("failures", () => {
     expect(run.status).toBe("incomplete");
     expect(run.sessions[0]?.endReason).toBe("environment-failure");
     expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "pending"]);
+  });
+
+  it("records a page that never loaded with a null title, and leaves a pending page without one", async () => {
+    const dir = await setup();
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: { openError: broken },
+        about: { openError: broken },
+        resources: { openError: broken },
+      }),
+    );
+    const result = await runAudit({
+      ...options(dir, driver),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    const run = await readRunJson(outDir(dir), result.runId);
+    expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "pending"]);
+    expect(run.pages[0]?.title).toBeNull();
+    expect(run.pages[1]?.title).toBeNull();
+    expect(run.pages[2]).not.toHaveProperty("title");
   });
 
   it("treats HTTP errors as page problems: five 404s in a row don't stop the run", async () => {
