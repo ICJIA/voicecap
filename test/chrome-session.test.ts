@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { chromium, type Browser, type CDPSession, type Page } from "playwright";
+import { chromium, errors, type Browser, type CDPSession, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
@@ -205,13 +205,26 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       readySelector: "main h1",
       settleMs: 0,
     });
-    await expect(
-      session.waitUntilReady({
-        readySelector: "#never-there",
-        settleMs: 0,
-        networkIdleTimeoutMs: 500,
-      }),
-    ).rejects.toThrow(/#never-there/);
+    const waiting = session.waitUntilReady({
+      readySelector: "#never-there",
+      settleMs: 0,
+      networkIdleTimeoutMs: 500,
+    });
+    await expect(waiting).rejects.toThrow(/#never-there/);
+    // The page didn't open in time: a code of its own, not an unexpected error.
+    await expect(waiting).rejects.toMatchObject({ failure: "open-timeout" });
+  });
+
+  it("says the browser closed, with a code, when a call finds it gone", async () => {
+    const session = await launch();
+    await session.load(server.url, 15_000);
+    await session.close();
+    const reading = session.focusState();
+    await expect(reading).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(reading).rejects.toMatchObject({
+      failure: "browser",
+      message: "Chromium closed while voicecap was using it: its window was closed, or it crashed.",
+    });
   });
 
   it("stops a browser that's still starting when the launch is called off", async () => {
@@ -386,7 +399,7 @@ describe("closing a browser that doesn't answer", () => {
       child as unknown as ChildProcess,
       dir,
       hungBrowser as unknown as Browser,
-      {} as Page,
+      { on: () => {} } as unknown as Page,
       {} as CDPSession,
       { closeTimeoutMs: 100 },
     );
@@ -403,16 +416,17 @@ describe("a navigation that fails", () => {
   /** A session whose page fails to navigate with this, after the main response (if any) came. */
   function failing(error: unknown, response?: { url: string; contentType: string }): ChromeSession {
     const mainFrame = {};
-    let onResponse: ((response: unknown) => void) | undefined;
+    const handlers = new Map<string, (response: unknown) => void>();
     const page = {
       mainFrame: () => mainFrame,
-      on: (_event: string, handler: (response: unknown) => void) => {
-        onResponse = handler;
+      on: (event: string, handler: (response: unknown) => void) => {
+        handlers.set(event, handler);
       },
       off: () => {},
+      isClosed: () => false,
       goto: () => {
         if (response) {
-          onResponse?.({
+          handlers.get("response")?.({
             request: () => ({ isNavigationRequest: () => true, frame: () => mainFrame }),
             url: () => response.url,
             status: () => 200,
@@ -427,7 +441,7 @@ describe("a navigation that fails", () => {
       { name: "Chrome", path: "chrome.exe" },
       {} as ChildProcess,
       "unused",
-      { version: () => "153.0.0.0" } as unknown as Browser,
+      { version: () => "153.0.0.0", isConnected: () => true } as unknown as Browser,
       page as unknown as Page,
       {} as CDPSession,
     );
@@ -494,6 +508,126 @@ describe("a navigation that fails", () => {
       contentType: "application/pdf",
     }).load(URL_PDF, 0);
     expect(loaded).toEqual({ finalUrl: URL_PDF, status: 200, contentType: "application/pdf" });
+  });
+});
+
+// What Playwright raises once the browser has gone, without a browser: every call on the page, the
+// browser, and the DevTools connection fails with the same error.
+describe("a browser that closes or crashes mid-page", () => {
+  /**
+   * A session whose calls all fail with `failure`, and what it can see of its browser: whether the
+   * page is closed, and whether the browser is still connected. `crash` reports a crash, as
+   * Playwright's page does.
+   */
+  function failingSession(failure: Error, state: { closed?: boolean; connected?: boolean } = {}) {
+    const handlers = new Map<string, () => void>();
+    const fail = () => Promise.reject(failure);
+    const page = {
+      on: (event: string, handler: () => void) => {
+        handlers.set(event, handler);
+      },
+      off: () => {},
+      isClosed: () => state.closed ?? false,
+      mainFrame: () => ({}),
+      url: () => "about:blank",
+      goto: fail,
+      waitForLoadState: fail,
+      waitForSelector: fail,
+      title: fail,
+      evaluate: fail,
+      bringToFront: fail,
+      keyboard: { press: fail },
+    };
+    const browser = { version: () => "153.0.0.0", isConnected: () => state.connected ?? true };
+    const session = new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      browser as unknown as Browser,
+      page as unknown as Page,
+      { send: fail } as unknown as CDPSession,
+    );
+    return { session, crash: () => handlers.get("crash")?.() };
+  }
+
+  const closed = () => new Error("page.evaluate: Target page, context or browser has been closed");
+  const readiness = { readySelector: "main h1", settleMs: 0, networkIdleTimeoutMs: 500 };
+
+  // Every call a page's attempt makes on the browser.
+  const calls: [string, (session: ChromeSession) => Promise<unknown>][] = [
+    ["load", (session) => session.load("https://example.gov/", 0)],
+    ["waitUntilReady", (session) => session.waitUntilReady(readiness)],
+    ["pageTitle", (session) => session.pageTitle()],
+    ["setTitle", (session) => session.setTitle("voicecap check k3m9x2")],
+    ["focusState", (session) => session.focusState()],
+    ["raise", (session) => session.raise()],
+    ["pressTab", (session) => session.pressTab()],
+    ["focusedElement", (session) => session.focusedElement()],
+  ];
+
+  it.each(calls)(
+    "says the browser closed, coded browser, when %s finds its window closed",
+    async (_name, call) => {
+      const failure = closed();
+      const calling = call(failingSession(failure, { closed: true }).session);
+      await expect(calling).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(calling).rejects.toMatchObject({
+        failure: "browser",
+        message: "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+      });
+      await expect(calling).rejects.toHaveProperty("cause", failure);
+    },
+  );
+
+  it("says so when the browser is no longer connected, whatever the page says", async () => {
+    const reading = failingSession(closed(), { connected: false }).session.focusState();
+    await expect(reading).rejects.toMatchObject({
+      failure: "browser",
+      message: "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+    });
+  });
+
+  // A crashed page isn't closed: Playwright reports the crash, and fails every call after it.
+  it.each(calls)(
+    "says the page crashed, coded browser, when %s fails after a crash",
+    async (_name, call) => {
+      const failure = new Error("page.evaluate: Target crashed");
+      const { session, crash } = failingSession(failure);
+      crash();
+      const calling = call(session);
+      await expect(calling).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(calling).rejects.toMatchObject({
+        failure: "browser",
+        message: "The page crashed in Chrome while voicecap was using it.",
+      });
+      await expect(calling).rejects.toHaveProperty("cause", failure);
+    },
+  );
+
+  it("leaves a failure as it is while the browser is still there", async () => {
+    const failure = new Error("page.evaluate: Execution context was destroyed");
+    await expect(failingSession(failure).session.focusState()).rejects.toBe(failure);
+  });
+
+  it("codes a readySelector that never appears as a page that didn't open in time", async () => {
+    const timeout = new errors.TimeoutError("page.waitForSelector: Timeout 500ms exceeded.");
+    const waiting = failingSession(timeout).session.waitUntilReady(readiness);
+    await expect(waiting).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(waiting).rejects.toMatchObject({
+      failure: "open-timeout",
+      message: 'The readySelector "main h1" didn\'t appear within 500ms.',
+    });
+    await expect(waiting).rejects.toHaveProperty("cause", timeout);
+  });
+
+  // A selector the browser can't read fails at once: it's no timeout, and Playwright's words say why.
+  it("leaves a readySelector the browser can't read as Playwright says it", async () => {
+    const unreadable = new Error(
+      'page.waitForSelector: Unexpected token "#" while parsing css selector "###".',
+    );
+    await expect(failingSession(unreadable).session.waitUntilReady(readiness)).rejects.toBe(
+      unreadable,
+    );
   });
 });
 
@@ -590,5 +724,24 @@ describe("choosing the browser", () => {
         "C:\\pw\\chrome.exe",
       ),
     ).toThrow(/Google Chrome/);
+  });
+
+  // A browser uninstalled mid-run fails the next page's launch: the browser's problem, with its code.
+  it.each([
+    { label: "no browser for the channel", channel: "chrome", message: /isn't installed/ },
+    { label: "no Chromium", channel: "chromium", message: /Chromium isn't installed/ },
+    { label: "a channel it doesn't know", channel: "firefox", message: /doesn't know the browser/ },
+  ])("codes $label as the browser's problem", ({ channel, message }) => {
+    let thrown: unknown;
+    try {
+      resolveBrowser({ channel, fallbackToChromium: false }, env, found([]), "C:\\pw\\chrome.exe");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EnvironmentError);
+    expect(thrown).toMatchObject({
+      failure: "browser",
+      message: expect.stringMatching(message) as unknown,
+    });
   });
 });

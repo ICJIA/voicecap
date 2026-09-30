@@ -214,7 +214,8 @@ export type FailureKind = "page" | "environment";
  * Why one attempt at a page failed. Most of these are the code voicecap's own errors carry (see
  * causeOf in src/run/failure.ts). "foreground": another window took the foreground from the
  * browser. "locked": the computer was locked. "screen-reader-stopped": the screen reader didn't
- * start or stopped running. "browser": the browser didn't start, or changed during the run.
+ * start or stopped running. "browser": the browser didn't start or isn't installed, changed during
+ * the run, or closed or crashed while voicecap was using it.
  * "http": the site answered with an HTTP error (no error is raised for that). "unreachable": the
  * website couldn't be reached, which is the website's fault or the network's. "open-timeout",
  * "step-timeout", "page-timeout": the page didn't open in time, a step didn't finish in time, or

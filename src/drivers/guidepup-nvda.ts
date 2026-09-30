@@ -109,7 +109,10 @@ export interface LoadResult {
   contentType: string | null;
 }
 
-/** One browser, with a fresh profile, showing one page. */
+/**
+ * One browser, with a fresh profile, showing one page. A call that finds the browser gone (its
+ * window closed, or it or the page crashed) fails with an EnvironmentError coded "browser".
+ */
 export interface BrowserSession {
   readonly name: string;
   readonly version: string;

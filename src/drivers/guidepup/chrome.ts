@@ -14,7 +14,14 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { chromium, type Browser, type CDPSession, type Page, type Response } from "playwright";
+import {
+  chromium,
+  errors,
+  type Browser,
+  type CDPSession,
+  type Page,
+  type Response,
+} from "playwright";
 
 import type { VoicecapConfig } from "../../config/schema.js";
 import { EnvironmentError, errorMessage } from "../../util/errors.js";
@@ -85,7 +92,9 @@ export interface BrowserExecutable {
 
 /**
  * The browser to run: the configured channel's installed browser, else (with fallbackToChromium)
- * Playwright's Chromium. The channel "chromium" means Playwright's Chromium.
+ * Playwright's Chromium. The channel "chromium" means Playwright's Chromium. When there's none to
+ * run, the error is coded "browser": each page's launch asks, so a browser uninstalled mid-run
+ * fails the next page as the browser's problem.
  */
 export function resolveBrowser(
   config: VoicecapConfig["browser"],
@@ -97,7 +106,9 @@ export function resolveBrowser(
   const installChromium = `Install Playwright's Chromium with: npx @icjia/voicecap setup`;
   if (config.channel === "chromium") {
     if (exists(chromiumPath)) return playwrightChromium;
-    throw new EnvironmentError(`Playwright's Chromium isn't installed. ${installChromium}`);
+    throw new EnvironmentError(`Playwright's Chromium isn't installed. ${installChromium}`, {
+      failure: "browser",
+    });
   }
   const candidates = browserCandidates(config.channel, env);
   const found = candidates.find((candidate) => exists(candidate));
@@ -109,6 +120,7 @@ export function resolveBrowser(
   if (!wanted) {
     throw new EnvironmentError(
       `voicecap doesn't know the browser channel "${config.channel}". Use chrome, chrome-beta, chrome-dev, chrome-canary, msedge (or its -beta, -dev, -canary), or chromium.`,
+      { failure: "browser" },
     );
   }
   const fix = config.fallbackToChromium
@@ -116,6 +128,7 @@ export function resolveBrowser(
     : `Install ${wanted}, or set browser.fallbackToChromium in voicecap.config to use Playwright's Chromium`;
   throw new EnvironmentError(
     `${wanted} isn't installed (looked in ${candidates.join(", ") || "its usual folders"}). ${fix}.`,
+    { failure: "browser" },
   );
 }
 
@@ -402,6 +415,8 @@ export class ChromeSession implements BrowserSession {
   readonly name: string;
   readonly version: string;
   private closing: Promise<void> | null = null;
+  /** Whether the page crashed (Chrome's "Aw, Snap!"). A crashed page isn't closed. */
+  private crashed = false;
 
   constructor(
     executable: BrowserExecutable,
@@ -415,6 +430,9 @@ export class ChromeSession implements BrowserSession {
   ) {
     this.name = executable.name;
     this.version = browser.version();
+    page.on("crash", () => {
+      this.crashed = true;
+    });
   }
 
   /** The browser's process id, which the Mac live test raises through System Events. */
@@ -422,124 +440,176 @@ export class ChromeSession implements BrowserSession {
     return this.child.pid;
   }
 
-  async load(url: string, timeoutMs: number): Promise<LoadResult> {
-    // A download never commits, so goto() fails; the main response still tells what it was.
-    let mainResponse: Response | null = null;
-    const onResponse = (response: Response) => {
-      const request = response.request();
-      if (request.isNavigationRequest() && request.frame() === this.page.mainFrame()) {
-        mainResponse = response;
-      }
-    };
-    this.page.on("response", onResponse);
-    try {
-      let response: Response | null;
-      try {
-        response = await this.page.goto(url, { waitUntil: "load", timeout: timeoutMs });
-      } catch (error) {
-        if (!mainResponse) throw asUnreachable(error);
-        response = mainResponse;
-      }
-      // Count the window's focus losses from here on (not possible in a PDF viewer, say).
-      await this.page.evaluate(WATCH_FOCUS).catch(() => {});
-      if (!response) return { finalUrl: this.page.url(), status: null, contentType: null };
-      return {
-        finalUrl: response.url(),
-        status: response.status(),
-        contentType: response.headers()["content-type"] ?? null,
+  load(url: string, timeoutMs: number): Promise<LoadResult> {
+    return this.onPage(async () => {
+      // A download never commits, so goto() fails; the main response still tells what it was.
+      let mainResponse: Response | null = null;
+      const onResponse = (response: Response) => {
+        const request = response.request();
+        if (request.isNavigationRequest() && request.frame() === this.page.mainFrame()) {
+          mainResponse = response;
+        }
       };
-    } finally {
-      this.page.off("response", onResponse);
-    }
+      this.page.on("response", onResponse);
+      try {
+        let response: Response | null;
+        try {
+          response = await this.page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+        } catch (error) {
+          if (!mainResponse) throw asUnreachable(error);
+          response = mainResponse;
+        }
+        // Count the window's focus losses from here on (not possible in a PDF viewer, say).
+        await this.page.evaluate(WATCH_FOCUS).catch(() => {});
+        if (!response) return { finalUrl: this.page.url(), status: null, contentType: null };
+        return {
+          finalUrl: response.url(),
+          status: response.status(),
+          contentType: response.headers()["content-type"] ?? null,
+        };
+      } finally {
+        this.page.off("response", onResponse);
+      }
+    });
   }
 
-  async waitUntilReady(readiness: VoicecapConfig["readiness"]): Promise<void> {
-    await this.page
-      .waitForLoadState("networkidle", { timeout: readiness.networkIdleTimeoutMs })
-      .catch(() => {
-        // Pages that poll or stream never go idle; they're transcribed as they are.
-      });
-    const selector = readiness.readySelector;
-    if (selector) {
+  /**
+   * Wait for the page to go quiet, and for the configured readySelector. A readySelector that
+   * doesn't appear in time is coded "open-timeout": the page didn't open in time.
+   */
+  waitUntilReady(readiness: VoicecapConfig["readiness"]): Promise<void> {
+    return this.onPage(async () => {
       await this.page
-        .waitForSelector(selector, { state: "attached", timeout: readiness.networkIdleTimeoutMs })
-        .catch((error: unknown) => {
-          throw new Error(
-            `The readySelector "${selector}" didn't appear within ${formatDuration(readiness.networkIdleTimeoutMs)}.`,
-            { cause: error },
-          );
+        .waitForLoadState("networkidle", { timeout: readiness.networkIdleTimeoutMs })
+        .catch(() => {
+          // Pages that poll or stream never go idle; they're transcribed as they are.
         });
-    }
-    if (readiness.settleMs > 0) await delay(readiness.settleMs);
+      const selector = readiness.readySelector;
+      if (selector) {
+        const timeout = readiness.networkIdleTimeoutMs;
+        await this.page
+          .waitForSelector(selector, { state: "attached", timeout })
+          .catch((error: unknown) => {
+            // A selector the browser can't read fails at once, and Playwright's words say why.
+            if (!(error instanceof errors.TimeoutError)) throw error;
+            throw new EnvironmentError(
+              `The readySelector "${selector}" didn't appear within ${formatDuration(timeout)}.`,
+              { cause: error, failure: "open-timeout" },
+            );
+          });
+      }
+      if (readiness.settleMs > 0) await delay(readiness.settleMs);
+    });
   }
 
   pageTitle(): Promise<string> {
-    return this.page.title();
+    return this.onPage(() => this.page.title());
   }
 
   async setTitle(title: string): Promise<() => Promise<void>> {
     // These functions run in the page (voicecap's own code is compiled without DOM types).
-    const previous = await this.page.evaluate((next) => {
-      const doc = (globalThis as unknown as { document: PageDocument }).document;
-      const had = doc.querySelector("title") !== null;
-      const old = doc.title;
-      doc.title = next;
-      return { had, old };
-    }, title);
-    return async () => {
-      await this.page.evaluate(({ had, old }) => {
+    const previous = await this.onPage(() =>
+      this.page.evaluate((next) => {
         const doc = (globalThis as unknown as { document: PageDocument }).document;
-        doc.title = old;
-        if (!had) doc.querySelector("title")?.remove();
-      }, previous);
-    };
+        const had = doc.querySelector("title") !== null;
+        const old = doc.title;
+        doc.title = next;
+        return { had, old };
+      }, title),
+    );
+    return () =>
+      this.onPage(() =>
+        this.page.evaluate(({ had, old }) => {
+          const doc = (globalThis as unknown as { document: PageDocument }).document;
+          doc.title = old;
+          if (!had) doc.querySelector("title")?.remove();
+        }, previous),
+      );
   }
 
   focusState(): Promise<FocusState> {
-    return this.page.evaluate<FocusState>(FOCUS_STATE);
+    return this.onPage(() => this.page.evaluate<FocusState>(FOCUS_STATE));
   }
 
-  async raise(): Promise<void> {
-    const { windowId } = await this.cdp.send("Browser.getWindowForTarget");
-    await this.cdp.send("Browser.setWindowBounds", {
-      windowId,
-      bounds: { windowState: "minimized" },
+  raise(): Promise<void> {
+    return this.onPage(async () => {
+      const { windowId } = await this.cdp.send("Browser.getWindowForTarget");
+      await this.cdp.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: { windowState: "minimized" },
+      });
+      await delay(300);
+      await this.cdp.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: { windowState: "normal" },
+      });
+      await this.page.bringToFront();
+      await delay(500);
     });
-    await delay(300);
-    await this.cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState: "normal" } });
-    await this.page.bringToFront();
-    await delay(500);
   }
 
   pressTab(): Promise<void> {
-    return this.page.keyboard.press("Tab");
+    return this.onPage(() => this.page.keyboard.press("Tab"));
   }
 
-  async focusedElement(): Promise<FocusedElement | null> {
-    const { result } = await this.cdp.send("Runtime.evaluate", { expression: FOCUSED_ELEMENT });
-    const objectId = result.objectId;
-    if (!objectId) return null;
+  focusedElement(): Promise<FocusedElement | null> {
+    return this.onPage(async () => {
+      const { result } = await this.cdp.send("Runtime.evaluate", { expression: FOCUSED_ELEMENT });
+      const objectId = result.objectId;
+      if (!objectId) return null;
+      try {
+        const described = await this.cdp.send("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: DESCRIBE_ELEMENT,
+          returnByValue: true,
+        });
+        const { tag, href, inMain } = described.result.value as {
+          tag: string;
+          href: string | null;
+          inMain: boolean;
+        };
+        const { nodes } = await this.cdp.send("Accessibility.getPartialAXTree", {
+          objectId,
+          fetchRelatives: false,
+        });
+        const node = nodes.find((candidate) => !candidate.ignored) ?? nodes[0];
+        const role = axString(node?.role);
+        return { tag, role, name: axString(node?.name) ?? "", inMain, href };
+      } finally {
+        await this.cdp.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      }
+    });
+  }
+
+  /**
+   * Do `work` on the page. When it fails because the browser has gone (its window was closed, it
+   * quit or crashed, or the page crashed), the failure says so, coded "browser": Playwright's own
+   * words ("Target page, context or browser has been closed", "Target crashed") would read as a
+   * fault in voicecap. Any other failure is thrown as it is.
+   */
+  private async onPage<T>(work: () => Promise<T>): Promise<T> {
     try {
-      const described = await this.cdp.send("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: DESCRIBE_ELEMENT,
-        returnByValue: true,
-      });
-      const { tag, href, inMain } = described.result.value as {
-        tag: string;
-        href: string | null;
-        inMain: boolean;
-      };
-      const { nodes } = await this.cdp.send("Accessibility.getPartialAXTree", {
-        objectId,
-        fetchRelatives: false,
-      });
-      const node = nodes.find((candidate) => !candidate.ignored) ?? nodes[0];
-      const role = axString(node?.role);
-      return { tag, role, name: axString(node?.name) ?? "", inMain, href };
-    } finally {
-      await this.cdp.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      return await work();
+    } catch (error) {
+      throw this.gone(error) ?? error;
     }
+  }
+
+  /** What `error` becomes when the browser has gone: null while it's still there. */
+  private gone(error: unknown): EnvironmentError | null {
+    if (this.crashed) {
+      return new EnvironmentError(`The page crashed in ${this.name} while voicecap was using it.`, {
+        cause: error,
+        failure: "browser",
+      });
+    }
+    if (this.page.isClosed() || !this.browser.isConnected()) {
+      return new EnvironmentError(
+        `${this.name} closed while voicecap was using it: its window was closed, or it crashed.`,
+        { cause: error, failure: "browser" },
+      );
+    }
+    return null;
   }
 
   close(): Promise<void> {
