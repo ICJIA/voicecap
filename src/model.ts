@@ -334,9 +334,15 @@ export interface SessionRecord {
   reviewer?: ReviewerRecord | null;
   /**
    * What the person running this session said when it ended, asked whether they listened as the
-   * screen reader read its pages. Absent when they weren't asked (no terminal, a replayed run, or
-   * no pages read) or didn't answer (a second Ctrl+C, or the input ended), and in runs from before
-   * voicecap recorded it.
+   * screen reader read its pages: once it had stopped, however the session ended (completed,
+   * stopped, interrupted, or with an error). Absent when there's no answer to keep:
+   * - no terminal, or the output redirected from it (a script, CI, `> log.txt`);
+   * - a replayed run;
+   * - no pages read;
+   * - Ctrl+C at the question (for an interrupted session, a second Ctrl+C), or the input ending;
+   * - a closed window;
+   * - a question that failed;
+   * - runs from before voicecap 0.6.0.
    */
   listener?: ListenerStatement;
   endedAt: string | null;

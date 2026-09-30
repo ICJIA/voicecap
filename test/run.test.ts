@@ -35,7 +35,7 @@ import {
   siteFolder,
 } from "../src/run/paths.js";
 import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
-import { EnvironmentError } from "../src/util/errors.js";
+import { EnvironmentError, VoicecapError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
@@ -50,6 +50,7 @@ import {
   SITE,
   sitePages,
 } from "./helpers/run-site.js";
+import { fakeSignals } from "./helpers/fake-signals.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -1203,29 +1204,69 @@ describe("the listener's statement", () => {
     });
   });
 
-  it("doesn't ask when the session ends with an error, which is reported instead", async () => {
+  it("asks when the session ends with an error, once it has said why, then throws the error", async () => {
     const dir = await setup();
     const driver = new ScriptedDriver(sitePages());
     // The screen reader won't start again for its restart after the first page.
     const start = driver.start.bind(driver);
     let starts = 0;
     driver.start = () =>
-      ++starts === 2 ? Promise.reject(new EnvironmentError("NVDA didn't start")) : start();
+      ++starts === 2
+        ? Promise.reject(new EnvironmentError("NVDA didn't start\nIts log says more."))
+        : start();
+    const logger = createMemoryLogger();
+    const asked: { screenReader: string; pagesRead: number }[] = [];
+    let when: { stops: number; said: string | undefined } | undefined;
+    await expect(
+      runAudit({
+        ...options(dir, driver, {
+          logger,
+          askListener: (question) => {
+            asked.push(question);
+            when = { stops: driver.stops, said: logger.entries.at(-1)?.message };
+            return Promise.resolve("part");
+          },
+        }),
+        config: config({ restartEvery: 1 }),
+      }),
+    ).rejects.toThrow("NVDA didn't start");
+    expect(asked).toEqual([{ screenReader: "NVDA", pagesRead: 1 }]);
+    // Asked once the screen reader had stopped, straight after one line that says why: the
+    // error's first line. The whole error follows the question, where the CLI explains it.
+    expect(when?.stops).toBeGreaterThanOrEqual(2);
+    expect(when?.said).toBe("The session ended with an error: NVDA didn't start");
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      pagesDone: 1,
+      listener: { answer: "part" },
+    });
+  });
+
+  it("asks when the session ends with an error that isn't the environment's, too", async () => {
+    const dir = await setup(["/", "/about"]);
+    const driver = new ScriptedDriver(sitePages());
+    // An error of voicecap's own that isn't the environment's ends the session as an error.
+    const start = driver.start.bind(driver);
+    let starts = 0;
+    driver.start = () =>
+      ++starts === 2 ? Promise.reject(new VoicecapError("The config changed")) : start();
     let asked = 0;
     await expect(
       runAudit({
         ...options(dir, driver, {
           askListener: () => {
             asked++;
-            return Promise.resolve("all");
+            return Promise.resolve(null);
           },
         }),
         config: config({ restartEvery: 1 }),
       }),
-    ).rejects.toThrow("NVDA didn't start");
-    expect(asked).toBe(0);
+    ).rejects.toThrow("The config changed");
+    expect(asked).toBe(1);
     const [stored] = await listRuns(outDir(dir));
-    expect(stored?.sessions[0]).toMatchObject({ endReason: "environment-failure", pagesDone: 1 });
+    expect(stored?.sessions[0]).toMatchObject({ endReason: "error", pagesDone: 1 });
+    // No answer, so no statement.
     expect(stored?.sessions[0]).not.toHaveProperty("listener");
   });
 
@@ -1330,11 +1371,23 @@ describe("the listener's statement", () => {
   it("takes the answer of a person at a terminal, through the CLI's own question", async () => {
     const dir = await setup(["/"]);
     const keyboard = Object.assign(new PassThrough(), { isTTY: true });
-    keyboard.write("2\n");
+    // Pressed during the run: not an answer.
+    keyboard.write("1\n");
     let screen = "";
+    const person = {
+      write: (chunk: string) => {
+        screen += chunk;
+        // Answered once the question is on screen.
+        if (chunk.includes("Choose [3]: ")) setImmediate(() => keyboard.write("2\n"));
+        return true;
+      },
+    };
     const result = await runAudit(
       options(dir, new ScriptedDriver(sitePages()), {
-        askListener: makeAskListener(keyboard, { write: (chunk) => ((screen += chunk), true) }),
+        askListener: makeAskListener(keyboard, person, {
+          drainMs: 0,
+          signals: fakeSignals().source,
+        }),
       }),
     );
     expect(screen).toContain("Did you listen as NVDA read these pages?");
