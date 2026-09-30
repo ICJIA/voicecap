@@ -73,6 +73,7 @@ function abortReason(signal: AbortSignal): Error {
 export class StepRecorder {
   readonly steps: StepRecord[] = [];
   private readonly started: number;
+  private underway: { n: number; command: DriverCommand } | null = null;
 
   constructor(
     private readonly stepTimeoutMs: number,
@@ -86,6 +87,15 @@ export class StepRecorder {
     return this.steps.length;
   }
 
+  /**
+   * The step whose driver call is under way, or null between steps. A step that fails (a timeout
+   * or an error) leaves it set, so the failure can say which step it was: one whose keystroke is
+   * discarded, and which never becomes one of `steps`.
+   */
+  get current(): { n: number; command: DriverCommand } | null {
+    return this.underway;
+  }
+
   elapsedMs(): number {
     return Math.round(this.clock() - this.started);
   }
@@ -97,13 +107,15 @@ export class StepRecorder {
     after?: () => Promise<Pick<StepRecord, "inDocument" | "focused">>,
   ): Promise<StepRecord> {
     const begin = this.clock();
+    const n = this.steps.length + 1;
+    this.underway = { n, command };
     const spoken = await withTimeout(command, action, this.stepTimeoutMs, this.signal);
     const extra = after
       ? await withTimeout(`${command} focus check`, after, this.stepTimeoutMs, this.signal)
       : {};
     const end = this.clock();
     const record: StepRecord = {
-      n: this.steps.length + 1,
+      n,
       command,
       spoken,
       durationMs: Math.round(end - begin),
@@ -111,6 +123,7 @@ export class StepRecorder {
       ...extra,
     };
     this.steps.push(record);
+    this.underway = null;
     return record;
   }
 

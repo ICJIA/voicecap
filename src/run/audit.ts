@@ -546,6 +546,10 @@ function applyOutcome(
   // A page that has been tried always gets a title, null when there is none to record. Absent means
   // the page is pending, or the run is from before titles were recorded.
   page.title = outcome.title ?? null;
+  // The failed attempts of this processing only: a page that failed in an earlier session and came
+  // through now has none left, so the field goes.
+  if (outcome.failedAttempts.length > 0) page.failedAttempts = outcome.failedAttempts;
+  else delete page.failedAttempts;
   if (outcome.skip) page.skip = outcome.skip;
   else delete page.skip;
 }

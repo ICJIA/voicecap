@@ -190,6 +190,27 @@ export type FailureCause =
   | "page-timeout"
   | "unexpected";
 
+/** One failed attempt at a page, kept in the page's record. */
+export interface AttemptRecord {
+  /** 1-based. */
+  n: number;
+  /** Local ISO times, to the millisecond. */
+  startedAt: string;
+  endedAt: string;
+  /** The pass under way, or null when the attempt failed before its first pass began. */
+  pass: PassName | null;
+  /** The 1-based step that failed (its keystroke was discarded), or null outside a step. */
+  step: number | null;
+  /** The driver command that step sent ("nextLine", "openPage", …), or null. */
+  command: DriverCommand | "openPage" | null;
+  cause: FailureCause;
+  message: string;
+  /** For "unexpected" only: the stack, with the home folder replaced. */
+  stack?: string;
+  /** Whether NVDA and the browser were started again before the next attempt. */
+  restarted: boolean;
+}
+
 export interface PageRecord extends PageRef {
   /** Line in the page list file, when the source is a file. */
   line?: number;
@@ -205,6 +226,11 @@ export interface PageRecord extends PageRef {
    * voicecap recorded it.
    */
   title?: string | null;
+  /**
+   * Every failed attempt of the page's last processing, oldest first, including the final one of a
+   * page that failed. Absent when none failed, and in runs from before voicecap recorded them.
+   */
+  failedAttempts?: AttemptRecord[];
   /** Set when the page was skipped after loading (non-HTML response, redirect off-origin). */
   skip?: SkippedRecord;
   /** The session (1-based) that produced the current transcripts. */

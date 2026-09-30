@@ -33,9 +33,18 @@ import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
-import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
+import {
+  element,
+  ScriptedDriver,
+  type Command,
+  type ScriptedOptions,
+  type ScriptedPage,
+} from "./helpers/scripted-driver.js";
 
 const SITE = "https://example.illinois.gov";
+
+/** A local ISO time to the millisecond, such as 2026-09-26T14:05:09.482-05:00. */
+const ISO_MS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d$/;
 
 function sitePages(
   overrides: Partial<Record<"home" | "about" | "resources", Partial<ScriptedPage>>> = {},
@@ -131,6 +140,16 @@ function options(
 const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(SITE));
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
+/** A scripted driver's `hang` option: the first call of `command` hangs, and no other call does. */
+function hangOnce(command: Command): NonNullable<ScriptedOptions["hang"]> {
+  let hung = false;
+  return (called) => {
+    if (called !== command || hung) return false;
+    hung = true;
+    return true;
+  };
+}
+
 async function snapshotFolder(dir: string): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
   const walk = async (current: string) => {
@@ -219,16 +238,7 @@ describe("a complete run", () => {
 
   it("takes a page's title from the first load of its last attempt", async () => {
     const dir = await setup(["/about"]);
-    let hung = false;
-    const driver = new ScriptedDriver(sitePages(), {
-      hang: (command) => {
-        if (command === "nextLine" && !hung) {
-          hung = true;
-          return true;
-        }
-        return false;
-      },
-    });
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
     // Every load reports a new title: "Load 1", "Load 2", and so on.
     const openPage = driver.openPage.bind(driver);
     let loads = 0;
@@ -610,16 +620,7 @@ describe("failures", () => {
 
   it("retries a page once after a timeout, restarting the driver first", async () => {
     const dir = await setup(["/about"]);
-    let hung = false;
-    const driver = new ScriptedDriver(sitePages(), {
-      hang: (command) => {
-        if (command === "nextLine" && !hung) {
-          hung = true;
-          return true;
-        }
-        return false;
-      },
-    });
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
     const result = await runAudit(options(dir, driver));
     expect(result.exitCode).toBe(0);
     const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
@@ -630,16 +631,7 @@ describe("failures", () => {
 
   it("keeps the first attempt at a page that timed out, and reports only the final one", async () => {
     const dir = await setup(["/about"]);
-    let hung = false;
-    const driver = new ScriptedDriver(sitePages(), {
-      hang: (command) => {
-        if (command === "nextLine" && !hung) {
-          hung = true;
-          return true;
-        }
-        return false;
-      },
-    });
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
     const result = await runAudit(options(dir, driver));
     expect(result.exitCode).toBe(0);
     const out = outDir(dir);
@@ -772,6 +764,314 @@ describe("failures", () => {
     expect(driver.starts).toBe(3);
     // Only the final stop gives back what the run took, such as the person's own NVDA.
     expect(driver.stopOptions).toEqual([{ restarting: true }, { restarting: true }, undefined]);
+  });
+});
+
+describe("failed attempts", () => {
+  it("records a failed attempt: its cause, pass, step, command, and times", async () => {
+    const dir = await setup(["/"]);
+    let lines = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextLine" && ++lines === 1
+          ? new ForegroundError("The browser lost the foreground to another window.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page.status).toBe("done");
+    expect(page.failedAttempts).toEqual([
+      {
+        n: 1,
+        startedAt: expect.stringMatching(ISO_MS) as unknown,
+        endedAt: expect.stringMatching(ISO_MS) as unknown,
+        pass: "read",
+        step: 3,
+        command: "nextLine",
+        cause: "foreground",
+        message: "The browser lost the foreground to another window.",
+        restarted: true,
+      },
+    ]);
+  });
+
+  it("keeps an unexpected error's stack, with the home folder replaced", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading"
+          ? new TypeError(`Cannot read properties of undefined (${os.homedir()})`)
+          : null,
+    });
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt).toMatchObject({ pass: "headings", cause: "unexpected" });
+    expect(attempt.stack).toMatch(/^TypeError: Cannot read properties of undefined/);
+    expect(attempt.stack).not.toContain(os.homedir());
+    // The frames spell the folder with forward slashes on Windows; nothing of it is left there.
+    expect(attempt.stack).not.toContain(os.homedir().replaceAll("\\", "/"));
+    // The home folder's place is kept, as %USERPROFILE% on Windows and ~ elsewhere.
+    const home = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    expect(attempt.stack).toContain(`Cannot read properties of undefined (${home})\n`);
+  });
+
+  it("keeps no stack for a failure that isn't unexpected", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading"
+          ? new ForegroundError("Another window took the foreground.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt).toMatchObject({ pass: "headings", cause: "foreground" });
+    expect(attempt).not.toHaveProperty("stack");
+  });
+
+  it("records an HTTP 4xx as one attempt with no step", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 404 } }));
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: null,
+        command: null,
+        cause: "http",
+        message: "HTTP 404",
+        restarted: false,
+      }),
+    ]);
+  });
+
+  it("records an HTTP 5xx on every attempt, each tried again without a restart", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 503 } }));
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 3 }) }));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "failed", failure: "page", attempts: 3 });
+    expect(page.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3]);
+    for (const attempt of page.failedAttempts!) {
+      expect(attempt).toMatchObject({
+        pass: "read",
+        step: null,
+        command: null,
+        cause: "http",
+        message: "HTTP 503",
+        restarted: false,
+      });
+    }
+    expect(driver.starts).toBe(1);
+  });
+
+  it("records a page that couldn't be opened, with openPage as its command", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: {
+          openError: new EnvironmentError("Chrome didn't start: it exited (1)", {
+            failure: "browser",
+          }),
+          openErrorTimes: 1,
+        },
+      }),
+    );
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: null,
+        command: "openPage",
+        cause: "browser",
+      }),
+    ]);
+  });
+
+  it("records a page that hung while opening as an open-timeout", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("openPage") });
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "done", attempts: 2 });
+    expect(page.failedAttempts).toHaveLength(1);
+    const attempt = page.failedAttempts![0]!;
+    expect(attempt).toMatchObject({
+      n: 1,
+      pass: "read",
+      step: null,
+      command: "openPage",
+      cause: "open-timeout",
+      restarted: true,
+    });
+    expect(attempt.message).toMatch(/^Opening the page did not finish within /);
+  });
+
+  it("records a page that took longer than its time as a page-timeout", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), { hang: (command) => command === "nextLine" });
+    // A step has 5 s but the whole page only 300 ms, so the page runs out of time first.
+    const slow = config({ pageAttempts: 1, timeouts: { stepMs: 5000, pageMs: 300 } });
+    const result = await runAudit(options(dir, driver, { config: slow }));
+    expect(result.run.pages[0]).toMatchObject({ status: "failed", failure: "environment" });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: 3,
+        command: "nextLine",
+        cause: "page-timeout",
+        message: "The whole page did not finish within 300ms",
+        restarted: false,
+      }),
+    ]);
+  });
+
+  it("records every attempt at a page that never opens, and restarts only between them", async () => {
+    const dir = await setup(["/about"]);
+    const lost = new ForegroundError("The browser lost the foreground to another window");
+    const driver = new ScriptedDriver(sitePages({ about: { openError: lost } }));
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "failed", attempts: 5 });
+    // Oldest first, the last one included. Nothing is started again after the last attempt.
+    expect(
+      page.failedAttempts!.map((attempt) => [attempt.n, attempt.cause, attempt.restarted]),
+    ).toEqual([
+      [1, "foreground", true],
+      [2, "foreground", true],
+      [3, "foreground", true],
+      [4, "foreground", true],
+      [5, "foreground", false],
+    ]);
+    for (const attempt of page.failedAttempts!) {
+      expect(attempt).toMatchObject({ pass: "read", step: null, command: "openPage" });
+    }
+  });
+
+  it("names the pass under way, for a failure in a later pass", async () => {
+    const dir = await setup(["/about"]);
+    let tabs = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextFocusable" && ++tabs === 1
+          ? new ForegroundError("The browser lost the foreground to another window")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        pass: "tab",
+        step: 1,
+        command: "nextFocusable",
+        cause: "foreground",
+      }),
+    ]);
+  });
+
+  it("takes an attempt's times from the run's clock, to the millisecond", async () => {
+    const dir = await setup(["/"]);
+    // The clock moves on 1 ms each time it's read.
+    let ms = 0;
+    const now = () => new Date(2026, 8, 30, 14, 5, 9, ms++);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 404 } }));
+    const result = await runAudit(options(dir, driver, { now }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt.startedAt).toMatch(/^2026-09-30T14:05:09\.\d{3}[+-]\d\d:\d\d$/);
+    expect(attempt.endedAt).toMatch(/^2026-09-30T14:05:09\.\d{3}[+-]\d\d:\d\d$/);
+    expect(Date.parse(attempt.endedAt)).toBeGreaterThan(Date.parse(attempt.startedAt));
+  });
+
+  it("leaves the field out for a page that never failed", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(result.run.pages[0]).not.toHaveProperty("failedAttempts");
+    const onDisk = await readRunJson(outDir(dir), result.runId);
+    expect(onDisk.pages[0]).not.toHaveProperty("failedAttempts");
+  });
+
+  it("writes the attempts to run.json, inside the run's seal", async () => {
+    const dir = await setup(["/"]);
+    let lines = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextLine" && ++lines === 1
+          ? new ForegroundError("The browser lost the foreground to another window.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    const onDisk = await readRunJson(outDir(dir), result.runId);
+    expect(onDisk.pages[0]!.failedAttempts).toEqual(result.run.pages[0]!.failedAttempts);
+    expect(onDisk.pages[0]!.failedAttempts).toHaveLength(1);
+    // The seal is of the record as it is on disk, attempts included.
+    expect(onDisk.seal).toBe(sealOf(onDisk));
+    const edited = structuredClone(onDisk);
+    edited.pages[0]!.failedAttempts![0]!.cause = "unexpected";
+    expect(sealOf(edited)).not.toBe(onDisk.seal);
+    const verified = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(verified.problems).toBe(0);
+  });
+
+  it("replaces the attempts when a page is tried again in a later session", async () => {
+    const dir = await setup(["/", "/about", "/resources"]);
+    const broken = new Error("NVDA is not responding");
+    const failing = () =>
+      new ScriptedDriver(sitePages({ home: { openError: broken }, about: { openError: broken } }));
+    const stopped = await runAudit({
+      ...options(dir, failing()),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(stopped.outcome).toBe("stopped");
+    const first = await readRunJson(outDir(dir), stopped.runId);
+    expect(first.pages.map((page) => page.failedAttempts?.length)).toEqual([5, 5, undefined]);
+
+    // Still broken for /: its attempts are the last session's, not these and those together.
+    const second = await runAudit({
+      ...options(dir, new ScriptedDriver(sitePages({ home: { openError: broken } }))),
+      config: config({ pageAttempts: 2 }),
+    });
+    expect(second).toMatchObject({ runId: stopped.runId, outcome: "completed" });
+    expect(second.run.pages.map((page) => page.status)).toEqual(["failed", "done", "done"]);
+    expect(second.run.pages[0]!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2]);
+    // /about works now: nothing is left of the attempts it failed before.
+    expect(second.run.pages[1]).not.toHaveProperty("failedAttempts");
+    const onDisk = await readRunJson(outDir(dir), second.runId);
+    expect(onDisk.pages[1]).not.toHaveProperty("failedAttempts");
+  });
+
+  it("resumes a run recorded before these fields existed, and verify still passes", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    // As 0.5.0 wrote the record: no page titles, and no failed attempts.
+    const record = await readRunJson(outDir(dir), interrupted.runId);
+    for (const page of record.pages) {
+      delete page.title;
+      delete page.failedAttempts;
+    }
+    await writeRunJson(outDir(dir), record);
+
+    const resumed = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(resumed.outcome).toBe("completed");
+    expect(resumed.run.pages[0]).not.toHaveProperty("title");
+    expect(resumed.run.pages[1]?.title).toBeNull();
+    const result = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(result.problems).toBe(0);
   });
 });
 
