@@ -19,6 +19,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 - **The README** says the checks take about three seconds, as measured on a Windows PC, not two.
 - **The README, the package description, and `voicecap --help`** present voicecap as what it is: a listen-through with a real screen reader, the other half beside automated checkers such as axe and Lighthouse. What it does on its own is press the screen reader's keys and move from page to page.
 - **The README has a new section, How voicecap works:** six steps, a diagram, and the first lines NVDA said on the demo site. It presents voicecap as a human review, sped up: voicecap presses the keys and turns the pages, and the person running it listens, reads the transcripts, and fixes what they find. Working from the list, voicecap accounts for every page on it, with none missed or done twice.
+- **The README says when to run voicecap,** with a diagram: on the deployed site before it goes live, and again after a major update, not on every build during development.
 
 ### Fixed
 

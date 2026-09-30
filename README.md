@@ -58,9 +58,20 @@ tab (Tab)           Skip to main content, same page, link
 
 The details are in [What voicecap does on each page](#what-voicecap-does-on-each-page).
 
+## When to run voicecap
+
+![When to run voicecap: run it on the deployed site before it goes live, and again after a major update, not during development.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/when-to-run-voicecap.png)
+
+**Run voicecap on the deployed site before it goes live, and again after a major update.**
+
+- **Not on every build during development.** Builds change daily, and a development copy isn't what users get. Screen reader users hear the deployed site, with its real content, so that's the one to listen to.
+- **Before launch,** run the full listen-through on the site as it will go live, such as a staging copy of the production site. Fix what you find, then run the pages you fixed again.
+- **After a major update,** run the same pages again with `--compare previous` to see exactly what changed in what the screen reader says.
+
 ## Contents
 
 - [How voicecap works](#how-voicecap-works)
+- [When to run voicecap](#when-to-run-voicecap)
 - [Quick start](#quick-start)
   - [On Windows](#on-windows)
   - [On a Mac](#on-a-mac)
