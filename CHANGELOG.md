@@ -7,6 +7,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Added
 
 - **`voicecap demo`, a guided first run** against a small demo site that comes with voicecap and runs only on this computer. Seven steps, each explained and each waiting for Enter: the welcome, this computer's checks, the live test, an audit of the demo's seven pages (showing the command it runs), the transcripts, the report (with an offer to open it), and what to do next. Its files go in `voicecap-demo/` in the current folder. On a Mac, until the VoiceOver driver, it runs the checks and the VoiceOver live test, then says what the audit will do; a Windows PC runs the full tour.
+- **Programmatic API**: two options on `runAudit`. `preflight` takes the checks' result from a caller that has just run them, so a real run doesn't check again. `again` names the command that starts over, which an interrupted or stopped run then gives in place of "run the same command again to resume". `voicecap demo` uses both.
 
 ### Changed
 
