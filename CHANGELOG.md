@@ -4,9 +4,35 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
+A guided demo, and what the checks on a real Windows PC found: `voicecap demo`, a failed page tried up to 5 times, the reviewer's name on every run, and four fixes.
+
 ### Added
 
 - **`voicecap demo`, a guided first run** against a small demo site that comes with voicecap and runs only on this computer. Seven steps, each explained and each waiting for Enter: the welcome, this computer's checks, the live test, an audit of the demo's seven pages (showing the command it runs), the transcripts, the report (with an offer to open it), and what to do next. Its files go in `voicecap-demo/` in the current folder. On a Mac, until the VoiceOver driver, it runs the checks and the VoiceOver live test, then says what the audit will do; a Windows PC runs the full tour.
+- **Runs record who ran them.** A run takes `--reviewer <name>`, and each session's record in `run.json` names who ran it and where the name came from, sealed with the run, so a run someone else resumes names both. Without `--reviewer`, the name comes from `VOICECAP_REVIEWER`, then `git config user.name`, then the config's `reviewer`, as for `voicecap review`. With none, the run goes ahead, says so, and records that no name was given. The report's table of sessions shows who ran each.
+- **`voicecap init` asks for the reviewer,** after the transcripts home. Enter takes `icjia`, a quick default, or `VOICECAP_REVIEWER` when it's set; a person's name can be typed instead. The command it composes ends with `--reviewer <name>`, easy to change for someone else.
+- **Programmatic API**: three options on `runAudit`. `preflight` takes the checks' result from a caller that has just run them, so a real run doesn't check again. `again` names the command that starts over, which an interrupted or stopped run then gives in place of "run the same command again to resume". `voicecap demo` uses both. `reviewer` is the name each session records, as `--reviewer` gives it.
+
+### Changed
+
+- **A page that fails is tried again, up to 5 times in all,** each time with NVDA and the browser started fresh. The limit is the new setting `pageAttempts`.
+  - It covers a timeout, NVDA or the browser not responding, and another window taking the foreground.
+  - Before, only a timeout or a server error got one retry, and a page that lost the foreground failed at once.
+  - Every attempt is kept under `attempts/`, and the page's record names each failed attempt's reason.
+  - A page the site answers with an HTTP 4xx still gets one try.
+- **The README** says the checks take about three seconds, as measured on a Windows PC, not two.
+- **The README, the package description, and `voicecap --help`** present voicecap as what it is: a listen-through with a real screen reader, the other half beside automated checkers such as axe and Lighthouse. What it does on its own is press the screen reader's keys and move from page to page.
+- **The README has a new section, How voicecap works:** six steps, a diagram, and the first lines NVDA said on the demo site. It presents voicecap as a human review, sped up: voicecap presses the keys and turns the pages, and the person running it listens, reads the transcripts, and fixes what they find. Working from the list, voicecap accounts for every page on it, with none missed or done twice.
+- **The README says when to run voicecap,** with a diagram: on the deployed site before it goes live, and again after a major update, not on every build during development.
+
+### Fixed
+
+- **voicecap turns an installed NVDA back on.** An installed NVDA runs with UI Access, at a higher integrity level than voicecap, and the way voicecap asked Windows for its path (WMI's `ExecutablePath`) came back empty. So after a run or the live test, voicecap couldn't start it again, and said to start it by hand. voicecap now reads each `nvda.exe`'s path with `QueryFullProcessImageName`, which Windows allows. Found on Windows 11 with NVDA 2026.2.
+- **The `unlabeled` flag no longer flags labeled form fields in the read pass.** In browse mode, NVDA reads a form field's label as separate text, on the field's line or the line before, so a read-pass line with only "edit" can belong to a labeled field: the demo's labeled textarea was flagged. Form fields (edit, combo box, check box, radio button) now count only in the tab pass, where NVDA says the name first. The new setting `flags.unlabeled.tabOnlyRoles` lists them. `voicecap report` recomputes earlier runs' flags with the new rule.
+- **Chrome that updates itself as voicecap starts it.** With an update waiting and no other Chrome open, the Chrome voicecap started handed over to a new copy of itself, which finished the update and went on with voicecap's profile. voicecap said "Chrome didn't start: it exited (0)" and left the profile behind. Now it closes that copy, says so, and starts Chrome again, once.
+- **After a closed terminal window, your NVDA starts once Guidepup's has quit.** The helper that starts your NVDA as voicecap exits now waits, for up to 20 seconds, until Guidepup's NVDA has quit. Before, it could start yours while Guidepup's was still quitting.
 
 ## [0.4.1] - 2026-09-29
 
@@ -144,7 +170,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ICJIA/voicecap/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/ICJIA/voicecap/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ICJIA/voicecap/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ICJIA/voicecap/compare/v0.3.0...v0.3.1

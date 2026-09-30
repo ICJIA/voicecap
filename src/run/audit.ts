@@ -13,6 +13,7 @@ import {
   type EnvironmentRecord,
   type PageRecord,
   type PassName,
+  type ReviewerRecord,
   type RunJson,
   type RunSettings,
   type SessionRecord,
@@ -26,6 +27,7 @@ import type { PlatformReadiness, PreflightResult } from "../readiness/model.js";
 import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
+import { findReviewer } from "../reviews/reviewer.js";
 import { EnvironmentError, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
@@ -74,6 +76,13 @@ export interface RunAuditOptions {
    */
   out?: string;
   runName?: string | null;
+  /**
+   * Who is running this session, recorded with it. Default: VOICECAP_REVIEWER, then
+   * `git config user.name`, then the config's reviewer; with none of them, the session records none.
+   */
+  reviewer?: string | null;
+  /** Replaces `git config user.name` for the reviewer (tests). */
+  gitUserName?: (cwd: string) => string | null;
   /** Replay a run folder instead of running NVDA. */
   replayFrom?: string | null;
   cwd?: string;
@@ -256,6 +265,14 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   }
 }
 
+/** Where the reviewer's name came from, as the run says it. */
+const REVIEWER_SOURCES: Record<ReviewerRecord["source"], string> = {
+  option: "from --reviewer",
+  environment: "from VOICECAP_REVIEWER",
+  git: "from git config user.name",
+  config: "from the config's reviewer",
+};
+
 interface ExecuteContext {
   run: RunJson;
   driver: ScreenReaderDriver;
@@ -271,9 +288,23 @@ interface ExecuteContext {
 
 async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   const { run, config, outDir, logger, now } = ctx;
+  const reviewer = findReviewer({
+    option: ctx.options.reviewer,
+    env: ctx.options.env ?? process.env,
+    configReviewer: config.reviewer,
+    cwd: ctx.options.cwd ?? process.cwd(),
+    ...(ctx.options.gitUserName ? { gitUserName: ctx.options.gitUserName } : {}),
+  });
+  if (reviewer) logger.info(`Reviewer: ${reviewer.name} (${REVIEWER_SOURCES[reviewer.source]})`);
+  else {
+    logger.warn(
+      "No reviewer name, so this session's record won't say who ran it. Pass --reviewer, or set VOICECAP_REVIEWER.",
+    );
+  }
   const session: SessionRecord = {
     n: run.sessions.length + 1,
     startedAt: isoLocal(now()),
+    reviewer,
     endedAt: null,
     endReason: null,
     pagesDone: 0,
@@ -399,6 +430,7 @@ async function transcribePages(
       passSettings,
       openTimeoutMs: config.readiness.networkIdleTimeoutMs + config.timeouts.stepMs,
       pageTimeoutMs: config.timeouts.pageMs,
+      maxAttempts: config.pageAttempts,
       environment,
       signal,
       now,
@@ -575,7 +607,7 @@ function checkCount(flag: string, value: number | null | undefined): number | nu
 }
 
 /**
- * Quick checks (about 2 seconds) before a real run touches anything. Not ready: throws
+ * Quick checks (about 3 seconds) before a real run touches anything. Not ready: throws
  * EnvironmentError with the "Not ready" block, before the site folder, the run lock, or NVDA are
  * touched. Ready: logs the one-line pass summary and any WARN lines, then the run proceeds as
  * usual. Never runs for a replay run. A caller that has just run the checks passes their result

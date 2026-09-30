@@ -48,7 +48,7 @@ Step 1 of 7 · Welcome
 voicecap drives a real screen reader through a website's pages and saves what it says, so you
 can hear what a screen reader user hears. This tour runs it against a small demo site on this
 computer, using NVDA. It takes about 9 minutes. In step 4, NVDA speaks and takes over the
-keyboard for about 6 minutes.
+keyboard for about 7 minutes.
 
 Press Enter for step 2 (checking this computer), or Ctrl+C to stop here.
 
@@ -66,12 +66,12 @@ Step 3 of 7 · The live test
 The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
 [the live test's checks]
 
-Press Enter for step 4 (auditing the demo site, hands off for about 6 minutes), or Ctrl+C to stop here.
+Press Enter for step 4 (auditing the demo site, hands off for about 7 minutes), or Ctrl+C to stop here.
 
 Step 4 of 7 · Auditing the demo site
 The demo site is running at http://127.0.0.1:4848. voicecap is now running:
   npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh
-For about 6 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop
+For about 7 minutes, NVDA speaks and takes over the keyboard: keep your hands off. To stop
 early, click this terminal window first, then press Ctrl+C.
 [a normal run's progress lines]
 
@@ -147,7 +147,7 @@ Seven pages. Their text is the tour's narration: as the screen reader reads each
 
 **`/sitemap.xml`** is a `urlset` of the seven pages with absolute URLs. **`/robots.txt`** allows everything and names the sitemap. The server generates both from the address it's actually serving, so any port works.
 
-**Timing.** About 6 minutes for all seven pages with NVDA, and about 9 minutes for the whole tour. **Amended 2026-09-29:** the first targets were 3 and 5 minutes. The final review estimated 6 and 9 from the fixture's recorded NVDA run (about 1.3 seconds a step, plus about 16 seconds a page). The owner's Windows run confirms them before release.
+**Timing.** About 7 minutes for all seven pages with NVDA, and about 9 minutes for the whole tour. **Amended 2026-09-29:** the first targets were 3 and 5 minutes. The final review estimated 6 and 9 from the fixture's recorded NVDA run (about 1.3 seconds a step, plus about 16 seconds a page). **Amended again 2026-09-29, after the owner's Windows runs:** a clean audit holds NVDA for about 6½ minutes, about 6:40 from Enter to the next pause, so the audit is said to take about 7 minutes; 9 holds for the tour.
 
 The pages' wording, and the flags, assume NVDA's English interface, as voicecap's flag rules do.
 

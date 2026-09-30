@@ -56,7 +56,30 @@ export interface NvdaProcess {
   path: string | null;
 }
 
-const NVDA_PROCESSES = `Get-CimInstance Win32_Process -Filter "Name='nvda.exe'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`;
+/**
+ * Every running nvda.exe as "<pid>|<path>" lines. The path comes from QueryFullProcessImageName,
+ * which needs only the limited query right. An installed NVDA runs with UI Access, at a higher
+ * integrity level than voicecap, and Windows gives a lower level that right but not the ones
+ * WMI's ExecutablePath needs, so WMI's path for it is empty. The C# is compiled only when an
+ * nvda.exe is running.
+ */
+const NVDA_PROCESSES = [
+  "$running = @(Get-Process -Name nvda -ErrorAction SilentlyContinue);",
+  "if ($running.Count -gt 0) {",
+  "Add-Type -Namespace Voicecap -Name Image -MemberDefinition '",
+  '[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);',
+  '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool QueryFullProcessImageName(IntPtr process, int flags, System.Text.StringBuilder name, ref int size);',
+  '[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);',
+  "';",
+  "foreach ($nvda in $running) {",
+  // PROCESS_QUERY_LIMITED_INFORMATION
+  "$path = ''; $handle = [Voicecap.Image]::OpenProcess(0x1000, $false, $nvda.Id);",
+  "if ($handle -ne [IntPtr]::Zero) {",
+  "$name = New-Object Text.StringBuilder 32768; $size = $name.Capacity;",
+  "if ([Voicecap.Image]::QueryFullProcessImageName($handle, 0, $name, [ref]$size)) { $path = $name.ToString() }",
+  "[void][Voicecap.Image]::CloseHandle($handle) }",
+  '"$($nvda.Id)|$path" } }',
+].join(" ");
 
 /**
  * Every running nvda.exe, Guidepup's or anyone else's, with its path, so the person's own NVDA can
@@ -116,13 +139,35 @@ export async function restartNvda(exe: string): Promise<void> {
 }
 
 /**
- * restartNvda() without waiting, for when voicecap is exiting: a detached PowerShell starts NVDA,
- * so the start still happens after voicecap has gone.
+ * The PowerShell that starts the person's NVDA (`exe`) once no nvda.exe runs from `after`
+ * (Guidepup's), waiting at most `waitSeconds`: an NVDA still quitting could otherwise take the new
+ * one down with it. Guidepup's NVDA runs as the person running voicecap, so its path is always
+ * given.
  */
-export function restartNvdaDetached(exe: string): void {
+export function restartAfterScript(exe: string, after: string, waitSeconds: number): string {
+  return [
+    `$until = (Get-Date).AddSeconds(${waitSeconds});`,
+    "while ((Get-Date) -lt $until -and",
+    `@(Get-Process -Name nvda -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq ${powershellString(after)} }).Count -gt 0)`,
+    "{ Start-Sleep -Milliseconds 100 };",
+    startProcessScript(exe),
+  ].join(" ");
+}
+
+/**
+ * restartNvda() without waiting, for when voicecap is exiting: a detached PowerShell starts NVDA
+ * once Guidepup's NVDA (`after`) has quit (restartAfterScript), so the start still happens after
+ * voicecap has gone.
+ */
+export function restartNvdaDetached(exe: string, after: string): void {
   const helper = spawn(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(startProcessScript(exe))],
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      powershellCommand(restartAfterScript(exe, after, 20)),
+    ],
     { detached: true, stdio: "ignore", windowsHide: true },
   );
   // Node reports a PowerShell that can't start as an event after spawn() has returned; with
@@ -328,6 +373,34 @@ export async function cleanupOrphans(tmpDir: string, nvdaExe: string): Promise<s
   if (deleted > 0)
     notes.push(`Deleted ${plural(deleted, "browser profile")} left by an earlier run.`);
   return notes;
+}
+
+/**
+ * Close every browser whose command line names `profileDir`, each with its helpers: one that took
+ * over a voicecap profile when the browser voicecap started handed over to a new copy of itself,
+ * as Chrome does to finish installing an update. Resolves to how many were closed (0 when
+ * PowerShell didn't answer).
+ */
+export async function closeBrowsersUsing(profileDir: string): Promise<number> {
+  const script = [
+    "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' OR Name='msedge.exe'\"",
+    "| ForEach-Object {",
+    `  if ($_.CommandLine -and $_.CommandLine.Contains(${powershellString(profileDir)})) { "$($_.ProcessId),$($_.ParentProcessId)" }`,
+    "}",
+  ].join(" ");
+  const found = await powershell(script).catch(() => "");
+  const browsers = found
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(",").map(Number))
+    .filter(([pid, parent]) => Number.isInteger(pid) && Number.isInteger(parent))
+    .map(([pid, parent]) => [pid!, parent!] as const);
+  const pids = new Set(browsers.map(([pid]) => pid));
+  // Kill each browser's main process with its tree; its helpers are its children.
+  const roots = browsers.filter(([, parent]) => !pids.has(parent)).map(([pid]) => pid);
+  for (const pid of roots) {
+    await run("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }).catch(() => {});
+  }
+  return roots.length;
 }
 
 /** Ask NVDA to quit (as Guidepup does), and end the process if it's still there after a while. */

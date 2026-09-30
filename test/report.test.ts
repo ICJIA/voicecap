@@ -282,6 +282,30 @@ describe("generateReport", () => {
     expect(html).toContain("<h3>Environment 2</h3>");
   });
 
+  it("names who ran each session, and says when there was no name or none was recorded", async () => {
+    const outDir = await tempOutDir();
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      pages: [{ path: "/" }],
+      resumedWith: [{}, {}],
+    });
+    run.sessions[0]!.reviewer = { name: "cschweda", source: "option" };
+    run.sessions[1]!.reviewer = null;
+    // The third, like a session from before voicecap recorded the reviewer, has none at all.
+    const html = await readFile(
+      (await generateReport({ outDir, run, target: "live", config })).file,
+      "utf8",
+    );
+    const start = html.indexOf('<table class="sessions-table">');
+    const table = html.slice(start, html.indexOf("</table>", start));
+    expect(table).toContain('<th scope="col">Reviewer</th>');
+    const cells = table
+      .split("<tr>")
+      .slice(2)
+      .map((row) => /<td>[^<]*<\/td><td>([^<]*)<\/td>/.exec(row)?.[1]);
+    expect(cells).toEqual(["cschweda", "None given", "Not recorded"]);
+  });
+
   it("refuses to write a snapshot into a completed run", async () => {
     const outDir = await tempOutDir();
     const run = await writeSyntheticRun(outDir, { id: "2026-09-26_1405", pages: [{ path: "/" }] });

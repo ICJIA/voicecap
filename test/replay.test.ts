@@ -84,7 +84,9 @@ describe("replaying the fixture run", () => {
   // The flawed page (fixture/site/flawed/) has three "Read more" links and one "Click here", an
   // image without alt text and an image-only link without it, an unlabeled field, an icon-only
   // button, 12 links before main and no skip link, and an h2 as its first heading. NVDA 2026.2
-  // reads an image without alt text as "unlabeled graphic".
+  // reads an image without alt text as "unlabeled graphic". The unlabeled field is flagged in the
+  // tab pass only: in the read pass, a line with only "edit" could be a labeled field whose label
+  // NVDA read as the line before (tabOnlyRoles).
   it("raises exactly the flawed page's problems as flags, and none for the other pages", async () => {
     const { run } = await replay({ pages: path.join(ROOT, "fixture", "pages.json") });
     const flawed = run.pages.find((page) => page.url.endsWith("/flawed/"));
@@ -106,9 +108,9 @@ describe("replaying the fixture run", () => {
       {
         rule: "unlabeled",
         pass: "read",
-        count: 4,
+        count: 3,
         message:
-          'Unlabeled or poorly labeled items in the read pass: "unlabeled graphic" ×2, "button" ×1, "edit" ×1.',
+          'Unlabeled or poorly labeled items in the read pass: "unlabeled graphic" ×2, "button" ×1.',
       },
       {
         rule: "unlabeled",

@@ -190,10 +190,22 @@ export interface PageRecord extends PageRef {
   errors: string[];
 }
 
+/** Who recorded something, and where voicecap found the name. */
+export interface ReviewerRecord {
+  name: string;
+  /** --reviewer, VOICECAP_REVIEWER, `git config user.name`, or the config's reviewer. */
+  source: "option" | "environment" | "git" | "config";
+}
+
 export interface SessionRecord {
   /** 1-based. */
   n: number;
   startedAt: string;
+  /**
+   * Who ran this session: --reviewer, else VOICECAP_REVIEWER, `git config user.name`, or the
+   * config's reviewer. null when there was no name; absent in runs from before voicecap recorded it.
+   */
+  reviewer?: ReviewerRecord | null;
   endedAt: string | null;
   /** null when the session never ended cleanly (crash, power loss). */
   endReason: "completed" | "interrupted" | "environment-failure" | "error" | null;

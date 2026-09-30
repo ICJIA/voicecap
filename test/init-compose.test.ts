@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import { composeArgs, formatCommand, quoteArg, type InitAnswers } from "../src/init/compose.js";
 
 describe("composeArgs", () => {
-  it("orders --site, a sitemap, then --limit, with no --out when home is null", () => {
+  it("orders --site, a sitemap, then --limit, and --reviewer last, with no --out when home is null", () => {
     const answers: InitAnswers = {
       site: "https://i2i.illinois.gov",
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
+      reviewer: "cschweda",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
@@ -17,15 +18,18 @@ describe("composeArgs", () => {
       "https://i2i.illinois.gov/sitemap-index.xml",
       "--limit",
       "5",
+      "--reviewer",
+      "cschweda",
     ]);
   });
 
-  it("uses --pages for a page list file, omits --limit when null, and puts --out last", () => {
+  it("uses --pages for a page list file, omits --limit when null, and puts --out before --reviewer", () => {
     const answers: InitAnswers = {
       site: "https://dvfr.illinois.gov",
       pages: { kind: "pages", file: "pages.csv" },
       limit: null,
       home: "C:\\Users\\Jane Doe\\vt",
+      reviewer: "Jane Doe",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
@@ -34,6 +38,8 @@ describe("composeArgs", () => {
       "pages.csv",
       "--out",
       "C:\\Users\\Jane Doe\\vt",
+      "--reviewer",
+      "Jane Doe",
     ]);
   });
 
@@ -43,12 +49,15 @@ describe("composeArgs", () => {
       pages: { kind: "page", url: "https://dvfr.illinois.gov/faq/" },
       limit: null,
       home: null,
+      reviewer: "cschweda",
     };
     expect(composeArgs(answers)).toEqual([
       "--site",
       "https://dvfr.illinois.gov",
       "--page",
       "https://dvfr.illinois.gov/faq/",
+      "--reviewer",
+      "cschweda",
     ]);
   });
 });
@@ -84,9 +93,23 @@ describe("formatCommand", () => {
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
+      reviewer: "cschweda",
     };
     expect(formatCommand(composeArgs(answers))).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5 --reviewer cschweda",
+    );
+  });
+
+  it("quotes a reviewer's name with a space", () => {
+    const answers: InitAnswers = {
+      site: "https://dvfr.illinois.gov",
+      pages: { kind: "page", url: "https://dvfr.illinois.gov/" },
+      limit: null,
+      home: null,
+      reviewer: "Jane Doe",
+    };
+    expect(formatCommand(composeArgs(answers))).toBe(
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/ --reviewer 'Jane Doe'",
     );
   });
 

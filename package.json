@@ -1,7 +1,7 @@
 {
   "name": "@icjia/voicecap",
   "version": "0.4.1",
-  "description": "Drive NVDA through a website's pages, save what it speaks as reviewable transcripts, and report automated coverage and human review.",
+  "description": "Listen through a website with a real screen reader: voicecap takes NVDA page by page, saves every word it says as transcripts, and records what people reviewed.",
   "keywords": [
     "accessibility",
     "a11y",

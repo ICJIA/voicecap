@@ -63,6 +63,7 @@ interface RunOptions {
   fresh?: boolean;
   out?: string;
   runName?: string;
+  reviewer?: string;
   replayFrom?: string;
 }
 
@@ -105,7 +106,7 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
   const program = new Command("voicecap");
   program
     .description(
-      "Drive NVDA through a site's pages, save what it says as reviewable transcripts, and report automated coverage and human review.",
+      "Listen through a website with a real screen reader: voicecap takes NVDA page by page, saves every word it says as transcripts, and records what people reviewed.",
     )
     .version(voicecapVersion(), "-v, --version", "print voicecap's version")
     .enablePositionalOptions()
@@ -148,6 +149,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
     .option("--fresh", "start a new run instead of resuming an interrupted one")
     .option("--out <dir>", OUT_HELP)
     .option("--run-name <name>", "add a name to the run's folder")
+    .option(
+      "--reviewer <name>",
+      "who is running it, recorded with each session (default: VOICECAP_REVIEWER, git config user.name, or the config's reviewer)",
+    )
     .option("--replay-from <dir>", "replay a run folder instead of running NVDA (replay driver)")
     .addHelpText(
       "after",
@@ -605,6 +610,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       fresh: options.fresh ?? false,
       out: options.out,
       runName: options.runName ?? null,
+      reviewer: options.reviewer ?? null,
       replayFrom: options.replayFrom ?? null,
       cwd: ctx.cwd,
       env: ctx.env,

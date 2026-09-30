@@ -8,6 +8,7 @@ import type {
   PassSummary,
   ReviewEntry,
   ReviewStatus,
+  SessionRecord,
   SkipReason,
   SkippedRecord,
 } from "../model.js";
@@ -553,12 +554,12 @@ function environmentSection(model: ReportModel): string {
   const sessions = model.sessions
     .map(
       (session) =>
-        `<tr><td>${session.n}</td><td>${esc(session.startedAt)}</td><td>${session.endedAt ? esc(session.endedAt) : DASH}</td><td>${esc(session.endReason ?? "did not end cleanly")}</td><td>${session.pagesDone.toLocaleString("en-US")}</td></tr>`,
+        `<tr><td>${session.n}</td><td>${esc(reviewerCell(session.reviewer))}</td><td>${esc(session.startedAt)}</td><td>${session.endedAt ? esc(session.endedAt) : DASH}</td><td>${esc(session.endReason ?? "did not end cleanly")}</td><td>${session.pagesDone.toLocaleString("en-US")}</td></tr>`,
     )
     .join("\n");
   const sessionTable =
     model.sessions.length > 0
-      ? `<table class="sessions-table">\n<caption>Sessions of this run (each start or resume)</caption>\n<thead><tr><th scope="col">Session</th><th scope="col">Started</th><th scope="col">Ended</th><th scope="col">How it ended</th><th scope="col">Pages done</th></tr></thead>\n<tbody>\n${sessions}\n</tbody>\n</table>\n`
+      ? `<table class="sessions-table">\n<caption>Sessions of this run (each start or resume)</caption>\n<thead><tr><th scope="col">Session</th><th scope="col">Reviewer</th><th scope="col">Started</th><th scope="col">Ended</th><th scope="col">How it ended</th><th scope="col">Pages done</th></tr></thead>\n<tbody>\n${sessions}\n</tbody>\n</table>\n`
       : `<p>This run has no sessions yet.</p>\n`;
   const environments =
     model.environments.length === 0
@@ -570,6 +571,12 @@ function environmentSection(model: ReportModel): string {
           )
           .join("");
   return `<section>\n<h2 id="environment">Environment</h2>\n${sessionTable}${environments}</section>\n`;
+}
+
+/** Who ran a session: the name; "None given" when it had none; "Not recorded" before voicecap kept it. */
+function reviewerCell(reviewer: SessionRecord["reviewer"]): string {
+  if (reviewer === undefined) return "Not recorded";
+  return reviewer === null ? "None given" : reviewer.name;
 }
 
 function environmentList(env: EnvironmentRecord): string {

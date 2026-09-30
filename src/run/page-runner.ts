@@ -32,6 +32,8 @@ export interface PageContext {
   /** Timeout for loading a page and moving into its content. */
   openTimeoutMs: number;
   pageTimeoutMs: number;
+  /** How many times the page is tried before it's recorded as failed (pageAttempts). */
+  maxAttempts: number;
   environment: EnvironmentRecord;
   /** The run's abort signal (Ctrl+C). */
   signal: AbortSignal;
@@ -69,13 +71,13 @@ interface Attempt {
   skip?: SkippedRecord;
 }
 
-const MAX_ATTEMPTS = 2;
-
 /**
- * Transcribe one page: every pass, each on a fresh load. On a timeout (a step, or the whole
- * page), restart the screen reader and browser and retry the page once; an HTTP 5xx is retried
- * once too. Any other failure is recorded and the run moves on. Ctrl+C propagates as
- * InterruptedError and leaves the page pending.
+ * Transcribe one page: every pass, each on a fresh load. A page that fails is tried again, up to
+ * ctx.maxAttempts times in all: after a timeout, a driver error (such as the browser losing the
+ * foreground), or a page that couldn't be opened, the screen reader and browser restart first; an
+ * HTTP 5xx is tried again as it is. A page the site answered with an HTTP 4xx isn't: trying again
+ * can't help. Each earlier attempt is kept (keepEarlierAttempt), and the outcome's errors name
+ * every attempt that failed. Ctrl+C propagates as InterruptedError and leaves the page pending.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
@@ -83,9 +85,14 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const errors: string[] = [];
   for (let attempt = 1; ; attempt++) {
     const result = await runAttempt(ctx);
-    if (result.kind === "retry" && attempt < MAX_ATTEMPTS) {
+    if (result.kind === "retry" && attempt < ctx.maxAttempts) {
       errors.push(`Attempt ${attempt} failed (${result.error ?? "unknown error"}); retrying.`);
-      if (result.restart) await ctx.session.restart(`retrying ${ctx.page.url}`, ctx.signal);
+      if (result.restart) {
+        await ctx.session.restart(
+          `retrying ${ctx.page.url}: attempt ${attempt + 1} of ${ctx.maxAttempts}`,
+          ctx.signal,
+        );
+      }
       continue;
     }
     if (result.error) errors.push(result.error);
@@ -133,11 +140,10 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         );
       } catch (error) {
         if (error instanceof InterruptedError) throw error;
-        const retry = error instanceof StepTimeoutError;
         return {
           ...attempt,
-          kind: retry ? "retry" : "failed",
-          restart: retry,
+          kind: "retry",
+          restart: true,
           error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
         };
       }
@@ -190,7 +196,8 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
       if (result.stopReason === "error") {
         return {
           ...attempt,
-          kind: "failed",
+          kind: "retry",
+          restart: true,
           error: `${pass} pass: ${result.errors[0] ?? "error"}`,
         };
       }

@@ -7,19 +7,20 @@ export type PageChoice =
 /**
  * `init`'s answers, ready to become a run's command-line arguments. `home` is the transcripts
  * home to write with `--out`; null means it matches the home already in effect, so `--out` is
- * left out.
+ * left out. `reviewer` is the name each session of the run records.
  */
 export interface InitAnswers {
   site: string;
   pages: PageChoice;
   limit: number | null;
   home: string | null;
+  reviewer: string;
 }
 
 /**
  * Turn `init`'s answers into the run options that reproduce them: `--site`, the page source
- * (`--sitemap`, `--pages`, or `--page`), `--limit` when a number was given, and `--out` last when
- * `home` isn't null.
+ * (`--sitemap`, `--pages`, or `--page`), `--limit` when a number was given, `--out` when `home`
+ * isn't null, and `--reviewer` last, where it's easy to find and change for someone else.
  */
 export function composeArgs(answers: InitAnswers): string[] {
   const args = ["--site", answers.site];
@@ -36,6 +37,7 @@ export function composeArgs(answers: InitAnswers): string[] {
   }
   if (answers.limit !== null) args.push("--limit", String(answers.limit));
   if (answers.home !== null) args.push("--out", answers.home);
+  args.push("--reviewer", answers.reviewer);
   return args;
 }
 
