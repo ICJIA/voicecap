@@ -72,19 +72,21 @@ The mockup shows this order. Each section's first sentence is its point.
    - its spoken-line strip: one bar per line NVDA spoke, as wide as the line took and as tall as the square root of its length;
    - a link to its transcripts.
 5. **What the flags found.** For each flagged page, one row per rule: what the rule found, and NVDA's own words quoted from the transcripts.
-6. **Problems during the runs.** Every failed attempt, explained (see "Problems during the runs").
-7. **What these results cover.** Two panels:
+6. **What changed since the last run.** The pages that sound different from the run before, each with its changes (see "What changed since the last run").
+7. **Problems during the runs.** Every failed attempt, explained (see "Problems during the runs").
+8. **What these results cover.** Two panels:
    - **Covered:** the scope, the passes, and every problem, linked to where it's explained.
    - **Technical limits:** the screen reader, version, language, and browser the results come from, that flags match NVDA's English phrasing and the person reviewing decides what they mean, and any change of environment between runs.
-8. **The evidence behind these results.** A line with the number of runs and whether each completed and was sealed; what a fingerprint is, in two plain sentences; the "Check the fingerprints" button (see "Checking the fingerprints in the page"); and the command that checks the originals. Then one folded panel per run the standing draws on, each with:
+9. **The evidence behind these results.** A line with the number of runs and whether each completed and was sealed; what a fingerprint is, in two plain sentences; the "Check the fingerprints" button (see "Checking the fingerprints in the page"); and the command that checks the originals. Then one folded panel per run the standing draws on, each with:
    - the run's facts (started, finished, pages, NVDA restarts, run by, and the listener's statement);
    - the minute-by-minute timeline, and every event to the millisecond as a table (evidence A);
    - NVDA's own log checked against the transcripts (evidence C);
    - the test environment (evidence D);
    - the fingerprints (SHA-256) and how to check them: `npx @icjia/voicecap verify --site <url>`.
-9. **How voicecap came to be.** Why it exists, its timeline on a Windows PC and on a Mac, and a few things worth knowing (see "Fixed text").
-10. **Appendix: every transcript.** Per page: its screenshot, and its read, headings, and Tab transcripts word for word, each with its line count, size, and fingerprint.
-11. **The footer.**
+   - the walkthrough file, to download, with the command that repeats the run (see "Repeating a walkthrough").
+10. **How voicecap came to be.** Why it exists, its timeline on a Windows PC and on a Mac, and a few things worth knowing (see "Fixed text").
+11. **Appendix: every transcript.** Per page: its screenshot, and its read, headings, and Tab transcripts word for word, each with its line count, size, and fingerprint.
+12. **The footer.**
    - What voicecap is, with the link again: "voicecap is free, open-source software that speeds up a person's review of a website with a real screen reader. It presses the screen reader's keys the way a person would, moves from page to page on its own, and saves every word the screen reader says."
    - When the page was generated, and the time zone its times are in.
    - The file's own name and its Word copy's.
@@ -112,7 +114,7 @@ The mockup shows this order. Each section's first sentence is its point.
 voicecap speeds up a person's review. The page shows that review as the records show it, in three parts:
 
 - **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, after Ctrl+C too, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
-  - The session's record keeps the answer, the name (taken as reviews take it), and when voicecap asked and when it was answered. The run's seal covers it.
+  - The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
   - It isn't asked without a terminal (a script, CI), or after a second Ctrl+C or a closed window. The page then says "not recorded".
   - On a Mac, it asks about VoiceOver.
 - **Reading the transcripts, and deciding:** `voicecap review`'s entries, as today: "Reviewed, no issues", "Issue found" with its note, and "Fixed".
@@ -122,6 +124,21 @@ The page:
 - says a person listened only where the statement says so: "Listened to live by <name>" for pages read in a session answered "Yes, all of them", and "<name> listened to part of this session" for "Part of them";
 - leads with what the person did, never with what they haven't done. What's left appears once, as tasks, under "What's still to do";
 - shows each count out of its total, so nothing looks complete that isn't.
+
+## What changed since the last run
+
+The owner asked whether a diff against the run before is information or clutter. It's information: after a fix or an upgrade, it shows exactly what a screen reader user now hears differently, and when nothing changed, it shows the same pages sound the same. It stays quiet by showing only what changed, folded.
+
+- **The run before** is the most recent earlier completed, sealed run with the same page source, as `--compare previous` picks it, per page. voicecap already makes these diffs (`src/report/compare.ts`); the model reuses them.
+- **The section opens with one line,** for example: "Compared with the run on 29 September: 3 of 7 pages sound different, and 4 sound exactly the same. Resolved: the 'click here' links on Common mistakes (generic-link-text)." When nothing changed: "Every page read in full in both runs sounds exactly the same."
+- **Pages that sound the same** are counted, not shown. **Pages read in only one of the two runs** are listed, with the reason (new, no longer listed, or failed in one run).
+- **Each page that sounds different** is folded behind one line: its path, how many lines changed in each pass, and any flags resolved or new. Opened, it shows each pass's changes:
+  - removed lines and added lines, each marked in words ("Removed", "Added") as well as by color, with the changed words highlighted within a line;
+  - runs of unchanged lines collapsed to a count ("12 lines the same");
+  - the flags before and after: resolved, new, or unchanged.
+- **When the two runs used different NVDA, browser, or voicecap versions,** the section says so first, since some differences may come from the tools rather than the site.
+- **The summary** gets one line when there's a run before: "Since the last run on <date>: 3 pages sound different, and the 'click here' links on Common mistakes are fixed."
+- **The Word copy** has the summary line and, per changed page, a table of removed and added lines.
 
 ## Problems during the runs
 
@@ -179,6 +196,7 @@ The page is long, so most of it starts folded. Nothing is left out: every fold o
 - **Folded, each behind a line that says what's inside:**
   - pages with nothing to note, when there are more than 12 pages ("The other 88 pages: nothing to note, all read in full"). Pages that need attention always show;
   - each flagged page's quotes, when more than 3 pages have flags;
+  - each page that sounds different from the run before;
   - each problem, and the table of kinds;
   - each run's evidence, and within it the event table;
   - the rest of the background story, and the "worth knowing" cards;
@@ -215,6 +233,29 @@ A manager will ask what the fingerprints are for, and whether they can check the
 - Run `npx @icjia/voicecap verify --site <url>` on the transcripts folder, which checks the originals.
 
 **Without scripts,** the button is replaced by a line on how to check with those commands. **The Word copy** runs no scripts: it has the explanation, the fingerprints, and the two checks.
+
+## Repeating a walkthrough
+
+A walkthrough file lets anyone repeat a run exactly: an auditor checking the results, or the owner after a site's major upgrade. It's one JSON file (a recipe read as a whole, so not JSONL).
+
+- **What it holds:**
+  - `voicecapWalkthrough: 1`, its format's version;
+  - the site, and every page in the order the run read it, with its label, template, and notes;
+  - the passes, the step limits, the capture mode, and the readiness and screen reader settings that shape what's heard;
+  - where it came from: the original run's id, seal, and dates; the voicecap, screen reader, and browser versions; and the page source, with the sitemap's or page list's fingerprint as read;
+  - for each page and pass, the fingerprint of what the screen reader said in the original.
+- **Getting one:** `voicecap walkthrough [--site <url>] [--run <id>] [--out <home>] <file>` writes it from any completed run, older ones too, since run records already hold all of it. The shareable report carries each run's walkthrough file as a download, with the command to repeat it.
+- **Repeating it:** `npx @icjia/voicecap --walkthrough walkthrough.json [--reviewer <name>] [--out <home>]` makes a new run of the same pages, in the same order, the same three ways, with the same limits.
+  - Options that would change what's read, such as `--sitemap`, `--limit`, or `--passes`, are refused alongside it.
+  - It runs with NVDA today, and with VoiceOver once its driver exists. The NVDA settings then don't apply, and the new run records that the original used NVDA.
+- **After the repeat,** voicecap compares each page with the original's fingerprints and says, page by page, "sounds the same" or "sounds different". It needs only the file for that. With the original run in the same home, `--compare <run>` shows the differences line by line, as "What changed since the last run" does.
+- **What it can't promise:** the same pages, keys, and order, but not the same words. A changed site, a newer NVDA or browser, or a different screen reader changes what's said, and the run says which versions differ. With VoiceOver, the wording differs throughout, so a repeat shows the same pages were covered.
+- **Tests,** in stage 1 with the scripted and replay drivers:
+  - a run's walkthrough file, written and read back;
+  - a repeat run reading exactly the listed pages, in order, with the same settings;
+  - options that conflict with it, refused;
+  - "sounds the same" and "sounds different" against the fingerprints;
+  - a walkthrough file written from a run made before this existed.
 
 ## Fixed text: how voicecap works, and how it came to be
 
@@ -273,7 +314,7 @@ Everything below goes in the run's folder. Each file's SHA-256 is recorded in `r
   - The parsing builds on voicecap's NVDA-log import for manual sessions (`src/manual/nvda-log.ts`).
   - VoiceOver keeps no such log, as far as we know. For Mac runs the page will say this check is NVDA-only; the VoiceOver driver confirms it.
 - **D. Who and what.** Recorded when the run starts, in the run's environment record:
-  - **The person who ran it:** the name, taken as reviews take it (`resolveReviewer`: `--reviewer`, then `VOICECAP_REVIEWER`, then the reviewer setting, then `git config user.name`).
+  - **The person who ran it:** each session's reviewer, which runs record from 0.5.0: `--reviewer`, which `init` asks for, else `VOICECAP_REVIEWER`, `git config user.name`, or the config's `reviewer`.
   - **The operating system:** edition, version, and build (with its update revision), and architecture.
   - **The processor:** its name, base speed, physical cores, and logical processors.
   - **Memory, and the display:** the display's resolution, refresh rate, and scaling, and the browser window's fixed size.
@@ -364,6 +405,7 @@ In the site's folder of the transcripts home:
 - **`src/share/problems.ts`:** each problem's kind, verdict, and record, and the verdict line. It's pure, like the model.
 - **`src/share/text.ts`:** the fixed text, for both renderers.
 - **`src/share/check.ts`:** the page's fingerprint check, the small script the page carries, with its built-in SHA-256.
+- **`src/share/walkthrough.ts`:** writes a run's walkthrough file and reads one back; `runAudit` takes it as `walkthrough`, and `--walkthrough` on the command line.
 - **`src/share/docx.ts`:** the Word copy, from the same model, with `docx`.
 - **`src/share/share.ts`:** writes `current.*` and the dated copies, and appends to `shares.json`.
 - **`src/verify.ts`:** gains the `shares.json` checks.
@@ -378,7 +420,8 @@ In the site's folder of the transcripts home:
 
 **CLI and API:**
 - `voicecap share`, with `--site` and `--out` as `report` and `verify` take them.
-- `shareReport(options)` joins the programmatic API, and the CHANGELOG lists it.
+- `voicecap walkthrough`, and `--walkthrough` on a run (see "Repeating a walkthrough").
+- `shareReport(options)` and `writeWalkthrough(options)` join the programmatic API, and the CHANGELOG lists them.
 
 **Config:** `report.siteName`, optional.
 
@@ -405,6 +448,12 @@ In the site's folder of the transcripts home:
   - which parts start folded, at 12 and 13 pages, and at 3 and 4 flagged pages;
   - no heading inside a summary line;
   - "Open every section", printing, and a link each opening what they should.
+- What changed since the last run:
+  - the run before, chosen as `--compare previous` chooses it;
+  - the section's line, with pages the same counted and not shown, and pages read in only one run listed with their reason;
+  - a changed page's removed and added lines marked in words, and its flags resolved and new;
+  - the warning when the two runs' versions differ;
+  - the demo runs of 29 September as a real case: every page read in full in both sounds exactly the same.
 - Problems:
   - each kind, from cause codes, and from the wording of the demo runs' 0.4.1 records and of 0.5.0 records;
   - each verdict, and the verdict line;
@@ -431,9 +480,10 @@ In the site's folder of the transcripts home:
 ## Stages and release
 
 1. **Stage 1:**
-   - the model, and the page with its folds, its problems section, the human review, and the fixed text;
+   - the model, and the page with its folds, what changed since the last run, its problems section, the human review, and the fixed text;
    - the Word copy;
    - sharing: `current.*`, `voicecap share`, `shares.json`, and `verify`;
+   - the walkthrough file: `voicecap walkthrough`, `--walkthrough`, and the report's download;
    - evidence D with page titles, E without the program in front, and F.
 
    Built and tested without a screen reader, so it can be done remotely. It merges to `main` when done, because it only adds.
