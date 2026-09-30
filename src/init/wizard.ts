@@ -60,10 +60,13 @@ const SITEMAP_HINT =
 const LIMIT_HINT = "Enter a whole number of at least 1, or press Enter for all.";
 const HOME_TIP =
   'Tip: set VOICECAP_TRANSCRIPTS to keep every run in one place. See "The audit record" in the README.';
+/** The reviewer's quick default, for Enter; a person's name can be typed instead. */
+const DEFAULT_REVIEWER = "icjia";
+const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the default.";
 
 /**
  * Ask `init`'s questions in order: the website, where the pages are, how many (for a sitemap or a
- * page list), and the transcripts home. Then show the command (with what to change for cmd when it
+ * page list), the transcripts home, and the reviewer. Then show the command (with what to change for cmd when it
  * has a single-quoted value, and the folder to run it from when it depends on one) and, where this
  * computer can run it, warn that the screen reader takes over and ask whether to run it now;
  * elsewhere, say why it can't. A wrong answer is explained and asked again. The prompter's
@@ -76,8 +79,9 @@ export async function runWizard(deps: WizardDeps): Promise<WizardResult> {
   const pages = await askPages(deps, site);
   const limit = pages.kind === "page" ? null : await askLimit(deps);
   const home = await askHome(deps, site);
+  const reviewer = await askReviewer(deps);
 
-  const args = composeArgs({ site: site.origin, pages, limit, home });
+  const args = composeArgs({ site: site.origin, pages, limit, home, reviewer });
   const command = formatCommand(args);
   prompter.say("");
   prompter.say("Your command:");
@@ -307,6 +311,20 @@ async function askHome(deps: WizardDeps, site: URL): Promise<string | null> {
       ? path.win32.resolve(home).toLowerCase() === path.win32.resolve(inEffect).toLowerCase()
       : home === inEffect;
   return sameHome ? null : answer;
+}
+
+/**
+ * The reviewer, recorded with each session of the run. Enter takes VOICECAP_REVIEWER when it's
+ * set, else "icjia", a quick default; a person's name can be typed instead. Without
+ * VOICECAP_REVIEWER, a tip says how to make one's own name the default.
+ */
+async function askReviewer(deps: WizardDeps): Promise<string> {
+  const fromEnv = deps.env.VOICECAP_REVIEWER?.trim();
+  const reviewer = await deps.prompter.ask("Reviewer, recorded with the run", {
+    default: fromEnv ? fromEnv : DEFAULT_REVIEWER,
+  });
+  if (!fromEnv) deps.prompter.say(REVIEWER_TIP);
+  return reviewer;
 }
 
 /**

@@ -422,6 +422,27 @@ describe("--page", () => {
 });
 
 describe("a full session through the CLI", () => {
+  it("records a run's --reviewer with its session, and says so", async () => {
+    const run = await cli([
+      "--site",
+      SITE,
+      "--pages",
+      fixture("pages.json"),
+      "--replay-from",
+      fixture("replay-run"),
+      "--reviewer",
+      "Jane Doe",
+    ]);
+    expect(run.code).toBe(0);
+    expect(run.out).toContain("Reviewer: Jane Doe (from --reviewer)");
+    const out = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+    const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
+    const record = JSON.parse(
+      await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
+    ) as RunJson;
+    expect(record.sessions[0]?.reviewer).toEqual({ name: "Jane Doe", source: "option" });
+  });
+
   it("runs with the replay driver, then records a review and a manual session", async () => {
     const run = await cli([
       "--site",
@@ -771,14 +792,14 @@ describe("voicecap init", () => {
       undefined,
       {},
       {
-        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", "", ""]),
         fetch: realSitesFetch(),
         platformReadiness: () => Promise.resolve(READY),
       },
     );
     expect(run.code).toBe(0);
     expect(run.out).toContain(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml --reviewer icjia",
     );
   });
 
@@ -915,14 +936,14 @@ describe("voicecap init", () => {
       liveTest: () =>
         Promise.resolve([{ id: "live", status: "OK", summary: "NVDA spoke as expected" }]),
     });
-    const run = await initAtTerminal(["n", "dvfr.illinois.gov", "", "", "", ""], {
+    const run = await initAtTerminal(["n", "dvfr.illinois.gov", "", "", "", "", ""], {
       fetch: realSitesFetch(),
       platformReadiness: () => Promise.resolve(platform),
     });
     expect(run.code).toBe(0);
     expect(run.out).toContain("Test NVDA now?");
     expect(run.out).toContain(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml --reviewer icjia",
     );
     // The order the brief pins down: the preflight, then the live-test offer, then the wizard.
     const verdict = run.out.indexOf("Ready: this computer can run NVDA for voicecap.");
@@ -976,7 +997,7 @@ describe("voicecap init", () => {
       undefined,
       {},
       {
-        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", "", ""]),
         fetch: realSitesFetch(),
         platformReadiness: () => Promise.resolve(platform),
       },
@@ -986,7 +1007,7 @@ describe("voicecap init", () => {
     expect(run.out).not.toContain("Test NVDA now?");
     expect(liveTests).toBe(0);
     expect(run.out).toContain(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml --reviewer icjia",
     );
   });
 
@@ -1024,7 +1045,7 @@ describe("voicecap init", () => {
       undefined,
       {},
       {
-        stdin: linesStream(["dvfr.illinois.gov", "", "", "", ""]),
+        stdin: linesStream(["dvfr.illinois.gov", "", "", "", "", ""]),
         fetch: realSitesFetch(),
         platformReadiness: () => Promise.resolve(READY),
       },
@@ -1058,7 +1079,7 @@ describe("voicecap init", () => {
       dir,
       {},
       {
-        stdin: linesStream([SITE, "", "", "", "y"]),
+        stdin: linesStream([SITE, "", "", "", "", "y"]),
         fetch: fetchHomeOnly,
         platformReadiness: () => Promise.resolve(READY),
       },

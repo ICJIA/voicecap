@@ -19,6 +19,10 @@ const TIP =
 
 const DVFR_SITEMAP_COMMAND =
   "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap.xml";
+/** What every command ends with when the reviewer's question gets Enter. */
+const R = " --reviewer icjia";
+const REVIEWER_QUESTION = "Reviewer, recorded with the run";
+const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the default.";
 
 let tmp: string;
 
@@ -34,11 +38,13 @@ afterEach(async () => {
  * Run the wizard, typing the next scripted answer ("" is Enter) each time a question is shown, and
  * return its result and the screen: everything it printed, with each answer after its question as
  * a terminal echoes it. A question with no answer left ends the input (so the session rejects with
- * InputEndedError), and an answer never asked for fails the session.
+ * InputEndedError), and an answer never asked for fails the session. The reviewer's question gets
+ * `reviewer` (Enter, by default) instead, so the other tests' answers leave it out.
  */
 async function session(
   answers: readonly string[],
   deps: Partial<Omit<WizardDeps, "prompter">> = {},
+  reviewer = "",
 ): Promise<{ result: WizardResult; screen: string }> {
   const input = new PassThrough();
   const left = [...answers];
@@ -48,7 +54,7 @@ async function session(
       screen += chunk;
       // A question is one write that leaves its line open; say() always ends the line.
       if (!chunk.endsWith("\n")) {
-        const answer = left.shift();
+        const answer = chunk.startsWith(REVIEWER_QUESTION) ? reviewer : left.shift();
         if (answer === undefined) {
           input.end();
         } else {
@@ -87,7 +93,7 @@ describe("runWizard", () => {
     });
 
     const command =
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5";
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml --limit 5 --reviewer icjia";
     expect(result).toEqual({
       args: [
         "--site",
@@ -96,6 +102,8 @@ describe("runWizard", () => {
         "https://i2i.illinois.gov/sitemap-index.xml",
         "--limit",
         "5",
+        "--reviewer",
+        "icjia",
       ],
       command,
       run: false,
@@ -120,6 +128,8 @@ describe("runWizard", () => {
         "How many pages? A number, or Enter for all [all]: 5",
         `Transcripts home [${home}]: `,
         `  → this run goes into ${runFolder}`,
+        "Reviewer, recorded with the run [icjia]: ",
+        REVIEWER_TIP,
         "",
         "Your command:",
         `  ${command}`,
@@ -140,7 +150,7 @@ describe("runWizard", () => {
         "Checking http://dvfr.illinois.gov…\n" +
         "  → https://dvfr.illinois.gov (http://dvfr.illinois.gov redirects there)\n",
     );
-    expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("asks again for a website that isn't an address", async () => {
@@ -161,7 +171,7 @@ describe("runWizard", () => {
         `Website: ftp://dvfr.illinois.gov\n${hint}\n` +
         "Website: dvfr.illinois.gov\n",
     );
-    expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("asks about a site that doesn't answer", async () => {
@@ -182,14 +192,15 @@ describe("runWizard", () => {
         "Checking https://dvfr.illinois.gov…\n" +
         "  → https://dvfr.illinois.gov (it answers)\n",
     );
-    expect(no.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(no.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
 
     const yes = await session(["i2i.illinois.gov", "y", "", "", "", ""], { fetch });
     expect(yes.screen).toContain(
       "Use it anyway? [y/N]: y\nLooking for the site's sitemap…\nWhere are the pages?\n",
     );
     expect(yes.result.command).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-index.xml" +
+        R,
     );
   });
 
@@ -212,14 +223,15 @@ describe("runWizard", () => {
         "Transcripts home [transcripts]: \n",
     );
     expect(result.command).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --page https://i2i.illinois.gov/",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --page https://i2i.illinois.gov/" + R,
     );
   });
 
   it("takes the site's other sitemap, with the rest of the choices one further down", async () => {
     const second = await session(["i2i.illinois.gov", "2", "", "", ""]);
     expect(second.result.command).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml" +
+        R,
     );
 
     const another = await session(["i2i.illinois.gov", "3", "sitemap-0.xml", "y", "", "", ""]);
@@ -229,7 +241,8 @@ describe("runWizard", () => {
         "  → https://i2i.illinois.gov/sitemap-0.xml: HTTP 404.\n",
     );
     expect(another.result.command).toBe(
-      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-0.xml",
+      "npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap-0.xml" +
+        R,
     );
   });
 
@@ -253,7 +266,7 @@ describe("runWizard", () => {
           "  4. One page\n" +
           "Choose [1]: \n",
       );
-      expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+      expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
     }
   });
 
@@ -264,7 +277,7 @@ describe("runWizard", () => {
         `Sitemap (a full URL, or a name like sitemap.xml): ${answer}\nHow many pages? A number, or Enter for all [all]: \n`,
       );
       // The command has the full URL, which is unambiguous and safe to copy.
-      expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+      expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
     }
 
     const fetch = realSitesFetch({
@@ -275,7 +288,8 @@ describe("runWizard", () => {
       fetch,
     });
     expect(nested.result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemaps/pages.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemaps/pages.xml" +
+        R,
     );
 
     // A name that isn't there is checked as its full URL, which the explanation shows.
@@ -295,7 +309,7 @@ describe("runWizard", () => {
         "Use it anyway? [y/N]: n\n" +
         "Sitemap (a full URL, or a name like sitemap.xml): sitemap.xml\n",
     );
-    expect(missing.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(missing.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("writes a page given as a path as a full URL, and asks again for one off the site", async () => {
@@ -315,7 +329,8 @@ describe("runWizard", () => {
         "Transcripts home [transcripts]: \n",
     );
     expect(result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/" +
+        R,
     );
   });
 
@@ -325,7 +340,7 @@ describe("runWizard", () => {
     });
 
     const command =
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page 'https://dvfr.illinois.gov/faq/?a=1&b=2'";
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --page 'https://dvfr.illinois.gov/faq/?a=1&b=2' --reviewer icjia";
     expect(result.command).toBe(command);
     // cmd doesn't take single quotes as quotes: pasted as is, the command would end at the &.
     expect(screen).toContain(
@@ -361,7 +376,7 @@ describe("runWizard", () => {
         "How many pages? A number, or Enter for all [all]: \n",
     );
     expect(result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv'",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv'" + R,
     );
   });
 
@@ -384,7 +399,7 @@ describe("runWizard", () => {
       'Page list file (.csv or .json): "lists/dvfr pages.csv"\n  → 2 pages listed\n',
     );
     expect(result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv'",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv'" + R,
     );
   });
 
@@ -413,7 +428,7 @@ describe("runWizard", () => {
         "  → 1 page listed\n",
     );
     expect(result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages faq.json",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --pages faq.json" + R,
     );
   });
 
@@ -435,7 +450,7 @@ describe("runWizard", () => {
         "Sitemap (a full URL, or a name like sitemap.xml): https://dvfr.illinois.gov/sitemap.xml\n" +
         "How many pages? A number, or Enter for all [all]: \n",
     );
-    expect(no.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(no.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
 
     const yes = await session([
       "dvfr.illinois.gov",
@@ -450,7 +465,8 @@ describe("runWizard", () => {
       "  → https://dvfr.illinois.gov/sitemap-0.xml: HTTP 404.\nUse it anyway? [y/N]: y\n",
     );
     expect(yes.result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap-0.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://dvfr.illinois.gov/sitemap-0.xml" +
+        R,
     );
   });
 
@@ -473,7 +489,7 @@ describe("runWizard", () => {
         `Sitemap (a full URL, or a name like sitemap.xml): ftp://dvfr.illinois.gov/sitemap.xml\n${hint}\n` +
         "Sitemap (a full URL, or a name like sitemap.xml): https://dvfr.illinois.gov/sitemap.xml\n",
     );
-    expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("adds https:// to a sitemap address without a scheme, as for the website", async () => {
@@ -491,7 +507,7 @@ describe("runWizard", () => {
       "Sitemap (a full URL, or a name like sitemap.xml): dvfr.illinois.gov/sitemap.xml\n" +
         "How many pages? A number, or Enter for all [all]: \n",
     );
-    expect(plain.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(plain.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
 
     // A host:port address has no scheme either.
     const fetch = realSitesFetch({
@@ -503,7 +519,8 @@ describe("runWizard", () => {
       { fetch },
     );
     expect(withPort.result.command).toBe(
-      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://localhost:3000/sitemap.xml",
+      "npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap https://localhost:3000/sitemap.xml" +
+        R,
     );
   });
 
@@ -516,20 +533,20 @@ describe("runWizard", () => {
         `How many pages? A number, or Enter for all [all]: 2.5\n${hint}\n` +
         "How many pages? A number, or Enter for all [all]: 5\n",
     );
-    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --limit 5`);
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --limit 5${R}`);
   });
 
   it("takes all, as Enter does, for every page", async () => {
     const { result } = await session(["dvfr.illinois.gov", "", "All", "", ""]);
 
-    expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("writes --out only for a home other than the one in effect", async () => {
     const dvfr = ["dvfr.illinois.gov", "", ""];
 
     const inEffect = await session([...dvfr, "", ""]);
-    expect(inEffect.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(inEffect.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
     expect(inEffect.screen).toContain(
       "Transcripts home [transcripts]: \n" +
         `  → this run goes into ${path.join(tmp, "transcripts", "dvfr.illinois.gov", "2026-09-27")}${path.sep}\n` +
@@ -537,10 +554,10 @@ describe("runWizard", () => {
     );
 
     const typed = await session([...dvfr, "C:\\vt", ""]);
-    expect(typed.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out 'C:\\vt'`);
+    expect(typed.result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out 'C:\\vt'${R}`);
 
     const sameHome = await session([...dvfr, "./transcripts/", ""]);
-    expect(sameHome.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(sameHome.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("takes a home in one pair of matching quotes without them", async () => {
@@ -548,18 +565,18 @@ describe("runWizard", () => {
 
     for (const answer of ['"C:\\vt"', "'C:\\vt'"]) {
       const { result, screen } = await session([...dvfr, answer, ""]);
-      expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out 'C:\\vt'`);
+      expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out 'C:\\vt'${R}`);
       const runFolder = path.join(path.resolve(tmp, "C:\\vt"), "dvfr.illinois.gov", "2026-09-27");
       expect(screen).toContain(`  → this run goes into ${runFolder}${path.sep}\n`);
     }
 
     // Without its quotes, this is the home in effect.
     const inEffect = await session([...dvfr, '"transcripts"', ""]);
-    expect(inEffect.result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(inEffect.result.command).toBe(DVFR_SITEMAP_COMMAND + R);
 
     // Quotes that don't match stay.
     const unmatched = await session([...dvfr, "\"C:\\vt'", ""]);
-    expect(unmatched.result.args.slice(-2)).toEqual(["--out", "\"C:\\vt'"]);
+    expect(unmatched.result.args.slice(-4, -2)).toEqual(["--out", "\"C:\\vt'"]);
   });
 
   it("says which folder to run it from when the command has a relative path", async () => {
@@ -570,20 +587,24 @@ describe("runWizard", () => {
 
     // The default home, transcripts, when VOICECAP_TRANSCRIPTS isn't set.
     const byDefault = await session(["dvfr.illinois.gov", "", "", "", ""]);
-    expect(byDefault.screen).toContain(`  ${DVFR_SITEMAP_COMMAND}\n${resumeLine}${folderLine}\n`);
+    expect(byDefault.screen).toContain(
+      `  ${DVFR_SITEMAP_COMMAND}${R}\n${resumeLine}${folderLine}\n`,
+    );
 
     // A relative VOICECAP_TRANSCRIPTS.
     const relativeEnv = await session(["dvfr.illinois.gov", "", "", "", ""], {
       env: { VOICECAP_TRANSCRIPTS: "records" },
     });
-    expect(relativeEnv.screen).toContain(`  ${DVFR_SITEMAP_COMMAND}\n${resumeLine}${folderLine}\n`);
+    expect(relativeEnv.screen).toContain(
+      `  ${DVFR_SITEMAP_COMMAND}${R}\n${resumeLine}${folderLine}\n`,
+    );
 
     // A relative --out, though the home in effect is absolute.
     const relativeOut = await session(["dvfr.illinois.gov", "", "", "vt", ""], {
       env: { VOICECAP_TRANSCRIPTS: absoluteHome },
     });
     expect(relativeOut.screen).toContain(
-      `  ${DVFR_SITEMAP_COMMAND} --out vt\n${resumeLine}${folderLine}\n`,
+      `  ${DVFR_SITEMAP_COMMAND} --out vt${R}\n${resumeLine}${folderLine}\n`,
     );
 
     // A page list given as a relative path, though the home is absolute.
@@ -591,7 +612,7 @@ describe("runWizard", () => {
       env: { VOICECAP_TRANSCRIPTS: absoluteHome },
     });
     expect(relativeList.screen).toContain(
-      "  npx @icjia/voicecap --site https://dvfr.illinois.gov --pages faq.json\n" +
+      "  npx @icjia/voicecap --site https://dvfr.illinois.gov --pages faq.json --reviewer icjia\n" +
         `${resumeLine}${folderLine}\n`,
     );
   });
@@ -634,7 +655,7 @@ describe("runWizard", () => {
 
     expect(screen.slice(screen.indexOf("Your command:"))).toBe(
       "Your command:\n" +
-        "  npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv'\n" +
+        "  npx @icjia/voicecap --site https://dvfr.illinois.gov --pages 'lists/dvfr pages.csv' --reviewer icjia\n" +
         "In cmd, use double quotes instead of single quotes.\n" +
         "Run the same command again later to resume where it stopped.\n" +
         `Run it from this folder: ${tmp}\n` +
@@ -648,7 +669,7 @@ describe("runWizard", () => {
     const { result } = await session(["dvfr.illinois.gov", "", "", "/c/vt", ""], {
       platform: "win32",
     });
-    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out C:/vt`);
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out C:/vt${R}`);
   });
 
   it.runIf(process.platform === "win32")("compares homes without regard to case", async () => {
@@ -656,14 +677,14 @@ describe("runWizard", () => {
       platform: "win32",
       env: { VOICECAP_TRANSCRIPTS: "C:\\vt" },
     });
-    expect(result.command).toBe(DVFR_SITEMAP_COMMAND);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
   });
 
   it("leaves /c/vt alone off Windows", async () => {
     const { result } = await session(["dvfr.illinois.gov", "", "", "/c/vt", ""], {
       platform: "linux",
     });
-    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out /c/vt`);
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --out /c/vt${R}`);
   });
 
   it("doesn't offer to run where it can't", async () => {
@@ -675,7 +696,7 @@ describe("runWizard", () => {
       // The home is the default transcripts, relative to this folder.
       expect(screen.slice(screen.indexOf("Your command:"))).toBe(
         "Your command:\n" +
-          `  ${DVFR_SITEMAP_COMMAND}\n` +
+          `  ${DVFR_SITEMAP_COMMAND}${R}\n` +
           "Run the same command again later to resume where it stopped.\n" +
           `Run it from this folder: ${tmp}\n` +
           "\n" +
@@ -683,6 +704,33 @@ describe("runWizard", () => {
       );
       expect(result.run).toBe(false);
     }
+  });
+
+  it("asks for the reviewer after the home, with icjia as the quick default, and puts it last", async () => {
+    const { result, screen } = await session(["dvfr.illinois.gov", "", "", "", ""]);
+
+    expect(screen).toContain(
+      `Transcripts home [transcripts]: \n  → this run goes into ${path.join(tmp, "transcripts", "dvfr.illinois.gov", "2026-09-27")}${path.sep}\n${TIP}\n` +
+        `Reviewer, recorded with the run [icjia]: \n${REVIEWER_TIP}\n\nYour command:\n`,
+    );
+    expect(result.args.slice(-2)).toEqual(["--reviewer", "icjia"]);
+  });
+
+  it("takes a person's name instead of the quick default", async () => {
+    const { result, screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {}, "Jane Doe");
+
+    expect(screen).toContain("Reviewer, recorded with the run [icjia]: Jane Doe\n");
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer 'Jane Doe'`);
+  });
+
+  it("offers VOICECAP_REVIEWER as the default, with no tip", async () => {
+    const { result, screen } = await session(["dvfr.illinois.gov", "", "", "", ""], {
+      env: { VOICECAP_REVIEWER: " cschweda " },
+    });
+
+    expect(screen).toContain("Reviewer, recorded with the run [cschweda]: \n\nYour command:");
+    expect(screen).not.toContain(REVIEWER_TIP);
+    expect(result.command).toBe(`${DVFR_SITEMAP_COMMAND} --reviewer cschweda`);
   });
 
   it("runs only after a yes", async () => {

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { PageRecord, ReviewEntry } from "../src/model.js";
 import { changedSinceReview } from "../src/reviews/changed.js";
 import { addReview } from "../src/reviews/review.js";
-import { resolveReviewer } from "../src/reviews/reviewer.js";
+import { findReviewer, resolveReviewer } from "../src/reviews/reviewer.js";
 import { appendReview, latestReview, readReviews } from "../src/reviews/store.js";
 import { runAudit } from "../src/run/audit.js";
 import { sealOf } from "../src/util/hash.js";
@@ -160,6 +160,25 @@ describe("reviewer name", () => {
         gitUserName: none,
       }),
     ).toThrow(/No reviewer name/);
+  });
+
+  it("finds the same name in the same order, and nothing when there's none", () => {
+    const base = { cwd: ".", configReviewer: "Config Name" };
+    expect(
+      findReviewer({ ...base, option: "Flag Name", env: {}, gitUserName: () => "Git Name" }),
+    ).toEqual({ name: "Flag Name", source: "option" });
+    expect(findReviewer({ ...base, env: {}, gitUserName: none })).toEqual({
+      name: "Config Name",
+      source: "config",
+    });
+    expect(
+      findReviewer({
+        cwd: ".",
+        configReviewer: null,
+        env: { VOICECAP_REVIEWER: " " },
+        gitUserName: none,
+      }),
+    ).toBeNull();
   });
 });
 

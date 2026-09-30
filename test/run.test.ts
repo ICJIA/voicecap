@@ -117,8 +117,9 @@ function options(
     site: SITE,
     pages: "pages.json",
     cwd: dir,
-    // Never the VOICECAP_TRANSCRIPTS of whoever runs the tests.
+    // Never the VOICECAP_TRANSCRIPTS, VOICECAP_REVIEWER, or Git name of whoever runs the tests.
     env: {},
+    gitUserName: () => null,
     ...(driver ? { driver } : {}),
     config: config(),
     logger: createMemoryLogger(),
@@ -686,6 +687,77 @@ describe("failures", () => {
     expect(driver.starts).toBe(3);
     // Only the final stop gives back what the run took, such as the person's own NVDA.
     expect(driver.stopOptions).toEqual([{ restarting: true }, { restarting: true }, undefined]);
+  });
+});
+
+describe("the reviewer", () => {
+  it("records who ran the session, from --reviewer first, and says so", async () => {
+    const dir = await setup(["/"]);
+    const logger = createMemoryLogger();
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { reviewer: "cschweda", logger }),
+    );
+
+    expect(result.run.sessions[0]?.reviewer).toEqual({ name: "cschweda", source: "option" });
+    expect(logger.text("info")).toContain("Reviewer: cschweda (from --reviewer)");
+    const stored = await readRunJson(outDir(dir), result.runId);
+    expect(stored.sessions[0]?.reviewer).toEqual({ name: "cschweda", source: "option" });
+    expect(stored.seal).toBe(sealOf(stored));
+  });
+
+  it("falls back as reviews do, and records that there was no name", async () => {
+    const dir = await setup(["/"]);
+    const fromEnv = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        env: { VOICECAP_REVIEWER: "Env Name" },
+        gitUserName: () => "Git Name",
+        fresh: true,
+      }),
+    );
+    expect(fromEnv.run.sessions[0]?.reviewer).toEqual({ name: "Env Name", source: "environment" });
+
+    const fromGit = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { gitUserName: () => "Git Name", fresh: true }),
+    );
+    expect(fromGit.run.sessions[0]?.reviewer).toEqual({ name: "Git Name", source: "git" });
+
+    const logger = createMemoryLogger();
+    const none = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        config: config({ reviewer: null }),
+        logger,
+        fresh: true,
+      }),
+    );
+    expect(none.outcome).toBe("completed");
+    expect(none.run.sessions[0]?.reviewer).toBeNull();
+    expect(logger.text("warn")).toContain(
+      "No reviewer name, so this session's record won't say who ran it. Pass --reviewer, or set VOICECAP_REVIEWER.",
+    );
+  });
+
+  it("records each session's own reviewer when someone else resumes the run", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(
+      options(dir, first, { signal: controller.signal, reviewer: "cschweda" }),
+    );
+    expect(interrupted.outcome).toBe("interrupted");
+
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { reviewer: "Jane Doe" }),
+    );
+    expect(resumed.runId).toBe(interrupted.runId);
+    expect(resumed.run.sessions.map((session) => session.reviewer?.name)).toEqual([
+      "cschweda",
+      "Jane Doe",
+    ]);
   });
 });
 

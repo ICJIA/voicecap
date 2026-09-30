@@ -108,7 +108,7 @@ In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, s
 1. **Set up, once:** `npx @icjia/voicecap setup` installs voicecap's own copy of NVDA, and Playwright's Chromium if Google Chrome isn't installed, with no administrator rights. It ends by checking this computer.
 2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report.
 3. **Compose the run:** `npx @icjia/voicecap init` checks this computer, asks a few questions, and prints the run's command, with the offer to run it now.
-4. **Run:** the command `init` printed, such as `npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml --limit 5`. NVDA speaks and takes over the keyboard until the run ends (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6). To resume a run that stopped, run the same command again.
+4. **Run:** the command `init` printed, such as `npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml --limit 5 --reviewer icjia`. NVDA speaks and takes over the keyboard until the run ends (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6). To resume a run that stopped, run the same command again.
 
 `init` on a ready computer, declining the live test:
 
@@ -158,9 +158,11 @@ Choose [1]: 2
 How many pages? A number, or Enter for all [all]: 5
 Transcripts home [C:\Users\cschw\code\voicecap-transcripts]:
   → this run goes into C:\Users\cschw\code\voicecap-transcripts\i2i.illinois.gov\2026-09-28\
+Reviewer, recorded with the run [icjia]:
+Tip: set VOICECAP_REVIEWER to make your own name the default.
 
 Your command:
-  npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml --limit 5
+  npx @icjia/voicecap --site https://i2i.illinois.gov --sitemap https://i2i.illinois.gov/sitemap.xml --limit 5 --reviewer icjia
 Run the same command again later to resume where it stopped.
 
 NVDA will speak and take over the keyboard until the run ends.
@@ -168,6 +170,8 @@ Run it now? [y/N]:
 ```
 
 `init` offers every sitemap the site has: each one its `robots.txt` lists, then `/sitemap.xml`. A site with one sitemap shows just "The site's sitemap". "A sitemap at another address" asks for `Sitemap (a full URL, or a name like sitemap.xml)`. A name is read on the site, and an address typed without `https://` gets it added.
+
+**The reviewer** is recorded with each session of the run, and the report shows it. Enter takes the quick default, `icjia`; type a person's name to record who ran it. The command ends with `--reviewer`, so it's easy to change for someone else. To make your own name the default, set `VOICECAP_REVIEWER` once: in PowerShell, `setx VOICECAP_REVIEWER "Your Name"`, then open a new window (on a Mac, add `export VOICECAP_REVIEWER="Your Name"` to `~/.zshrc`). `voicecap review` records the same name.
 
 ### On a Mac
 
@@ -432,6 +436,7 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 | `--fresh` | Start a new run even if an interrupted run with the same settings could be resumed. |
 | `--out <dir>` | The transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). |
 | `--run-name <name>` | Add a name to the run's folder: `--run-name exhaustive` makes it `2026-09-26/1405_exhaustive`, and the run's id `2026-09-26_1405_exhaustive`. |
+| `--reviewer <name>` | Who is running it, recorded with each session of the run and shown in the report. Default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config. With none, the run goes ahead and its record says no name was given. `init` always asks. |
 | `--replay-from <dir>` | Use the replay driver: play back a run folder instead of running NVDA. |
 
 **Patterns.** Globs match the URL's path: `news/*` matches `/news/fy27-grants` but not `/news/` itself; `news/**` matches both, and deeper paths. The leading slash is optional in both the pattern and the path. `re:` patterns are regular expressions tested against the path plus the query string (with and without the leading slash), e.g. `--exclude 're:\?page=\d+'`. `--include`, then `--exclude`, then `--limit` apply, in that order.
@@ -791,7 +796,7 @@ npx @icjia/voicecap review --page https://dvfr.illinois.gov/grants/fy27-jag --st
 
 Each page has a full, append-only history in its site's `reviews.json` (see [The audit record](#the-audit-record)). Every entry records the status (`unreviewed`, `reviewed` with no issues, `issue` found, `fixed`), the reviewer, a timestamp, the note, the run reviewed (by default the latest run with transcripts for the page; `--run` picks another), and the SHA-256 hashes of that run's transcripts for the page. Entries are never edited or deleted: a correction is a new entry, and the latest entry is the page's current status. Each entry is sealed and chained to the one before it, for `voicecap verify` to check (see [Checking the record](#checking-the-record-voicecap-verify) for what it can and can't catch). voicecap refuses to overwrite a `reviews.json` it can't read.
 
-The reviewer name comes from `--reviewer`, then the `VOICECAP_REVIEWER` environment variable, then `git config user.name`, then `reviewer` in the config. voicecap won't record a review without one.
+The reviewer name comes from `--reviewer`, then the `VOICECAP_REVIEWER` environment variable, then `git config user.name`, then `reviewer` in the config. voicecap won't record a review without one. Runs record the same name with each session (`--reviewer` on the run, which `init` asks for), but go ahead without one.
 
 A page is **changed since review** when its transcripts in the run shown differ from the ones recorded with its latest review.
 
