@@ -86,9 +86,10 @@ export type CaptureMode = "complete" | "initial";
 /**
  * The browser window's fixed size, in pixels, so pages lay out (and the screen reader splits lines)
  * the same way in every run. It lives here, not in the code that opens the browser, because the
- * run's record of its computer names it too, and that code loads Playwright.
+ * run's record of its computer names it too, and that code loads Playwright. Frozen: nothing may
+ * change it for one run and not the next.
  */
-export const BROWSER_WINDOW = { width: 1280, height: 960 };
+export const BROWSER_WINDOW = Object.freeze({ width: 1280, height: 960 } as const);
 
 export interface EnvironmentInfo {
   driver: { name: string; version: string };

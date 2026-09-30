@@ -394,6 +394,15 @@ describe("Windows helpers (what PowerShell says)", () => {
     });
   });
 
+  // Win32_VideoController's CurrentRefreshRate is 0 or 1 for the hardware's default rate, and
+  // 4294967295 when the rate is unknown: none of them is a rate.
+  it("has no refresh rate for Windows's readings that aren't one", () => {
+    const refresh = (rate: number) =>
+      parseWindowsMachine(sample.replace('"refresh":59', `"refresh":${rate}`)).display?.refreshHz;
+    expect([0, 1, 4294967295, 1001, 59.5].map(refresh)).toEqual([null, null, null, null, 59.5]);
+    expect([2, 24, 60, 144, 240, 1000].map(refresh)).toEqual([2, 24, 60, 144, 240, 1000]);
+  });
+
   it("rounds the scaling to a whole percent of 96 dots per inch", () => {
     const scale = (dpi: number) =>
       parseWindowsMachine(sample.replace('"dpi":106', `"dpi":${dpi}`)).display?.scalePercent;
@@ -468,6 +477,27 @@ describe("Windows helpers (what PowerShell says)", () => {
     await expect(probe.cpu()).rejects.toThrow("PowerShell didn't answer");
     await expect(probe.display()).rejects.toThrow("PowerShell didn't answer");
     await expect(probe.language()).rejects.toThrow("PowerShell didn't answer");
+  });
+
+  // A PowerShell that didn't answer once (busy, or slow to start) may the next time: a later
+  // session asks again, and keeps the answer once there is one.
+  it("asks PowerShell again after it didn't answer, and not once it has", async () => {
+    const answers = [
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+      () => Promise.resolve("Get-CimInstance : Access denied"),
+      () => Promise.resolve(sample),
+    ];
+    let asked = 0;
+    const probe = windowsMachineProbe(() => answers[asked++]!());
+    await expect(probe.os()).rejects.toThrow("PowerShell didn't answer");
+    // An answer that isn't JSON is no answer either.
+    await expect(probe.os()).rejects.toThrow();
+    await expect(probe.os()).resolves.toEqual({
+      name: "Windows 11 Pro 25H2",
+      build: "10.0.26200.9550",
+    });
+    await expect(probe.language()).resolves.toBe("en-US");
+    expect(asked).toBe(3);
   });
 
   it("asks for nothing that names the computer, its maker or model, or the account", async () => {

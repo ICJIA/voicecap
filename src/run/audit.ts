@@ -361,6 +361,13 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   try {
     for (const note of await ctx.driver.cleanupStale()) logger.info(`Cleaned up: ${note}`);
     throwIfAborted(ctx.signal);
+    // The computer's details are read while the screen reader and browser start: the probe takes
+    // seconds on Windows (a start of PowerShell), which would otherwise be time they spend running.
+    // It never rejects, so a start that fails leaves nothing unhandled.
+    const machine = collectMachineRecord(
+      ctx.options.machineProbe ?? machineProbeFor(ctx.options.platform ?? process.platform),
+      nodeMachineFacts(),
+    );
     await driverSession.start(ctx.signal);
     const info = await ctx.driver.getEnvironmentInfo();
     const environment: EnvironmentRecord = {
@@ -369,11 +376,11 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
       voicecap: { version: voicecapVersion(), configSha256: ctx.loaded.sha256 },
       runId: run.id,
       runStartedAt: run.createdAt,
-      // A replay opens no browser, so it has no window to record.
-      machine: await collectMachineRecord(
-        ctx.options.machineProbe ?? machineProbeFor(ctx.options.platform ?? process.platform),
-        nodeMachineFacts(info.replay === undefined ? BROWSER_WINDOW : null),
-      ),
+      machine: {
+        ...(await machine),
+        // A replay opens no browser, so it has no window to record.
+        browserWindow: info.replay === undefined ? { ...BROWSER_WINDOW } : null,
+      },
     };
     session.environment = environment;
     run.replayed ||= info.replay !== undefined;

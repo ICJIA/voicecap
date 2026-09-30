@@ -299,13 +299,15 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
 /**
  * What the record of a failed pass, or of a page that couldn't be opened for it (command
  * "openPage"), says went wrong. An unexpected error's stack is kept with the home folder replaced,
- * so the record doesn't name the account that ran voicecap.
+ * so the record doesn't name the account that ran voicecap. Its message is kept word for word: the
+ * report replaces the home folder where it shows one.
  */
 function problemOf(
   pass: PassName,
   failure: PassFailure,
   command: Problem["command"] = failure.command,
 ): Problem {
+  const home = homeFolder();
   return {
     pass,
     step: failure.step,
@@ -313,9 +315,23 @@ function problemOf(
     cause: failure.cause,
     message: failure.message,
     ...(failure.stack !== undefined
-      ? { stack: redactHome(failure.stack, os.homedir(), process.platform) }
+      ? {
+          stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),
+        }
       : {}),
   };
+}
+
+/**
+ * The home folder, or null where there's none: Node throws when neither HOME (USERPROFILE on
+ * Windows) nor the account's entry gives one, and a failed attempt mustn't be lost to that.
+ */
+function homeFolder(): string | null {
+  try {
+    return os.homedir();
+  } catch {
+    return null;
+  }
 }
 
 /** The site answered with an HTTP error, so no step of the pass was under way. */

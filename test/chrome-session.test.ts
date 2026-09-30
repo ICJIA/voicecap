@@ -47,13 +47,15 @@ async function launch(): Promise<ChromeSession> {
   return session;
 }
 
-/** A local port with nothing listening on it: one that was free a moment ago. */
-async function closedPort(): Promise<number> {
-  const server = net.createServer();
+/**
+ * A local server that drops each connection as it comes, without a word. It holds its port until
+ * it's closed, so no other test's server can take it meanwhile.
+ */
+async function droppingServer(): Promise<{ port: number; close(): Promise<void> }> {
+  const server = net.createServer((socket) => socket.destroy());
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  return port;
+  return { port, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
 }
 
 describe.skipIf(!haveChromium)("a Chrome session", () => {
@@ -83,22 +85,30 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     );
   });
 
-  // With nothing listening, Chromium says net::ERR_CONNECTION_REFUSED. (It refuses some low ports
-  // outright: port 9 gives net::ERR_UNSAFE_PORT, so the test closes a port of its own.)
-  it("says the page couldn't be reached, with a code, when the network refuses the connection", async () => {
-    const session = await launch();
-    const url = `http://127.0.0.1:${await closedPort()}/`;
-    const loading = session.load(url, 15_000);
-    await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
-    await expect(loading).rejects.toMatchObject({
-      failure: "unreachable",
-      message: `The page couldn't be reached: net::ERR_CONNECTION_REFUSED at ${url}`,
-    });
-    // Playwright's own error stays as the cause.
-    await expect(loading).rejects.toHaveProperty(
-      "cause.message",
-      expect.stringContaining("net::ERR_CONNECTION_REFUSED"),
-    );
+  // A server that drops the connection unanswered: Chromium says net::ERR_EMPTY_RESPONSE, or
+  // net::ERR_CONNECTION_RESET, depending on how the connection ends; any of its codes will do.
+  // (A port closed again at once could be taken by another test's server before Chromium tries it.)
+  it("says the page couldn't be reached, with its code, when the server drops the connection", async () => {
+    const dropping = await droppingServer();
+    try {
+      const session = await launch();
+      const url = `http://127.0.0.1:${dropping.port}/`;
+      const loading = session.load(url, 15_000);
+      await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(loading).rejects.toMatchObject({
+        failure: "unreachable",
+        message: expect.stringMatching(
+          new RegExp(`^The page couldn't be reached: net::ERR_[A-Z_]+ at ${escapeRegExp(url)}$`),
+        ) as unknown,
+      });
+      // Playwright's own error stays as the cause.
+      await expect(loading).rejects.toHaveProperty(
+        "cause.message",
+        expect.stringMatching(/net::ERR_[A-Z_]+ at /),
+      );
+    } finally {
+      await dropping.close();
+    }
   });
 
   it("leaves a navigation error that isn't the network's as it is", async () => {
@@ -364,6 +374,10 @@ describe.skipIf(!haveChromium)(
     });
   },
 );
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function alive(pid: number): boolean {
   try {

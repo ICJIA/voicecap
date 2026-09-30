@@ -319,7 +319,10 @@ export async function windowsBrowserVersion(file: string): Promise<string | null
  * (see parseWindowsMachine): the system's name and version, the registry's display version and
  * update revision, the first processor's speed and core count, the display that has a resolution
  * (its size and refresh rate), the scaling Windows applied (AppliedDPI, in dots per inch), and the
- * display language. It reads nothing that names the computer, its maker or model, or the account.
+ * display language. Its answer holds nothing that names the computer, its maker or model, or the
+ * account. What it reads holds more, among it the computer's name in Win32_OperatingSystem
+ * (CSName) and the registered owner in CurrentVersion (RegisteredOwner): only the fields it picks
+ * leave PowerShell.
  */
 const MACHINE_SCRIPT = [
   "$os = Get-CimInstance Win32_OperatingSystem;",
@@ -335,13 +338,21 @@ const MACHINE_SCRIPT = [
 
 /**
  * This Windows computer's details for a run's record. PowerShell is asked once, when a part is
- * first read, and every part reads from that one answer. `ask` runs the script; tests replace it.
+ * first read, and every part reads from that one answer. When it gives none (it failed, or said
+ * something that isn't the JSON asked for), that isn't kept: the next part read asks again. `ask`
+ * runs the script; tests replace it.
  */
 export function windowsMachineProbe(
   ask: (script: string) => Promise<string> = powershell,
 ): MachineProbe {
   let answer: Promise<WindowsMachine> | undefined;
-  const read = () => (answer ??= ask(MACHINE_SCRIPT).then(parseWindowsMachine));
+  const read = () =>
+    (answer ??= ask(MACHINE_SCRIPT)
+      .then(parseWindowsMachine)
+      .catch((error: unknown) => {
+        answer = undefined;
+        throw error;
+      }));
   return {
     os: async () => (await read()).os,
     cpu: async () => (await read()).cpu,
@@ -529,7 +540,9 @@ export interface WindowsMachine {
  * without its leading "Microsoft ", then the display version: "Windows 11 Pro 25H2". Its build is
  * the version and the update revision joined by a dot: "10.0.26200.9550". The scaling is
  * AppliedDPI as a percent of 96, rounded. Whatever PowerShell gave no answer for (null, or 0 where
- * a number is wanted) is left out: null, and "Windows" for a system with no caption.
+ * a number is wanted) is left out: null, and "Windows" for a system with no caption. So is a
+ * refresh rate outside 2 to 1000 Hz: Windows gives 0 or 1 for the display's default rate and
+ * 4294967295 for one it doesn't know.
  */
 export function parseWindowsMachine(json: string): WindowsMachine {
   const data = (JSON.parse(json) ?? {}) as Record<string, unknown>;
@@ -552,7 +565,7 @@ export function parseWindowsMachine(json: string): WindowsMachine {
         : {
             width,
             height,
-            refreshHz: positive(data.refresh),
+            refreshHz: hertz(data.refresh),
             scalePercent: dpi === null ? null : Math.round((dpi / 96) * 100),
           },
     language: text(data.language),
@@ -567,6 +580,11 @@ function text(value: unknown): string | null {
 /** A number above zero; null for anything else. */
 function positive(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** A display's refresh rate, 2 to 1000 Hz; null for anything else, Windows's sentinels included. */
+function hertz(value: unknown): number | null {
+  return typeof value === "number" && value >= 2 && value <= 1000 ? value : null;
 }
 
 /** A whole number, zero included; null for anything else. */

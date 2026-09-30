@@ -114,13 +114,18 @@ async function attempt<T>(read: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 /**
- * The probe with each part read once, however often and by however many it's asked. A failure is
- * kept as it is: the computer doesn't change while the process runs.
+ * The probe with each part read once, however often and by however many it's asked: the computer
+ * doesn't change while the process runs. A part that couldn't be read isn't kept, so the next
+ * asker (a later session) reads it again.
  */
 export function memoizedProbe(probe: MachineProbe): MachineProbe {
   const once = <T>(read: () => Promise<T>): (() => Promise<T>) => {
     let answer: Promise<T> | undefined;
-    return () => (answer ??= read());
+    return () =>
+      (answer ??= read().catch((error: unknown) => {
+        answer = undefined;
+        throw error;
+      }));
   };
   return {
     os: once(() => probe.os()),
@@ -157,10 +162,14 @@ function platformProbe(platform: NodeJS.Platform): MachineProbe {
   }
 }
 
-/** The system's name as node:os has it, and the language Intl has: no build and no display. */
+/**
+ * The system's type and release as node:os has them ("Linux 6.8.0-45-generic", as a replay names
+ * its host), and the language Intl has: no build and no display. Not os.version(), which on Linux
+ * is the kernel's build string.
+ */
 function nodeOnlyProbe(): MachineProbe {
   return {
-    os: () => Promise.resolve({ name: os.version(), build: null }),
+    os: () => Promise.resolve({ name: `${os.type()} ${os.release()}`, build: null }),
     cpu: () => Promise.resolve({ baseMhz: null, physicalCores: null }),
     display: () => Promise.resolve(null),
     language: () => Promise.resolve(Intl.DateTimeFormat().resolvedOptions().locale),

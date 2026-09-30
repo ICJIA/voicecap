@@ -3,6 +3,7 @@ import os from "node:os";
 
 import { describe, expect, it } from "vitest";
 
+import { BROWSER_WINDOW } from "../src/drivers/types.js";
 import {
   collectMachineRecord,
   installedVersion,
@@ -174,6 +175,14 @@ describe("what Node and voicecap know", () => {
     expect(nodeMachineFacts().browserWindow).toBeNull();
   });
 
+  // Every run's browser opens at the same size, and each record keeps its own copy of it.
+  it("takes a copy of the browser's fixed window, which nothing can change", () => {
+    expect(Object.isFrozen(BROWSER_WINDOW)).toBe(true);
+    const known = nodeMachineFacts(BROWSER_WINDOW);
+    expect(known.browserWindow).toEqual({ width: 1280, height: 960 });
+    expect(known.browserWindow).not.toBe(BROWSER_WINDOW);
+  });
+
   it("writes the UTC offset as a local ISO time does", () => {
     const offset = nodeMachineFacts().utcOffset;
     expect(offset).toMatch(/^[+-]\d\d:\d\d$/);
@@ -188,9 +197,11 @@ describe("what Node and voicecap know", () => {
 });
 
 describe("the probe for a platform", () => {
+  // The system's type and release, as the replay host is named: os.version() on Linux is the
+  // kernel's build string ("#1 SMP PREEMPT_DYNAMIC Thu …"), not a name.
   it("answers from node:os alone where there is no NVDA or VoiceOver to drive", async () => {
     const other = machineProbeFor("linux");
-    expect(await other.os()).toEqual({ name: os.version(), build: null });
+    expect(await other.os()).toEqual({ name: `${os.type()} ${os.release()}`, build: null });
     expect(await other.cpu()).toEqual({ baseMhz: null, physicalCores: null });
     expect(await other.display()).toBeNull();
     expect(await other.language()).toBe(Intl.DateTimeFormat().resolvedOptions().locale);
@@ -231,5 +242,36 @@ describe("the probe for a platform", () => {
     expect(second).toEqual(first);
     expect(third).toEqual(first);
     expect(reads.sort()).toEqual(["cpu", "display", "language", "os"]);
+  });
+
+  // A part that couldn't be read once may be the next time: a later session reads it again.
+  it("reads a part again after it failed, and keeps it once it's read", async () => {
+    let reads = 0;
+    const flaky: MachineProbe = {
+      ...probe,
+      display: () => {
+        reads++;
+        return reads === 1 ? Promise.reject(new Error("no answer")) : probe.display();
+      },
+    };
+    const once = memoizedProbe(flaky);
+    expect((await collectMachineRecord(once, facts)).display).toBeNull();
+    const again = await collectMachineRecord(once, facts);
+    expect(again.display).toEqual({ width: 3440, height: 1440, refreshHz: 59, scalePercent: 110 });
+    await collectMachineRecord(once, facts);
+    expect(reads).toBe(2);
+  });
+
+  it("reads a part again after it threw at once", async () => {
+    let reads = 0;
+    const once = memoizedProbe({
+      ...probe,
+      language: () => {
+        if (++reads === 1) throw new Error("no answer");
+        return probe.language();
+      },
+    });
+    expect((await collectMachineRecord(once, facts)).language).toBeNull();
+    expect((await collectMachineRecord(once, facts)).language).toBe("en-US");
   });
 });

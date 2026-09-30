@@ -6,7 +6,7 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { makeAskListener } from "../src/cli/listener.js";
 import { BROWSER_WINDOW, ForegroundError } from "../src/drivers/types.js";
@@ -721,6 +721,30 @@ describe("failed attempts", () => {
     // The home folder's place is kept, as %USERPROFILE% on Windows and ~ elsewhere.
     const home = process.platform === "win32" ? "%USERPROFILE%" : "~";
     expect(attempt.stack).toContain(`Cannot read properties of undefined (${home})\n`);
+    // The message is kept word for word: the report replaces the home folder where it shows it.
+    expect(attempt.message).toBe(`Cannot read properties of undefined (${os.homedir()})`);
+  });
+
+  // Where there's no home folder (no HOME or USERPROFILE, and no account entry), Node can't give
+  // one, and there's nothing to replace: the attempt is recorded all the same.
+  it("keeps an unexpected error's stack as it is when there's no home folder", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading" ? new TypeError("Cannot read properties of undefined") : null,
+    });
+    const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+      throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+    });
+    try {
+      const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+      expect(result.outcome).toBe("completed");
+      const attempt = result.run.pages[0]!.failedAttempts![0]!;
+      expect(attempt).toMatchObject({ pass: "headings", cause: "unexpected" });
+      expect(attempt.stack).toMatch(/^TypeError: Cannot read properties of undefined\n/);
+    } finally {
+      homedir.mockRestore();
+    }
   });
 
   it("keeps no stack for a failure that isn't unexpected", async () => {
@@ -875,6 +899,29 @@ describe("failed attempts", () => {
         pass: "tab",
         step: 1,
         command: "nextFocusable",
+        cause: "foreground",
+      }),
+    ]);
+  });
+
+  it("names the pass a page couldn't be opened for, when that's a later pass", async () => {
+    const dir = await setup(["/about"]);
+    let opens = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      // The page opens for its read pass, then not for its headings pass.
+      fail: (command) =>
+        command === "openPage" && ++opens === 2
+          ? new ForegroundError("The browser couldn't be brought to the front.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "headings",
+        step: null,
+        command: "openPage",
         cause: "foreground",
       }),
     ]);
@@ -1536,9 +1583,53 @@ describe("the computer each session ran on", () => {
       options(dir, new ScriptedDriver(sitePages()), { machineProbe: undefined, platform: "linux" }),
     );
     const machine = result.run.sessions[0]?.environment?.machine;
-    expect(machine?.os).toEqual({ name: os.version(), build: null, arch: os.arch() });
+    expect(machine?.os).toEqual({
+      name: `${os.type()} ${os.release()}`,
+      build: null,
+      arch: os.arch(),
+    });
     expect(machine?.display).toBeNull();
     expect(machine?.browserWindow).toEqual(BROWSER_WINDOW);
+  });
+
+  // The probe takes seconds on Windows (a start of PowerShell): read while the screen reader and
+  // browser start, it isn't time they spend running with nothing to read.
+  it("starts reading it before the screen reader starts", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    const startsWhenRead: number[] = [];
+    const result = await runAudit(
+      options(dir, driver, {
+        machineProbe: {
+          ...MACHINE_PROBE,
+          os: () => {
+            startsWhenRead.push(driver.starts);
+            return MACHINE_PROBE.os();
+          },
+        },
+      }),
+    );
+    expect(startsWhenRead).toEqual([0]);
+    expect(result.run.sessions[0]?.environment?.machine?.os.name).toBe("Test OS 1");
+  });
+
+  it("leaves nothing behind when the screen reader doesn't start, whatever the probe does", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    driver.start = () => Promise.reject(new EnvironmentError("NVDA didn't start"));
+    const failing = () => Promise.reject(new Error("PowerShell didn't answer"));
+    await expect(
+      runAudit(
+        options(dir, driver, {
+          machineProbe: { os: failing, cpu: failing, display: failing, language: failing },
+        }),
+      ),
+    ).rejects.toThrow("NVDA didn't start");
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      environment: null,
+    });
   });
 });
 

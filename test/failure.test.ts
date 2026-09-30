@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { ForegroundError } from "../src/drivers/types.js";
@@ -200,6 +202,41 @@ describe("redactHome", () => {
     ].join("\n");
     expect(redactHome(longer, home, "win32")).toBe(longer);
   });
+
+  // encodeURI leaves # ? and ~ as they are; Node's file: URLs write %23 %3F, and (Node 24) %7E.
+  it("replaces the URL form as Node's own file: URLs spell a # in the home folder", () => {
+    const home = "C:\\Users\\Jane#Doe";
+    expect(redactHome("at f (file:///C:/Users/Jane%23Doe/code/a.js:1:2)", home, "win32")).toBe(
+      "at f (file:///%USERPROFILE%/code/a.js:1:2)",
+    );
+    expect(redactHome("at f (C:\\Users\\Jane#Doe\\code\\a.js:1:2)", home, "win32")).toBe(
+      "at f (%USERPROFILE%\\code\\a.js:1:2)",
+    );
+    expect(redactHome("at f (file:///Users/pat%23x/a.js:1:2)", "/Users/pat#x", "darwin")).toBe(
+      "at f (file://~/a.js:1:2)",
+    );
+  });
+
+  // Spelled as the Node running voicecap writes its stack frames, whatever that Node's spelling:
+  // a short (8.3) name, as Windows gives some profile folders (C:\Users\JANEDO~1), has its ~
+  // written %7E by Node 24.
+  it.each([
+    {
+      platform: "win32",
+      home: "C:\\Users\\JANEDO~1",
+      expected: "at f (file:///%USERPROFILE%/code/a.js:1:2)",
+    },
+    { platform: "darwin", home: "/Users/pat~x", expected: "at f (file://~/code/a.js:1:2)" },
+    { platform: "linux", home: "/home/pat?x#y", expected: "at f (file://~/code/a.js:1:2)" },
+  ] as const)(
+    "replaces $home in a stack frame, however Node spells it as a URL",
+    ({ platform, home, expected }) => {
+      const windows = platform === "win32";
+      const file = windows ? `${home}\\code\\a.js` : `${home}/code/a.js`;
+      const frame = pathToFileURL(file, { windows }).href;
+      expect(redactHome(`at f (${frame}:1:2)`, home, platform)).toBe(expected);
+    },
+  );
 
   it("escapes the URL form as a pattern after encoding it", () => {
     expect(
