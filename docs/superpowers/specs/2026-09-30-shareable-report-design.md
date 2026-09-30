@@ -207,6 +207,7 @@ A manager will ask what the fingerprints are for, and whether they can check the
   - each run record's seal;
   - each review entry's seal, and the review chain.
 - It shows a result line, for example "21 of 21 transcripts match their fingerprints, and both runs' seals check out", with a folded list of every file checked. A file that doesn't match is named, in red and in words.
+- A second button, "Show a change being caught", runs the same check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The page itself is never changed.
 - The page carries what it checks: each transcript file's exact contents, and each run's record and review entries, as data. The check uses the browser's own SHA-256 (Web Crypto), or a small one built into the page where that isn't available. It recomputes a seal exactly as voicecap does: the record without its seal, as JSON with its keys sorted.
 
 **What the check proves,** said beside its result: the page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. The page names the two stronger checks:
@@ -229,6 +230,13 @@ These two sections are the page's only prose not computed from the records, and 
   5. **A person listens, reads, and fixes:** the person running voicecap listens as it reads, and says so when the run ends. Then they read the transcripts, record what they found, and fix it. Flags point to moments worth a second listen.
   6. **A sealed record:** every file gets a fingerprint and each run is sealed, so anyone can check that nothing has changed since.
 - **Heard on this site,** which is computed, not fixed: the first three lines of each pass on the site's home page (or the first page in scope), from the transcripts shown, each with its time.
+- **When to run it,** a bold band after the steps: "When to run voicecap: before the site goes live. And again after a major update. Screen reader users hear the deployed site, so that's the one to listen to." Then four stages, with the second marked:
+  1. In development: not here, since builds change daily and aren't what users get.
+  2. Before launch: run voicecap on the deployed site, as users will get it.
+  3. Live: share the results, the report and the sealed record behind it.
+  4. After a major update: run it again, on the same pages, compared with the run before.
+
+  The README has the same recommendation and a diagram of the stages (`assets/when-to-run-voicecap.png`). The Word copy has the stages as a four-column table.
 - The keys named, and the sample, come from the screen reader the section is about. For NVDA, they're Down Arrow, H, and Tab. VoiceOver's come with its driver.
 
 **How voicecap came to be:**
@@ -239,7 +247,8 @@ These two sections are the page's only prose not computed from the records, and 
   - from the first line of code (25 September 2026) through each release;
   - including VoiceOver's first trial on a real Mac (28 September), and the Mac's setup, checks, and live test in 0.4.0 (29 September);
   - what isn't done yet, such as full runs with VoiceOver, is marked "Next", never shown as done;
-  - its facts come from the Git tags and the CHANGELOG, and a test checks every version and date in it against the CHANGELOG's release headings.
+  - its facts come from the Git tags and the CHANGELOG. A test checks every version and date in it against the CHANGELOG's release headings, and that every minor release (0.5.0, 0.6.0, and on) has its line, so a release can't ship without one;
+  - when a major feature lands, merged or released, its line goes in the timeline, and the README says what it does, in the same change.
 - **Six "worth knowing" cards:** the real screen reader; no page missed; nothing from other windows; tamper-evident; both kinds of testing (this page is checked with axe, with no violations); and tested itself (over a thousand tests on Windows, macOS, and Linux with every change).
 
 ## New evidence each run records
@@ -390,6 +399,7 @@ In the site's folder of the transcripts home:
 - The fingerprint check, in headless Chromium, on a page opened from a file:
   - everything matches on a page as generated;
   - changing one character in an embedded transcript, a run record, or a review entry makes it name that one;
+  - "Show a change being caught" names the changed copy's file, and leaves the page as it was;
   - the built-in SHA-256 gives Node's results on test vectors.
 - The folds, in headless Chromium:
   - which parts start folded, at 12 and 13 pages, and at 3 and 4 flagged pages;
@@ -404,7 +414,7 @@ In the site's folder of the transcripts home:
   - the listener's question when a session ends at a terminal, after Ctrl+C too, and never without a terminal;
   - each answer recorded in the session and covered by the seal;
   - the page's wording for each answer and for none, and a summary that never leads with what's missing.
-- The fixed text: every version and date in the timeline matches the CHANGELOG, and the Word copy has the same text.
+- The fixed text: every version and date in the timeline matches the CHANGELOG, every minor release has its line, and the Word copy has the same text.
 - The Word copy opens (its XML parsed) with the right headings, tables, image alt text, and document properties.
 - Sharing:
   - the file names, `-2`, and never overwriting;
