@@ -4,6 +4,18 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Each page's title**, as the browser reports it, in the page's record in `run.json` (`title`). A page with no title, or one that was tried but never loaded, has none.
+- **Every failed attempt at a page, with its cause.** A page's record (`failedAttempts`) lists each attempt that failed the last time voicecap went through it: its number, when it started and ended (local time, to the millisecond), the pass, the step, and the key, why it failed, the error's message, and whether the screen reader and browser were started again before the next attempt.
+  - The cause is one of a short list: another window came to the front, the computer locked, the screen reader stopped, the browser failed, the website couldn't be reached, a step took too long, and so on.
+  - An unexpected error, which may be a fault in voicecap itself, also keeps its stack, with the home folder replaced by `%USERPROFILE%` (or `~`).
+- **The listener's statement.** When a session that read pages ends at a terminal, after Ctrl+C too, voicecap asks "Did you listen as NVDA read these pages?" with the choices "Yes, all of them", "Part of them", and "No" (Enter picks No). The session's record in `run.json` (`listener`) keeps the answer, when voicecap asked and when it was answered, and how many pages the session went through, beside the reviewer recorded since 0.5.0. The run's seal covers it.
+  - It isn't asked without a terminal (a script, CI, or Git Bash's own window, mintty, where Node sees no terminal: answer from PowerShell or Windows Terminal), for a replay, for a session that read no pages, or for a session that ended with an error (the browser updating itself mid-run, say). The record then has no statement.
+  - `voicecap demo` doesn't ask.
+- **The computer's details**, in each session's environment record (`machine`): the operating system (edition, version, build with its update revision, and architecture), the processor (name, base speed, physical cores, and logical processors), memory, the display (resolution and refresh rate, and on Windows its scaling), the browser window's fixed size (1280 × 960; none for a replay), the time zone and its offset, the display language, and the versions of Node.js, voicecap, Guidepup, and Playwright. Never the computer's maker, model, or name, or the account's name.
+- **Programmatic API**: `runAudit` takes `askListener`, a function that asks whether the person listened and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer. Without it, nothing is asked.
+
 ## [0.5.0] - 2026-09-30
 
 A guided demo, and what the checks on a real Windows PC found: `voicecap demo`, a failed page tried up to 5 times, the reviewer's name on every run, and four fixes.
