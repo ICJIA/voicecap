@@ -168,6 +168,26 @@ export interface FlagResult {
  */
 export type FailureKind = "page" | "environment";
 
+/**
+ * Why one attempt at a page failed. Most of these are the code voicecap's own errors carry (see
+ * causeOf in src/run/failure.ts). "foreground": another window took the foreground from the
+ * browser. "locked": the computer was locked. "screen-reader-stopped": the screen reader didn't
+ * start or stopped running. "browser": the browser didn't start, or changed during the run.
+ * "http": the site answered with an HTTP error (no error is raised for that). "open-timeout",
+ * "step-timeout", "page-timeout": the page didn't open in time, a step didn't finish in time, or
+ * the whole page took too long. "unexpected": any other error, which may be a fault in voicecap.
+ */
+export type FailureCause =
+  | "foreground"
+  | "locked"
+  | "screen-reader-stopped"
+  | "browser"
+  | "http"
+  | "open-timeout"
+  | "step-timeout"
+  | "page-timeout"
+  | "unexpected";
+
 export interface PageRecord extends PageRef {
   /** Line in the page list file, when the source is a file. */
   line?: number;

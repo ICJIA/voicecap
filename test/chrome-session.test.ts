@@ -189,17 +189,18 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     });
     setTimeout(() => calledOff.abort(), 20);
     await expect(launching).rejects.toThrow(EnvironmentError);
+    await expect(launching).rejects.toMatchObject({ failure: "browser" });
   });
 
   it("doesn't start a browser at all when the launch was called off already", async () => {
-    await expect(
-      launchChrome({
-        browser: { channel: "chromium", fallbackToChromium: false },
-        env: process.env,
-        extraArgs: HEADLESS,
-        signal: AbortSignal.abort(),
-      }),
-    ).rejects.toThrow(EnvironmentError);
+    const launching = launchChrome({
+      browser: { channel: "chromium", fallbackToChromium: false },
+      env: process.env,
+      extraArgs: HEADLESS,
+      signal: AbortSignal.abort(),
+    });
+    await expect(launching).rejects.toThrow(EnvironmentError);
+    await expect(launching).rejects.toMatchObject({ failure: "browser" });
   });
 
   // The Mac live test brings the browser to the front through System Events, by process id.
@@ -292,6 +293,7 @@ describe.skipIf(!haveChromium)(
         },
       });
       await expect(launching).rejects.toThrow("Chromium didn't start: it exited (0)");
+      await expect(launching).rejects.toMatchObject({ failure: "browser" });
       expect(starts).toBe(2);
       expect(notices).toHaveLength(1);
     });
@@ -308,6 +310,7 @@ describe.skipIf(!haveChromium)(
         },
       });
       await expect(launching).rejects.toThrow("Chromium didn't start: it exited (3)");
+      await expect(launching).rejects.toMatchObject({ failure: "browser" });
       expect(starts).toBe(1);
       expect(notices).toEqual([]);
     });

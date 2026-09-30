@@ -2,11 +2,16 @@ import type { Speech } from "../drivers/types.js";
 import type { DriverCommand, StepRecord } from "../model.js";
 import { formatDuration } from "../util/time.js";
 
-/** A driver call took longer than its timeout; the page runner restarts the driver and retries. */
+/**
+ * A driver call took longer than its timeout; the page runner restarts the driver and retries.
+ * `failure` says which timeout it was (see causeOf in src/run/failure.ts): a step's, the page's
+ * opening, or the whole page's.
+ */
 export class StepTimeoutError extends Error {
   constructor(
     readonly what: string,
     readonly ms: number,
+    readonly failure: "open-timeout" | "step-timeout" | "page-timeout" = "step-timeout",
   ) {
     super(`${what} did not finish within ${formatDuration(ms)}`);
     this.name = "StepTimeoutError";
@@ -24,13 +29,14 @@ export class InterruptedError extends Error {
 /**
  * Race a driver call against a timeout and an abort signal. The call itself can't be cancelled
  * (a hung screen reader is dealt with by restarting the driver), so its eventual result or
- * rejection is ignored.
+ * rejection is ignored. `failure` is the code of the StepTimeoutError raised when time runs out.
  */
 export async function withTimeout<T>(
   what: string,
   action: () => Promise<T>,
   ms: number,
   signal?: AbortSignal,
+  failure?: StepTimeoutError["failure"],
 ): Promise<T> {
   throwIfAborted(signal);
   let timer: NodeJS.Timeout | undefined;
@@ -41,7 +47,7 @@ export async function withTimeout<T>(
     return await Promise.race([
       call,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new StepTimeoutError(what, ms)), ms);
+        timer = setTimeout(() => reject(new StepTimeoutError(what, ms, failure)), ms);
         if (signal) {
           onAbort = () => reject(abortReason(signal));
           signal.addEventListener("abort", onAbort, { once: true });

@@ -176,7 +176,9 @@ async function launchOnce(
 ): Promise<ChromeSession> {
   const { signal } = options;
   if (signal?.aborted) {
-    throw new EnvironmentError(`${executable.name} wasn't started: the launch was called off.`);
+    throw new EnvironmentError(`${executable.name} wasn't started: the launch was called off.`, {
+      failure: "browser",
+    });
   }
   const timeoutMs = options.timeoutMs ?? 30_000;
   const profileDir = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
@@ -230,6 +232,7 @@ async function launchOnce(
     if (handedOver && !attempt.last) throw new HandedOver();
     throw new EnvironmentError(`${executable.name} didn't start: ${errorMessage(error)}`, {
       cause: error,
+      failure: "browser",
     });
   } finally {
     signal?.removeEventListener("abort", callOff);

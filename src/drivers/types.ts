@@ -107,6 +107,9 @@ export interface EnvironmentInfo {
 
 /** The browser couldn't be brought to the front, so keystrokes would reach the wrong window. */
 export class ForegroundError extends Error {
+  /** The failure code a page's record keeps for this error (see causeOf in src/run/failure.ts). */
+  readonly failure = "foreground";
+
   constructor(message: string) {
     super(message);
     this.name = "ForegroundError";

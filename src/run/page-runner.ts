@@ -132,7 +132,8 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const pageTimeout = new AbortController();
   const signal = AbortSignal.any([ctx.signal, pageTimeout.signal]);
   const timer = setTimeout(
-    () => pageTimeout.abort(new StepTimeoutError("The whole page", ctx.pageTimeoutMs)),
+    () =>
+      pageTimeout.abort(new StepTimeoutError("The whole page", ctx.pageTimeoutMs, "page-timeout")),
     ctx.pageTimeoutMs,
   );
   const attempt: Attempt = { kind: "done", passes: {}, results: {}, files: {} };
@@ -145,6 +146,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
           () => session.driver.openPage(page.url),
           ctx.openTimeoutMs,
           signal,
+          "open-timeout",
         );
       } catch (error) {
         if (error instanceof InterruptedError) throw error;

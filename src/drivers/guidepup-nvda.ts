@@ -365,7 +365,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       });
     } catch (error) {
       this.setNvdaState("stopped");
-      throw new EnvironmentError(`NVDA didn't start: ${describeError(error)}`, { cause: error });
+      throw new EnvironmentError(`NVDA didn't start: ${describeError(error)}`, {
+        cause: error,
+        failure: "screen-reader-stopped",
+      });
     }
     this.setNvdaState("running");
   }
@@ -694,6 +697,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.checkLive(page.generation);
       throw new EnvironmentError(
         "NVDA stopped running (it may have crashed), so this step's silence says nothing about the page.",
+        { failure: "screen-reader-stopped" },
       );
     }
     // On a locked computer, Windows keeps NVDA from pressing keys, and NVDA says nothing.
@@ -750,6 +754,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
           await this.closeBrowser(session);
           throw new EnvironmentError(
             `The browser changed during the run: ${recorded.name} ${recorded.version} was recorded, and ${session.name} ${session.version} started now (browsers update themselves). Transcripts from different browser versions aren't comparable, so run the same command again to resume with the new version recorded.`,
+            { failure: "browser" },
           );
         }
         return session;
@@ -916,6 +921,7 @@ function lostFocusBetween(before: FocusState, after: FocusState): boolean {
 function windowsLocked(): EnvironmentError {
   return new EnvironmentError(
     "Windows is locked, so NVDA can't press keys or speak. Unlock the computer and keep it unlocked while voicecap runs: voicecap keeps Windows from sleeping or turning the screen off, but Win+L, a screen saver, or a workplace lock policy still lock it.",
+    { failure: "locked" },
   );
 }
 
