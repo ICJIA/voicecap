@@ -136,6 +136,8 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     },
   );
 
+  // Its helper compiles a little C# (Add-Type) before it answers: about a second on the Windows
+  // PC, but 15 to 30 seconds on GitHub's Windows runners (measured 2026-09-29).
   it("keep Windows awake until released", async () => {
     const awake = keepAwake();
     try {
@@ -144,7 +146,7 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
       awake.release();
     }
     await awake.ended; // the request ends with its helper
-  });
+  }, 60_000);
 
   it("find running processes by image name", async () => {
     expect(await listProcesses("node.exe")).toContain(process.pid);
