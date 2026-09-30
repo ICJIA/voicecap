@@ -4,7 +4,7 @@ import { normalizeSpeechItem } from "./nvda-log.js";
 export interface SpeechViewerUtterance {
   /** Text items, normalized like Guidepup's. */
   items: string[];
-  /** The items joined with ", ", as in automated transcripts. */
+  /** The items joined with ", ", as in a run's transcripts. */
   text: string;
   /** 1-based line number in the capture. */
   line: number;

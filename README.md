@@ -12,13 +12,15 @@
 
 voicecap is a free, open-source tool from the Illinois Criminal Justice Information Authority (ICJIA) that captures what a screen reader user actually hears on a website.
 
-Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap drives a real screen reader through a site's pages the way a blind visitor would: **NVDA on a Windows PC, and VoiceOver on a Mac**. It reads from top to bottom, jumps from heading to heading, and tabs through links and buttons, and it saves everything the screen reader says as plain-text transcripts. On a Mac, setup, checks, and a live VoiceOver test work today, and full VoiceOver audits come with voicecap's VoiceOver driver.
+Automated accessibility checkers such as axe and Lighthouse catch problems like missing labels, but they can't tell you what a page sounds like. voicecap is the other half: a listen-through with a real screen reader, **NVDA on a Windows PC, and VoiceOver on a Mac**. The screen reader reads each page from top to bottom, jumps from heading to heading, and tabs through links and buttons, the way a blind visitor would, and voicecap saves every word it says as plain-text transcripts. On a Mac, setup, checks, and a live VoiceOver test work today, and full VoiceOver audits come with voicecap's VoiceOver driver.
 
-That lets a reviewer:
+Every line of a transcript is what the screen reader actually said. voicecap presses the screen reader's keys the way a person would, and moves from page to page on its own, following the site's sitemap or a list of pages. Working from the list, it accounts for every page on it: none is missed or done twice, an easy slip when clicking through a site by hand. So one person can spot-check a large site, zero in on the pages that need attention, or go through a whole small site.
 
-- skim what the screen reader says on a page much faster than listening to it;
+It's a human review, sped up: voicecap does the key presses and the page turning, so the person running it can:
+
+- listen along as the screen reader reads, then go back over exactly what it said, line by line;
 - compare runs to see exactly what changed after an update;
-- record what they reviewed and found, and add their own hands-on NVDA sessions.
+- record what they found and what they fixed, and add their own hands-on NVDA sessions.
 
 Everything goes into one record that voicecap never rewrites, summed up in an accessible HTML report, and `voicecap verify` checks that the recorded files still match what voicecap wrote.
 
@@ -30,8 +32,35 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
 > - **Any computer, Linux included:** reviews, reports, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
 
+## How voicecap works
+
+![How voicecap works: a human review, sped up. Six steps, each described in the list below, and three lines NVDA said on voicecap's demo site.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/how-voicecap-works.png)
+
+Automated checkers such as axe and Lighthouse read a page's code and test it against rules. voicecap is a human review, sped up: it takes a real screen reader through each page the way a person would and saves every word it says, while the person running it listens, reads the transcripts, and fixes what they find.
+
+1. **Every page on the list.** voicecap works from the site's sitemap, or a list of chosen pages in a CSV or JSON file. Each page is read once, in full, or recorded with the reason it couldn't be. None is missed or done twice, an easy slip when clicking through a site by hand.
+2. **The real screen reader.** voicecap runs NVDA itself, never a simulation, with a fresh browser for every page, so no page's results depend on the pages before it.
+3. **Three ways through each page.** It presses NVDA's keys as a person would: Down Arrow to go line by line, H to go heading by heading, and Tab to go control by control.
+4. **Every word, checked.** It saves each key press and everything NVDA said, in order, waiting until NVDA has been quiet for a second so nothing is cut off. Before and after every key press, it checks that the page still has the screen. If another window took it, the step is thrown out and the page tried again, with NVDA and the browser started fresh.
+5. **A person reviews.** The person running voicecap listens as NVDA reads, then reads the transcripts, records what they found with `voicecap review`, and fixes it. Flags point to moments worth a second listen, such as links that say only "click here".
+6. **A sealed record.** Every file gets a fingerprint (SHA-256) and each run is sealed, so `voicecap verify` can show that nothing has changed since.
+
+The first lines NVDA said on the demo site's home page, in each pass:
+
+```
+read (Down Arrow)   banner landmark, voicecap demo
+                    Tour, navigation landmark, list, with 1 item, link, Next: Before you start
+headings (H)        main landmark, Welcome to the voicecap demo, heading, level 1
+                    The tour's pages, heading, level 2
+tab (Tab)           Skip to main content, same page, link
+                    Tour, navigation landmark, list, with 1 item, Next: Before you start, link
+```
+
+The details are in [What voicecap does on each page](#what-voicecap-does-on-each-page).
+
 ## Contents
 
+- [How voicecap works](#how-voicecap-works)
 - [Quick start](#quick-start)
   - [On Windows](#on-windows)
   - [On a Mac](#on-a-mac)
@@ -728,13 +757,16 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 
 - **Resuming.** At the start of a run voicecap stores the page list and a hash of the settings that matter (site, page source, passes, filters, limit, driver, capture mode, step caps, NVDA settings, browser). `run.json` is rewritten after every page (atomically: a temporary file is flushed to disk and renamed, with retries while Windows holds the file). Running the same command again resumes the most recent incomplete run with the same settings, skipping pages already done (failed pages are retried). Otherwise voicecap starts a new run and says why. `--fresh` always starts a new run.
 - **Sitemap runs resume with the page list stored when they started**, so a sitemap that changed in the meantime (a new news item, say) doesn't block resuming. A page list file is identified by its contents, so editing it starts a new run.
-- **A failing page never stops the run**: it's recorded, reported, and the run moves on. Steps and whole pages have timeouts; after a timeout voicecap restarts NVDA and the browser and retries the page once before recording it as failed. After `maxConsecutiveFailures` failed pages in a row (default 5), voicecap stops with exit code 2 instead of marking every remaining page failed; fix the problem and rerun to resume.
+- **A failing page never stops the run**: it's recorded, reported, and the run moves on.
+  - **Up to 5 tries** (`pageAttempts`). voicecap tries the page again after a timeout (steps and whole pages have timeouts), when NVDA or the browser stops responding, or when another window takes the foreground. Each retry starts NVDA and the browser fresh.
+  - **Every attempt is kept** under `attempts/`, and the page's record names each failed attempt's reason, so a page that needed three tries says so.
+  - **Too many failures in a row:** after `maxConsecutiveFailures` pages in a row (default 5) fail every try, voicecap stops with exit code 2 instead of marking every remaining page failed. Fix the problem and rerun to resume.
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
-- **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser; the page is retried when you resume.
+- **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser and tries the page again, up to `pageAttempts` times in all.
 - **If the browser updates itself** during a run (Chrome does, in the background), the page being opened when the new version starts fails, and voicecap stops with exit code 2 when it restarts the browser for the next page, so the version recorded with the transcripts stays true. Run the same command again to resume with the new version recorded; the failed page is retried. (On the last page, the run completes instead, with that page failed: exit code 3.)
 - **Ctrl+C** saves state, shuts down NVDA and the browser, and exits with code 130; the page in progress is redone on resume. Press Ctrl+C a second time to exit immediately. The browser is in front while voicecap works, so click the terminal window first, or the keystroke goes to the browser.
 - **One run per output folder** at a time (a lock file, taken over if the process that held it is gone).
-- **HTTP errors are page problems.** A page that answers 404 (or 5xx, after one retry) is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA. Only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
+- **HTTP errors are page problems.** A page that answers 404 gets a single try, since trying again can't help. A 5xx is tried again, up to `pageAttempts` times. Either is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA; only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
 - **Avoid synced folders** (OneDrive, Dropbox) for the output: sync clients and antivirus scans can hold files open. voicecap retries, but a folder they keep locked can still stop a run. If Git on Windows complains about long paths in `transcripts/`, run `git config core.longpaths true`.
 
 ## Reviews: the audit trail
@@ -764,7 +796,7 @@ In NVDA, open NVDA menu → Tools → Speech Viewer, use the page, then copy the
 npx @icjia/voicecap manual add speech.txt --page https://dvfr.illinois.gov/grants/fy27-jag
 ```
 
-Speech Viewer has no timestamps or keystrokes: each line is one utterance, and its items are separated by two spaces (voicecap converts them to ", " like the automated transcripts).
+Speech Viewer has no timestamps or keystrokes: each line is one utterance, and its items are separated by two spaces (voicecap converts them to ", " like a run's transcripts).
 
 ### The NVDA log (Input/output level)
 
@@ -809,7 +841,7 @@ Check the clean transcript before committing it, and never commit an unredacted 
 
 ## Verifying transcript fidelity
 
-This is a different question from `voicecap verify` (see [The audit record](#the-audit-record)), which checks that a recorded file hasn't changed since voicecap wrote it. To check that an automated transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
+This is a different question from `voicecap verify` (see [The audit record](#the-audit-record)), which checks that a recorded file hasn't changed since voicecap wrote it. To check that a run's transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
 
 1. Open Speech Viewer, load the page, press Ctrl+Home, then Down Arrow until the end, and save the Speech Viewer text.
 2. Compare it with `read.txt` (skip the header block and the `[to bottom]` line). Normalize first:
@@ -886,6 +918,7 @@ export default defineConfig({
 | `repeatLimit` | `10` | Stop a pass when the same speech occurs this many times in a row. |
 | `restartEvery` | `50` | Restart NVDA and the browser every N pages. |
 | `maxConsecutiveFailures` | `5` | Stop the run (exit 2, resumable) after this many failed pages in a row. |
+| `pageAttempts` | `5` | How many times a page is tried before it's recorded as failed. Each retry starts NVDA and the browser fresh (except after an HTTP 5xx). A page that answers with an HTTP 4xx gets one try. |
 | `phrasing.noNextHeading` | `"^no next heading$"` | NVDA's announcement after the last heading (a regular expression). |
 | `flags.*` | see [Heuristic flags](#heuristic-flags) | Each rule's `enabled` switch, phrasing, and thresholds; `flags.custom` adds phrase rules `{ id, description, passes, pattern, minCount }`. |
 | `manual.editableRoles` | `["edit", "password edit", …]` | Words that mean focus is in an editable field (redaction). |
@@ -941,14 +974,14 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 
 ## Known limitations
 
-- **Timing.** Screen reader automation is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
+- **Timing.** Driving a screen reader is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
 - **English phrasing.** Stop detection and flags match NVDA's English wording; `voicecap doctor` warns when NVDA's language isn't English (NVDA follows the Windows display language).
 - **The computer is voicecap's during a run** (see [Windows setup](#windows-setup-for-someone-new-to-windows), step 6). voicecap checks that its browser is in front before and after every step, but a window that comes forward in the moment before a keystroke (Guidepup silences NVDA first, which takes at least a quarter of a second) can still receive that one keystroke. Pop-up dialogs (Windows Update, chat apps) count as other windows too.
 - **Frames.** voicecap notices another window coming forward from the page's focus events. While focus is inside a frame (an embedded video, map, or form), a switch to another window is noticed only if it lasts until the end of the step.
 - **One user at a time.** The lock that lets only one voicecap drive NVDA is per Windows user, but NVDA's connection (port 6837 on 127.0.0.1) is shared by the whole computer: don't run voicecap as two Windows users at once.
 - **Shared computers.** While a page is open, its browser listens for remote debugging on 127.0.0.1 (with a throwaway profile), where other users of the same computer could connect. On a single-user desktop that doesn't matter.
-- **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser, retries the page once, and records it as failed if it happens again.
+- **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser and tries the page again, up to 5 times in all, and records it as failed if every try times out.
 - **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
 

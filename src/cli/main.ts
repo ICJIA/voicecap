@@ -105,7 +105,7 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
   const program = new Command("voicecap");
   program
     .description(
-      "Drive NVDA through a site's pages, save what it says as reviewable transcripts, and report automated coverage and human review.",
+      "Listen through a website with a real screen reader: voicecap takes NVDA page by page, saves every word it says as transcripts, and records what people reviewed.",
     )
     .version(voicecapVersion(), "-v, --version", "print voicecap's version")
     .enablePositionalOptions()

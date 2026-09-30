@@ -11,7 +11,14 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ### Changed
 
+- **A page that fails is tried again, up to 5 times in all,** each time with NVDA and the browser started fresh. The limit is the new setting `pageAttempts`.
+  - It covers a timeout, NVDA or the browser not responding, and another window taking the foreground.
+  - Before, only a timeout or a server error got one retry, and a page that lost the foreground failed at once.
+  - Every attempt is kept under `attempts/`, and the page's record names each failed attempt's reason.
+  - A page the site answers with an HTTP 4xx still gets one try.
 - **The README** says the checks take about three seconds, as measured on a Windows PC, not two.
+- **The README, the package description, and `voicecap --help`** present voicecap as what it is: a listen-through with a real screen reader, the other half beside automated checkers such as axe and Lighthouse. What it does on its own is press the screen reader's keys and move from page to page.
+- **The README has a new section, How voicecap works:** six steps, a diagram, and the first lines NVDA said on the demo site. It presents voicecap as a human review, sped up: voicecap presses the keys and turns the pages, and the person running it listens, reads the transcripts, and fixes what they find. Working from the list, voicecap accounts for every page on it, with none missed or done twice.
 
 ### Fixed
 
