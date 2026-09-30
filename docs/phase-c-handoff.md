@@ -22,7 +22,7 @@ Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readines
 
 Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives each check step by step, with the commands, what to look for, and the release steps that follow:
 
-- **On the Windows PC:** done on 2026-09-29; see "Windows checks on the PC" below.
+- **On the Windows PC:** done on 2026-09-29, with a final clean run on 2026-09-30; see "Windows checks on the PC" below.
   - `nvdaProcesses` with a non-ASCII character in the Guidepup folder path;
   - whether Windows reports the installed NVDA's `ExecutablePath` (the null-path case);
   - `windowsComputerModel` and `windowsBrowserVersion` on real hardware;
@@ -46,7 +46,7 @@ Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives ea
   - The stopwatch gave 6:20.95 for run 1315's step 4, and its whole tour took 7:39.
   - A clean audit comes to about 6:30 of NVDA time, or about 6:40 by stopwatch. So `AUDIT_MINUTES` (6) is short, and `TOUR_MINUTES` (9) holds.
   - The owner chose 7: `AUDIT_MINUTES` is now 7, and so are the README's and the spec's numbers.
-  - To confirm with one clean run on the final build.
+  - Confirmed by the final clean run on 2026-09-30 (below): step 4 took about 6 minutes, and the whole tour 7:51, so 7 and 9 hold, a little generously.
 - **Part 1 check 2, the flags: failed, then passed with Fix 2.**
   - Run 1315 also flagged `/ask-a-question/` `unlabeled`. In browse mode, NVDA read its labeled textarea's label as a line of its own: "Your question (required)", then "edit, required, multi line".
   - With Fix 2, run 1402 flagged `/common-mistakes/` only, with `generic-link-text`, `unlabeled`, and `headings`.
@@ -98,6 +98,13 @@ Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives ea
   - On 2026-09-29, voicecap noticed the exit first. The first process exits as soon as it has started the new copy, and voicecap checks every 50 ms, while the new copy needs a few hundred milliseconds to write its port.
 - **Fix 4** (`src/drivers/guidepup/windows.ts`): the helper that starts the owner's NVDA as voicecap exits (`restartAfterScript`) first waits, for up to 20 seconds, until no `nvda.exe` from Guidepup's folder is running.
   - Its test starts a file that doesn't exist, so the attempt opens no window. Before the fix, the attempt came 1.4 s before a stand-in Guidepup NVDA had quit; now it comes after.
+- **The final clean run: passed** (2026-09-30, run 2026-09-30_1218). The owner ran `node dist/cli.js demo`, built from the branch at f8b11ac, with Chrome 154.0.8037.58.
+  - All 7 pages were read in full, each on its first attempt. The run completed and was sealed, and `voicecap verify` found everything matching.
+  - Timings: step 4 about 6 minutes by the owner's stopwatch (the run held NVDA from 12:18:54 to 12:25:32, its report included), and the whole tour 7:51.
+  - Flags: `/common-mistakes/` only, with `generic-link-text`, `unlabeled`, and `headings` (Fix 2).
+  - The owner's installed NVDA came back after the live test and after the run (Fix 1).
+  - The session recorded its reviewer, "Christopher Schweda" from `git config user.name`, and the report's sessions table showed it.
+  - No page needed a retry, and Chrome didn't hand over, so this run didn't exercise Fix 3 or the retries; their tests cover them.
 
 Parked, known and left for later:
 
@@ -228,16 +235,14 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.3.1 on npm, from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.4.1 on npm, from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
-  - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`.
-  - 0.3.1 fixed Git Bash's `/c/...` paths.
-- **Tests:** about 710 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`. They should all pass on the Mac as they are.
-- **On macOS today**, everything that doesn't drive a screen reader works: `init`, replay runs, `verify`, `review`, `report`, `manual add`, and `list-urls`. The other commands stop with a clear message:
-  - a run: "The guidepup driver runs NVDA, which only runs on Windows. On macOS and Linux, use the replay driver: --replay-from <run folder>." (`requireWindows` in `src/drivers/index.ts`);
-  - `init`, instead of offering to run the command: "voicecap runs NVDA, which only runs on Windows. Run this command on a Windows computer." (`src/init/readiness.ts`);
-  - `setup` and `doctor`: refuse, and `doctor` reports a FAIL (`src/drivers/guidepup/setup.ts`, `doctor.ts`).
+  - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
+  - 0.4.0 added readiness: the checks, the live test, and `setup` and `doctor` on macOS; 0.4.1 let `--sitemap` take a sitemap's name.
+- **Ready for 0.5.0,** on the branch `windows-checks-fixes`, with CI green and the Windows checks passed (2026-09-29 and 30): `voicecap demo`, the four fixes those checks found, a failed page tried up to 5 times, and the reviewer's name on every session. It merges to `main` and is released when the owner says.
+- **Tests:** 1,239 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
+- **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
 
