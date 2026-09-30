@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -9,8 +9,6 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { makeAskListener } from "../src/cli/listener.js";
-import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
-import type { UserConfig } from "../src/config/schema.js";
 import { BROWSER_WINDOW, ForegroundError } from "../src/drivers/types.js";
 import type { RunJson, TranscriptJson } from "../src/model.js";
 import type {
@@ -21,7 +19,7 @@ import type {
   Problem,
 } from "../src/readiness/model.js";
 import { addReview } from "../src/reviews/review.js";
-import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
+import { runAudit } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
 import {
   collectMachineRecord,
@@ -42,133 +40,22 @@ import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import {
-  element,
-  ScriptedDriver,
-  type Command,
-  type ScriptedOptions,
-  type ScriptedPage,
-} from "./helpers/scripted-driver.js";
-
-const SITE = "https://example.illinois.gov";
+  config,
+  hangOnce,
+  ISO_MS,
+  MACHINE_PROBE,
+  options,
+  outDir,
+  setup,
+  SITE,
+  sitePages,
+} from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
 
-/** A local ISO time to the millisecond, such as 2026-09-26T14:05:09.482-05:00. */
-const ISO_MS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d$/;
-
-function sitePages(
-  overrides: Partial<Record<"home" | "about" | "resources", Partial<ScriptedPage>>> = {},
-): ScriptedPage[] {
-  return [
-    {
-      url: `${SITE}/`,
-      lines: [
-        "link, Skip to main content",
-        "banner landmark, link, Example Agency",
-        "main landmark, heading, level 1, Welcome",
-        "Grant applications are open.",
-        "content info landmark, © 2026 Example Agency",
-      ],
-      headings: ["heading, level 1, Welcome", "heading, level 2, News"],
-      stops: [
-        {
-          spoken: "Skip to main content, link",
-          focused: element("Skip to main content", { href: "#main" }),
-        },
-        { spoken: "Example Agency, link", focused: element("Example Agency") },
-        { spoken: "Grants, link", focused: element("Grants", { inMain: true, href: "/grants" }) },
-      ],
-      ...overrides.home,
-    },
-    {
-      url: `${SITE}/about`,
-      lines: ["heading, level 1, About us", "We are an example.", "© 2026 Example Agency"],
-      headings: ["heading, level 1, About us"],
-      stops: [{ spoken: "Home, link", focused: element("Home") }],
-      ...overrides.about,
-    },
-    {
-      url: `${SITE}/resources`,
-      lines: [
-        "heading, level 2, Resources",
-        "link, Read more",
-        "Text",
-        "link, Read more",
-        "button",
-        "End",
-      ],
-      headings: ["heading, level 2, Resources"],
-      stops: [
-        { spoken: "Read more, link", focused: element("Read more", { inMain: true }) },
-        { spoken: "Read more, link", focused: element("Read more", { inMain: true }) },
-        {
-          spoken: "button",
-          focused: element("", { tag: "button", role: "button", inMain: true, href: null }),
-        },
-      ],
-      ...overrides.resources,
-    },
-  ];
-}
-
-async function setup(entries: string[] = ["/", "/about", "/resources"]): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-run-"));
-  await writeFile(path.join(dir, "pages.json"), JSON.stringify(entries));
-  return dir;
-}
-
-function config(user: UserConfig = {}): LoadedConfig {
-  const resolved = resolveConfig({
-    timeouts: { stepMs: 300, pageMs: 5000, driverStartMs: 2000 },
-    readiness: { readySelector: null, settleMs: 0, networkIdleTimeoutMs: 200 },
-    reviewer: "Test Reviewer",
-    ...user,
-  });
-  return { config: resolved, file: null, sha256: "test-config" };
-}
-
-/** The computer's details, fixed and instant: the real probe starts PowerShell, which takes seconds. */
-const MACHINE_PROBE: MachineProbe = {
-  os: () => Promise.resolve({ name: "Test OS 1", build: "1.2.3" }),
-  cpu: () => Promise.resolve({ baseMhz: 3000, physicalCores: 4 }),
-  display: () => Promise.resolve({ width: 1920, height: 1080, refreshHz: 60, scalePercent: 100 }),
-  language: () => Promise.resolve("en-US"),
-};
-
-function options(
-  dir: string,
-  driver: ScriptedDriver | undefined,
-  extra: Partial<RunAuditOptions> = {},
-): RunAuditOptions {
-  return {
-    site: SITE,
-    pages: "pages.json",
-    cwd: dir,
-    // Never the VOICECAP_TRANSCRIPTS, VOICECAP_REVIEWER, or Git name of whoever runs the tests.
-    env: {},
-    gitUserName: () => null,
-    machineProbe: MACHINE_PROBE,
-    ...(driver ? { driver } : {}),
-    config: config(),
-    logger: createMemoryLogger(),
-    ...extra,
-  };
-}
-
-/** SITE's folder in the default home, where these runs go. */
-const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(SITE));
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
-
-/** A scripted driver's `hang` option: the first call of `command` hangs, and no other call does. */
-function hangOnce(command: Command): NonNullable<ScriptedOptions["hang"]> {
-  let hung = false;
-  return (called) => {
-    if (called !== command || hung) return false;
-    hung = true;
-    return true;
-  };
-}
 
 async function snapshotFolder(dir: string): Promise<Record<string, string>> {
   const files: Record<string, string> = {};
@@ -1038,7 +925,7 @@ describe("failed attempts", () => {
     expect(verified.problems).toBe(0);
   });
 
-  it("replaces the attempts when a page is tried again in a later session", async () => {
+  it("keeps every attempt when a page is tried again in a later session, numbering on", async () => {
     const dir = await setup(["/", "/about", "/resources"]);
     const broken = new Error("NVDA is not responding");
     const failing = () =>
@@ -1051,18 +938,28 @@ describe("failed attempts", () => {
     const first = await readRunJson(outDir(dir), stopped.runId);
     expect(first.pages.map((page) => page.failedAttempts?.length)).toEqual([5, 5, undefined]);
 
-    // Still broken for /: its attempts are the last session's, not these and those together.
+    // Still broken for /: this session's attempts follow the last session's, numbered on.
     const second = await runAudit({
       ...options(dir, new ScriptedDriver(sitePages({ home: { openError: broken } }))),
       config: config({ pageAttempts: 2 }),
     });
     expect(second).toMatchObject({ runId: stopped.runId, outcome: "completed" });
     expect(second.run.pages.map((page) => page.status)).toEqual(["failed", "done", "done"]);
-    expect(second.run.pages[0]!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2]);
-    // /about works now: nothing is left of the attempts it failed before.
-    expect(second.run.pages[1]).not.toHaveProperty("failedAttempts");
+    const [home, about] = second.run.pages;
+    expect(home!.attempts).toBe(7);
+    expect(home!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // Oldest first, across the sessions: the times place each attempt in its session.
+    const [lastOfFirst, firstOfSecond] = home!.failedAttempts!.slice(4, 6);
+    expect(Date.parse(firstOfSecond!.startedAt)).toBeGreaterThanOrEqual(
+      Date.parse(lastOfFirst!.endedAt),
+    );
+    // /about works now, on its sixth attempt: the five it failed before are still in its record.
+    expect(about!.attempts).toBe(6);
+    expect(about!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3, 4, 5]);
     const onDisk = await readRunJson(outDir(dir), second.runId);
-    expect(onDisk.pages[1]).not.toHaveProperty("failedAttempts");
+    expect(onDisk.pages[0]!.failedAttempts).toEqual(home!.failedAttempts);
+    expect(onDisk.pages[1]!.failedAttempts).toEqual(about!.failedAttempts);
+    expect(onDisk.seal).toBe(sealOf(onDisk));
   });
 
   it("resumes a run recorded before these fields existed, and verify still passes", async () => {

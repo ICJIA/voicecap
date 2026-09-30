@@ -232,9 +232,16 @@ export type FailureCause =
   | "page-timeout"
   | "unexpected";
 
-/** One failed attempt at a page, kept in the page's record. */
+/**
+ * One failed attempt at a page, kept in the page's record. It names no session: its times place it
+ * in one.
+ */
 export interface AttemptRecord {
-  /** 1-based. */
+  /**
+   * The page's attempt number, 1-based and counted across every session of the run, as the page's
+   * `attempts` counts them: the attempt that ended as the page's k-th has n k. In a run begun with
+   * voicecap 0.5.0, the attempts it counted come first.
+   */
   n: number;
   /** Local ISO times, to the millisecond. */
   startedAt: string;
@@ -249,7 +256,11 @@ export interface AttemptRecord {
   message: string;
   /** For "unexpected" only: the stack, with the home folder replaced. */
   stack?: string;
-  /** Whether NVDA and the browser were started again before the next attempt. */
+  /**
+   * Whether the screen reader and browser were started again for the page's next attempt: true
+   * only once that restart had finished. False when it failed, when the next attempt went ahead
+   * without one (an HTTP 5xx), and for the last attempt voicecap made at the page in a session.
+   */
   restarted: boolean;
 }
 
@@ -259,6 +270,10 @@ export interface PageRecord extends PageRef {
   status: PageStatus;
   /** Set when status is "failed". */
   failure?: FailureKind;
+  /**
+   * How many attempts at the page have ended, across every session: done, failed, or skipped. An
+   * attempt that Ctrl+C stopped midway isn't counted.
+   */
   attempts: number;
   finalUrl?: string;
   httpStatus?: number | null;
@@ -269,8 +284,11 @@ export interface PageRecord extends PageRef {
    */
   title?: string | null;
   /**
-   * Every failed attempt of the page's last processing, oldest first, including the final one of a
-   * page that failed. Absent when none failed, and in runs from before voicecap recorded them.
+   * Every failed attempt at the page, across every session, oldest first: those a later attempt
+   * made good, and the last of a page that failed. Each is added, and written to run.json, as it
+   * ends, before anything is restarted, and is never replaced or removed: a page that failed in one
+   * session and was read in the next keeps the first session's. A pending page keeps those it had
+   * before Ctrl+C. Absent when none failed, and in runs from before voicecap recorded them.
    */
   failedAttempts?: AttemptRecord[];
   /** Set when the page was skipped after loading (non-HTML response, redirect off-origin). */
