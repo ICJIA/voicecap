@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest";
 import { makeAskListener } from "../src/cli/listener.js";
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import type { UserConfig } from "../src/config/schema.js";
-import { ForegroundError } from "../src/drivers/types.js";
-import type { RunJson } from "../src/model.js";
+import { BROWSER_WINDOW, ForegroundError } from "../src/drivers/types.js";
+import type { RunJson, TranscriptJson } from "../src/model.js";
 import type {
   Check,
   CheckRunner,
@@ -23,6 +23,11 @@ import type {
 import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
+import {
+  collectMachineRecord,
+  nodeMachineFacts,
+  type MachineProbe,
+} from "../src/run/machine-record.js";
 import {
   attemptsDir,
   pageDir,
@@ -123,6 +128,14 @@ function config(user: UserConfig = {}): LoadedConfig {
   return { config: resolved, file: null, sha256: "test-config" };
 }
 
+/** The computer's details, fixed and instant: the real probe starts PowerShell, which takes seconds. */
+const MACHINE_PROBE: MachineProbe = {
+  os: () => Promise.resolve({ name: "Test OS 1", build: "1.2.3" }),
+  cpu: () => Promise.resolve({ baseMhz: 3000, physicalCores: 4 }),
+  display: () => Promise.resolve({ width: 1920, height: 1080, refreshHz: 60, scalePercent: 100 }),
+  language: () => Promise.resolve("en-US"),
+};
+
 function options(
   dir: string,
   driver: ScriptedDriver | undefined,
@@ -135,6 +148,7 @@ function options(
     // Never the VOICECAP_TRANSCRIPTS, VOICECAP_REVIEWER, or Git name of whoever runs the tests.
     env: {},
     gitUserName: () => null,
+    machineProbe: MACHINE_PROBE,
     ...(driver ? { driver } : {}),
     config: config(),
     logger: createMemoryLogger(),
@@ -1061,7 +1075,8 @@ describe("failed attempts", () => {
       return openPage(url);
     };
     const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
-    // As 0.5.0 wrote the record: no page titles, failed attempts, or listener's statement.
+    // As 0.5.0 wrote the record: no page titles, failed attempts, listener's statement, or
+    // computer's details.
     const record = await readRunJson(outDir(dir), interrupted.runId);
     for (const page of record.pages) {
       delete page.title;
@@ -1069,6 +1084,7 @@ describe("failed attempts", () => {
     }
     for (const session of record.sessions) {
       delete session.listener;
+      if (session.environment) delete session.environment.machine;
     }
     await writeRunJson(outDir(dir), record);
 
@@ -1076,6 +1092,9 @@ describe("failed attempts", () => {
     expect(resumed.outcome).toBe("completed");
     expect(resumed.run.pages[0]).not.toHaveProperty("title");
     expect(resumed.run.pages[1]?.title).toBeNull();
+    // The session 0.5.0 recorded stays as it was; the one resuming it records its computer.
+    expect(resumed.run.sessions[0]?.environment).not.toHaveProperty("machine");
+    expect(resumed.run.sessions[1]?.environment?.machine?.os.name).toBe("Test OS 1");
     const result = await verifyHome({
       home: path.join(dir, "transcripts"),
       logger: createMemoryLogger(),
@@ -1439,6 +1458,137 @@ describe("the listener's statement", () => {
     expect(result.run.sessions[0]).not.toHaveProperty("listener");
     expect(result.run.seal).toBe(sealOf(result.run));
     expect(logger.text("warn")).toContain("The terminal went away");
+  });
+});
+
+describe("the computer each session ran on", () => {
+  it("records it in the session's environment, with the browser's fixed window", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const stored = await readRunJson(outDir(dir), result.runId);
+    const machine = stored.sessions[0]?.environment?.machine;
+    expect(machine?.browserWindow).toEqual({ width: 1280, height: 960 });
+    expect(machine).toEqual(
+      await collectMachineRecord(MACHINE_PROBE, nodeMachineFacts(BROWSER_WINDOW)),
+    );
+    expect(machine).toMatchObject({
+      os: { name: "Test OS 1", build: "1.2.3", arch: os.arch() },
+      cpu: { baseMhz: 3000, physicalCores: 4, logicalProcessors: os.cpus().length },
+      memoryBytes: os.totalmem(),
+      display: { width: 1920, height: 1080, refreshHz: 60, scalePercent: 100 },
+      language: "en-US",
+      software: { node: process.versions.node },
+    });
+  });
+
+  it("repeats it in every transcript, as the rest of the environment is", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const machine = result.run.sessions[0]?.environment?.machine;
+    expect(machine).toBeDefined();
+    for (const pass of ["read", "headings", "tab"]) {
+      const file = path.join(pageDir(outDir(dir), result.runId, "home"), `${pass}.json`);
+      const transcript = JSON.parse(await readFile(file, "utf8")) as TranscriptJson;
+      expect(transcript.environment.machine, pass).toEqual(machine);
+    }
+  });
+
+  it("is covered by the seal: verify catches a record edited afterward", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const home = path.join(dir, "transcripts");
+    const verify = () => verifyHome({ home, logger: createMemoryLogger() });
+    expect(result.run.seal).toBe(sealOf(result.run));
+    expect((await verify()).problems).toBe(0);
+
+    const file = path.join(result.runDir, "run.json");
+    const edited = JSON.parse(await readFile(file, "utf8")) as RunJson;
+    edited.sessions[0]!.environment!.machine!.cpu.name = "A faster processor";
+    await writeFile(file, `${JSON.stringify(edited, null, 2)}\n`);
+    expect((await verify()).problems).toBe(1);
+  });
+
+  it("records the computer that replayed a run, with no browser window: none was opened", async () => {
+    const dir = await setup(["/"]);
+    const recorded = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const replayed = await runAudit({
+      ...options(dir, undefined),
+      replayFrom: runDir(path.join("transcripts", siteFolder(SITE)), recorded.runId),
+    });
+    expect(replayed.outcome).toBe("completed");
+    const environment = replayed.run.sessions[0]?.environment;
+    expect(environment?.replay?.sourceRun).toBe(recorded.runId);
+    expect(environment?.machine).toMatchObject({
+      os: { name: "Test OS 1" },
+      browserWindow: null,
+    });
+  });
+
+  it("is recorded again by each session, since the computer may have changed", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const reads: string[] = [];
+    const counting: MachineProbe = {
+      ...MACHINE_PROBE,
+      os: () => {
+        reads.push("os");
+        return Promise.resolve({ name: `Test OS ${reads.length}`, build: null });
+      },
+    };
+    const interrupted = await runAudit(
+      options(dir, first, { signal: controller.signal, machineProbe: counting }),
+    );
+    expect(interrupted.outcome).toBe("interrupted");
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { machineProbe: counting }),
+    );
+    expect(resumed.outcome).toBe("completed");
+
+    expect(reads).toHaveLength(2);
+    expect(resumed.run.sessions.map((session) => session.environment?.machine?.os.name)).toEqual([
+      "Test OS 1",
+      "Test OS 2",
+    ]);
+  });
+
+  it("goes without what the computer won't say, and the run goes on", async () => {
+    const dir = await setup(["/"]);
+    const unreadable = () => {
+      throw new Error("no answer");
+    };
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        machineProbe: {
+          ...MACHINE_PROBE,
+          os: unreadable,
+          display: () => Promise.reject(new Error("no")),
+        },
+      }),
+    );
+    expect(result.outcome).toBe("completed");
+    expect(result.run.sessions[0]?.environment?.machine).toMatchObject({
+      os: { name: "unknown", build: null },
+      display: null,
+      language: "en-US",
+    });
+  });
+
+  it("reads it with the probe for the platform the run was told it's on", async () => {
+    const dir = await setup(["/"]);
+    // No fake probe: Linux's is node:os alone, so this starts nothing.
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { machineProbe: undefined, platform: "linux" }),
+    );
+    const machine = result.run.sessions[0]?.environment?.machine;
+    expect(machine?.os).toEqual({ name: os.version(), build: null, arch: os.arch() });
+    expect(machine?.display).toBeNull();
+    expect(machine?.browserWindow).toEqual(BROWSER_WINDOW);
   });
 });
 

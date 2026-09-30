@@ -6,7 +6,7 @@ import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
-import type { ScreenReaderDriver } from "../drivers/types.js";
+import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
@@ -38,6 +38,12 @@ import { DriverSession } from "./driver-session.js";
 import { withCurrentFlags } from "./flags.js";
 import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
+import {
+  collectMachineRecord,
+  machineProbeFor,
+  nodeMachineFacts,
+  type MachineProbe,
+} from "./machine-record.js";
 import { processPage, type PageOutcome } from "./page-runner.js";
 import { liveCompareDir, resolveHome, runCompareDir, runDir, siteDirFor } from "./paths.js";
 import { estimateRemaining, progressLine, type PassProgress } from "./progress.js";
@@ -105,8 +111,17 @@ export interface RunAuditOptions {
    * run, whether or not this is given.
    */
   readiness?: () => Promise<PlatformReadiness>;
-  /** Which platform's readiness check a real run uses. Default: process.platform. Tests only. */
+  /**
+   * Which platform's readiness check a real run uses, and which platform's probe reads the
+   * computer's details for each session's record. Default: process.platform. Tests only.
+   */
   platform?: NodeJS.Platform;
+  /**
+   * Replaces the probe that reads the computer's details for each session's record (tests). The
+   * default is the probe for `platform`, which asks the system: on Windows, a start of PowerShell
+   * that takes seconds.
+   */
+  machineProbe?: MachineProbe;
   /**
    * The quick checks' result, when the caller has just run them (voicecap demo's step 2): a real
    * run uses it instead of checking again. Not ready still stops the run, and ready still logs the
@@ -352,6 +367,11 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
       voicecap: { version: voicecapVersion(), configSha256: ctx.loaded.sha256 },
       runId: run.id,
       runStartedAt: run.createdAt,
+      // A replay opens no browser, so it has no window to record.
+      machine: await collectMachineRecord(
+        ctx.options.machineProbe ?? machineProbeFor(ctx.options.platform ?? process.platform),
+        nodeMachineFacts(info.replay === undefined ? BROWSER_WINDOW : null),
+      ),
     };
     session.environment = environment;
     run.replayed ||= info.replay !== undefined;

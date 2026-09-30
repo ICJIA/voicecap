@@ -3,14 +3,16 @@
  * timeouts), the terminal app that owns voicecap's permissions, the two permission probes, the
  * files and defaults VoiceOver's setup touches, starting, stopping, and raising processes,
  * System Settings addresses, the permission problems the quick checks and the live test share,
- * and this Mac's details. Only `runCommand` and `runCommandSync` touch node:child_process; every
- * other function takes an injected `run`, so tests (test/helpers/fake-commands.ts) never start a
- * real process.
+ * and this Mac's details (for the readiness checks, and for a run's record). Only `runCommand` and
+ * `runCommandSync` touch node:child_process; every other function takes an injected `run`, so tests
+ * (test/helpers/fake-commands.ts) never start a real process.
  */
 import { execFile, spawn, spawnSync, type ExecFileException } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
 
+import type { MachineRecord } from "../../model.js";
 import type { Problem } from "../../readiness/model.js";
+import type { MachineProbe } from "../../run/machine-record.js";
 import { EnvironmentError } from "../../util/errors.js";
 
 /** What runCommand (or a fake) resolves to. Never a rejection, even for a non-zero exit. */
@@ -726,6 +728,87 @@ export async function macSystem(run: RunCommand): Promise<{
     computerName,
     locale,
   };
+}
+
+/**
+ * `sysctl -n <name>` as a number above zero. Null when this Mac has no such value (Apple silicon
+ * has no hw.cpufrequency_max, and sysctl exits non-zero for it) or it isn't a number. Each name is
+ * asked on its own, so one that's missing never costs the others.
+ */
+async function sysctlNumber(run: RunCommand, name: string): Promise<number | null> {
+  const result = await run("sysctl", ["-n", name], { timeoutMs: SHORT_TIMEOUT_MS });
+  const value = Number(result.stdout.trim());
+  return result.code === 0 && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * This Mac's details for a run's record: its macOS version and build, its processor, its main
+ * display, and its language. Each part asks on its own. It never asks for the Mac's name or model
+ * (macSystem does, for the readiness checks), or for the account.
+ */
+export function macMachineProbe(run: RunCommand = runCommand): MachineProbe {
+  return {
+    os: async () => {
+      const [version, build] = await Promise.all([
+        swVers(run, "-productVersion"),
+        swVers(run, "-buildVersion"),
+      ]);
+      // As the readiness checks say it: "macOS 26.6.2".
+      return {
+        name: version === "" ? "macOS" : `macOS ${version}`,
+        build: build === "" ? null : build,
+      };
+    },
+    cpu: async () => {
+      const [physicalCores, hertz] = await Promise.all([
+        sysctlNumber(run, "hw.physicalcpu"),
+        sysctlNumber(run, "hw.cpufrequency_max"),
+      ]);
+      return { baseMhz: hertz === null ? null : Math.round(hertz / 1_000_000), physicalCores };
+    },
+    display: async () => {
+      const result = await run("system_profiler", ["SPDisplaysDataType", "-json"], {
+        timeoutMs: SHORT_TIMEOUT_MS,
+      });
+      return result.code === 0 ? parseMacDisplays(result.stdout) : null;
+    },
+    // From Intl, as the probe for other computers has it.
+    language: () => Promise.resolve(Intl.DateTimeFormat().resolvedOptions().locale),
+  };
+}
+
+/**
+ * The main display in `system_profiler SPDisplaysDataType -json`: the one marked spdisplays_main,
+ * or else the first listed, on any graphics card. Its resolution reads "3024 x 1964 @ 120.00Hz",
+ * and may leave the refresh rate out. A Mac gives no scaling, so that is null. Null when there is
+ * no display, or its resolution can't be read.
+ */
+export function parseMacDisplays(json: string): MachineRecord["display"] {
+  try {
+    const parsed = JSON.parse(json) as {
+      SPDisplaysDataType?: {
+        spdisplays_ndrvs?: { _spdisplays_resolution?: string; spdisplays_main?: string }[];
+      }[];
+    } | null;
+    const displays = (parsed?.SPDisplaysDataType ?? []).flatMap(
+      (card) => card.spdisplays_ndrvs ?? [],
+    );
+    const main =
+      displays.find((display) => display.spdisplays_main === "spdisplays_yes") ?? displays[0];
+    const resolution = /^\s*(\d+)\s*x\s*(\d+)(?:\s*@\s*(\d+(?:\.\d+)?)\s*Hz)?/i.exec(
+      main?._spdisplays_resolution ?? "",
+    );
+    if (!resolution) return null;
+    return {
+      width: Number(resolution[1]),
+      height: Number(resolution[2]),
+      refreshHz: resolution[3] === undefined ? null : Math.round(Number(resolution[3])),
+      scalePercent: null,
+    };
+  } catch {
+    // Not JSON, or not the shape system_profiler writes.
+    return null;
+  }
 }
 
 /** One Info.plist's CFBundleShortVersionString, e.g. an app's version. */

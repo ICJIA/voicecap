@@ -20,12 +20,9 @@ import type { VoicecapConfig } from "../../config/schema.js";
 import { EnvironmentError, errorMessage } from "../../util/errors.js";
 import { formatDuration } from "../../util/time.js";
 import type { BrowserSession, FocusState, LoadResult } from "../guidepup-nvda.js";
-import type { FocusedElement } from "../types.js";
+import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
-
-/** A fixed window size, so pages lay out (and NVDA splits lines) the same way in every run. */
-const WINDOW = { width: 1280, height: 960 };
 
 /** Browser features that would add network noise or UI surprises to a run (as Playwright disables them). */
 const DISABLED_FEATURES = [
@@ -279,7 +276,7 @@ export function chromeArgs(profileDir: string, executable: BrowserExecutable): s
     "--password-store=basic",
     "--use-mock-keychain",
     `--disable-features=${disabled.join(",")}`,
-    `--window-size=${WINDOW.width},${WINDOW.height}`,
+    `--window-size=${BROWSER_WINDOW.width},${BROWSER_WINDOW.height}`,
     "--window-position=0,0",
   ];
 }

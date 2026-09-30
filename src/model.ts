@@ -44,12 +44,54 @@ export type PageSource =
   /** --page, one or more times: resolved absolute URLs, fragment dropped, in the order given. */
   | { kind: "urls"; urls: string[] };
 
+/**
+ * The computer a session ran on, as the report's "Test environment" shows it. Never its maker,
+ * model, name, or account.
+ */
+export interface MachineRecord {
+  /** "Windows 11 Pro 25H2", build "10.0.26200.9550" (with the update revision), arch "x64". */
+  os: { name: string; build: string | null; arch: string };
+  cpu: {
+    /** The first processor's model name, or "unknown". */
+    name: string;
+    /** Its base speed, in megahertz; null when the system doesn't say (Apple silicon doesn't). */
+    baseMhz: number | null;
+    physicalCores: number | null;
+    logicalProcessors: number;
+  };
+  memoryBytes: number;
+  /**
+   * The main display: its size in pixels, its refresh rate in hertz, and the scaling the system
+   * applies (a percent of 96 dots per inch; Windows only). Null when it can't be read.
+   */
+  display: {
+    width: number;
+    height: number;
+    refreshHz: number | null;
+    scalePercent: number | null;
+  } | null;
+  /** The browser's fixed window size; null for a replay, which opens no browser. */
+  browserWindow: { width: number; height: number } | null;
+  /** IANA, e.g. "America/Chicago", and the offset when the session started, e.g. "-05:00". */
+  timeZone: string;
+  utcOffset: string;
+  /** The display language, e.g. "en-US". */
+  language: string | null;
+  /** The installed versions; Guidepup and Playwright are null when they can't be found. */
+  software: { node: string; voicecap: string; guidepup: string | null; playwright: string | null };
+}
+
 /** The environment record: stored per session in run.json and repeated in every transcript. */
 export interface EnvironmentRecord extends EnvironmentInfo {
   pageSource: PageSource;
   voicecap: { version: string; configSha256: string };
   runId: string;
   runStartedAt: string;
+  /**
+   * The computer this session ran on (for a replayed session, the one that replayed it). Absent in
+   * runs from before voicecap recorded it.
+   */
+  machine?: MachineRecord;
 }
 
 export interface PageRef {
