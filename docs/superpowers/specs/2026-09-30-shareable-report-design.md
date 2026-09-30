@@ -371,7 +371,7 @@ In the site's folder of the transcripts home:
 
 ## The website
 
-A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (approved 2026-09-30): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Its files live in voicecap's repository (github.com/ICJIA/voicecap, public), and Netlify publishes them on every push to `main`.
+A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (approved 2026-09-30): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Netlify builds it from ICJIA's transcripts repository (github.com/ICJIA/voicecap-transcripts, private), the transcripts home, on every push. voicecap's own repository stays code only.
 
 - **What's on it:**
   - the demo's latest report, as an example of what voicecap makes;
@@ -380,20 +380,20 @@ A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (appro
 
   Each report lists its date, who prepared it, and its files: the page to open, and the Word copy and the walkthrough file to download, so anyone can repeat the run exactly (see "Repeating a walkthrough"). Each file shows its size and SHA-256 fingerprint, a second place to check a copy against.
 - **How it looks:** the report's design, dark by default with a light toggle, sleek, with a bar that stays in view for the three views: the demo, the sites, and every report by date.
-- **`voicecap site [--home <dir>] [--demo <dir>] [--out <dir>]`** builds it:
-  - from each site folder's `share/shares.json`: the dated copies, sealed and fingerprinted. A copy that no longer matches its fingerprint is left out, and named;
-  - from the demo's home (`--demo`, default `./voicecap-demo`);
-  - into `--out` (default `./site`): `index.html`, each report's files under `<site>/`, `robots.txt`, and `_headers`.
+- **`voicecap site [--home <dir>] [--out <dir>]`** builds it:
+  - from each site folder's `share/shares.json` in the transcripts home (`--home`, default: the home in effect): the dated copies, sealed and fingerprinted. A copy that no longer matches its fingerprint is left out, and named;
+  - from the demo's shared copies, when the home has a `voicecap-demo/` folder (run `voicecap demo` from the home's folder);
+  - into `--out` (default `_site` in the home, which the home's `.gitignore` keeps out of Git): `index.html`, each report's files under `<site>/`, `robots.txt`, and `_headers`.
 
   The published files are byte for byte the shared copies, so their fingerprints still match. Everything the site adds goes in headers, never into those files.
-- **Publishing:** after `voicecap share`, run `voicecap site`, then commit `site/` and push. Netlify publishes `site/` as it is, with no build on Netlify.
-- **The Netlify files:**
-  - `netlify.toml`, at the repository's root: `publish = "site"` and no build command, then headers for every file: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`; and `Content-Disposition: attachment` for `.docx` and `.json` files.
-  - `.nvmrc`, at the root: `24`, so the repository's tools, and any build Netlify runs, use Node 24 and its bundled npm.
-  - `site/robots.txt`: `User-agent: *`, then `Disallow: /`.
-  - `site/_headers`, written by `voicecap site`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
-- **Search:** `robots.txt` and the noindex header keep the Netlify site out of search results. The repository is public, so the same files are on GitHub too, which search engines do index.
-- **Hooking up Netlify,** once this lands: in Netlify, import `ICJIA/voicecap` from GitHub, name the site `icjia-voicecap`, and deploy `main`. `netlify.toml` sets the rest.
+- **Publishing:** after `voicecap share`, commit the transcripts home and push. Netlify runs `voicecap site` and publishes what it builds. To preview first, run `voicecap site` and open `_site/index.html`.
+- **The Netlify files,** which `voicecap site` writes into the home the first time and never overwrites, as it does `.gitattributes`:
+  - `netlify.toml`: the build, `npx --yes @icjia/voicecap@<the minor version that wrote it> site --home . --out _site`, and `publish = "_site"`; then headers for every file: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`; and `Content-Disposition: attachment` for `.docx` and `.json` files. To build the site with a newer voicecap, change the version in the build command.
+  - `.nvmrc`: `24`, so Netlify's build uses Node 24 and its bundled npm.
+  - Each build writes `_site/robots.txt`: `User-agent: *`, then `Disallow: /`.
+  - Each build writes `_site/_headers`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
+- **Search:** `robots.txt` and the noindex header keep the site out of search results. The transcripts repository is private, so the reports aren't on GitHub for anyone to find.
+- **The first deploy,** once 0.6.0 is released with `voicecap site` and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `icjia-voicecap`. `netlify.toml` sets the rest.
 
 ## Rules the page follows
 
@@ -510,7 +510,7 @@ A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (appro
    - the Word copy;
    - sharing: `current.*`, `voicecap share`, `shares.json`, and `verify`;
    - the walkthrough file: `voicecap walkthrough`, `--walkthrough`, and the report's download;
-   - the website: `voicecap site`, `netlify.toml`, `.nvmrc`, and the `site/` folder;
+   - the website: `voicecap site`, and the `netlify.toml` and `.nvmrc` it writes into the transcripts home;
    - evidence D with page titles, E without the program in front, and F.
 
    Built and tested without a screen reader, so it can be done remotely. It merges to `main` when done, because it only adds.
