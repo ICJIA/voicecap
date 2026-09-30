@@ -369,6 +369,32 @@ In the site's folder of the transcripts home:
 - **Transcripts** go in an appendix, one section per page, in a fixed-width font, each with its fingerprint.
 - **Built with `docx`** (MIT licensed), a new dependency, pinned exactly like voicecap's others.
 
+## The website
+
+A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (approved 2026-09-30): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Its files live in voicecap's repository (github.com/ICJIA/voicecap, public), and Netlify publishes them on every push to `main`.
+
+- **What's on it:**
+  - the demo's latest report, as an example of what voicecap makes;
+  - each site, with its newest report on top and its earlier ones below;
+  - every report by date, across sites.
+
+  Each report lists its date, who prepared it, and its files: the page to open, and the Word copy and the walkthrough file to download, so anyone can repeat the run exactly (see "Repeating a walkthrough"). Each file shows its size and SHA-256 fingerprint, a second place to check a copy against.
+- **How it looks:** the report's design, dark by default with a light toggle, sleek, with a bar that stays in view for the three views: the demo, the sites, and every report by date.
+- **`voicecap site [--home <dir>] [--demo <dir>] [--out <dir>]`** builds it:
+  - from each site folder's `share/shares.json`: the dated copies, sealed and fingerprinted. A copy that no longer matches its fingerprint is left out, and named;
+  - from the demo's home (`--demo`, default `./voicecap-demo`);
+  - into `--out` (default `./site`): `index.html`, each report's files under `<site>/`, `robots.txt`, and `_headers`.
+
+  The published files are byte for byte the shared copies, so their fingerprints still match. Everything the site adds goes in headers, never into those files.
+- **Publishing:** after `voicecap share`, run `voicecap site`, then commit `site/` and push. Netlify publishes `site/` as it is, with no build on Netlify.
+- **The Netlify files:**
+  - `netlify.toml`, at the repository's root: `publish = "site"` and no build command, then headers for every file: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`; and `Content-Disposition: attachment` for `.docx` and `.json` files.
+  - `.nvmrc`, at the root: `24`, so the repository's tools, and any build Netlify runs, use Node 24 and its bundled npm.
+  - `site/robots.txt`: `User-agent: *`, then `Disallow: /`.
+  - `site/_headers`, written by `voicecap site`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
+- **Search:** `robots.txt` and the noindex header keep the Netlify site out of search results. The repository is public, so the same files are on GitHub too, which search engines do index.
+- **Hooking up Netlify,** once this lands: in Netlify, import `ICJIA/voicecap` from GitHub, name the site `icjia-voicecap`, and deploy `main`. `netlify.toml` sets the rest.
+
 ## Rules the page follows
 
 **Accessibility.** The page is an accessibility report, so it passes what it tests for:
@@ -484,6 +510,7 @@ In the site's folder of the transcripts home:
    - the Word copy;
    - sharing: `current.*`, `voicecap share`, `shares.json`, and `verify`;
    - the walkthrough file: `voicecap walkthrough`, `--walkthrough`, and the report's download;
+   - the website: `voicecap site`, `netlify.toml`, `.nvmrc`, and the `site/` folder;
    - evidence D with page titles, E without the program in front, and F.
 
    Built and tested without a screen reader, so it can be done remotely. It merges to `main` when done, because it only adds.
@@ -507,7 +534,7 @@ Before stage 2's C:
 - A PDF (Chrome could print the page; a later option).
 - Comparing with the last copy sent.
 - Digital signatures on the files; Git's signed commits already exist for that.
-- Emailing or hosting the files.
+- Emailing the files. Hosting them is "The website".
 - Detecting a person's key presses during a run. It would take a system-wide keyboard hook, which security software treats as a keylogger.
 - Window titles on the page. The event log keeps them; the page shows only the program's name.
 - Recording the listener's statement later. It's asked when the session ends, or not at all, since a statement made afterward is weaker evidence.
