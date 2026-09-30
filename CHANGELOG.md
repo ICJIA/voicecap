@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
+A guided demo, and what the checks on a real Windows PC found: `voicecap demo`, a failed page tried up to 5 times, the reviewer's name on every run, and four fixes.
+
 ### Added
 
 - **`voicecap demo`, a guided first run** against a small demo site that comes with voicecap and runs only on this computer. Seven steps, each explained and each waiting for Enter: the welcome, this computer's checks, the live test, an audit of the demo's seven pages (showing the command it runs), the transcripts, the report (with an offer to open it), and what to do next. Its files go in `voicecap-demo/` in the current folder. On a Mac, until the VoiceOver driver, it runs the checks and the VoiceOver live test, then says what the audit will do; a Windows PC runs the full tour.
@@ -166,7 +170,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ICJIA/voicecap/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/ICJIA/voicecap/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ICJIA/voicecap/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ICJIA/voicecap/compare/v0.3.0...v0.3.1
