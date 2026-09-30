@@ -21,6 +21,7 @@ export const DEFAULT_CONFIG: VoicecapConfig = {
   repeatLimit: 10,
   restartEvery: 50,
   maxConsecutiveFailures: 5,
+  pageAttempts: 5,
   phrasing: {
     noNextHeading: "^no next heading$",
   },

@@ -26,6 +26,8 @@ export interface ScriptedPage {
   initialFocus?: FocusedElement | null;
   /** openPage throws this. */
   openError?: Error;
+  /** How many opens throw openError before one succeeds (default: every open). */
+  openErrorTimes?: number;
 }
 
 export type Command =
@@ -41,6 +43,8 @@ export type Command =
 export interface ScriptedOptions {
   /** Return true to make this call hang forever (to exercise timeouts). */
   hang?: (command: Command, url: string, call: number) => boolean;
+  /** Return an error to make this call fail with it (a lost foreground mid-pass, say). */
+  fail?: (command: Command, url: string, call: number) => Error | null;
 }
 
 /**
@@ -64,6 +68,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   private inDocument = true;
   private focused: FocusedElement | null = null;
   private callCount = 0;
+  /** Opens that have thrown each page's openError so far. */
+  private readonly openFailures = new Map<ScriptedPage, number>();
 
   constructor(
     pages: ScriptedPage[],
@@ -106,7 +112,13 @@ export class ScriptedDriver implements ScreenReaderDriver {
       this.opened.push(url);
       const page = this.pages.get(canonicalKey(url));
       if (!page) throw new Error(`No scripted page for ${url}`);
-      if (page.openError) throw page.openError;
+      if (page.openError) {
+        const failed = this.openFailures.get(page) ?? 0;
+        if (page.openErrorTimes === undefined || failed < page.openErrorTimes) {
+          this.openFailures.set(page, failed + 1);
+          throw page.openError;
+        }
+      }
       this.page = page;
       this.line = 0;
       this.heading = 0;
@@ -191,6 +203,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
     if (this.options.hang?.(command, this.page?.url ?? "", n)) {
       return new Promise<T>(() => {});
     }
+    const failure = this.options.fail?.(command, this.page?.url ?? "", n);
+    if (failure) return Promise.reject(failure);
     try {
       return Promise.resolve(action());
     } catch (error) {

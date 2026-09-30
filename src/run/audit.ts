@@ -399,6 +399,7 @@ async function transcribePages(
       passSettings,
       openTimeoutMs: config.readiness.networkIdleTimeoutMs + config.timeouts.stepMs,
       pageTimeoutMs: config.timeouts.pageMs,
+      maxAttempts: config.pageAttempts,
       environment,
       signal,
       now,

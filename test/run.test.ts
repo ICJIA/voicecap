@@ -483,8 +483,64 @@ describe("failures", () => {
     expect(result.exitCode).toBe(3);
     const run = await readRunJson(outDir(dir), result.runId);
     expect(run.pages.map((p) => p.status)).toEqual(["done", "failed", "done"]);
+    expect(run.pages[1]).toMatchObject({ failure: "environment", attempts: 5 });
     expect(run.pages[1]?.errors.join(" ")).toMatch(/brought to the front/);
-    expect(driver.starts).toBe(2); // restarted after the failed page
+    // The first start, one before each of the 4 retries, and one after the failed page.
+    expect(driver.starts).toBe(6);
+  });
+
+  it("tries a page again when the browser loses the foreground, with NVDA and the browser started fresh", async () => {
+    const dir = await setup(["/about"]);
+    const lost = new ForegroundError("The browser lost the foreground to another window");
+    const driver = new ScriptedDriver(sitePages({ about: { openError: lost, openErrorTimes: 2 } }));
+    const result = await runAudit(options(dir, driver));
+    expect(result.exitCode).toBe(0);
+    const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
+    expect(page).toMatchObject({ status: "done", attempts: 3 });
+    expect(page?.errors).toEqual([
+      expect.stringMatching(/^Attempt 1 failed \(.*lost the foreground.*\); retrying\.$/),
+      expect.stringMatching(/^Attempt 2 failed \(.*lost the foreground.*\); retrying\.$/),
+    ]);
+    expect(driver.starts).toBe(3); // the first start, then one before each retry
+  });
+
+  it("gives a page five attempts in all, then records it as failed with every attempt's reason", async () => {
+    const dir = await setup(["/about"]);
+    const lost = new ForegroundError("The browser lost the foreground to another window");
+    const driver = new ScriptedDriver(sitePages({ about: { openError: lost } }));
+    const result = await runAudit(options(dir, driver));
+    expect(result.exitCode).toBe(3);
+    const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
+    expect(page).toMatchObject({ status: "failed", failure: "environment", attempts: 5 });
+    expect(page?.errors.filter((error) => /^Attempt [1-4] failed/.test(error))).toHaveLength(4);
+    expect(page?.errors.at(-1)).toMatch(/^Could not open the page .*lost the foreground/);
+    expect(driver.starts).toBe(5);
+  });
+
+  it("tries a page again when a pass fails midway", async () => {
+    const dir = await setup(["/about"]);
+    let failed = false;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) => {
+        if (command !== "nextHeading" || failed) return null;
+        failed = true;
+        return new ForegroundError("The browser lost the foreground to another window");
+      },
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.exitCode).toBe(0);
+    const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
+    expect(page).toMatchObject({ status: "done", attempts: 2 });
+    expect(page?.errors[0]).toMatch(/^Attempt 1 failed \(headings pass: .*lost the foreground/);
+  });
+
+  it("takes the number of attempts from pageAttempts", async () => {
+    const dir = await setup(["/about"]);
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(sitePages({ about: { openError: broken } }));
+    const result = await runAudit({ ...options(dir, driver), config: config({ pageAttempts: 2 }) });
+    const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
+    expect(page).toMatchObject({ status: "failed", attempts: 2 });
   });
 
   it("retries a page once after a timeout, restarting the driver first", async () => {
@@ -546,7 +602,7 @@ describe("failures", () => {
     }
   });
 
-  it("records the page as failed when the retry times out too", async () => {
+  it("records the page as failed when every retry times out too", async () => {
     const dir = await setup(["/about", "/"]);
     const driver = new ScriptedDriver(sitePages(), {
       hang: (command, url) => command === "nextLine" && url.endsWith("/about"),
@@ -554,7 +610,7 @@ describe("failures", () => {
     const result = await runAudit(options(dir, driver));
     expect(result.exitCode).toBe(3);
     const run = await readRunJson(outDir(dir), result.runId);
-    expect(run.pages[0]).toMatchObject({ status: "failed", attempts: 2 });
+    expect(run.pages[0]).toMatchObject({ status: "failed", attempts: 5 });
     expect(run.pages[0]?.passes.read?.stopReason).toBe("timeout");
     expect(run.pages[1]?.status).toBe("done");
   });
@@ -592,6 +648,10 @@ describe("failures", () => {
     const run = await readRunJson(outDir(dir), result.runId);
     expect(run.pages.at(-1)?.status).toBe("done");
     expect(run.pages.filter((p) => p.failure === "page")).toHaveLength(5);
+    // The site answered: trying again can't help, so each 404 gets a single attempt.
+    expect(run.pages.filter((p) => p.failure === "page").map((p) => p.attempts)).toEqual([
+      1, 1, 1, 1, 1,
+    ]);
     expect(driver.starts).toBe(1); // no restarts: the browser and screen reader were fine
   });
 

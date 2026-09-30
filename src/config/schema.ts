@@ -64,6 +64,8 @@ export const configSchema = z.strictObject({
   restartEvery: positiveInt,
   /** Stop the run (exit 2, resumable) after this many failed pages in a row. */
   maxConsecutiveFailures: positiveInt,
+  /** How many times a page is tried before it's recorded as failed. */
+  pageAttempts: positiveInt,
   /** NVDA phrasing the core's stop detection matches (English interface). */
   phrasing: z.strictObject({
     noNextHeading: regexSource,
