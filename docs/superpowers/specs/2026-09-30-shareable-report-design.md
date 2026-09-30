@@ -167,12 +167,13 @@ Opened, each shows:
 | NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown. |
 | The browser stopped, or didn't start | The browser | Tried again with a fresh browser. |
 | The website answered with an error | The website | A 5xx is tried again. A 4xx isn't, since trying again can't help. |
+| The website couldn't be reached | The website or the network: the address didn't answer, the connection failed, or its certificate wasn't valid | Tried again. If it keeps failing, the site was down or couldn't be reached from this computer. |
 | A step took too long | Not certain: the website, NVDA, the computer, or voicecap | Tried again. If it keeps happening on one page, that page and the record say more. |
 | An unexpected error | Possibly voicecap itself | The full error, and where in voicecap's code it happened, are shown, with a link to report it (github.com/ICJIA/voicecap/issues). |
 | Stopped by the person running it | The person: Ctrl+C, or closing the window | Not a failure. The page is read when the run resumes. |
 
 **How the kind is decided:**
-- voicecap's own errors carry a cause code: `foreground`, `locked`, `screen-reader-stopped`, `browser`, `http`, `open-timeout`, `step-timeout`, or `page-timeout`. The drivers set the screen-reader ones in general terms, so the VoiceOver driver uses the same codes.
+- voicecap's own errors carry a cause code: `foreground`, `locked`, `screen-reader-stopped`, `browser`, `http`, `unreachable`, `open-timeout`, `step-timeout`, or `page-timeout`. The drivers set the screen-reader ones in general terms, so the VoiceOver driver uses the same codes.
 - Any other error is `unexpected`.
 - In runs recorded before cause codes (0.5.0 and earlier), the kind comes from the error's wording, which voicecap itself wrote, and the page says so. Wording it doesn't recognize counts as unexpected.
 
