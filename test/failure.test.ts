@@ -149,6 +149,63 @@ describe("redactHome", () => {
     );
   });
 
+  // The stack frames of voicecap's own ES modules are file: URLs, which spell a space as %20 and a
+  // letter such as é as %C3%A9.
+  it("replaces the home folder as a file: URL spells it, on Windows", () => {
+    expect(
+      redactHome(
+        "at f (file:///C:/Users/Jane%20Doe/code/voicecap/dist/a.js:1:2)",
+        "C:\\Users\\Jane Doe",
+        "win32",
+      ),
+    ).toBe("at f (file:///%USERPROFILE%/code/voicecap/dist/a.js:1:2)");
+  });
+
+  it("replaces the URL form of a home folder with a letter that isn't ASCII, in either case", () => {
+    const home = "C:\\Users\\José";
+    expect(redactHome("at f (file:///C:/Users/Jos%C3%A9/code/a.js:1:2)", home, "win32")).toBe(
+      "at f (file:///%USERPROFILE%/code/a.js:1:2)",
+    );
+    expect(redactHome("at g (file:///c:/users/jos%c3%a9/b.js:3:4)", home, "win32")).toBe(
+      "at g (file:///%USERPROFILE%/b.js:3:4)",
+    );
+  });
+
+  it("replaces the URL form with ~ elsewhere, and the plain form beside it", () => {
+    expect(
+      redactHome(
+        "at f (file:///Users/Jos%C3%A9%20Doe/a.js:1:2) and /Users/José Doe/b.js",
+        "/Users/José Doe",
+        "darwin",
+      ),
+    ).toBe("at f (file://~/a.js:1:2) and ~/b.js");
+  });
+
+  it("ends the name of either form by the same rule", () => {
+    const home = "C:\\Users\\Jane Doe";
+    expect(redactHome("(file:///C:/Users/Jane%20Doe) 'C:\\Users\\Jane Doe'", home, "win32")).toBe(
+      "(file:///%USERPROFILE%) '%USERPROFILE%'",
+    );
+    const longer = [
+      "at f (file:///C:/Users/Jane%20Doey/a.js:1:2)",
+      "at g (file:///C:/Users/Jane%20Doe.old/b.js:3:4)",
+      "at h (C:\\Users\\Jane Doey\\c.js:5:6)",
+    ].join("\n");
+    expect(redactHome(longer, home, "win32")).toBe(longer);
+  });
+
+  it("escapes the URL form as a pattern after encoding it", () => {
+    expect(
+      redactHome("at f (file:///C:/Users/pat%20(work)/a.js:1:2)", "C:\\Users\\pat (work)", "win32"),
+    ).toBe("at f (file:///%USERPROFILE%/a.js:1:2)");
+  });
+
+  // encodeURI throws on a lone surrogate, and a failure mustn't be lost to an error while it's recorded.
+  it("doesn't fail on a home folder that can't be percent-encoded", () => {
+    const text = "at f (/Users/pat/a.js:1:2)";
+    expect(redactHome(text, "/Users/\ud800", "linux")).toBe(text);
+  });
+
   it("leaves the text alone when there is no home folder to replace", () => {
     const text = "at f (/Users/pat/a.js:1:2)";
     expect(redactHome(text, "", "darwin")).toBe(text);

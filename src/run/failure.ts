@@ -27,20 +27,33 @@ const NAME_ENDS = String.raw`(?![\p{L}\p{N}_.-])`;
  * with %USERPROFILE% on Windows, and with ~ elsewhere. The folder is replaced wherever its name
  * ends: "/Users/pat" is replaced in "/Users/pat/a.js" and "(/Users/pat)", but not in
  * "/Users/patrick". On Windows the match ignores case and takes either slash between the parts.
+ *
+ * The folder is replaced as a file: URL spells it, too, which is how the stack frames of voicecap's
+ * own ES modules show it: "file:///C:/Users/Jane%20Doe/a.js" for "C:\Users\Jane Doe".
  */
 export function redactHome(text: string, home: string, platform: NodeJS.Platform): string {
   const windows = platform === "win32";
   // A separator left at the end of the home folder (HOME=/Users/pat/) isn't part of it.
   const folder = home.replace(windows ? /[\\/]+$/ : /\/+$/, "");
   if (folder === "") return text;
-  const source = windows
-    ? folder
-        .split(/[\\/]+/)
-        .map(escapeRegExp)
-        .join(String.raw`[\\/]+`)
-    : escapeRegExp(folder);
+  const parts = folder.split(windows ? /[\\/]+/ : "/");
+  const separator = windows ? String.raw`[\\/]+` : "/";
+  // A folder that needs no encoding is spelled the same way twice: one alternative.
+  const sources = new Set(
+    [parts, parts.map(urlPart)].map((spelling) => spelling.map(escapeRegExp).join(separator)),
+  );
+  const pattern = new RegExp(`(?:${[...sources].join("|")})${NAME_ENDS}`, windows ? "giu" : "gu");
   const replacement = windows ? "%USERPROFILE%" : "~";
-  return text.replace(new RegExp(source + NAME_ENDS, windows ? "giu" : "gu"), () => replacement);
+  return text.replace(pattern, () => replacement);
+}
+
+/** A part of a path as a file: URL spells it (a space is %20); one that can't be encoded stays. */
+function urlPart(part: string): string {
+  try {
+    return encodeURI(part);
+  } catch {
+    return part; // it has a lone surrogate, which encodeURI throws on
+  }
 }
 
 function escapeRegExp(text: string): string {
