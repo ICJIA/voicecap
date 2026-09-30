@@ -11,6 +11,7 @@ import { main } from "../src/cli/main.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
+import type { RunAuditOptions } from "../src/run/audit.js";
 import { manualSessionDir, runDir } from "../src/run/paths.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
@@ -441,6 +442,49 @@ describe("a full session through the CLI", () => {
       await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
     ) as RunJson;
     expect(record.sessions[0]?.reviewer).toEqual({ name: "Jane Doe", source: "option" });
+  });
+
+  // A real session can't run here, so runAudit is replaced by one that asks the question, as it
+  // does when a session ends. This proves the command hands runAudit the question, and that the
+  // question is asked on the command's own terminal, and only there.
+  it("hands runAudit the listener's question at a terminal, and none without one", async () => {
+    let answer: string | null | undefined;
+    vi.resetModules();
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: async (options: RunAuditOptions) => {
+        answer = await options.askListener?.({ screenReader: "NVDA", pagesRead: 3 });
+        return { exitCode: 0 };
+      },
+    }));
+    try {
+      const { main: mainWithQuestion } = await import("../src/cli/main.js");
+      const args = ["--site", SITE, "--pages", fixture("pages.json")];
+
+      const atATerminal = await atTerminal(args, ["2"], {}, mainWithQuestion);
+      expect(atATerminal.code).toBe(0);
+      expect(atATerminal.out).toContain("Did you listen as NVDA read these pages?");
+      expect(answer).toBe("part");
+
+      answer = "not asked";
+      const piped = capture();
+      const code = await mainWithQuestion(args, {
+        stdout: piped.stream,
+        stderr: capture().stream,
+        cwd: atATerminal.cwd,
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        stdin: linesStream(["2"]),
+        platform: "linux",
+      });
+      expect(code).toBe(0);
+      expect(piped.text()).not.toContain("Did you listen");
+      expect(answer).toBeUndefined();
+    } finally {
+      vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
   });
 
   it("runs with the replay driver, then records a review and a manual session", async () => {

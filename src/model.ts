@@ -251,6 +251,17 @@ export interface ReviewerRecord {
   source: "option" | "environment" | "git" | "config";
 }
 
+/** What a person says about listening to a session: all of it, part of it, or none of it. */
+export type ListenerAnswer = "all" | "part" | "no";
+
+/** Whether the person running voicecap listened: asked when the session ended, at a terminal. */
+export interface ListenerStatement {
+  answer: ListenerAnswer;
+  /** Local ISO times, to the millisecond. */
+  askedAt: string;
+  answeredAt: string;
+}
+
 export interface SessionRecord {
   /** 1-based. */
   n: number;
@@ -260,6 +271,13 @@ export interface SessionRecord {
    * config's reviewer. null when there was no name; absent in runs from before voicecap recorded it.
    */
   reviewer?: ReviewerRecord | null;
+  /**
+   * What the person running this session said when it ended, asked whether they listened as the
+   * screen reader read its pages. Absent when they weren't asked (no terminal, a replayed run, or
+   * no pages read) or didn't answer (a second Ctrl+C, or the input ended), and in runs from before
+   * voicecap recorded it.
+   */
+  listener?: ListenerStatement;
   endedAt: string | null;
   /** null when the session never ended cleanly (crash, power loss). */
   endReason: "completed" | "interrupted" | "environment-failure" | "error" | null;

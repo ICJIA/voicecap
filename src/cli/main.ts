@@ -26,6 +26,7 @@ import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
 import { voicecapVersion } from "../util/version.js";
 import { verifyHome } from "../verify.js";
+import { makeAskListener } from "./listener.js";
 
 export interface CliContext {
   stdout: OutputStream;
@@ -617,6 +618,8 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       logger,
       signal: ctx.signal ?? controller.signal,
       ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
+      // Only at a terminal: a script or CI is never asked.
+      askListener: makeAskListener(ctx.stdin, ctx.stdout),
     });
     return result.exitCode;
   } finally {

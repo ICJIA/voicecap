@@ -3,9 +3,12 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { makeAskListener } from "../src/cli/listener.js";
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import type { UserConfig } from "../src/config/schema.js";
 import { ForegroundError } from "../src/drivers/types.js";
@@ -28,7 +31,7 @@ import {
   runReportPath,
   siteFolder,
 } from "../src/run/paths.js";
-import { readRunJson, writeRunJson } from "../src/run/store.js";
+import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
@@ -42,6 +45,9 @@ import {
 } from "./helpers/scripted-driver.js";
 
 const SITE = "https://example.illinois.gov";
+
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
 
 /** A local ISO time to the millisecond, such as 2026-09-26T14:05:09.482-05:00. */
 const ISO_MS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d$/;
@@ -1055,11 +1061,14 @@ describe("failed attempts", () => {
       return openPage(url);
     };
     const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
-    // As 0.5.0 wrote the record: no page titles, and no failed attempts.
+    // As 0.5.0 wrote the record: no page titles, failed attempts, or listener's statement.
     const record = await readRunJson(outDir(dir), interrupted.runId);
     for (const page of record.pages) {
       delete page.title;
       delete page.failedAttempts;
+    }
+    for (const session of record.sessions) {
+      delete session.listener;
     }
     await writeRunJson(outDir(dir), record);
 
@@ -1143,6 +1152,293 @@ describe("the reviewer", () => {
       "cschweda",
       "Jane Doe",
     ]);
+  });
+});
+
+describe("the listener's statement", () => {
+  it("asks once the session's pages are read, and seals the answer with the run", async () => {
+    const dir = await setup();
+    const asked: { screenReader: string; pagesRead: number }[] = [];
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: (question) => {
+          asked.push(question);
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(asked).toEqual([{ screenReader: "NVDA", pagesRead: 3 }]);
+    expect(result.run.sessions[0]?.listener).toEqual({
+      answer: "all",
+      askedAt: expect.stringMatching(ISO_MS) as unknown,
+      answeredAt: expect.stringMatching(ISO_MS) as unknown,
+    });
+    expect(result.run.seal).toBe(sealOf(result.run));
+  });
+
+  it("asks after Ctrl+C too, and records nothing without an answer", async () => {
+    for (const [answer, expected] of [
+      ["part", { answer: "part" }],
+      [null, undefined],
+    ] as const) {
+      const dir = await setup();
+      const controller = new AbortController();
+      const driver = new ScriptedDriver(sitePages());
+      const openPage = driver.openPage.bind(driver);
+      driver.openPage = (url) => {
+        if (url.endsWith("/about")) controller.abort();
+        return openPage(url);
+      };
+      const asked: number[] = [];
+      const result = await runAudit(
+        options(dir, driver, {
+          signal: controller.signal,
+          askListener: ({ pagesRead }) => {
+            asked.push(pagesRead);
+            return Promise.resolve(answer);
+          },
+        }),
+      );
+      expect(result.outcome).toBe("interrupted");
+      expect(asked).toEqual([1]);
+      if (expected) expect(result.run.sessions[0]?.listener).toMatchObject(expected);
+      else expect(result.run.sessions[0]).not.toHaveProperty("listener");
+    }
+  });
+
+  it("doesn't ask when the session read no pages", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    controller.abort();
+    let asked = 0;
+    await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        signal: controller.signal,
+        askListener: () => {
+          asked++;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(asked).toBe(0);
+  });
+
+  it("doesn't ask for a replayed run", async () => {
+    const dir = await setup();
+    let asked = 0;
+    const result = await runAudit(
+      options(dir, undefined, {
+        site: "http://127.0.0.1:4747",
+        pages: fixture("pages.json"),
+        replayFrom: fixture("replay-run"),
+        askListener: () => {
+          asked++;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    // Pages were replayed, so it's the replay, not an empty session, that kept the question away.
+    expect(result.run.replayed).toBe(true);
+    expect(result.run.sessions[0]?.pagesDone).toBeGreaterThan(0);
+    expect(asked).toBe(0);
+  });
+
+  it("asks only once the screen reader has stopped", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    let stopsWhenAsked = 0;
+    await runAudit(
+      options(dir, driver, {
+        askListener: () => {
+          stopsWhenAsked = driver.stops;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(stopsWhenAsked).toBe(1);
+  });
+
+  it("asks when the run stops after failed pages in a row, and keeps the answer with the stop", async () => {
+    const dir = await setup();
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: { openError: broken },
+        about: { openError: broken },
+        resources: { openError: broken },
+      }),
+    );
+    const asked: number[] = [];
+    const result = await runAudit({
+      ...options(dir, driver, {
+        askListener: ({ pagesRead }) => {
+          asked.push(pagesRead);
+          return Promise.resolve("part");
+        },
+      }),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(result.outcome).toBe("stopped");
+    expect(asked).toEqual([2]);
+    const stored = await readRunJson(outDir(dir), result.runId);
+    expect(stored.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      listener: { answer: "part" },
+    });
+  });
+
+  it("doesn't ask when the session ends with an error, which is reported instead", async () => {
+    const dir = await setup();
+    const driver = new ScriptedDriver(sitePages());
+    // The screen reader won't start again for its restart after the first page.
+    const start = driver.start.bind(driver);
+    let starts = 0;
+    driver.start = () =>
+      ++starts === 2 ? Promise.reject(new EnvironmentError("NVDA didn't start")) : start();
+    let asked = 0;
+    await expect(
+      runAudit({
+        ...options(dir, driver, {
+          askListener: () => {
+            asked++;
+            return Promise.resolve("all");
+          },
+        }),
+        config: config({ restartEvery: 1 }),
+      }),
+    ).rejects.toThrow("NVDA didn't start");
+    expect(asked).toBe(0);
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({ endReason: "environment-failure", pagesDone: 1 });
+    expect(stored?.sessions[0]).not.toHaveProperty("listener");
+  });
+
+  it("notes when it asked and when the answer came, to the millisecond", async () => {
+    const dir = await setup(["/"]);
+    const start = new Date(2026, 8, 30, 14, 30, 0, 250).getTime();
+    let time = start;
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        now: () => new Date(time),
+        askListener: () => {
+          // The person takes four and a half seconds.
+          time += 4_500;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    const { askedAt, answeredAt } = result.run.sessions[0]!.listener!;
+    expect(Date.parse(askedAt)).toBe(start);
+    expect(Date.parse(answeredAt)).toBe(start + 4_500);
+  });
+
+  it("keeps each session's own statement when the run is resumed, and seals both", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(
+      options(dir, first, {
+        signal: controller.signal,
+        askListener: () => Promise.resolve("part"),
+      }),
+    );
+    // Saved with the interrupted session, before any seal.
+    const saved = await readRunJson(outDir(dir), interrupted.runId);
+    expect(saved.seal).toBeUndefined();
+    expect(saved.sessions[0]?.listener?.answer).toBe("part");
+
+    const asked: number[] = [];
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: ({ pagesRead }) => {
+          asked.push(pagesRead);
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(resumed.runId).toBe(interrupted.runId);
+    // Only the pages this session read: /about and /resources.
+    expect(asked).toEqual([2]);
+    const run = await readRunJson(outDir(dir), resumed.runId);
+    expect(run.sessions.map((session) => session.listener?.answer)).toEqual(["part", "all"]);
+    expect(run.seal).toBe(sealOf(run));
+  });
+
+  it("keeps the statement when the run is resumed with changed flag rules", async () => {
+    const dir = await setup(["/resources", "/", "/about"]);
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    expect(interrupted.outcome).toBe("interrupted");
+
+    // A flag rule turned off, so the completed run is sealed and written from a copy of the run.
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        config: config({ flags: { genericLinkText: { enabled: false } } }),
+        askListener: () => Promise.resolve("all"),
+      }),
+    );
+    expect(resumed).toMatchObject({ runId: interrupted.runId, outcome: "completed" });
+    const run = await readRunJson(outDir(dir), resumed.runId);
+    expect(resumed.run.sessions[1]?.listener?.answer).toBe("all");
+    expect(run.sessions[1]?.listener?.answer).toBe("all");
+    expect(run.seal).toBe(sealOf(run));
+  });
+
+  it("is covered by the seal: verify catches an answer edited afterward", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { askListener: () => Promise.resolve("no") }),
+    );
+    const home = path.join(dir, "transcripts");
+    const verify = () => verifyHome({ home, logger: createMemoryLogger() });
+    expect((await verify()).problems).toBe(0);
+
+    const file = path.join(result.runDir, "run.json");
+    const edited = JSON.parse(await readFile(file, "utf8")) as RunJson;
+    edited.sessions[0]!.listener!.answer = "all";
+    await writeFile(file, `${JSON.stringify(edited, null, 2)}\n`);
+    expect((await verify()).problems).toBe(1);
+  });
+
+  it("takes the answer of a person at a terminal, through the CLI's own question", async () => {
+    const dir = await setup(["/"]);
+    const keyboard = Object.assign(new PassThrough(), { isTTY: true });
+    keyboard.write("2\n");
+    let screen = "";
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: makeAskListener(keyboard, { write: (chunk) => ((screen += chunk), true) }),
+      }),
+    );
+    expect(screen).toContain("Did you listen as NVDA read these pages?");
+    expect(result.run.sessions[0]?.listener?.answer).toBe("part");
+    expect(result.run.seal).toBe(sealOf(result.run));
+  });
+
+  it("still completes the run, with a warning and no statement, when asking fails", async () => {
+    const dir = await setup(["/"]);
+    const logger = createMemoryLogger();
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        logger,
+        askListener: () => Promise.reject(new Error("The terminal went away")),
+      }),
+    );
+    expect(result.outcome).toBe("completed");
+    expect(result.run.sessions[0]).not.toHaveProperty("listener");
+    expect(result.run.seal).toBe(sealOf(result.run));
+    expect(logger.text("warn")).toContain("The terminal went away");
   });
 });
 

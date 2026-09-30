@@ -11,6 +11,7 @@ import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
   type EnvironmentRecord,
+  type ListenerAnswer,
   type PageRecord,
   type PassName,
   type ReviewerRecord,
@@ -28,10 +29,10 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
-import { EnvironmentError, ExitCode, UsageError } from "../util/errors.js";
+import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
-import { isoLocal } from "../util/time.js";
+import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
 import { withCurrentFlags } from "./flags.js";
@@ -119,6 +120,21 @@ export interface RunAuditOptions {
    * leave it out.
    */
   again?: string;
+  /**
+   * Asks the person running the session whether they listened, when the session ends: after the
+   * screen reader has stopped, and before the session is marked ended or the run is sealed, so a
+   * completed run's seal covers the answer. Asked only of a session that read pages, and never of a
+   * replayed run, or of one that ends with an error, which is reported instead. Resolves null for
+   * no answer (a second Ctrl+C, or the input ended). The CLI gives it at a terminal; a script or CI
+   * is never asked. The session's record keeps the answer, with when it was asked and answered, and
+   * nothing when there's no answer.
+   */
+  askListener?: (question: {
+    /** The screen reader's name, as the session's environment gives it. */
+    screenReader: string;
+    /** How many pages the session went through. */
+    pagesRead: number;
+  }) => Promise<ListenerAnswer | null>;
 }
 
 export interface RunAuditResult {
@@ -354,6 +370,10 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     await driverSession.stop();
   }
 
+  // Asked once the screen reader is stopped, and before end() or complete() below write the session
+  // and seal the run, so the answer is part of what they keep.
+  await recordListener(ctx, session);
+
   const failedPages = run.pages.filter((page) => page.status === "failed").length;
   const folders = { siteDir: outDir, runDir: runDir(outDir, run.id) };
   // A caller whose run can't be resumed names the command that starts over (voicecap demo's).
@@ -386,6 +406,32 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     run,
     failedPages,
   };
+}
+
+/**
+ * Ask whether the person running the session listened, and put the answer in the session's record.
+ * Asked only when the caller can ask, the session read pages, and the run isn't a replay. With no
+ * answer the record has no statement. A question that fails is said, and the run goes on without a
+ * statement: a run's record is never lost over a question.
+ */
+async function recordListener(ctx: ExecuteContext, session: SessionRecord): Promise<void> {
+  const { run, logger, now } = ctx;
+  const ask = ctx.options.askListener;
+  if (!ask || session.pagesDone === 0 || run.replayed) return;
+  const askedAt = isoLocalMs(now());
+  let answer: ListenerAnswer | null;
+  try {
+    answer = await ask({
+      screenReader: session.environment?.screenReader?.name ?? "the screen reader",
+      pagesRead: session.pagesDone,
+    });
+  } catch (error) {
+    logger.warn(
+      `Couldn't ask whether you listened (${errorMessage(error)}), so this session's record won't say.`,
+    );
+    return;
+  }
+  if (answer !== null) session.listener = { answer, askedAt, answeredAt: isoLocalMs(now()) };
 }
 
 async function transcribePages(
