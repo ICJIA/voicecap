@@ -98,6 +98,7 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 - [Known limitations](#known-limitations)
 - [Future enhancements](#future-enhancements)
 - [Development](#development)
+- [Credits](#credits)
 - [License](#license)
 
 ## Quick start
@@ -1354,6 +1355,16 @@ It stops before publishing unless:
 It restores `package.json` if anything fails before publishing. After publishing it commits the version bump, tags `vX.Y.Z`, and pushes.
 
 </details>
+
+## Credits
+
+**A hat tip to [Guidepup](https://www.guidepup.dev/), where voicecap began.** Guidepup is Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap is built on it. It starts the screen reader through Guidepup, presses its keys through Guidepup, and reads back what it said, and the NVDA it runs is Guidepup's portable build.
+
+voicecap also stands on:
+
+- **[NVDA](https://www.nvaccess.org/)**, the free, open-source screen reader from NV Access, which does the reading on Windows;
+- **[Playwright](https://playwright.dev/)**, which opens each page in a real browser;
+- **[IBM Plex](https://github.com/IBM/plex)**, the typefaces in the shareable page, under the SIL Open Font License.
 
 ## License
 
