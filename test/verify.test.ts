@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { appendFile, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -583,6 +584,13 @@ describe("verifyHome", () => {
     const home = await copyOfHome();
     await mkdir(path.join(home, "notes"));
     await writeFile(path.join(home, "notes", "README.md"), "# Notes on the audit\n");
+    expect((await verify(home)).lines).toEqual([MATCHES]);
+  });
+
+  it("leaves the shareable page's folder alone", async () => {
+    const home = await copyOfHome();
+    // The run, the manual session, and the reviews that made this home each wrote the page.
+    expect(existsSync(at(home, `${FOLDER}/share/current.html`))).toBe(true);
     expect((await verify(home)).lines).toEqual([MATCHES]);
   });
 

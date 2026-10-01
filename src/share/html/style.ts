@@ -41,6 +41,8 @@ body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); pad
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
 main { display: grid; gap: 56px; }
+/* A page's name is its whole address, and one word of it can be longer than any box: break it there, rather than run out of the box or the window. */
+main :where(p, li, h3, summary) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 16px; background: var(--panel); padding: 8px 12px; z-index: 5; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

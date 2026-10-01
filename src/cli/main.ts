@@ -17,7 +17,7 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderCheckingNotice, renderPreflight } from "../readiness/render.js";
 import { addReview } from "../reviews/review.js";
 import { runAudit } from "../run/audit.js";
-import { regenerateLiveReport } from "../run/live-report.js";
+import { regenerateLiveFiles } from "../run/live-report.js";
 import { resolveHome } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
@@ -440,7 +440,9 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
   program
     .command("report")
-    .description("regenerate a site's live report (<out>/<site>/report.html)")
+    .description(
+      "regenerate a site's live report (<out>/<site>/report.html) and shareable page (share/current.html)",
+    )
     .option(
       "--run <run-id>",
       "show this run instead of the latest completed one (it may be incomplete)",
@@ -452,7 +454,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       const home = resolveHome({ out: options.out, env: ctx.env, cwd: ctx.cwd });
       const outDir = await chooseSiteDir({ home, site: options.site ?? null });
       const { config } = await loadConfig({ cwd: ctx.cwd });
-      const file = await regenerateLiveReport({
+      const files = await regenerateLiveFiles({
         outDir,
         config,
         logger,
@@ -460,7 +462,9 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         compare: options.compare ?? null,
         requireRun: true,
       });
-      logger.info(`Report: ${file ?? "(none)"}`);
+      logger.info(`Report: ${files?.report ?? "(none)"}`);
+      // Said only when the page was written: a warning has already said when it wasn't.
+      if (files?.share) logger.info(`Shareable page: ${files.share}`);
       setExit(ExitCode.ok);
     });
 
