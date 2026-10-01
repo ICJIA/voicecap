@@ -14,18 +14,12 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { flagRulesSha256 } from "../src/flags/evaluate.js";
-import type {
-  EnvironmentRecord,
-  FlagResult,
-  MachineRecord,
-  ReviewsFile,
-  RunJson,
-} from "../src/model.js";
+import type { EnvironmentRecord, FlagResult, MachineRecord, RunJson } from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
 import { redactHome } from "../src/run/failure.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
-import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
+import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { sealOf } from "../src/util/hash.js";
@@ -41,20 +35,16 @@ import {
 } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
+import { DEMO_SITE, demoModel, inputOf, TRANSCRIPTS } from "./helpers/share-model.js";
 
 const CHRIS = "Christopher Schweda";
 const PAT = "Pat Lee";
 const SAM = "Sam Roe";
 
-/** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
-const DEMO_SITE = path.dirname(DEMO_DAY);
-
 /** The demo pages the tests look at closely. */
 const HOME = "home";
 const HOW = "how-a-run-works-fd116f9328";
 const COMMON = "common-mistakes-db8c98dbfa";
-
-const TRANSCRIPTS = ["read.txt", "headings.txt", "tab.txt"];
 
 /** What a run from before voicecap recorded something says in its place. */
 const BEFORE_0_6 = "Not recorded: this run used voicecap 0.4.1.";
@@ -69,16 +59,6 @@ const COMPUTER = [
   "Display language",
   "Software",
 ];
-
-let demo: Promise<ShareModel> | undefined;
-
-/** The demo site's page, as made the next morning. */
-function demoModel(): Promise<ShareModel> {
-  demo ??= loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG }).then((input) =>
-    buildShareModel({ ...input, generatedAt: "2026-09-30T09:00:00-05:00" }),
-  );
-  return demo;
-}
 
 /** A demo transcript file, exactly as on disk. */
 function demoFile(time: "1315" | "1402", slug: string, name: string): string {
@@ -101,30 +81,6 @@ async function sealedRun(
   // writeRunJson never touches a completed run's record, so this writes it as complete() does.
   await writeFile(runJsonPath(siteDir, run.id), `${JSON.stringify(sealed, null, 2)}\n`);
   return sealed;
-}
-
-const NO_TRANSCRIPTS: TranscriptStore = { txt: () => null, steps: () => null };
-const NO_REVIEWS: ReviewsFile = { schemaVersion: 1, pages: {} };
-
-/** What the model is built from, for runs built in memory, with no transcripts to read. */
-function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
-  return {
-    site: SITE,
-    runs,
-    records: runs,
-    reviews: NO_REVIEWS,
-    manual: [],
-    transcripts: NO_TRANSCRIPTS,
-    siteName: null,
-    flagRules: DEFAULT_CONFIG.flags,
-    flagRulesSha256: "f".repeat(64),
-    generatedAt: "2026-09-27T09:00:00-05:00",
-    timeZone: "America/Chicago",
-    home: os.homedir(),
-    platform: process.platform,
-    fileName: "current.html",
-    ...overrides,
-  };
 }
 
 /** A flag voicecap raises now for two "click here" links in the read pass. */

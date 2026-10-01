@@ -3,66 +3,25 @@
  * draws with (folds, chips, bars, and the spoken-line strip). The demo runs of 29 September 2026
  * (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in memory cover the rest.
  */
-import os from "node:os";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { FlagResult, ReviewsFile, RunJson } from "../src/model.js";
+import type { FlagResult } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
 import { STEP_ICONS } from "../src/share/html/icons.js";
 import { bar, chip, count, fold, notRecorded, strip, track } from "../src/share/html/parts.js";
 import { renderHow, renderSummary, renderTop } from "../src/share/html/top.js";
-import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import { HOW_LEAD, HOW_STEPS, WHEN_TO_RUN } from "../src/share/text.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
-import { DEMO_DAY } from "./helpers/share-fixture.js";
+import { attributes, textOf } from "./helpers/share-html.js";
+import { demoModel, inputOf } from "./helpers/share-model.js";
 
 const PAT = "Pat Lee";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const NV_ACCESS = "https://www.nvaccess.org/";
-
-/** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
-const DEMO_SITE = path.dirname(DEMO_DAY);
-
-const NO_TRANSCRIPTS: TranscriptStore = { txt: () => null, steps: () => null };
-const NO_REVIEWS: ReviewsFile = { schemaVersion: 1, pages: {} };
-
-/** What the model is built from, for runs built in memory, with no transcripts to read. */
-function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
-  return {
-    site: SITE,
-    runs,
-    records: runs,
-    reviews: NO_REVIEWS,
-    manual: [],
-    transcripts: NO_TRANSCRIPTS,
-    siteName: null,
-    flagRules: DEFAULT_CONFIG.flags,
-    flagRulesSha256: "f".repeat(64),
-    generatedAt: "2026-09-30T09:00:00-05:00",
-    timeZone: "America/Chicago",
-    home: os.homedir(),
-    platform: process.platform,
-    fileName: "current.html",
-    ...overrides,
-  };
-}
-
-let demo: Promise<ShareModel> | undefined;
-
-/** The demo site's page, as made the next morning. */
-function demoModel(): Promise<ShareModel> {
-  demo ??= loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG }).then((input) =>
-    buildShareModel({ ...input, generatedAt: "2026-09-30T09:00:00-05:00" }),
-  );
-  return demo;
-}
 
 /** A flag voicecap raises for two "click here" links in the read pass. */
 const LINK_FLAG: FlagResult = {
@@ -122,26 +81,6 @@ function pageOf(model: ShareModel): string {
   return [renderTop(model), renderSummary(model), renderHow(model)].join("\n");
 }
 
-const ENTITIES: Record<string, string> = {
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&#39;": "'",
-};
-
-/**
- * HTML as a reader gets it as text: each tag replaced by `glue`, entities decoded, spaces
- * collapsed.
- */
-function textOf(html: string, glue = " "): string {
-  return html
-    .replace(/<[^>]*>/g, glue)
-    .replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity] ?? entity)
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 /** What each of the six tiles shows, and what a screen reader says of its big number. */
 interface Tile {
   kind: string;
@@ -174,11 +113,6 @@ function tilesOf(html: string): Tile[] {
 function metersOf(html: string): string[] {
   const [meters = ""] = html.split('<nav class="toc"');
   return meters.split('<div class="meter">').slice(1);
-}
-
-/** Every attribute value of a name in some HTML. */
-function attributes(html: string, name: string): string[] {
-  return [...html.matchAll(new RegExp(`\\s${name}="([^"]*)"`, "g"))].map((found) => found[1] ?? "");
 }
 
 describe("fold", () => {

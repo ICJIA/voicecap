@@ -4,89 +4,33 @@
  * built in memory, with their transcripts held in memory too, cover the rest. The tests are on the
  * markup: it is the mockup's, so its classes and its order are the contract.
  */
-import os from "node:os";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { FlagResult, PassName, ReviewsFile, RunJson } from "../src/model.js";
+import type { FlagResult, PassName, RunJson } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
 import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
-import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
+import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
-import { MAIN_COMMAND } from "../src/transcripts/format.js";
-import { SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
-import { DEMO_DAY } from "./helpers/share-fixture.js";
+import {
+  attributes,
+  decode,
+  foldsIn,
+  scrollBoxes,
+  summariesIn,
+  textOf,
+} from "./helpers/share-html.js";
+import {
+  demoModel,
+  inputOf as inputWithoutTranscripts,
+  LINES,
+  storeOf,
+  TRANSCRIPTS,
+} from "./helpers/share-model.js";
 
-/** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
-const DEMO_SITE = path.dirname(DEMO_DAY);
-
-const NO_REVIEWS: ReviewsFile = { schemaVersion: 1, pages: {} };
-
-/** The transcript files a page's record lists. */
-const TRANSCRIPTS = ["read.txt", "headings.txt", "tab.txt"];
-
-/** What NVDA said, for every page of the runs built in memory. */
-const LINES: Record<PassName, string[]> = {
-  read: [
-    "banner landmark, link, Skip to main content",
-    "heading, level 1, Grants",
-    "To apply,, link, click here, dot",
-    "content info landmark, © 2026 Example Agency",
-  ],
-  headings: ["heading, level 1, Grants", "no next heading"],
-  tab: ["Skip to main content, link", "click here, link"],
-};
-
-type Lines = Partial<Record<PassName, string[]>>;
-
-/** A transcript as voicecap writes it: a header block, a blank line, then one line per step. */
-function txtOf(slug: string, pass: PassName, lines: string[]): string {
-  return `${[`# voicecap transcript: ${pass} pass`, `# Page: ${slug}`, "", ...lines].join("\n")}\n`;
-}
-
-/**
- * The transcripts of every run in memory: each page's lines as `linesOf` gives them, and no
- * transcript for a pass it leaves out, as a file that can't be read.
- */
-function storeOf(linesOf: (slug: string) => Lines = () => LINES): TranscriptStore {
-  return {
-    txt: (_run, slug, pass) => {
-      const lines = linesOf(slug)[pass];
-      return lines === undefined ? null : txtOf(slug, pass, lines);
-    },
-    steps: (_run, slug, pass) =>
-      linesOf(slug)[pass]?.map((spoken, index) => ({
-        n: index + 1,
-        command: MAIN_COMMAND[pass],
-        spoken,
-        durationMs: 1200,
-        offsetMs: (index + 1) * 1200,
-      })) ?? null,
-  };
-}
-
-/** What the model is built from, for runs built in memory. */
+/** What the model is built from, for runs built in memory, with their transcripts held in memory. */
 function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
-  return {
-    site: SITE,
-    runs,
-    records: runs,
-    reviews: NO_REVIEWS,
-    manual: [],
-    transcripts: storeOf(),
-    siteName: null,
-    flagRules: DEFAULT_CONFIG.flags,
-    flagRulesSha256: "f".repeat(64),
-    generatedAt: "2026-09-30T09:00:00-05:00",
-    timeZone: "America/Chicago",
-    home: os.homedir(),
-    platform: process.platform,
-    fileName: "current.html",
-    ...overrides,
-  };
+  return inputWithoutTranscripts(runs, { transcripts: storeOf(), ...overrides });
 }
 
 /** A page read in full, with its three transcripts, as the runs built here have them. */
@@ -129,16 +73,6 @@ function manyPages(total: number, flagged: number): ShareModel {
   );
 }
 
-let demo: Promise<ShareModel> | undefined;
-
-/** The demo site's page, as made the next morning. */
-function demoModel(): Promise<ShareModel> {
-  demo ??= loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG }).then((input) =>
-    buildShareModel({ ...input, generatedAt: "2026-09-30T09:00:00-05:00" }),
-  );
-  return demo;
-}
-
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
   return buildShareModel(inputOf([shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] })]));
@@ -155,46 +89,6 @@ function withCard(model: ShareModel, index: number, patch: Partial<PageCard>): S
 /** The cards of the "Every page" section, each as its markup. */
 function cardsIn(html: string): string[] {
   return html.split('<article class="card"').slice(1);
-}
-
-/** The folds of a section, each as its markup from `<details` on. */
-function foldsIn(html: string): string[] {
-  return html.split("<details").slice(1);
-}
-
-const ENTITIES: Record<string, string> = {
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&#39;": "'",
-};
-
-/** Entities decoded, and nothing else: what a browser shows of some escaped text. */
-function decode(html: string): string {
-  return html.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity] ?? entity);
-}
-
-/** HTML as a reader gets it as text: tags dropped, entities decoded, spaces collapsed. */
-function textOf(html: string): string {
-  return decode(html.replace(/<[^>]*>/g, " "))
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Every attribute value of a name in some HTML. */
-function attributes(html: string, name: string): string[] {
-  return [...html.matchAll(new RegExp(`\\s${name}="([^"]*)"`, "g"))].map((found) => found[1] ?? "");
-}
-
-/** The text of each fold's summary line. */
-function summariesIn(html: string): string[] {
-  return [...html.matchAll(/<summary>(.*?)<\/summary>/gs)].map((found) => textOf(found[1] ?? ""));
-}
-
-/** The scroll boxes' opening tags. */
-function scrollBoxes(html: string): string[] {
-  return html.match(/<div class="scroll"[^>]*>/g) ?? [];
 }
 
 describe("renderPages", () => {
