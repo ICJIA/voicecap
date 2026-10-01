@@ -907,20 +907,43 @@ describe("problemsOf: did it happen again?", () => {
     });
   });
 
-  it("says plainly when the page wasn't tried again and no other run read it", () => {
+  it("says it isn't known when the page wasn't tried again and no other run read it", () => {
     const run = shareRun({
       id: "r1",
       pages: [
         { path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
         { path: "/b", status: "failed", failedAttempts: [httpAttempt(1, 404)] },
+        {
+          path: "/c",
+          status: "failed",
+          attempts: 1,
+          errors: [`read pass: ${FOREGROUND}`],
+        },
       ],
     });
     const { problems } = problemsFor(run);
 
     const verdict =
-      "No, as far as the records show: this run didn't try the page again, and no other run read it in full.";
-    expect(problems.map((problem) => problem.verdict)).toEqual([verdict, verdict]);
-    expect(problems.map((problem) => problem.again)).toEqual(["no", "no"]);
+      "Not known: this run didn't try the page again, and no other run read it in full.";
+    expect(problems.map((problem) => problem.verdict)).toEqual([verdict, verdict, verdict]);
+    expect(problems.map((problem) => problem.again)).toEqual(["unknown", "unknown", "unknown"]);
+  });
+
+  it("says no, not unknown, once another run the standing draws on read the page in full", () => {
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      pages: [{ path: "/a" }],
+    });
+    const latest = shareRun({
+      id: "r2",
+      pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
+    });
+    const { problems } = problemsFor(earlier, latest);
+
+    expect(problems.map((problem) => [problem.verdict, problem.again])).toEqual([
+      ["No: read in full in run r1.", "no"],
+    ]);
   });
 
   it("says when a later attempt loaded the page and voicecap skipped it", () => {
@@ -1013,7 +1036,7 @@ describe("problemsOf: the effect, and the record", () => {
     });
   });
 
-  it("says where a problem written as text left its transcripts, from 0.5.0 on", () => {
+  describe("a problem written as text", () => {
     const pages = (): SharePageSpec[] => [
       {
         path: "/a",
@@ -1030,22 +1053,32 @@ describe("problemsOf: the effect, and the record", () => {
     const earlierAttempts = `Earlier attempts' partial transcripts, if any, are kept in attempts/${slug}/ in the run's folder.`;
     const left = `The partial transcripts it left are in pages/${slug}/.`;
 
-    const from050 = problemsFor(shareRun({ id: "r1", voicecapVersion: "0.5.0", pages: pages() }));
-    const from041 = problemsFor(shareRun({ id: "r1", voicecapVersion: "0.4.1", pages: pages() }));
-    const unknown = problemsFor({ ...shareRun({ id: "r1", pages: pages() }), sessions: [] });
+    // Voicecap 0.3.0 was the first to keep an earlier attempt's folder (src/run/attempts.ts).
+    it.each(["1.0.0", "0.10.0", "0.5.0", "0.4.1", "0.3.1", "0.3.0"])(
+      "says where it left its transcripts, in a run from voicecap %s",
+      (version) => {
+        const { problems } = problemsFor(
+          shareRun({ id: "r1", voicecapVersion: version, pages: pages() }),
+        );
 
-    expect(from050.problems.map((problem) => problem.effect)).toEqual([
-      `No transcripts from this run: the page failed. ${earlierAttempts}`,
-      `No transcripts from this run: the page failed. ${left} ${earlierAttempts}`,
-    ]);
-    // Only runs from 0.5.0 on are said to keep earlier attempts; an older or unknown one claims what its record shows.
-    expect(from041.problems.map((problem) => problem.effect)).toEqual([
-      "No transcripts from this run: the page failed.",
-      `No transcripts from this run: the page failed. ${left}`,
-    ]);
-    expect(unknown.problems.map((problem) => problem.effect)).toEqual(
-      from041.problems.map((problem) => problem.effect),
+        expect(problems.map((problem) => problem.effect)).toEqual([
+          `No transcripts from this run: the page failed. ${earlierAttempts}`,
+          `No transcripts from this run: the page failed. ${left} ${earlierAttempts}`,
+        ]);
+      },
     );
+
+    it("claims only what its record shows, in a run from before 0.3.0 or from an unknown version", () => {
+      const from020 = problemsFor(shareRun({ id: "r1", voicecapVersion: "0.2.0", pages: pages() }));
+      const unknown = problemsFor({ ...shareRun({ id: "r1", pages: pages() }), sessions: [] });
+
+      for (const { problems } of [from020, unknown]) {
+        expect(problems.map((problem) => problem.effect)).toEqual([
+          "No transcripts from this run: the page failed.",
+          `No transcripts from this run: the page failed. ${left}`,
+        ]);
+      }
+    });
   });
 
   it("records an attempt's start and its failure, word for word, with a stack for an unexpected error", () => {
@@ -1198,10 +1231,14 @@ describe("problemsOf: the effect, and the record", () => {
 });
 
 describe("problemsOf: the verdict line", () => {
-  /** A run in which each page fails once, with the cause given. */
-  const failing = (id: string, causes: FailureCause[]) =>
-    shareRun({
-      id,
+  /**
+   * Runs in which each page fails once, with the cause given. Unless `readBefore` is false, an
+   * earlier run read every page in full, so none of the problems happened again; without it, the
+   * one attempt is all there is, and nothing says what would have come after it.
+   */
+  const failing = (causes: FailureCause[], { readBefore = true } = {}): RunJson[] => {
+    const failed = shareRun({
+      id: "failed",
       pages: causes.map((cause, index) => ({
         path: `/${index}-${cause}`,
         status: "failed" as const,
@@ -1210,6 +1247,58 @@ describe("problemsOf: the verdict line", () => {
         ],
       })),
     });
+    const before = shareRun({
+      id: "before",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      pages: causes.map((cause, index) => ({ path: `/${index}-${cause}` })),
+    });
+    return readBefore ? [before, failed] : [failed];
+  };
+
+  /**
+   * Runs whose problems have the answers to "did it happen again?" given, as numbers of pages. A
+   * `no` page failed once and an earlier run read it in full. A `same` page failed twice the same
+   * way, and a `different` one in different ways, so each has two problems. An `unknown` page
+   * failed once, and nothing else reads it.
+   */
+  const answering = (pages: Partial<Record<Problem["again"], number>>): RunJson[] => {
+    const count = (answer: Problem["again"]) =>
+      Array.from({ length: pages[answer] ?? 0 }, (_, i) => i);
+    const failedOnce = [failedAttempt({ n: 1 })];
+    const latest = shareRun({
+      id: "latest",
+      pages: [
+        ...count("no").map((i) => ({
+          path: `/no-${i}`,
+          status: "failed" as const,
+          failedAttempts: failedOnce,
+        })),
+        ...count("same").map((i) => ({
+          path: `/same-${i}`,
+          status: "failed" as const,
+          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2 })],
+        })),
+        ...count("different").map((i) => ({
+          path: `/different-${i}`,
+          status: "failed" as const,
+          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2, cause: "step-timeout" })],
+        })),
+        ...count("unknown").map((i) => ({
+          path: `/unknown-${i}`,
+          status: "failed" as const,
+          failedAttempts: failedOnce,
+        })),
+      ],
+    });
+    const earlier = shareRun({
+      id: "earlier",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      pages: count("no").map((i) => ({ path: `/no-${i}` })),
+    });
+    return pages.no ? [earlier, latest] : [latest];
+  };
+  /** The sentence of a verdict line that says what became of the problems. */
+  const againOf = (line: string) => line.split(". ")[1];
   const NOT_VOICECAP = "the kind that could mean a problem in voicecap itself.";
 
   it("says no problems when every page was read in full", () => {
@@ -1283,7 +1372,7 @@ describe("problemsOf: the verdict line", () => {
       verdict: "No: read in full in run 2026-09-29_1402.",
       again: "no",
       effect:
-        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/the-report-03940c2f88/.",
+        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/the-report-03940c2f88/. Earlier attempts' partial transcripts, if any, are kept in attempts/the-report-03940c2f88/ in the run's folder.",
       record: [{ time: null, source: "run.json", entry: `read pass: ${FOREGROUND}` }],
       notRecorded: [
         "Which program came to the front: not recorded: this run used voicecap 0.4.1.",
@@ -1297,8 +1386,9 @@ describe("problemsOf: the verdict line", () => {
       pass: "headings",
       happened: "During the headings pass, another window took the screen.",
       verdict: "No: read in full in run 2026-09-29_1315.",
+      again: "no",
       effect:
-        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/how-a-run-works-fd116f9328/.",
+        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/how-a-run-works-fd116f9328/. Earlier attempts' partial transcripts, if any, are kept in attempts/how-a-run-works-fd116f9328/ in the run's folder.",
       record: [{ time: null, source: "run.json", entry: `headings pass: ${FOREGROUND}` }],
     });
   });
@@ -1323,18 +1413,86 @@ describe("problemsOf: the verdict line", () => {
   });
 
   it("says whose a single problem is, and that it didn't happen again", () => {
-    const { line } = problemsFor(failing("r1", ["foreground"]));
+    const { line } = problemsFor(...failing(["foreground"]));
 
     expect(line).toBe(
       `1 problem, outside voicecap: another window took the screen. It didn't happen again. It wasn't an unexpected error, ${NOT_VOICECAP}`,
     );
   });
 
+  it("says when a problem wasn't tried again, which isn't that it didn't happen again", () => {
+    const one = problemsFor(...failing(["foreground"], { readBefore: false }));
+    const two = problemsFor(...failing(["foreground", "locked"], { readBefore: false }));
+    const three = problemsFor(
+      ...failing(["foreground", "locked", "foreground"], { readBefore: false }),
+    );
+
+    expect(one.line).toBe(
+      `1 problem, outside voicecap: another window took the screen. It wasn't tried again. It wasn't an unexpected error, ${NOT_VOICECAP}`,
+    );
+    expect(two.line).toBe(
+      `2 problems, both outside voicecap: another window took the screen (1), and the computer locked (1). Neither was tried again. Neither was an unexpected error, ${NOT_VOICECAP}`,
+    );
+    expect(three.line).toBe(
+      `3 problems, all outside voicecap: another window took the screen (2), and the computer locked (1). None was tried again. None was an unexpected error, ${NOT_VOICECAP}`,
+    );
+  });
+
+  it.each<[string, Partial<Record<Problem["again"], number>>, string]>([
+    [
+      "one that didn't happen again, and one not tried again",
+      { no: 1, unknown: 1 },
+      "1 didn't happen again, and 1 wasn't tried again",
+    ],
+    [
+      "one that didn't happen again, and two not tried again",
+      { no: 1, unknown: 2 },
+      "1 didn't happen again, and 2 weren't tried again",
+    ],
+    [
+      "one that happened again on every attempt, and one not tried again",
+      { same: 1, unknown: 1 },
+      "2 happened again on every attempt, and 1 wasn't tried again",
+    ],
+    [
+      "one that happened again in different ways, and one not tried again",
+      { different: 1, unknown: 1 },
+      "2 happened again, in different ways, and 1 wasn't tried again",
+    ],
+    [
+      "one that didn't happen again, and one that did",
+      { no: 1, same: 1 },
+      "1 didn't happen again, and 2 happened again on every attempt",
+    ],
+    [
+      "every answer",
+      { no: 1, same: 1, different: 1, unknown: 1 },
+      "1 didn't happen again, 2 happened again on every attempt, 2 happened again, in different ways, and 1 wasn't tried again",
+    ],
+  ])("counts what became of each problem when the answers differ: %s", (_name, pages, again) => {
+    const { line } = problemsFor(...answering(pages));
+
+    expect(againOf(line)).toBe(again);
+  });
+
+  it("gives each problem the answer that belongs to its page", () => {
+    const { problems } = problemsFor(...answering({ no: 1, same: 1, different: 1, unknown: 1 }));
+
+    expect(problems.map((problem) => [pathOf(problem), problem.again])).toEqual([
+      ["/no-0", "no"],
+      ["/same-0", "same"],
+      ["/same-0", "same"],
+      ["/different-0", "different"],
+      ["/different-0", "different"],
+      ["/unknown-0", "unknown"],
+    ]);
+  });
+
   it("says outside voicecap only when every kind is another window or the lock", () => {
-    const both = problemsFor(failing("r1", ["foreground", "locked"])).line;
-    const three = problemsFor(failing("r1", ["foreground", "locked", "foreground"])).line;
-    const mixed = problemsFor(failing("r1", ["foreground", "browser"])).line;
-    const one = problemsFor(failing("r1", ["screen-reader-stopped"])).line;
+    const both = problemsFor(...failing(["foreground", "locked"])).line;
+    const three = problemsFor(...failing(["foreground", "locked", "foreground"])).line;
+    const mixed = problemsFor(...failing(["foreground", "browser"])).line;
+    const one = problemsFor(...failing(["screen-reader-stopped"])).line;
 
     expect(both).toBe(
       `2 problems, both outside voicecap: another window took the screen (1), and the computer locked (1). Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`,
@@ -1351,7 +1509,7 @@ describe("problemsOf: the verdict line", () => {
   });
 
   it("counts each kind when there are several", () => {
-    const { line } = problemsFor(failing("r1", ["foreground", "step-timeout", "foreground"]));
+    const { line } = problemsFor(...failing(["foreground", "step-timeout", "foreground"]));
 
     expect(line).toBe(
       `3 problems: another window took the screen (2), and a step took too long (1). None happened again. None was an unexpected error, ${NOT_VOICECAP}`,
@@ -1360,7 +1518,7 @@ describe("problemsOf: the verdict line", () => {
 
   it("lists the kinds most numerous first, then in the order of the table of kinds", () => {
     const { line } = problemsFor(
-      failing("r1", [
+      ...failing([
         "unexpected",
         "http",
         "page-timeout",
@@ -1412,8 +1570,8 @@ describe("problemsOf: the verdict line", () => {
   });
 
   it("points to an unexpected error, which could mean a problem in voicecap itself", () => {
-    const one = problemsFor(failing("r1", ["foreground", "unexpected"]));
-    const two = problemsFor(failing("r1", ["unexpected", "foreground", "unexpected"]));
+    const one = problemsFor(...failing(["foreground", "unexpected"]));
+    const two = problemsFor(...failing(["unexpected", "foreground", "unexpected"]));
 
     expect(one.line).toBe(
       "2 problems: another window took the screen (1), and an unexpected error (1). Neither happened again. 1 was an unexpected error, the kind that could mean a problem in voicecap itself: see its record.",

@@ -53,7 +53,12 @@ export interface Problem {
   did: string;
   /** "Did it happen again?" */
   verdict: string;
-  again: "no" | "same" | "different";
+  /**
+   * What the verdict comes to: "no", "same" (on every attempt), "different" (in different ways), or
+   * "unknown", when the page wasn't tried again here and no other run the standing draws on read
+   * it in full, so nothing says whether it would have happened again.
+   */
+  again: "no" | "same" | "different" | "unknown";
   /** "Effect on the results". */
   effect: string;
   record: ProblemRecordRow[];
@@ -456,7 +461,8 @@ function didOf(failure: Failure, endsPage: boolean, version: string | null): str
  * - It failed more than once here and never got through: yes, on every attempt or in different
  *   ways. An earlier run's read of it doesn't change that, so this comes before the next.
  * - It failed once, and another run the standing draws on read it in full: no.
- * - It failed once, and that's all the records show: no, as far as they show, and it says so.
+ * - It failed once, and that's all there is: not known. Not "no": nothing shows the problem didn't
+ *   come back, only that the page wasn't tried again.
  */
 function verdictOf(
   ctx: PageContext,
@@ -505,9 +511,8 @@ function verdictOf(
   );
   if (elsewhere) return { again: "no", verdict: `No: read in full in run ${elsewhere.id}.` };
   return {
-    again: "no",
-    verdict:
-      "No, as far as the records show: this run didn't try the page again, and no other run read it in full.",
+    again: "unknown",
+    verdict: "Not known: this run didn't try the page again, and no other run read it in full.",
   };
 }
 
@@ -515,7 +520,7 @@ function verdictOf(
  * "Effect on the results": which transcripts the page shows, and where this run kept partial
  * ones. A record of failed attempts says they're kept in attempts/<slug>/ (with the run's folder
  * numbering them, which doesn't match the attempts' own); the last attempt of a failed page left
- * what it wrote in pages/<slug>/. A run's errors only say that from 0.5.0 on.
+ * what it wrote in pages/<slug>/. A run's errors only say that from 0.3.0 on.
  */
 function effectOf(
   ctx: PageContext,
@@ -556,11 +561,14 @@ function effectOf(
   return parts.join(" ");
 }
 
-/** Whether the voicecap that made a run is 0.5.0 or later. Unknown counts as earlier. */
+/**
+ * Whether the voicecap that made a run kept an earlier attempt's folder, in attempts/<slug>/: 0.3.0
+ * (src/run/attempts.ts) and every version since. An unknown version counts as an earlier one.
+ */
 function keepsEarlierAttempts(version: string | null): boolean {
   const match = version === null ? null : /^(\d+)\.(\d+)/.exec(version);
   if (!match) return false;
-  return Number(match[1]) > 0 || Number(match[2]) >= 5;
+  return Number(match[1]) > 0 || Number(match[2]) >= 3;
 }
 
 /** What a run didn't record, said where it matters: the program in front, the event log, NVDA's log. */
@@ -600,15 +608,25 @@ function lineOf(problems: Problem[], standing: Standing): string {
     ? byCount(", outside voicecap", ", both outside voicecap", ", all outside voicecap")
     : "";
 
-  const same = problems.filter((problem) => problem.again === "same").length;
-  const different = problems.filter((problem) => problem.again === "different").length;
-  const happened: string[] = [];
-  if (same > 0) happened.push(`${same} happened again on every attempt`);
-  if (different > 0) happened.push(`${different} happened again, in different ways`);
+  // What became of them. Each answer is counted on its own, so each count is true: a problem that
+  // wasn't tried again is in neither the count that happened again nor the count that didn't.
+  const answers: Record<Problem["again"], number> = { no: 0, same: 0, different: 0, unknown: 0 };
+  for (const { again } of problems) answers[again]++;
+  const counted: string[] = [];
+  if (answers.no > 0) counted.push(`${answers.no} didn't happen again`);
+  if (answers.same > 0) counted.push(`${answers.same} happened again on every attempt`);
+  if (answers.different > 0) {
+    counted.push(`${answers.different} happened again, in different ways`);
+  }
+  if (answers.unknown > 0) {
+    counted.push(`${answers.unknown} ${answers.unknown === 1 ? "wasn't" : "weren't"} tried again`);
+  }
   const again =
-    happened.length > 0
-      ? joinList(happened)
-      : byCount("It didn't happen again", "Neither happened again", "None happened again");
+    answers.no === total
+      ? byCount("It didn't happen again", "Neither happened again", "None happened again")
+      : answers.unknown === total
+        ? byCount("It wasn't tried again", "Neither was tried again", "None was tried again")
+        : joinList(counted);
 
   const unexpected = counts.get("unexpected") ?? 0;
   const itself = "the kind that could mean a problem in voicecap itself";
