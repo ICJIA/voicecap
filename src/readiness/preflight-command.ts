@@ -2,7 +2,9 @@
  * voicecap preflight: the quick checks init and doctor start with, on their own. It shows this
  * computer's details and each check, how to fix what failed, and one verdict at the end. It never
  * starts the screen reader or the browser, and never runs the live test (doctor adds that), so it
- * needs no site and changes nothing. Platform-neutral, as doctor is: it works from any
+ * needs no site. Its checks only read, except on a Mac: the Full Disk Access check creates and
+ * removes a small file, and the System Events check can raise a macOS prompt, which is why the
+ * platform's checking notice comes first. Platform-neutral, as doctor is: it works from any
  * PlatformReadiness (Windows, Mac, or Linux's), with no driver imports of its own.
  */
 import type { PlatformReadiness, PreflightResult } from "./model.js";
@@ -31,8 +33,11 @@ interface Ending {
 /**
  * How the report ends. Not ready: how many things to fix, and how to check again, except where
  * there's no screen reader to drive (Linux), which no fix changes. Ready: where voicecap can't run
- * the screen reader yet (a Mac, until its VoiceOver driver exists), that the checks passed and why
- * a run has to wait; anywhere else, what to do next.
+ * the screen reader yet (the platform's cannotRunYet: a Mac, until its VoiceOver driver exists),
+ * that the checks passed, that audits wait for the driver, and how to hear the screen reader work
+ * now, with doctor's live test. That replaces the platform's own note, whose "run this command on a
+ * Windows computer" would read, right after a preflight, as "run preflight there". Anywhere else,
+ * what to do next.
  */
 function ending(result: PreflightResult, platform: PlatformReadiness, again: string): Ending {
   if (!result.ready) {
@@ -52,15 +57,15 @@ function ending(result: PreflightResult, platform: PlatformReadiness, again: str
       exitCode: ExitCode.environment,
     };
   }
+  const screenReader = platform.screenReader ?? "the screen reader";
   if (platform.cannotRunYet !== null) {
     return {
       outcome: "pass",
       verdict: "✓ Ready: this Mac passed every check.",
-      after: platform.cannotRunYet,
+      after: `voicecap can't run ${screenReader} audits yet: that comes with its ${screenReader} driver. To hear ${screenReader} work now: ${DOCTOR} (a 20-second live test; hands off the keyboard and mouse).`,
       exitCode: ExitCode.ok,
     };
   }
-  const screenReader = platform.screenReader ?? "the screen reader";
   return {
     outcome: "pass",
     verdict: "✓ Ready: this computer can run voicecap.",

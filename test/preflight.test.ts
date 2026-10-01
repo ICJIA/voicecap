@@ -129,9 +129,15 @@ function windows(script: Record<string, Check[]> = WINDOWS_READY) {
 const MAC_NOTICE =
   'Checking this Mac. If macOS asks for access to control "System Events", click Allow.';
 
-// What the real Mac readiness says until its VoiceOver driver exists (readiness-mac.ts).
+// What the real Mac readiness says until its VoiceOver driver exists (readiness-mac.ts). preflight
+// doesn't print it: "run this command on a Windows computer", right after a preflight, would read
+// as "run preflight there".
 const CANNOT_RUN_YET =
   "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.";
+
+// What preflight says instead, after a passing Mac's green line.
+const MAC_ENDING =
+  "voicecap can't run VoiceOver audits yet: that comes with its VoiceOver driver. To hear VoiceOver work now: npx @icjia/voicecap doctor (a 20-second live test; hands off the keyboard and mouse).";
 
 const MAC_READY = {
   macos: [ok("macos", "macOS 26 is supported")],
@@ -289,19 +295,23 @@ describe("voicecap preflight", () => {
     expect(result.out).toContain("\n✓ Ready: this computer can run voicecap.\nNext: ");
   });
 
-  it("says a Mac that passes every check can't run VoiceOver yet, and exits 0", async () => {
+  it("says a Mac that passes every check can't run VoiceOver audits yet, and how to hear it work", async () => {
     const { platform, liveTests } = mac();
 
     const result = await run(["preflight"], platform, { os: "darwin" });
 
     expect(result.err).toBe("");
     expect(result.code).toBe(0);
-    expect(
-      result.out.endsWith(`\n✓ Ready: this Mac passed every check.\n${CANNOT_RUN_YET}\n`),
-    ).toBe(true);
+    expect(result.out.endsWith(`\n✓ Ready: this Mac passed every check.\n${MAC_ENDING}\n`)).toBe(
+      true,
+    );
+    // Not the platform's own note, which tells a reader to run the command on a Windows computer.
+    expect(result.out).not.toContain(CANNOT_RUN_YET);
+    expect(result.out).not.toContain("Windows computer");
     // The note replaces the next steps, and the verdict says it once: not renderPreflight's too.
     expect(result.out).not.toContain("Next:");
     expect(result.out).not.toContain("Ready: this computer");
+    // It points to the live test without running it.
     expect(liveTests()).toBe(0);
   });
 
@@ -347,7 +357,7 @@ describe("voicecap preflight", () => {
         "\n✗ Not ready: 1 thing to fix.\nFix these, then run npx @icjia/voicecap preflight again.\n",
       ),
     ).toBe(true);
-    expect(result.out).not.toContain("can't run VoiceOver yet");
+    expect(result.out).not.toContain("can't run VoiceOver");
   });
 
   it("says plainly on Linux that voicecap can't drive a screen reader there, and exits 2", async () => {
@@ -479,7 +489,7 @@ describe("voicecap preflight's color", () => {
 
     expect(
       result.out.endsWith(
-        `\n\u001b[32m✓ Ready: this Mac passed every check.\u001b[39m\n${CANNOT_RUN_YET}\n`,
+        `\n\u001b[32m✓ Ready: this Mac passed every check.\u001b[39m\n${MAC_ENDING}\n`,
       ),
     ).toBe(true);
   });

@@ -235,9 +235,9 @@ A computer that isn't ready exits with code 2, as `init` does, after the numbere
 Fix these, then run npx @icjia/voicecap preflight again.
 ```
 
-On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by the note that voicecap can't run VoiceOver yet. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
+On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by a note that voicecap can't run VoiceOver audits yet, and that `npx @icjia/voicecap doctor`, a 20-second live test, shows VoiceOver working now. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
 
-**A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `init` stops there, with exit code 2.
+**A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `preflight` and `init` stop there, with exit code 2.
 
 **A ready computer can take the live test.** It starts NVDA or VoiceOver for real, brings the browser to the front with a small check page, and checks that the screen reader can be heard, then puts everything back as it was, your own screen reader included. It takes about 20 seconds, after a warning to keep your hands off. `init` and `setup` offer it when you're at a terminal to answer; `doctor` runs it without asking; `preflight` never runs it. If it fails, voicecap says what's wrong and exits with code 2. To stop it early, click the terminal window first (the browser is in front, and would get the keystroke), then press Ctrl+C: voicecap stops the test and puts everything back the same way.
 
