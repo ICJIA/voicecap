@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { clock, dateRange, dayMonth, longDate, names } from "../src/share/format.js";
+import {
+  clock,
+  dateRange,
+  dayMonth,
+  elapsed,
+  longDate,
+  names,
+  pagePath,
+} from "../src/share/format.js";
 
 describe("longDate, dayMonth, and clock", () => {
   it("write a recorded time as its date and time, for a reader", () => {
@@ -142,5 +150,29 @@ describe("dateRange", () => {
   it("refuses a time that isn't a recorded local time", () => {
     expect(() => dateRange("yesterday", "2026-09-30T09:00:00-05:00")).toThrow(/local ISO time/);
     expect(() => dateRange("2026-09-30T09:00:00-05:00", "2026-09-31")).toThrow(/local ISO time/);
+  });
+});
+
+describe("elapsed", () => {
+  it.each([
+    [0, "0:00.0"],
+    [2_400, "0:02.4"],
+    [3_825, "0:03.8"],
+    [12_960, "0:13.0"],
+    [59_960, "1:00.0"],
+    [65_049, "1:05.0"],
+    [754_000, "12:34.0"],
+  ])("writes %i ms as a stopwatch shows it, to the tenth of a second", (ms, expected) => {
+    expect(elapsed(ms)).toBe(expected);
+  });
+});
+
+describe("pagePath", () => {
+  it("leaves the site off a page's address, and keeps its query", () => {
+    expect(pagePath("http://127.0.0.1:4848/")).toBe("/");
+    expect(pagePath("http://127.0.0.1:4848/how-a-run-works/")).toBe("/how-a-run-works/");
+    expect(pagePath("https://example.illinois.gov/grants?year=2027#apply")).toBe(
+      "/grants?year=2027",
+    );
   });
 });

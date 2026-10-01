@@ -468,7 +468,7 @@ function todoOf({ withIssue, toRecord, unread, skipped, undecided }: Tasks): str
 const NAMED = 4;
 
 /** Why voicecap skipped a page after loading it, in words that follow "was skipped:". */
-const SKIP_REASONS: Record<SkipReason, string> = {
+export const SKIP_REASONS: Record<SkipReason, string> = {
   "non-html-response": "the site didn't answer with an HTML page",
   "redirect-off-origin": "it redirected to another site",
   "non-html-extension": "its address isn't an HTML page",

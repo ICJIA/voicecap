@@ -141,6 +141,11 @@ export const configSchema = z.strictObject({
   report: z.strictObject({
     title: z.string().min(1),
     agency: z.string().min(1).nullable(),
+    /**
+     * The site's name, the shareable page's headline. Without it, the page uses the home page's
+     * title as the latest run recorded it, and without that, the site's host name.
+     */
+    siteName: z.string().min(1).nullable(),
     /** An inline image, e.g. "data:image/png;base64,..." (the report has no external assets). */
     logo: z
       .string()

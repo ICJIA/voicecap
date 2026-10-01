@@ -114,8 +114,11 @@ export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   return data.steps.filter((step) => step.inDocument !== false);
 }
 
-/** Speech split into items (", " within an utterance, ". " between utterances), lowercased. */
-function items(speech: string): string[] {
+/**
+ * Speech split into items (", " within an utterance, ". " between utterances), lowercased: what the
+ * rules look at, and what `FlagResult.found` lists.
+ */
+export function items(speech: string): string[] {
   return normalizeSpeech(speech)
     .split(/, |\. /)
     .map((item) => lower(item).replace(/[.,]$/, ""))

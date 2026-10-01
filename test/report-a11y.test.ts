@@ -61,7 +61,12 @@ beforeAll(async () => {
     target: "live",
     config: {
       ...DEFAULT_CONFIG,
-      report: { title: "Agency NVDA report", agency: "Example Agency", logo: LOGO },
+      report: {
+        ...DEFAULT_CONFIG.report,
+        title: "Agency NVDA report",
+        agency: "Example Agency",
+        logo: LOGO,
+      },
     },
     compare: { base, diffDir: liveCompareDir(outDir, base.id, run.id) },
   });

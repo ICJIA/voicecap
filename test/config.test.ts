@@ -81,6 +81,16 @@ describe("loadConfig", () => {
     );
   });
 
+  it("reads the site's name from report.siteName", () => {
+    expect(DEFAULT_CONFIG.report.siteName).toBeNull();
+    expect(resolveConfig({}).report.siteName).toBeNull();
+    expect(
+      resolveConfig({ report: { siteName: "Illinois Criminal Justice Information Authority" } })
+        .report.siteName,
+    ).toBe("Illinois Criminal Justice Information Authority");
+    expect(() => resolveConfig({ report: { siteName: "" } })).toThrow(/- report\.siteName: /);
+  });
+
   it("rejects unknown keys, to catch typos", () => {
     expect(() => resolveConfig({ stepcaps: { read: 5 } })).toThrow(/stepcaps|Unrecognized/);
   });

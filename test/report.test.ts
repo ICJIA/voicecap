@@ -22,7 +22,12 @@ import {
 
 const config: VoicecapConfig = {
   ...DEFAULT_CONFIG,
-  report: { title: "Agency NVDA report", agency: "Example Agency", logo: LOGO },
+  report: {
+    ...DEFAULT_CONFIG.report,
+    title: "Agency NVDA report",
+    agency: "Example Agency",
+    logo: LOGO,
+  },
 };
 
 /** The text of each summary item, by its label. */

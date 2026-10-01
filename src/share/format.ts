@@ -1,5 +1,5 @@
 /**
- * Dates, times, and lists in the plain words the shareable page uses.
+ * Dates, times, lists, and page addresses in the plain words the shareable page uses.
  *
  * The times are the local ISO times voicecap records ("2026-09-29T13:15:02-05:00", or to the
  * millisecond). Each is read from its own date and time fields, never through the machine's time
@@ -84,6 +84,23 @@ export function dayMonth(iso: string): string {
 export function clock(iso: string): string {
   const { hour, minute } = fieldsOf(iso);
   return `${hour}:${minute}`;
+}
+
+/**
+ * The time since a pass began, as a stopwatch shows it, to the nearest tenth of a second: "0:02.4",
+ * "1:05.0".
+ */
+export function elapsed(ms: number): string {
+  const tenths = Math.round(Math.max(0, ms) / 100);
+  const minutes = Math.floor(tenths / 600);
+  const seconds = Math.floor((tenths % 600) / 10);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
+}
+
+/** A page's address without the site's: its path, and its query if it has one ("/about/"). */
+export function pagePath(url: string): string {
+  const { pathname, search } = new URL(url);
+  return `${pathname}${search}`;
 }
 
 /** A list as a sentence has it: "A", "A and B", "A, B, and C". */
