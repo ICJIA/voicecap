@@ -397,13 +397,34 @@ describe("fontFaceCss", () => {
     expect(fontFaceCss()).toBe(fontFaceCss());
   });
 
-  it("ships the fonts with their licence, the SIL Open Font License, and nothing else", async () => {
+  it("ships the fonts with their licence, and nothing else", async () => {
     const files = await readdir(FONTS);
-    const licence = await readFile(path.join(FONTS, "OFL.txt"), "utf8");
 
     expect(files.sort()).toEqual([...FACES.map(([, , , name]) => name), "OFL.txt"].sort());
-    expect(licence.startsWith("Copyright 2019 IBM Corp. All rights reserved.")).toBe(true);
-    expect(licence).toContain("SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007");
+  });
+
+  it("names each family's copyright notice, then gives the SIL Open Font License once", async () => {
+    const licence = await readFile(path.join(FONTS, "OFL.txt"), "utf8");
+    // How each package's own LICENSE gives its notice: each begins so.
+    const notices = [
+      "IBM Plex Sans (@fontsource/ibm-plex-sans 5.3.0):\nCopyright 2019 IBM Corp. All rights reserved. IBMPlexSans-Italic[wdth,wght].ttf: Copyright 2019 IBM Corp. All rights reserved.\n",
+      "IBM Plex Sans Condensed (@fontsource/ibm-plex-sans-condensed 5.3.0):\nCopyright 2019 IBM Corp. All rights reserved. IBMPlexSansCondensed-ThinItalic.ttf: ",
+      "IBM Plex Mono (@fontsource/ibm-plex-mono 5.3.0):\nCopyright 2017 IBM Corp. All rights reserved. IBMPlexMono-ThinItalic.ttf: ",
+    ];
+    const places = notices.map((notice) => licence.indexOf(notice));
+    const terms = licence.indexOf(
+      "This Font Software is licensed under the SIL Open Font License, Version 1.1.",
+    );
+
+    expect(licence.startsWith(notices[0] ?? "")).toBe(true);
+    expect(places.every((place) => place >= 0)).toBe(true);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    expect(licence.match(/^Copyright \d{4} IBM Corp\./gm)).toHaveLength(3);
+    // The notices, then the licence, once.
+    expect(terms).toBeGreaterThan(places[2] ?? Infinity);
+    expect(licence.match(/This Font Software is licensed under/g)).toHaveLength(1);
+    expect(licence.match(/SIL OPEN FONT LICENSE Version 1\.1 - 26 February 2007/g)).toHaveLength(1);
+    expect(licence.endsWith("OTHER DEALINGS IN THE FONT SOFTWARE.\n")).toBe(true);
   });
 });
 
