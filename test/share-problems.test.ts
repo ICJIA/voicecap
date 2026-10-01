@@ -900,15 +900,42 @@ describe("problemsOf: did it happen again?", () => {
       });
       const { problems } = problemsFor(run);
 
-      // Each of the first two was followed by the same failure. The third was followed by nothing:
-      // the run didn't try the page again.
+      // The page never got through in this run, so every problem says it failed every time, the
+      // last as much as the others.
       const every = `Yes, on every attempt (3 of 3). ${points}`;
-      expect(problems.map((problem) => problem.verdict)).toEqual([every, every, NOT_KNOWN]);
-      expect(problems.map((problem) => problem.again)).toEqual(["same", "same", "unknown"]);
+      expect(problems.map((problem) => problem.verdict)).toEqual([every, every, every]);
+      expect(problems.map((problem) => problem.again)).toEqual(["same", "same", "same"]);
     },
   );
 
-  it("decides the last attempt by whether another run read the page, and the others by what followed", () => {
+  it("says yes, on every attempt, for a page that failed all five the same way", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/a",
+          status: "failed",
+          failedAttempts: [1, 2, 3, 4, 5].map((n) => failedAttempt({ n, restarted: n < 5 })),
+        },
+      ],
+    });
+    const { problems, line } = problemsFor(run);
+
+    const every = `Yes, on every attempt (5 of 5). ${ON_THIS_COMPUTER}`;
+    expect(field(problems, "verdict")).toEqual({
+      "/a 1": every,
+      "/a 2": every,
+      "/a 3": every,
+      "/a 4": every,
+      "/a 5": every,
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(Array<string>(5).fill("same"));
+    expect(line).toBe(
+      "5 problems, all outside voicecap: another window took the screen. All happened again. None was an unexpected error, the kind that could mean a problem in voicecap itself.",
+    );
+  });
+
+  it("says yes on every attempt, whatever another run read of the page", () => {
     const earlier = shareRun({
       id: "r1",
       createdAt: "2026-09-20T09:30:00-05:00",
@@ -927,12 +954,10 @@ describe("problemsOf: did it happen again?", () => {
     });
     const { problems } = problemsFor(earlier, latest);
 
-    // The first did happen again, as an earlier run's read of the page doesn't change.
-    expect(problems.map((problem) => problem.verdict)).toEqual([
-      `Yes, on every attempt (2 of 2). ${ON_THIS_COMPUTER}`,
-      "No: read in full in run r1.",
-    ]);
-    expect(problems.map((problem) => problem.again)).toEqual(["same", "no"]);
+    // It failed on both attempts here, which an earlier run's read of the page doesn't change.
+    const every = `Yes, on every attempt (2 of 2). ${ON_THIS_COMPUTER}`;
+    expect(problems.map((problem) => problem.verdict)).toEqual([every, every]);
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "same"]);
   });
 
   it("says yes, on the attempt it happened again, when not every attempt failed that way", () => {
@@ -955,9 +980,43 @@ describe("problemsOf: did it happen again?", () => {
     expect(field(problems, "verdict")).toEqual({
       "/a 1": "Yes, on attempt 3.",
       "/a 2": "Yes, in different ways: another window took the screen (attempt 3).",
-      "/a 3": NOT_KNOWN,
+      // Nothing followed the last, so it says how the page failed over all its attempts.
+      "/a 3":
+        "Yes, in different ways: another window took the screen (attempts 1 and 3), and a step took too long (attempt 2).",
     });
-    expect(problems.map((problem) => problem.again)).toEqual(["same", "different", "unknown"]);
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "different", "different"]);
+  });
+
+  it("says yes, in different ways, on every attempt of a page that failed three different ways", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/a",
+          status: "failed",
+          failedAttempts: [
+            failedAttempt({ n: 1, restarted: true }),
+            failedAttempt({ n: 2, cause: "step-timeout", restarted: true }),
+            failedAttempt({ n: 3, cause: "browser" }),
+          ],
+        },
+      ],
+    });
+    const { problems, line } = problemsFor(run);
+
+    expect(field(problems, "verdict")).toEqual({
+      // What followed each of the first two.
+      "/a 1":
+        "Yes, in different ways: a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).",
+      "/a 2": "Yes, in different ways: the browser stopped or didn't start (attempt 3).",
+      // Nothing followed the last: all three attempts, each kind with its number.
+      "/a 3":
+        "Yes, in different ways: another window took the screen (attempt 1), a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).",
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(Array<string>(3).fill("different"));
+    expect(line).toBe(
+      "3 problems: another window took the screen (1), the browser stopped or didn't start (1), and a step took too long (1). All happened again. None was an unexpected error, the kind that could mean a problem in voicecap itself.",
+    );
   });
 
   it("says yes, in different ways, naming what followed", () => {
@@ -981,9 +1040,14 @@ describe("problemsOf: did it happen again?", () => {
       "/b 1":
         "Yes, in different ways: a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).",
       "/b 2": "Yes, in different ways: the browser stopped or didn't start (attempt 3).",
-      "/b 3": NOT_KNOWN,
+      "/b 3":
+        "Yes, in different ways: another window took the screen (attempt 1), a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).",
     });
-    expect(problems.map((problem) => problem.again)).toEqual(["different", "different", "unknown"]);
+    expect(problems.map((problem) => problem.again)).toEqual([
+      "different",
+      "different",
+      "different",
+    ]);
   });
 
   it("lists two, three, or more attempts of a kind that followed", () => {
@@ -1005,11 +1069,13 @@ describe("problemsOf: did it happen again?", () => {
     expect(field(problems, "verdict")).toEqual({
       "/two 1": "Yes, in different ways: another window took the screen (attempts 2 and 3).",
       "/two 2": "Yes, on attempt 3.",
-      "/two 3": NOT_KNOWN,
+      "/two 3":
+        "Yes, in different ways: a step took too long (attempt 1), and another window took the screen (attempts 2 and 3).",
       "/three 1": "Yes, in different ways: another window took the screen (attempts 2, 3, and 4).",
       "/three 2": "Yes, on attempt 3.",
       "/three 3": "Yes, on attempt 4.",
-      "/three 4": NOT_KNOWN,
+      "/three 4":
+        "Yes, in different ways: a step took too long (attempt 1), and another window took the screen (attempts 2, 3, and 4).",
     });
   });
 
@@ -1060,9 +1126,10 @@ describe("problemsOf: did it happen again?", () => {
       "/retried 1": "No: read in full on attempt 2.",
       "/every-time 1": everyTime,
       "/every-time 2": everyTime,
-      "/every-time -": NOT_KNOWN,
+      "/every-time -": everyTime,
       "/in-ways 1": "Yes, in different ways: a step took too long (attempt 2).",
-      "/in-ways -": NOT_KNOWN,
+      "/in-ways -":
+        "Yes, in different ways: another window took the screen (attempt 1), and a step took too long (attempt 2).",
       "/then-read 1": "Yes, on attempt 2, then read in full on attempt 3.",
       "/then-read 2": "No: read in full on attempt 3.",
     });
@@ -1490,6 +1557,58 @@ describe("problemsOf: the effect, and the record", () => {
     ]);
   });
 
+  it("says the step and the key weren't recorded only for an error from a pass's step", () => {
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.5.0",
+      pages: [
+        { path: "/step", status: "failed", errors: [`read pass: ${FOREGROUND}`] },
+        {
+          path: "/retried-step",
+          attempts: 2,
+          errors: [`Attempt 1 failed (headings pass: ${STEP_TIMEOUT}); retrying.`],
+        },
+        // A page that couldn't be opened, and an HTTP error, have no step to name.
+        {
+          path: "/opening",
+          status: "failed",
+          errors: [`Could not open the page for the read pass: ${FOREGROUND}`],
+        },
+        {
+          path: "/retried-opening",
+          attempts: 2,
+          errors: [
+            `Attempt 1 failed (Could not open the page for the tab pass: ${NOT_BROUGHT_FORWARD}); retrying.`,
+          ],
+        },
+        { path: "/status", status: "failed", errors: ["HTTP 404"] },
+        {
+          path: "/retried-status",
+          attempts: 2,
+          errors: ["Attempt 1 failed (HTTP 503); retrying."],
+        },
+        // Nor does text that isn't a pass's error at all.
+        { path: "/other", status: "failed", errors: ["Something went wrong"] },
+      ],
+    });
+    const { problems } = problemsFor(run);
+    const line = "The step and the key: not recorded: this run used voicecap 0.5.0.";
+
+    expect(
+      Object.fromEntries(
+        problems.map((problem) => [pathOf(problem), problem.notRecorded.includes(line)]),
+      ),
+    ).toEqual({
+      "/step": true,
+      "/retried-step": true,
+      "/opening": false,
+      "/retried-opening": false,
+      "/status": false,
+      "/retried-status": false,
+      "/other": false,
+    });
+  });
+
   it("doesn't say the step and the key weren't recorded when an attempt record has them", () => {
     const run = shareRun({
       id: "r1",
@@ -1695,28 +1814,53 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
-  // A failure that was followed by another is "happened again", whether the same way or in a
-  // different one; one that nothing followed is "didn't" if another run read the page in full, and
-  // "wasn't tried again" if not.
+  // A page that failed more than once, and never got through, has every problem happened again.
+  // A page that got through after a failure has that failure happened again, and the one before the
+  // read didn't. A page tried once is "didn't" if another run read the page in full, and "wasn't
+  // tried again" if not.
   it.each<[string, () => RunJson[], string]>([
     [
-      "one that happened again, and one that wasn't tried again",
+      "both of two attempts that failed",
       () => runsWith([failedAs("/a", ["foreground", "foreground"])]),
-      "1 happened again, and 1 wasn't tried again",
+      "Both happened again",
     ],
     [
-      "one that happened again, and one that didn't",
-      () => runsWith([failedAs("/a", ["foreground", "foreground"])], ["/a"]),
+      "every one of three attempts that failed",
+      () => runsWith([failedAs("/a", ["foreground", "foreground", "foreground"])]),
+      "All happened again",
+    ],
+    [
+      "both of two attempts that failed in different ways",
+      () => runsWith([failedAs("/a", ["foreground", "step-timeout"])]),
+      "Both happened again",
+    ],
+    [
+      "one that happened again, and one that didn't, on a page that got through",
+      () =>
+        runsWith([
+          {
+            path: "/a",
+            failedAttempts: [
+              failedAttempt({ n: 1, restarted: true }),
+              failedAttempt({ n: 2, restarted: true }),
+            ],
+          },
+        ]),
       "1 happened again, and 1 didn't happen again",
     ],
     [
-      "one that happened in a different way, and one that wasn't tried again",
-      () => runsWith([failedAs("/a", ["foreground", "step-timeout"])]),
-      "1 happened again, and 1 wasn't tried again",
+      "problems that happened again, and one that didn't",
+      () =>
+        runsWith(
+          [failedAs("/a", ["foreground", "foreground"]), failedAs("/b", ["foreground"])],
+          ["/b"],
+        ),
+      "2 happened again, and 1 didn't happen again",
     ],
     [
-      "several that happened again, and one that wasn't tried again",
-      () => runsWith([failedAs("/a", ["foreground", "foreground", "foreground"])]),
+      "problems that happened again, and one that wasn't tried again",
+      () =>
+        runsWith([failedAs("/a", ["foreground", "foreground"]), failedAs("/b", ["foreground"])]),
       "2 happened again, and 1 wasn't tried again",
     ],
     [
@@ -1741,10 +1885,14 @@ describe("problemsOf: the verdict line", () => {
       "every answer",
       () =>
         runsWith(
-          [failedAs("/a", ["foreground", "foreground"]), failedAs("/b", ["foreground"])],
+          [
+            failedAs("/a", ["foreground", "foreground"]),
+            failedAs("/b", ["foreground"]),
+            failedAs("/c", ["foreground"]),
+          ],
           ["/b"],
         ),
-      "1 happened again, 1 didn't happen again, and 1 wasn't tried again",
+      "2 happened again, 1 didn't happen again, and 1 wasn't tried again",
     ],
   ])("counts what became of each problem when the answers differ: %s", (_name, runs, again) => {
     const { line } = problemsFor(...runs());
@@ -1752,7 +1900,7 @@ describe("problemsOf: the verdict line", () => {
     expect(againOf(line)).toBe(again);
   });
 
-  it("gives each problem the answer that belongs to what followed it", () => {
+  it("gives each problem the answer that belongs to what followed it, or to its page", () => {
     const { problems } = problemsFor(
       ...runsWith(
         [
@@ -1767,9 +1915,9 @@ describe("problemsOf: the verdict line", () => {
 
     expect(problems.map((problem) => [pathOf(problem), problem.n, problem.again])).toEqual([
       ["/a", 1, "same"],
-      ["/a", 2, "unknown"],
+      ["/a", 2, "same"],
       ["/b", 1, "different"],
-      ["/b", 2, "unknown"],
+      ["/b", 2, "different"],
       ["/c", 1, "no"],
       ["/d", 1, "unknown"],
     ]);
@@ -1830,7 +1978,7 @@ describe("problemsOf: the verdict line", () => {
     );
 
     expect(line).toBe(
-      `4 problems: another window took the screen (3), and a step took too long (1). 2 happened again, and 2 weren't tried again. None was an unexpected error, ${NOT_VOICECAP}`,
+      `4 problems: another window took the screen (3), and a step took too long (1). All happened again. None was an unexpected error, ${NOT_VOICECAP}`,
     );
   });
 

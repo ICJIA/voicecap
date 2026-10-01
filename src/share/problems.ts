@@ -54,13 +54,16 @@ export interface Problem {
   /** "Did it happen again?" */
   verdict: string;
   /**
-   * What the verdict comes to, for this problem and what followed it in the run:
-   * - "same": a later attempt failed the same way;
-   * - "different": later attempts failed in other ways, and the page never got through;
-   * - "no": it didn't come back (the page was read in full, or loaded and skipped, on a later
-   *   attempt; or nothing followed it, and another run the standing draws on read the page in full);
-   * - "unknown": nothing followed it, and no other run read the page in full, so nothing says
-   *   whether it would have happened again.
+   * What the verdict comes to for this problem, by what followed it in the run:
+   * - "same": a later attempt failed the same way, or the page never got through and failed every
+   *   attempt that way;
+   * - "different": later attempts failed in other ways, or the page never got through and failed in
+   *   different ways over its attempts;
+   * - "no": it didn't come back: the page was read in full, or loaded and skipped, on a later
+   *   attempt; or it was the page's only attempt, and another run the standing draws on read the
+   *   page in full;
+   * - "unknown": it was the page's only attempt in the run, and no other run read the page in full,
+   *   so nothing says whether it would have happened again.
    */
   again: "no" | "same" | "different" | "unknown";
   /** "Effect on the results". */
@@ -202,6 +205,8 @@ interface ParsedEntry {
   n: number | null;
   /** The page couldn't be opened for the pass. */
   opening: boolean;
+  /** An error from a pass's step: "<pass> pass: …". */
+  inStep: boolean;
   /** The error's own message, without the forms around it. */
   message: string;
 }
@@ -218,7 +223,14 @@ function parseEntry(entry: string): ParsedEntry {
   const passed = opened ?? PASS_ENTRY.exec(message);
   const pass = passed ? (PASS_NAMES.find((name) => name === passed[1]) ?? null) : null;
   if (passed) message = passed[2] ?? "";
-  return { kind: kindOfMessage(message), pass, n, opening: opened !== null, message };
+  return {
+    kind: kindOfMessage(message),
+    pass,
+    n,
+    opening: opened !== null,
+    inStep: passed !== null && opened === null,
+    message,
+  };
 }
 
 /**
@@ -278,6 +290,11 @@ interface Failure {
   /** From the page's failedAttempts, not from its errors. */
   recorded: boolean;
   /**
+   * An error from a pass's step that the text doesn't place: it names neither the step nor the key.
+   * A page that couldn't be opened, and an HTTP error, have no step to name.
+   */
+  unnamedStep: boolean;
+  /**
    * When it began, in milliseconds, for the order. 0 when it isn't recorded, which puts what's
    * written as text, from a run's earlier sessions, before every record.
    */
@@ -310,6 +327,7 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
     restarted: attempt.restarted,
     refused: attempt.cause === "http" && /^HTTP 4\d\d\b/.test(attempt.message),
     recorded: true,
+    unnamedStep: false,
     at: Date.parse(attempt.startedAt) || 0,
     fields: {
       n: attempt.n,
@@ -345,6 +363,7 @@ function failureOfEntry(entry: string, index: number, redact: (text: string) => 
     restarted: false,
     refused: false,
     recorded: false,
+    unnamedStep: parsed.inStep,
     at: 0,
     fields: {
       n: parsed.n,
@@ -475,6 +494,26 @@ function pointsTo(kind: ProblemKind): string {
   return "That points to this page, or to voicecap, rather than a one-off.";
 }
 
+/** A page's failures by kind, each with its attempt numbers: "a step took too long (attempt 2), …". */
+function waysOf(failures: Failure[]): string {
+  const attemptsByKind = new Map<ProblemKind, number[]>();
+  for (const each of failures) {
+    const kind = each.fields.kind;
+    attemptsByKind.set(kind, [...(attemptsByKind.get(kind) ?? []), each.attempt]);
+  }
+  return joinList(
+    [...attemptsByKind].map(([kind, attempts]) => `${PHRASES[kind]} (${attemptsText(attempts)})`),
+  );
+}
+
+/** The verdict for a page that failed the same way on each of its attempts. */
+function everyAttempt(kind: ProblemKind, tries: number): { verdict: string; again: "same" } {
+  return {
+    again: "same",
+    verdict: `Yes, on every attempt (${tries} of ${tries}). ${pointsTo(kind)}`,
+  };
+}
+
 /**
  * "Did it happen again?", decided for each problem by what followed it in the same run.
  *
@@ -485,9 +524,12 @@ function pointsTo(kind: ProblemKind): string {
  * - Later attempts failed in other ways, and the page never got through: yes, in different ways
  *   (`different`), naming them.
  * - The next attempt loaded the page, and voicecap skipped it: no, but it wasn't read.
- * - Nothing followed it in this run: no, if another run the standing draws on read the page in
- *   full, and otherwise not known (`unknown`). Not "no": nothing shows it didn't come back, only
- *   that the page wasn't tried again.
+ * - Nothing followed it, and the page never got through here:
+ *   - tried more than once: how it failed over all its attempts, which is the answer for the last
+ *     of them as for the rest: on every attempt (`same`), or in different ways (`different`);
+ *   - tried once: no, if another run the standing draws on read the page in full, and otherwise
+ *     not known (`unknown`). Not "no": nothing shows it didn't come back, only that the page wasn't
+ *     tried again.
  */
 function verdictOf(
   ctx: PageContext,
@@ -497,6 +539,7 @@ function verdictOf(
 ): { verdict: string; again: Problem["again"] } {
   const { standing, run, page } = ctx;
   const kind = failure.fields.kind;
+  const sameEveryTime = failures.every((each) => each.fields.kind === kind);
 
   const repeat = later.find((next) => next.fields.kind === kind);
   if (repeat) {
@@ -506,13 +549,7 @@ function verdictOf(
         verdict: `Yes, on attempt ${repeat.attempt}, then read in full on attempt ${page.attempts}.`,
       };
     }
-    if (page.status === "failed" && failures.every((each) => each.fields.kind === kind)) {
-      const tries = failures.length;
-      return {
-        again: "same",
-        verdict: `Yes, on every attempt (${tries} of ${tries}). ${pointsTo(kind)}`,
-      };
-    }
+    if (page.status === "failed" && sameEveryTime) return everyAttempt(kind, failures.length);
     return { again: "same", verdict: `Yes, on attempt ${repeat.attempt}.` };
   }
 
@@ -522,15 +559,7 @@ function verdictOf(
     return { again: "no", verdict: `No: read in full on attempt ${page.attempts}${fresh}.` };
   }
   if (later.length > 0) {
-    const attemptsByKind = new Map<ProblemKind, number[]>();
-    for (const next of later) {
-      const nextKind = next.fields.kind;
-      attemptsByKind.set(nextKind, [...(attemptsByKind.get(nextKind) ?? []), next.attempt]);
-    }
-    const named = [...attemptsByKind].map(
-      ([nextKind, attempts]) => `${PHRASES[nextKind]} (${attemptsText(attempts)})`,
-    );
-    return { again: "different", verdict: `Yes, in different ways: ${joinList(named)}.` };
+    return { again: "different", verdict: `Yes, in different ways: ${waysOf(later)}.` };
   }
   if (page.status === "skipped") {
     return {
@@ -539,6 +568,11 @@ function verdictOf(
     };
   }
 
+  if (failures.length > 1) {
+    return sameEveryTime
+      ? everyAttempt(kind, failures.length)
+      : { again: "different", verdict: `Yes, in different ways: ${waysOf(failures)}.` };
+  }
   const elsewhere = standing.drawnOn.findLast(
     (other) =>
       other !== run &&
@@ -604,14 +638,14 @@ function keepsEarlierAttempts(version: string | null): boolean {
 }
 
 /**
- * What a run didn't record, said where it matters. An error written as text doesn't give the step
- * that failed or the key it pressed. The program in front is for a foreground loss only, and the
- * event log and NVDA's own log are for every problem.
+ * What a run didn't record, said where it matters. An error from a pass's step, written as text,
+ * doesn't give the step that failed or the key it pressed. The program in front is for a foreground
+ * loss only, and the event log and NVDA's own log are for every problem.
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
   return [
-    ...(failure.recorded ? [] : [notRecorded("The step and the key")]),
+    ...(failure.unnamedStep ? [notRecorded("The step and the key")] : []),
     ...(failure.fields.kind === "foreground"
       ? [notRecorded("Which program came to the front")]
       : []),
@@ -664,7 +698,9 @@ function lineOf(problems: Problem[], standing: Standing): string {
       ? byCount("It didn't happen again", "Neither happened again", "None happened again")
       : answers.unknown === total
         ? byCount("It wasn't tried again", "Neither was tried again", "None was tried again")
-        : joinList(counted);
+        : happened === total
+          ? byCount("It happened again", "Both happened again", "All happened again")
+          : joinList(counted);
 
   const unexpected = counts.get("unexpected") ?? 0;
   const itself = "the kind that could mean a problem in voicecap itself";
