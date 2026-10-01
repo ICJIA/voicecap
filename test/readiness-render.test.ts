@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Check, MachineInfo, PreflightResult, Problem } from "../src/readiness/model.js";
 import {
+  renderFixes,
   renderPreflight,
   renderProblems,
   renderRunSummary,
@@ -258,6 +259,66 @@ describe("renderProblems", () => {
     expect(wrongLines.length).toBeGreaterThan(1);
     for (const line of wrongLines) expect(line.length).toBeLessThanOrEqual(92);
     expect(wrongLines[1]).toMatch(/^ {3}[^ ]/);
+  });
+});
+
+describe("renderFixes", () => {
+  const failing = (id: string, title: string, fix: string[]): Check => ({
+    id,
+    status: "FAIL",
+    summary: `${title} is wrong`,
+    problem: { title, whatsWrong: `${title} is wrong.`, fix, setupHelps: false },
+  });
+
+  it("numbers each problem's block, as renderProblems does, with no heading of its own", () => {
+    const checks: Check[] = [
+      { id: "ok", status: "OK", summary: "Fine" },
+      failing("a", "Problem A", ["Fix A1.", "Fix A2."]),
+      { id: "warn", status: "WARN", summary: "Careful" },
+      failing("b", "Problem B", ["Fix B1."]),
+    ];
+
+    const fixes = renderFixes(checks, { offerSetup: true });
+
+    expect(fixes).toBe(
+      [
+        "1. Problem A",
+        "   What's wrong: Problem A is wrong.",
+        "   How to fix:",
+        "     1. Fix A1.",
+        "     2. Fix A2.",
+        "",
+        "2. Problem B",
+        "   What's wrong: Problem B is wrong.",
+        "   How to fix:",
+        "     1. Fix B1.",
+      ].join("\n"),
+    );
+    expect(renderProblems(checks, { offerSetup: true })).toBe(`Not ready: 2 problems.\n\n${fixes}`);
+  });
+
+  it("offers setup, or not, as renderProblems does", () => {
+    const checks: Check[] = [
+      {
+        id: "full-disk-access",
+        status: "FAIL",
+        summary: "Full Disk Access: Visual Studio Code isn't allowed",
+        problem: FULL_DISK_ACCESS,
+      },
+    ];
+    const SETUP = "Or run npx @icjia/voicecap setup, which walks you through it.";
+
+    expect(renderFixes(checks, { offerSetup: true })).toContain(SETUP);
+    expect(renderFixes(checks, { offerSetup: false })).not.toContain(SETUP);
+  });
+
+  it("is empty when nothing failed", () => {
+    expect(
+      renderFixes(
+        CHECKS.filter((check) => check.status !== "FAIL"),
+        { offerSetup: true },
+      ),
+    ).toBe("");
   });
 });
 

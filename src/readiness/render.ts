@@ -104,15 +104,29 @@ function problemBlock(n: number, problem: Problem, options: { offerSetup: boolea
   return lines.join("\n");
 }
 
+/** A numbered block per FAIL check that carries a problem. */
+function problemBlocks(checks: Check[], options: { offerSetup: boolean }): string[] {
+  return checks
+    .filter(isFailWithProblem)
+    .map((check, index) => problemBlock(index + 1, check.problem, options));
+}
+
 /**
  * "Not ready: N problem(s).", a blank line, then a numbered block per FAIL check that carries a
  * problem. Blocks are separated by a blank line.
  */
 export function renderProblems(checks: Check[], options: { offerSetup: boolean }): string {
-  const problems = checks.filter(isFailWithProblem);
-  const heading = `Not ready: ${problems.length} ${problems.length === 1 ? "problem" : "problems"}.`;
-  const blocks = problems.map((check, index) => problemBlock(index + 1, check.problem, options));
+  const blocks = problemBlocks(checks, options);
+  const heading = `Not ready: ${blocks.length} ${blocks.length === 1 ? "problem" : "problems"}.`;
   return [heading, ...blocks].join("\n\n");
+}
+
+/**
+ * The numbered blocks of renderProblems, with no heading: for a caller that says its own verdict.
+ * Empty when no check failed with a problem.
+ */
+export function renderFixes(checks: Check[], options: { offerSetup: boolean }): string {
+  return problemBlocks(checks, options).join("\n\n");
 }
 
 /**

@@ -217,11 +217,29 @@ Then open `transcripts/127.0.0.1_4747/report.html`.
 
 ### The checks, and the live test
 
-**`init`, `doctor`, and `setup` check this computer:** `init` and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
+**`preflight`, `init`, `doctor`, and `setup` check this computer:** `preflight`, `init`, and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
+
+**`npx @icjia/voicecap preflight` is the checks on their own,** for finding out whether a computer is ready with nothing else happening. It shows this computer's details, each check passed or failed, and for each failure the numbered steps that fix it. It never starts NVDA or VoiceOver, never opens the browser, and never runs the live test, and it needs no site. `doctor` adds the live test to the same checks.
+
+It ends with a verdict, in words as well as color: green or red where the output is a terminal, and plain when it isn't or when `NO_COLOR` is set. A ready computer exits with code 0:
+
+```
+✓ Ready: this computer can run voicecap.
+Next: npx @icjia/voicecap doctor adds a 20-second live test with NVDA (hands off the keyboard and mouse), or npx @icjia/voicecap init sets up a run.
+```
+
+A computer that isn't ready exits with code 2, as `init` does, after the numbered fixes:
+
+```
+✗ Not ready: 2 things to fix.
+Fix these, then run npx @icjia/voicecap preflight again.
+```
+
+On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by the note that voicecap can't run VoiceOver yet. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
 
 **A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `init` stops there, with exit code 2.
 
-**A ready computer can take the live test.** It starts NVDA or VoiceOver for real, brings the browser to the front with a small check page, and checks that the screen reader can be heard, then puts everything back as it was, your own screen reader included. It takes about 20 seconds, after a warning to keep your hands off. `init` and `setup` offer it when you're at a terminal to answer; `doctor` runs it without asking. If it fails, voicecap says what's wrong and exits with code 2. To stop it early, click the terminal window first (the browser is in front, and would get the keystroke), then press Ctrl+C: voicecap stops the test and puts everything back the same way.
+**A ready computer can take the live test.** It starts NVDA or VoiceOver for real, brings the browser to the front with a small check page, and checks that the screen reader can be heard, then puts everything back as it was, your own screen reader included. It takes about 20 seconds, after a warning to keep your hands off. `init` and `setup` offer it when you're at a terminal to answer; `doctor` runs it without asking; `preflight` never runs it. If it fails, voicecap says what's wrong and exits with code 2. To stop it early, click the terminal window first (the browser is in front, and would get the keystroke), then press Ctrl+C: voicecap stops the test and puts everything back the same way.
 
 ### Installing voicecap
 
@@ -463,6 +481,7 @@ voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <Y
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
+voicecap preflight # check this computer is ready for a run, without starting the screen reader
 voicecap doctor    # check this computer and print a summary to paste into a bug report
 voicecap demo      # a guided first run against a demo site that comes with voicecap
 ```

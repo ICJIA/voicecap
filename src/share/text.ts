@@ -196,7 +196,7 @@ export const TIMELINE: TimelineRow[] = [
     release: null,
     pc: null,
     mac: null,
-    both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline.",
+    both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline. Then <code>voicecap preflight</code>, which checks a computer without starting the screen reader.",
   },
   {
     date: null,

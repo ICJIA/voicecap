@@ -37,6 +37,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
   - `voicecap verify` leaves the `share/` folder alone: the page is made again from the records each time, and `verify` checks the records themselves.
   - The transcripts home's `.gitignore` keeps `share/current.*` out of Git, since it's written again after every run and review. voicecap never rewrites a `.gitignore` it wrote before, so add `**/share/current.*` to an older home's by hand.
 - **`report.siteName`**, a new setting: the site's name, as the shareable page's headline. It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, then the site's host name.
+- **`voicecap preflight`**: checks this computer and says how to fix anything that isn't ready, without starting the screen reader.
 
 ### Changed
 
