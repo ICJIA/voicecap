@@ -178,7 +178,7 @@ export async function resolveCompareBase(
   return base;
 }
 
-function samePageSource(a: RunJson, b: RunJson): boolean {
+export function samePageSource(a: RunJson, b: RunJson): boolean {
   const x = a.settings.source;
   const y = b.settings.source;
   if (x.kind === "sitemap" && y.kind === "sitemap") return x.url === y.url;
