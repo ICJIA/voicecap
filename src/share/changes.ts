@@ -42,8 +42,13 @@ export interface PageChange {
   slug: string;
   url: string;
   label?: string;
-  /** The passes whose transcripts differ, in pass order. */
+  /** The compared passes whose transcripts differ and can be read, in pass order. */
   passes: PassChange[];
+  /**
+   * The compared passes whose transcripts differ but can't be read here (`body` gave nothing for
+   * one of the runs), in pass order. Not in `passes`: with no lines to compare, none are shown.
+   */
+  unreadable: PassName[];
   /**
    * The page's flags in the two runs, compared by rule and pass. A resolved flag is as the earlier
    * run recorded it, and the others are as the later run did.
@@ -56,38 +61,59 @@ export interface OnlyInOnePage {
   url: string;
   label?: string;
   /**
-   * "failed in one run" is a page read in full in one run that the other run listed but didn't read
-   * in full: it failed there, or was skipped, or was never reached.
+   * "failed in one run" and "skipped in one run" are a page read in full in one run whose record in
+   * the other says it failed, or that voicecap skipped (it loaded, and was left out).
    */
-  reason: "new" | "no longer listed" | "failed in one run";
+  reason: "new" | "no longer listed" | "failed in one run" | "skipped in one run";
 }
 
 export interface Changes {
   before: RunJson;
   after: RunJson;
-  /** Pages read in full in both runs whose transcripts differ, in the later run's page order. */
+  /**
+   * Pages read in full in both runs with a compared pass that differs, in the later run's page
+   * order.
+   */
   changed: PageChange[];
-  /** Pages read in full in both whose transcripts are identical: counted, not shown. */
+  /** Pages read in full in both whose compared passes are identical: counted, not shown. */
   same: number;
   /**
    * Pages read in full in one run and not the other, in the later run's page order, then those
-   * only the earlier run listed. A page read in neither run isn't here.
+   * only the earlier run listed. A page read in neither run isn't here, and neither is one the
+   * other run never reached (a completed run has none).
    */
   onlyInOne: OnlyInOnePage[];
   /** environmentDifferences(before, after), shown first when not empty. */
   tools: string[];
+  /**
+   * Says so when the two runs didn't read the same passes: what each read, and which are compared
+   * (the passes both read). Null when they read the same. Shown first, beside `tools`.
+   */
+  passesNote: string | null;
   /** The section's line. */
   line: string;
   /** The summary's line. */
   summaryLine: string;
 }
 
+/**
+ * The body lines of a pass's TXT transcript, as `extractBody` gives them, or null if it can't be
+ * read.
+ */
+type BodyOf = (run: string, slug: string, pass: PassName) => string[] | null;
+
+/** What a page is called in a sentence. */
+type PageName = (page: { label?: string; url: string }) => string;
+
 /** Unchanged lines kept on each side of a change. */
 const CONTEXT = 2;
 
-/** What each of voicecap's flag rules finds, in words for a reader who hasn't met its id. */
+/**
+ * What each of voicecap's flag rules finds, in words for a reader who hasn't met its id. People
+ * hear these read aloud, so none has a comma of its own.
+ */
 const RULE_FINDS = new Map([
-  ["generic-link-text", "the links that say only what they do, not where they go"],
+  ["generic-link-text", "the links that don't say where they go"],
   ["unlabeled", "the unnamed controls"],
   ["headings", "the heading structure"],
   ["read-not-finished", "the unfinished read"],
@@ -98,19 +124,17 @@ const RULE_FINDS = new Map([
 
 /**
  * Compare two runs of the same site, page by page. A page read in full in both is compared pass by
- * pass on the fingerprint of each pass's TXT body, so a pass whose fingerprints agree is never read.
- * `body` gives a pass's body lines (as `extractBody` does), or null when the run has no transcript
- * of that pass: it counts as having no lines, as `--compare` takes it. `name` is how a page is
- * called in the section's line.
+ * pass, over the passes both runs read, on the fingerprint of each pass's TXT body: a pass whose
+ * fingerprints agree is never read. `body` gives a pass's body lines, or null when the transcript
+ * can't be read here. `name` is how a page is called in the section's line.
  */
-export function changesOf(
-  before: RunJson,
-  after: RunJson,
-  body: (run: string, slug: string, pass: PassName) => string[] | null,
-  name: (page: { label?: string; url: string }) => string,
-): Changes {
+export function changesOf(before: RunJson, after: RunJson, body: BodyOf, name: PageName): Changes {
   const earlier = new Map(before.pages.map((page): [string, PageRecord] => [page.key, page]));
   const listed = new Set(after.pages.map((page) => page.key));
+  // A pass only one run read has nothing to be compared with.
+  const readBefore = passesRead(before);
+  const readAfter = passesRead(after);
+  const compared = readBefore.filter((pass) => readAfter.includes(pass));
   const changed: PageChange[] = [];
   const onlyInOne: OnlyInOnePage[] = [];
   let same = 0;
@@ -120,24 +144,24 @@ export function changesOf(
     if (was === undefined) {
       if (page.status === "done") onlyInOne.push({ ...pageRef(page), reason: "new" });
     } else if ((was.status === "done") !== (page.status === "done")) {
-      onlyInOne.push({ ...pageRef(page), reason: "failed in one run" });
-    } else if (page.status === "done") {
-      const passes = PASS_NAMES.flatMap((pass): PassChange[] => {
-        // The fingerprint is of the TXT body, so equal fingerprints are equal lines.
-        if (was.passes[pass]?.contentSha256 === page.passes[pass]?.contentSha256) return [];
-        const lines = diffLines(
-          body(before.id, was.slug, pass) ?? [],
-          body(after.id, page.slug, pass) ?? [],
-        );
-        return [{ pass, ...lines }];
-      });
-      if (passes.length === 0) {
+      // The run that didn't read the page in full says why. A page still pending there was never
+      // reached, which a completed run doesn't have, so there is no reason to give.
+      const other = was.status === "done" ? page : was;
+      if (other.status === "failed") {
+        onlyInOne.push({ ...pageRef(page), reason: "failed in one run" });
+      } else if (other.status === "skipped") {
+        onlyInOne.push({ ...pageRef(page), reason: "skipped in one run" });
+      }
+    } else if (page.status === "done" && compared.length > 0) {
+      const { passes, unreadable } = comparePasses(compared, [before, was], [after, page], body);
+      if (passes.length === 0 && unreadable.length === 0) {
         same += 1;
       } else {
         changed.push({
           ...pageRef(page),
           slug: page.slug,
           passes,
+          unreadable,
           flags: flagChanges(was.flags, page.flags),
         });
       }
@@ -156,8 +180,38 @@ export function changesOf(
     same,
     onlyInOne,
     tools: environmentDifferences(before, after),
-    ...sentences(dayMonth(before.createdAt), changed, same, name),
+    passesNote: passesNote(readBefore, readAfter, compared),
+    ...sentences(dayMonth(before.createdAt), changed, same, compared.length, name),
   };
+}
+
+/** The passes a run was set to read, in pass order. */
+function passesRead(run: RunJson): PassName[] {
+  return PASS_NAMES.filter((pass) => run.settings.passes.includes(pass));
+}
+
+/**
+ * The compared passes of a page, in each run, that differ: those whose lines can be shown, and
+ * those whose lines can't be read, which are named and not shown, since a pass with no lines would
+ * read as every line of the other run gone or new.
+ */
+function comparePasses(
+  compared: PassName[],
+  [earlierRun, was]: [RunJson, PageRecord],
+  [laterRun, page]: [RunJson, PageRecord],
+  body: BodyOf,
+): Pick<PageChange, "passes" | "unreadable"> {
+  const passes: PassChange[] = [];
+  const unreadable: PassName[] = [];
+  for (const pass of compared) {
+    // The fingerprint is of the TXT body, so equal fingerprints are equal lines.
+    if (was.passes[pass]?.contentSha256 === page.passes[pass]?.contentSha256) continue;
+    const old = body(earlierRun.id, was.slug, pass);
+    const now = body(laterRun.id, page.slug, pass);
+    if (old === null || now === null) unreadable.push(pass);
+    else passes.push({ pass, ...diffLines(old, now) });
+  }
+  return { passes, unreadable };
 }
 
 function pageRef(page: PageRecord): { key: string; url: string; label?: string } {
@@ -198,7 +252,8 @@ function diffLines(
   let added = 0;
   blocks.forEach((block, index) => {
     if (block.kind === "same") {
-      // A run keeps context only beside a change: the first run has none before it, and the last none after.
+      // A run keeps context only beside a change: the first run has no change before it, and the
+      // last has none after it.
       const head = index === 0 ? 0 : CONTEXT;
       const tail = index === blocks.length - 1 ? 0 : CONTEXT;
       lines.push(...withContext(block.lines, head, tail));
@@ -211,7 +266,10 @@ function diffLines(
   return { removed, added, lines };
 }
 
-/** Runs of unchanged lines, and the changes between them: removed and added lines side by side are one. */
+/**
+ * Runs of unchanged lines, and the changes between them: removed and added lines side by side are
+ * one change.
+ */
 function blocksOf(parts: ArrayChange<string>[]): Block[] {
   const blocks: Block[] = [];
   for (const part of parts) {
@@ -229,7 +287,7 @@ function blocksOf(parts: ArrayChange<string>[]): Block[] {
   return blocks;
 }
 
-/** A run of unchanged lines: its first `head` and last `tail`, with the lines between as a count. */
+/** A run of unchanged lines: its first `head` and last `tail`, and a count for those between. */
 function withContext(run: string[], head: number, tail: number): DiffLine[] {
   const same = (text: string): DiffLine => ({ kind: "same", text });
   if (run.length <= head + tail) return run.map(same);
@@ -333,17 +391,58 @@ function stretches(mask: boolean[], value: boolean): [number, number][] {
   return found;
 }
 
-// The section's line and the summary's.
+// What the section and the summary say.
+
+/** The word for each pass in a sentence. */
+const PASS_WORDS: Record<PassName, string> = { read: "read", headings: "headings", tab: "Tab" };
+
+/** "the read pass", "the read and Tab passes", "the read, headings, and Tab passes". */
+function passList(passes: PassName[]): string {
+  if (passes.length === 0) return "no passes";
+  const words = names(passes.map((pass) => PASS_WORDS[pass]));
+  return `the ${words} ${passes.length === 1 ? "pass" : "passes"}`;
+}
+
+/**
+ * What the section says first when the two runs didn't read the same passes: what each read, and
+ * which are compared. Null when they read the same.
+ */
+function passesNote(before: PassName[], after: PassName[], compared: PassName[]): string | null {
+  if (before.join() === after.join()) return null;
+  const read = (passes: PassName[]) =>
+    passes.length === 1 ? `only ${passList(passes)}` : passList(passes);
+  const comparing =
+    compared.length === 0
+      ? "no pass is compared"
+      : `only ${passList(compared)} ${compared.length === 1 ? "is" : "are"} compared`;
+  return `The run before read ${read(before)}, and this one ${read(after)}; ${comparing}.`;
+}
+
+/** A flag that is gone from a page: where it was, and what it found. */
+interface Resolved {
+  page: string;
+  /** What the rule finds, or the rule's id when voicecap has no plain name for it. */
+  finds: string;
+  /** The rule's id, as well, when `finds` is a plain name. */
+  rule: string | null;
+}
 
 function sentences(
   date: string,
   changed: PageChange[],
   same: number,
-  name: (page: { label?: string; url: string }) => string,
+  passesCompared: number,
+  name: PageName,
 ): Pick<Changes, "line" | "summaryLine"> {
   const since = `Since the last run on ${date}:`;
-  const compared = changed.length + same;
-  if (compared === 0) {
+  if (passesCompared === 0) {
+    return {
+      line: "No pass was read in both runs, so no page could be compared.",
+      summaryLine: `${since} no pass was read in both runs, so no page could be compared.`,
+    };
+  }
+  const pages = changed.length + same;
+  if (pages === 0) {
     return {
       line: "No page was read in full in both runs, so none could be compared.",
       summaryLine: `${since} no page was read in full in both runs, so none could be compared.`,
@@ -356,42 +455,42 @@ function sentences(
     };
   }
 
-  const resolved = resolvedFlags(changed, name);
   const sound = (count: number) => (count === 1 ? "sounds" : "sound");
   const count = changed.length;
   const lead =
-    `Compared with the run on ${date}: ${count} of ${compared} ` +
-    `${compared === 1 ? "page" : "pages"} ${sound(count)} different, ` +
+    `Compared with the run on ${date}: ${count} of ${pages} ` +
+    `${pages === 1 ? "page" : "pages"} ${sound(count)} different, ` +
     `and ${same} ${sound(same)} exactly the same.`;
   const summary = `${since} ${count} ${count === 1 ? "page sounds" : "pages sound"} different`;
+  const resolved = resolvedFlags(changed, name);
   if (resolved.length === 0) return { line: lead, summaryLine: `${summary}.` };
 
+  // People hear these read aloud, so each says where first, and a semicolon sets one from the next.
+  const where = (item: Resolved) => `on ${item.page}, ${item.finds}`;
+  const withRule = (item: Resolved) =>
+    item.rule === null ? where(item) : `${where(item)} (${item.rule})`;
   const are = resolved.length === 1 ? "this flag is" : "these flags are";
   return {
-    line: `${lead} Resolved: ${names(resolved)}.`,
-    summaryLine: `${summary}, and ${are} resolved: ${names(resolved)}.`,
+    line: `${lead} Resolved: ${resolved.map(withRule).join("; ")}.`,
+    summaryLine: `${summary}, and ${are} resolved: ${resolved.map(where).join("; ")}.`,
   };
 }
 
 /**
- * The flags gone from each changed page, as "<what the rule finds> on <page> (<rule>)": one for
- * each rule on each page, and none for a rule the page still has in another pass. A rule with no
- * plain name is named by its id alone.
+ * The flags gone from each changed page: one for each rule on each page, and none for a rule the
+ * page still has in another pass.
  */
-function resolvedFlags(
-  changed: PageChange[],
-  name: (page: { label?: string; url: string }) => string,
-): string[] {
+function resolvedFlags(changed: PageChange[], name: PageName): Resolved[] {
   return changed.flatMap((page) => {
     const kept = new Set([...page.flags.unchanged, ...page.flags.added].map((flag) => flag.rule));
     const gone = new Set(
       page.flags.resolved.map((flag) => flag.rule).filter((rule) => !kept.has(rule)),
     );
-    return [...gone].map((rule) => {
+    return [...gone].map((rule): Resolved => {
       const finds = RULE_FINDS.get(rule);
       return finds === undefined
-        ? `${rule} on ${name(page)}`
-        : `${finds} on ${name(page)} (${rule})`;
+        ? { page: name(page), finds: rule, rule: null }
+        : { page: name(page), finds, rule };
     });
   });
 }

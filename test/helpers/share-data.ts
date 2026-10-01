@@ -77,6 +77,11 @@ export interface ShareRunSpec {
    * "0.5.0" gives a run from before attempt records were kept. Default: report-data.ts's.
    */
   voicecapVersion?: string;
+  /**
+   * The passes the run was set to read, as `settings.passes`. It doesn't limit the passes a page
+   * spec gives lines for. Default: all three.
+   */
+  passes?: PassName[];
   pages: SharePageSpec[];
 }
 
@@ -142,7 +147,7 @@ export function shareRun(spec: ShareRunSpec): RunJson {
     settings: {
       site: SITE,
       source,
-      passes: ["read", "headings", "tab"],
+      passes: spec.passes ?? ["read", "headings", "tab"],
       include: [],
       exclude: [],
       limit: null,

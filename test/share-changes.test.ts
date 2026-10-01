@@ -104,6 +104,8 @@ describe("changesOf: the demo runs of 29 September 2026", () => {
     expect(changes.summaryLine).toBe(
       "Since the last run on 29 September: every page sounds the same.",
     );
+    // Both runs read all three passes, so there is nothing to say about passes.
+    expect(changes.passesNote).toBeNull();
     // The pages' fingerprints agree, so no transcript is opened to say so.
     expect(body).not.toHaveBeenCalled();
   });
@@ -559,6 +561,7 @@ describe("changesOf: which pages changed", () => {
       ["read", 1, 2],
       ["tab", 1, 0],
     ]);
+    expect(page?.unreadable).toEqual([]);
   });
 
   it("gives a changed page the key, slug, and url of its record, and a label only when it has one", () => {
@@ -574,7 +577,9 @@ describe("changesOf: which pages changed", () => {
     );
 
     expect(
-      changes.changed.map(({ passes: _passes, flags: _flags, ...page }) => page),
+      changes.changed.map(
+        ({ passes: _passes, unreadable: _unreadable, flags: _flags, ...page }) => page,
+      ),
     ).toStrictEqual([
       {
         key: keyOf("/a/"),
@@ -586,21 +591,6 @@ describe("changesOf: which pages changed", () => {
     ]);
   });
 
-  it("takes a pass that only one run has as all removed or all added, as --compare does", () => {
-    const changes = compare(
-      [{ path: "/", passes: { read: ["same"], headings: ["h1", "h2"] } }],
-      [{ path: "/", passes: { read: ["same"], tab: ["t1"] } }],
-    );
-
-    const passes = changes.changed[0]?.passes ?? [];
-    expect(passes.map((pass) => [pass.pass, pass.removed, pass.added])).toEqual([
-      ["headings", 2, 0],
-      ["tab", 0, 1],
-    ]);
-    expect(shape(passes[0]?.lines ?? [])).toEqual(["removed h1", "removed h2"]);
-    expect(shape(passes[1]?.lines ?? [])).toEqual(["added t1"]);
-  });
-
   it("lists pages read in only one run, with the reason", () => {
     const changes = compare(
       [
@@ -608,6 +598,7 @@ describe("changesOf: which pages changed", () => {
         { path: "/gone", label: "Old page", passes: { read: ["Gone"] } },
         { path: "/failed-before", status: "failed" },
         { path: "/failed-now", passes: { read: ["Now"] } },
+        { path: "/skipped-before", status: "skipped" },
         { path: "/skipped-now", passes: { read: ["Skipped"] } },
         { path: "/neither", status: "failed" },
         { path: "/dropped-failure", status: "failed" },
@@ -617,23 +608,43 @@ describe("changesOf: which pages changed", () => {
         { path: "/new", label: "New page", passes: { read: ["New"] } },
         { path: "/failed-before", passes: { read: ["Before"] } },
         { path: "/failed-now", status: "failed" },
+        { path: "/skipped-before", passes: { read: ["Was skipped"] } },
         { path: "/skipped-now", status: "skipped" },
         { path: "/neither", status: "failed" },
         { path: "/new-failure", status: "failed" },
       ],
     );
 
-    // In the later run's order, then the pages only the earlier run listed. A page read in neither
-    // run isn't here: it wasn't read in only one. A skipped page wasn't read either.
+    // In the later run's order, then the pages only the earlier run listed. The reason of a page
+    // the other run didn't read is what that run recorded: it failed, or voicecap skipped it. A page
+    // read in neither run isn't here: it wasn't read in only one.
     expect(changes.onlyInOne.map((page) => [pathOf(page), page.reason])).toEqual([
       ["/new", "new"],
       ["/failed-before", "failed in one run"],
       ["/failed-now", "failed in one run"],
-      ["/skipped-now", "failed in one run"],
+      ["/skipped-before", "skipped in one run"],
+      ["/skipped-now", "skipped in one run"],
       ["/gone", "no longer listed"],
     ]);
     expect(changes.same).toBe(1);
     expect(changes.changed).toEqual([]);
+  });
+
+  it("doesn't list a page the other run never reached, which a completed run has none of", () => {
+    const changes = compare(
+      [
+        { path: "/", passes: { read: ["Home"] } },
+        { path: "/pending-now", passes: { read: ["Now"] } },
+        { path: "/pending-before", status: "pending" },
+      ],
+      [
+        { path: "/", passes: { read: ["Home"] } },
+        { path: "/pending-now", status: "pending" },
+        { path: "/pending-before", passes: { read: ["Before"] } },
+      ],
+    );
+
+    expect([changes.onlyInOne, changes.same, changes.changed]).toEqual([[], 1, []]);
   });
 
   it("gives a page read in only one run its key, url, and label, and no label it doesn't have", () => {
@@ -710,6 +721,198 @@ describe("changesOf: which pages changed", () => {
     changesOf(before, after, t.body, pageName);
 
     expect([before, after]).toEqual(snapshot);
+  });
+});
+
+describe("changesOf: runs that read different passes", () => {
+  /** Lines for each of `passes` on one page. */
+  const lines = (passes: PassName[]) =>
+    Object.fromEntries(passes.map((pass) => [pass, [`${pass} line`]]));
+
+  it.each([
+    { before: ["read", "headings", "tab"], after: ["read"] },
+    { before: ["read"], after: ["read", "headings", "tab"] },
+  ] satisfies { before: PassName[]; after: PassName[] }[])(
+    "compares only the read pass when one run read $before and the next $after",
+    ({ before, after }) => {
+      /** Three pages read in `passes`, whose lines in the other passes only that run has. */
+      const pages = (passes: PassName[], readDiffers: string): SharePageSpec[] => {
+        const others = lines(passes.filter((pass) => pass !== "read"));
+        return [
+          { path: "/same", passes: { ...others, read: ["a"] } },
+          { path: "/others-differ", passes: { ...others, read: ["b"] } },
+          { path: "/read-differs", passes: { ...others, read: [readDiffers] } },
+        ];
+      };
+      const t = transcripts();
+      const earlier = t.run({
+        id: "r1",
+        createdAt: BEFORE,
+        passes: before,
+        pages: pages(before, "c1"),
+      });
+      const later = t.run({
+        id: "r2",
+        createdAt: AFTER,
+        passes: after,
+        pages: pages(after, "c2"),
+      });
+      const body = vi.fn(t.body);
+
+      const changes = changesOf(earlier, later, body, pageName);
+
+      expect(changes.passesNote).toContain("only the read pass is compared.");
+      // The headings and tab passes of the pages aren't compared, so they aren't called different.
+      expect(changes.same).toBe(2);
+      expect(changes.changed.map(pathOf)).toEqual(["/read-differs"]);
+      expect(changes.changed[0]?.passes.map((pass) => pass.pass)).toEqual(["read"]);
+      expect(body.mock.calls.map(([, , pass]) => pass)).toEqual(["read", "read"]);
+      expect(changes.line).toBe(
+        "Compared with the run on 26 September: 1 of 3 pages sounds different, and 2 sound exactly the same.",
+      );
+    },
+  );
+
+  it.each([
+    {
+      before: ["read", "headings", "tab"],
+      after: ["read"],
+      note: "The run before read the read, headings, and Tab passes, and this one only the read pass; only the read pass is compared.",
+    },
+    {
+      before: ["read"],
+      after: ["read", "headings", "tab"],
+      note: "The run before read only the read pass, and this one the read, headings, and Tab passes; only the read pass is compared.",
+    },
+    {
+      before: ["read", "headings"],
+      after: ["read", "tab"],
+      note: "The run before read the read and headings passes, and this one the read and Tab passes; only the read pass is compared.",
+    },
+    {
+      before: ["read", "headings", "tab"],
+      after: ["headings", "tab"],
+      note: "The run before read the read, headings, and Tab passes, and this one the headings and Tab passes; only the headings and Tab passes are compared.",
+    },
+  ] satisfies { before: PassName[]; after: PassName[]; note: string }[])(
+    "says which passes are compared when one run read $before and the next $after",
+    ({ before, after, note }) => {
+      const t = transcripts();
+      const earlier = t.run({
+        id: "r1",
+        createdAt: BEFORE,
+        passes: before,
+        pages: [{ path: "/", passes: lines(before) }],
+      });
+      const later = t.run({
+        id: "r2",
+        createdAt: AFTER,
+        passes: after,
+        pages: [{ path: "/", passes: lines(after) }],
+      });
+
+      expect(changesOf(earlier, later, t.body, pageName).passesNote).toBe(note);
+    },
+  );
+
+  it("has no note when both runs read the same passes, in whatever order they list them", () => {
+    const t = transcripts();
+    const pages: SharePageSpec[] = [{ path: "/", passes: lines(["read", "tab"]) }];
+    const earlier = t.run({ id: "r1", createdAt: BEFORE, passes: ["tab", "read"], pages });
+    const later = t.run({ id: "r2", createdAt: AFTER, passes: ["read", "tab"], pages });
+
+    expect(changesOf(earlier, later, t.body, pageName).passesNote).toBeNull();
+  });
+
+  it("says nothing could be compared when the runs have no pass in common", () => {
+    const t = transcripts();
+    const earlier = t.run({
+      id: "r1",
+      createdAt: BEFORE,
+      passes: ["read"],
+      pages: [{ path: "/", passes: lines(["read"]) }],
+    });
+    const later = t.run({
+      id: "r2",
+      createdAt: AFTER,
+      passes: ["tab"],
+      pages: [
+        { path: "/", passes: lines(["tab"]) },
+        { path: "/new", passes: lines(["tab"]) },
+      ],
+    });
+    const body = vi.fn(t.body);
+
+    const changes = changesOf(earlier, later, body, pageName);
+
+    // Neither the same nor different: nothing about the page was compared.
+    expect([changes.changed, changes.same]).toEqual([[], 0]);
+    expect(changes.onlyInOne.map((page) => [pathOf(page), page.reason])).toEqual([["/new", "new"]]);
+    expect(changes.passesNote).toBe(
+      "The run before read only the read pass, and this one only the Tab pass; no pass is compared.",
+    );
+    expect(changes.line).toBe("No pass was read in both runs, so no page could be compared.");
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: no pass was read in both runs, so no page could be compared.",
+    );
+    expect(body).not.toHaveBeenCalled();
+  });
+});
+
+describe("changesOf: transcripts that can't be read", () => {
+  it("names a differing pass whose lines can't be read, and leaves it out of the passes", () => {
+    const t = transcripts();
+    const before = t.run({
+      id: "r1",
+      createdAt: BEFORE,
+      pages: [
+        { path: "/a", passes: { read: ["a1"], headings: ["h1"] } },
+        { path: "/b", passes: { read: ["b1"] } },
+        { path: "/c", passes: { read: ["c1"] } },
+        { path: "/d", passes: { read: ["d1"], headings: ["h1"], tab: ["t"] } },
+      ],
+    });
+    const after = t.run({
+      id: "r2",
+      createdAt: AFTER,
+      pages: [
+        { path: "/a", passes: { read: ["a2"], headings: ["h2"] } },
+        { path: "/b", passes: { read: ["b2"] } },
+        { path: "/c", passes: { read: ["c2"] } },
+        { path: "/d", passes: { read: ["d2"], headings: ["h2"], tab: ["t"] } },
+      ],
+    });
+    // The earlier run's transcript of /a's read pass, the later run's of /b's, and both runs' of
+    // /d's read and headings passes can't be found.
+    const body = (run: string, slug: string, pass: PassName) => {
+      const lost =
+        (slug === slugOf("/a") && run === "r1" && pass === "read") ||
+        (slug === slugOf("/b") && run === "r2" && pass === "read") ||
+        (slug === slugOf("/d") && pass !== "tab");
+      return lost ? null : t.body(run, slug, pass);
+    };
+
+    const changes = changesOf(before, after, body, pageName);
+
+    // None is taken as a pass with no lines, which would show every line of the other run as new
+    // or gone.
+    expect(
+      changes.changed.map((page) => [
+        pathOf(page),
+        page.passes.map((pass) => pass.pass),
+        page.unreadable,
+      ]),
+    ).toEqual([
+      ["/a", ["headings"], ["read"]],
+      ["/b", [], ["read"]],
+      ["/c", ["read"], []],
+      ["/d", [], ["read", "headings"]],
+    ]);
+    // The fingerprints say they sound different, whether or not the lines can be shown.
+    expect(changes.same).toBe(0);
+    expect(changes.line).toBe(
+      "Compared with the run on 26 September: 4 of 4 pages sound different, and 0 sound exactly the same.",
+    );
   });
 });
 
@@ -849,6 +1052,11 @@ describe("changesOf: the lines that open the section and the summary", () => {
     count: 1,
     message: "Unlabeled items in the read pass.",
   };
+  const outline: FlagResult = {
+    rule: "headings",
+    pass: "headings",
+    message: "The first heading is level 2, not level 1.",
+  };
 
   it("says how many pages sound different, and which flags were resolved", () => {
     const changes = compare(
@@ -862,14 +1070,14 @@ describe("changesOf: the lines that open the section and the summary", () => {
     expect(changes.same).toBe(4);
     expect(changes.changed.map(pathOf)).toEqual(["/a", "/b", "/c"]);
     expect(changes.line).toBe(
-      "Compared with the run on 26 September: 3 of 7 pages sound different, and 4 sound exactly the same. Resolved: the links that say only what they do, not where they go on Common mistakes (generic-link-text).",
+      "Compared with the run on 26 September: 3 of 7 pages sound different, and 4 sound exactly the same. Resolved: on Common mistakes, the links that don't say where they go (generic-link-text).",
     );
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: the links that say only what they do, not where they go on Common mistakes (generic-link-text).",
+      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: on Common mistakes, the links that don't say where they go.",
     );
   });
 
-  it("names every resolved flag with the page it was on, in page order", () => {
+  it("names every resolved flag with the page it was on, in page order, one after another", () => {
     const changes = compare(
       [
         { path: "/a", label: "Contact", flags: [unnamed], passes: { read: ["a1"] } },
@@ -879,19 +1087,59 @@ describe("changesOf: the lines that open the section and the summary", () => {
           flags: [generic, genericTab],
           passes: { read: ["b1"] },
         },
+        { path: "/c", label: "Home", flags: [outline], passes: { read: ["c1"] } },
       ],
       [
         { path: "/a", label: "Contact", passes: { read: ["a2"] } },
         { path: "/b", label: "Common mistakes", passes: { read: ["b2"] } },
+        { path: "/c", label: "Home", passes: { read: ["c2"] } },
       ],
     );
 
+    // People hear these read aloud, so each says where first, and the items are set apart by
+    // semicolons, since a plain name can have a comma of its own.
     expect(changes.line).toBe(
-      "Compared with the run on 26 September: 2 of 2 pages sound different, and 0 sound exactly the same. Resolved: the unnamed controls on Contact (unlabeled) and the links that say only what they do, not where they go on Common mistakes (generic-link-text).",
+      "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Contact, the unnamed controls (unlabeled); on Common mistakes, the links that don't say where they go (generic-link-text); on Home, the heading structure (headings).",
     );
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 2 pages sound different, and these flags are resolved: the unnamed controls on Contact (unlabeled) and the links that say only what they do, not where they go on Common mistakes (generic-link-text).",
+      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: on Contact, the unnamed controls; on Common mistakes, the links that don't say where they go; on Home, the heading structure.",
     );
+  });
+
+  it('joins two resolved flags with a semicolon too, and no "and"', () => {
+    const changes = compare(
+      [
+        { path: "/a", label: "Contact", flags: [unnamed], passes: { read: ["a1"] } },
+        { path: "/b", label: "Home", flags: [outline], passes: { read: ["b1"] } },
+      ],
+      [
+        { path: "/a", label: "Contact", passes: { read: ["a2"] } },
+        { path: "/b", label: "Home", passes: { read: ["b2"] } },
+      ],
+    );
+
+    expect(changes.line).toContain(
+      "Resolved: on Contact, the unnamed controls (unlabeled); on Home, the heading structure (headings).",
+    );
+  });
+
+  it.each([
+    ["generic-link-text", "the links that don't say where they go"],
+    ["unlabeled", "the unnamed controls"],
+    ["headings", "the heading structure"],
+    ["read-not-finished", "the unfinished read"],
+    ["tab-no-stops", "the missing Tab stops"],
+    ["tab-before-main", "the Tab stops before the main content"],
+    ["repeated-phrase", "the repeated speech"],
+  ])("calls the %s rule %j", (rule, plain) => {
+    const flag: FlagResult = { rule, pass: "read", message: "A message." };
+    const changes = compare(
+      [{ path: "/", label: "Home", flags: [flag], passes: { read: ["a"] } }],
+      [{ path: "/", label: "Home", passes: { read: ["b"] } }],
+    );
+
+    expect(changes.line).toContain(`Resolved: on Home, ${plain} (${rule}).`);
+    expect(changes.summaryLine).toContain(`this flag is resolved: on Home, ${plain}.`);
   });
 
   it("says nothing of resolved flags when none were", () => {
@@ -956,7 +1204,9 @@ describe("changesOf: the lines that open the section and the summary", () => {
 
     const changes = changesOf(before, after, t.body, pathOf);
 
-    expect(changes.line).toContain("on /common/ (generic-link-text).");
+    expect(changes.line).toContain(
+      "on /common/, the links that don't say where they go (generic-link-text).",
+    );
   });
 
   it("names a resolved flag once for its page, however many passes it was in", () => {
@@ -998,7 +1248,11 @@ describe("changesOf: the lines that open the section and the summary", () => {
       [{ path: "/", label: "Home", passes: { read: ["b"] } }],
     );
 
-    expect(changes.line).toContain("Resolved: brand-name on Home and constructor on Home.");
+    // The id is said once, since there is no plain name for it to follow.
+    expect(changes.line).toContain("Resolved: on Home, brand-name; on Home, constructor.");
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 1 page sounds different, and these flags are resolved: on Home, brand-name; on Home, constructor.",
+    );
   });
 
   it("says no page could be compared when no page was read in full in both runs", () => {
