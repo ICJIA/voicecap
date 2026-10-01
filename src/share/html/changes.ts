@@ -12,20 +12,25 @@
  * a pass that can't be read, the flags of a page that sounds different), the words are new, and use
  * the mockup's own classes.
  */
-import type { FlagResult, PassName } from "../../model.js";
+import { PASS_NAMES, type FlagResult, type PassName } from "../../model.js";
 import { esc, plural } from "../../report/html.js";
 import type { Changes, DiffLine, OnlyInOnePage, PageChange, PassChange } from "../changes.js";
-import { names, pagePath, pageTitle } from "../format.js";
+import { pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
 import { chip, count, fold, scroll, verdictLine } from "./parts.js";
 
 /** What a pass is called in a sentence. */
 const PASS_WORDS: Record<PassName, string> = { read: "read", headings: "headings", tab: "Tab" };
 
-/** "the read pass", "the read and Tab passes", "the read, headings, and Tab passes". */
-function passList(passes: PassName[]): string {
-  const words = names(passes.map((pass) => PASS_WORDS[pass]));
-  return `the ${words} ${passes.length === 1 ? "pass" : "passes"}`;
+/**
+ * What a pass lost and gained, as a reader says it: "3 lines removed and 2 added", and, for a pass
+ * that only lost or only gained lines, "1 line removed" or "2 lines added", not "and 0 added".
+ */
+function sizesOf(removed: number, added: number): string {
+  if (removed === 0 && added === 0) return "no lines removed or added";
+  if (added === 0) return `${plural(removed, "line")} removed`;
+  if (removed === 0) return `${plural(added, "line")} added`;
+  return `${plural(removed, "line")} removed and ${count(added)} added`;
 }
 
 // Before the line: what could make the runs sound different besides the site.
@@ -44,8 +49,12 @@ function passesNote(note: string | null): string {
 
 // After the line.
 
-/** The two runs compared, how many pages sound the same (counted, not shown), and what opens. */
+/**
+ * The two runs compared, how many pages sound the same (counted, not shown), and what opens. When
+ * no page could be compared (the line says so), nothing was compared, so there is none.
+ */
 function gistOf({ before, after, same, changed }: Changes): string {
+  if (same === 0 && changed.length === 0) return "";
   const sentences = [
     `Compared: run <code>${esc(before.id)}</code> (before) and run <code>${esc(after.id)}</code> (latest).`,
     ...(same === 0
@@ -78,14 +87,20 @@ function onlyInOneNote(pages: OnlyInOnePage[]): string {
 
 // A page that sounds different.
 
-/** How much a page changed, for its fold's line: lines gone and come, in the passes read. */
+/**
+ * How much a page changed, for its fold's line: each pass that sounds different, in pass order,
+ * with the lines it lost and gained, or that its transcript couldn't be read, so no count is
+ * known. "read: 3 lines removed and 2 added; headings: couldn't be read; Tab: 1 line removed".
+ */
 function countsOf({ passes, unreadable }: PageChange): string {
-  if (passes.length === 0) {
-    return `sounds different in ${passList(unreadable)}, which couldn't be read here`;
-  }
-  const removed = passes.reduce((sum, change) => sum + change.removed, 0);
-  const added = passes.reduce((sum, change) => sum + change.added, 0);
-  return `${plural(removed, "line")} removed and ${count(added)} added in ${passList(passes.map(({ pass }) => pass))}`;
+  const clauses = PASS_NAMES.flatMap((pass) => {
+    const change = passes.find((each) => each.pass === pass);
+    if (change !== undefined) {
+      return [`${PASS_WORDS[pass]}: ${sizesOf(change.removed, change.added)}`];
+    }
+    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read`] : [];
+  });
+  return clauses.join("; ");
 }
 
 /**
@@ -160,8 +175,7 @@ function rowOf(line: DiffLine): string {
 function passBlock({ pass, removed, added, lines }: PassChange, address: string): string {
   const word = PASS_WORDS[pass];
   const caption = `Changes in the ${word} pass on ${address}`;
-  const sizes = `${plural(removed, "line")} removed and ${count(added)} added`;
-  const head = `<h3 class="logh">The ${word} pass <span class="sr">on ${esc(address)}</span> <span class="sub">${sizes}</span></h3>`;
+  const head = `<h3 class="logh">The ${word} pass <span class="sr">on ${esc(address)}</span> <span class="sub">${sizesOf(removed, added)}</span></h3>`;
   const columns = ["Change", "What NVDA said"].map((words) => `<th scope="col">${words}</th>`);
   const table = `<table class="difftable"><caption class="sr">${esc(caption)}</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${lines.map(rowOf).join("")}</tbody></table>`;
   return `<div>${head}${scroll(`${caption}, table`, table)}</div>`;

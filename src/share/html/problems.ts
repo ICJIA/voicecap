@@ -19,7 +19,7 @@
 import { esc, idFragment } from "../../report/html.js";
 import { clock, pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
-import { KIND_ROWS, type Problem } from "../problems.js";
+import { KIND_ROWS, type Problem, type ProblemKind } from "../problems.js";
 import { chip, fold, notRecorded, scroll, verdictLine } from "./parts.js";
 
 /** Where a problem in voicecap itself is reported. */
@@ -49,9 +49,25 @@ function timeOfDay(iso: string): string {
 
 const row = (term: string, said: string): string => `<dt>${term}</dt><dd>${said}</dd>`;
 
-/** What the page says of a problem whose kind came from an older run's wording. */
-const FROM_WORDING =
-  "From the error's own wording, which voicecap wrote: this run was recorded before voicecap noted a cause for each failure.";
+/** Why a run's problems have no cause code to read their kind from. */
+const BEFORE_CAUSES = "this run was recorded before voicecap noted a cause for each failure";
+
+/**
+ * How the kind of a problem from an older run's wording was decided, which is not the same for
+ * every kind (src/share/problems.ts reads the wording): most are voicecap's own words; "unreachable"
+ * is Chrome's network error code; and "unexpected" is by exclusion, the wording being one voicecap
+ * doesn't recognize, which is nothing it can say of the error itself.
+ */
+function decidedFrom(kind: ProblemKind): string {
+  switch (kind) {
+    case "unexpected":
+      return `voicecap didn't recognize this error's wording, so it counts as unexpected: ${BEFORE_CAUSES}.`;
+    case "unreachable":
+      return "From the browser's own network error code in the error's wording.";
+    default:
+      return `From the error's own wording, which voicecap wrote: ${BEFORE_CAUSES}.`;
+  }
+}
 
 const REPORT = `This could be a problem in voicecap itself. Please report it, with this record, at <a href="${ISSUES}">${ISSUES_TEXT}</a>.`;
 
@@ -59,7 +75,9 @@ const REPORT = `This could be a problem in voicecap itself. Please report it, wi
 function questions(problem: Problem): string {
   const rows = [
     row("What happened", esc(sentence(problem.happened))),
-    ...(problem.fromWording ? [row("How the kind was decided", esc(FROM_WORDING))] : []),
+    ...(problem.fromWording
+      ? [row("How the kind was decided", esc(decidedFrom(problem.kind)))]
+      : []),
     row("What voicecap did", esc(sentence(problem.did))),
     row("Did it happen again?", esc(sentence(problem.verdict))),
     row("Effect on the results", esc(sentence(problem.effect))),

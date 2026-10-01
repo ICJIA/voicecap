@@ -241,12 +241,12 @@ describe("renderChanges", () => {
   });
 
   describe("for a page that sounds different", () => {
-    it("folds it behind a line with its name, its lines removed and added, and its flags", () => {
+    it("folds it behind a line with its name, the lines each pass lost and gained, and its flags", () => {
       const html = renderChanges(grantsModel());
 
       expect(foldsIn(html)).toHaveLength(1);
       expect(summariesIn(html)).toEqual([
-        "/grants/: 2 lines removed and 2 added in the read pass generic-link-text resolved",
+        "/grants/: read: 2 lines removed and 2 added generic-link-text resolved",
       ]);
       expect(html).toContain('<details class="fold"><summary><span class="what">/grants/:</span>');
       // Closed: a page that sounds different opens to show what changed.
@@ -355,8 +355,9 @@ describe("renderChanges", () => {
       );
       const [fold = ""] = foldsIn(html);
 
+      // The line gives each pass its own count, as the spec has it, and not their total.
       expect(summariesIn(html)).toEqual([
-        "/a/: 2 lines removed and 2 added in the read and Tab passes",
+        "/a/: read: 1 line removed and 1 added; Tab: 1 line removed and 1 added",
       ]);
       const headings = [...fold.matchAll(/<h3 class="logh">(.*?)<\/h3>/gs)].map((found) =>
         textOf(found[1] ?? ""),
@@ -372,6 +373,60 @@ describe("renderChanges", () => {
       expect(fold).not.toContain("The headings pass");
     });
 
+    it("gives each changed pass its own count on the line, and says what a pass only lost or only gained as it is", () => {
+      const html = renderChanges(
+        changedModel(
+          [
+            done("/a/", {
+              read: ["first", "gone 1", "gone 2", "gone 3", "last"],
+              headings: ["h1"],
+              tab: ["t1", "t2", "t3"],
+            }),
+          ],
+          [
+            done("/a/", {
+              read: ["first", "new 1", "new 2", "last"],
+              headings: ["h1", "h2"],
+              tab: ["t1", "t3"],
+            }),
+          ],
+        ),
+      );
+      const [fold = ""] = foldsIn(html);
+
+      expect(summariesIn(html)).toEqual([
+        "/a/: read: 3 lines removed and 2 added; headings: 1 line added; Tab: 1 line removed",
+      ]);
+      // The same words head each pass's own table.
+      const headings = [...fold.matchAll(/<h3 class="logh">(.*?)<\/h3>/gs)].map((found) =>
+        textOf(found[1] ?? ""),
+      );
+      expect(headings).toEqual([
+        "The read pass on /a/ 3 lines removed and 2 added",
+        "The headings pass on /a/ 1 line added",
+        "The Tab pass on /a/ 1 line removed",
+      ]);
+    });
+
+    it("says no line was removed or added when a pass's record differs but the lines shown don't", () => {
+      const before = shareRun({
+        id: "r1",
+        createdAt: BEFORE,
+        pages: [done("/a/", { read: ["old"] })],
+      });
+      const after = shareRun({
+        id: "r2",
+        createdAt: AFTER,
+        pages: [done("/a/", { read: ["new"] })],
+      });
+      // The records fingerprinted different lines, and the transcripts hold the same ones.
+      const model = buildShareModel(
+        inputOf([before, after], { transcripts: storeOf(() => ({ read: ["same"] })) }),
+      );
+
+      expect(summariesIn(renderChanges(model))).toEqual(["/a/: read: no lines removed or added"]);
+    });
+
     it("counts the lines gone and the lines come apart, for a page that only lost or gained some", () => {
       const html = renderChanges(
         changedModel(
@@ -381,7 +436,7 @@ describe("renderChanges", () => {
       );
       const [fold = ""] = foldsIn(html);
 
-      expect(summariesIn(html)).toEqual(["/a/: 2 lines removed and 3 added in the read pass"]);
+      expect(summariesIn(html)).toEqual(["/a/: read: 2 lines removed and 3 added"]);
       expect(textOf(fold)).toContain("The read pass on /a/ 2 lines removed and 3 added");
       expect(rowsOf(tableOf(fold, "difftable"))).toEqual([
         "Change | What NVDA said",
@@ -397,7 +452,7 @@ describe("renderChanges", () => {
       expect(fold).toContain('<td><span class="sr">Added: </span><mark>new 1</mark></td>');
     });
 
-    it("names the names of the tools it says differ, and escapes them", () => {
+    it("escapes the tools it says differ", () => {
       const html = renderChanges(
         modelOfRuns([
           {
@@ -462,7 +517,7 @@ describe("renderChanges", () => {
         changedModel([done("/a/", { read: ["old"] })], [done("/a/", { read: ["new"] })]),
       );
 
-      expect(summariesIn(html)).toEqual(["/a/: 1 line removed and 1 added in the read pass"]);
+      expect(summariesIn(html)).toEqual(["/a/: read: 1 line removed and 1 added"]);
       expect(html).not.toContain('class="chips"');
       expect(html).not.toContain("Flags:");
     });
@@ -477,7 +532,7 @@ describe("renderChanges", () => {
       );
 
       // Gone from the read pass, still there in the Tab pass: not "resolved" for the page.
-      expect(summariesIn(html)).toEqual(["/a/: 1 line removed and 1 added in the read pass"]);
+      expect(summariesIn(html)).toEqual(["/a/: read: 1 line removed and 1 added"]);
       expect(textOf(html)).toContain(
         "Flags: generic-link-text (read pass), 2 before, none now (resolved). generic-link-text (Tab pass), unchanged.",
       );
@@ -492,7 +547,7 @@ describe("renderChanges", () => {
         ),
       );
 
-      expect(summariesIn(html)).toEqual(["/a/: 1 line removed and 1 added in the read pass"]);
+      expect(summariesIn(html)).toEqual(["/a/: read: 1 line removed and 1 added"]);
       expect(textOf(html)).toContain(
         "Flags: generic-link-text (read pass), 2 before, none now (resolved). generic-link-text (Tab pass), none before, 2 now (new).",
       );
@@ -523,9 +578,30 @@ describe("renderChanges", () => {
       expect(textOf(fold)).toContain(
         "The Tab pass sounds different, but its transcript couldn't be read here.",
       );
-      // Only the pass that can be read has a table, and the line counts only that one.
+      // Only the pass that can be read has a table. The line counts that one and names the other.
       expect(fold.match(/<table class="difftable">/g)).toHaveLength(1);
-      expect(summariesIn(html)).toEqual(["/a/: 1 line removed and 1 added in the read pass"]);
+      expect(summariesIn(html)).toEqual([
+        "/a/: read: 1 line removed and 1 added; Tab: couldn't be read",
+      ]);
+    });
+
+    it("names each pass on the line in pass order, the readable and the unreadable alike", () => {
+      const html = renderChanges(
+        changedModel(
+          [done("/a/", { read: ["old"], headings: ["h old"], tab: ["t", "gone"] })],
+          [done("/a/", { read: ["new"], headings: ["h new"], tab: ["t"] })],
+          { readable: (run, pass) => !(run === "r2" && pass === "headings") },
+        ),
+      );
+      const [fold = ""] = foldsIn(html);
+
+      expect(summariesIn(html)).toEqual([
+        "/a/: read: 1 line removed and 1 added; headings: couldn't be read; Tab: 1 line removed",
+      ]);
+      expect(fold.match(/<table class="difftable">/g)).toHaveLength(2);
+      expect(textOf(fold)).toContain(
+        "The headings pass sounds different, but its transcript couldn't be read here.",
+      );
     });
 
     it("says so on the line when no pass of the page can be read", () => {
@@ -536,9 +612,7 @@ describe("renderChanges", () => {
       );
       const [fold = ""] = foldsIn(html);
 
-      expect(summariesIn(html)).toEqual([
-        "/a/: sounds different in the read pass, which couldn't be read here",
-      ]);
+      expect(summariesIn(html)).toEqual(["/a/: read: couldn't be read"]);
       expect(fold).not.toContain("difftable");
       expect(textOf(fold)).toContain(
         "The read pass sounds different, but its transcript couldn't be read here.",
@@ -724,17 +798,52 @@ describe("renderChanges", () => {
     });
   });
 
-  it("says when no page could be compared", () => {
-    const model = changedModel(
-      [done("/a/", { read: ["x"] })],
-      [{ path: "/a/", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
-    );
-    const html = renderChanges(model);
+  describe("when no page could be compared", () => {
+    it("says so, and doesn't say two runs were compared, when no page was read in full in both", () => {
+      const model = changedModel(
+        [done("/a/", { read: ["x"] })],
+        [{ path: "/a/", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
+      );
+      const html = renderChanges(model);
 
-    expect(textOf(html)).toContain(
-      "No page was read in full in both runs, so none could be compared.",
-    );
-    expect(html).not.toContain("counted, not shown");
+      expect(textOf(html)).toContain(
+        "No page was read in full in both runs, so none could be compared.",
+      );
+      // The page read in only one of the runs is still listed, with its reason.
+      expect(listsOf(html)).toEqual([["/a/: failed in one run, read in full in the other."]]);
+      expect(html).not.toContain("Compared:");
+      expect(html).not.toContain("counted, not shown");
+    });
+
+    it("says so, and doesn't say two runs were compared, when no pass was read in both", () => {
+      const model = modelOfRuns([
+        {
+          id: "r1",
+          createdAt: BEFORE,
+          passes: ["read"],
+          pages: [done("/a/", { read: ["x"] })],
+        },
+        { id: "r2", createdAt: AFTER, passes: ["tab"], pages: [done("/a/", { tab: ["x"] })] },
+      ]);
+      const html = renderChanges(model);
+
+      expect(model.changes?.line).toBe(
+        "No pass was read in both runs, so no page could be compared.",
+      );
+      expect(textOf(html)).toContain(model.changes?.line);
+      // What each run read is still said first, before the line.
+      expect(html.indexOf(model.changes?.passesNote ?? "x")).toBeLessThan(
+        html.indexOf("prob-verdict"),
+      );
+      expect(html).not.toContain("Compared:");
+      expect(html).not.toContain("counted, not shown");
+    });
+
+    it("still names the two runs it compared when some page was compared", () => {
+      expect(textOf(renderChanges(grantsModel()))).toContain(
+        "Compared: run r1 (before) and run r2 (latest).",
+      );
+    });
   });
 
   it("sets no style attribute, links nowhere, and holds no heading in a summary line or section heading in a fold", async () => {
@@ -889,6 +998,76 @@ describe("renderProblems", () => {
       expect(textOf(renderProblems(await demoModel()))).toContain(
         "Every attempt that failed is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.",
       );
+    });
+  });
+
+  describe("for a problem from an older run's wording", () => {
+    /** The "How the kind was decided" row of the only problem of a voicecap 0.4.1 run's page. */
+    function decidedOf(error: string): { kind: string; said: string | undefined } {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.4.1",
+        pages: [{ path: "/grants/", status: "failed", errors: [error] }],
+      });
+      const model = buildShareModel(inputOf([run]));
+      const [fold = ""] = foldsIn(renderProblems(model));
+      return {
+        kind: model.problems.problems[0]?.kind ?? "no problem",
+        said: termsOf(fold).find(([term]) => term === "How the kind was decided")?.[1],
+      };
+    }
+
+    it("says an error voicecap doesn't recognize counts as unexpected, which is no finding about its wording", () => {
+      expect(decidedOf("read pass: page.goto: Timeout 30000ms exceeded.")).toEqual({
+        kind: "unexpected",
+        said: "voicecap didn't recognize this error's wording, so it counts as unexpected: this run was recorded before voicecap noted a cause for each failure.",
+      });
+    });
+
+    it("says a network error was read from the browser's own error code", () => {
+      expect(
+        decidedOf(
+          "Could not open the page for the read pass: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4848/",
+        ),
+      ).toEqual({
+        kind: "unreachable",
+        said: "From the browser's own network error code in the error's wording.",
+      });
+    });
+
+    it("keeps the words voicecap wrote for every other kind it read from wording", () => {
+      const said =
+        "From the error's own wording, which voicecap wrote: this run was recorded before voicecap noted a cause for each failure.";
+
+      expect(decidedOf("read pass: nextLine did not finish within 30s")).toEqual({
+        kind: "timeout",
+        said,
+      });
+      expect(decidedOf("read pass: HTTP 500")).toEqual({ kind: "http", said });
+    });
+
+    it("says it of an error voicecap doesn't recognize beside the link to report it", () => {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.4.1",
+        pages: [
+          {
+            path: "/grants/",
+            status: "failed",
+            errors: ["read pass: page.goto: Timeout 30000ms exceeded."],
+          },
+        ],
+      });
+      const [fold = ""] = foldsIn(renderProblems(buildShareModel(inputOf([run]))));
+
+      expect(termsOf(fold).map(([term]) => term)).toEqual([
+        "What happened",
+        "How the kind was decided",
+        "What voicecap did",
+        "Did it happen again?",
+        "Effect on the results",
+        "Report it",
+      ]);
     });
   });
 
