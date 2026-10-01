@@ -16,6 +16,7 @@ import {
   ownNvdaPaths,
   parseComputerModel,
   parseNvdaProcesses,
+  parseWindowsMachine,
   personsNvda,
   powershellCommand,
   powershellString,
@@ -23,8 +24,10 @@ import {
   restartNvda,
   sessionLocked,
   startProcessScript,
+  windowsMachineProbe,
   windowsSystemInfo,
 } from "../src/drivers/guidepup/windows.js";
+import { collectMachineRecord, nodeMachineFacts } from "../src/run/machine-record.js";
 
 const temps: string[] = [];
 const orphans: number[] = [];
@@ -187,6 +190,17 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(info.uiLocale).toMatch(/^[a-z]{2,3}(-[A-Za-z0-9]+)*$/);
   });
 
+  // One start of PowerShell, with four CIM queries and two registry reads: about 2 seconds on the
+  // Windows PC.
+  it("read this computer's details for the run's record", async () => {
+    const record = await collectMachineRecord(windowsMachineProbe(), nodeMachineFacts());
+    expect(record.os.name).toMatch(/^Windows /);
+    expect(record.os.build).toMatch(/^10\.0\.\d+\.\d+$/);
+    expect(record.cpu.logicalProcessors).toBeGreaterThanOrEqual(1);
+    expect(record.cpu.physicalCores).toBeGreaterThanOrEqual(1);
+    expect(record.language).toMatch(/^[a-z]{2,3}(-[A-Za-z0-9]+)*$/);
+  });
+
   it.skipIf(!existsSync(chromium.executablePath()))(
     "close a browser left running by a crashed run and delete its profile",
     async () => {
@@ -344,6 +358,158 @@ describe("Windows helpers (what PowerShell says)", () => {
     expect(parseComputerModel("HP|HP\r\n")).toBe("HP");
     // Only a whole word counts: HPE isn't HP.
     expect(parseComputerModel("HP|HPE ProLiant DL380\r\n")).toBe("HP HPE ProLiant DL380");
+  });
+
+  // What the probe's script printed on the Windows PC on 2026-09-30.
+  const sample =
+    '{"caption":"Microsoft Windows 11 Pro","displayVersion":"25H2","version":"10.0.26200","ubr":9550,"cpuMhz":2400,"cores":20,"width":3440,"height":1440,"refresh":59,"dpi":106,"language":"en-US"}';
+
+  it("reads the computer's details from PowerShell's answer", () => {
+    expect(parseWindowsMachine(sample)).toEqual({
+      os: { name: "Windows 11 Pro 25H2", build: "10.0.26200.9550" },
+      cpu: { baseMhz: 2400, physicalCores: 20 },
+      // AppliedDPI 106 of 96 is 110%, rounded.
+      display: { width: 3440, height: 1440, refreshHz: 59, scalePercent: 110 },
+      language: "en-US",
+    });
+    const noDisplay = sample.replace(
+      /"width":3440,"height":1440,"refresh":59,/,
+      '"width":null,"height":null,"refresh":null,',
+    );
+    expect(parseWindowsMachine(noDisplay).display).toBeNull();
+  });
+
+  it("has no scaling without AppliedDPI, and no refresh rate Windows doesn't give", () => {
+    expect(parseWindowsMachine(sample.replace('"dpi":106', '"dpi":null')).display).toEqual({
+      width: 3440,
+      height: 1440,
+      refreshHz: 59,
+      scalePercent: null,
+    });
+    expect(parseWindowsMachine(sample.replace('"refresh":59', '"refresh":null')).display).toEqual({
+      width: 3440,
+      height: 1440,
+      refreshHz: null,
+      scalePercent: 110,
+    });
+  });
+
+  // Win32_VideoController's CurrentRefreshRate is 0 or 1 for the hardware's default rate, and
+  // 4294967295 when the rate is unknown: none of them is a rate.
+  it("has no refresh rate for Windows's readings that aren't one", () => {
+    const refresh = (rate: number) =>
+      parseWindowsMachine(sample.replace('"refresh":59', `"refresh":${rate}`)).display?.refreshHz;
+    expect([0, 1, 4294967295, 1001, 59.5].map(refresh)).toEqual([null, null, null, null, 59.5]);
+    expect([2, 24, 60, 144, 240, 1000].map(refresh)).toEqual([2, 24, 60, 144, 240, 1000]);
+  });
+
+  it("rounds the scaling to a whole percent of 96 dots per inch", () => {
+    const scale = (dpi: number) =>
+      parseWindowsMachine(sample.replace('"dpi":106', `"dpi":${dpi}`)).display?.scalePercent;
+    expect([96, 120, 144, 168, 192].map(scale)).toEqual([100, 125, 150, 175, 200]);
+  });
+
+  it("leaves out what PowerShell gave no answer for, or left out altogether", () => {
+    const nothing = {
+      os: { name: "Windows", build: null },
+      cpu: { baseMhz: null, physicalCores: null },
+      display: null,
+      language: null,
+    };
+    const nulls =
+      '{"caption":null,"displayVersion":null,"version":null,"ubr":null,"cpuMhz":null,"cores":null,"width":null,"height":null,"refresh":null,"dpi":null,"language":null}';
+    expect(parseWindowsMachine(nulls)).toEqual(nothing);
+    expect(parseWindowsMachine("{}")).toEqual(nothing);
+    expect(parseWindowsMachine("null")).toEqual(nothing);
+    // A blank language, or a number that isn't one, is no answer either.
+    const blank = sample
+      .replace('"language":"en-US"', '"language":""')
+      .replace('"cores":20', '"cores":0');
+    expect(parseWindowsMachine(blank)).toMatchObject({
+      cpu: { baseMhz: 2400, physicalCores: null },
+      language: null,
+    });
+  });
+
+  it("joins the update revision to the version, when Windows has one", () => {
+    const build = (ubr: string) => parseWindowsMachine(sample.replace('"ubr":9550', ubr)).os.build;
+    expect(build('"ubr":9550')).toBe("10.0.26200.9550");
+    expect(build('"ubr":0')).toBe("10.0.26200.0");
+    expect(build('"ubr":null')).toBe("10.0.26200");
+  });
+
+  it("drops only a leading Microsoft from the caption, and adds the display version if there is one", () => {
+    const server = sample
+      .replace("Microsoft Windows 11 Pro", "Microsoft Windows Server 2022 Datacenter")
+      .replace("25H2", "21H2");
+    expect(parseWindowsMachine(server).os.name).toBe("Windows Server 2022 Datacenter 21H2");
+    expect(parseWindowsMachine(sample.replace("Microsoft ", "")).os.name).toBe(
+      "Windows 11 Pro 25H2",
+    );
+    expect(parseWindowsMachine(sample.replace('"25H2"', "null")).os.name).toBe("Windows 11 Pro");
+  });
+
+  it("fails on an answer that isn't JSON", () => {
+    expect(() => parseWindowsMachine("Get-CimInstance : Access denied")).toThrow();
+  });
+
+  it("asks PowerShell once for the computer's details, however many parts are read", async () => {
+    const asked: string[] = [];
+    const probe = windowsMachineProbe((script) => {
+      asked.push(script);
+      return Promise.resolve(sample);
+    });
+    expect(asked).toEqual([]); // nothing is asked until a part is read
+    const parts = await Promise.all([probe.os(), probe.cpu(), probe.display(), probe.language()]);
+    expect(parts).toEqual([
+      { name: "Windows 11 Pro 25H2", build: "10.0.26200.9550" },
+      { baseMhz: 2400, physicalCores: 20 },
+      { width: 3440, height: 1440, refreshHz: 59, scalePercent: 110 },
+      "en-US",
+    ]);
+    await probe.display();
+    expect(asked).toHaveLength(1);
+  });
+
+  it("fails each part, on its own, when PowerShell doesn't answer", async () => {
+    const probe = windowsMachineProbe(() => Promise.reject(new Error("PowerShell didn't answer")));
+    await expect(probe.os()).rejects.toThrow("PowerShell didn't answer");
+    await expect(probe.cpu()).rejects.toThrow("PowerShell didn't answer");
+    await expect(probe.display()).rejects.toThrow("PowerShell didn't answer");
+    await expect(probe.language()).rejects.toThrow("PowerShell didn't answer");
+  });
+
+  // A PowerShell that didn't answer once (busy, or slow to start) may the next time: a later
+  // session asks again, and keeps the answer once there is one.
+  it("asks PowerShell again after it didn't answer, and not once it has", async () => {
+    const answers = [
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+      () => Promise.resolve("Get-CimInstance : Access denied"),
+      () => Promise.resolve(sample),
+    ];
+    let asked = 0;
+    const probe = windowsMachineProbe(() => answers[asked++]!());
+    await expect(probe.os()).rejects.toThrow("PowerShell didn't answer");
+    // An answer that isn't JSON is no answer either.
+    await expect(probe.os()).rejects.toThrow();
+    await expect(probe.os()).resolves.toEqual({
+      name: "Windows 11 Pro 25H2",
+      build: "10.0.26200.9550",
+    });
+    await expect(probe.language()).resolves.toBe("en-US");
+    expect(asked).toBe(3);
+  });
+
+  it("asks for nothing that names the computer, its maker or model, or the account", async () => {
+    const asked: string[] = [];
+    await windowsMachineProbe((script) => {
+      asked.push(script);
+      return Promise.resolve(sample);
+    }).os();
+    expect(asked[0]).toContain("Win32_OperatingSystem");
+    expect(asked[0]).not.toMatch(
+      /ComputerName|Win32_ComputerSystem|CSName|Manufacturer|Model\b|USERNAME|RegisteredUser|hostname/i,
+    );
   });
 
   it("start a program as a shortcut does, its path read as it is", () => {

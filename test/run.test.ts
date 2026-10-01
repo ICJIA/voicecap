@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
+import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
-import type { UserConfig } from "../src/config/schema.js";
-import { ForegroundError } from "../src/drivers/types.js";
-import type { RunJson } from "../src/model.js";
+import { makeAskListener } from "../src/cli/listener.js";
+import { BROWSER_WINDOW, ForegroundError } from "../src/drivers/types.js";
+import type { RunJson, TranscriptJson } from "../src/model.js";
 import type {
   Check,
   CheckRunner,
@@ -18,8 +19,13 @@ import type {
   Problem,
 } from "../src/readiness/model.js";
 import { addReview } from "../src/reviews/review.js";
-import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
+import { runAudit } from "../src/run/audit.js";
 import { regenerateLiveReport } from "../src/run/live-report.js";
+import {
+  collectMachineRecord,
+  nodeMachineFacts,
+  type MachineProbe,
+} from "../src/run/machine-record.js";
 import {
   attemptsDir,
   pageDir,
@@ -28,107 +34,28 @@ import {
   runReportPath,
   siteFolder,
 } from "../src/run/paths.js";
-import { readRunJson, writeRunJson } from "../src/run/store.js";
-import { EnvironmentError } from "../src/util/errors.js";
+import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
+import { EnvironmentError, VoicecapError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
-import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
+import {
+  config,
+  hangOnce,
+  ISO_MS,
+  MACHINE_PROBE,
+  options,
+  outDir,
+  setup,
+  SITE,
+  sitePages,
+} from "./helpers/run-site.js";
+import { fakeSignals } from "./helpers/fake-signals.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
-const SITE = "https://example.illinois.gov";
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
 
-function sitePages(
-  overrides: Partial<Record<"home" | "about" | "resources", Partial<ScriptedPage>>> = {},
-): ScriptedPage[] {
-  return [
-    {
-      url: `${SITE}/`,
-      lines: [
-        "link, Skip to main content",
-        "banner landmark, link, Example Agency",
-        "main landmark, heading, level 1, Welcome",
-        "Grant applications are open.",
-        "content info landmark, © 2026 Example Agency",
-      ],
-      headings: ["heading, level 1, Welcome", "heading, level 2, News"],
-      stops: [
-        {
-          spoken: "Skip to main content, link",
-          focused: element("Skip to main content", { href: "#main" }),
-        },
-        { spoken: "Example Agency, link", focused: element("Example Agency") },
-        { spoken: "Grants, link", focused: element("Grants", { inMain: true, href: "/grants" }) },
-      ],
-      ...overrides.home,
-    },
-    {
-      url: `${SITE}/about`,
-      lines: ["heading, level 1, About us", "We are an example.", "© 2026 Example Agency"],
-      headings: ["heading, level 1, About us"],
-      stops: [{ spoken: "Home, link", focused: element("Home") }],
-      ...overrides.about,
-    },
-    {
-      url: `${SITE}/resources`,
-      lines: [
-        "heading, level 2, Resources",
-        "link, Read more",
-        "Text",
-        "link, Read more",
-        "button",
-        "End",
-      ],
-      headings: ["heading, level 2, Resources"],
-      stops: [
-        { spoken: "Read more, link", focused: element("Read more", { inMain: true }) },
-        { spoken: "Read more, link", focused: element("Read more", { inMain: true }) },
-        {
-          spoken: "button",
-          focused: element("", { tag: "button", role: "button", inMain: true, href: null }),
-        },
-      ],
-      ...overrides.resources,
-    },
-  ];
-}
-
-async function setup(entries: string[] = ["/", "/about", "/resources"]): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-run-"));
-  await writeFile(path.join(dir, "pages.json"), JSON.stringify(entries));
-  return dir;
-}
-
-function config(user: UserConfig = {}): LoadedConfig {
-  const resolved = resolveConfig({
-    timeouts: { stepMs: 300, pageMs: 5000, driverStartMs: 2000 },
-    readiness: { readySelector: null, settleMs: 0, networkIdleTimeoutMs: 200 },
-    reviewer: "Test Reviewer",
-    ...user,
-  });
-  return { config: resolved, file: null, sha256: "test-config" };
-}
-
-function options(
-  dir: string,
-  driver: ScriptedDriver | undefined,
-  extra: Partial<RunAuditOptions> = {},
-): RunAuditOptions {
-  return {
-    site: SITE,
-    pages: "pages.json",
-    cwd: dir,
-    // Never the VOICECAP_TRANSCRIPTS, VOICECAP_REVIEWER, or Git name of whoever runs the tests.
-    env: {},
-    gitUserName: () => null,
-    ...(driver ? { driver } : {}),
-    config: config(),
-    logger: createMemoryLogger(),
-    ...extra,
-  };
-}
-
-/** SITE's folder in the default home, where these runs go. */
-const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(SITE));
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 
 async function snapshotFolder(dir: string): Promise<Record<string, string>> {
@@ -199,6 +126,39 @@ describe("a complete run", () => {
     expect(driver.stops).toBe(1);
   });
 
+  it("records each page's title, as the browser reported it", async () => {
+    const dir = await setup(["/", "/about"]);
+    const driver = new ScriptedDriver(
+      sitePages({ home: { title: "Welcome | Example Agency" }, about: { title: "About us" } }),
+    );
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages.map((page) => page.title)).toEqual([
+      "Welcome | Example Agency",
+      "About us",
+    ]);
+  });
+
+  it("records a page with no title as null", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(result.run.pages[0]?.title).toBeNull();
+  });
+
+  it("takes a page's title from the first load of its last attempt", async () => {
+    const dir = await setup(["/about"]);
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
+    // Every load reports a new title: "Load 1", "Load 2", and so on.
+    const openPage = driver.openPage.bind(driver);
+    let loads = 0;
+    driver.openPage = async (url) => ({ ...(await openPage(url)), title: `Load ${++loads}` });
+
+    const result = await runAudit(options(dir, driver));
+    // The first attempt times out in its read pass (load 1). The second loads the page for each of
+    // its three passes (loads 2 to 4), and its first load gives the title.
+    expect(loads).toBe(4);
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2, title: "Load 2" });
+  });
+
   it("skips non-HTML responses and redirects to another origin", async () => {
     const dir = await setup(["/", "/feed", "/contact"]);
     const driver = new ScriptedDriver([
@@ -222,6 +182,28 @@ describe("a complete run", () => {
         }),
       ]),
     );
+  });
+
+  it("records the title of a page it opened and then skipped or failed", async () => {
+    const dir = await setup(["/", "/feed", "/contact", "/gone"]);
+    const driver = new ScriptedDriver([
+      ...sitePages().slice(0, 1),
+      // As the real driver does, this reports no title for a response that isn't HTML.
+      { url: `${SITE}/feed`, contentType: "application/rss+xml" },
+      {
+        url: `${SITE}/contact`,
+        finalUrl: "https://forms.example.com/contact",
+        title: "Contact us",
+      },
+      { url: `${SITE}/gone`, status: 404, title: "Page not found" },
+    ]);
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages.map((page) => [page.status, page.title])).toEqual([
+      ["done", null],
+      ["skipped", null],
+      ["skipped", "Contact us"],
+      ["failed", "Page not found"],
+    ]);
   });
 });
 
@@ -546,16 +528,7 @@ describe("failures", () => {
 
   it("retries a page once after a timeout, restarting the driver first", async () => {
     const dir = await setup(["/about"]);
-    let hung = false;
-    const driver = new ScriptedDriver(sitePages(), {
-      hang: (command) => {
-        if (command === "nextLine" && !hung) {
-          hung = true;
-          return true;
-        }
-        return false;
-      },
-    });
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
     const result = await runAudit(options(dir, driver));
     expect(result.exitCode).toBe(0);
     const page = (await readRunJson(outDir(dir), result.runId)).pages[0];
@@ -566,16 +539,7 @@ describe("failures", () => {
 
   it("keeps the first attempt at a page that timed out, and reports only the final one", async () => {
     const dir = await setup(["/about"]);
-    let hung = false;
-    const driver = new ScriptedDriver(sitePages(), {
-      hang: (command) => {
-        if (command === "nextLine" && !hung) {
-          hung = true;
-          return true;
-        }
-        return false;
-      },
-    });
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("nextLine") });
     const result = await runAudit(options(dir, driver));
     expect(result.exitCode).toBe(0);
     const out = outDir(dir);
@@ -637,6 +601,27 @@ describe("failures", () => {
     expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "pending"]);
   });
 
+  it("records a page that never loaded with a null title, and leaves a pending page without one", async () => {
+    const dir = await setup();
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: { openError: broken },
+        about: { openError: broken },
+        resources: { openError: broken },
+      }),
+    );
+    const result = await runAudit({
+      ...options(dir, driver),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    const run = await readRunJson(outDir(dir), result.runId);
+    expect(run.pages.map((p) => p.status)).toEqual(["failed", "failed", "pending"]);
+    expect(run.pages[0]?.title).toBeNull();
+    expect(run.pages[1]?.title).toBeNull();
+    expect(run.pages[2]).not.toHaveProperty("title");
+  });
+
   it("treats HTTP errors as page problems: five 404s in a row don't stop the run", async () => {
     const missing = ["/gone-1", "/gone-2", "/gone-3", "/gone-4", "/gone-5"];
     const dir = await setup(["/", ...missing, "/about"]);
@@ -687,6 +672,379 @@ describe("failures", () => {
     expect(driver.starts).toBe(3);
     // Only the final stop gives back what the run took, such as the person's own NVDA.
     expect(driver.stopOptions).toEqual([{ restarting: true }, { restarting: true }, undefined]);
+  });
+});
+
+describe("failed attempts", () => {
+  it("records a failed attempt: its cause, pass, step, command, and times", async () => {
+    const dir = await setup(["/"]);
+    let lines = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextLine" && ++lines === 1
+          ? new ForegroundError("The browser lost the foreground to another window.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page.status).toBe("done");
+    expect(page.failedAttempts).toEqual([
+      {
+        n: 1,
+        startedAt: expect.stringMatching(ISO_MS) as unknown,
+        endedAt: expect.stringMatching(ISO_MS) as unknown,
+        pass: "read",
+        step: 3,
+        command: "nextLine",
+        cause: "foreground",
+        message: "The browser lost the foreground to another window.",
+        restarted: true,
+      },
+    ]);
+  });
+
+  it("keeps an unexpected error's stack, with the home folder replaced", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading"
+          ? new TypeError(`Cannot read properties of undefined (${os.homedir()})`)
+          : null,
+    });
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt).toMatchObject({ pass: "headings", cause: "unexpected" });
+    expect(attempt.stack).toMatch(/^TypeError: Cannot read properties of undefined/);
+    expect(attempt.stack).not.toContain(os.homedir());
+    // The frames spell the folder with forward slashes on Windows; nothing of it is left there.
+    expect(attempt.stack).not.toContain(os.homedir().replaceAll("\\", "/"));
+    // The home folder's place is kept, as %USERPROFILE% on Windows and ~ elsewhere.
+    const home = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    expect(attempt.stack).toContain(`Cannot read properties of undefined (${home})\n`);
+    // The message is kept word for word: the report replaces the home folder where it shows it.
+    expect(attempt.message).toBe(`Cannot read properties of undefined (${os.homedir()})`);
+  });
+
+  // Where there's no home folder (no HOME or USERPROFILE, and no account entry), Node can't give
+  // one, and there's nothing to replace: the attempt is recorded all the same.
+  it("keeps an unexpected error's stack as it is when there's no home folder", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading" ? new TypeError("Cannot read properties of undefined") : null,
+    });
+    const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+      throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+    });
+    try {
+      const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+      expect(result.outcome).toBe("completed");
+      const attempt = result.run.pages[0]!.failedAttempts![0]!;
+      expect(attempt).toMatchObject({ pass: "headings", cause: "unexpected" });
+      expect(attempt.stack).toMatch(/^TypeError: Cannot read properties of undefined\n/);
+    } finally {
+      homedir.mockRestore();
+    }
+  });
+
+  it("keeps no stack for a failure that isn't unexpected", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextHeading"
+          ? new ForegroundError("Another window took the foreground.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 1 }) }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt).toMatchObject({ pass: "headings", cause: "foreground" });
+    expect(attempt).not.toHaveProperty("stack");
+  });
+
+  it("records an HTTP 4xx as one attempt with no step", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 404 } }));
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: null,
+        command: null,
+        cause: "http",
+        message: "HTTP 404",
+        restarted: false,
+      }),
+    ]);
+  });
+
+  it("records an HTTP 5xx on every attempt, each tried again without a restart", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 503 } }));
+    const result = await runAudit(options(dir, driver, { config: config({ pageAttempts: 3 }) }));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "failed", failure: "page", attempts: 3 });
+    expect(page.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3]);
+    for (const attempt of page.failedAttempts!) {
+      expect(attempt).toMatchObject({
+        pass: "read",
+        step: null,
+        command: null,
+        cause: "http",
+        message: "HTTP 503",
+        restarted: false,
+      });
+    }
+    expect(driver.starts).toBe(1);
+  });
+
+  it("records a page that couldn't be opened, with openPage as its command", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: {
+          openError: new EnvironmentError("Chrome didn't start: it exited (1)", {
+            failure: "browser",
+          }),
+          openErrorTimes: 1,
+        },
+      }),
+    );
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: null,
+        command: "openPage",
+        cause: "browser",
+      }),
+    ]);
+  });
+
+  it("records a page that hung while opening as an open-timeout", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), { hang: hangOnce("openPage") });
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "done", attempts: 2 });
+    expect(page.failedAttempts).toHaveLength(1);
+    const attempt = page.failedAttempts![0]!;
+    expect(attempt).toMatchObject({
+      n: 1,
+      pass: "read",
+      step: null,
+      command: "openPage",
+      cause: "open-timeout",
+      restarted: true,
+    });
+    expect(attempt.message).toMatch(/^Opening the page did not finish within /);
+  });
+
+  it("records a page that took longer than its time as a page-timeout", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages(), { hang: (command) => command === "nextLine" });
+    // A step has 5 s but the whole page only 300 ms, so the page runs out of time first.
+    const slow = config({ pageAttempts: 1, timeouts: { stepMs: 5000, pageMs: 300 } });
+    const result = await runAudit(options(dir, driver, { config: slow }));
+    expect(result.run.pages[0]).toMatchObject({ status: "failed", failure: "environment" });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "read",
+        step: 3,
+        command: "nextLine",
+        cause: "page-timeout",
+        message: "The whole page did not finish within 300ms",
+        restarted: false,
+      }),
+    ]);
+  });
+
+  it("records every attempt at a page that never opens, and restarts only between them", async () => {
+    const dir = await setup(["/about"]);
+    const lost = new ForegroundError("The browser lost the foreground to another window");
+    const driver = new ScriptedDriver(sitePages({ about: { openError: lost } }));
+    const result = await runAudit(options(dir, driver));
+    const page = result.run.pages[0]!;
+    expect(page).toMatchObject({ status: "failed", attempts: 5 });
+    // Oldest first, the last one included. Nothing is started again after the last attempt.
+    expect(
+      page.failedAttempts!.map((attempt) => [attempt.n, attempt.cause, attempt.restarted]),
+    ).toEqual([
+      [1, "foreground", true],
+      [2, "foreground", true],
+      [3, "foreground", true],
+      [4, "foreground", true],
+      [5, "foreground", false],
+    ]);
+    for (const attempt of page.failedAttempts!) {
+      expect(attempt).toMatchObject({ pass: "read", step: null, command: "openPage" });
+    }
+  });
+
+  it("names the pass under way, for a failure in a later pass", async () => {
+    const dir = await setup(["/about"]);
+    let tabs = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextFocusable" && ++tabs === 1
+          ? new ForegroundError("The browser lost the foreground to another window")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        pass: "tab",
+        step: 1,
+        command: "nextFocusable",
+        cause: "foreground",
+      }),
+    ]);
+  });
+
+  it("names the pass a page couldn't be opened for, when that's a later pass", async () => {
+    const dir = await setup(["/about"]);
+    let opens = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      // The page opens for its read pass, then not for its headings pass.
+      fail: (command) =>
+        command === "openPage" && ++opens === 2
+          ? new ForegroundError("The browser couldn't be brought to the front.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    expect(result.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
+    expect(result.run.pages[0]!.failedAttempts).toEqual([
+      expect.objectContaining({
+        n: 1,
+        pass: "headings",
+        step: null,
+        command: "openPage",
+        cause: "foreground",
+      }),
+    ]);
+  });
+
+  it("takes an attempt's times from the run's clock, to the millisecond", async () => {
+    const dir = await setup(["/"]);
+    // The clock moves on 1 ms each time it's read.
+    let ms = 0;
+    const now = () => new Date(2026, 8, 30, 14, 5, 9, ms++);
+    const driver = new ScriptedDriver(sitePages({ home: { status: 404 } }));
+    const result = await runAudit(options(dir, driver, { now }));
+    const attempt = result.run.pages[0]!.failedAttempts![0]!;
+    expect(attempt.startedAt).toMatch(/^2026-09-30T14:05:09\.\d{3}[+-]\d\d:\d\d$/);
+    expect(attempt.endedAt).toMatch(/^2026-09-30T14:05:09\.\d{3}[+-]\d\d:\d\d$/);
+    expect(Date.parse(attempt.endedAt)).toBeGreaterThan(Date.parse(attempt.startedAt));
+  });
+
+  it("leaves the field out for a page that never failed", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(result.run.pages[0]).not.toHaveProperty("failedAttempts");
+    const onDisk = await readRunJson(outDir(dir), result.runId);
+    expect(onDisk.pages[0]).not.toHaveProperty("failedAttempts");
+  });
+
+  it("writes the attempts to run.json, inside the run's seal", async () => {
+    const dir = await setup(["/"]);
+    let lines = 0;
+    const driver = new ScriptedDriver(sitePages(), {
+      fail: (command) =>
+        command === "nextLine" && ++lines === 1
+          ? new ForegroundError("The browser lost the foreground to another window.")
+          : null,
+    });
+    const result = await runAudit(options(dir, driver));
+    const onDisk = await readRunJson(outDir(dir), result.runId);
+    expect(onDisk.pages[0]!.failedAttempts).toEqual(result.run.pages[0]!.failedAttempts);
+    expect(onDisk.pages[0]!.failedAttempts).toHaveLength(1);
+    // The seal is of the record as it is on disk, attempts included.
+    expect(onDisk.seal).toBe(sealOf(onDisk));
+    const edited = structuredClone(onDisk);
+    edited.pages[0]!.failedAttempts![0]!.cause = "unexpected";
+    expect(sealOf(edited)).not.toBe(onDisk.seal);
+    const verified = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(verified.problems).toBe(0);
+  });
+
+  it("keeps every attempt when a page is tried again in a later session, numbering on", async () => {
+    const dir = await setup(["/", "/about", "/resources"]);
+    const broken = new Error("NVDA is not responding");
+    const failing = () =>
+      new ScriptedDriver(sitePages({ home: { openError: broken }, about: { openError: broken } }));
+    const stopped = await runAudit({
+      ...options(dir, failing()),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(stopped.outcome).toBe("stopped");
+    const first = await readRunJson(outDir(dir), stopped.runId);
+    expect(first.pages.map((page) => page.failedAttempts?.length)).toEqual([5, 5, undefined]);
+
+    // Still broken for /: this session's attempts follow the last session's, numbered on.
+    const second = await runAudit({
+      ...options(dir, new ScriptedDriver(sitePages({ home: { openError: broken } }))),
+      config: config({ pageAttempts: 2 }),
+    });
+    expect(second).toMatchObject({ runId: stopped.runId, outcome: "completed" });
+    expect(second.run.pages.map((page) => page.status)).toEqual(["failed", "done", "done"]);
+    const [home, about] = second.run.pages;
+    expect(home!.attempts).toBe(7);
+    expect(home!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // Oldest first, across the sessions: the times place each attempt in its session.
+    const [lastOfFirst, firstOfSecond] = home!.failedAttempts!.slice(4, 6);
+    expect(Date.parse(firstOfSecond!.startedAt)).toBeGreaterThanOrEqual(
+      Date.parse(lastOfFirst!.endedAt),
+    );
+    // /about works now, on its sixth attempt: the five it failed before are still in its record.
+    expect(about!.attempts).toBe(6);
+    expect(about!.failedAttempts!.map((attempt) => attempt.n)).toEqual([1, 2, 3, 4, 5]);
+    const onDisk = await readRunJson(outDir(dir), second.runId);
+    expect(onDisk.pages[0]!.failedAttempts).toEqual(home!.failedAttempts);
+    expect(onDisk.pages[1]!.failedAttempts).toEqual(about!.failedAttempts);
+    expect(onDisk.seal).toBe(sealOf(onDisk));
+  });
+
+  it("resumes a run recorded before these fields existed, and verify still passes", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    // As 0.5.0 wrote the record: no page titles, failed attempts, listener's statement, or
+    // computer's details.
+    const record = await readRunJson(outDir(dir), interrupted.runId);
+    for (const page of record.pages) {
+      delete page.title;
+      delete page.failedAttempts;
+    }
+    for (const session of record.sessions) {
+      delete session.listener;
+      if (session.environment) delete session.environment.machine;
+    }
+    await writeRunJson(outDir(dir), record);
+
+    const resumed = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    expect(resumed.outcome).toBe("completed");
+    expect(resumed.run.pages[0]).not.toHaveProperty("title");
+    expect(resumed.run.pages[1]?.title).toBeNull();
+    // The session 0.5.0 recorded stays as it was; the one resuming it records its computer.
+    expect(resumed.run.sessions[0]?.environment).not.toHaveProperty("machine");
+    expect(resumed.run.sessions[1]?.environment?.machine?.os.name).toBe("Test OS 1");
+    const result = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(result.problems).toBe(0);
   });
 });
 
@@ -758,6 +1116,520 @@ describe("the reviewer", () => {
       "cschweda",
       "Jane Doe",
     ]);
+  });
+});
+
+describe("the listener's statement", () => {
+  it("asks once the session's pages are read, and seals the answer with the run", async () => {
+    const dir = await setup();
+    const asked: { screenReader: string; pagesRead: number }[] = [];
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: (question) => {
+          asked.push(question);
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(asked).toEqual([{ screenReader: "NVDA", pagesRead: 3 }]);
+    expect(result.run.sessions[0]?.listener).toEqual({
+      answer: "all",
+      askedAt: expect.stringMatching(ISO_MS) as unknown,
+      answeredAt: expect.stringMatching(ISO_MS) as unknown,
+    });
+    expect(result.run.seal).toBe(sealOf(result.run));
+  });
+
+  it("asks after Ctrl+C too, and records nothing without an answer", async () => {
+    for (const [answer, expected] of [
+      ["part", { answer: "part" }],
+      [null, undefined],
+    ] as const) {
+      const dir = await setup();
+      const controller = new AbortController();
+      const driver = new ScriptedDriver(sitePages());
+      const openPage = driver.openPage.bind(driver);
+      driver.openPage = (url) => {
+        if (url.endsWith("/about")) controller.abort();
+        return openPage(url);
+      };
+      const asked: number[] = [];
+      const result = await runAudit(
+        options(dir, driver, {
+          signal: controller.signal,
+          askListener: ({ pagesRead }) => {
+            asked.push(pagesRead);
+            return Promise.resolve(answer);
+          },
+        }),
+      );
+      expect(result.outcome).toBe("interrupted");
+      expect(asked).toEqual([1]);
+      if (expected) expect(result.run.sessions[0]?.listener).toMatchObject(expected);
+      else expect(result.run.sessions[0]).not.toHaveProperty("listener");
+    }
+  });
+
+  it("doesn't ask when the session read no pages", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    controller.abort();
+    let asked = 0;
+    await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        signal: controller.signal,
+        askListener: () => {
+          asked++;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(asked).toBe(0);
+  });
+
+  it("doesn't ask for a replayed run", async () => {
+    const dir = await setup();
+    let asked = 0;
+    const result = await runAudit(
+      options(dir, undefined, {
+        site: "http://127.0.0.1:4747",
+        pages: fixture("pages.json"),
+        replayFrom: fixture("replay-run"),
+        askListener: () => {
+          asked++;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    // Pages were replayed, so it's the replay, not an empty session, that kept the question away.
+    expect(result.run.replayed).toBe(true);
+    expect(result.run.sessions[0]?.pagesDone).toBeGreaterThan(0);
+    expect(asked).toBe(0);
+  });
+
+  it("asks only once the screen reader has stopped", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    let stopsWhenAsked = 0;
+    await runAudit(
+      options(dir, driver, {
+        askListener: () => {
+          stopsWhenAsked = driver.stops;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(stopsWhenAsked).toBe(1);
+  });
+
+  it("asks when the run stops after failed pages in a row, and keeps the answer with the stop", async () => {
+    const dir = await setup();
+    const broken = new Error("NVDA is not responding");
+    const driver = new ScriptedDriver(
+      sitePages({
+        home: { openError: broken },
+        about: { openError: broken },
+        resources: { openError: broken },
+      }),
+    );
+    const asked: number[] = [];
+    const result = await runAudit({
+      ...options(dir, driver, {
+        askListener: ({ pagesRead }) => {
+          asked.push(pagesRead);
+          return Promise.resolve("part");
+        },
+      }),
+      config: config({ maxConsecutiveFailures: 2 }),
+    });
+    expect(result.outcome).toBe("stopped");
+    expect(asked).toEqual([2]);
+    const stored = await readRunJson(outDir(dir), result.runId);
+    expect(stored.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      listener: { answer: "part" },
+    });
+  });
+
+  it("asks when the session ends with an error, once it has said why, then throws the error", async () => {
+    const dir = await setup();
+    const driver = new ScriptedDriver(sitePages());
+    // The screen reader won't start again for its restart after the first page.
+    const start = driver.start.bind(driver);
+    let starts = 0;
+    driver.start = () =>
+      ++starts === 2
+        ? Promise.reject(new EnvironmentError("NVDA didn't start\nIts log says more."))
+        : start();
+    const logger = createMemoryLogger();
+    const asked: { screenReader: string; pagesRead: number }[] = [];
+    let when: { stops: number; said: string | undefined } | undefined;
+    await expect(
+      runAudit({
+        ...options(dir, driver, {
+          logger,
+          askListener: (question) => {
+            asked.push(question);
+            when = { stops: driver.stops, said: logger.entries.at(-1)?.message };
+            return Promise.resolve("part");
+          },
+        }),
+        config: config({ restartEvery: 1 }),
+      }),
+    ).rejects.toThrow("NVDA didn't start");
+    expect(asked).toEqual([{ screenReader: "NVDA", pagesRead: 1 }]);
+    // Asked once the screen reader had stopped, straight after one line that says why: the
+    // error's first line. The whole error follows the question, where the CLI explains it.
+    expect(when?.stops).toBeGreaterThanOrEqual(2);
+    expect(when?.said).toBe("The session ended with an error: NVDA didn't start");
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      pagesDone: 1,
+      listener: { answer: "part" },
+    });
+  });
+
+  it("asks when the session ends with an error that isn't the environment's, too", async () => {
+    const dir = await setup(["/", "/about"]);
+    const driver = new ScriptedDriver(sitePages());
+    // An error of voicecap's own that isn't the environment's ends the session as an error.
+    const start = driver.start.bind(driver);
+    let starts = 0;
+    driver.start = () =>
+      ++starts === 2 ? Promise.reject(new VoicecapError("The config changed")) : start();
+    let asked = 0;
+    await expect(
+      runAudit({
+        ...options(dir, driver, {
+          askListener: () => {
+            asked++;
+            return Promise.resolve(null);
+          },
+        }),
+        config: config({ restartEvery: 1 }),
+      }),
+    ).rejects.toThrow("The config changed");
+    expect(asked).toBe(1);
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({ endReason: "error", pagesDone: 1 });
+    // No answer, so no statement.
+    expect(stored?.sessions[0]).not.toHaveProperty("listener");
+  });
+
+  it("notes when it asked and when the answer came, to the millisecond", async () => {
+    const dir = await setup(["/"]);
+    const start = new Date(2026, 8, 30, 14, 30, 0, 250).getTime();
+    let time = start;
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        now: () => new Date(time),
+        askListener: () => {
+          // The person takes four and a half seconds.
+          time += 4_500;
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    const { askedAt, answeredAt } = result.run.sessions[0]!.listener!;
+    expect(Date.parse(askedAt)).toBe(start);
+    expect(Date.parse(answeredAt)).toBe(start + 4_500);
+  });
+
+  it("keeps each session's own statement when the run is resumed, and seals both", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(
+      options(dir, first, {
+        signal: controller.signal,
+        askListener: () => Promise.resolve("part"),
+      }),
+    );
+    // Saved with the interrupted session, before any seal.
+    const saved = await readRunJson(outDir(dir), interrupted.runId);
+    expect(saved.seal).toBeUndefined();
+    expect(saved.sessions[0]?.listener?.answer).toBe("part");
+
+    const asked: number[] = [];
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: ({ pagesRead }) => {
+          asked.push(pagesRead);
+          return Promise.resolve("all");
+        },
+      }),
+    );
+    expect(resumed.runId).toBe(interrupted.runId);
+    // Only the pages this session read: /about and /resources.
+    expect(asked).toEqual([2]);
+    const run = await readRunJson(outDir(dir), resumed.runId);
+    expect(run.sessions.map((session) => session.listener?.answer)).toEqual(["part", "all"]);
+    expect(run.seal).toBe(sealOf(run));
+  });
+
+  it("keeps the statement when the run is resumed with changed flag rules", async () => {
+    const dir = await setup(["/resources", "/", "/about"]);
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const interrupted = await runAudit(options(dir, first, { signal: controller.signal }));
+    expect(interrupted.outcome).toBe("interrupted");
+
+    // A flag rule turned off, so the completed run is sealed and written from a copy of the run.
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        config: config({ flags: { genericLinkText: { enabled: false } } }),
+        askListener: () => Promise.resolve("all"),
+      }),
+    );
+    expect(resumed).toMatchObject({ runId: interrupted.runId, outcome: "completed" });
+    const run = await readRunJson(outDir(dir), resumed.runId);
+    expect(resumed.run.sessions[1]?.listener?.answer).toBe("all");
+    expect(run.sessions[1]?.listener?.answer).toBe("all");
+    expect(run.seal).toBe(sealOf(run));
+  });
+
+  it("is covered by the seal: verify catches an answer edited afterward", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { askListener: () => Promise.resolve("no") }),
+    );
+    const home = path.join(dir, "transcripts");
+    const verify = () => verifyHome({ home, logger: createMemoryLogger() });
+    expect((await verify()).problems).toBe(0);
+
+    const file = path.join(result.runDir, "run.json");
+    const edited = JSON.parse(await readFile(file, "utf8")) as RunJson;
+    edited.sessions[0]!.listener!.answer = "all";
+    await writeFile(file, `${JSON.stringify(edited, null, 2)}\n`);
+    expect((await verify()).problems).toBe(1);
+  });
+
+  it("takes the answer of a person at a terminal, through the CLI's own question", async () => {
+    const dir = await setup(["/"]);
+    const keyboard = Object.assign(new PassThrough(), { isTTY: true });
+    // Pressed during the run: not an answer.
+    keyboard.write("1\n");
+    let screen = "";
+    const person = {
+      write: (chunk: string) => {
+        screen += chunk;
+        // Answered once the question is on screen.
+        if (chunk.includes("Choose [3]: ")) setImmediate(() => keyboard.write("2\n"));
+        return true;
+      },
+    };
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        askListener: makeAskListener(keyboard, person, {
+          drainMs: 0,
+          signals: fakeSignals().source,
+        }),
+      }),
+    );
+    expect(screen).toContain("Did you listen as NVDA read these pages?");
+    expect(result.run.sessions[0]?.listener?.answer).toBe("part");
+    expect(result.run.seal).toBe(sealOf(result.run));
+  });
+
+  it("still completes the run, with a warning and no statement, when asking fails", async () => {
+    const dir = await setup(["/"]);
+    const logger = createMemoryLogger();
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        logger,
+        askListener: () => Promise.reject(new Error("The terminal went away")),
+      }),
+    );
+    expect(result.outcome).toBe("completed");
+    expect(result.run.sessions[0]).not.toHaveProperty("listener");
+    expect(result.run.seal).toBe(sealOf(result.run));
+    expect(logger.text("warn")).toContain("The terminal went away");
+  });
+});
+
+describe("the computer each session ran on", () => {
+  it("records it in the session's environment, with the browser's fixed window", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const stored = await readRunJson(outDir(dir), result.runId);
+    const machine = stored.sessions[0]?.environment?.machine;
+    expect(machine?.browserWindow).toEqual({ width: 1280, height: 960 });
+    expect(machine).toEqual(
+      await collectMachineRecord(MACHINE_PROBE, nodeMachineFacts(BROWSER_WINDOW)),
+    );
+    expect(machine).toMatchObject({
+      os: { name: "Test OS 1", build: "1.2.3", arch: os.arch() },
+      cpu: { baseMhz: 3000, physicalCores: 4, logicalProcessors: os.cpus().length },
+      memoryBytes: os.totalmem(),
+      display: { width: 1920, height: 1080, refreshHz: 60, scalePercent: 100 },
+      language: "en-US",
+      software: { node: process.versions.node },
+    });
+  });
+
+  it("repeats it in every transcript, as the rest of the environment is", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const machine = result.run.sessions[0]?.environment?.machine;
+    expect(machine).toBeDefined();
+    for (const pass of ["read", "headings", "tab"]) {
+      const file = path.join(pageDir(outDir(dir), result.runId, "home"), `${pass}.json`);
+      const transcript = JSON.parse(await readFile(file, "utf8")) as TranscriptJson;
+      expect(transcript.environment.machine, pass).toEqual(machine);
+    }
+  });
+
+  it("is covered by the seal: verify catches a record edited afterward", async () => {
+    const dir = await setup(["/"]);
+    const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const home = path.join(dir, "transcripts");
+    const verify = () => verifyHome({ home, logger: createMemoryLogger() });
+    expect(result.run.seal).toBe(sealOf(result.run));
+    expect((await verify()).problems).toBe(0);
+
+    const file = path.join(result.runDir, "run.json");
+    const edited = JSON.parse(await readFile(file, "utf8")) as RunJson;
+    edited.sessions[0]!.environment!.machine!.cpu.name = "A faster processor";
+    await writeFile(file, `${JSON.stringify(edited, null, 2)}\n`);
+    expect((await verify()).problems).toBe(1);
+  });
+
+  it("records the computer that replayed a run, with no browser window: none was opened", async () => {
+    const dir = await setup(["/"]);
+    const recorded = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+    const replayed = await runAudit({
+      ...options(dir, undefined),
+      replayFrom: runDir(path.join("transcripts", siteFolder(SITE)), recorded.runId),
+    });
+    expect(replayed.outcome).toBe("completed");
+    const environment = replayed.run.sessions[0]?.environment;
+    expect(environment?.replay?.sourceRun).toBe(recorded.runId);
+    expect(environment?.machine).toMatchObject({
+      os: { name: "Test OS 1" },
+      browserWindow: null,
+    });
+  });
+
+  it("is recorded again by each session, since the computer may have changed", async () => {
+    const dir = await setup();
+    const controller = new AbortController();
+    const first = new ScriptedDriver(sitePages());
+    const openPage = first.openPage.bind(first);
+    first.openPage = (url) => {
+      if (url.endsWith("/about")) controller.abort();
+      return openPage(url);
+    };
+    const reads: string[] = [];
+    const counting: MachineProbe = {
+      ...MACHINE_PROBE,
+      os: () => {
+        reads.push("os");
+        return Promise.resolve({ name: `Test OS ${reads.length}`, build: null });
+      },
+    };
+    const interrupted = await runAudit(
+      options(dir, first, { signal: controller.signal, machineProbe: counting }),
+    );
+    expect(interrupted.outcome).toBe("interrupted");
+    const resumed = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { machineProbe: counting }),
+    );
+    expect(resumed.outcome).toBe("completed");
+
+    expect(reads).toHaveLength(2);
+    expect(resumed.run.sessions.map((session) => session.environment?.machine?.os.name)).toEqual([
+      "Test OS 1",
+      "Test OS 2",
+    ]);
+  });
+
+  it("goes without what the computer won't say, and the run goes on", async () => {
+    const dir = await setup(["/"]);
+    const unreadable = () => {
+      throw new Error("no answer");
+    };
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), {
+        machineProbe: {
+          ...MACHINE_PROBE,
+          os: unreadable,
+          display: () => Promise.reject(new Error("no")),
+        },
+      }),
+    );
+    expect(result.outcome).toBe("completed");
+    expect(result.run.sessions[0]?.environment?.machine).toMatchObject({
+      os: { name: "unknown", build: null },
+      display: null,
+      language: "en-US",
+    });
+  });
+
+  it("reads it with the probe for the platform the run was told it's on", async () => {
+    const dir = await setup(["/"]);
+    // No fake probe: Linux's is node:os alone, so this starts nothing.
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { machineProbe: undefined, platform: "linux" }),
+    );
+    const machine = result.run.sessions[0]?.environment?.machine;
+    expect(machine?.os).toEqual({
+      name: `${os.type()} ${os.release()}`,
+      build: null,
+      arch: os.arch(),
+    });
+    expect(machine?.display).toBeNull();
+    expect(machine?.browserWindow).toEqual(BROWSER_WINDOW);
+  });
+
+  // The probe takes seconds on Windows (a start of PowerShell): read while the screen reader and
+  // browser start, it isn't time they spend running with nothing to read.
+  it("starts reading it before the screen reader starts", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    const startsWhenRead: number[] = [];
+    const result = await runAudit(
+      options(dir, driver, {
+        machineProbe: {
+          ...MACHINE_PROBE,
+          os: () => {
+            startsWhenRead.push(driver.starts);
+            return MACHINE_PROBE.os();
+          },
+        },
+      }),
+    );
+    expect(startsWhenRead).toEqual([0]);
+    expect(result.run.sessions[0]?.environment?.machine?.os.name).toBe("Test OS 1");
+  });
+
+  it("leaves nothing behind when the screen reader doesn't start, whatever the probe does", async () => {
+    const dir = await setup(["/"]);
+    const driver = new ScriptedDriver(sitePages());
+    driver.start = () => Promise.reject(new EnvironmentError("NVDA didn't start"));
+    const failing = () => Promise.reject(new Error("PowerShell didn't answer"));
+    await expect(
+      runAudit(
+        options(dir, driver, {
+          machineProbe: { os: failing, cpu: failing, display: failing, language: failing },
+        }),
+      ),
+    ).rejects.toThrow("NVDA didn't start");
+    const [stored] = await listRuns(outDir(dir));
+    expect(stored?.sessions[0]).toMatchObject({
+      endReason: "environment-failure",
+      environment: null,
+    });
   });
 });
 

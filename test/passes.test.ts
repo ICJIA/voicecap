@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { ForegroundError } from "../src/drivers/types.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
 import { lineMatches } from "../src/passes/read.js";
-import { InterruptedError } from "../src/passes/steps.js";
+import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
 import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
 
 const URL_ = "https://example.illinois.gov/page";
@@ -259,5 +260,156 @@ describe("failures inside a pass", () => {
     await expect(runPass("read", driver, settings, controller.signal)).rejects.toBeInstanceOf(
       InterruptedError,
     );
+  });
+});
+
+describe("the failure a pass reports, for a page's failed attempts", () => {
+  it("explains a timeout: its cause, the step that didn't finish, and that step's command", async () => {
+    // Ctrl+End and Ctrl+Home are steps 1 and 2; the first Down Arrow, step 3, never finishes.
+    const driver = new ScriptedDriver([{ url: URL_, lines: ["A", "B", "C", "D"] }], {
+      hang: (command) => command === "nextLine",
+    });
+    await driver.openPage(URL_);
+    const result = await runPass("read", driver, { ...settings, stepTimeoutMs: 50 });
+    expect(result.stopReason).toBe("timeout");
+    expect(result.steps).toHaveLength(2);
+    expect(result.failure).toEqual({
+      cause: "step-timeout",
+      message: "nextLine did not finish within 50ms",
+      step: 3,
+      command: "nextLine",
+    });
+  });
+
+  it("explains an unexpected error, and keeps its stack", async () => {
+    const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }]);
+    const broken = new Error("NVDA went away");
+    driver.nextHeading = () => Promise.reject(broken);
+    await driver.openPage(URL_);
+    const result = await runPass("headings", driver, settings);
+    expect(result.stopReason).toBe("error");
+    expect(result.failure).toEqual({
+      cause: "unexpected",
+      message: "NVDA went away",
+      step: 1,
+      command: "nextHeading",
+      stack: broken.stack,
+    });
+  });
+
+  it("keeps no stack for an error that isn't unexpected", async () => {
+    const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }], {
+      fail: (command) =>
+        command === "nextHeading"
+          ? new ForegroundError("Another window took the foreground.")
+          : null,
+    });
+    await driver.openPage(URL_);
+    const result = await runPass("headings", driver, settings);
+    expect(result.stopReason).toBe("error");
+    expect(result.failure).toEqual({
+      cause: "foreground",
+      message: "Another window took the foreground.",
+      step: 1,
+      command: "nextHeading",
+    });
+  });
+
+  it("keeps no stack when what was thrown isn't an Error", async () => {
+    const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }]);
+    // Not every library rejects with an Error: this one rejects with a string.
+    const thrown = "NVDA went away" as unknown as Error;
+    driver.nextHeading = () => Promise.reject(thrown);
+    await driver.openPage(URL_);
+    const result = await runPass("headings", driver, settings);
+    expect(result.failure).toEqual({
+      cause: "unexpected",
+      message: "NVDA went away",
+      step: 1,
+      command: "nextHeading",
+    });
+  });
+
+  it("names the step whose check failed, as the step that failed", async () => {
+    const driver = new ScriptedDriver(
+      [{ url: URL_, stops: [{ spoken: "Home, link", focused: element("Home") }] }],
+      {
+        fail: (command) =>
+          command === "focusInDocument" ? new Error("The browser went away") : null,
+      },
+    );
+    await driver.openPage(URL_);
+    const result = await runPass("tab", driver, settings);
+    // The Tab was sent, but its step never finished, so it isn't among the steps.
+    expect(result.steps).toHaveLength(0);
+    expect(result.failure).toMatchObject({
+      cause: "unexpected",
+      step: 1,
+      command: "nextFocusable",
+    });
+  });
+
+  it("names no step for a failure outside one", async () => {
+    // The tab pass asks what's focused before its first Tab, which isn't a step.
+    const driver = new ScriptedDriver([{ url: URL_, stops: [] }], {
+      fail: (command) => (command === "focusedElement" ? new Error("The browser went away") : null),
+    });
+    await driver.openPage(URL_);
+    const result = await runPass("tab", driver, settings);
+    expect(result.stopReason).toBe("error");
+    expect(result.failure).toMatchObject({ cause: "unexpected", step: null, command: null });
+  });
+
+  it("has no failure when the pass ends normally", async () => {
+    for (const pass of ["read", "headings", "tab"] as const) {
+      const result = await run(
+        { lines: ["A"], headings: ["heading, level 1, A"], stops: [] },
+        pass,
+      );
+      expect(["end-reached", "no-next-heading", "left-document"]).toContain(result.stopReason);
+      expect(result, pass).not.toHaveProperty("failure");
+    }
+    // A safety net stopping a pass isn't a failure either.
+    const capped = await run({ lines: ["A", "B", "C"] }, "read", { cap: 3 });
+    expect(capped.stopReason).toBe("step-cap");
+    expect(capped).not.toHaveProperty("failure");
+  });
+});
+
+describe("StepRecorder.current", () => {
+  it("names the step under way, and is null between steps", async () => {
+    const recorder = new StepRecorder(1000, undefined);
+    expect(recorder.current).toBeNull();
+    let during: StepRecorder["current"] = null;
+    await recorder.step("nextLine", () => {
+      during = recorder.current;
+      return Promise.resolve("A");
+    });
+    expect(during).toEqual({ n: 1, command: "nextLine" });
+    expect(recorder.current).toBeNull();
+    await recorder.step("nextLine", () => Promise.resolve("B"));
+    expect(recorder.count).toBe(2);
+    expect(recorder.current).toBeNull();
+  });
+
+  it("stays on the step that failed, so the failure can name it", async () => {
+    const recorder = new StepRecorder(1000, undefined);
+    await recorder.step("toBottom", () => Promise.resolve("A"));
+    await expect(
+      recorder.step("nextHeading", () => Promise.reject(new Error("NVDA went away"))),
+    ).rejects.toThrow("NVDA went away");
+    expect(recorder.current).toEqual({ n: 2, command: "nextHeading" });
+    expect(recorder.count).toBe(1);
+  });
+
+  it("isn't set by a query, which isn't a step", async () => {
+    const recorder = new StepRecorder(1000, undefined);
+    let during: StepRecorder["current"] = null;
+    await recorder.query("focus check", () => {
+      during = recorder.current;
+      return Promise.resolve(null);
+    });
+    expect(during).toBeNull();
+    expect(recorder.current).toBeNull();
   });
 });

@@ -441,6 +441,17 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 
 **Patterns.** Globs match the URL's path: `news/*` matches `/news/fy27-grants` but not `/news/` itself; `news/**` matches both, and deeper paths. The leading slash is optional in both the pattern and the path. `re:` patterns are regular expressions tested against the path plus the query string (with and without the leading slash), e.g. `--exclude 're:\?page=\d+'`. `--include`, then `--exclude`, then `--limit` apply, in that order.
 
+**The question at the end.** When a session that read pages ends, voicecap asks at the terminal, once NVDA has stopped: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No", typed as 1, 2, or 3. Enter picks No, so a run never says you listened unless you said so. The session's record keeps the answer, with when voicecap asked and when it was answered, and the run's seal covers it (see [What each run records](#what-each-run-records)).
+
+- **It's asked however the session ends:** when the run completes; after Ctrl+C; when the run stops after too many failed pages in a row (exit code 2); and when an error ends it (the browser updating itself mid-run, say). After an error, a line before the question says why the session stopped, and the full explanation follows your answer.
+- **Only an answer typed after the question appears counts.** Keys pressed while the run went on, a stray Enter say, are dropped before the question shows, so they can't answer it for you.
+- **Ctrl+C at the question, or closing the window, gives no answer.** The record then has no statement.
+- **It isn't asked,** and the record has no statement:
+  - without a terminal (a script, or CI), or when the output is redirected to a file (`voicecap … > log.txt`), where no one would see the question;
+  - in Git Bash's own window (mintty), which doesn't always let Node see a terminal: run voicecap in PowerShell or Windows Terminal to be asked;
+  - for a replay, or for a session that read no pages;
+  - by `voicecap demo`.
+
 ### Other commands
 
 ```bash
@@ -674,9 +685,9 @@ voicecap-transcripts/                  ← the transcripts home
 
 - **Runs never overwrite each other**, and a run folder is never modified after the run completes. Two runs started in the same minute get `-2`, `-3`, and so on.
 - **Page slugs** are a readable part of the path plus a short hash of the URL (`grants-fy27-jag-1a2b3c4d5e`), safe on Windows and short enough to avoid path-length problems. The home page is `home`. The full URL is inside every JSON file.
-- **TXT transcripts** start with a header block (every line begins `# `): the page, the run, the stop reason, and the full environment record, so each file stands alone as evidence. After one blank line comes **one line per step**, everything NVDA said in response to one keystroke. Setup steps are labeled (`[to bottom] …`, `[to top] …`), and a step where NVDA said nothing is written `[no speech]`, so line N of the body is always step N.
+- **TXT transcripts** start with a header block (every line begins `# `): the page, the run, the stop reason, and the environment (see "Environment record," below), so each file stands alone as evidence. After one blank line comes **one line per step**, everything NVDA said in response to one keystroke. Setup steps are labeled (`[to bottom] …`, `[to top] …`), and a step where NVDA said nothing is written `[no speech]`, so line N of the body is always step N.
 - **JSON transcripts** hold one record per step (number, command, spoken text, duration, time since the pass started, and for the tab pass the focus state and focused element) plus the page, pass, step count, stop reason, duration, timestamp, errors, warnings, and the environment record.
-- **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, or page list file with its SHA-256), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings.
+- **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, or page list file with its SHA-256), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings. It also holds the computer's details (see [What each run records](#what-each-run-records)), which `run.json` and the JSON transcripts keep, and the TXT header leaves out.
 - **Hashes.** `run.json` records the SHA-256 of every transcript file (integrity) and of each pass's TXT body without the header (content). "Changed since review" and `--compare` use the content hashes, because headers include timestamps and run ids.
 
 ## The audit record
@@ -688,6 +699,37 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, and `report` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
 The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, and `verify` never take it for a site.
+
+### What each run records
+
+Beyond its transcripts, each run's `run.json` records:
+
+- **Each page's title**, as the browser reports it. A page with no title, or one that never loaded, has none (`null`), and so does every page of a replayed run.
+- **Every failed attempt at a page**, in every session of the run, including those a later attempt made good. Each is written to `run.json` as it happens, before the screen reader and browser are started again, so Ctrl+C, a closed window, or a crash doesn't lose it, and a later session adds its own after it. Each attempt's record keeps:
+  - its number, counted across the sessions, and when it started and ended (local time, to the millisecond);
+  - the pass, the step, and the command it sent (`nextLine`, say, or `openPage` for a page that didn't open);
+  - the error's message, and why it failed, as one of these codes:
+    - `foreground`: another window came to the front;
+    - `locked`: the computer locked;
+    - `screen-reader-stopped`: the screen reader didn't start, or stopped;
+    - `browser`: the browser didn't start, changed, closed, or crashed;
+    - `http`: the website answered with an HTTP error;
+    - `unreachable`: the website couldn't be reached;
+    - `open-timeout`: the page didn't open in time;
+    - `step-timeout`: a step took too long;
+    - `page-timeout`: the whole page took too long;
+    - `unexpected`: an error voicecap didn't expect, which may be a fault in voicecap itself. Its record also keeps the error's stack, with the home folder replaced by `%USERPROFILE%` (or `~`);
+  - whether the screen reader and browser were started again for the next attempt.
+- **Each session's reviewer, and the listener's statement.** The statement is the answer to "Did you listen as NVDA read these pages?" The session's record keeps the answer, when voicecap asked and when it was answered, and how many pages the session went through (see [Run an audit](#run-an-audit)).
+- **The computer's details**, in each session's environment record, and never the computer's maker, model, or name, or the account's name:
+  - the operating system: its edition, version, build, and architecture;
+  - the processor: its name, base speed, physical cores, and logical processors;
+  - memory, and the display: its resolution and refresh rate, and on Windows its scaling;
+  - the browser window's fixed size: 1280 × 960 (none for a replay, which opens no browser);
+  - the time zone and its offset, and the display language;
+  - the versions of Node.js, voicecap, Guidepup, and Playwright.
+
+Once the run completes, its seal covers all of this.
 
 ### What's guaranteed
 
@@ -780,7 +822,7 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
 - **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser and tries the page again, up to `pageAttempts` times in all.
 - **If the browser updates itself** during a run (Chrome does, in the background), the page being opened when the new version starts fails, and voicecap stops with exit code 2 when it restarts the browser for the next page, so the version recorded with the transcripts stays true. Run the same command again to resume with the new version recorded; the failed page is retried. (On the last page, the run completes instead, with that page failed: exit code 3.)
-- **Ctrl+C** saves state, shuts down NVDA and the browser, and exits with code 130; the page in progress is redone on resume. Press Ctrl+C a second time to exit immediately. The browser is in front while voicecap works, so click the terminal window first, or the keystroke goes to the browser.
+- **Ctrl+C** saves state and shuts down NVDA and the browser. When the session read pages, voicecap then asks whether you listened (see "The question at the end" under [Run an audit](#run-an-audit)), and it exits with code 130 once you've answered. The page in progress is redone on resume. Press Ctrl+C a second time to exit immediately; at the question, Ctrl+C gives no answer, and voicecap exits. The browser is in front while voicecap works, so click the terminal window first, or the keystroke goes to the browser.
 - **One run per output folder** at a time (a lock file, taken over if the process that held it is gone).
 - **HTTP errors are page problems.** A page that answers 404 gets a single try, since trying again can't help. A 5xx is tried again, up to `pageAttempts` times. Either is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA; only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
 - **Avoid synced folders** (OneDrive, Dropbox) for the output: sync clients and antivirus scans can hold files open. voicecap retries, but a folder they keep locked can still stop a run. If Git on Windows complains about long paths in `transcripts/`, run `git config core.longpaths true`.
@@ -966,7 +1008,7 @@ const { config } = await loadConfig();
 await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogger() });
 ```
 
-`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, and `driver` (any object implementing `ScreenReaderDriver`). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
+`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person listened, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
 
 ## Drivers
 

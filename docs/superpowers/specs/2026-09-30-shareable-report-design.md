@@ -113,9 +113,11 @@ The mockup shows this order. Each section's first sentence is its point.
 
 voicecap speeds up a person's review. The page shows that review as the records show it, in three parts:
 
-- **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, after Ctrl+C too, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
-  - The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
-  - It isn't asked without a terminal (a script, CI), or after a second Ctrl+C or a closed window. The page then says "not recorded".
+- **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
+  - It's asked however the session ends: completed, after Ctrl+C, stopped after too many failed pages in a row, or ended by an error. After an error, one line says why the session stopped before the question, and the full explanation follows the answer.
+  - Only an answer typed after the question appears counts: keys typed during the run, which wait in the terminal's input, are discarded before the question shows.
+  - The session's end is written before the question. The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
+  - It isn't asked without a terminal (a script, CI), or with the output redirected (to a file, say). Ctrl+C at the question (after an interrupted run, a second Ctrl+C) and a closed window give no answer. The page then says "not recorded".
   - On a Mac, it asks about VoiceOver.
 - **Reading the transcripts, and deciding:** `voicecap review`'s entries, as today: "Reviewed, no issues", "Issue found" with its note, and "Fixed".
 - **Fixing:** the "Fixed" entries, with their notes.
@@ -167,12 +169,13 @@ Opened, each shows:
 | NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown. |
 | The browser stopped, or didn't start | The browser | Tried again with a fresh browser. |
 | The website answered with an error | The website | A 5xx is tried again. A 4xx isn't, since trying again can't help. |
+| The website couldn't be reached | The website or the network: the address didn't answer, the connection failed, or its certificate wasn't valid | Tried again. If it keeps failing, the site was down or couldn't be reached from this computer. |
 | A step took too long | Not certain: the website, NVDA, the computer, or voicecap | Tried again. If it keeps happening on one page, that page and the record say more. |
 | An unexpected error | Possibly voicecap itself | The full error, and where in voicecap's code it happened, are shown, with a link to report it (github.com/ICJIA/voicecap/issues). |
 | Stopped by the person running it | The person: Ctrl+C, or closing the window | Not a failure. The page is read when the run resumes. |
 
 **How the kind is decided:**
-- voicecap's own errors carry a cause code: `foreground`, `locked`, `screen-reader-stopped`, `browser`, `http`, `open-timeout`, `step-timeout`, or `page-timeout`. The drivers set the screen-reader ones in general terms, so the VoiceOver driver uses the same codes.
+- voicecap's own errors carry a cause code: `foreground`, `locked`, `screen-reader-stopped`, `browser`, `http`, `unreachable`, `open-timeout`, `step-timeout`, or `page-timeout`. The drivers set the screen-reader ones in general terms, so the VoiceOver driver uses the same codes.
 - Any other error is `unexpected`.
 - In runs recorded before cause codes (0.5.0 and earlier), the kind comes from the error's wording, which voicecap itself wrote, and the page says so. Wording it doesn't recognize counts as unexpected.
 
@@ -369,6 +372,32 @@ In the site's folder of the transcripts home:
 - **Transcripts** go in an appendix, one section per page, in a fixed-width font, each with its fingerprint.
 - **Built with `docx`** (MIT licensed), a new dependency, pinned exactly like voicecap's others.
 
+## The website
+
+A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (approved 2026-09-30): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Netlify builds it from ICJIA's transcripts repository (github.com/ICJIA/voicecap-transcripts, private), the transcripts home, on every push. voicecap's own repository stays code only.
+
+- **What's on it:**
+  - the demo's latest report, as an example of what voicecap makes;
+  - each site, with its newest report on top and its earlier ones below;
+  - every report by date, across sites.
+
+  Each report lists its date, who prepared it, and its files: the page to open, and the Word copy and the walkthrough file to download, so anyone can repeat the run exactly (see "Repeating a walkthrough"). Each file shows its size and SHA-256 fingerprint, a second place to check a copy against.
+- **How it looks:** the report's design, dark by default with a light toggle, sleek, with a bar that stays in view for the three views: the demo, the sites, and every report by date.
+- **`voicecap site [--home <dir>] [--out <dir>]`** builds it:
+  - from each site folder's `share/shares.json` in the transcripts home (`--home`, default: the home in effect): the dated copies, sealed and fingerprinted. A copy that no longer matches its fingerprint is left out, and named;
+  - from the demo's shared copies, when the home has a `voicecap-demo/` folder (run `voicecap demo` from the home's folder);
+  - into `--out` (default `_site` in the home, which the home's `.gitignore` keeps out of Git): `index.html`, each report's files under `<site>/`, `robots.txt`, and `_headers`.
+
+  The published files are byte for byte the shared copies, so their fingerprints still match. Everything the site adds goes in headers, never into those files.
+- **Publishing:** after `voicecap share`, commit the transcripts home and push. Netlify runs `voicecap site` and publishes what it builds. To preview first, run `voicecap site` and open `_site/index.html`.
+- **The Netlify files,** which `voicecap site` writes into the home the first time and never overwrites, as it does `.gitattributes`:
+  - `netlify.toml`: the build, `npx --yes @icjia/voicecap@<the minor version that wrote it> site --home . --out _site`, and `publish = "_site"`; then headers for every file: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`; and `Content-Disposition: attachment` for `.docx` and `.json` files. To build the site with a newer voicecap, change the version in the build command.
+  - `.nvmrc`: `24`, so Netlify's build uses Node 24 and its bundled npm.
+  - Each build writes `_site/robots.txt`: `User-agent: *`, then `Disallow: /`.
+  - Each build writes `_site/_headers`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
+- **Search:** `robots.txt` and the noindex header keep the site out of search results. The transcripts repository is private, so the reports aren't on GitHub for anyone to find.
+- **The first deploy,** once 0.6.0 is released with `voicecap site` and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `icjia-voicecap`. `netlify.toml` sets the rest.
+
 ## Rules the page follows
 
 **Accessibility.** The page is an accessibility report, so it passes what it tests for:
@@ -484,6 +513,7 @@ In the site's folder of the transcripts home:
    - the Word copy;
    - sharing: `current.*`, `voicecap share`, `shares.json`, and `verify`;
    - the walkthrough file: `voicecap walkthrough`, `--walkthrough`, and the report's download;
+   - the website: `voicecap site`, and the `netlify.toml` and `.nvmrc` it writes into the transcripts home;
    - evidence D with page titles, E without the program in front, and F.
 
    Built and tested without a screen reader, so it can be done remotely. It merges to `main` when done, because it only adds.
@@ -493,6 +523,9 @@ In the site's folder of the transcripts home:
 ## Facts to confirm at the PC
 
 - **The listener's question after Ctrl+C:** that the terminal still takes an answer once voicecap has shut NVDA down and given the owner's NVDA back.
+- **Keys typed during the run don't answer the question:** that Enter and a number, pressed while the run goes on (with the terminal in front, or not), are dropped, and the question waits for an answer typed after it appears.
+- **Closing the window at the question:** for an interrupted run, that the session's end is in `run.json` with no statement; for a completed run, that the run is sealed, with its session ended and no statement.
+- **A voicecap Chrome window closed mid-page:** that the page's attempt records `browser`, not `unexpected`.
 
 Before stage 2's C:
 
@@ -507,7 +540,7 @@ Before stage 2's C:
 - A PDF (Chrome could print the page; a later option).
 - Comparing with the last copy sent.
 - Digital signatures on the files; Git's signed commits already exist for that.
-- Emailing or hosting the files.
+- Emailing the files. Hosting them is "The website".
 - Detecting a person's key presses during a run. It would take a system-wide keyboard hook, which security software treats as a keylogger.
 - Window titles on the page. The event log keeps them; the page shows only the program's name.
 - Recording the listener's statement later. It's asked when the session ends, or not at all, since a statement made afterward is weaker evidence.

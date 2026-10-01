@@ -1,11 +1,12 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import net, { type AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { chromium, type Browser, type CDPSession, type Page } from "playwright";
+import { chromium, errors, type Browser, type CDPSession, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
@@ -46,6 +47,17 @@ async function launch(): Promise<ChromeSession> {
   return session;
 }
 
+/**
+ * A local server that drops each connection as it comes, without a word. It holds its port until
+ * it's closed, so no other test's server can take it meanwhile.
+ */
+async function droppingServer(): Promise<{ port: number; close(): Promise<void> }> {
+  const server = net.createServer((socket) => socket.destroy());
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return { port, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+}
+
 describe.skipIf(!haveChromium)("a Chrome session", () => {
   it("loads a page and reports where it ended up, its status, and its content type", async () => {
     const session = await launch();
@@ -71,6 +83,39 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     expect((await session.load(new URL("feed/", server.url).href, 15_000)).contentType).toMatch(
       /^application\/rss\+xml/,
     );
+  });
+
+  // A server that drops the connection unanswered: Chromium says net::ERR_EMPTY_RESPONSE, or
+  // net::ERR_CONNECTION_RESET, depending on how the connection ends; any of its codes will do.
+  // (A port closed again at once could be taken by another test's server before Chromium tries it.)
+  it("says the page couldn't be reached, with its code, when the server drops the connection", async () => {
+    const dropping = await droppingServer();
+    try {
+      const session = await launch();
+      const url = `http://127.0.0.1:${dropping.port}/`;
+      const loading = session.load(url, 15_000);
+      await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(loading).rejects.toMatchObject({
+        failure: "unreachable",
+        message: expect.stringMatching(
+          new RegExp(`^The page couldn't be reached: net::ERR_[A-Z_]+ at ${escapeRegExp(url)}$`),
+        ) as unknown,
+      });
+      // Playwright's own error stays as the cause.
+      await expect(loading).rejects.toHaveProperty(
+        "cause.message",
+        expect.stringMatching(/net::ERR_[A-Z_]+ at /),
+      );
+    } finally {
+      await dropping.close();
+    }
+  });
+
+  it("leaves a navigation error that isn't the network's as it is", async () => {
+    const session = await launch();
+    const loading = session.load("not a url", 15_000);
+    await expect(loading).rejects.toThrow(/invalid URL/);
+    await expect(loading).rejects.not.toBeInstanceOf(EnvironmentError);
   });
 
   it("sets the page's title and restores it", async () => {
@@ -170,13 +215,26 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       readySelector: "main h1",
       settleMs: 0,
     });
-    await expect(
-      session.waitUntilReady({
-        readySelector: "#never-there",
-        settleMs: 0,
-        networkIdleTimeoutMs: 500,
-      }),
-    ).rejects.toThrow(/#never-there/);
+    const waiting = session.waitUntilReady({
+      readySelector: "#never-there",
+      settleMs: 0,
+      networkIdleTimeoutMs: 500,
+    });
+    await expect(waiting).rejects.toThrow(/#never-there/);
+    // The page didn't open in time: a code of its own, not an unexpected error.
+    await expect(waiting).rejects.toMatchObject({ failure: "open-timeout" });
+  });
+
+  it("says the browser closed, with a code, when a call finds it gone", async () => {
+    const session = await launch();
+    await session.load(server.url, 15_000);
+    await session.close();
+    const reading = session.focusState();
+    await expect(reading).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(reading).rejects.toMatchObject({
+      failure: "browser",
+      message: "Chromium closed while voicecap was using it: its window was closed, or it crashed.",
+    });
   });
 
   it("stops a browser that's still starting when the launch is called off", async () => {
@@ -189,17 +247,18 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     });
     setTimeout(() => calledOff.abort(), 20);
     await expect(launching).rejects.toThrow(EnvironmentError);
+    await expect(launching).rejects.toMatchObject({ failure: "browser" });
   });
 
   it("doesn't start a browser at all when the launch was called off already", async () => {
-    await expect(
-      launchChrome({
-        browser: { channel: "chromium", fallbackToChromium: false },
-        env: process.env,
-        extraArgs: HEADLESS,
-        signal: AbortSignal.abort(),
-      }),
-    ).rejects.toThrow(EnvironmentError);
+    const launching = launchChrome({
+      browser: { channel: "chromium", fallbackToChromium: false },
+      env: process.env,
+      extraArgs: HEADLESS,
+      signal: AbortSignal.abort(),
+    });
+    await expect(launching).rejects.toThrow(EnvironmentError);
+    await expect(launching).rejects.toMatchObject({ failure: "browser" });
   });
 
   // The Mac live test brings the browser to the front through System Events, by process id.
@@ -292,6 +351,7 @@ describe.skipIf(!haveChromium)(
         },
       });
       await expect(launching).rejects.toThrow("Chromium didn't start: it exited (0)");
+      await expect(launching).rejects.toMatchObject({ failure: "browser" });
       expect(starts).toBe(2);
       expect(notices).toHaveLength(1);
     });
@@ -308,11 +368,16 @@ describe.skipIf(!haveChromium)(
         },
       });
       await expect(launching).rejects.toThrow("Chromium didn't start: it exited (3)");
+      await expect(launching).rejects.toMatchObject({ failure: "browser" });
       expect(starts).toBe(1);
       expect(notices).toEqual([]);
     });
   },
 );
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function alive(pid: number): boolean {
   try {
@@ -348,13 +413,235 @@ describe("closing a browser that doesn't answer", () => {
       child as unknown as ChildProcess,
       dir,
       hungBrowser as unknown as Browser,
-      {} as Page,
+      { on: () => {} } as unknown as Page,
       {} as CDPSession,
       { closeTimeoutMs: 100 },
     );
     await session.close();
     expect(killed).toBe(true);
     expect(existsSync(dir)).toBe(false);
+  });
+});
+
+// What Playwright raises for a navigation that fails, without a browser: a page that only navigates.
+describe("a navigation that fails", () => {
+  const URL_PDF = "https://example.gov/report.pdf";
+
+  /** A session whose page fails to navigate with this, after the main response (if any) came. */
+  function failing(error: unknown, response?: { url: string; contentType: string }): ChromeSession {
+    const mainFrame = {};
+    const handlers = new Map<string, (response: unknown) => void>();
+    const page = {
+      mainFrame: () => mainFrame,
+      on: (event: string, handler: (response: unknown) => void) => {
+        handlers.set(event, handler);
+      },
+      off: () => {},
+      isClosed: () => false,
+      goto: () => {
+        if (response) {
+          handlers.get("response")?.({
+            request: () => ({ isNavigationRequest: () => true, frame: () => mainFrame }),
+            url: () => response.url,
+            status: () => 200,
+            headers: () => ({ "content-type": response.contentType }),
+          });
+        }
+        throw error;
+      },
+      evaluate: () => Promise.resolve(),
+    };
+    return new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      { version: () => "153.0.0.0", isConnected: () => true } as unknown as Browser,
+      page as unknown as Page,
+      {} as CDPSession,
+    );
+  }
+
+  it.each([
+    {
+      label: "Playwright's message, with its call log",
+      message:
+        'page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.gov/\nCall log:\n\u001b[2m  - navigating to "https://example.gov/", waiting until "load"\u001b[22m\n',
+      detail: "net::ERR_NAME_NOT_RESOLVED at https://example.gov/",
+    },
+    {
+      label: "a message without Playwright's prefix",
+      message: "net::ERR_CONNECTION_RESET at https://example.gov/a?b=1",
+      detail: "net::ERR_CONNECTION_RESET at https://example.gov/a?b=1",
+    },
+    {
+      label: "a message with nothing after the code",
+      message: "page.goto: net::ERR_INTERNET_DISCONNECTED",
+      detail: "net::ERR_INTERNET_DISCONNECTED",
+    },
+  ])("says the page couldn't be reached, with a code: $label", async ({ message, detail }) => {
+    const error = new Error(message);
+    const loading = failing(error).load("https://example.gov/", 0);
+    await expect(loading).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(loading).rejects.toMatchObject({
+      failure: "unreachable",
+      message: `The page couldn't be reached: ${detail}`,
+    });
+    await expect(loading).rejects.toHaveProperty("cause", error);
+  });
+
+  it.each([
+    {
+      label: "a timeout",
+      message:
+        'page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to "https://example.gov/", waiting until "load"\n',
+    },
+    {
+      label: "an invalid URL",
+      message: "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL",
+    },
+    {
+      label: "a message that names a network error only later",
+      message: "page.goto: Timeout 30000ms exceeded.\nCall log:\n  - net::ERR_NETWORK_CHANGED",
+    },
+  ])("leaves $label as it is", async ({ message }) => {
+    const error = new Error(message);
+    await expect(failing(error).load("https://example.gov/", 0)).rejects.toBe(error);
+  });
+
+  it("leaves something that isn't an error as it is", async () => {
+    await expect(failing("net::ERR_FAILED").load("https://example.gov/", 0)).rejects.toBe(
+      "net::ERR_FAILED",
+    );
+  });
+
+  // A download never commits, so the navigation fails; the response that came first says what it was.
+  it("takes the main response that came first, whatever the failure", async () => {
+    const aborted = new Error(`page.goto: net::ERR_ABORTED at ${URL_PDF}`);
+    const loaded = await failing(aborted, {
+      url: URL_PDF,
+      contentType: "application/pdf",
+    }).load(URL_PDF, 0);
+    expect(loaded).toEqual({ finalUrl: URL_PDF, status: 200, contentType: "application/pdf" });
+  });
+});
+
+// What Playwright raises once the browser has gone, without a browser: every call on the page, the
+// browser, and the DevTools connection fails with the same error.
+describe("a browser that closes or crashes mid-page", () => {
+  /**
+   * A session whose calls all fail with `failure`, and what it can see of its browser: whether the
+   * page is closed, and whether the browser is still connected. `crash` reports a crash, as
+   * Playwright's page does.
+   */
+  function failingSession(failure: Error, state: { closed?: boolean; connected?: boolean } = {}) {
+    const handlers = new Map<string, () => void>();
+    const fail = () => Promise.reject(failure);
+    const page = {
+      on: (event: string, handler: () => void) => {
+        handlers.set(event, handler);
+      },
+      off: () => {},
+      isClosed: () => state.closed ?? false,
+      mainFrame: () => ({}),
+      url: () => "about:blank",
+      goto: fail,
+      waitForLoadState: fail,
+      waitForSelector: fail,
+      title: fail,
+      evaluate: fail,
+      bringToFront: fail,
+      keyboard: { press: fail },
+    };
+    const browser = { version: () => "153.0.0.0", isConnected: () => state.connected ?? true };
+    const session = new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      browser as unknown as Browser,
+      page as unknown as Page,
+      { send: fail } as unknown as CDPSession,
+    );
+    return { session, crash: () => handlers.get("crash")?.() };
+  }
+
+  const closed = () => new Error("page.evaluate: Target page, context or browser has been closed");
+  const readiness = { readySelector: "main h1", settleMs: 0, networkIdleTimeoutMs: 500 };
+
+  // Every call a page's attempt makes on the browser.
+  const calls: [string, (session: ChromeSession) => Promise<unknown>][] = [
+    ["load", (session) => session.load("https://example.gov/", 0)],
+    ["waitUntilReady", (session) => session.waitUntilReady(readiness)],
+    ["pageTitle", (session) => session.pageTitle()],
+    ["setTitle", (session) => session.setTitle("voicecap check k3m9x2")],
+    ["focusState", (session) => session.focusState()],
+    ["raise", (session) => session.raise()],
+    ["pressTab", (session) => session.pressTab()],
+    ["focusedElement", (session) => session.focusedElement()],
+  ];
+
+  it.each(calls)(
+    "says the browser closed, coded browser, when %s finds its window closed",
+    async (_name, call) => {
+      const failure = closed();
+      const calling = call(failingSession(failure, { closed: true }).session);
+      await expect(calling).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(calling).rejects.toMatchObject({
+        failure: "browser",
+        message: "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+      });
+      await expect(calling).rejects.toHaveProperty("cause", failure);
+    },
+  );
+
+  it("says so when the browser is no longer connected, whatever the page says", async () => {
+    const reading = failingSession(closed(), { connected: false }).session.focusState();
+    await expect(reading).rejects.toMatchObject({
+      failure: "browser",
+      message: "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+    });
+  });
+
+  // A crashed page isn't closed: Playwright reports the crash, and fails every call after it.
+  it.each(calls)(
+    "says the page crashed, coded browser, when %s fails after a crash",
+    async (_name, call) => {
+      const failure = new Error("page.evaluate: Target crashed");
+      const { session, crash } = failingSession(failure);
+      crash();
+      const calling = call(session);
+      await expect(calling).rejects.toBeInstanceOf(EnvironmentError);
+      await expect(calling).rejects.toMatchObject({
+        failure: "browser",
+        message: "The page crashed in Chrome while voicecap was using it.",
+      });
+      await expect(calling).rejects.toHaveProperty("cause", failure);
+    },
+  );
+
+  it("leaves a failure as it is while the browser is still there", async () => {
+    const failure = new Error("page.evaluate: Execution context was destroyed");
+    await expect(failingSession(failure).session.focusState()).rejects.toBe(failure);
+  });
+
+  it("codes a readySelector that never appears as a page that didn't open in time", async () => {
+    const timeout = new errors.TimeoutError("page.waitForSelector: Timeout 500ms exceeded.");
+    const waiting = failingSession(timeout).session.waitUntilReady(readiness);
+    await expect(waiting).rejects.toBeInstanceOf(EnvironmentError);
+    await expect(waiting).rejects.toMatchObject({
+      failure: "open-timeout",
+      message: 'The readySelector "main h1" didn\'t appear within 500ms.',
+    });
+    await expect(waiting).rejects.toHaveProperty("cause", timeout);
+  });
+
+  // A selector the browser can't read fails at once: it's no timeout, and Playwright's words say why.
+  it("leaves a readySelector the browser can't read as Playwright says it", async () => {
+    const unreadable = new Error(
+      'page.waitForSelector: Unexpected token "#" while parsing css selector "###".',
+    );
+    await expect(failingSession(unreadable).session.waitUntilReady(readiness)).rejects.toBe(
+      unreadable,
+    );
   });
 });
 
@@ -451,5 +738,24 @@ describe("choosing the browser", () => {
         "C:\\pw\\chrome.exe",
       ),
     ).toThrow(/Google Chrome/);
+  });
+
+  // A browser uninstalled mid-run fails the next page's launch: the browser's problem, with its code.
+  it.each([
+    { label: "no browser for the channel", channel: "chrome", message: /isn't installed/ },
+    { label: "no Chromium", channel: "chromium", message: /Chromium isn't installed/ },
+    { label: "a channel it doesn't know", channel: "firefox", message: /doesn't know the browser/ },
+  ])("codes $label as the browser's problem", ({ channel, message }) => {
+    let thrown: unknown;
+    try {
+      resolveBrowser({ channel, fallbackToChromium: false }, env, found([]), "C:\\pw\\chrome.exe");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EnvironmentError);
+    expect(thrown).toMatchObject({
+      failure: "browser",
+      message: expect.stringMatching(message) as unknown,
+    });
   });
 });

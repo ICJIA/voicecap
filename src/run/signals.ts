@@ -47,10 +47,11 @@ export function handleInterrupts(
 }
 
 /**
- * For the live test in init and setup, where the prompter keeps Ctrl+C to itself: SIGTERM, or the
- * SIGHUP of a closed terminal window (and SIGBREAK on Windows), stops it as Ctrl+C does, aborting
- * `controller`. A second one exits at once with 130, so exit hooks still run. Nothing is said: the
- * window may be gone. Returns a function that removes the listeners.
+ * For the live test in init and setup, where the prompter keeps Ctrl+C to itself, and for the
+ * listener's question at the end of a session: SIGTERM, or the SIGHUP of a closed terminal window
+ * (and SIGBREAK on Windows), stops it as Ctrl+C does, aborting `controller`. A second one exits at
+ * once with 130, so exit hooks still run. Nothing is said: the window may be gone. Returns a
+ * function that removes the listeners.
  */
 export function stopOnClosedWindow(
   controller: AbortController,

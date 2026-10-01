@@ -1,4 +1,7 @@
-/** Windows details for the Guidepup driver: processes, the OS version, NVDA's language. */
+/**
+ * Windows details for the Guidepup driver: processes, the OS version, NVDA's language, and this
+ * computer's details for a run's record.
+ */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -6,6 +9,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import type { MachineRecord } from "../../model.js";
+import type { MachineProbe } from "../../run/machine-record.js";
 import { PROFILE_PREFIX, type GuidepupInstall } from "./paths.js";
 
 const run = promisify(execFile);
@@ -310,6 +315,53 @@ export async function windowsBrowserVersion(file: string): Promise<string | null
 }
 
 /**
+ * Everything windowsMachineProbe asks, in one start of PowerShell, answered as one line of JSON
+ * (see parseWindowsMachine): the system's name and version, the registry's display version and
+ * update revision, the first processor's speed and core count, the display that has a resolution
+ * (its size and refresh rate), the scaling Windows applied (AppliedDPI, in dots per inch), and the
+ * display language. Its answer holds nothing that names the computer, its maker or model, or the
+ * account. What it reads holds more, among it the computer's name in Win32_OperatingSystem
+ * (CSName) and the registered owner in CurrentVersion (RegisteredOwner): only the fields it picks
+ * leave PowerShell.
+ */
+const MACHINE_SCRIPT = [
+  "$os = Get-CimInstance Win32_OperatingSystem;",
+  "$cv = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion';",
+  "$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1;",
+  "$vc = Get-CimInstance Win32_VideoController | Where-Object { $_.CurrentHorizontalResolution } | Select-Object -First 1;",
+  "$dpi = (Get-ItemProperty 'HKCU:\\Control Panel\\Desktop\\WindowMetrics' -ErrorAction SilentlyContinue).AppliedDPI;",
+  "[pscustomobject]@{ caption = $os.Caption; displayVersion = $cv.DisplayVersion; version = $os.Version; ubr = $cv.UBR;",
+  "cpuMhz = $cpu.MaxClockSpeed; cores = $cpu.NumberOfCores; width = $vc.CurrentHorizontalResolution;",
+  "height = $vc.CurrentVerticalResolution; refresh = $vc.CurrentRefreshRate; dpi = $dpi;",
+  "language = (Get-UICulture).Name } | ConvertTo-Json -Compress",
+].join(" ");
+
+/**
+ * This Windows computer's details for a run's record. PowerShell is asked once, when a part is
+ * first read, and every part reads from that one answer. When it gives none (it failed, or said
+ * something that isn't the JSON asked for), that isn't kept: the next part read asks again. `ask`
+ * runs the script; tests replace it.
+ */
+export function windowsMachineProbe(
+  ask: (script: string) => Promise<string> = powershell,
+): MachineProbe {
+  let answer: Promise<WindowsMachine> | undefined;
+  const read = () =>
+    (answer ??= ask(MACHINE_SCRIPT)
+      .then(parseWindowsMachine)
+      .catch((error: unknown) => {
+        answer = undefined;
+        throw error;
+      }));
+  return {
+    os: async () => (await read()).os,
+    cpu: async () => (await read()).cpu,
+    display: async () => (await read()).display,
+    language: async () => (await read()).language,
+  };
+}
+
+/**
  * Clean up after a voicecap run that crashed or was killed: shut down Guidepup's NVDA (found by
  * its exact executable path, so another NVDA is never touched), close browsers whose profile is a
  * voicecap-chrome-* folder in `tmpDir`, and delete those profiles. Only called when no voicecap
@@ -473,6 +525,71 @@ export function describeWindows(info: {
 }): string {
   const name = info.displayVersion ? `${info.version} ${info.displayVersion}` : info.version;
   return `${name} (${info.release})`;
+}
+
+/** What windowsMachineProbe's script says, as the parts of a MachineProbe. */
+export interface WindowsMachine {
+  os: { name: string; build: string | null };
+  cpu: { baseMhz: number | null; physicalCores: number | null };
+  display: MachineRecord["display"];
+  language: string | null;
+}
+
+/**
+ * The parts of the computer's details in MACHINE_SCRIPT's JSON. The system's name is the caption
+ * without its leading "Microsoft ", then the display version: "Windows 11 Pro 25H2". Its build is
+ * the version and the update revision joined by a dot: "10.0.26200.9550". The scaling is
+ * AppliedDPI as a percent of 96, rounded. Whatever PowerShell gave no answer for (null, or 0 where
+ * a number is wanted) is left out: null, and "Windows" for a system with no caption. So is a
+ * refresh rate outside 2 to 1000 Hz: Windows gives 0 or 1 for the display's default rate and
+ * 4294967295 for one it doesn't know.
+ */
+export function parseWindowsMachine(json: string): WindowsMachine {
+  const data = (JSON.parse(json) ?? {}) as Record<string, unknown>;
+  const caption = text(data.caption)?.replace(/^Microsoft\s+/i, "") ?? "Windows";
+  const displayVersion = text(data.displayVersion);
+  const version = text(data.version);
+  const revision = count(data.ubr);
+  const width = positive(data.width);
+  const height = positive(data.height);
+  const dpi = positive(data.dpi);
+  return {
+    os: {
+      name: displayVersion === null ? caption : `${caption} ${displayVersion}`,
+      build: version !== null && revision !== null ? `${version}.${revision}` : version,
+    },
+    cpu: { baseMhz: positive(data.cpuMhz), physicalCores: positive(data.cores) },
+    display:
+      width === null || height === null
+        ? null
+        : {
+            width,
+            height,
+            refreshHz: hertz(data.refresh),
+            scalePercent: dpi === null ? null : Math.round((dpi / 96) * 100),
+          },
+    language: text(data.language),
+  };
+}
+
+/** A string that isn't blank, trimmed; null for anything else. */
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+/** A number above zero; null for anything else. */
+function positive(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** A display's refresh rate, 2 to 1000 Hz; null for anything else, Windows's sentinels included. */
+function hertz(value: unknown): number | null {
+  return typeof value === "number" && value >= 2 && value <= 1000 ? value : null;
+}
+
+/** A whole number, zero included; null for anything else. */
+function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 /**

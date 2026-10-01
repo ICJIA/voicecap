@@ -29,12 +29,15 @@ Still to check by hand. For the Windows PC, `docs/windows-pc-checks.md` gives ea
   - after a run, that the person's installed NVDA restarts through `Start-Process`, including one that uses UIAccess;
   - how long the quick checks take, against the README's "about two seconds";
   - closing the terminal window during `init`'s live test;
-  - **`voicecap demo` from start to finish**, from a build of the branch (`node dist/cli.js demo`), or with `npx @icjia/voicecap demo` once it's released:
+  - **`voicecap demo` from start to finish**, from a build of the branch (`node dist/cli.js demo`), or with `npx @icjia/voicecap demo`:
     - time step 4 and the whole tour against `AUDIT_MINUTES` (6) and `TOUR_MINUTES` (9) in `src/demo/words.ts`, and change them (and the README and spec) if they're off;
     - check that the opened report flags `/common-mistakes/` and no other page;
     - check that the terminal keeps Ctrl+C for itself through the whole audit;
     - check that Ctrl+C, and closing the window, both stop the audit mid-run and give the owner's own NVDA back.
 - **On this Mac, with the owner's OK:** the supervised run above is done, except for one item: a fresh macOS user account, whose VoiceOver has never been turned on. There, the checks should say "VoiceOver: not set up for this user yet".
+- **On this Mac, for 0.6.0's run records:** capture `system_profiler SPDisplaysDataType -json`, and check `parseMacDisplays` (`src/drivers/voiceover/macos.ts`) against it. Every session records the main display it reads, replays on a Mac included. Two things may be wrong on a real Mac:
+  - on a scaled Retina display, `_spdisplays_resolution` may hold the "looks like" size while `_spdisplays_pixels` holds the physical pixels;
+  - a descriptor before the "@", as in "2560 x 1440 (QHD/WQHD - Wide Quad High Definition) @ 60.00Hz", loses the refresh rate.
 
 **Windows checks on the PC (2026-09-29).** The owner ran each check in PowerShell on the Windows PC: an Alienware Aurora ACT1250, Windows 11 Pro 25H2, the installed NVDA 2026.2 (with UI Access), Guidepup's NVDA 0.2.1-2026.2, and Chrome 153.0.8010.53, then 154.0.8037.58. The first runs used `main` at 42a419d, and the rest the branch `windows-checks-fixes`, with Fix 1 and Fix 2 below.
 
@@ -180,7 +183,6 @@ Deferred from the `voicecap demo` reviews (2026-09-29), each judged "can wait" o
   - `doctor` is described as "the checks on their own", though it also runs the live test.
   - README's "pnpm is only for … the replay demo" sits near "Try it first".
   - `auditIntro`'s first two lines don't go through `paragraph()`.
-- **The CHANGELOG** doesn't list `runAudit`'s new public options `again` and `preflight`. Add them before a release, or mark them internal.
 - **An Enter typed ahead** during step 2's checks answers the pause before the live test (typed-ahead input isn't dropped).
 - **The demo server** (`src/demo/server.ts`, `src/util/static-site.ts`):
   - `close()` rejects on a second call.
@@ -235,13 +237,14 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.4.1 on npm, from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.5.0 on npm, released 2026-09-30 (tag `v0.5.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
   - 0.4.0 added readiness: the checks, the live test, and `setup` and `doctor` on macOS; 0.4.1 let `--sitemap` take a sitemap's name.
-- **Ready for 0.5.0,** on the branch `windows-checks-fixes`, with CI green and the Windows checks passed (2026-09-29 and 30): `voicecap demo`, the four fixes those checks found, a failed page tried up to 5 times, and the reviewer's name on every session. It merges to `main` and is released when the owner says.
-- **Tests:** 1,239 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
+  - 0.5.0 added `voicecap demo`, the four fixes the Windows checks found (2026-09-29 and 30), a failed page tried up to 5 times, and the reviewer's name on every session. It was merged to `main` from the branch `windows-checks-fixes`.
+- **Being built:** 0.6.0, the shareable report, on the branch `0.6.0-run-records`: plan 1 of 6, the run records.
+- **Tests:** 1,442 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
@@ -290,6 +293,7 @@ Several things are tuned to NVDA and need VoiceOver versions:
 3. **Run folder names:** should they name the screen reader (`2026-09-27/1102_nvda/`)? Every run already records it inside; the earlier lean was no. Decide before real audit runs accumulate.
 4. **Real VoiceOver in CI:** Guidepup has a GitHub Action that sets up VoiceOver on GitHub's macOS runners. Check it.
 5. **The environment record:** which VoiceOver settings to record (voice, rate, verbosity), as NVDA's non-default settings are.
+6. **The browser window's size:** runs record a 1280 × 960 browser window for every session that isn't a replay (`src/run/audit.ts`, from `BROWSER_WINDOW` in `src/drivers/types.ts`), which is the Chrome window voicecap opens. The VoiceOver driver must open its browser at that size, or carry its own window size in its environment info.
 
 ## Suggested sequence
 

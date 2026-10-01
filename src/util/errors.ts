@@ -1,3 +1,5 @@
+import type { FailureCause } from "../model.js";
+
 /** Process exit codes. Documented in the README; keep them stable. */
 export const ExitCode = {
   /** The command (or run) completed. Heuristic flags never change this. */
@@ -39,10 +41,18 @@ export class ConfigError extends VoicecapError {
   }
 }
 
-/** The machine can't run the requested work (screen reader, browser, network). Exit code 2. */
+/**
+ * The machine can't run the requested work (screen reader, browser, network). Exit code 2.
+ *
+ * The errors a page can meet carry a failure code, which a page's record keeps (see causeOf in
+ * src/run/failure.ts); the others have none.
+ */
 export class EnvironmentError extends VoicecapError {
-  constructor(message: string, options?: ErrorOptions) {
+  readonly failure: FailureCause | undefined;
+
+  constructor(message: string, options?: ErrorOptions & { failure?: FailureCause }) {
     super(message, ExitCode.environment, options);
+    this.failure = options?.failure;
   }
 }
 

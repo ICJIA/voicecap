@@ -83,6 +83,14 @@ export interface FocusedElement {
 
 export type CaptureMode = "complete" | "initial";
 
+/**
+ * The browser window's fixed size, in pixels, so pages lay out (and the screen reader splits lines)
+ * the same way in every run. It lives here, not in the code that opens the browser, because the
+ * run's record of its computer names it too, and that code loads Playwright. Frozen: nothing may
+ * change it for one run and not the next.
+ */
+export const BROWSER_WINDOW = Object.freeze({ width: 1280, height: 960 } as const);
+
 export interface EnvironmentInfo {
   driver: { name: string; version: string };
   screenReader: {
@@ -107,6 +115,9 @@ export interface EnvironmentInfo {
 
 /** The browser couldn't be brought to the front, so keystrokes would reach the wrong window. */
 export class ForegroundError extends Error {
+  /** The failure code a page's record keeps for this error (see causeOf in src/run/failure.ts). */
+  readonly failure = "foreground";
+
   constructor(message: string) {
     super(message);
     this.name = "ForegroundError";

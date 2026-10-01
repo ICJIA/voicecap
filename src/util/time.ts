@@ -10,10 +10,20 @@ export function localDate(date: Date): string {
 
 /** ISO 8601 with the local UTC offset, e.g. 2026-09-26T14:05:09-05:00. */
 export function isoLocal(date: Date): string {
+  return localIso(date, "");
+}
+
+/** The same to the millisecond, e.g. 2026-09-26T14:05:09.482-05:00. */
+export function isoLocalMs(date: Date): string {
+  return localIso(date, `.${String(date.getMilliseconds()).padStart(3, "0")}`);
+}
+
+/** `fraction` (".482", or nothing) follows the seconds. */
+function localIso(date: Date, fraction: string): string {
   const offset = -date.getTimezoneOffset();
   const sign = offset >= 0 ? "+" : "-";
   const abs = Math.abs(offset);
-  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${fraction}`;
   return `${localDate(date)}T${time}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 

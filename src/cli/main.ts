@@ -24,8 +24,10 @@ import { chooseSiteDir } from "../run/site-dir.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
+import { isTerminalStream } from "../util/terminal.js";
 import { voicecapVersion } from "../util/version.js";
 import { verifyHome } from "../verify.js";
+import { makeAskListener } from "./listener.js";
 
 export interface CliContext {
   stdout: OutputStream;
@@ -617,6 +619,12 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       logger,
       signal: ctx.signal ?? controller.signal,
       ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
+      // Only a person at a terminal, reading its output there, is asked: a script or CI never is,
+      // and output redirected to a file (voicecap … > log.txt) would take a question no one sees.
+      // The output itself decides, not ctx.interactive: init's own run isn't interactive.
+      askListener: isTerminalStream(ctx.stdout)
+        ? makeAskListener(ctx.stdin, ctx.stdout)
+        : undefined,
     });
     return result.exitCode;
   } finally {
@@ -664,9 +672,4 @@ function positiveInt(option: string) {
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
-}
-
-/** Whether `stream` is a real terminal (a TTY), as `NodeJS.ReadStream` marks one. */
-function isTerminalStream(stream: NodeJS.ReadableStream): boolean {
-  return (stream as { isTTY?: boolean }).isTTY === true;
 }

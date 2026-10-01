@@ -2,11 +2,16 @@ import type { Speech } from "../drivers/types.js";
 import type { DriverCommand, StepRecord } from "../model.js";
 import { formatDuration } from "../util/time.js";
 
-/** A driver call took longer than its timeout; the page runner restarts the driver and retries. */
+/**
+ * A driver call took longer than its timeout; the page runner restarts the driver and retries.
+ * `failure` says which timeout it was (see causeOf in src/run/failure.ts): a step's, the page's
+ * opening, or the whole page's.
+ */
 export class StepTimeoutError extends Error {
   constructor(
     readonly what: string,
     readonly ms: number,
+    readonly failure: "open-timeout" | "step-timeout" | "page-timeout" = "step-timeout",
   ) {
     super(`${what} did not finish within ${formatDuration(ms)}`);
     this.name = "StepTimeoutError";
@@ -24,13 +29,14 @@ export class InterruptedError extends Error {
 /**
  * Race a driver call against a timeout and an abort signal. The call itself can't be cancelled
  * (a hung screen reader is dealt with by restarting the driver), so its eventual result or
- * rejection is ignored.
+ * rejection is ignored. `failure` is the code of the StepTimeoutError raised when time runs out.
  */
 export async function withTimeout<T>(
   what: string,
   action: () => Promise<T>,
   ms: number,
   signal?: AbortSignal,
+  failure?: StepTimeoutError["failure"],
 ): Promise<T> {
   throwIfAborted(signal);
   let timer: NodeJS.Timeout | undefined;
@@ -41,7 +47,7 @@ export async function withTimeout<T>(
     return await Promise.race([
       call,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new StepTimeoutError(what, ms)), ms);
+        timer = setTimeout(() => reject(new StepTimeoutError(what, ms, failure)), ms);
         if (signal) {
           onAbort = () => reject(abortReason(signal));
           signal.addEventListener("abort", onAbort, { once: true });
@@ -67,6 +73,7 @@ function abortReason(signal: AbortSignal): Error {
 export class StepRecorder {
   readonly steps: StepRecord[] = [];
   private readonly started: number;
+  private underway: { n: number; command: DriverCommand } | null = null;
 
   constructor(
     private readonly stepTimeoutMs: number,
@@ -80,6 +87,15 @@ export class StepRecorder {
     return this.steps.length;
   }
 
+  /**
+   * The step whose driver call is under way, or null between steps. A step that fails (a timeout
+   * or an error) leaves it set, so the failure can say which step it was: one whose keystroke is
+   * discarded, and which never becomes one of `steps`.
+   */
+  get current(): { n: number; command: DriverCommand } | null {
+    return this.underway;
+  }
+
   elapsedMs(): number {
     return Math.round(this.clock() - this.started);
   }
@@ -91,13 +107,15 @@ export class StepRecorder {
     after?: () => Promise<Pick<StepRecord, "inDocument" | "focused">>,
   ): Promise<StepRecord> {
     const begin = this.clock();
+    const n = this.steps.length + 1;
+    this.underway = { n, command };
     const spoken = await withTimeout(command, action, this.stepTimeoutMs, this.signal);
     const extra = after
       ? await withTimeout(`${command} focus check`, after, this.stepTimeoutMs, this.signal)
       : {};
     const end = this.clock();
     const record: StepRecord = {
-      n: this.steps.length + 1,
+      n,
       command,
       spoken,
       durationMs: Math.round(end - begin),
@@ -105,6 +123,7 @@ export class StepRecorder {
       ...extra,
     };
     this.steps.push(record);
+    this.underway = null;
     return record;
   }
 

@@ -14,9 +14,11 @@ import {
   canWriteVoiceOverPrefs,
   detachGuidepupPreferences,
   guidepupPrefsDir,
+  macMachineProbe,
   macSystem,
   messageOr,
   openTarget,
+  parseMacDisplays,
   parseProcessTable,
   pause,
   pauseSync,
@@ -1159,6 +1161,209 @@ describe("macSystem", () => {
     const system = await macSystem(commands.run);
     expect(system.computerName).toBeNull();
     expect(system.locale).toBeNull();
+  });
+});
+
+// system_profiler SPDisplaysDataType -json, in the shape Apple documents: a list of graphics cards,
+// each with the displays on it (spdisplays_ndrvs). Two displays on one card, the main one second.
+const DISPLAYS_JSON = JSON.stringify({
+  SPDisplaysDataType: [
+    {
+      _name: "kHW_AppleM4Item",
+      spdisplays_vendor: "sppci_vendor_Apple",
+      sppci_model: "Apple M4",
+      spdisplays_ndrvs: [
+        {
+          _name: "DELL U2723QE",
+          _spdisplays_resolution: "3840 x 2160 @ 60.00Hz",
+          spdisplays_connection_type: "spdisplays_displayport_dongletype",
+          spdisplays_online: "spdisplays_yes",
+        },
+        {
+          _name: "Color LCD",
+          _spdisplays_resolution: "3024 x 1964 @ 120.00Hz",
+          spdisplays_connection_type: "spdisplays_internal",
+          spdisplays_main: "spdisplays_yes",
+          spdisplays_online: "spdisplays_yes",
+        },
+      ],
+    },
+  ],
+});
+
+describe("parseMacDisplays", () => {
+  it("gives the main display's size and refresh rate, with no scaling", () => {
+    expect(parseMacDisplays(DISPLAYS_JSON)).toEqual({
+      width: 3024,
+      height: 1964,
+      refreshHz: 120,
+      scalePercent: null,
+    });
+  });
+
+  it("finds the main display on any graphics card", () => {
+    const cards = JSON.stringify({
+      SPDisplaysDataType: [
+        { _name: "Intel UHD Graphics 630" },
+        {
+          _name: "AMD Radeon Pro 5500M",
+          spdisplays_ndrvs: [
+            { _spdisplays_resolution: "2560 x 1440 @ 75 Hz", spdisplays_main: "spdisplays_yes" },
+          ],
+        },
+      ],
+    });
+    expect(parseMacDisplays(cards)).toEqual({
+      width: 2560,
+      height: 1440,
+      refreshHz: 75,
+      scalePercent: null,
+    });
+  });
+
+  it("takes the first display when none is marked main", () => {
+    const unmarked = JSON.stringify({
+      SPDisplaysDataType: [
+        {
+          spdisplays_ndrvs: [
+            { _spdisplays_resolution: "1920 x 1080 @ 60.00Hz" },
+            { _spdisplays_resolution: "2560 x 1440 @ 60.00Hz" },
+          ],
+        },
+      ],
+    });
+    expect(parseMacDisplays(unmarked)).toEqual({
+      width: 1920,
+      height: 1080,
+      refreshHz: 60,
+      scalePercent: null,
+    });
+  });
+
+  it("rounds a refresh rate to whole hertz, and has none when the resolution gives none", () => {
+    const one = (resolution: string) =>
+      parseMacDisplays(
+        JSON.stringify({
+          SPDisplaysDataType: [{ spdisplays_ndrvs: [{ _spdisplays_resolution: resolution }] }],
+        }),
+      );
+    expect(one("1920 x 1080 @ 59.94Hz")).toMatchObject({ width: 1920, refreshHz: 60 });
+    expect(one("1920 x 1080")).toEqual({
+      width: 1920,
+      height: 1080,
+      refreshHz: null,
+      scalePercent: null,
+    });
+  });
+
+  it("gives none when there is no display, its resolution can't be read, or it isn't JSON", () => {
+    expect(parseMacDisplays("not json")).toBeNull();
+    expect(parseMacDisplays("{}")).toBeNull();
+    expect(parseMacDisplays("null")).toBeNull();
+    expect(parseMacDisplays(JSON.stringify({ SPDisplaysDataType: [] }))).toBeNull();
+    expect(
+      parseMacDisplays(JSON.stringify({ SPDisplaysDataType: [{ spdisplays_ndrvs: [] }] })),
+    ).toBeNull();
+    expect(
+      parseMacDisplays(
+        JSON.stringify({
+          SPDisplaysDataType: [{ spdisplays_ndrvs: [{ _spdisplays_resolution: "Retina" }] }],
+        }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("macMachineProbe", () => {
+  type Overrides = Partial<
+    Record<
+      "productVersion" | "buildVersion" | "cores" | "hertz" | "displays",
+      Partial<CommandResult>
+    >
+  >;
+
+  /** An Apple silicon Mac mini: sysctl has no hw.cpufrequency_max there, and exits 1 for it. */
+  function macCommands(overrides: Overrides = {}) {
+    const answers = {
+      productVersion: { stdout: "26.6.2\n" },
+      buildVersion: { stdout: "25G83\n" },
+      cores: { stdout: "10\n" },
+      hertz: { code: 1, stderr: "sysctl: unknown oid 'hw.cpufrequency_max'\n" },
+      displays: { stdout: DISPLAYS_JSON },
+      ...overrides,
+    };
+    const runs = (command: string) => (file: string, args: string[]) =>
+      `${file} ${args.join(" ")}` === command;
+    return fakeCommands([
+      [runs("sw_vers -productVersion"), answers.productVersion],
+      [runs("sw_vers -buildVersion"), answers.buildVersion],
+      [runs("sysctl -n hw.physicalcpu"), answers.cores],
+      [runs("sysctl -n hw.cpufrequency_max"), answers.hertz],
+      [runs("system_profiler SPDisplaysDataType -json"), answers.displays],
+    ]);
+  }
+
+  it("reads this Mac's system, processor, display, and language", async () => {
+    const commands = macCommands();
+    const probe = macMachineProbe(commands.run);
+    expect(await probe.os()).toEqual({ name: "macOS 26.6.2", build: "25G83" });
+    expect(await probe.cpu()).toEqual({ baseMhz: null, physicalCores: 10 });
+    expect(await probe.display()).toEqual({
+      width: 3024,
+      height: 1964,
+      refreshHz: 120,
+      scalePercent: null,
+    });
+    // From Intl, as the fallback probe's is.
+    expect(await probe.language()).toBe(Intl.DateTimeFormat().resolvedOptions().locale);
+  });
+
+  it("asks for nothing that names the Mac, its model, or the account", async () => {
+    const commands = macCommands();
+    const probe = macMachineProbe(commands.run);
+    await Promise.all([probe.os(), probe.cpu(), probe.display(), probe.language()]);
+    expect(commands.calls.map((call) => `${call.file} ${call.args.join(" ")}`).sort()).toEqual([
+      "sw_vers -buildVersion",
+      "sw_vers -productVersion",
+      "sysctl -n hw.cpufrequency_max",
+      "sysctl -n hw.physicalcpu",
+      "system_profiler SPDisplaysDataType -json",
+    ]);
+    for (const call of commands.calls) expect(call.timeoutMs).toBe(SHORT_TIMEOUT_MS);
+  });
+
+  it("keeps the physical cores when hw.cpufrequency_max is missing, as on Apple silicon", async () => {
+    const probe = macMachineProbe(macCommands().run);
+    expect(await probe.cpu()).toEqual({ baseMhz: null, physicalCores: 10 });
+  });
+
+  it("gives an Intel Mac's base speed in megahertz, from the hertz sysctl reports", async () => {
+    const commands = macCommands({
+      cores: { stdout: "8\n" },
+      hertz: { stdout: "2400000000\n" },
+    });
+    expect(await macMachineProbe(commands.run).cpu()).toEqual({
+      baseMhz: 2400,
+      physicalCores: 8,
+    });
+  });
+
+  it("has no core count when sysctl gives none, and no version when sw_vers fails", async () => {
+    const commands = macCommands({
+      cores: { code: 1, stdout: "" },
+      productVersion: { code: 1, stdout: "" },
+      buildVersion: { code: 1, stdout: "" },
+    });
+    const probe = macMachineProbe(commands.run);
+    expect(await probe.cpu()).toEqual({ baseMhz: null, physicalCores: null });
+    expect(await probe.os()).toEqual({ name: "macOS", build: null });
+  });
+
+  it("has no display when system_profiler fails, or shows none", async () => {
+    const failed = macCommands({ displays: { code: 1, stdout: "" } });
+    expect(await macMachineProbe(failed.run).display()).toBeNull();
+    const none = macCommands({ displays: { stdout: "not json" } });
+    expect(await macMachineProbe(none.run).display()).toBeNull();
   });
 });
 

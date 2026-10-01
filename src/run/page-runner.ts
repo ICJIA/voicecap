@@ -1,5 +1,8 @@
+import os from "node:os";
+
 import type { PageInfo } from "../drivers/types.js";
 import type {
+  AttemptRecord,
   EnvironmentRecord,
   FailureKind,
   FileHash,
@@ -10,15 +13,22 @@ import type {
   SkippedRecord,
   TranscriptJson,
 } from "../model.js";
-import { runPass, type PassResult, type PassSettings } from "../passes/index.js";
+import {
+  failureOf,
+  runPass,
+  type PassFailure,
+  type PassResult,
+  type PassSettings,
+} from "../passes/index.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
 import { isHtmlContentType, sameOrigin } from "../pages/url.js";
 import { writeTranscript } from "../transcripts/write.js";
 import { errorMessage } from "../util/errors.js";
-import { isoLocal } from "../util/time.js";
+import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
+import { redactHome } from "./failure.js";
 import { pageDir } from "./paths.js";
 
 export interface PageContext {
@@ -37,15 +47,20 @@ export interface PageContext {
   environment: EnvironmentRecord;
   /** The run's abort signal (Ctrl+C). */
   signal: AbortSignal;
+  /** Writes the run's record (run.json) as it stands: a failed attempt is kept as it happens. */
+  save: () => Promise<void>;
   now: () => Date;
   clock?: () => number;
 }
 
+/**
+ * How a page's processing ended. What became of each attempt is in the page's record already:
+ * processPage counts them there (attempts) and keeps the failed ones (failedAttempts).
+ */
 export interface PageOutcome {
   status: "done" | "failed" | "skipped";
   /** For failed pages: an HTTP error ("page") or a timeout or driver error ("environment"). */
   failure?: FailureKind;
-  attempts: number;
   durationMs: number;
   passes: Partial<Record<PassName, PassSummary>>;
   results: Partial<Record<PassName, PassResult>>;
@@ -53,68 +68,130 @@ export interface PageOutcome {
   errors: string[];
   finalUrl?: string;
   httpStatus?: number | null;
+  /**
+   * The title the browser reported on the page's first load in its last attempt, null when it had
+   * none. Left out when that attempt never got the page to load.
+   */
+  title?: string | null;
   skip?: SkippedRecord;
 }
 
-interface Attempt {
-  kind: "done" | "failed" | "skipped" | "retry";
-  /** For failures and retries: whether the site or the environment failed. */
-  failure?: FailureKind;
-  /** For retries: whether the screen reader and browser need restarting first. */
-  restart?: boolean;
-  error?: string;
+/** A failed attempt's record before it has a number, and says whether the session restarted. */
+type FailedAttempt = Omit<AttemptRecord, "n" | "restarted">;
+
+/** What went wrong in a failed attempt, and where: its record without its times. */
+type Problem = Omit<FailedAttempt, "startedAt" | "endedAt">;
+
+/** What an attempt loaded and wrote, however it ended. */
+interface Loaded {
   passes: Partial<Record<PassName, PassSummary>>;
   results: Partial<Record<PassName, PassResult>>;
   files: Record<string, FileHash>;
   finalUrl?: string;
   httpStatus?: number | null;
-  skip?: SkippedRecord;
+  /** From the attempt's first load, like finalUrl and httpStatus. */
+  title?: string | null;
 }
+
+/** Why an attempt failed, and what the page's record keeps of it. */
+interface Failed {
+  /** Whether the site or the environment failed. */
+  failure: FailureKind;
+  error: string;
+  record: FailedAttempt;
+}
+
+/**
+ * How an attempt ended. One that failed always says why, in the record the page keeps of it:
+ * "failed" when trying again can't help (an HTTP 4xx), "retry" when it may.
+ */
+type Attempt = Loaded &
+  (
+    | { kind: "done" }
+    | { kind: "skipped"; skip: SkippedRecord }
+    | (Failed & { kind: "failed" })
+    | (Failed & {
+        kind: "retry";
+        /** Whether the screen reader and browser restart before the page is tried again. */
+        restart: boolean;
+      })
+  );
 
 /**
  * Transcribe one page: every pass, each on a fresh load. A page that fails is tried again, up to
  * ctx.maxAttempts times in all: after a timeout, a driver error (such as the browser losing the
  * foreground), or a page that couldn't be opened, the screen reader and browser restart first; an
  * HTTP 5xx is tried again as it is. A page the site answered with an HTTP 4xx isn't: trying again
- * can't help. Each earlier attempt is kept (keepEarlierAttempt), and the outcome's errors name
- * every attempt that failed. Ctrl+C propagates as InterruptedError and leaves the page pending.
+ * can't help. Each earlier attempt's files are kept (keepEarlierAttempt), and the outcome's errors
+ * name every attempt that failed.
+ *
+ * The page's record counts each attempt as it ends (attempts), whether it was done, failed, or
+ * skipped, across every session. Each attempt that fails is added to the record's failedAttempts,
+ * numbered as the page's attempt it was, with why it failed, and written to run.json at once,
+ * before any restart: so Ctrl+C, a closed window, a crash, or a restart that fails can't lose it.
+ * Whether the screen reader and browser were restarted for the next attempt is added once that
+ * restart has finished. Ctrl+C propagates as InterruptedError and leaves the page pending; the
+ * attempt it stopped isn't counted.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
   const started = clock();
   const errors: string[] = [];
+  const outcome = (
+    result: Attempt,
+    status: PageOutcome["status"],
+    failure?: FailureKind,
+  ): PageOutcome => ({
+    status,
+    ...(failure ? { failure } : {}),
+    durationMs: Math.round(clock() - started),
+    passes: result.passes,
+    results: result.results,
+    files: result.files,
+    errors,
+    ...(result.finalUrl !== undefined ? { finalUrl: result.finalUrl } : {}),
+    ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
+    ...(result.title !== undefined ? { title: result.title } : {}),
+    ...(result.kind === "skipped" ? { skip: result.skip } : {}),
+  });
   for (let attempt = 1; ; attempt++) {
     const result = await runAttempt(ctx);
-    if (result.kind === "retry" && attempt < ctx.maxAttempts) {
-      errors.push(`Attempt ${attempt} failed (${result.error ?? "unknown error"}); retrying.`);
-      if (result.restart) {
-        await ctx.session.restart(
-          `retrying ${ctx.page.url}: attempt ${attempt + 1} of ${ctx.maxAttempts}`,
-          ctx.signal,
-        );
-      }
-      continue;
+    // The attempt has ended, so it counts: one that Ctrl+C stopped threw instead.
+    ctx.page.attempts++;
+    if (result.kind === "done" || result.kind === "skipped") return outcome(result, result.kind);
+
+    const kept = await keepFailedAttempt(ctx, result.record);
+    if (result.kind === "failed" || attempt >= ctx.maxAttempts) {
+      errors.push(result.error);
+      return outcome(result, "failed", result.failure);
     }
-    if (result.error) errors.push(result.error);
-    return {
-      status: result.kind === "retry" ? "failed" : result.kind,
-      ...(result.kind === "retry" || result.kind === "failed"
-        ? { failure: result.failure ?? "environment" }
-        : {}),
-      attempts: attempt,
-      durationMs: Math.round(clock() - started),
-      passes: result.passes,
-      results: result.results,
-      files: result.files,
-      errors,
-      ...(result.finalUrl !== undefined ? { finalUrl: result.finalUrl } : {}),
-      ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
-      ...(result.skip ? { skip: result.skip } : {}),
-    };
+    errors.push(`Attempt ${attempt} failed (${result.error}); retrying.`);
+    if (result.restart) {
+      await ctx.session.restart(
+        `retrying ${ctx.page.url}: attempt ${attempt + 1} of ${ctx.maxAttempts}`,
+        ctx.signal,
+      );
+      // Only now that it has finished: a restart that throws leaves the attempt saying it had none.
+      kept.restarted = true;
+      await ctx.save();
+    }
   }
 }
 
+/**
+ * Keep a failed attempt in the page's record, numbered as the page's attempt it was: the page's
+ * attempts so far, counted across every session (0.5.0's included). The record is written at once.
+ * Until a restart for the next attempt has finished, the attempt says it had none.
+ */
+async function keepFailedAttempt(ctx: PageContext, failed: FailedAttempt): Promise<AttemptRecord> {
+  const record: AttemptRecord = { n: ctx.page.attempts, ...failed, restarted: false };
+  (ctx.page.failedAttempts ??= []).push(record);
+  await ctx.save();
+  return record;
+}
+
 async function runAttempt(ctx: PageContext): Promise<Attempt> {
+  const startedAt = isoLocalMs(ctx.now());
   const { page, session } = ctx;
   const dir = pageDir(ctx.outDir, ctx.run.id, page.slug);
   // A retry (or a resumed page) starts from an empty folder; any earlier attempt is moved into
@@ -124,10 +201,15 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const pageTimeout = new AbortController();
   const signal = AbortSignal.any([ctx.signal, pageTimeout.signal]);
   const timer = setTimeout(
-    () => pageTimeout.abort(new StepTimeoutError("The whole page", ctx.pageTimeoutMs)),
+    () =>
+      pageTimeout.abort(new StepTimeoutError("The whole page", ctx.pageTimeoutMs, "page-timeout")),
     ctx.pageTimeoutMs,
   );
-  const attempt: Attempt = { kind: "done", passes: {}, results: {}, files: {} };
+  const loaded: Loaded = { passes: {}, results: {}, files: {} };
+  // What an attempt that fails ends with: its record, which ends now.
+  const failedWith = (problem: Problem): { record: FailedAttempt } => ({
+    record: { startedAt, endedAt: isoLocalMs(ctx.now()), ...problem },
+  });
   try {
     for (const [index, pass] of ctx.passes.entries()) {
       let info: PageInfo;
@@ -137,47 +219,58 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
           () => session.driver.openPage(page.url),
           ctx.openTimeoutMs,
           signal,
+          "open-timeout",
         );
       } catch (error) {
         if (error instanceof InterruptedError) throw error;
         return {
-          ...attempt,
+          ...loaded,
           kind: "retry",
+          failure: "environment",
           restart: true,
           error: `Could not open the page for the ${pass} pass: ${errorMessage(error)}`,
+          ...failedWith(problemOf(pass, failureOf(error), "openPage")),
         };
       }
 
       const warnings: string[] = [];
       if (index === 0) {
-        attempt.finalUrl = info.finalUrl;
-        attempt.httpStatus = info.status;
+        loaded.finalUrl = info.finalUrl;
+        loaded.httpStatus = info.status;
+        loaded.title = info.title;
         const skip = skipFor(ctx, info);
-        if (skip) return { ...attempt, kind: "skipped", skip };
+        if (skip) return { ...loaded, kind: "skipped", skip };
         if (info.status !== null && info.status >= 500) {
           return {
-            ...attempt,
+            ...loaded,
             kind: "retry",
-            restart: false,
             failure: "page",
+            restart: false,
             error: `HTTP ${info.status}`,
+            ...failedWith(httpProblem(pass, info.status)),
           };
         }
         if (info.status !== null && info.status >= 400) {
-          return { ...attempt, kind: "failed", failure: "page", error: `HTTP ${info.status}` };
+          return {
+            ...loaded,
+            kind: "failed",
+            failure: "page",
+            error: `HTTP ${info.status}`,
+            ...failedWith(httpProblem(pass, info.status)),
+          };
         }
-      } else if (info.finalUrl !== attempt.finalUrl) {
+      } else if (info.finalUrl !== loaded.finalUrl) {
         warnings.push(
-          `This load ended at ${info.finalUrl}; the page's first load ended at ${attempt.finalUrl ?? "?"}.`,
+          `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
         );
       }
 
       const result = await runPass(pass, session.driver, ctx.passSettings(pass), signal, ctx.clock);
       result.warnings.unshift(...warnings);
       const written = await writeTranscript(dir, transcriptFor(ctx, pass, info, result));
-      Object.assign(attempt.files, written.files);
-      attempt.results[pass] = result;
-      attempt.passes[pass] = {
+      Object.assign(loaded.files, written.files);
+      loaded.results[pass] = result;
+      loaded.passes[pass] = {
         steps: result.steps.length,
         stopReason: result.stopReason,
         durationMs: result.durationMs,
@@ -185,27 +278,65 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         errors: result.errors,
         warnings: result.warnings,
       };
-      if (result.stopReason === "timeout") {
+      // A pass that stopped with "timeout" or "error" has said why, in its failure.
+      if (result.failure) {
         return {
-          ...attempt,
+          ...loaded,
           kind: "retry",
+          failure: "environment",
           restart: true,
-          error: `${pass} pass: ${result.errors[0] ?? "timeout"}`,
-        };
-      }
-      if (result.stopReason === "error") {
-        return {
-          ...attempt,
-          kind: "retry",
-          restart: true,
-          error: `${pass} pass: ${result.errors[0] ?? "error"}`,
+          error: `${pass} pass: ${result.errors[0] ?? result.stopReason}`,
+          ...failedWith(problemOf(pass, result.failure)),
         };
       }
     }
-    return attempt;
+    return { ...loaded, kind: "done" };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * What the record of a failed pass, or of a page that couldn't be opened for it (command
+ * "openPage"), says went wrong. An unexpected error's stack is kept with the home folder replaced,
+ * so the record doesn't name the account that ran voicecap. Its message is kept word for word: the
+ * report replaces the home folder where it shows one.
+ */
+function problemOf(
+  pass: PassName,
+  failure: PassFailure,
+  command: Problem["command"] = failure.command,
+): Problem {
+  const home = homeFolder();
+  return {
+    pass,
+    step: failure.step,
+    command,
+    cause: failure.cause,
+    message: failure.message,
+    ...(failure.stack !== undefined
+      ? {
+          stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),
+        }
+      : {}),
+  };
+}
+
+/**
+ * The home folder, or null where there's none: Node throws when neither HOME (USERPROFILE on
+ * Windows) nor the account's entry gives one, and a failed attempt mustn't be lost to that.
+ */
+function homeFolder(): string | null {
+  try {
+    return os.homedir();
+  } catch {
+    return null;
+  }
+}
+
+/** The site answered with an HTTP error, so no step of the pass was under way. */
+function httpProblem(pass: PassName, status: number): Problem {
+  return { pass, step: null, command: null, cause: "http", message: `HTTP ${status}` };
 }
 
 /** A page is skipped when its response isn't HTML or it redirected to another origin. */

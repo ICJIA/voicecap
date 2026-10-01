@@ -44,12 +44,54 @@ export type PageSource =
   /** --page, one or more times: resolved absolute URLs, fragment dropped, in the order given. */
   | { kind: "urls"; urls: string[] };
 
+/**
+ * The computer a session ran on, as the report's "Test environment" shows it. Never its maker,
+ * model, name, or account.
+ */
+export interface MachineRecord {
+  /** "Windows 11 Pro 25H2", build "10.0.26200.9550" (with the update revision), arch "x64". */
+  os: { name: string; build: string | null; arch: string };
+  cpu: {
+    /** The first processor's model name, or "unknown". */
+    name: string;
+    /** Its base speed, in megahertz; null when the system doesn't say (Apple silicon doesn't). */
+    baseMhz: number | null;
+    physicalCores: number | null;
+    logicalProcessors: number;
+  };
+  memoryBytes: number;
+  /**
+   * The main display: its size in pixels, its refresh rate in hertz, and the scaling the system
+   * applies (a percent of 96 dots per inch; Windows only). Null when it can't be read.
+   */
+  display: {
+    width: number;
+    height: number;
+    refreshHz: number | null;
+    scalePercent: number | null;
+  } | null;
+  /** The browser's fixed window size; null for a replay, which opens no browser. */
+  browserWindow: { width: number; height: number } | null;
+  /** IANA, e.g. "America/Chicago", and the offset when the session started, e.g. "-05:00". */
+  timeZone: string;
+  utcOffset: string;
+  /** The display language, e.g. "en-US". */
+  language: string | null;
+  /** The installed versions; Guidepup and Playwright are null when they can't be found. */
+  software: { node: string; voicecap: string; guidepup: string | null; playwright: string | null };
+}
+
 /** The environment record: stored per session in run.json and repeated in every transcript. */
 export interface EnvironmentRecord extends EnvironmentInfo {
   pageSource: PageSource;
   voicecap: { version: string; configSha256: string };
   runId: string;
   runStartedAt: string;
+  /**
+   * The computer this session ran on (for a replayed session, the one that replayed it). Absent in
+   * runs from before voicecap recorded it.
+   */
+  machine?: MachineRecord;
 }
 
 export interface PageRef {
@@ -168,15 +210,88 @@ export interface FlagResult {
  */
 export type FailureKind = "page" | "environment";
 
+/**
+ * Why one attempt at a page failed. Most of these are the code voicecap's own errors carry (see
+ * causeOf in src/run/failure.ts). "foreground": another window took the foreground from the
+ * browser. "locked": the computer was locked. "screen-reader-stopped": the screen reader didn't
+ * start or stopped running. "browser": the browser didn't start or isn't installed, changed during
+ * the run, or closed or crashed while voicecap was using it.
+ * "http": the site answered with an HTTP error (no error is raised for that). "unreachable": the
+ * website couldn't be reached, which is the website's fault or the network's. "open-timeout",
+ * "step-timeout", "page-timeout": the page didn't open in time, a step didn't finish in time, or
+ * the whole page took too long. "unexpected": any other error, which may be a fault in voicecap.
+ */
+export type FailureCause =
+  | "foreground"
+  | "locked"
+  | "screen-reader-stopped"
+  | "browser"
+  | "http"
+  | "unreachable"
+  | "open-timeout"
+  | "step-timeout"
+  | "page-timeout"
+  | "unexpected";
+
+/**
+ * One failed attempt at a page, kept in the page's record. It names no session: its times place it
+ * in one.
+ */
+export interface AttemptRecord {
+  /**
+   * The page's attempt number, 1-based and counted across every session of the run, as the page's
+   * `attempts` counts them: the attempt that ended as the page's k-th has n k. In a run begun with
+   * voicecap 0.5.0, the attempts it counted come first.
+   */
+  n: number;
+  /** Local ISO times, to the millisecond. */
+  startedAt: string;
+  endedAt: string;
+  /** The pass under way, or null when the attempt failed before its first pass began. */
+  pass: PassName | null;
+  /** The 1-based step that failed (its keystroke was discarded), or null outside a step. */
+  step: number | null;
+  /** The driver command that step sent ("nextLine", "openPage", …), or null. */
+  command: DriverCommand | "openPage" | null;
+  cause: FailureCause;
+  message: string;
+  /** For "unexpected" only: the stack, with the home folder replaced. */
+  stack?: string;
+  /**
+   * Whether the screen reader and browser were started again for the page's next attempt: true
+   * only once that restart had finished. False when it failed, when the next attempt went ahead
+   * without one (an HTTP 5xx), and for the last attempt voicecap made at the page in a session.
+   */
+  restarted: boolean;
+}
+
 export interface PageRecord extends PageRef {
   /** Line in the page list file, when the source is a file. */
   line?: number;
   status: PageStatus;
   /** Set when status is "failed". */
   failure?: FailureKind;
+  /**
+   * How many attempts at the page have ended, across every session: done, failed, or skipped. An
+   * attempt that Ctrl+C stopped midway isn't counted.
+   */
   attempts: number;
   finalUrl?: string;
   httpStatus?: number | null;
+  /**
+   * The title the browser reported on the page's first load in its last attempt: null when the
+   * page has none, or never loaded. Absent while the page is pending, and in runs from before
+   * voicecap recorded it.
+   */
+  title?: string | null;
+  /**
+   * Every failed attempt at the page, across every session, oldest first: those a later attempt
+   * made good, and the last of a page that failed. Each is added, and written to run.json, as it
+   * ends, before anything is restarted, and is never replaced or removed: a page that failed in one
+   * session and was read in the next keeps the first session's. A pending page keeps those it had
+   * before Ctrl+C. Absent when none failed, and in runs from before voicecap recorded them.
+   */
+  failedAttempts?: AttemptRecord[];
   /** Set when the page was skipped after loading (non-HTML response, redirect off-origin). */
   skip?: SkippedRecord;
   /** The session (1-based) that produced the current transcripts. */
@@ -197,6 +312,17 @@ export interface ReviewerRecord {
   source: "option" | "environment" | "git" | "config";
 }
 
+/** What a person says about listening to a session: all of it, part of it, or none of it. */
+export type ListenerAnswer = "all" | "part" | "no";
+
+/** Whether the person running voicecap listened: asked when the session ended, at a terminal. */
+export interface ListenerStatement {
+  answer: ListenerAnswer;
+  /** Local ISO times, to the millisecond. */
+  askedAt: string;
+  answeredAt: string;
+}
+
 export interface SessionRecord {
   /** 1-based. */
   n: number;
@@ -206,6 +332,19 @@ export interface SessionRecord {
    * config's reviewer. null when there was no name; absent in runs from before voicecap recorded it.
    */
   reviewer?: ReviewerRecord | null;
+  /**
+   * What the person running this session said when it ended, asked whether they listened as the
+   * screen reader read its pages: once it had stopped, however the session ended (completed,
+   * stopped, interrupted, or with an error). Absent when there's no answer to keep:
+   * - no terminal, or the output redirected from it (a script, CI, `> log.txt`);
+   * - a replayed run;
+   * - no pages read;
+   * - Ctrl+C at the question (for an interrupted session, a second Ctrl+C), or the input ending;
+   * - a closed window;
+   * - a question that failed;
+   * - runs from before voicecap 0.6.0.
+   */
+  listener?: ListenerStatement;
   endedAt: string | null;
   /** null when the session never ended cleanly (crash, power loss). */
   endReason: "completed" | "interrupted" | "environment-failure" | "error" | null;

@@ -11,7 +11,9 @@ import { main } from "../src/cli/main.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
+import type { RunAuditOptions } from "../src/run/audit.js";
 import { manualSessionDir, runDir } from "../src/run/paths.js";
+import type { OutputStream } from "../src/util/log.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 
@@ -25,6 +27,26 @@ function capture() {
     stream: { write: (chunk: string) => ((text += chunk), true) },
     text: () => text,
   };
+}
+
+/**
+ * A terminal's screen: a real stream, as readline's terminal mode needs, that says it's a terminal.
+ * `onWrite` sees each thing written to it, as it's written.
+ */
+function terminalScreen(onWrite: (chunk: string) => void = () => {}) {
+  let text = "";
+  const stream = Object.assign(
+    new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        const shown = chunk.toString();
+        text += shown;
+        onWrite(shown);
+        callback();
+      },
+    }),
+    { isTTY: true },
+  );
+  return { stream, text: () => text };
 }
 
 /** Extra CliContext fields only some tests need; every other call leaves these at their defaults. */
@@ -441,6 +463,94 @@ describe("a full session through the CLI", () => {
       await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
     ) as RunJson;
     expect(record.sessions[0]?.reviewer).toEqual({ name: "Jane Doe", source: "option" });
+  });
+
+  // A real session can't run here, so runAudit is replaced by one that asks the question, as it
+  // does when a session ends. This proves the command hands runAudit the question, and that the
+  // question is asked on the command's own terminal, and only when its output is that terminal.
+  it("hands runAudit the listener's question at a terminal, and none without one", async () => {
+    let answer: string | null | undefined;
+    vi.resetModules();
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: async (options: RunAuditOptions) => {
+        answer = await options.askListener?.({ screenReader: "NVDA", pagesRead: 3 });
+        return { exitCode: 0 };
+      },
+    }));
+    try {
+      const { main: mainWithQuestion } = await import("../src/cli/main.js");
+      const args = ["--site", SITE, "--pages", fixture("pages.json")];
+      const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+      /** The command, reading `stdin` and writing to `stdout`, as `init`'s own run does. */
+      const command = (stdin: NodeJS.ReadableStream, stdout: OutputStream) =>
+        mainWithQuestion(args, {
+          stdout,
+          stderr: capture().stream,
+          cwd,
+          env: {},
+          signal: new AbortController().signal,
+          interactive: false,
+          stdin,
+          platform: "linux",
+        });
+
+      // At a terminal: its input and its output. The answer is typed once the question shows.
+      const keyboard = Object.assign(new PassThrough(), { isTTY: true });
+      const screen = terminalScreen((shown) => {
+        if (shown.includes("Choose [3]: ")) setImmediate(() => keyboard.write("2\n"));
+      });
+      expect(await command(keyboard, screen.stream)).toBe(0);
+      expect(screen.text()).toContain("Did you listen as NVDA read these pages?");
+      expect(answer).toBe("part");
+      keyboard.end();
+
+      // Input from a script or CI: never asked.
+      answer = "not asked";
+      const piped = capture();
+      expect(await command(linesStream(["2"]), piped.stream)).toBe(0);
+      expect(piped.text()).not.toContain("Did you listen");
+      expect(answer).toBeUndefined();
+    } finally {
+      vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
+  });
+
+  // voicecap … > log.txt: the question would go into the file, and voicecap would wait for an
+  // answer to a question nobody can see.
+  it("doesn't hand runAudit the question when the output is redirected from the terminal", async () => {
+    let asked: boolean | undefined;
+    vi.resetModules();
+    vi.doMock("../src/run/audit.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      runAudit: (options: RunAuditOptions) => {
+        asked = options.askListener !== undefined;
+        return Promise.resolve({ exitCode: 0 });
+      },
+    }));
+    try {
+      const { main: mainWithQuestion } = await import("../src/cli/main.js");
+      const keyboard = Object.assign(new PassThrough(), { isTTY: true });
+      const file = capture();
+      const code = await mainWithQuestion(["--site", SITE, "--pages", fixture("pages.json")], {
+        stdout: file.stream,
+        stderr: capture().stream,
+        cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        stdin: keyboard,
+        platform: "linux",
+      });
+      keyboard.end();
+      expect(code).toBe(0);
+      expect(asked).toBe(false);
+      expect(file.text()).not.toContain("Did you listen");
+    } finally {
+      vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
   });
 
   it("runs with the replay driver, then records a review and a manual session", async () => {

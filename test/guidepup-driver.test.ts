@@ -261,6 +261,7 @@ describe("opening a page", () => {
     desktop.raiseWorks = false;
     const open = driver.openPage(URL_HOME);
     await expect(open).rejects.toBeInstanceOf(ForegroundError);
+    await expect(open).rejects.toMatchObject({ failure: "foreground" });
     await expect(open).rejects.not.toThrow(/Outlook/);
     expect(desktop.strayKeys).toEqual([]);
     // The window in front is named on the console only, not in the recorded error.
@@ -300,6 +301,7 @@ describe("opening a page", () => {
     desktop.browserVersion = "154.0.8100.10";
     const open = driver.openPage(URL_HOME);
     await expect(open).rejects.toThrow(EnvironmentError);
+    await expect(open).rejects.toMatchObject({ failure: "browser" });
     await expect(open).rejects.toThrow(/153\.0\.8010\.53.+154\.0\.8100\.10/);
     expect(desktop.sessions.at(-1)?.closed).toBe(true);
     expect(keysSent(desktop)).toEqual(["key:exitFocusMode", "key:toTop"]);
@@ -311,7 +313,9 @@ describe("opening a page", () => {
     await driver.openPage(URL_HOME);
     await driver.stop();
     desktop.browserVersion = "154.0.8100.10";
-    await expect(driver.start()).rejects.toThrow(EnvironmentError);
+    const start = driver.start();
+    await expect(start).rejects.toThrow(EnvironmentError);
+    await expect(start).rejects.toMatchObject({ failure: "browser" });
     expect(desktop.sessions.every((session) => session.closed)).toBe(true);
   });
 
@@ -343,7 +347,9 @@ describe("steps", () => {
     await driver.start();
     await driver.openPage(URL_HOME);
     desktop.front = "other";
-    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({ failure: "foreground" });
     expect(desktop.strayKeys).toEqual([]);
   });
 
@@ -355,7 +361,9 @@ describe("steps", () => {
       desktop.front = "other";
       return "Inbox - Outlook, window. 3 unread messages";
     };
-    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({ failure: "foreground" });
   });
 });
 
@@ -367,7 +375,10 @@ describe("NVDA dying during a run", () => {
     await driver.start();
     await driver.openPage(URL_HOME);
     nvda.crashed = true;
-    await expect(driver.nextLine()).rejects.toThrow(EnvironmentError);
+    const step = driver.nextLine();
+    await expect(step).rejects.toThrow(EnvironmentError);
+    await expect(step).rejects.toThrow(/NVDA/);
+    await expect(step).rejects.toMatchObject({ failure: "screen-reader-stopped" });
     await expect(driver.nextLine()).rejects.toThrow(/NVDA/);
   });
 
@@ -384,14 +395,18 @@ describe("NVDA dying during a run", () => {
     await driver.start();
     await driver.openPage(URL_HOME);
     nvda.crashed = true;
-    await expect(driver.nextFocusable()).rejects.toThrow(EnvironmentError);
+    const tab = driver.nextFocusable();
+    await expect(tab).rejects.toThrow(EnvironmentError);
+    await expect(tab).rejects.toMatchObject({ failure: "screen-reader-stopped" });
   });
 
   it("says NVDA stopped, not that another window is in front, when NVDA+T gets no answer", async () => {
     const { driver, nvda } = setup();
     await driver.start();
     nvda.crashed = true;
-    await expect(driver.openPage(URL_HOME)).rejects.toThrow(EnvironmentError);
+    const open = driver.openPage(URL_HOME);
+    await expect(open).rejects.toThrow(EnvironmentError);
+    await expect(open).rejects.toMatchObject({ failure: "screen-reader-stopped" });
   });
 });
 
@@ -431,6 +446,7 @@ describe("a locked computer", () => {
     const open = driver.openPage(URL_HOME);
     await expect(open).rejects.toThrow(EnvironmentError);
     await expect(open).rejects.toThrow(/Windows is locked/);
+    await expect(open).rejects.toMatchObject({ failure: "locked" });
   });
 
   it("fails a step with an EnvironmentError when Windows is locked during the run", async () => {
@@ -438,8 +454,12 @@ describe("a locked computer", () => {
     await driver.start();
     await driver.openPage(URL_HOME);
     desktop.locked = true;
-    await expect(driver.nextLine()).rejects.toThrow(/Windows is locked/);
-    await expect(driver.nextFocusable()).rejects.toThrow(/Windows is locked/);
+    const line = driver.nextLine();
+    await expect(line).rejects.toThrow(/Windows is locked/);
+    await expect(line).rejects.toMatchObject({ failure: "locked" });
+    const tab = driver.nextFocusable();
+    await expect(tab).rejects.toThrow(/Windows is locked/);
+    await expect(tab).rejects.toMatchObject({ failure: "locked" });
   });
 
   // Seen on real Windows: locking it takes the page's focus, so the step looks like another window
@@ -450,8 +470,12 @@ describe("a locked computer", () => {
     await driver.openPage(URL_HOME);
     desktop.locked = true;
     desktop.front = "other"; // the lock screen
-    await expect(driver.nextLine()).rejects.toThrow(/Windows is locked/);
-    await expect(driver.nextFocusable()).rejects.toThrow(/Windows is locked/);
+    const line = driver.nextLine();
+    await expect(line).rejects.toThrow(/Windows is locked/);
+    await expect(line).rejects.toMatchObject({ failure: "locked" });
+    const tab = driver.nextFocusable();
+    await expect(tab).rejects.toThrow(/Windows is locked/);
+    await expect(tab).rejects.toMatchObject({ failure: "locked" });
   });
 
   it("is checked for only when NVDA said nothing where it should have spoken", async () => {
@@ -475,7 +499,9 @@ describe("brief focus losses", () => {
       desktop.front = "browser";
       return "link, Data. MOVIES 01 - Shortcut. TV 01 - Shortcut";
     };
-    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({ failure: "foreground" });
   });
 
   it("doesn't mistake a page that reloads itself for another window coming forward", async () => {
@@ -501,7 +527,9 @@ describe("brief focus losses", () => {
       desktop.front = "browser";
       return "Contact, link. Desktop. View";
     };
-    await expect(driver.nextFocusable()).rejects.toBeInstanceOf(ForegroundError);
+    const tab = driver.nextFocusable();
+    await expect(tab).rejects.toBeInstanceOf(ForegroundError);
+    await expect(tab).rejects.toMatchObject({ failure: "foreground" });
   });
 });
 
@@ -557,7 +585,9 @@ describe("the tab pass", () => {
     desktop.beforeKey = () => {
       desktop.front = "other";
     };
-    await expect(driver.nextFocusable()).rejects.toBeInstanceOf(ForegroundError);
+    const tab = driver.nextFocusable();
+    await expect(tab).rejects.toBeInstanceOf(ForegroundError);
+    await expect(tab).rejects.toMatchObject({ failure: "foreground" });
   });
 
   it("passes on the focused element as the browser sees it", async () => {
@@ -988,7 +1018,9 @@ describe("turning the person's own NVDA back on", () => {
     const { driver, desktop, nvda } = setup();
     desktop.ownNvda = [OWN_NVDA];
     nvda.startFails = true;
-    await expect(driver.start()).rejects.toThrow(/NVDA didn't start/);
+    const start = driver.start();
+    await expect(start).rejects.toThrow(/NVDA didn't start/);
+    await expect(start).rejects.toMatchObject({ failure: "screen-reader-stopped" });
     expect(desktop.ownNvda).toEqual([]);
     await driver.stop();
     expect(desktop.restarts).toEqual([OWN_NVDA]);

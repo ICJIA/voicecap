@@ -6,11 +6,12 @@ import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
 import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
-import type { ScreenReaderDriver } from "../drivers/types.js";
+import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
   type EnvironmentRecord,
+  type ListenerAnswer,
   type PageRecord,
   type PassName,
   type ReviewerRecord,
@@ -28,15 +29,21 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
-import { EnvironmentError, ExitCode, UsageError } from "../util/errors.js";
+import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
-import { isoLocal } from "../util/time.js";
+import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
 import { withCurrentFlags } from "./flags.js";
 import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
+import {
+  collectMachineRecord,
+  machineProbeFor,
+  nodeMachineFacts,
+  type MachineProbe,
+} from "./machine-record.js";
 import { processPage, type PageOutcome } from "./page-runner.js";
 import { liveCompareDir, resolveHome, runCompareDir, runDir, siteDirFor } from "./paths.js";
 import { estimateRemaining, progressLine, type PassProgress } from "./progress.js";
@@ -104,8 +111,17 @@ export interface RunAuditOptions {
    * run, whether or not this is given.
    */
   readiness?: () => Promise<PlatformReadiness>;
-  /** Which platform's readiness check a real run uses. Default: process.platform. Tests only. */
+  /**
+   * Which platform's readiness check a real run uses, and which platform's probe reads the
+   * computer's details for each session's record. Default: process.platform. Tests only.
+   */
   platform?: NodeJS.Platform;
+  /**
+   * Replaces the probe that reads the computer's details for each session's record (tests). The
+   * default is the probe for `platform`, which asks the system: on Windows, a start of PowerShell
+   * that takes seconds.
+   */
+  machineProbe?: MachineProbe;
   /**
    * The quick checks' result, when the caller has just run them (voicecap demo's step 2): a real
    * run uses it instead of checking again. Not ready still stops the run, and ready still logs the
@@ -119,6 +135,23 @@ export interface RunAuditOptions {
    * leave it out.
    */
   again?: string;
+  /**
+   * Asks the person running the session whether they listened, when the session ends: once the
+   * screen reader has stopped and the session's end is written, and before a completed run is
+   * sealed, so its seal covers the answer. Asked only of a session that read pages, and never of a
+   * replayed run. A session that ends with an error is asked too, after a line that says why it
+   * stopped; the error is thrown once the answer is kept. Resolves null for no answer (Ctrl+C at
+   * the question, the input ended, or the window closed). The CLI gives it only to a person at a
+   * terminal whose output is the terminal too: a script, CI, or output redirected to a file is
+   * never asked. The session's record keeps the answer, with when it was asked and answered, and
+   * nothing when there's no answer.
+   */
+  askListener?: (question: {
+    /** The screen reader's name, as the session's environment gives it. */
+    screenReader: string;
+    /** How many pages the session went through. */
+    pagesRead: number;
+  }) => Promise<ListenerAnswer | null>;
 }
 
 export interface RunAuditResult {
@@ -324,10 +357,17 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     await writeRunJson(outDir, run);
   };
 
-  let outcome: RunAuditResult["outcome"];
+  let ending: Ending;
   try {
     for (const note of await ctx.driver.cleanupStale()) logger.info(`Cleaned up: ${note}`);
     throwIfAborted(ctx.signal);
+    // The computer's details are read while the screen reader and browser start: the probe takes
+    // seconds on Windows (a start of PowerShell), which would otherwise be time they spend running.
+    // It never rejects, so a start that fails leaves nothing unhandled.
+    const machine = collectMachineRecord(
+      ctx.options.machineProbe ?? machineProbeFor(ctx.options.platform ?? process.platform),
+      nodeMachineFacts(),
+    );
     await driverSession.start(ctx.signal);
     const info = await ctx.driver.getEnvironmentInfo();
     const environment: EnvironmentRecord = {
@@ -336,23 +376,32 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
       voicecap: { version: voicecapVersion(), configSha256: ctx.loaded.sha256 },
       runId: run.id,
       runStartedAt: run.createdAt,
+      machine: {
+        ...(await machine),
+        // A replay opens no browser, so it has no window to record.
+        browserWindow: info.replay === undefined ? { ...BROWSER_WINDOW } : null,
+      },
     };
     session.environment = environment;
     run.replayed ||= info.replay !== undefined;
     await writeRunJson(outDir, run);
 
-    outcome = await transcribePages(ctx, session, driverSession, environment);
+    ending = { outcome: await transcribePages(ctx, session, driverSession, environment) };
   } catch (error) {
-    if (error instanceof InterruptedError) {
-      outcome = "interrupted";
-    } else {
-      await driverSession.stop();
-      await end(error instanceof EnvironmentError ? "environment-failure" : "error");
-      throw error;
-    }
+    ending = error instanceof InterruptedError ? { outcome: "interrupted" } : { error };
   } finally {
     await driverSession.stop();
   }
+
+  // Every session's end is on disk before the question: a window closed at the question can end
+  // voicecap at once (a second signal does), and the record still says how the session ended. A
+  // completed session ended when the screen reader stopped, whenever the answer comes.
+  await end(endReasonOf(ending));
+  // Asked once the screen reader is stopped, and before complete() below seals the run, so the
+  // answer is part of what the seal covers.
+  await recordListener(ctx, session, ending);
+  if ("error" in ending) throw ending.error;
+  const { outcome } = ending;
 
   const failedPages = run.pages.filter((page) => page.status === "failed").length;
   const folders = { siteDir: outDir, runDir: runDir(outDir, run.id) };
@@ -360,21 +409,19 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   const again = ctx.options.again;
   const startAgain = again ? `run ${again} to start again` : null;
   if (outcome === "interrupted") {
-    await end("interrupted");
     logger.warn(
       `Interrupted. Progress is saved in ${run.id}; ${startAgain ?? "run the same command again to resume"}.`,
     );
     return { runId: run.id, ...folders, outcome, exitCode: ExitCode.interrupted, run, failedPages };
   }
   if (outcome === "stopped") {
-    await end("environment-failure");
     logger.error(
       `Stopped after ${config.maxConsecutiveFailures} failed pages in a row: the screen reader or browser seems to be unusable. Fix the problem, then ${startAgain ?? `run the same command again to resume ${run.id}`}.`,
     );
     return { runId: run.id, ...folders, outcome, exitCode: ExitCode.environment, run, failedPages };
   }
 
-  await complete(ctx, session);
+  await complete(ctx);
   if (failedPages > 0) {
     logger.warn(`${failedPages} page(s) failed; see the report for details.`);
   }
@@ -386,6 +433,55 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     run,
     failedPages,
   };
+}
+
+/** How a session ended: with an outcome of the run's, or with an error that's thrown on. */
+type Ending = { outcome: RunAuditResult["outcome"] } | { error: unknown };
+
+/** What the session's record says of how it ended. */
+function endReasonOf(ending: Ending): NonNullable<SessionRecord["endReason"]> {
+  if ("error" in ending) {
+    return ending.error instanceof EnvironmentError ? "environment-failure" : "error";
+  }
+  return ending.outcome === "stopped" ? "environment-failure" : ending.outcome;
+}
+
+/**
+ * Ask whether the person running the session listened, and put the answer in the session's record,
+ * written at once. Asked only when the caller can ask, the session read pages, and the run isn't a
+ * replay. A session that ended with an error is told why first, in one line, so the question
+ * doesn't come out of nowhere; the error's full explanation follows the question. With no answer
+ * the record has no statement. A question that fails is said, and the run goes on without a
+ * statement: a run's record is never lost over a question.
+ */
+async function recordListener(
+  ctx: ExecuteContext,
+  session: SessionRecord,
+  ending: Ending,
+): Promise<void> {
+  const { run, outDir, logger, now } = ctx;
+  const ask = ctx.options.askListener;
+  if (!ask || session.pagesDone === 0 || run.replayed) return;
+  if ("error" in ending) {
+    const reason = errorMessage(ending.error).split("\n")[0] ?? "";
+    logger.info(`The session ended with an error: ${reason}`);
+  }
+  const askedAt = isoLocalMs(now());
+  let answer: ListenerAnswer | null;
+  try {
+    answer = await ask({
+      screenReader: session.environment?.screenReader?.name ?? "the screen reader",
+      pagesRead: session.pagesDone,
+    });
+  } catch (error) {
+    logger.warn(
+      `Couldn't ask whether you listened (${errorMessage(error)}), so this session's record won't say.`,
+    );
+    return;
+  }
+  if (answer === null) return;
+  session.listener = { answer, askedAt, answeredAt: isoLocalMs(now()) };
+  await writeRunJson(outDir, run);
 }
 
 async function transcribePages(
@@ -433,6 +529,7 @@ async function transcribePages(
       maxAttempts: config.pageAttempts,
       environment,
       signal,
+      save: () => writeRunJson(outDir, run),
       now,
       ...(ctx.options.clock ? { clock: ctx.options.clock } : {}),
     });
@@ -480,7 +577,11 @@ async function transcribePages(
   return "completed";
 }
 
-async function complete(ctx: ExecuteContext, session: SessionRecord): Promise<void> {
+/**
+ * Complete the run: seal it, and write its reports. The session's end, and the listener's
+ * statement, are in its record already.
+ */
+async function complete(ctx: ExecuteContext): Promise<void> {
   const { outDir, config, logger, now } = ctx;
   let run = ctx.run;
   if (run.flagRulesSha256 === "") run = await withCurrentFlags(outDir, run, config.flags);
@@ -491,11 +592,6 @@ async function complete(ctx: ExecuteContext, session: SessionRecord): Promise<vo
   run.status = "completed";
   run.completedAt = isoLocal(now());
   run.compareTo = base?.id ?? null;
-  const sessionRecord = run.sessions.find((s) => s.n === session.n);
-  if (sessionRecord) {
-    sessionRecord.endedAt = run.completedAt;
-    sessionRecord.endReason = "completed";
-  }
   // Sealed last, once every other field is final: the seal covers every field, so none may change
   // after this. The sealed run.json itself is written below, after the snapshot.
   run.seal = sealOf(run);
@@ -523,6 +619,10 @@ async function complete(ctx: ExecuteContext, session: SessionRecord): Promise<vo
   logger.info(`Run ${run.id} complete. Report: ${live.file}`);
 }
 
+/**
+ * Put a page's processing in its record. Its attempts are there already: processPage counts each
+ * one, and keeps each failed one, as it ends.
+ */
 function applyOutcome(
   page: PageRecord,
   outcome: PageOutcome,
@@ -533,7 +633,6 @@ function applyOutcome(
   page.status = outcome.status;
   if (outcome.failure) page.failure = outcome.failure;
   else delete page.failure;
-  page.attempts += outcome.attempts;
   page.session = session;
   page.startedAt = startedAt;
   page.durationMs = outcome.durationMs;
@@ -543,6 +642,9 @@ function applyOutcome(
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;
   if (outcome.httpStatus !== undefined) page.httpStatus = outcome.httpStatus;
+  // A page that has been tried always gets a title, null when there is none to record. Absent means
+  // the page is pending, or the run is from before titles were recorded.
+  page.title = outcome.title ?? null;
   if (outcome.skip) page.skip = outcome.skip;
   else delete page.skip;
 }
