@@ -48,6 +48,12 @@ export type { EvidenceRow, RunEvidence } from "./run-evidence.js";
 /** A transcript file the appendix shows: what NVDA said in a pass, with the file's fingerprint. */
 export interface AppendixFile {
   pass: PassName;
+  /**
+   * The run and the page's slug its record files it under, which with `name` say which of the
+   * fingerprint check's files it is: the check compares the text shown with that file's.
+   */
+  run: string;
+  slug: string;
   /** "read.txt". */
   name: string;
   /** The lines NVDA spoke, word for word: the file without its header block. */
@@ -418,12 +424,14 @@ function appendixOf(standing: Standing, transcripts: TranscriptStore): ShareMode
       {
         slug: page.slug,
         name: pageName(page),
-        files: own.flatMap(({ pass, name, hash, text }): AppendixFile[] => {
+        files: own.flatMap(({ run, slug, pass, name, hash, text }): AppendixFile[] => {
           if (text === null) return [];
           const lines = extractBody(text);
           return [
             {
               pass,
+              run,
+              slug,
               name,
               text: lines.join("\n"),
               lines: lines.length,

@@ -15,7 +15,9 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import type { ReviewEntry, ReviewsFile, ReviewStatus } from "../src/model.js";
+import { esc } from "../src/report/html.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
+import { extractBody } from "../src/transcripts/format.js";
 import { canonicalJson, sealOf } from "../src/util/hash.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
@@ -29,11 +31,14 @@ interface Checked {
 
 type Digest = (bytes: Uint8Array) => string | Promise<string>;
 
+/** What the page shows of a file the data holds: its text, or null when the page doesn't show it. */
+type Shown = (file: CheckData["files"][number]) => string | null;
+
 interface Library {
   sha256Hex: (bytes: Uint8Array) => string;
   canonicalJson: (value: unknown) => string;
   sealOf: (record: object) => string;
-  checkAll: (data: CheckData, digest?: Digest) => Promise<Checked>;
+  checkAll: (data: CheckData, digest?: Digest, shown?: Shown) => Promise<Checked>;
 }
 
 // The library as a browser gets it, with nothing but TextEncoder from outside.
@@ -58,9 +63,16 @@ function plain<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-async function check(data: CheckData, digest: Digest = library.sha256Hex): Promise<Checked> {
-  return plain(await library.checkAll(data, digest));
+async function check(
+  data: CheckData,
+  digest: Digest = library.sha256Hex,
+  shown?: Shown,
+): Promise<Checked> {
+  return plain(await library.checkAll(data, digest, shown));
 }
+
+/** What the appendix shows of each file: its body, the file without its header, as the page has it. */
+const asShown: Shown = (file) => extractBody(file.text).join("\n");
 
 const TRANSCRIPTS = ["read.txt", "headings.txt", "tab.txt"] as const;
 
@@ -484,6 +496,114 @@ describe("checkAll", () => {
   });
 });
 
+describe("checkAll: the transcripts shown", () => {
+  /** What the appendix shows, with the text of the file `changed` names changed to `to`. */
+  const showing =
+    (changed: { slug: string; name: string }, to: (text: string) => string): Shown =>
+    (file) =>
+      file.slug === changed.slug && file.name === changed.name
+        ? to(asShown(file) ?? "")
+        : asShown(file);
+
+  it("finds each transcript shown matching its file, as the page is written", async () => {
+    const result = await check(demoData(), library.sha256Hex, asShown);
+
+    expect(result.files.every((file) => file.ok)).toBe(true);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("names a transcript whose text shown doesn't match its file", async () => {
+    const shown = showing({ slug: REPORT, name: "read.txt" }, (text) => `${text} (edited)`);
+
+    const result = await check(demoData(), library.sha256Hex, shown);
+
+    expect(result.files.filter((file) => !file.ok).map((file) => file.label)).toEqual([
+      "Run 1402 · /the-report/ · read.txt",
+    ]);
+    expect(result.line).toBe(
+      "Run 1402 · /the-report/ · read.txt: the text shown doesn't match its file. " +
+        "20 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("names a file that doesn't match its fingerprint once, whatever the page shows of it", async () => {
+    const data = demoData();
+    const target = data.files.find((file) => file.slug === REPORT && file.name === "tab.txt")!;
+    // The page shows the transcript as it was; its data was changed after.
+    const before = asShown({ ...target });
+    target.text = `${target.text}One more line.\n`;
+
+    const result = await check(data, library.sha256Hex, (file) =>
+      file === target ? before : asShown(file),
+    );
+
+    // The file is what changed, and that's what's said: the text shown is the file as it was.
+    expect(result.line).toBe(
+      "Run 1402 · /the-report/ · tab.txt doesn't match its fingerprint. " +
+        "20 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("compares the text shown with the file's body, whatever the line endings", async () => {
+    const shown = showing({ slug: REPORT, name: "read.txt" }, (text) =>
+      text.replaceAll("\n", "\r\n"),
+    );
+
+    const result = await check(demoData(), library.sha256Hex, shown);
+
+    expect(result.files.every((file) => file.ok)).toBe(true);
+  });
+
+  it("compares the body of a file whose own lines end in CRLF", async () => {
+    const data = demoData();
+    const target = data.files.find((file) => file.slug === ASK && file.name === "read.txt")!;
+    const crlf = target.text.replaceAll("\n", "\r\n");
+    target.text = crlf;
+    // The run records the file as it is, and is sealed again, so only the text shown is in question.
+    const run = data.runs.find((candidate) => candidate.id === target.run)!;
+    run.pages.find((page) => page.slug === target.slug)!.files["read.txt"] = {
+      sha256: nodeHex(new TextEncoder().encode(crlf)),
+      bytes: Buffer.byteLength(crlf),
+    };
+    run.seal = sealOf(run);
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("leaves a file the page doesn't show out of the comparison", async () => {
+    const result = await check(demoData(), library.sha256Hex, (file) =>
+      file.slug === REPORT ? null : asShown(file),
+    );
+
+    expect(result.files.every((file) => file.ok)).toBe(true);
+  });
+
+  it("matches a body with a null character in it, which a browser leaves out of what it shows", async () => {
+    const data = demoData();
+    const target = data.files[0]!;
+    const withNull = `${target.text}A line with a \u0000 in it.\n`;
+    target.text = withNull;
+    const run = data.runs.find((candidate) => candidate.id === target.run)!;
+    run.pages.find((page) => page.slug === target.slug)!.files[target.name] = {
+      sha256: nodeHex(new TextEncoder().encode(withNull)),
+      bytes: Buffer.byteLength(withNull),
+    };
+    run.seal = sealOf(run);
+
+    const result = await check(data, library.sha256Hex, (file) =>
+      (asShown(file) ?? "").replaceAll("\u0000", ""),
+    );
+
+    expect(result.files.every((file) => file.ok)).toBe(true);
+  });
+});
+
 describe("checkDataJson", () => {
   it("keeps </script> and <!-- in a transcript intact through the page's data", async () => {
     // Text that would end or hide the data block if it went in as it is, and the two line
@@ -542,7 +662,27 @@ describe("the check's script text", () => {
   });
 });
 
-/** A stand-in for the page's evidence section: the elements the check's wiring names, and its data. */
+/**
+ * Each transcript as the page's appendix shows it: a section that names its file, with the file's
+ * body in a `<pre>` (a browser drops the newline right after `<pre>`, so a blank first line needs
+ * one more), or no `<pre>` for a transcript with no lines.
+ */
+function appendixOf(data: CheckData): string {
+  return data.files
+    .map((file) => {
+      const body = extractBody(file.text).join("\n");
+      const lead = body.startsWith("\n") ? "\n" : "";
+      const shown =
+        body === "" ? "<p>This transcript has no lines.</p>" : `<pre>${lead}${esc(body)}</pre>`;
+      return `<section class="tx" data-run="${esc(file.run)}" data-slug="${esc(file.slug)}" data-file="${esc(file.name)}">${shown}</section>`;
+    })
+    .join("\n");
+}
+
+/**
+ * A stand-in for the page's evidence section and its appendix: the elements the check's wiring
+ * names, its data, and each transcript as the appendix shows it.
+ */
 function checkPage(data: CheckData): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Check</title></head><body>
@@ -553,6 +693,7 @@ function checkPage(data: CheckData): string {
 <details id="fp-list" hidden><summary>Every file checked <span id="fp-count"></span></summary>
 <table><thead><tr><th scope="col">File</th><th scope="col">Recorded fingerprint</th><th scope="col">Result</th></tr></thead><tbody id="fp-rows"></tbody></table></details>
 <script type="application/json" id="fp-data">${checkDataJson(data)}</script>
+${appendixOf(data)}
 <script>${CHECK_SCRIPT}</script>
 </body></html>
 `;
@@ -708,6 +849,25 @@ describe("the check in a browser", () => {
           "20 of 21 transcripts match their fingerprints, and both runs' seals check out.",
       );
     expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+  });
+
+  it("names a transcript whose text the page shows was changed", async () => {
+    const page = await open();
+    await page.evaluate(() => {
+      const shown = document.querySelectorAll("section.tx pre")[3]!;
+      shown.textContent = `${shown.textContent ?? ""} (edited)`;
+    });
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Checked just now, in this browser. " +
+          "Run 1402 · /before-you-start/ · read.txt: the text shown doesn't match its file. " +
+          "20 of 21 transcripts match their fingerprints, and both runs' seals check out.",
+      );
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+    expect(await page.locator("#fp-count").textContent()).toBe("23 checked, 1 not matching");
   });
 
   it("lists the review entries as one row when their seals and chain check out", async () => {

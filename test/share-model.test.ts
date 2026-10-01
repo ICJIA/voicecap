@@ -888,6 +888,9 @@ describe("buildShareModel", () => {
         const lines = extractBody(demoFile("1402", HOME, name));
         return {
           pass: ["read", "headings", "tab"][index],
+          // Which of the check's files it is.
+          run: "2026-09-29_1402",
+          slug: HOME,
           name,
           text: lines.join("\n"),
           lines: lines.length,

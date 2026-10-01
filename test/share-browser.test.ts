@@ -709,6 +709,31 @@ describe("the fingerprint check, on the page's own data", () => {
     ]);
   });
 
+  it("names a transcript whose text the appendix shows was changed", async () => {
+    const page = await open(pages.demo);
+    // Someone changes what the page shows of the home page's read transcript, and nothing else: the
+    // data and the records still match.
+    await page.evaluate(() => {
+      const shown = document.querySelector("#tx-home pre");
+      if (shown === null) throw new Error("The appendix shows no transcript of the home page.");
+      shown.textContent = `${shown.textContent ?? ""}\nA line no one heard.`;
+    });
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toBe(
+        "Checked just now, in this browser. " +
+          "Run 1402 · / · read.txt: the text shown doesn't match its file. " +
+          "20 of 21 transcripts match their fingerprints, and both runs' seals check out.",
+      );
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+    const rows = await page.locator("#fp-rows tr").allTextContents();
+    expect(rows.filter((row) => row.includes("doesn’t match"))).toEqual([
+      expect.stringContaining("Run 1402 · / · read.txt"),
+    ]);
+  });
+
   it("checks the older run's record for a page shown from it", async () => {
     const page = await open(pages.demo);
     // Run 1402 failed /how-a-run-works/, so the page shows run 1315's transcripts of it, and

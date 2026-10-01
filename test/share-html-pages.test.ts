@@ -900,11 +900,16 @@ describe("renderAppendix", () => {
     const model = await demoModel();
     const [fold = ""] = foldsIn(renderAppendix(model));
     const [entry] = model.appendix;
-    const sections = fold.split('<section class="tx">').slice(1);
+    const sections = fold.split('<section class="tx"').slice(1);
 
     expect(sections).toHaveLength(3);
     for (const [index, file] of (entry?.files ?? []).entries()) {
       const title = ["Read", "Headings", "Tab"][index];
+      // Each names its file, for the fingerprint check to compare the text shown with it.
+      expect([file.run, file.slug]).toEqual(["2026-09-29_1402", "home"]);
+      expect(sections[index]).toMatch(
+        new RegExp(`^ data-run="${file.run}" data-slug="${file.slug}" data-file="${file.name}">`),
+      );
       const lines = file.lines === 1 ? "1 line" : `${file.lines} lines`;
       const bytes = file.bytes.toLocaleString("en-US");
       expect(sections[index]).toContain(
@@ -923,7 +928,7 @@ describe("renderAppendix", () => {
       "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe",
     );
     // The picture's place comes first, then the transcripts.
-    expect(fold.indexOf('class="tx-grid"')).toBeLessThan(fold.indexOf('<section class="tx">'));
+    expect(fold.indexOf('class="tx-grid"')).toBeLessThan(fold.indexOf('<section class="tx"'));
     // One h3 for each pass, and no h2 or h1 in a fold.
     expect(fold.match(/<h[1-6]>/g)).toEqual(["<h3>", "<h3>", "<h3>"]);
   });
@@ -1031,7 +1036,7 @@ describe("renderAppendix", () => {
       transcripts: storeOf(() => ({ read: LINES.read, headings: LINES.headings })),
     });
     const html = renderAppendix(model);
-    const sections = html.split('<section class="tx">').slice(1);
+    const sections = html.split('<section class="tx"').slice(1);
 
     expect(model.appendix[0]?.unreadable).toEqual(["tab"]);
     expect(sections).toHaveLength(3);
@@ -1059,7 +1064,7 @@ describe("renderAppendix", () => {
     const model = modelOf([done("/a")], {
       transcripts: storeOf(() => ({ read: LINES.read, headings: [], tab: LINES.tab })),
     });
-    const sections = renderAppendix(model).split('<section class="tx">').slice(1);
+    const sections = renderAppendix(model).split('<section class="tx"').slice(1);
 
     expect(sections[1]).toContain('<h3>Headings <span class="sub">0 lines · 1 byte</span></h3>');
     expect(sections[1]).toContain('<p class="sub">This transcript has no lines.</p>');
@@ -1075,7 +1080,7 @@ describe("renderAppendix", () => {
         tab: LINES.tab,
       })),
     });
-    const [first = ""] = renderAppendix(model).split('<section class="tx">').slice(1);
+    const [first = ""] = renderAppendix(model).split('<section class="tx"').slice(1);
 
     expect(first).toContain('<h3>Read <span class="sub">1 line · 1 byte</span></h3>');
   });
@@ -1089,7 +1094,9 @@ describe("renderAppendix", () => {
     expect(bare).toContain('<p class="fp">From run <code>2026-09-29_1315</code>');
     expect(renderAppendix(model).match(/class="fp">From run/g)).toHaveLength(7);
     // Nothing stands in for the line: the first page's transcripts start its column.
-    expect(foldsIn(bare)[0]).toContain('<div><section class="tx"><h3>Read');
+    expect(foldsIn(bare)[0]).toContain(
+      '<div><section class="tx" data-run="2026-09-29_1402" data-slug="home" data-file="read.txt"><h3>Read',
+    );
   });
 
   it("shows the page's screenshot, or says it wasn't recorded", async () => {
@@ -1322,6 +1329,8 @@ describe("the three sections together", () => {
           files: [
             {
               pass: "read",
+              run: marked("fileRun"),
+              slug: marked("fileSlug"),
               name: "read.txt",
               text: marked("words"),
               lines: 1,
@@ -1337,6 +1346,8 @@ describe("the three sections together", () => {
           files: [
             {
               pass: "headings",
+              run: marked("fileRun2"),
+              slug: marked("fileSlug2"),
               name: "headings.txt",
               text: marked("words2"),
               lines: 1,
@@ -1361,6 +1372,7 @@ describe("the three sections together", () => {
       ...["run", "date", "untitled", "shot", "flag", "flag2", "rule", "text", "said", "rule2"],
       ...["text2", "rule3", "text3", "said3", "gone", "url", "lastRun", "lastStatus", "entry"],
       ...["words", "sha", "entry2", "words2", "sha2", "latest"],
+      ...["fileRun", "fileSlug", "fileRun2", "fileSlug2"],
     ];
 
     // None of it is markup, and every word of it is shown, escaped, somewhere.

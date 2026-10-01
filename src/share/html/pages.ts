@@ -323,7 +323,9 @@ export function renderFlags(model: ShareModel): string {
 /**
  * A transcript: its pass, how long it is, its fingerprint, and what NVDA said, word for word, in a
  * box to scroll. A transcript with no lines says so rather than show an empty box. A browser drops
- * the newline right after `<pre>`, so a first line that's blank needs one more.
+ * the newline right after `<pre>`, so a first line that's blank needs one more. Its section names
+ * its file (`data-run`, `data-slug`, `data-file`), so the fingerprint check can compare the text
+ * shown with the file the page carries.
  */
 function transcriptOf(file: AppendixFile, path: string): string {
   const title = PASS_TITLE[file.pass];
@@ -333,7 +335,8 @@ function transcriptOf(file: AppendixFile, path: string): string {
       ? '<p class="sub">This transcript has no lines.</p>'
       : scroll(`${title} transcript, ${path}`, `<pre>${lead}${esc(file.text)}</pre>`);
   const size = `${plural(file.lines, "line")} · ${plural(file.bytes, "byte")}`;
-  return `<section class="tx"><h3>${title} <span class="sub">${size}</span></h3>\n<p class="fp">SHA-256 <code>${esc(file.sha256)}</code></p>\n${words}</section>`;
+  const names = `data-run="${esc(file.run)}" data-slug="${esc(file.slug)}" data-file="${esc(file.name)}"`;
+  return `<section class="tx" ${names}><h3>${title} <span class="sub">${size}</span></h3>\n<p class="fp">SHA-256 <code>${esc(file.sha256)}</code></p>\n${words}</section>`;
 }
 
 /** A transcript the run recorded but that couldn't be read here: said in words, in its place. */

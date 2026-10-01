@@ -5,7 +5,9 @@
  * The page carries the data (`checkDataJson`) and a small script (`CHECK_SCRIPT`). The script
  * recomputes what voicecap recorded: each transcript file's SHA-256, each run record's seal (the
  * record without its `seal`, as JSON with its keys sorted, hashed), and each review entry's seal
- * and the review chain, by the rules `verify` uses (see `chainProblems` in src/verify.ts). It uses
+ * and the review chain, by the rules `verify` uses (see `chainProblems` in src/verify.ts). It also
+ * compares each transcript the page shows (in its appendix) with the body of the file the page
+ * carries for it, so the transcripts shown are exactly the ones the sealed records list. It uses
  * the browser's own SHA-256 (Web Crypto) where there is one, and a small one of its own where
  * there isn't (a page opened from an address that isn't secure).
  *
@@ -41,11 +43,12 @@ export function checkDataJson(data: CheckData): string {
 /**
  * The check's library, as plain browser JavaScript (ES2020, no imports, nothing but TextEncoder
  * from outside): `sha256Hex(bytes)` (FIPS 180-4, over a Uint8Array), `canonicalJson(value)` and
- * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest)`.
+ * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest, shown)`.
  *
  * `checkAll` resolves to `{ files, runs, reviewProblems, line }`:
- * - `files` has each transcript's label ("Run 1402 · /about/ · read.txt") and whether the SHA-256
- *   of its text is the one its run records for it;
+ * - `files` has each transcript's label ("Run 1402 · /about/ · read.txt") and whether it matches:
+ *   the SHA-256 of its text is the one its run records for it, and the text the page shows for it
+ *   is its body;
  * - `runs` has each run's id and whether its record still matches its seal;
  * - `reviewProblems` lists, in words, each review entry that doesn't match its seal and each break
  *   in the chain (seq running from 1 with no gaps or repeats, entry 1's prev null, each prev the
@@ -56,6 +59,13 @@ export function checkDataJson(data: CheckData): string {
  *
  * `digest(bytes)` gives the SHA-256 of a Uint8Array as hex, now or as a promise: Web Crypto's where
  * the browser has it, else `sha256Hex`, which is also the default.
+ *
+ * `shown(file)` gives the text the page shows for one of the data's files (its appendix shows each
+ * file's body: the file without its header block), "" for one it shows as having no lines, and
+ * null for one it doesn't show. The text shown matches when it's the file's body, with line
+ * endings read as one, and the null characters a browser leaves out of a page's text left out of
+ * both. It's compared only for a file that matches its fingerprint (one that doesn't is named for
+ * that), and without `shown`, never.
  */
 export const CHECK_LIBRARY = String.raw`
 function sha256Hex(bytes) {
@@ -144,6 +154,24 @@ function sealedBytes(record) {
 
 function sealOf(record) {
   return sha256Hex(sealedBytes(record));
+}
+
+// A transcript's step lines, as voicecap's extractBody gives them: the text after its header
+// block's blank line, with every line ending read as one.
+function bodyOf(text) {
+  var lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+  if (lines[lines.length - 1] === "") lines.pop();
+  var blank = lines.indexOf("");
+  return (blank === -1 ? lines : lines.slice(blank + 1)).join("\n");
+}
+
+// Whether the text a page shows is a transcript's body. A browser reads every line ending as one,
+// and leaves null characters out of a page's text, so neither counts.
+function showsBody(shown, text) {
+  function plain(value) {
+    return String(value).replace(/\r\n?/g, "\n").replace(/\u0000/g, "");
+  }
+  return plain(shown) === plain(bodyOf(text));
 }
 
 function pathOf(url) {
@@ -252,24 +280,28 @@ function sealsPhrase(total, ok) {
   return ok + " of " + total + " runs' seals check out";
 }
 
-async function checkAll(data, digest) {
+async function checkAll(data, digest, shown) {
   digest = digest || sha256Hex;
   var runs = data.runs || [];
   var files = [];
+  var sentences = [];
   for (var file of data.files || []) {
+    var label = fileLabel(runs, file);
     var recorded = fileRecord(runs, file);
     var matches = !!recorded && (await digest(utf8(file.text))) === recorded.sha256;
-    files.push({ label: fileLabel(runs, file), ok: matches });
+    // A file that doesn't match its fingerprint is named for that, once: what the page shows of it
+    // is only compared with a file that does.
+    var text = matches && shown ? shown(file) : null;
+    var asShown = text === null || text === undefined || showsBody(text, file.text);
+    files.push({ label: label, ok: matches && asShown });
+    if (!matches) sentences.push(label + " doesn't match its fingerprint.");
+    if (!asShown) sentences.push(label + ": the text shown doesn't match its file.");
   }
   var seals = [];
   for (var run of runs) {
     seals.push({ id: run.id, ok: (await digest(sealedBytes(run))) === run.seal });
   }
   var reviews = await checkReviews(data.reviews, digest);
-  var sentences = [];
-  files.forEach(function (file) {
-    if (!file.ok) sentences.push(file.label + " doesn't match its fingerprint.");
-  });
   seals.forEach(function (seal) {
     if (!seal.ok) sentences.push(runLabel(runs, seal.id) + "'s record doesn't match its seal.");
   });
@@ -303,9 +335,11 @@ async function checkAll(data, digest) {
  * `hidden`, and the `.fp-noscript` line says how to check without scripts; the script un-hides the
  * buttons and hides that line.
  *
- * A click reads `#fp-data` afresh, so the check always sees what the page holds now. "Show a
- * change being caught" runs the same check on a copy with the first character of the first file
- * changed, in memory only: the page's own data is never changed.
+ * A click reads `#fp-data` afresh, and the transcripts the page shows, so the check always sees
+ * what the page holds now. Each transcript the appendix shows is a `section.tx` that names its file
+ * (`data-run`, `data-slug`, and `data-file`), with its text in a `<pre>`, or none for a transcript
+ * with no lines. "Show a change being caught" runs the same check on a copy with the first character
+ * of the first file changed, in memory only: the page's own data is never changed.
  *
  * A page without that markup is left alone. Each script starts and ends on a new line, so it can
  * follow another in the page's one `<script>`, even one that ends without its semicolon.
@@ -357,6 +391,24 @@ export const CHECK_SCRIPT =
     rows.appendChild(row);
   }
 
+  // The text the page shows for a file: its section's <pre>, "" for a section with none (a
+  // transcript with no lines), and null when no section names the file.
+  function shownText(file) {
+    var sections = document.querySelectorAll("section.tx[data-file]");
+    for (var i = 0; i < sections.length; i++) {
+      var section = sections[i];
+      var named =
+        section.getAttribute("data-run") === file.run &&
+        section.getAttribute("data-slug") === file.slug &&
+        section.getAttribute("data-file") === file.name;
+      if (named) {
+        var pre = section.querySelector("pre");
+        return pre ? pre.textContent : "";
+      }
+    }
+    return null;
+  }
+
   function withFirstCharacterChanged(data) {
     var copy = JSON.parse(JSON.stringify(data));
     var file = copy.files[0];
@@ -382,7 +434,7 @@ export const CHECK_SCRIPT =
           "”); the page itself is unchanged. ";
       }
       var runs = data.runs || [];
-      var checked = await checkAll(data, digest);
+      var checked = await checkAll(data, digest, shownText);
       var table = [];
       checked.files.forEach(function (file, index) {
         var recorded = fileRecord(runs, data.files[index]);
