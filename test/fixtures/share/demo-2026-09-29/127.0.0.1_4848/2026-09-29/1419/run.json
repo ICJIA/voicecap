@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-09-29_1419",
+  "name": null,
+  "status": "incomplete",
+  "createdAt": "2026-09-29T14:19:35-05:00",
+  "completedAt": null,
+  "site": "http://127.0.0.1:4848",
+  "settings": {
+    "site": "http://127.0.0.1:4848",
+    "source": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "passes": [
+      "read",
+      "headings",
+      "tab"
+    ],
+    "include": [],
+    "exclude": [],
+    "limit": null,
+    "driver": "guidepup",
+    "replayFrom": null,
+    "capture": "complete",
+    "stepCaps": {
+      "read": 400,
+      "headings": 200,
+      "tab": 300
+    },
+    "nvdaSettings": {},
+    "browser": {
+      "channel": "chrome",
+      "fallbackToChromium": true
+    }
+  },
+  "settingsHash": "2c7befd0a3c78fd01db8af242fa8601724e713f8b3d6d4fa4da140903d2cf008",
+  "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2",
+  "flagRulesSha256": "d7c89563e02717f67c43b76fb918e1b9c8e681e1c3841d210eb7ca18c2ce96c1",
+  "replayed": false,
+  "source": {
+    "kind": "sitemap",
+    "listed": 7,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": [],
+    "sitemaps": [
+      {
+        "url": "http://127.0.0.1:4848/sitemap.xml",
+        "urls": 7,
+        "sha256": "1eec317b01d1ccc487845b3f8cb316a1be2c4b612508da25f04ecbd78ae79481"
+      }
+    ]
+  },
+  "compareTo": null,
+  "sessions": [
+    {
+      "n": 1,
+      "startedAt": "2026-09-29T14:19:35-05:00",
+      "endedAt": "2026-09-29T14:20:45-05:00",
+      "endReason": "interrupted",
+      "pagesDone": 2,
+      "environment": {
+        "driver": {
+          "name": "guidepup",
+          "version": "0.34.0"
+        },
+        "screenReader": {
+          "name": "NVDA",
+          "version": "2026.2",
+          "build": "0.2.1-2026.2",
+          "language": "en-US"
+        },
+        "capture": "complete",
+        "browser": {
+          "name": "Chrome",
+          "version": "154.0.8037.58"
+        },
+        "os": "Windows 11 Pro 25H2 (10.0.26200)",
+        "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+          "speech": {
+            "synth": "oneCore",
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
+          },
+          "documentFormatting": {},
+          "virtualBuffers": {
+            "autoSayAllOnPageLoad": false
+          },
+          "keyboard": {},
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "OFF",
+            "preventDisplayTurningOff": true
+          }
+        },
+        "pageSource": {
+          "kind": "sitemap",
+          "url": "http://127.0.0.1:4848/sitemap.xml"
+        },
+        "voicecap": {
+          "version": "0.4.1",
+          "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+        },
+        "runId": "2026-09-29_1419",
+        "runStartedAt": "2026-09-29T14:19:35-05:00"
+      }
+    }
+  ],
+  "skipped": [],
+  "pages": [
+    {
+      "url": "http://127.0.0.1:4848/",
+      "key": "http://127.0.0.1:4848/",
+      "slug": "home",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 23003,
+          "contentSha256": "34dbb01b86a3846fe34b2dab931ae6dffe274e9769c6c2ce6764eb0942840a33",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3846,
+          "contentSha256": "f25737d875a0fb8adce76dcb4b58aaeceaff394e31aa8331ea802038ce4959f5",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 9,
+          "stopReason": "left-document",
+          "durationMs": 13255,
+          "contentSha256": "9e5dfa88178dbb57b22030ca9d40e0258a85fa4e356703c7504e68a27f9cc89f",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "bf8d27311fd201317fdf89c7b62b64dbe89c07c5981f17045a8857c565b05982",
+          "bytes": 2306
+        },
+        "read.json": {
+          "sha256": "00ed8758f52b3e13790b1cd96a1e6a5e0308575e0aab7460aaf34cd62a1689f7",
+          "bytes": 5241
+        },
+        "headings.txt": {
+          "sha256": "14bf35012c869af761424029bb0907fd014aeb4e30df840ad1d14179f2bb74e1",
+          "bytes": 1419
+        },
+        "headings.json": {
+          "sha256": "c8f279d50c8f6a44ab78e28676ac0f725061a5c0af92b4b001c83a738add62bb",
+          "bytes": 2507
+        },
+        "tab.txt": {
+          "sha256": "f31a07634065b905d03b7dec3a427fa6ce2f51501e2c9ab5d27e8a431702b19a",
+          "bytes": 1673
+        },
+        "tab.json": {
+          "sha256": "ad6acdc7d950a605cafbd23289988a935e8e43d48975ad88fba28d57b4d60406",
+          "bytes": 5171
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:19:44-05:00",
+      "durationMs": 55015,
+      "finalUrl": "http://127.0.0.1:4848/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/before-you-start/",
+      "key": "http://127.0.0.1:4848/before-you-start",
+      "slug": "before-you-start-345e0f5b6a",
+      "status": "failed",
+      "attempts": 1,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": [
+        "Could not open the page for the read pass: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs."
+      ],
+      "failure": "environment",
+      "session": 1,
+      "startedAt": "2026-09-29T14:20:39-05:00",
+      "durationMs": 4708
+    },
+    {
+      "url": "http://127.0.0.1:4848/how-a-run-works/",
+      "key": "http://127.0.0.1:4848/how-a-run-works",
+      "slug": "how-a-run-works-fd116f9328",
+      "status": "pending",
+      "attempts": 0,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": []
+    },
+    {
+      "url": "http://127.0.0.1:4848/reading-transcripts/",
+      "key": "http://127.0.0.1:4848/reading-transcripts",
+      "slug": "reading-transcripts-1bc29b7494",
+      "status": "pending",
+      "attempts": 0,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": []
+    },
+    {
+      "url": "http://127.0.0.1:4848/the-report/",
+      "key": "http://127.0.0.1:4848/the-report",
+      "slug": "the-report-03940c2f88",
+      "status": "pending",
+      "attempts": 0,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": []
+    },
+    {
+      "url": "http://127.0.0.1:4848/ask-a-question/",
+      "key": "http://127.0.0.1:4848/ask-a-question",
+      "slug": "ask-a-question-dec13fb322",
+      "status": "pending",
+      "attempts": 0,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": []
+    },
+    {
+      "url": "http://127.0.0.1:4848/common-mistakes/",
+      "key": "http://127.0.0.1:4848/common-mistakes",
+      "slug": "common-mistakes-db8c98dbfa",
+      "status": "pending",
+      "attempts": 0,
+      "passes": {},
+      "files": {},
+      "flags": [],
+      "errors": []
+    }
+  ]
+}

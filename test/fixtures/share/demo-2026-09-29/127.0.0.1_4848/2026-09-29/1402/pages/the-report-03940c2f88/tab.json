@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1402",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4848/the-report/",
+    "key": "http://127.0.0.1:4848/the-report",
+    "slug": "the-report-03940c2f88",
+    "finalUrl": "http://127.0.0.1:4848/the-report/"
+  },
+  "capturedAt": "2026-09-29T14:07:13-05:00",
+  "durationMs": 6684,
+  "stepCount": 4,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.58"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+    },
+    "runId": "2026-09-29_1402",
+    "runStartedAt": "2026-09-29T14:02:51-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1311,
+      "offsetMs": 1313,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Tour, navigation landmark, list, with 2 items, Previous: Reading transcripts, link",
+      "durationMs": 1327,
+      "offsetMs": 2639,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Previous: Reading transcripts",
+        "inMain": false,
+        "href": "/reading-transcripts/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Next: Ask a question, link",
+      "durationMs": 1310,
+      "offsetMs": 3949,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Next: Ask a question",
+        "inMain": false,
+        "href": "/ask-a-question/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "The report voicecap demo - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2735,
+      "offsetMs": 6684,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

@@ -8,15 +8,19 @@ const GITATTRIBUTES = `# Written by voicecap. Git must not change line endings i
 `;
 
 /**
- * Keeps out of Git the run lock, raw NVDA logs (which can hold typed passwords), the temporary
- * files a crash can leave (writeFileAtomic names them .<name>.<pid>.<hex>.tmp), and the files an
- * operating system adds to folders.
+ * Keeps out of Git the run lock, raw NVDA logs (which can hold typed passwords), the shareable page
+ * each site's folder keeps current (written again after every run and review, so a copy in Git each
+ * time would only grow the record; the dated copies that are sent stay), the temporary files a
+ * crash can leave (writeFileAtomic names them .<name>.<pid>.<hex>.tmp), and the files an operating
+ * system adds to folders.
  */
 export const GITIGNORE = `# Written by voicecap. Keep these out of Git:
 # the lock a run holds while it writes,
 .voicecap.lock
 # raw NVDA logs, which can hold typed passwords (their SHA-256 stays in session.json),
 **/*_manual_*/raw/
+# the shareable page, which every run and review writes again (the dated copies that are sent stay),
+**/share/current.*
 # temporary files a crash can leave behind,
 .*.tmp
 # and files the operating system adds.

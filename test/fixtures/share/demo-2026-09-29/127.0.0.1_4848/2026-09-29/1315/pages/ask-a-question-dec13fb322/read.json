@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/ask-a-question/",
+    "key": "http://127.0.0.1:4848/ask-a-question",
+    "slug": "ask-a-question-dec13fb322",
+    "finalUrl": "http://127.0.0.1:4848/ask-a-question/"
+  },
+  "capturedAt": "2026-09-29T13:20:28-05:00",
+  "durationMs": 26872,
+  "stepCount": 21,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1282,
+      "offsetMs": 1282
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1277,
+      "offsetMs": 2558
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1279,
+      "offsetMs": 3837
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 2 items, link, Previous: The report",
+      "durationMs": 1284,
+      "offsetMs": 5121
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Next: Common mistakes (on purpose)",
+      "durationMs": 1279,
+      "offsetMs": 6399
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, Ask a question",
+      "durationMs": 1278,
+      "offsetMs": 7677
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "This form is built well, so a screen reader can say what each field is for.",
+      "durationMs": 1275,
+      "offsetMs": 8952
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "Nothing you type is sent anywhere: this is a demo.",
+      "durationMs": 1278,
+      "offsetMs": 10230
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "section, Your name, edit, ",
+      "durationMs": 1281,
+      "offsetMs": 11511
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "Your question (required)",
+      "durationMs": 1283,
+      "offsetMs": 12794
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "edit, required, multi line",
+      "durationMs": 1275,
+      "offsetMs": 14069
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "out of edit, Ask anything about voicecap, or about this tour.",
+      "durationMs": 1279,
+      "offsetMs": 15349
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "grouping, How did you hear about voicecap?",
+      "durationMs": 1275,
+      "offsetMs": 16624
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, From a colleague",
+      "durationMs": 1282,
+      "offsetMs": 17906
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, From its README",
+      "durationMs": 1278,
+      "offsetMs": 19184
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, Somewhere else",
+      "durationMs": 1285,
+      "offsetMs": 20469
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "out of grouping, button, Send your question",
+      "durationMs": 1275,
+      "offsetMs": 21744
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "out of section, content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1285,
+      "offsetMs": 23030
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1284,
+      "offsetMs": 24313
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1281,
+      "offsetMs": 25595
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1277,
+      "offsetMs": 26872
+    }
+  ]
+}

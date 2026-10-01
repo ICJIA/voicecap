@@ -1,6 +1,6 @@
 # The shareable report: a dated page and its Word copy, showing what the runs found and proving they ran
 
-Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup built from the real records of the demo runs on 2026-09-29 is at https://claude.ai/artifact/ESwcXRQX7BHEDG5vwkC247 (private to the owner). Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. A throwaway script built it; it isn't in the repository.
+Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup built from the real records of the demo runs on 2026-09-29 is at https://claude.ai/artifact/ESwcXRQX7BHEDG5vwkC247 (private to the owner). Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. Its HTML is in the repository, `2026-09-30-shareable-report-mockup.html`, as the design the page follows.
 
 ## Why
 
@@ -44,7 +44,7 @@ The mockup shows this order. Each section's first sentence is its point.
    - Two buttons: "Open every section" and the theme.
 2. **Summary**, written for a non-technical manager who reads nothing else. It's in plain words, with no jargon, all computed from the records, in this order:
    - **The result in one sentence**, leading with the person's review. For example: "Christopher Schweda listened as NVDA read all 7 pages, and reviewed every transcript. 1 page has problems a screen reader user would hear." Each part appears only as far as the records show it (see "The human review").
-   - **A second line:** "A human review, sped up: voicecap pressed NVDA's keys and moved from page to page; a person did the listening, the reading, and the deciding."
+   - **A second line:** "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding." It describes the method, so it claims no listening or review the records may not show.
    - **Six numbers:**
      - **pages in scope;**
      - **pages transcribed:** with transcripts in the standing;
@@ -59,7 +59,7 @@ The mockup shows this order. Each section's first sentence is its point.
      - **When and how:** the date, who ran it, the screen reader, browser, and operating system.
    - **Three bars:**
      - each page's latest result: no flags, flags, or never transcribed;
-     - flags by rule: how many times each rule was raised, in both passes;
+     - flags by rule: how many times each rule was raised, across pages and passes (each flag once: a flag's own count means something different for each rule);
      - the human review: pages listened to live, transcripts reviewed, and issues fixed, each out of its total.
    - **Read the full report:** links to each section below.
 
@@ -95,7 +95,8 @@ The mockup shows this order. Each section's first sentence is its point.
 
 ## The site's standing
 
-- **The pages:** those in the site's most recent completed run.
+- **The pages:** those of the most recent counted run whose pages came from a sitemap or a page list (its page source is `sitemap` or `pages`). When every run was given its pages with `--page`, the most recent counted run's.
+  - A later run given its pages with `--page` is a spot check: its records are each page's newest (its transcripts are shown, and its failures said), but it doesn't change which pages are in scope, so a one-page check never sends the rest to "No longer listed". Coverage is claimed for the list.
   - Pages that earlier runs tested but the latest page list no longer has go in a small separate table, "No longer listed".
 - **Each page's result:** its most recent transcription in a completed run.
   - A page whose latest attempt failed shows that failure, with its reason, next to its last good transcripts and the run they came from.
@@ -144,7 +145,7 @@ The owner asked whether a diff against the run before is information or clutter.
 
 ## Problems during the runs
 
-Every failed attempt in the runs the standing draws on appears, including those a later attempt made good. The section opens with its verdict line. For example: "2 problems, both outside voicecap: another window took the screen. Neither happened again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself." Then each problem is folded behind one line: the run, the page, the time, what kind of problem, and whether it happened again.
+Every failed attempt in the runs the standing draws on appears, including those a later attempt made good. The section opens with its verdict line. For example, the demo runs of 29 September, where each run failed a page the other read: "2 problems, both outside voicecap: another window took the screen. 1 didn't happen again, and 1 wasn't tried again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself." Then each problem is folded behind one line: the run, the page, the time, what kind of problem, and whether it happened again.
 
 Opened, each shows:
 - **What happened:** the pass, the step, and the key, in plain words.
@@ -166,7 +167,7 @@ Opened, each shows:
 |---|---|---|
 | Another window came to the front | Outside voicecap: another program, or someone at the computer | The step is thrown out, so the other window's speech never reaches a transcript, and the page is tried again. |
 | The computer locked | Outside voicecap: Win+L, a screen saver, or a lock policy | As above. voicecap keeps the screen awake, but can't stop a lock. |
-| NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown. |
+| NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown when the run recorded it. |
 | The browser stopped, or didn't start | The browser | Tried again with a fresh browser. |
 | The website answered with an error | The website | A 5xx is tried again. A 4xx isn't, since trying again can't help. |
 | The website couldn't be reached | The website or the network: the address didn't answer, the connection failed, or its certificate wasn't valid | Tried again. If it keeps failing, the site was down or couldn't be reached from this computer. |
@@ -181,7 +182,8 @@ Opened, each shows:
 
 **Did it happen again?**
 - Read in full on a later attempt: "No: read in full on attempt n, with NVDA and the browser started fresh."
-- Read in full in another run the standing draws on: "No: read in full in run <id>."
+- Read in full in a later run the standing draws on: "No: read in full in run <id>." Only what came after the failure can say it didn't come back.
+- Read in full only in an earlier run: "Not known: this run didn't try the page again; run <id>, before it, read it in full." The earlier run shows the page could be read, not that the failure didn't recur.
 - Every attempt failed the same way: "Yes, on every attempt (n of n). That points to this page, or to voicecap, rather than a one-off." For the website's errors, it points to the website.
 - Attempts failed in different ways: "Yes, in different ways", listing each.
 - The verdict line also counts problems of the same kind across pages, naming each program that came to the front and how often.
@@ -225,13 +227,14 @@ A manager will ask what the fingerprints are for, and whether they can check the
 **"Check the fingerprints",** a button that works in one click, offline:
 - It checks:
   - each transcript file in the page, against the fingerprint in its run's sealed record;
+  - each transcript shown in the appendix, against the body of the file the page carries for it, with line endings read as one, so the text shown is the file that was checked;
   - each run record's seal;
   - each review entry's seal, and the review chain.
 - It shows a result line, for example "21 of 21 transcripts match their fingerprints, and both runs' seals check out", with a folded list of every file checked. A file that doesn't match is named, in red and in words.
 - A second button, "Show a change being caught", runs the same check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The page itself is never changed.
 - The page carries what it checks: each transcript file's exact contents, and each run's record and review entries, as data. The check uses the browser's own SHA-256 (Web Crypto), or a small one built into the page where that isn't available. It recomputes a seal exactly as voicecap does: the record without its seal, as JSON with its keys sorted.
 
-**What the check proves,** said beside its result: the page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. The page names the two stronger checks:
+**What the check proves,** said beside its result: the page is consistent with itself (each transcript it shows is the file it carries, and each file matches its fingerprint in the sealed records), so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. The page names the two stronger checks:
 - Compare this file's own fingerprint with the one the sender recorded. `voicecap share` prints it, ready to paste into the email that sends the file. `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, shows it for the file received.
 - Run `npx @icjia/voicecap verify --site <url>` on the transcripts folder, which checks the originals.
 
@@ -284,7 +287,7 @@ These two sections are the page's only prose not computed from the records, and 
 - The keys named, and the sample, come from the screen reader the section is about. For NVDA, they're Down Arrow, H, and Tab. VoiceOver's come with its driver.
 
 **How voicecap came to be:**
-- **Why it exists:** automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: "Automated Testing Identifies 57 Percent of Digital Accessibility Issues", March 2021, over 2,000 audits and 13,000 pages, linked. And no checker can say what a page sounds like.
+- **Why it exists:** automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks", March 2021, over 2,000 audits and 13,000 pages, linked. And no checker can say what a page sounds like.
 - **The usual answer,** a person with a screen reader, page by page, is slow, hard to show afterward, and hard to repeat.
 - **voicecap's answer:** keep the person and the real screen reader, and take over the slow parts. Working from the list makes the review more thorough than going page by page by hand: every page is accounted for, none is missed or done twice, and each is heard the same way, with the same keys in the same order. voicecap is free and open source, from ICJIA (MIT license).
 - **The timeline,** as a table with two tracks, a Windows PC with NVDA and a Mac with VoiceOver:
@@ -293,7 +296,7 @@ These two sections are the page's only prose not computed from the records, and 
   - what isn't done yet, such as full runs with VoiceOver, is marked "Next", never shown as done;
   - its facts come from the Git tags and the CHANGELOG. A test checks every version and date in it against the CHANGELOG's release headings, and that every minor release (0.5.0, 0.6.0, and on) has its line, so a release can't ship without one;
   - when a major feature lands, merged or released, its line goes in the timeline, and the README says what it does, in the same change.
-- **Six "worth knowing" cards:** the real screen reader; no page missed; nothing from other windows; tamper-evident; both kinds of testing (this page is checked with axe, with no violations); and tested itself (over a thousand tests on Windows, macOS, and Linux with every change).
+- **Six "worth knowing" cards:** the real screen reader; no page missed; nothing from other windows; tamper-evident; both kinds of testing (voicecap checks this page's design with axe in its own tests, with no violations); and tested itself (over a thousand tests on Windows, macOS, and Linux with every change).
 
 ## New evidence each run records
 

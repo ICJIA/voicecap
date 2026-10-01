@@ -7,6 +7,7 @@ import {
   manualSessionDir,
   resolveHome,
   runDir,
+  sharePath,
   siteFolder,
 } from "../src/run/paths.js";
 
@@ -61,6 +62,13 @@ describe("manualSessionDir", () => {
     expect(manualSessionDir(site, "2026-09-27_1415-2", "faq")).toBe(
       path.join(site, "2026-09-27", "1415_manual_faq-2"),
     );
+  });
+});
+
+describe("sharePath", () => {
+  it("puts the shareable page in the site folder's share folder", () => {
+    const site = path.join("home", "dvfr.illinois.gov");
+    expect(sharePath(site)).toBe(path.join(site, "share", "current.html"));
   });
 });
 

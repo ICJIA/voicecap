@@ -1,5 +1,3 @@
-import os from "node:os";
-
 import type { PageInfo } from "../drivers/types.js";
 import type {
   AttemptRecord,
@@ -28,7 +26,7 @@ import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { keepEarlierAttempt } from "./attempts.js";
 import type { DriverSession } from "./driver-session.js";
-import { redactHome } from "./failure.js";
+import { homeFolder, redactHome } from "./failure.js";
 import { pageDir } from "./paths.js";
 
 export interface PageContext {
@@ -320,18 +318,6 @@ function problemOf(
         }
       : {}),
   };
-}
-
-/**
- * The home folder, or null where there's none: Node throws when neither HOME (USERPROFILE on
- * Windows) nor the account's entry gives one, and a failed attempt mustn't be lost to that.
- */
-function homeFolder(): string | null {
-  try {
-    return os.homedir();
-  } catch {
-    return null;
-  }
 }
 
 /** The site answered with an HTTP error, so no step of the pass was under way. */

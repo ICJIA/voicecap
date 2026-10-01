@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -625,6 +625,54 @@ describe("a full session through the CLI", () => {
     const html = await readFile(path.join(out, "report.html"), "utf8");
     expect(html).toContain("Unlabeled button");
     expect((await cli(["report", "--run", "no-such-run"], run.cwd)).code).toBe(1);
+  });
+
+  it("prints where the report is, then where the shareable page is", async () => {
+    const run = await cli([
+      "--site",
+      SITE,
+      "--pages",
+      fixture("pages.json"),
+      "--replay-from",
+      fixture("replay-run"),
+    ]);
+    expect(run.code).toBe(0);
+    const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+    const page = path.join(site, "share", "current.html");
+    // Gone, so it's `voicecap report` that writes it.
+    await rm(path.dirname(page), { recursive: true, force: true });
+
+    const report = await cli(["report"], run.cwd);
+
+    expect(report.code).toBe(0);
+    expect(report.err).toBe("");
+    expect(report.out).toContain(
+      `Report: ${path.join(site, "report.html")}\nShareable page: ${page}\n`,
+    );
+    expect(await readFile(page, "utf8")).toMatch(/^<!doctype html>/);
+  });
+
+  it("still reports, with a warning and no path, when the shareable page can't be written", async () => {
+    const run = await cli([
+      "--site",
+      SITE,
+      "--pages",
+      fixture("pages.json"),
+      "--replay-from",
+      fixture("replay-run"),
+    ]);
+    expect(run.code).toBe(0);
+    const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+    // A file where the page's folder would go.
+    await rm(path.join(site, "share"), { recursive: true, force: true });
+    await writeFile(path.join(site, "share"), "In the way.\n");
+
+    const report = await cli(["report"], run.cwd);
+
+    expect(report.code).toBe(0);
+    expect(report.err).toMatch(/^Warning: The shareable page wasn't updated: .+/);
+    expect(report.out).toContain(`Report: ${path.join(site, "report.html")}\n`);
+    expect(report.out).not.toContain("Shareable page:");
   });
 
   it("asks which site when the home has several, and takes --site", async () => {

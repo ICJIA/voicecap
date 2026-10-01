@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1402",
+  "pass": "headings",
+  "page": {
+    "url": "http://127.0.0.1:4848/the-report/",
+    "key": "http://127.0.0.1:4848/the-report",
+    "slug": "the-report-03940c2f88",
+    "finalUrl": "http://127.0.0.1:4848/the-report/"
+  },
+  "capturedAt": "2026-09-29T14:07:01-05:00",
+  "durationMs": 6397,
+  "stepCount": 5,
+  "stopReason": "no-next-heading",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.58"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+    },
+    "runId": "2026-09-29_1402",
+    "runStartedAt": "2026-09-29T14:02:51-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextHeading",
+      "spoken": "main landmark, The report, heading, level 1",
+      "durationMs": 1281,
+      "offsetMs": 1281
+    },
+    {
+      "n": 2,
+      "command": "nextHeading",
+      "spoken": "Coverage, heading, level 2",
+      "durationMs": 1279,
+      "offsetMs": 2560
+    },
+    {
+      "n": 3,
+      "command": "nextHeading",
+      "spoken": "Flags, heading, level 2",
+      "durationMs": 1282,
+      "offsetMs": 3842
+    },
+    {
+      "n": 4,
+      "command": "nextHeading",
+      "spoken": "Reviews, heading, level 2",
+      "durationMs": 1279,
+      "offsetMs": 5121
+    },
+    {
+      "n": 5,
+      "command": "nextHeading",
+      "spoken": "no next heading",
+      "durationMs": 1276,
+      "offsetMs": 6397
+    }
+  ]
+}

@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { FocusedElement } from "../src/drivers/types.js";
-import { contentSteps, evaluateFlags, type PassData } from "../src/flags/evaluate.js";
-import type { DriverCommand, StepRecord, StopReason } from "../src/model.js";
+import {
+  contentSteps,
+  evaluateFlags,
+  flagQuotes,
+  type PagePasses,
+  type PassData,
+} from "../src/flags/evaluate.js";
+import type { DriverCommand, FlagResult, StepRecord, StopReason } from "../src/model.js";
 
 const rules = DEFAULT_CONFIG.flags;
 
@@ -184,6 +190,121 @@ describe("unlabeled items", () => {
   });
 });
 
+describe("what a flag found", () => {
+  it("lists the generic link texts, most often first, as the message lists them", () => {
+    // "read more" is spoken first, but "click here" twice, so the order isn't the order spoken.
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "Read more, link", focused: el("Read more") },
+          { spoken: "Click here, link", focused: el("Click here") },
+          { spoken: "Annual report, link", focused: el("Annual report") },
+          { spoken: "Click here, link", focused: el("Click here") },
+        ]),
+      },
+      rules,
+    );
+    const flag = flags.find((f) => f.rule === "generic-link-text");
+
+    expect(flag?.found).toEqual([
+      { text: "click here", count: 2 },
+      { text: "read more", count: 1 },
+    ]);
+    expect(flag?.count).toBe(3);
+    expect(flag?.message).toBe(
+      'Generic link text announced 3 times in the tab pass: "click here" ×2, "read more" ×1.',
+    );
+  });
+
+  it("puts texts that were found as often in alphabetical order", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["link, Read more", "link, Learn more", "link, Click here"]),
+      },
+      rules,
+    );
+
+    expect(flags.find((f) => f.rule === "generic-link-text")?.found).toEqual([
+      { text: "click here", count: 1 },
+      { text: "learn more", count: 1 },
+      { text: "read more", count: 1 },
+    ]);
+  });
+
+  it("lists a link that has no name as '(no name)'", () => {
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "link", focused: el("") },
+          { spoken: "main landmark, link", focused: el("", { inMain: true }) },
+        ]),
+      },
+      rules,
+    );
+
+    expect(flags.find((f) => f.rule === "generic-link-text")?.found).toEqual([
+      { text: "(no name)", count: 2 },
+    ]);
+  });
+
+  it("lists the unlabeled items, most often first, as the message lists them", () => {
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "button", focused: el("", { tag: "button", role: "button" }) },
+          { spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) },
+          { spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) },
+        ]),
+      },
+      rules,
+    );
+    const flag = flags.find((f) => f.rule === "unlabeled");
+
+    expect(flag?.found).toEqual([
+      { text: "edit", count: 2 },
+      { text: "button", count: 1 },
+    ]);
+    expect(flag?.count).toBe(3);
+    expect(flag?.message).toBe(
+      'Unlabeled or poorly labeled items in the tab pass: "edit" ×2, "button" ×1.',
+    );
+  });
+
+  it("lists each pass's findings in that pass's own flag", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["Intro", "button", "Footer"]),
+        tab: tab([{ spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) }]),
+      },
+      rules,
+    );
+    const unlabeled = flags.filter((f) => f.rule === "unlabeled");
+
+    expect(unlabeled.map((flag) => [flag.pass, flag.found])).toEqual([
+      ["read", [{ text: "button", count: 1 }]],
+      ["tab", [{ text: "edit", count: 1 }]],
+    ]);
+  });
+
+  it("gives no list to the rules that don't find items", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["a", "b"], "step-cap"),
+        headings: headings(["heading, level 2, Resources"]),
+        tab: tab([]),
+      },
+      rules,
+    );
+
+    expect(rulesOf(flags)).toEqual([
+      "read-not-finished:read",
+      "headings:headings",
+      "tab-no-stops:tab",
+    ]);
+    for (const flag of flags) expect(flag).not.toHaveProperty("found");
+  });
+});
+
 describe("structure rules", () => {
   it("flags a read pass that stopped at the cap or the safety net", () => {
     expect(rulesOf(evaluateFlags({ read: read(["a", "b"], "step-cap") }, rules))).toContain(
@@ -309,5 +430,142 @@ describe("custom and disabled rules", () => {
       custom,
     );
     expect(rulesOf(flags)).toEqual(["pdf-links:read"]);
+  });
+});
+
+describe("the lines that raised a flag", () => {
+  /** The flag `rule` raised on `passes` with the default rules, and the lines it quotes. */
+  function quotesOf(passes: PagePasses, rule: string, flagRules = rules): string[] {
+    const flag = evaluateFlags(passes, flagRules).find((each) => each.rule === rule);
+    if (flag === undefined) throw new Error(`No ${rule} flag`);
+    return flagQuotes(passes, flagRules, flag);
+  }
+
+  it("quotes the generic links a flag found, each line once and at most three", () => {
+    const passes = {
+      tab: tab([
+        { spoken: "Read more, link", focused: el("Read more") },
+        { spoken: "Annual report, link", focused: el("Annual report") },
+        { spoken: "Read more, link", focused: el("Read more") },
+        { spoken: "Click here, link", focused: el("Click here") },
+        { spoken: "main landmark, link", focused: el("", { inMain: true }) },
+        { spoken: "Learn more, link", focused: el("Learn more") },
+      ]),
+    };
+
+    expect(quotesOf(passes, "generic-link-text")).toEqual([
+      "Read more, link",
+      "Click here, link",
+      "main landmark, link",
+    ]);
+  });
+
+  it("quotes links with no name, which NVDA announces only as a link", () => {
+    const passes = {
+      read: read(["Intro", "link", "out of list, link", "Footer"]),
+      tab: tab([
+        { spoken: "link", focused: el("") },
+        { spoken: "main landmark, link", focused: el("", { inMain: true }) },
+      ]),
+    };
+    const flags = evaluateFlags(passes, rules).filter((flag) => flag.rule === "generic-link-text");
+
+    expect(flags.map((flag) => [flag.pass, flag.found])).toEqual([
+      ["read", [{ text: "(no name)", count: 2 }]],
+      ["tab", [{ text: "(no name)", count: 2 }]],
+    ]);
+    expect(flags.map((flag) => flagQuotes(passes, rules, flag))).toEqual([
+      ["link", "out of list, link"],
+      ["link", "main landmark, link"],
+    ]);
+  });
+
+  it("quotes the unlabeled items a flag found, in focus and browse speech alike", () => {
+    const tabPasses = {
+      tab: tab([
+        { spoken: "button", focused: el("", { tag: "button", role: "button" }) },
+        { spoken: "Search, button", focused: el("Search", { tag: "button", role: "button" }) },
+        {
+          spoken: "main landmark. edit, blank",
+          focused: el("", { tag: "input", role: "textbox", inMain: true }),
+        },
+      ]),
+    };
+    expect(quotesOf(tabPasses, "unlabeled")).toEqual(["button", "main landmark. edit, blank"]);
+
+    const readPasses = {
+      read: read(["Intro", "button", "button, Submit", "unlabeled graphic", "edit", "Footer"]),
+    };
+    // A labeled button, and a form field whose label NVDA reads as separate text, aren't quoted.
+    expect(quotesOf(readPasses, "unlabeled")).toEqual(["button", "unlabeled graphic"]);
+  });
+
+  it("quotes the first heading when it isn't level 1, and nothing when there are none", () => {
+    const passes = {
+      headings: headings(["heading, level 2, Resources", "heading, level 3, More"]),
+    };
+    expect(quotesOf(passes, "headings")).toEqual(["heading, level 2, Resources"]);
+    expect(quotesOf({ headings: headings([]) }, "headings")).toEqual([]);
+  });
+
+  it("quotes the first stops before the main content", () => {
+    const nav = Array.from({ length: 11 }, (_, i) => ({
+      spoken: `Nav ${i}, link`,
+      focused: el(`Nav ${i}`),
+    }));
+    const main = {
+      spoken: "Read the report, link",
+      focused: el("Read the report", { inMain: true }),
+    };
+    expect(quotesOf({ tab: tab([...nav, main]) }, "tab-before-main")).toEqual([
+      "Nav 0, link",
+      "Nav 1, link",
+      "Nav 2, link",
+    ]);
+  });
+
+  it("quotes the repeated line once, and the last line of a read that didn't finish", () => {
+    const trap = tab(
+      Array.from({ length: 5 }, () => ({ spoken: "Close, button", focused: el("Close") })),
+    );
+    expect(quotesOf({ tab: trap }, "repeated-phrase")).toEqual(["Close, button"]);
+    expect(quotesOf({ read: read(["Intro", "Body"], "step-cap") }, "read-not-finished")).toEqual([
+      "Body",
+    ]);
+  });
+
+  it("quotes nothing when Tab reaches nothing", () => {
+    expect(quotesOf({ tab: tab([]) }, "tab-no-stops")).toEqual([]);
+  });
+
+  it("quotes the lines a custom rule's pattern matched", () => {
+    const custom = {
+      ...rules,
+      custom: [
+        {
+          id: "pdf-links",
+          description: "Links to PDFs",
+          passes: ["read" as const],
+          pattern: "\\bpdf\\b",
+          minCount: 1,
+        },
+      ],
+    };
+    const passes = { read: read(["link, Annual report (PDF)", "button", "link, Budget (PDF)"]) };
+    expect(quotesOf(passes, "pdf-links", custom)).toEqual([
+      "link, Annual report (PDF)",
+      "link, Budget (PDF)",
+    ]);
+  });
+
+  it("quotes nothing for a pass it isn't given, or a rule it doesn't know", () => {
+    const flag: FlagResult = {
+      rule: "headings",
+      pass: "headings",
+      message: "The page has no headings.",
+    };
+    expect(flagQuotes({}, rules, flag)).toEqual([]);
+    const unknown: FlagResult = { rule: "retired-rule", pass: "read", message: "Something" };
+    expect(flagQuotes({ read: read(["Something"]) }, rules, unknown)).toEqual([]);
   });
 });

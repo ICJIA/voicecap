@@ -1,0 +1,47 @@
+# voicecap transcript: read pass
+# Page: http://127.0.0.1:4848/common-mistakes/
+# Final URL: http://127.0.0.1:4848/common-mistakes/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-09-29_1315 (started 2026-09-29T13:15:48-05:00)
+# Captured: 2026-09-29T13:21:26-05:00
+# Steps: 22 (stopped: end reached)
+# Duration: 28s
+# Errors: none
+# Warnings: none
+# Page source: sitemap http://127.0.0.1:4848/sitemap.xml
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 153.0.8010.53
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.4.1 (config sha256 c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, This demo site comes with voicecap, and runs only on this computer.
+[to top] same page, link, Skip to main content
+banner landmark, voicecap demo
+Tour, navigation landmark, list, with 1 item, link, Previous: Ask a question
+out of list, main landmark, heading, level 2, Common mistakes (on purpose)
+This page makes three kinds of mistakes on purpose, so voicecap has some to flag.
+Its first heading is level 2, not 1, so the screen reader says heading, level 2 .
+heading, level 3, A search box with no label
+edit
+The box above has no label, so the screen reader says only edit .
+heading, level 3, A button with no name
+button
+The button above shows only an icon, so the screen reader says only button .
+heading, level 3, Links that say click here
+To see how a run works,, link, click here, dot
+To read about transcripts,, link, click here, dot
+To learn about the report,, link, click here, dot
+Listed on their own, as screen readers can list links, each says only click here .
+content info landmark, This demo site comes with voicecap, and runs only on this computer.
+This demo site comes with voicecap, and runs only on this computer.
+This demo site comes with voicecap, and runs only on this computer.
+This demo site comes with voicecap, and runs only on this computer.

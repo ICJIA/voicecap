@@ -95,6 +95,10 @@ describe("replaying the fixture run", () => {
         rule: "generic-link-text",
         pass: "read",
         count: 4,
+        found: [
+          { text: "read more", count: 3 },
+          { text: "click here", count: 1 },
+        ],
         message:
           'Generic link text announced 4 times in the read pass: "read more" ×3, "click here" ×1.',
       },
@@ -102,6 +106,10 @@ describe("replaying the fixture run", () => {
         rule: "generic-link-text",
         pass: "tab",
         count: 4,
+        found: [
+          { text: "read more", count: 3 },
+          { text: "click here", count: 1 },
+        ],
         message:
           'Generic link text announced 4 times in the tab pass: "read more" ×3, "click here" ×1.',
       },
@@ -109,6 +117,10 @@ describe("replaying the fixture run", () => {
         rule: "unlabeled",
         pass: "read",
         count: 3,
+        found: [
+          { text: "unlabeled graphic", count: 2 },
+          { text: "button", count: 1 },
+        ],
         message:
           'Unlabeled or poorly labeled items in the read pass: "unlabeled graphic" ×2, "button" ×1.',
       },
@@ -116,6 +128,11 @@ describe("replaying the fixture run", () => {
         rule: "unlabeled",
         pass: "tab",
         count: 3,
+        found: [
+          { text: "button", count: 1 },
+          { text: "edit", count: 1 },
+          { text: "unlabeled graphic", count: 1 },
+        ],
         message:
           'Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1, "unlabeled graphic" ×1.',
       },

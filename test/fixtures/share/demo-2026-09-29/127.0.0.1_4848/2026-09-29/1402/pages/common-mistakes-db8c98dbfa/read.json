@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1402",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/common-mistakes/",
+    "key": "http://127.0.0.1:4848/common-mistakes",
+    "slug": "common-mistakes-db8c98dbfa",
+    "finalUrl": "http://127.0.0.1:4848/common-mistakes/"
+  },
+  "capturedAt": "2026-09-29T14:08:43-05:00",
+  "durationMs": 28135,
+  "stepCount": 22,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.58"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+    },
+    "runId": "2026-09-29_1402",
+    "runStartedAt": "2026-09-29T14:02:51-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1279,
+      "offsetMs": 1279
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1276,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1281,
+      "offsetMs": 3836
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 1 item, link, Previous: Ask a question",
+      "durationMs": 1281,
+      "offsetMs": 5117
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 2, Common mistakes (on purpose)",
+      "durationMs": 1276,
+      "offsetMs": 6393
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "This page makes three kinds of mistakes on purpose, so voicecap has some to flag.",
+      "durationMs": 1282,
+      "offsetMs": 7675
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "Its first heading is level 2, not 1, so the screen reader says heading, level 2 .",
+      "durationMs": 1275,
+      "offsetMs": 8950
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "heading, level 3, A search box with no label",
+      "durationMs": 1278,
+      "offsetMs": 10228
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "edit",
+      "durationMs": 1275,
+      "offsetMs": 11502
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "The box above has no label, so the screen reader says only edit .",
+      "durationMs": 1275,
+      "offsetMs": 12778
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "heading, level 3, A button with no name",
+      "durationMs": 1279,
+      "offsetMs": 14057
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "button",
+      "durationMs": 1285,
+      "offsetMs": 15342
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "The button above shows only an icon, so the screen reader says only button .",
+      "durationMs": 1284,
+      "offsetMs": 16625
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Links that say click here",
+      "durationMs": 1279,
+      "offsetMs": 17905
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "To see how a run works,, link, click here, dot",
+      "durationMs": 1280,
+      "offsetMs": 19185
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "To read about transcripts,, link, click here, dot",
+      "durationMs": 1275,
+      "offsetMs": 20460
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "To learn about the report,, link, click here, dot",
+      "durationMs": 1282,
+      "offsetMs": 21742
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "Listed on their own, as screen readers can list links, each says only click here .",
+      "durationMs": 1277,
+      "offsetMs": 23019
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1279,
+      "offsetMs": 24299
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1277,
+      "offsetMs": 25576
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1279,
+      "offsetMs": 26855
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1279,
+      "offsetMs": 28135
+    }
+  ]
+}

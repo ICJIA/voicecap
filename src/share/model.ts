@@ -1,0 +1,523 @@
+/**
+ * The shareable page's model: everything the page shows, worked out from a site's records by the
+ * design's rules ("The page, top to bottom", "The site's standing", "The human review"). Pure: it
+ * works from what loadShareInput (./load.ts) read, and reads nothing itself.
+ *
+ * Each section's parts come from their own modules: the standing, the problems, the changes since
+ * the run before, the human review and the summary, the page cards (./cards.ts), and each run's
+ * evidence (./run-evidence.ts). This puts them together, and works out the top, the sample of what
+ * NVDA said, what the results cover, the appendix of transcripts, and the fingerprint check's data.
+ *
+ * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
+ * problems' in problemsOf, the evidence's in evidenceOf. The run records and transcripts the page
+ * embeds for its fingerprint check are exactly as recorded, since a seal covers every field.
+ */
+import {
+  PASS_NAMES,
+  type FileHash,
+  type PageSource,
+  type PassName,
+  type ReviewsFile,
+  type RunJson,
+} from "../model.js";
+import { describeChanges, distinctEnvironments } from "../report/compare.js";
+import { pageName } from "../report/model.js";
+import { redactHome } from "../run/failure.js";
+import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
+import {
+  cardsOf,
+  flaggedOf,
+  noLongerListedOf,
+  type FlaggedPage,
+  type NoLongerListed,
+  type PageCard,
+} from "./cards.js";
+import { changesOf, type Changes } from "./changes.js";
+import type { CheckData } from "./check.js";
+import { dateRange, longDate, names, seconds, utcOffset } from "./format.js";
+import type { ShareInput, TranscriptStore } from "./load.js";
+import { problemsOf, type ProblemsSection } from "./problems.js";
+import { reviewOf } from "./review.js";
+import { evidenceOf, leftOutOf, runEnd, runStart, type RunEvidence } from "./run-evidence.js";
+import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
+import { summaryOf, type Summary } from "./summary.js";
+
+export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
+export type { EvidenceRow, RunEvidence } from "./run-evidence.js";
+
+/** A transcript file the appendix shows: what NVDA said in a pass, with the file's fingerprint. */
+export interface AppendixFile {
+  pass: PassName;
+  /**
+   * The run and the page's slug its record files it under, which with `name` say which of the
+   * fingerprint check's files it is: the check compares the text shown with that file's.
+   */
+  run: string;
+  slug: string;
+  /** "read.txt". */
+  name: string;
+  /** The lines NVDA spoke, word for word: the file without its header block. */
+  text: string;
+  lines: number;
+  /** The file's size and SHA-256, as its run recorded them. */
+  bytes: number;
+  sha256: string;
+}
+
+export interface ShareModel {
+  header: {
+    /** The headline: report.siteName, else the latest run's home page title, else the host. */
+    siteName: string;
+    /** The site's address, as its runs recorded it: shown small. */
+    site: string;
+    /**
+     * The days of the runs the results come from ("29 to 30 September 2026"): the latest run, and
+     * each run a page's transcripts or its latest failure come from, but not a run the page only
+     * compares the latest with. Null when no run counts.
+     */
+    tested: string | null;
+    /** The page's own date: "30 September 2026". */
+    asOf: string;
+    /** Who ran the latest run's last session, when the record names someone. */
+    preparedBy: string | null;
+    /** The screen reader the results come from, by name: "NVDA". */
+    screenReader: string;
+  };
+  summary: Summary;
+  /**
+   * The first three lines of each pass on the home page (the page at "/", else the first in scope),
+   * from its shown transcripts, each with how long it took ("1.3 s"). Null when that page has none.
+   */
+  heard: {
+    page: string;
+    passes: { pass: PassName; lines: { text: string; took: string }[] }[];
+  } | null;
+  pages: PageCard[];
+  noLongerListed: NoLongerListed[];
+  flagged: FlaggedPage[];
+  /** What sounds different since the run before; null when there's no run before. */
+  changes: Changes | null;
+  problems: ProblemsSection;
+  coverage: { covered: string[]; limits: string[] };
+  /** The runs the standing draws on, the latest first. */
+  evidence: RunEvidence[];
+  /** The runs left out, oldest first, each as one line that starts with its id. */
+  leftOut: { id: string; text: string }[];
+  /**
+   * Every page with transcripts, in page order: each pass's TXT transcript, and the passes whose
+   * transcript the run recorded but couldn't be read here, which the page names instead.
+   */
+  appendix: { slug: string; name: string; files: AppendixFile[]; unreadable: PassName[] }[];
+  /** What the page's fingerprint check checks: the records and transcripts exactly as recorded. */
+  check: CheckData;
+  /** The flag rules the page's flags were computed with: their fingerprint, part of the evidence. */
+  flagRulesSha256: string;
+  /**
+   * When the page was made, its file's name, and each UTC offset the runs it draws on recorded
+   * their times in ("UTC−05:00"), in the order met: the page shows each time as its run recorded it.
+   */
+  footer: { generatedAt: string; fileName: string; offsets: string[] };
+}
+
+/** Build the page's model from what loadShareInput read. Pure. */
+export function buildShareModel(input: ShareInput): ShareModel {
+  const redact = (text: string) => redactHome(text, input.home, input.platform);
+  const standing = standingOf(input.runs.map((run) => withFlagsRedacted(run, redact)));
+  const review = reviewOf(
+    standing,
+    withNotesRedacted(input.reviews, redact),
+    input.manual,
+    input.generatedAt,
+  );
+  const problems = problemsOf(standing, { home: input.home, platform: input.platform });
+  const { latest } = standing;
+  const before = latest && runBefore(standing.counted, latest);
+  const compared =
+    latest && before ? changesOf(before, latest, bodyOf(input.transcripts), pageName) : null;
+  // What tools differ can name a setting's path, which can hold the home folder.
+  const changes = compared && { ...compared, tools: compared.tools.map(redact) };
+  const summary = summaryOf({
+    standing,
+    review,
+    problems,
+    changes,
+    flags: new Map(standing.pages.map((page) => [page.key, page.shown?.page.flags ?? []])),
+    name: pageName,
+    linesSpoken: linesSpokenOf(standing),
+    nvdaMs: nvdaMsOf(standing.drawnOn),
+    sessionsWithoutEnd: standing.drawnOn
+      .flatMap((run) => run.sessions)
+      .filter((session) => session.endedAt === null).length,
+  });
+  const pages = cardsOf({
+    standing,
+    review,
+    problems,
+    transcripts: input.transcripts,
+    flagsAsRecorded: input.flagsAsRecorded,
+  });
+  const recordOf = recordsOf(input.records);
+  return {
+    header: headerOf(input, standing),
+    summary,
+    heard: heardOf(standing.pages, input.transcripts),
+    pages,
+    noLongerListed: noLongerListedOf(standing),
+    flagged: flaggedOf(standing, pages, input.transcripts, input.flagRules),
+    changes,
+    problems,
+    coverage: coverageOf(standing, redact),
+    evidence: evidenceOf({ standing, recordOf, site: input.site, redact }),
+    leftOut: leftOutOf(standing, input.unreadableRuns),
+    appendix: appendixOf(standing, input.transcripts),
+    // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
+    // exactly as recorded, and the review entries.
+    check: {
+      runs: standing.drawnOn.map(recordOf),
+      files: standing.pages.flatMap((page) =>
+        shownTranscripts(page, input.transcripts).flatMap(({ run, slug, name, text }) =>
+          text === null ? [] : [{ run, slug, name, text }],
+        ),
+      ),
+      reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
+    },
+    flagRulesSha256: input.flagRulesSha256,
+    footer: {
+      generatedAt: input.generatedAt,
+      fileName: input.fileName,
+      offsets: offsetsOf(standing.drawnOn),
+    },
+  };
+}
+
+/** The run with its flags' messages as the page shows them: the home folder replaced. */
+function withFlagsRedacted(run: RunJson, redact: (text: string) => string): RunJson {
+  return {
+    ...run,
+    pages: run.pages.map((page) =>
+      page.flags.length === 0
+        ? page
+        : {
+            ...page,
+            flags: page.flags.map((flag) => ({ ...flag, message: redact(flag.message) })),
+          },
+    ),
+  };
+}
+
+/** The reviews with each note as the page shows it: the home folder replaced. */
+function withNotesRedacted(reviews: ReviewsFile, redact: (text: string) => string): ReviewsFile {
+  return {
+    ...reviews,
+    pages: Object.fromEntries(
+      Object.entries(reviews.pages).map(([key, entries]) => [
+        key,
+        entries.map((entry) =>
+          entry.note === null ? entry : { ...entry, note: redact(entry.note) },
+        ),
+      ]),
+    ),
+  };
+}
+
+/** A pass's body lines for changesOf: null when its TXT can't be read, so the change is named. */
+function bodyOf(transcripts: TranscriptStore) {
+  return (run: string, slug: string, pass: PassName): string[] | null => {
+    const text = transcripts.txt(run, slug, pass);
+    return text === null ? null : extractBody(text);
+  };
+}
+
+/** Every step of every pass in the transcripts shown, as their records count them. */
+function linesSpokenOf(standing: Standing): number {
+  return standing.pages.reduce(
+    (sum, { shown }) =>
+      sum +
+      Object.values(shown?.page.passes ?? {}).reduce((steps, summary) => steps + summary.steps, 0),
+    0,
+  );
+}
+
+/**
+ * How long the runs held NVDA: each session from its start to its end, when it has both. A session
+ * with no recorded end isn't counted, and the page says how many (Summary.numbers).
+ */
+function nvdaMsOf(runs: RunJson[]): number {
+  return runs.reduce(
+    (sum, run) =>
+      sum +
+      run.sessions.reduce((held, session) => {
+        if (session.endedAt === null) return held;
+        const ms = Date.parse(session.endedAt) - Date.parse(session.startedAt);
+        return Number.isFinite(ms) && ms > 0 ? held + ms : held;
+      }, 0),
+    0,
+  );
+}
+
+/** The site's home page: the one at "/", else the first. */
+function homeOf<T extends { url: string }>(pages: T[]): T | undefined {
+  return pages.find((page) => new URL(page.url).pathname === "/") ?? pages[0];
+}
+
+function headerOf(input: ShareInput, standing: Standing): ShareModel["header"] {
+  const { latest } = standing;
+  const environment = latest?.sessions.findLast(
+    (session) => session.environment?.screenReader,
+  )?.environment;
+  return {
+    siteName: siteNameOf(input, latest),
+    site: input.site,
+    tested: latest === null ? null : testedOf(resultsFrom(standing, latest)),
+    asOf: longDate(input.generatedAt),
+    preparedBy: latest?.sessions.at(-1)?.reviewer?.name ?? null,
+    // Every run voicecap can count today is NVDA's.
+    screenReader: environment?.screenReader?.name ?? "NVDA",
+  };
+}
+
+/**
+ * The setting, else the title of the latest run's home page as the browser reported it, when that
+ * run read the page in full, else the site's host (with its port, as its folder has it). The latest
+ * run is a counted one, so a replay's titles never name a site.
+ */
+function siteNameOf(input: ShareInput, latest: RunJson | null): string {
+  const setting = input.siteName?.trim();
+  if (setting) return setting;
+  const home = latest === null ? undefined : homeOf(latest.pages);
+  const title = home?.status === "done" ? home.title?.trim() : undefined;
+  return title || new URL(input.site).host;
+}
+
+/**
+ * The runs the results come from: the latest, and each run a page's shown transcripts or latest
+ * failure come from. The run before the latest is among them only when one of those is its.
+ */
+function resultsFrom(standing: Standing, latest: RunJson): RunJson[] {
+  const runs = new Set<RunJson>([latest]);
+  for (const { shown, latestFailure } of standing.pages) {
+    if (shown) runs.add(shown.run);
+    if (latestFailure) runs.add(latestFailure.run);
+  }
+  return [...runs];
+}
+
+/**
+ * Each UTC offset the runs recorded their times in, once, in the order met: their starts, ends,
+ * sessions, listeners' answers, and failed attempts, the times the page shows.
+ */
+function offsetsOf(runs: RunJson[]): string[] {
+  const times = runs.flatMap((run) => [
+    run.createdAt,
+    run.completedAt,
+    ...run.sessions.flatMap((session) => [
+      session.startedAt,
+      session.endedAt,
+      session.listener?.answeredAt,
+    ]),
+    ...run.pages.flatMap((page) =>
+      (page.failedAttempts ?? []).flatMap((attempt) => [attempt.startedAt, attempt.endedAt]),
+    ),
+  ]);
+  const recorded = times.filter((time): time is string => typeof time === "string");
+  return [...new Set(recorded.filter((time) => OFFSET.test(time)).map(utcOffset))];
+}
+
+/** A recorded time's offset at its end: "-05:00", or "Z". */
+const OFFSET = /(?:[+-]\d{2}:\d{2}|Z)$/;
+
+/** The days the runs ran, from the first one's start to the last one's end. */
+function testedOf(runs: RunJson[]): string {
+  const earliest = (a: string, b: string) => (Date.parse(b) < Date.parse(a) ? b : a);
+  const latest = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a);
+  const starts = runs.map(runStart);
+  const ends = runs.map(runEnd);
+  return dateRange(starts.reduce(earliest), ends.reduce(latest));
+}
+
+/** How many lines of each pass the sample of what NVDA said has. */
+const HEARD = 3;
+
+/**
+ * The home page's first lines in each pass: the steps of the key that pass presses, so not the
+ * read pass's Ctrl+End and Ctrl+Home, which set it up. Each with how long it took: the key press
+ * and NVDA's speech, until NVDA was quiet.
+ */
+function heardOf(pages: PageStanding[], transcripts: TranscriptStore): ShareModel["heard"] {
+  const home = homeOf(pages);
+  const shown = home?.shown;
+  if (!home || !shown) return null;
+  const passes = PASS_NAMES.flatMap((pass) => {
+    const steps = transcripts.steps(shown.run.id, shown.page.slug, pass) ?? [];
+    const lines = steps
+      .filter((step) => step.command === MAIN_COMMAND[pass])
+      .slice(0, HEARD)
+      .map((step) => ({ text: stepLine(step, pass), took: seconds(step.durationMs) }));
+    return lines.length === 0 ? [] : [{ pass, lines }];
+  });
+  return passes.length === 0 ? null : { page: pageName(home), passes };
+}
+
+/** How each pass goes through a page, with the key NVDA's users press for it. */
+const WAYS: Record<PassName, string> = {
+  read: "line by line (Down Arrow)",
+  headings: "heading by heading (H)",
+  tab: "control by control (Tab)",
+};
+
+function coverageOf(standing: Standing, redact: (text: string) => string): ShareModel["coverage"] {
+  const { latest } = standing;
+  if (latest === null) {
+    return { covered: ["No live run counts yet, so these results cover no pages."], limits: [] };
+  }
+  return {
+    covered: [
+      scopeOf(standing.pages.length, latest.settings.source, redact),
+      passesOf(standing, latest),
+      "Every problem during the runs is explained under Problems during the runs.",
+    ],
+    limits: [
+      ...toolsOf(latest),
+      "Flags match NVDA's English phrasing, and the person reviewing decides what they mean.",
+      ...toolChanges(standing.drawnOn).map(redact),
+    ],
+  };
+}
+
+/**
+ * The passes the latest run read on each page. A page shown from an earlier run that read fewer
+ * has fewer, and the line says so rather than claim them for it.
+ */
+function passesOf(standing: Standing, latest: RunJson): string {
+  const passes = PASS_NAMES.filter((pass) => latest.settings.passes.includes(pass));
+  const fewer = standing.pages.filter(
+    ({ shown }) =>
+      shown !== null &&
+      shown.run !== latest &&
+      passes.some((pass) => shown.page.passes[pass] === undefined),
+  ).length;
+  const except =
+    fewer === 0
+      ? ""
+      : fewer === 1
+        ? ", except 1 page shown from an earlier run, which had fewer"
+        : `, except ${fewer} pages shown from earlier runs, which had fewer`;
+  const each = `${passes.length} ${passes.length === 1 ? "pass" : "passes"} on each page${except}`;
+  return `${each}: ${names(passes.map((pass) => WAYS[pass]))}.`;
+}
+
+/** The pages in scope, and the list they came from. */
+function scopeOf(count: number, source: PageSource, redact: (text: string) => string): string {
+  const from =
+    source.kind === "sitemap"
+      ? `the sitemap ${source.url}`
+      : source.kind === "pages"
+        ? `the page list ${redact(source.file)}`
+        : "the pages given";
+  return `${count === 1 ? "1 page" : `${count} pages`} from ${from}.`;
+}
+
+/** The screen reader and browser the latest run's results come from. */
+function toolsOf(run: RunJson): string[] {
+  const environment = run.sessions.findLast((session) => session.environment !== null)?.environment;
+  const reader = environment?.screenReader;
+  if (!environment || !reader) return [];
+  const language = reader.language === null ? "" : ` (${reader.language})`;
+  const browser = environment.browser
+    ? ` and ${environment.browser.name} ${environment.browser.version}`
+    : "";
+  return [`Results come from ${reader.name} ${reader.version}${language}${browser}.`];
+}
+
+/**
+ * Each change of tools in the runs the standing draws on, as describeChanges words it: within a
+ * run resumed with other tools, and from each run to the next, as the comparison with the run
+ * before words it (environmentDifferences).
+ */
+function toolChanges(runs: RunJson[]): string[] {
+  const environments = runs.map(distinctEnvironments);
+  return runs.flatMap((run, index) => {
+    const distinct = environments[index] ?? [];
+    const [first] = distinct;
+    const last = distinct.at(-1);
+    const during =
+      first && last && distinct.length > 1
+        ? describeChanges(first, last).map((change) => `${change} (during run ${run.id}).`)
+        : [];
+    const next = runs[index + 1];
+    const to = environments[index + 1]?.at(-1);
+    const between =
+      next && last && to
+        ? describeChanges(last, to).map((change) => `${change} (run ${run.id} → run ${next.id}).`)
+        : [];
+    return [...during, ...between];
+  });
+}
+
+/** A TXT transcript the page shows: the shown run's record of it, and its text. */
+interface ShownTranscript {
+  run: string;
+  slug: string;
+  pass: PassName;
+  name: string;
+  hash: FileHash;
+  /** Its text exactly as on disk, or null when it couldn't be read. */
+  text: string | null;
+}
+
+/** The TXT transcripts a page's shown record lists, in pass order: none when it has none shown. */
+function shownTranscripts(page: PageStanding, transcripts: TranscriptStore): ShownTranscript[] {
+  const { shown } = page;
+  if (shown === null) return [];
+  const { id: run } = shown.run;
+  const { slug } = shown.page;
+  return PASS_NAMES.flatMap((pass) => {
+    const name = `${pass}.txt`;
+    const hash = shown.page.files[name];
+    if (hash === undefined) return [];
+    return [{ run, slug, pass, name, hash, text: transcripts.txt(run, slug, pass) }];
+  });
+}
+
+function appendixOf(standing: Standing, transcripts: TranscriptStore): ShareModel["appendix"] {
+  return standing.pages.flatMap((page) => {
+    if (page.shown === null) return [];
+    const own = shownTranscripts(page, transcripts);
+    return [
+      {
+        slug: page.slug,
+        name: pageName(page),
+        files: own.flatMap(({ run, slug, pass, name, hash, text }): AppendixFile[] => {
+          if (text === null) return [];
+          const lines = extractBody(text);
+          return [
+            {
+              pass,
+              run,
+              slug,
+              name,
+              text: lines.join("\n"),
+              lines: lines.length,
+              bytes: hash.bytes,
+              sha256: hash.sha256,
+            },
+          ];
+        }),
+        unreadable: own.filter((file) => file.text === null).map((file) => file.pass),
+      },
+    ];
+  });
+}
+
+/**
+ * A run's record exactly as its run.json holds it, for the evidence and the fingerprint check. A
+ * copy with anything changed, such as flags computed afresh, would never match its seal.
+ */
+function recordsOf(records: RunJson[]): (run: RunJson) => RunJson {
+  const byId = new Map(records.map((record): [string, RunJson] => [record.id, record]));
+  return (run) => {
+    const record = byId.get(run.id);
+    if (record === undefined) throw new Error(`The record of run ${run.id} wasn't read.`);
+    return record;
+  };
+}

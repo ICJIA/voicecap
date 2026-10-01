@@ -115,8 +115,10 @@ async function verifySite(home: string, folder: string): Promise<SiteTally> {
     const dir = path.join(siteDir, name);
     if (DATE_FOLDER.test(name)) {
       await checkDateFolder(home, dir, site);
-    } else if (name !== "compare" && !name.startsWith(".")) {
-      // Records in any other folder (a renamed date folder, say) would go unchecked.
+    } else if (name !== "compare" && name !== "share" && !name.startsWith(".")) {
+      // compare/ and share/ are voicecap's own, and hold what it writes again from the records: the
+      // diffs, and the shareable page. Records in any other folder (a renamed date folder, say)
+      // would go unchecked.
       site.problems.push(
         `${linkPath(home, dir)}: an unexpected folder; runs and manual sessions live in date folders`,
       );

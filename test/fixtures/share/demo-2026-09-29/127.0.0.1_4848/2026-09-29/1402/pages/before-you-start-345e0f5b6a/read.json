@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1402",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/before-you-start/",
+    "key": "http://127.0.0.1:4848/before-you-start",
+    "slug": "before-you-start-345e0f5b6a",
+    "finalUrl": "http://127.0.0.1:4848/before-you-start/"
+  },
+  "capturedAt": "2026-09-29T14:04:24-05:00",
+  "durationMs": 24294,
+  "stepCount": 19,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.58"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+    },
+    "runId": "2026-09-29_1402",
+    "runStartedAt": "2026-09-29T14:02:51-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1278,
+      "offsetMs": 1278
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1277,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1275,
+      "offsetMs": 3830
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 2 items, link, Previous: Welcome",
+      "durationMs": 1277,
+      "offsetMs": 5107
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Next: How a run works",
+      "durationMs": 1278,
+      "offsetMs": 6385
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, Before you start",
+      "durationMs": 1275,
+      "offsetMs": 7660
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "Two commands get a computer ready for voicecap, and keep it that way.",
+      "durationMs": 1274,
+      "offsetMs": 8934
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "heading, level 2, voicecap setup",
+      "durationMs": 1277,
+      "offsetMs": 10212
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "Setup installs what voicecap needs on this computer.",
+      "durationMs": 1277,
+      "offsetMs": 11488
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "On Windows, that includes voicecap's own copy of NVDA, so yours stays as it is.",
+      "durationMs": 1279,
+      "offsetMs": 12768
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "On a Mac, setup also walks you through the permissions mac OS asks for.",
+      "durationMs": 1278,
+      "offsetMs": 14046
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "heading, level 2, voicecap doctor",
+      "durationMs": 1280,
+      "offsetMs": 15325
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "Doctor checks the screen reader, the browser, and anything else that could stop a run.",
+      "durationMs": 1285,
+      "offsetMs": 16611
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "Then it starts the screen reader for a 20-second live test.",
+      "durationMs": 1280,
+      "offsetMs": 17891
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "The tour ran the same checks, and the live test, in steps 2 and 3.",
+      "durationMs": 1283,
+      "offsetMs": 19174
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1280,
+      "offsetMs": 20454
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1285,
+      "offsetMs": 21739
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1275,
+      "offsetMs": 23015
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1280,
+      "offsetMs": 24294
+    }
+  ]
+}

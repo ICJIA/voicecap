@@ -1,0 +1,26 @@
+# voicecap transcript: headings pass
+# Page: http://127.0.0.1:4848/how-a-run-works/
+# Final URL: http://127.0.0.1:4848/how-a-run-works/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-09-29_1402 (started 2026-09-29T14:02:51-05:00)
+# Captured: 2026-09-29T14:05:24-05:00
+# Steps: 1 (stopped: error)
+# Duration: 4s
+# Errors: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.
+# Warnings: none
+# Page source: sitemap http://127.0.0.1:4848/sitemap.xml
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.58
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.4.1 (config sha256 42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+main landmark, How a run works, heading, level 1

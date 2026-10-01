@@ -1,0 +1,606 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-09-29_1402",
+  "name": null,
+  "status": "completed",
+  "createdAt": "2026-09-29T14:02:51-05:00",
+  "completedAt": "2026-09-29T14:09:14-05:00",
+  "site": "http://127.0.0.1:4848",
+  "settings": {
+    "site": "http://127.0.0.1:4848",
+    "source": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "passes": [
+      "read",
+      "headings",
+      "tab"
+    ],
+    "include": [],
+    "exclude": [],
+    "limit": null,
+    "driver": "guidepup",
+    "replayFrom": null,
+    "capture": "complete",
+    "stepCaps": {
+      "read": 400,
+      "headings": 200,
+      "tab": 300
+    },
+    "nvdaSettings": {},
+    "browser": {
+      "channel": "chrome",
+      "fallbackToChromium": true
+    }
+  },
+  "settingsHash": "2c7befd0a3c78fd01db8af242fa8601724e713f8b3d6d4fa4da140903d2cf008",
+  "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2",
+  "flagRulesSha256": "d7c89563e02717f67c43b76fb918e1b9c8e681e1c3841d210eb7ca18c2ce96c1",
+  "replayed": false,
+  "source": {
+    "kind": "sitemap",
+    "listed": 7,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": [],
+    "sitemaps": [
+      {
+        "url": "http://127.0.0.1:4848/sitemap.xml",
+        "urls": 7,
+        "sha256": "1eec317b01d1ccc487845b3f8cb316a1be2c4b612508da25f04ecbd78ae79481"
+      }
+    ]
+  },
+  "compareTo": null,
+  "sessions": [
+    {
+      "n": 1,
+      "startedAt": "2026-09-29T14:02:51-05:00",
+      "endedAt": "2026-09-29T14:09:14-05:00",
+      "endReason": "completed",
+      "pagesDone": 7,
+      "environment": {
+        "driver": {
+          "name": "guidepup",
+          "version": "0.34.0"
+        },
+        "screenReader": {
+          "name": "NVDA",
+          "version": "2026.2",
+          "build": "0.2.1-2026.2",
+          "language": "en-US"
+        },
+        "capture": "complete",
+        "browser": {
+          "name": "Chrome",
+          "version": "154.0.8037.58"
+        },
+        "os": "Windows 11 Pro 25H2 (10.0.26200)",
+        "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+          "speech": {
+            "synth": "oneCore",
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
+          },
+          "documentFormatting": {},
+          "virtualBuffers": {
+            "autoSayAllOnPageLoad": false
+          },
+          "keyboard": {},
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "OFF",
+            "preventDisplayTurningOff": true
+          }
+        },
+        "pageSource": {
+          "kind": "sitemap",
+          "url": "http://127.0.0.1:4848/sitemap.xml"
+        },
+        "voicecap": {
+          "version": "0.4.1",
+          "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+        },
+        "runId": "2026-09-29_1402",
+        "runStartedAt": "2026-09-29T14:02:51-05:00"
+      }
+    }
+  ],
+  "skipped": [],
+  "pages": [
+    {
+      "url": "http://127.0.0.1:4848/",
+      "key": "http://127.0.0.1:4848/",
+      "slug": "home",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 22984,
+          "contentSha256": "34dbb01b86a3846fe34b2dab931ae6dffe274e9769c6c2ce6764eb0942840a33",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3837,
+          "contentSha256": "f25737d875a0fb8adce76dcb4b58aaeceaff394e31aa8331ea802038ce4959f5",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 9,
+          "stopReason": "left-document",
+          "durationMs": 13274,
+          "contentSha256": "9e5dfa88178dbb57b22030ca9d40e0258a85fa4e356703c7504e68a27f9cc89f",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe",
+          "bytes": 2306
+        },
+        "read.json": {
+          "sha256": "a3c37691c15a0055184c204758e7f5bfad552c4f2cb4cab63905efa725669ffe",
+          "bytes": 5241
+        },
+        "headings.txt": {
+          "sha256": "83ecd9fe2bf6baf7b3aad0bebb62f50ea340e6f74e6a9361bcd69e0bb26fc60c",
+          "bytes": 1419
+        },
+        "headings.json": {
+          "sha256": "53cf4717a0013c9b811b09000f0de91d94bd037c891176f40fc46da1bae47394",
+          "bytes": 2507
+        },
+        "tab.txt": {
+          "sha256": "6d1ea70f9cf8969e4d4606b60b8d555fa320f1ac4327bbe07312cdaaeb02449d",
+          "bytes": 1673
+        },
+        "tab.json": {
+          "sha256": "831fd72dd6e8b17a608c8e1ddb453bcf190bfad38b71db0463a24d3e25d1f129",
+          "bytes": 5171
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:03:00-05:00",
+      "durationMs": 55114,
+      "finalUrl": "http://127.0.0.1:4848/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/before-you-start/",
+      "key": "http://127.0.0.1:4848/before-you-start",
+      "slug": "before-you-start-345e0f5b6a",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 19,
+          "stopReason": "end-reached",
+          "durationMs": 24294,
+          "contentSha256": "2ce9750d74ff0b362579a931092fc6c0a0e18d84c3893172fc5395dd8edb9965",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5119,
+          "contentSha256": "72aafa491818e33d7b27fd9cb637c985b7e118a32b0bb6c3658bd89e56b421d4",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6689,
+          "contentSha256": "6f5b1e18db7b4d702779919a5ca4bee504f5fe3010b8f8e9977d0097cda7f675",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "137e3282a23e7c10d461651622954212778c927b4c3d535b5a5839e274046472",
+          "bytes": 2528
+        },
+        "read.json": {
+          "sha256": "653d52dd7d634d1d8c9e0a419a756ae7e7b91f2e3cedbbf7aad4db83a9f1ea2e",
+          "bytes": 5628
+        },
+        "headings.txt": {
+          "sha256": "b02163a9361f70469a21b0992115f5713c7f7971f80076b93a7bee11c56e77c5",
+          "bytes": 1473
+        },
+        "headings.json": {
+          "sha256": "8e2b6379b0255aa9373cec61d55e7cfbd9caede72abae8911212c811b1ecf030",
+          "bytes": 2727
+        },
+        "tab.txt": {
+          "sha256": "b9e42422a77815534c4dbfa875174d57bb76033d9af6261901a27e77e170d19e",
+          "bytes": 1560
+        },
+        "tab.json": {
+          "sha256": "cce78b037850e1c9c75119a5ba3f61384fffcd7150c6f87972fb642fc5df4120",
+          "bytes": 3459
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:03:55-05:00",
+      "durationMs": 51555,
+      "finalUrl": "http://127.0.0.1:4848/before-you-start/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/how-a-run-works/",
+      "key": "http://127.0.0.1:4848/how-a-run-works",
+      "slug": "how-a-run-works-fd116f9328",
+      "status": "failed",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 22990,
+          "contentSha256": "3238e9a93214eeac84f1b00057709b0c333785fe92efd0e16f6ccff79e8095a2",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 1,
+          "stopReason": "error",
+          "durationMs": 4071,
+          "contentSha256": "c8202724edef3b248c28b9ea45b7e90b50e953b5164f6ce84e8f1e030f591104",
+          "errors": [
+            "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs."
+          ],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "4b1c8dc3ed4f5cc390d15b38ae55edcfe528166e4d65492221356b73d3d6104a",
+          "bytes": 2412
+        },
+        "read.json": {
+          "sha256": "d5113cc1b6f048a3e83ec6b720b54bf3bb07f382be43dc3ddc0004c8356a8154",
+          "bytes": 5384
+        },
+        "headings.txt": {
+          "sha256": "46cbe4fdb629aec30f3fba0eb4b06ac612e9b5fff12781b521e59d2ca6438996",
+          "bytes": 1519
+        },
+        "headings.json": {
+          "sha256": "5e009e4ed4743063de1bf71671c822808f1b8e02251445d41c787881065ee954",
+          "bytes": 2404
+        }
+      },
+      "flags": [],
+      "errors": [
+        "headings pass: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs."
+      ],
+      "failure": "environment",
+      "session": 1,
+      "startedAt": "2026-09-29T14:04:46-05:00",
+      "durationMs": 37356,
+      "finalUrl": "http://127.0.0.1:4848/how-a-run-works/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/reading-transcripts/",
+      "key": "http://127.0.0.1:4848/reading-transcripts",
+      "slug": "reading-transcripts-1bc29b7494",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 19,
+          "stopReason": "end-reached",
+          "durationMs": 24303,
+          "contentSha256": "0573dc560a532a8d4139f3c677374a3b04272301f20a19b50bbffc3d406587f2",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5121,
+          "contentSha256": "c80618ab3537f9ebe160d0bfd050321614bb88eebbbd775f460ee326d0e351ae",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6697,
+          "contentSha256": "81bf5ffb2b2a5bfee0fc41655624ac0c950f261cbc2905966d7882e4f0742cb9",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "ceec5bf9b1adf3a524d018aed1e5f1da21a40ef540f68288aea0a69bbf2bcb67",
+          "bytes": 2494
+        },
+        "read.json": {
+          "sha256": "00f8fedee2b3f9c61ea539a1373eb624808088f0294b84c4c8550ca01a15ad0b",
+          "bytes": 5600
+        },
+        "headings.txt": {
+          "sha256": "3bca36935814db181acd680987a1b6713906ba60d61386d90dbd3fb51213a99a",
+          "bytes": 1484
+        },
+        "headings.json": {
+          "sha256": "d998c7d02d89b5bda55a947c0454a1aa72045c943ffe8337a25f0c439c9be0b0",
+          "bytes": 2744
+        },
+        "tab.txt": {
+          "sha256": "7d25f8bfdf71eeed7061775205378c9afab6f2ed2288494eca263982749f488d",
+          "bytes": 1572
+        },
+        "tab.json": {
+          "sha256": "29fa3f218f73fe3c08fec623437df6b74d17344ebb9c83ab6ae4b7b6fea45235",
+          "bytes": 3491
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:05:30-05:00",
+      "durationMs": 51034,
+      "finalUrl": "http://127.0.0.1:4848/reading-transcripts/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/the-report/",
+      "key": "http://127.0.0.1:4848/the-report",
+      "slug": "the-report-03940c2f88",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 23003,
+          "contentSha256": "4e0aaa3d893c18465fd596bed230a6835bca4a9a729c66c3561b3f3b3fb2ec4c",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6397,
+          "contentSha256": "a7b10ae88c2039ae418fa1a1f3de60102cda5276e6d204d7ffd9ab9a264f8276",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6684,
+          "contentSha256": "7de9bb309a98a6591b6c2927d7427be66780cad916ce97ce913259fbf947b453",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "631c18ece17b899cf021f62843c17f9d4be10a3e8aa9ceac3c0b6e487712edeb",
+          "bytes": 2404
+        },
+        "read.json": {
+          "sha256": "9fe1b82ee7356eade04bbadec776887fb34347495534f9cc50dee54c5eb004f9",
+          "bytes": 5366
+        },
+        "headings.txt": {
+          "sha256": "8b485579885b7ce2e055a4f76ecbfdf5c32bcaa4795db8c38c962d553a1dcead",
+          "bytes": 1465
+        },
+        "headings.json": {
+          "sha256": "fe56a88cad71bb2ce34d878a4afea87f5c5655527fd7a5479554d645a58c99f1",
+          "bytes": 2834
+        },
+        "tab.txt": {
+          "sha256": "586ce95be8b9b6978ad72c0e366c9b4dcb30f8174298f8284c6160b0d4ec53c7",
+          "bytes": 1553
+        },
+        "tab.json": {
+          "sha256": "6a9c7a842eb7fcd5cf5a530529f53b2bd2738adad036f2df896b2c7f1f9ab56f",
+          "bytes": 3470
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:06:21-05:00",
+      "durationMs": 51717,
+      "finalUrl": "http://127.0.0.1:4848/the-report/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/ask-a-question/",
+      "key": "http://127.0.0.1:4848/ask-a-question",
+      "slug": "ask-a-question-dec13fb322",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 21,
+          "stopReason": "end-reached",
+          "durationMs": 26836,
+          "contentSha256": "21bf7de24b84072e8afb1e120cf4aafe6e98f979ec04f466675da153746bf1a9",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2558,
+          "contentSha256": "c9e20062de2a9aad22b8b668a3ece0b412a6f24559f4704481d4e89e326c49c0",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 8,
+          "stopReason": "left-document",
+          "durationMs": 11938,
+          "contentSha256": "bdc4023912397466135b590d64e4cb78409eeb4dfa1c496ea93c63e7382cf092",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "4ee203233aa7e6f2d164755b40ac95ff29ef34beae6ed8e67ca4dcc8a50e4fc4",
+          "bytes": 2481
+        },
+        "read.json": {
+          "sha256": "3dc44a9f09c72d71d4e16bc81e061fbe059d9c486dc165952447386585badfd8",
+          "bytes": 5830
+        },
+        "headings.txt": {
+          "sha256": "673de57365fc051defc779e609444b26e28f87b03137f0b1e50d120e48871e5b",
+          "bytes": 1400
+        },
+        "headings.json": {
+          "sha256": "79b18563d77d317638202f29e504ca7f4f5010418a6d83aca68b4974e2ea54ef",
+          "bytes": 2396
+        },
+        "tab.txt": {
+          "sha256": "a62128dfe3bbfebf41e8980ae210c03da4e82590ebad79bab411943dec264e89",
+          "bytes": 1857
+        },
+        "tab.json": {
+          "sha256": "a2f2c1c6567173d8be6341e80940bf6e86b7fc30315b2829905a7e9667d00a13",
+          "bytes": 5044
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:07:13-05:00",
+      "durationMs": 56866,
+      "finalUrl": "http://127.0.0.1:4848/ask-a-question/",
+      "httpStatus": 200
+    },
+    {
+      "url": "http://127.0.0.1:4848/common-mistakes/",
+      "key": "http://127.0.0.1:4848/common-mistakes",
+      "slug": "common-mistakes-db8c98dbfa",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 22,
+          "stopReason": "end-reached",
+          "durationMs": 28135,
+          "contentSha256": "454de5ef5c047b3db60adae0a04a15d54751082d86b7441c7f76e343345ca363",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6400,
+          "contentSha256": "762fb33267cadd8f0b83a18f9f5c26047f5747f4ee5ca5eafd3250bc29f7c2c3",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 8,
+          "stopReason": "left-document",
+          "durationMs": 11937,
+          "contentSha256": "344e3c49b1b8c6905e230ddc13a98f615efef9fe66aed6db231d456cdc923e8a",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "d4ebad6ccbf1190395f9ddef577452c32290a68b0ed92b8592482d92c5b78e2c",
+          "bytes": 2638
+        },
+        "read.json": {
+          "sha256": "fcc6ad35591a35ecd0db398744ed2a826ecf4bb3ce7ca5424995ff02cf918101",
+          "bytes": 6114
+        },
+        "headings.txt": {
+          "sha256": "72976030e8e1897b13dba7aa4d543d8d3b12d5cc1913357a7cfb7f8ff6d7a257",
+          "bytes": 1545
+        },
+        "headings.json": {
+          "sha256": "7d09d7c041a5d5cc50164115643ee62f54f0e1ef40ea956a4832786cf78f170d",
+          "bytes": 2924
+        },
+        "tab.txt": {
+          "sha256": "d31b077cdb80d34406548b218a1ad3dceb1203415dcc38f1170c6d2236a5b3b2",
+          "bytes": 1634
+        },
+        "tab.json": {
+          "sha256": "39f63bc3c3e3cc3b93c456744d9d7bb7b6f2dc51ff56fb546ed9e6811c9ace05",
+          "bytes": 4773
+        }
+      },
+      "flags": [
+        {
+          "rule": "generic-link-text",
+          "pass": "read",
+          "count": 3,
+          "message": "Generic link text announced 3 times in the read pass: \"click here\" ×3."
+        },
+        {
+          "rule": "generic-link-text",
+          "pass": "tab",
+          "count": 3,
+          "message": "Generic link text announced 3 times in the tab pass: \"click here\" ×3."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "message": "Unlabeled or poorly labeled items in the read pass: \"button\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 2,
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"button\" ×1, \"edit\" ×1."
+        },
+        {
+          "rule": "headings",
+          "pass": "headings",
+          "message": "The first heading is level 2, not level 1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-09-29T14:08:10-05:00",
+      "durationMs": 61931,
+      "finalUrl": "http://127.0.0.1:4848/common-mistakes/",
+      "httpStatus": 200
+    }
+  ],
+  "seal": "d5dde0403c8b18e9aec8aa88b0d53c0c1da9945fb87784af3605a67642875985"
+}

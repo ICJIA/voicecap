@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4848/common-mistakes/",
+    "key": "http://127.0.0.1:4848/common-mistakes",
+    "slug": "common-mistakes-db8c98dbfa",
+    "finalUrl": "http://127.0.0.1:4848/common-mistakes/"
+  },
+  "capturedAt": "2026-09-29T13:21:55-05:00",
+  "durationMs": 11946,
+  "stepCount": 8,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1319,
+      "offsetMs": 1320,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Tour, navigation landmark, list, with 1 item, Previous: Ask a question, link",
+      "durationMs": 1322,
+      "offsetMs": 2642,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Previous: Ask a question",
+        "inMain": false,
+        "href": "/ask-a-question/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "main landmark. edit, blank",
+      "durationMs": 1321,
+      "offsetMs": 3963,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "button",
+      "durationMs": 1307,
+      "offsetMs": 5270,
+      "inDocument": true,
+      "focused": {
+        "tag": "button",
+        "role": "button",
+        "name": "",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "click here, link",
+      "durationMs": 1323,
+      "offsetMs": 6593,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "click here",
+        "inMain": true,
+        "href": "/how-a-run-works/"
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "click here, link",
+      "durationMs": 1307,
+      "offsetMs": 7900,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "click here",
+        "inMain": true,
+        "href": "/reading-transcripts/"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "click here, link",
+      "durationMs": 1308,
+      "offsetMs": 9208,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "click here",
+        "inMain": true,
+        "href": "/the-report/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Common mistakes (on purpose) voicecap demo - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2738,
+      "offsetMs": 11946,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

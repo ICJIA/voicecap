@@ -38,9 +38,10 @@ export function linkList(items: string[]): string {
   return `<ul class="links">${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 }
 
-/** "1 page", "3 pages". */
+/** "1 page", "3 pages". The count is made a number first, so it can only ever be one. */
 export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : pluralForm}`;
+  const amount = Number(count);
+  return `${amount.toLocaleString("en-US")} ${amount === 1 ? singular : pluralForm}`;
 }
 
 /** An id-safe fragment from any string (slugs already are; this guards everything else). */

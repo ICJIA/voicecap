@@ -1,0 +1,38 @@
+# voicecap transcript: read pass
+# Page: http://127.0.0.1:4848/the-report/
+# Final URL: http://127.0.0.1:4848/the-report/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-09-29_1315 (started 2026-09-29T13:15:48-05:00)
+# Captured: 2026-09-29T13:19:49-05:00
+# Steps: 13 (stopped: error)
+# Duration: 19s
+# Errors: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.
+# Warnings: none
+# Page source: sitemap http://127.0.0.1:4848/sitemap.xml
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 153.0.8010.53
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.4.1 (config sha256 c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, This demo site comes with voicecap, and runs only on this computer.
+[to top] same page, link, Skip to main content
+banner landmark, voicecap demo
+Tour, navigation landmark, list, with 2 items, link, Previous: Reading transcripts
+link, Next: Ask a question
+out of list, main landmark, heading, level 1, The report
+After the last page, voicecap builds a report, report dot html, about every page.
+heading, level 2, Coverage
+For each page, the report shows what each pass captured, and where it stopped.
+heading, level 2, Flags
+Flags point to pages worth a closer listen, such as a field with no name.
+A flag never fails a page: a person listens, and decides.
+heading, level 2, Reviews

@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "headings",
+  "page": {
+    "url": "http://127.0.0.1:4848/before-you-start/",
+    "key": "http://127.0.0.1:4848/before-you-start",
+    "slug": "before-you-start-345e0f5b6a",
+    "finalUrl": "http://127.0.0.1:4848/before-you-start/"
+  },
+  "capturedAt": "2026-09-29T13:17:29-05:00",
+  "durationMs": 5115,
+  "stepCount": 4,
+  "stopReason": "no-next-heading",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextHeading",
+      "spoken": "main landmark, Before you start, heading, level 1",
+      "durationMs": 1279,
+      "offsetMs": 1279
+    },
+    {
+      "n": 2,
+      "command": "nextHeading",
+      "spoken": "voicecap setup, heading, level 2",
+      "durationMs": 1283,
+      "offsetMs": 2562
+    },
+    {
+      "n": 3,
+      "command": "nextHeading",
+      "spoken": "voicecap doctor, heading, level 2",
+      "durationMs": 1280,
+      "offsetMs": 3842
+    },
+    {
+      "n": 4,
+      "command": "nextHeading",
+      "spoken": "no next heading",
+      "durationMs": 1274,
+      "offsetMs": 5115
+    }
+  ]
+}

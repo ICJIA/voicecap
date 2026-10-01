@@ -44,7 +44,7 @@
   },
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-fonts.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

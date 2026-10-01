@@ -1,10 +1,11 @@
+import os from "node:os";
 import { pathToFileURL } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ForegroundError } from "../src/drivers/types.js";
 import { StepTimeoutError, withTimeout } from "../src/passes/steps.js";
-import { causeOf, redactHome } from "../src/run/failure.js";
+import { causeOf, homeFolder, redactHome } from "../src/run/failure.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { isoLocal, isoLocalMs } from "../src/util/time.js";
 
@@ -268,6 +269,24 @@ describe("redactHome", () => {
     expect(redactHome(text, "C:\\Windows", "win32")).toBe(
       "at f (%USERPROFILE%\\a.js:1:2) at g (%USERPROFILE%/b.js:3:4)",
     );
+  });
+});
+
+describe("homeFolder", () => {
+  it("is the home folder", () => {
+    expect(homeFolder()).toBe(os.homedir());
+  });
+
+  // Where neither HOME (USERPROFILE on Windows) nor the account's entry gives one, Node throws.
+  it("is null where Node can't give one, rather than failing", () => {
+    const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+      throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+    });
+    try {
+      expect(homeFolder()).toBeNull();
+    } finally {
+      homedir.mockRestore();
+    }
   });
 });
 
