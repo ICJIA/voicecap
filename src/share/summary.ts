@@ -2,8 +2,8 @@
  * The summary: the result in one sentence that leads with the person's review, six numbers, four
  * panels, and three bars. Pure: every part is worked out from records already read.
  */
-import type { FlagResult, RunJson } from "../model.js";
-import { attentionLine } from "./attention.js";
+import type { FlagResult, RunJson, SkipReason } from "../model.js";
+import { attentionClauses } from "./attention.js";
 import type { Changes } from "./changes.js";
 import { dateRange, names } from "./format.js";
 import { PHRASES, type ProblemsSection } from "./problems.js";
@@ -27,8 +27,12 @@ export interface Summary {
     linesSpoken: number;
     nvdaMs: number;
   };
-  /** "What needs attention": a plain line for each page with flags, a failure, or an open issue. */
-  attention: string[];
+  /**
+   * "What needs attention": each page with flags, a failure, or an open issue. `slug` is the page's,
+   * to link its card. `clauses` is what a listener hears on it, "<what>; <what>", so `name` and
+   * `clauses` make `attentionLine`'s line.
+   */
+  attention: { slug: string; name: string; clauses: string }[];
   /** "How complete the test was". */
   complete: string[];
   /** "What's still to do". */
@@ -118,6 +122,7 @@ export function summaryOf(input: SummaryInput): Summary {
   const heard = transcribed.filter((facts) => facts.review?.listened?.answer === "all");
   const reviewed = transcribed.filter(decided);
   const withIssue = pages.filter(hasOpenIssue);
+  const issuesFound = pages.filter((facts) => facts.review?.issueFound === true);
   const fixed = pages.filter((facts) => facts.review?.fixed === true);
   // Flags no one has decided about, apart from the pages already counted for an issue.
   const undecided = flagged.filter((facts) => !hasOpenIssue(facts) && !decided(facts));
@@ -134,7 +139,13 @@ export function summaryOf(input: SummaryInput): Summary {
     const failure = unread.includes(facts) ? failureKind(facts) : null;
     const issue = hasOpenIssue(facts) ? (facts.review?.latest?.note ?? "") : null;
     if (facts.flags.length === 0 && failure === null && issue === null) return [];
-    return [attentionLine(facts.name, facts.flags, failure, issue)];
+    return [
+      {
+        slug: facts.page.slug,
+        name: facts.name,
+        clauses: attentionClauses(facts.flags, failure, issue),
+      },
+    ];
   });
 
   return {
@@ -145,8 +156,10 @@ export function summaryOf(input: SummaryInput): Summary {
       flagged,
       reviewed,
       withIssue,
+      issuesFound,
       undecided,
       unread,
+      skipped,
       latest,
     }),
     second: SECOND_LINE,
@@ -169,7 +182,7 @@ export function summaryOf(input: SummaryInput): Summary {
       ...(unread.length > 0 ? [`Couldn't be read after every attempt: ${unread.length}.`] : []),
       ...(skipped.length > 0 ? [`Skipped, not read: ${skipped.length}.`] : []),
     ],
-    todo: todoOf(withIssue, unread, undecided),
+    todo: todoOf(withIssue, unread, skipped, undecided),
     whenHow: whenHowOf(latest),
     bars: {
       results: {
@@ -181,7 +194,7 @@ export function summaryOf(input: SummaryInput): Summary {
       review: {
         listened: [heard.length, transcribed.length],
         reviewed: [reviewed.length, transcribed.length],
-        fixed: [fixed.length, fixed.length + withIssue.length],
+        fixed: [fixed.length, issuesFound.length],
       },
     },
     changesLine: changes?.summaryLine ?? null,
@@ -233,9 +246,15 @@ interface SentenceParts {
   flagged: PageFacts[];
   /** Pages with a decision about the transcripts shown. */
   reviewed: PageFacts[];
+  /** Pages whose latest review is an issue no one has fixed. */
   withIssue: PageFacts[];
+  /** Pages that ever had an issue found in review. */
+  issuesFound: PageFacts[];
   undecided: PageFacts[];
+  /** Pages with no transcripts whose attempts all failed. */
   unread: PageFacts[];
+  /** Pages with no transcripts that voicecap skipped after loading them. */
+  skipped: PageFacts[];
   latest: RunJson;
 }
 
@@ -251,7 +270,18 @@ interface People {
  * done is never said, only what was found.
  */
 function sentenceOf(parts: SentenceParts): string {
-  const { pages, transcribed, heard, flagged, reviewed, withIssue, undecided, unread } = parts;
+  const {
+    pages,
+    transcribed,
+    heard,
+    flagged,
+    reviewed,
+    withIssue,
+    issuesFound,
+    undecided,
+    unread,
+    skipped,
+  } = parts;
   const total = transcribed.length;
 
   const all = listeners(transcribed, "all");
@@ -309,20 +339,28 @@ function sentenceOf(parts: SentenceParts): string {
       `${flags} ${flags === 1 ? "page has" : "pages have"} flags worth a closer listen.`,
     );
   }
-  // Nothing open: say what the review found, as far as it's so. Nothing was found or raised only if
-  // no page has flags, and no issue was found and fixed. And pages that weren't read have no flags
-  // to speak of.
+  // Nothing open: say what was found, as far as each page's history says. "No issues were found" is
+  // said only when no page ever had an issue entry, and "every issue was fixed" only when every page
+  // that did has a "fixed" entry after its last issue. An issue that was reviewed again with no fix
+  // recorded is neither, so nothing is said. Pages that weren't read have no flags to speak of.
   if (issues === 0 && flags === 0 && total > 0) {
-    if (pages.some(({ review }) => review?.latest?.status === "fixed")) {
+    if (issuesFound.length === 0) {
+      sentences.push(
+        flagged.length > 0
+          ? "Every page with flags was reviewed, and no issues were found."
+          : "No flags were raised, and no issues were found.",
+      );
+    } else if (issuesFound.every(({ review }) => review?.fixed === true)) {
       sentences.push("Every issue found in review was fixed.");
-    } else if (flagged.length > 0) {
-      sentences.push("Every page with flags was reviewed, and no issues were found.");
-    } else {
-      sentences.push("No flags were raised, and no issues were found.");
     }
   }
   if (unread.length > 0) {
     sentences.push(`${pagesOf(unread.length)} couldn't be read after every attempt.`);
+  }
+  if (skipped.length > 0) {
+    sentences.push(
+      `${skipped.length} ${skipped.length === 1 ? "page was" : "pages were"} skipped, not read.`,
+    );
   }
   return sentences.join(" ");
 }
@@ -368,8 +406,16 @@ const pagesOf = (count: number): string => (count === 1 ? "1 page" : `${count} p
 /** "all 7 pages", and "1 page" for one. */
 const allPages = (count: number): string => (count === 1 ? "1 page" : `all ${count} pages`);
 
-/** What's still to do: one line for each kind of task, or that nothing is left. */
-function todoOf(withIssue: PageFacts[], unread: PageFacts[], undecided: PageFacts[]): string[] {
+/**
+ * What's still to do, as a task for each issue to fix, page to read again, page that was skipped,
+ * and flagged page to decide about; or that nothing is left, when there is none of these.
+ */
+function todoOf(
+  withIssue: PageFacts[],
+  unread: PageFacts[],
+  skipped: PageFacts[],
+  undecided: PageFacts[],
+): string[] {
   const todo: string[] = [];
   if (withIssue.length > 0) {
     const one = withIssue.length === 1;
@@ -382,6 +428,7 @@ function todoOf(withIssue: PageFacts[], unread: PageFacts[], undecided: PageFact
       `Run voicecap again on ${pageList(unread)}: ${unread.length === 1 ? "it" : "they"} couldn't be read after every attempt.`,
     );
   }
+  todo.push(...skippedTasks(skipped));
   if (undecided.length > 0) {
     todo.push(
       `Take a closer listen to ${pageList(undecided)}, where flags were raised, and record what you decide.`,
@@ -396,6 +443,33 @@ function todoOf(withIssue: PageFacts[], unread: PageFacts[], undecided: PageFact
 
 /** The most pages a task names before it says how many more. */
 const NAMED = 4;
+
+/** Why voicecap skipped a page after loading it, in words that follow "was skipped:". */
+const SKIP_REASONS: Record<SkipReason, string> = {
+  "non-html-response": "the site didn't answer with an HTML page",
+  "redirect-off-origin": "it redirected to another site",
+  "non-html-extension": "its address isn't an HTML page",
+  "off-origin": "it's on another site",
+};
+
+/**
+ * A task for each page voicecap skipped: whether it belongs on the list is for a person to decide.
+ * Each says why, as its record does; past `NAMED` pages, the first three and a count.
+ */
+function skippedTasks(skipped: PageFacts[]): string[] {
+  const task = ({ name, page }: PageFacts): string => {
+    const reason = page.latestFailure?.page.skip?.reason;
+    // A reason this version doesn't know (a newer voicecap's) is left unsaid, as is a missing one.
+    const why = reason === undefined ? undefined : SKIP_REASONS[reason];
+    return `${name} was skipped${why === undefined ? "" : `: ${why}`}. Check whether it belongs on the list.`;
+  };
+  if (skipped.length <= NAMED) return skipped.map(task);
+  const more = skipped.length - 3;
+  return [
+    ...skipped.slice(0, 3).map(task),
+    `And ${more} more pages were skipped. Check whether they belong on the list.`,
+  ];
+}
 
 /** Pages by name: "A", "A and B", "A, B, and C", and past `NAMED`, the first three and a count. */
 function pageList(pages: PageFacts[]): string {

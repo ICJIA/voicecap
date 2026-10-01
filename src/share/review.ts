@@ -19,7 +19,13 @@ export interface PageReview {
   latest: ReviewEntry | null;
   /** The latest review saw other transcripts than the ones shown. */
   changedSinceReview: boolean;
-  /** Ever had an "issue" entry up to `asOf`, and the latest is "fixed". */
+  /** An "issue" entry up to `asOf`: an issue was found, whatever was recorded after it. */
+  issueFound: boolean;
+  /**
+   * A "fixed" entry follows the page's last "issue" entry up to `asOf`, whatever was recorded after
+   * that (an issue, fixed, then reviewed is fixed). A "fixed" entry with no issue before it fixes
+   * nothing.
+   */
   fixed: boolean;
   /** The manual NVDA sessions on the page, in the order given. */
   manual: ManualSessionFile[];
@@ -50,11 +56,14 @@ export function reviewOf(
       (entry) => Date.parse(entry.at) <= until,
     );
     const latest = entries.at(-1) ?? null;
+    const lastIssue = entries.findLastIndex((entry) => entry.status === "issue");
     result.set(page.key, {
       listened: listenedOf(page),
       latest,
       changedSinceReview: changedSinceReview(latest ?? undefined, page.shown?.page) === true,
-      fixed: latest?.status === "fixed" && entries.some((entry) => entry.status === "issue"),
+      issueFound: lastIssue !== -1,
+      fixed:
+        lastIssue !== -1 && entries.slice(lastIssue + 1).some((entry) => entry.status === "fixed"),
       manual: manualByKey.get(page.key) ?? [],
     });
   }

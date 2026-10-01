@@ -14,11 +14,12 @@ import type {
   ReviewStatus,
   ReviewsFile,
   RunJson,
+  SkipReason,
 } from "../src/model.js";
 import { pageSlug } from "../src/pages/slug.js";
 import { canonicalKey } from "../src/pages/url.js";
 import { pageName } from "../src/report/model.js";
-import { attentionLine } from "../src/share/attention.js";
+import { attentionClauses, attentionLine } from "../src/share/attention.js";
 import { changesOf, type Changes } from "../src/share/changes.js";
 import { problemsOf } from "../src/share/problems.js";
 import { reviewOf } from "../src/share/review.js";
@@ -225,6 +226,9 @@ function summarize(scene: Scene): Summary {
 
 /** The page most tests give flags to. */
 const COMMON = "/common-mistakes/";
+
+/** The slug of a page of the site, which names its card. */
+const slugOf = (path: string): string => pageSlug(canonicalKey(new URL(path, SITE).href));
 
 /** `COMMON_MISTAKES_FLAGS` on the page "Common mistakes", and nothing on the others. */
 const flagCommonMistakes = (path: string): Partial<SharePageSpec> =>
@@ -435,6 +439,19 @@ describe("attentionLine", () => {
   it("gives just the name when there is nothing to say", () => {
     expect(attentionLine("Page", [], null, null)).toBe("Page");
   });
+
+  it("gives the clauses alone, for a page's line to follow its name", () => {
+    const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
+
+    expect(attentionClauses(flags, "another window took the screen", "")).toBe(
+      "2 links say only “read more”; it couldn't be read after every attempt (another window took the screen); a reviewer found an issue",
+    );
+    expect(attentionLine("Page", flags, null, null)).toBe(
+      `Page: ${attentionClauses(flags, null, null)}`,
+    );
+    // Nothing to say is nothing, not a name.
+    expect(attentionClauses([], null, null)).toBe("");
+  });
 });
 
 describe("reviewOf", () => {
@@ -500,34 +517,63 @@ describe("reviewOf", () => {
     expect(standing.noLongerListed.length).toBeGreaterThan(0);
   });
 
-  it("says a page was fixed when it had an issue, and its latest review is fixed", () => {
-    const run = sevenPages();
-    const at = (hour: number) => `2026-09-26T${hour}:00:00-05:00`;
-    const reviews = reviewsOf(
-      review(run, "/", "issue", { at: at(10) }),
-      review(run, "/", "fixed", { at: at(11) }),
-      // Fixed with no issue before it: nothing was found, so nothing was fixed.
-      review(run, "/before-you-start/", "fixed", { at: at(10) }),
-      // Fixed, then reviewed again: the latest is no longer "fixed".
-      review(run, "/how-a-run-works/", "issue", { at: at(10) }),
-      review(run, "/how-a-run-works/", "fixed", { at: at(11) }),
-      review(run, "/how-a-run-works/", "reviewed", { at: at(12) }),
-      // Not fixed yet.
-      review(run, "/reading-transcripts/", "issue", { at: at(10) }),
-      // Fixed only after the date: as of it, the issue is open.
-      review(run, "/the-report/", "issue", { at: at(10) }),
-      review(run, "/the-report/", "fixed", { at: "2026-09-28T10:00:00-05:00" }),
-    );
+  describe("says an issue was found, and that it was fixed, from a page's history", () => {
+    // A page's reviews in the order they were recorded, one an hour after the one before.
+    const historyOf = (statuses: ReviewStatus[]) => {
+      const run = sevenPages();
+      const entries = statuses.map((status, index) =>
+        review(run, "/", status, { at: `2026-09-26T${10 + index}:00:00-05:00` }),
+      );
+      return reviewOf(standingOf([run]), reviewsOf(...entries), [], AS_OF).get(
+        recordOf(run, "/").key,
+      );
+    };
 
-    const reviewed = reviewOf(standingOf([run]), reviews, [], AS_OF);
-    const fixed = (path: string) => reviewed.get(recordOf(run, path).key)?.fixed;
+    it.each<[string, ReviewStatus[], boolean, boolean]>([
+      ["no review", [], false, false],
+      ["an issue, then fixed", ["issue", "fixed"], true, true],
+      // The fix follows the page's last issue, whatever came after it.
+      ["an issue, fixed, then reviewed again", ["issue", "fixed", "reviewed"], true, true],
+      [
+        "an issue, fixed, then another issue, fixed",
+        ["issue", "fixed", "issue", "fixed"],
+        true,
+        true,
+      ],
+      ["an issue and nothing after it", ["issue"], true, false],
+      // Nothing was found before it, so nothing was fixed.
+      ["a fixed entry with no issue before it", ["fixed"], false, false],
+      ["a fix, then an issue", ["fixed", "issue"], true, false],
+      // The issue came after the fix: it's open again.
+      ["an issue, fixed, then a new issue", ["issue", "fixed", "issue"], true, false],
+      // Reviewed again with no fix recorded: an issue was found, and it wasn't fixed.
+      ["an issue, then reviewed with no fix recorded", ["issue", "reviewed"], true, false],
+      ["reviews with no issue in them", ["reviewed", "unreviewed", "reviewed"], false, false],
+    ])("for %s", (_, statuses, issueFound, fixed) => {
+      expect(historyOf(statuses)).toMatchObject({ issueFound, fixed });
+    });
 
-    expect(fixed("/")).toBe(true);
-    expect(fixed("/before-you-start/")).toBe(false);
-    expect(fixed("/how-a-run-works/")).toBe(false);
-    expect(fixed("/reading-transcripts/")).toBe(false);
-    expect(fixed("/the-report/")).toBe(false);
-    expect(fixed("/ask-a-question/")).toBe(false);
+    it("reads only the reviews up to the page's date", () => {
+      const run = sevenPages();
+      const reviews = reviewsOf(
+        // Found before the date, fixed after it: as of the date, the issue is open.
+        review(run, "/", "issue", { at: "2026-09-26T10:00:00-05:00" }),
+        review(run, "/", "fixed", { at: "2026-09-28T10:00:00-05:00" }),
+        // Found after the date: as of it, there's no issue.
+        review(run, "/the-report/", "issue", { at: "2026-09-28T10:00:00-05:00" }),
+      );
+
+      const reviewed = reviewOf(standingOf([run]), reviews, [], AS_OF);
+
+      expect(reviewed.get(recordOf(run, "/").key)).toMatchObject({
+        issueFound: true,
+        fixed: false,
+      });
+      expect(reviewed.get(recordOf(run, "/the-report/").key)).toMatchObject({
+        issueFound: false,
+        fixed: false,
+      });
+    });
   });
 
   it("counts a page as listened to only when its session answered all of them", () => {
@@ -924,7 +970,8 @@ describe("summaryOf: the sentence", () => {
     /** The sentence after the first, which says who listened and reviewed. */
     const findings = (reviews: ReviewsFile) => {
       const { sentence } = summarize({ runs: [run], reviews });
-      return sentence.slice(sentence.indexOf(". ") + 2);
+      const end = sentence.indexOf(". ");
+      return end === -1 ? "" : sentence.slice(end + 2);
     };
 
     it("says how many pages have flags no one has decided about", () => {
@@ -1014,6 +1061,103 @@ describe("summaryOf: the sentence", () => {
       expect(summarize({ runs: [clean], reviews }).sentence).toBe(
         "Christopher Schweda listened as NVDA read all 7 pages, and reviewed every transcript. No flags were raised, and no issues were found.",
       );
+    });
+  });
+
+  describe("its words about issues, from each page's history", () => {
+    const run = sevenPages({ sessions: [{ reviewer: CHRIS, listener: "all" }] });
+    // A page's reviews in the order they were recorded, one an hour after the one before.
+    const history = (path: string, ...statuses: ReviewStatus[]) =>
+      statuses.map((status, index) =>
+        review(run, path, status, { at: `2026-09-26T${10 + index}:00:00-05:00` }),
+      );
+    const summed = (...entries: ReviewEntry[]) =>
+      summarize({ runs: [run], reviews: reviewsOf(...entries) });
+    const LEAD = "Christopher Schweda listened as NVDA read all 7 pages";
+
+    it("says every issue was fixed when it was fixed and the page was then reviewed again", () => {
+      const summary = summed(...history("/", "issue", "fixed", "reviewed"));
+
+      expect(summary.sentence).toBe(
+        `${LEAD}, and reviewed 1 of the 7 transcripts. Every issue found in review was fixed.`,
+      );
+      expect(summary.sentence).not.toMatch(/no issues were found/);
+      expect(summary.bars.review.fixed).toEqual([1, 1]);
+    });
+
+    it("says every issue was fixed when an issue was found and then fixed", () => {
+      const summary = summed(...history("/", "issue", "fixed"));
+
+      expect(summary.sentence).toBe(
+        `${LEAD}, and reviewed 1 of the 7 transcripts. Every issue found in review was fixed.`,
+      );
+      expect(summary.bars.review.fixed).toEqual([1, 1]);
+    });
+
+    it("counts a fixed entry with no issue before it as neither found nor fixed", () => {
+      const summary = summed(...history("/", "fixed"));
+
+      expect(summary.sentence).toBe(
+        `${LEAD}, and reviewed 1 of the 7 transcripts. No flags were raised, and no issues were found.`,
+      );
+      expect(summary.bars.review.fixed).toEqual([0, 0]);
+    });
+
+    it("says neither no issues nor every issue fixed when an issue was reviewed again with no fix", () => {
+      const summary = summed(...history("/", "issue", "reviewed"));
+
+      expect(summary.sentence).toBe(`${LEAD}, and reviewed 1 of the 7 transcripts.`);
+      expect(summary.bars.review.fixed).toEqual([0, 1]);
+    });
+
+    it("says every issue was fixed only when every page that had one was fixed", () => {
+      const summary = summed(
+        ...history("/", "issue", "fixed"),
+        ...history("/before-you-start/", "issue", "reviewed"),
+      );
+
+      expect(summary.sentence).toBe(`${LEAD}, and reviewed 2 of the 7 transcripts.`);
+      expect(summary.bars.review.fixed).toEqual([1, 2]);
+    });
+
+    it("counts an issue found after a fix as open again", () => {
+      const summary = summed(...history("/", "issue", "fixed", "issue"));
+
+      expect(summary.sentence).toBe(
+        `${LEAD}, and reviewed 1 of the 7 transcripts. 1 page has an issue a screen reader user would hear, found in review.`,
+      );
+      expect(summary.bars.review.fixed).toEqual([0, 1]);
+      expect(summary.todo).toEqual(["Fix the issue found on Home, then record it as fixed."]);
+    });
+
+    it("says an issue is open on one page while another's was fixed", () => {
+      const summary = summed(
+        ...history("/", "issue", "fixed"),
+        ...history("/before-you-start/", "issue"),
+      );
+
+      expect(summary.sentence).toBe(
+        `${LEAD}, and reviewed 2 of the 7 transcripts. 1 page has an issue a screen reader user would hear, found in review.`,
+      );
+      expect(summary.bars.review.fixed).toEqual([1, 2]);
+    });
+
+    it("doesn't say no issues were found after a flagged page's review when another page had an issue", () => {
+      // A page with flags was reviewed and cleared. That doesn't make it true that no issue was found.
+      const flagged = sevenPages({
+        sessions: [{ reviewer: CHRIS, listener: "all" }],
+        page: flagCommonMistakes,
+      });
+      const entries = [
+        review(flagged, COMMON, "reviewed"),
+        review(flagged, "/", "issue", { at: "2026-09-26T10:00:00-05:00" }),
+        review(flagged, "/", "reviewed", { at: "2026-09-26T11:00:00-05:00" }),
+      ];
+
+      const { sentence } = summarize({ runs: [flagged], reviews: reviewsOf(...entries) });
+
+      expect(sentence).not.toMatch(/no issues were found/);
+      expect(sentence).not.toMatch(/Every issue found/);
     });
   });
 
@@ -1175,8 +1319,17 @@ describe("summaryOf: the panels", () => {
     const run = sevenPages({ page: flagCommonMistakes });
 
     expect(summarize({ runs: [run] }).attention).toEqual([
-      "Common mistakes: 3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+      {
+        slug: slugOf(COMMON),
+        name: "Common mistakes",
+        clauses:
+          "3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+      },
     ]);
+    // As one line of plain text, the name and the clauses.
+    expect(attentionLine("Common mistakes", COMMON_MISTAKES_FLAGS, null, null)).toBe(
+      "Common mistakes: 3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+    );
   });
 
   it("lists a page with flags, a failure, or an open issue, in page order", () => {
@@ -1207,11 +1360,27 @@ describe("summaryOf: the panels", () => {
     );
 
     expect(summarize({ runs: [run], reviews }).attention).toEqual([
-      "Home: a reviewer found an issue: The skip link goes nowhere",
+      {
+        slug: slugOf("/"),
+        name: "Home",
+        clauses: "a reviewer found an issue: The skip link goes nowhere",
+      },
       // A flag stays on the page whatever the review decided: it's what NVDA says.
-      "Before you start: it has no headings",
-      "The report: it couldn't be read after every attempt (a step took too long)",
-      "Ask a question: a reviewer found an issue",
+      {
+        slug: slugOf("/before-you-start/"),
+        name: "Before you start",
+        clauses: "it has no headings",
+      },
+      {
+        slug: slugOf("/the-report/"),
+        name: "The report",
+        clauses: "it couldn't be read after every attempt (a step took too long)",
+      },
+      {
+        slug: slugOf("/ask-a-question/"),
+        name: "Ask a question",
+        clauses: "a reviewer found an issue",
+      },
     ]);
   });
 
@@ -1220,23 +1389,22 @@ describe("summaryOf: the panels", () => {
       sevenPages({
         page: (path) => (path === "/the-report/" ? { status: "failed", failedAttempts } : {}),
       });
-    const line = (run: RunJson) => summarize({ runs: [run] }).attention;
+    const clauses = (run: RunJson) =>
+      summarize({ runs: [run] }).attention.map((item) => item.clauses);
 
     expect(
-      line(
+      clauses(
         failed([
           failedAttempt({ n: 1 }),
           failedAttempt({ n: 2, cause: "browser", message: "Chrome didn't start" }),
         ]),
       ),
-    ).toEqual([
-      "The report: it couldn't be read after every attempt (the browser stopped or didn't start)",
-    ]);
-    expect(line(failed([failedAttempt({ n: 1, cause: "unexpected", message: "boom" })]))).toEqual([
-      "The report: it couldn't be read after every attempt (an unexpected error)",
-    ]);
+    ).toEqual(["it couldn't be read after every attempt (the browser stopped or didn't start)"]);
+    expect(
+      clauses(failed([failedAttempt({ n: 1, cause: "unexpected", message: "boom" })])),
+    ).toEqual(["it couldn't be read after every attempt (an unexpected error)"]);
     // A record that lists no attempt and no error says no kind.
-    expect(line(failed([]))).toEqual(["The report: it couldn't be read after every attempt"]);
+    expect(clauses(failed([]))).toEqual(["it couldn't be read after every attempt"]);
   });
 
   it("leaves a failed page's kind off when only an earlier run recorded why it failed", () => {
@@ -1254,7 +1422,11 @@ describe("summaryOf: the panels", () => {
     const latest = failedIn("r2", "2026-09-26T14:05:00-05:00", []);
 
     expect(summarize({ runs: [earlier, latest] }).attention).toEqual([
-      "The report: it couldn't be read after every attempt",
+      {
+        slug: slugOf("/the-report/"),
+        name: "The report",
+        clauses: "it couldn't be read after every attempt",
+      },
     ]);
   });
 
@@ -1281,7 +1453,7 @@ describe("summaryOf: the panels", () => {
       },
     });
 
-    const { complete, bars } = summarize({ runs: [run] });
+    const { complete, bars, sentence, todo } = summarize({ runs: [run] });
 
     expect(complete.filter((line) => /^(Pages read|Couldn't|Skipped)/.test(line))).toEqual([
       "Pages read: 4 of 7.",
@@ -1290,6 +1462,13 @@ describe("summaryOf: the panels", () => {
     ]);
     // Neither kind of page has transcripts: both are "never transcribed".
     expect(bars.results).toEqual({ done: 4, flagged: 0, never: 3 });
+    expect(sentence).toBe(
+      "NVDA read 4 of the 7 pages. No flags were raised, and no issues were found. 2 pages couldn't be read after every attempt. 1 page was skipped, not read.",
+    );
+    expect(todo).toEqual([
+      "Run voicecap again on The report and Ask a question: they couldn't be read after every attempt.",
+      "Home was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
+    ]);
   });
 
   it("says how many problems were unexpected errors, and where to see them", () => {
@@ -1502,11 +1681,131 @@ describe("summaryOf: the panels", () => {
   });
 });
 
+describe("summaryOf: pages that were skipped", () => {
+  const NOTHING_LEFT =
+    "Nothing left: every issue found is fixed, every page was read, and every flagged page has a decision.";
+
+  /** A run of the pages `skipped` names, which voicecap loaded and skipped, and two it read. */
+  function withSkipped(
+    skipped: [path: string, label: string, skip?: SkipReason | null][],
+  ): RunJson {
+    return shareRun({
+      id: "r1",
+      sessions: [{ reviewer: CHRIS }],
+      pages: [
+        { path: "/", label: "Home" },
+        { path: "/about/", label: "About" },
+        ...skipped.map(([path, label, skip]) => ({
+          path,
+          label,
+          status: "skipped" as const,
+          ...(skip === undefined ? {} : { skip }),
+        })),
+      ],
+    });
+  }
+
+  it("says a skipped page in the sentence, and as a task to check", () => {
+    const run = withSkipped([["/files/report/", "Annual report"]]);
+
+    const summary = summarize({ runs: [run] });
+
+    expect(summary.sentence).toBe(
+      "NVDA read 2 of the 3 pages, run by Christopher Schweda. No flags were raised, and no issues were found. 1 page was skipped, not read.",
+    );
+    expect(summary.todo).toEqual([
+      "Annual report was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
+    ]);
+    expect(summary.todo).not.toContain(NOTHING_LEFT);
+    expect(summary.complete).toContain("Skipped, not read: 1.");
+  });
+
+  it.each<[SkipReason, string]>([
+    ["non-html-response", "the site didn't answer with an HTML page"],
+    ["redirect-off-origin", "it redirected to another site"],
+    ["non-html-extension", "its address isn't an HTML page"],
+    ["off-origin", "it's on another site"],
+  ])("says why a page was skipped, from its record: %s", (reason, why) => {
+    const run = withSkipped([["/files/report/", "Annual report", reason]]);
+
+    expect(summarize({ runs: [run] }).todo).toEqual([
+      `Annual report was skipped: ${why}. Check whether it belongs on the list.`,
+    ]);
+  });
+
+  it("says a page was skipped, and no more, when its record has no reason, or one this version doesn't know", () => {
+    const task = "Annual report was skipped. Check whether it belongs on the list.";
+
+    expect(
+      summarize({ runs: [withSkipped([["/files/report/", "Annual report", null]])] }).todo,
+    ).toEqual([task]);
+    // A newer voicecap's reason.
+    const newer = "somewhere-new" as SkipReason;
+    expect(
+      summarize({ runs: [withSkipped([["/files/report/", "Annual report", newer]])] }).todo,
+    ).toEqual([task]);
+  });
+
+  it("says each skipped page as a task, up to four, and then how many more", () => {
+    const pages = (count: number): [string, string][] =>
+      Array.from({ length: count }, (_, index) => [`/file-${index + 1}/`, `File ${index + 1}`]);
+    const task = (name: string) =>
+      `${name} was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.`;
+
+    const four = summarize({ runs: [withSkipped(pages(4))] });
+    expect(four.todo).toEqual([task("File 1"), task("File 2"), task("File 3"), task("File 4")]);
+    expect(four.sentence).toMatch(/ 4 pages were skipped, not read.$/);
+
+    const five = summarize({ runs: [withSkipped(pages(5))] });
+    expect(five.todo).toEqual([
+      task("File 1"),
+      task("File 2"),
+      task("File 3"),
+      "And 2 more pages were skipped. Check whether they belong on the list.",
+    ]);
+    expect(five.sentence).toMatch(/ 5 pages were skipped, not read.$/);
+  });
+
+  it("says skipped pages after those that couldn't be read, in the sentence and in the tasks", () => {
+    const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
+    const run = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => {
+        if (path === "/") return { status: "skipped" };
+        if (path === "/the-report/") return { status: "failed" };
+        if (path === "/how-a-run-works/") return { status: "skipped", skip: "redirect-off-origin" };
+        return path === COMMON ? { flags } : {};
+      },
+    });
+    const reviews = reviewsOf(review(run, "/reading-transcripts/", "issue"));
+
+    const summary = summarize({ runs: [run], reviews });
+
+    expect(summary.sentence).toBe(
+      "NVDA read 4 of the 7 pages, run by Christopher Schweda, who reviewed 1 of the 4 transcripts. 1 page has an issue a screen reader user would hear, found in review. 1 page has flags worth a closer listen. 1 page couldn't be read after every attempt. 2 pages were skipped, not read.",
+    );
+    // Issues first, then pages to read again, then pages to check, then flags to decide about.
+    expect(summary.todo).toEqual([
+      "Fix the issue found on Reading transcripts, then record it as fixed.",
+      "Run voicecap again on The report: it couldn't be read after every attempt.",
+      "Home was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
+      "How a run works was skipped: it redirected to another site. Check whether it belongs on the list.",
+      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
+    ]);
+  });
+});
+
 describe("summaryOf: the demo runs of 29 September 2026", () => {
   // voicecap 0.4.1 recorded these: no reviewers, no listener's statement, and flags with no list of
   // what they found. Each of runs 1315 and 1402 lost a page the other read.
   const runs = () => [demoRun("1315"), demoRun("1402")];
   const pathOf = (page: { url: string }) => new URL(page.url).pathname;
+  /** The slug of a demo page, as its record has it: it names the page's card. */
+  const slugOfDemo = (path: string): string => {
+    const page = standingOf(runs()).pages.find((candidate) => pathOf(candidate) === path);
+    if (page === undefined) throw new Error(`No demo page ${path}`);
+    return page.slug;
+  };
 
   it("counts the page that failed in the latest run as read, from the run that read it", () => {
     const summary = summarize({ runs: runs(), name: pathOf });
@@ -1533,7 +1832,12 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     const { attention } = summarize({ runs: runs(), name: pathOf });
 
     expect(attention).toEqual([
-      '/common-mistakes/: Generic link text announced 3 times in the read pass: "click here" ×3; Generic link text announced 3 times in the tab pass: "click here" ×3; Unlabeled or poorly labeled items in the read pass: "button" ×1; Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1; its first heading is level 2, not 1',
+      {
+        slug: slugOfDemo("/common-mistakes/"),
+        name: "/common-mistakes/",
+        clauses:
+          'Generic link text announced 3 times in the read pass: "click here" ×3; Generic link text announced 3 times in the tab pass: "click here" ×3; Unlabeled or poorly labeled items in the read pass: "button" ×1; Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1; its first heading is level 2, not 1',
+      },
     ]);
   });
 
@@ -1553,7 +1857,12 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     ]);
 
     expect(summarize({ runs: runs(), flags, name: pathOf }).attention).toEqual([
-      "/common-mistakes/: 3 links say only “click here”; 2 controls have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1",
+      {
+        slug: slugOfDemo("/common-mistakes/"),
+        name: "/common-mistakes/",
+        clauses:
+          "3 links say only “click here”; 2 controls have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1",
+      },
     ]);
   });
 

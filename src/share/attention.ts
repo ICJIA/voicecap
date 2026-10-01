@@ -12,8 +12,9 @@ type FindingRule = "generic-link-text" | "unlabeled";
 const NO_NAME = "(no name)";
 
 /**
- * "<name>: <what>; <what>": a clause for each rule the page's flags raised, in the order the flags
- * first raise them, then a clause for a failure, then one for an issue.
+ * "<what>; <what>": a clause for each rule the page's flags raised, in the order the flags first
+ * raise them, then a clause for a failure, then one for an issue. Empty when there is nothing to
+ * say.
  *
  * `failure` is what kind of failure stopped the page being read, in words ("another window took the
  * screen"), "" when the record doesn't say, and null when the page has none. `issueNote` is the
@@ -24,8 +25,7 @@ const NO_NAME = "(no name)";
  * the read pass and the Tab pass both hear are counted once. A flag from a record that has no list
  * of what it found gives its own message.
  */
-export function attentionLine(
-  name: string,
+export function attentionClauses(
   flags: FlagResult[],
   failure: string | null,
   issueNote: string | null,
@@ -42,7 +42,21 @@ export function attentionLine(
     const note = tidy(issueNote);
     clauses.add(note === "" ? "a reviewer found an issue" : `a reviewer found an issue: ${note}`);
   }
-  return clauses.size === 0 ? name : `${name}: ${[...clauses].join("; ")}`;
+  return [...clauses].join("; ");
+}
+
+/**
+ * The clauses with the page's name in front, as one plain line of text: "<name>: <what>; <what>",
+ * or just the name when there is nothing to say. See `attentionClauses`.
+ */
+export function attentionLine(
+  name: string,
+  flags: FlagResult[],
+  failure: string | null,
+  issueNote: string | null,
+): string {
+  const clauses = attentionClauses(flags, failure, issueNote);
+  return clauses === "" ? name : `${name}: ${clauses}`;
 }
 
 function flagClause(flag: FlagResult, all: FlagResult[]): string {

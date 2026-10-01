@@ -17,6 +17,7 @@ import {
   type PassName,
   type RunJson,
   type SessionRecord,
+  type SkipReason,
 } from "../../src/model.js";
 import { pageSlug } from "../../src/pages/slug.js";
 import { canonicalKey } from "../../src/pages/url.js";
@@ -57,6 +58,12 @@ export interface SharePageSpec {
    * 1 for a page that has been tried, and none for a pending one.
    */
   session?: number;
+  /**
+   * For a skipped page, why voicecap skipped it after loading it, as the record's `skip.reason`;
+   * null leaves the record without a `skip`. Default: "non-html-response". Ignored for a page
+   * that isn't skipped.
+   */
+  skip?: SkipReason | null;
 }
 
 /** One session of a run (see ShareRunSpec.sessions). */
@@ -258,6 +265,9 @@ function sharePage(page: SharePageSpec): PageRecord {
     status,
     attempts: page.attempts ?? defaultAttempts(status, failed),
     ...(status === "pending" ? {} : { session: page.session ?? 1 }),
+    ...(status === "skipped" && page.skip !== null
+      ? { skip: { url, reason: page.skip ?? "non-html-response" } }
+      : {}),
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
     passes: passSummaries(page.passes),
