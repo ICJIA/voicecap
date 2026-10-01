@@ -42,6 +42,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Changed
 
 - **A page's `attempts` counts each attempt as it ends,** across sessions, those before a Ctrl+C included. An attempt that Ctrl+C stopped midway still isn't counted.
+- **The README starts with a Quick start in three steps:** check the computer with `voicecap preflight`, fix what it lists, then `voicecap init`. It says why voicecap is an npm package, why PowerShell is preferred to Git Bash on a PC, and why it's a command-line app. Its long reference sections are folded, each behind a line that says what's inside.
+- **The README's Windows setup is written for PowerShell,** Windows Terminal's default. It says what to do when a new PC's PowerShell refuses to run `npx` ("running scripts is disabled on this system"). Git Bash still works: "Git Bash and paths that start with "/"" is its note.
 
 ## [0.5.0] - 2026-09-30
 

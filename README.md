@@ -77,6 +77,7 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
   - [On a Mac](#on-a-mac)
 - [Try it first: npx @icjia/voicecap demo](#try-it-first-npx-icjiavoicecap-demo)
 - [Windows setup (for someone new to Windows)](#windows-setup-for-someone-new-to-windows)
+  - [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)
 - [Mac setup](#mac-setup)
 - [Commands and options](#commands-and-options)
 - [Page sources](#page-sources)
@@ -106,16 +107,16 @@ voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to 
 Why voicecap is built the way it is, in three short answers:
 
 - **Why an npm package.** voicecap runs on your own computer, where the screen reader is. It's one package for Windows and a Mac, `npx` fetches the version you ask for, and every run records the version of voicecap that made it.
-- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also isn't a real Windows console, so voicecap can't always ask its questions there: `init`'s, and "Did you listen?" at the end of a run. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)).
+- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal, and voicecap then leaves out what needs one: the live test that `init` and `setup` offer, and "Did you listen?" at the end of a run; and `demo` won't start. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
 - **Why a command-line app, not a web app.** voicecap has to start a real screen reader, press its keys on your computer, and capture what it says. A web page can't do any of that from inside the browser's sandbox. Running on your own computer also keeps every transcript in a folder you control. The web part is what voicecap makes: [the shareable page](#the-shareable-page).
 
 Three steps take you from a new computer to a first run:
 
-1. **Check your computer:** in PowerShell on a PC, or Terminal on a Mac, run `npx @icjia/voicecap preflight`. It never starts the screen reader, and it needs no site. A green "Ready" means you can go on to step 3. A red "Not ready" lists exactly what to fix. See [The checks, and the live test](#the-checks-and-the-live-test).
-2. **Fix what it lists,** then run `preflight` again, until it's green. Each problem comes with its own numbered steps. `npx @icjia/voicecap setup` installs what's missing and, on a Mac, walks you through the permissions. [Windows setup](#windows-setup-for-someone-new-to-windows) and [Mac setup](#mac-setup), below, have the details.
+1. **Check your computer:** in PowerShell on a PC, or Terminal on a Mac, run `npx @icjia/voicecap preflight`. It never starts the screen reader, and it needs no site. It ends with a verdict, in words as well as color: "Ready", in green, means you can go on to step 3. "Not ready", in red, comes after a numbered list of exactly what to fix. See [The checks, and the live test](#the-checks-and-the-live-test). If PowerShell refuses to run `npx` at all, see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled).
+2. **Fix what it lists,** then run `preflight` again, until it says Ready. Each problem comes with its own numbered steps. `npx @icjia/voicecap setup` installs what's missing and, on a Mac, walks you through the permissions. [Windows setup](#windows-setup-for-someone-new-to-windows) and [Mac setup](#mac-setup), below, have the details.
 3. **Run voicecap:** `npx @icjia/voicecap init` asks a few questions, then prints the command for your first real run and starts it when you say yes. NVDA speaks and takes over the keyboard until the run ends, so keep your hands off. (On a Mac, voicecap can't run VoiceOver yet: `init` ends with the command to run on a Windows computer.)
 
-To try voicecap first, `npx @icjia/voicecap demo` takes it through its own built-in demo site, so you need no site of your own (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
+To try voicecap first, `npx @icjia/voicecap demo` is a guided first run on voicecap's own built-in demo site, so you need no site of your own (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
 
 ### On Windows
 
@@ -313,16 +314,16 @@ The demo's files go in a `voicecap-demo` folder in the current folder, never in 
 
 These steps assume Windows 11, a normal (non-administrator) account, and PowerShell inside Windows Terminal (its default profile).
 
-1. **Install Git and Node.js** with winget from a Windows Terminal (PowerShell) window:
+1. **Install Git and Node.js.** Open Windows Terminal from the Start menu (it starts in PowerShell, its default profile), and run:
 
    ```powershell
    winget install --id Git.Git -e
    winget install --id OpenJS.NodeJS.LTS -e
    ```
 
-   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too). Close Windows Terminal afterwards, and open it again in step 2, so both are on your PATH.
+   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too).
 
-2. **Open Windows Terminal** from the Start menu. It starts in PowerShell, its default profile. Check with `node --version` (22.19 or later) and `git --version`.
+2. **Close Windows Terminal and open it again,** so both are on your PATH. Check with `node --version` (22.19 or later), `git --version`, and `npx --version`. If PowerShell refuses to run `npx`, see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled).
 
 3. **Only if you'll develop voicecap:** install pnpm with `corepack enable pnpm` (or `npm install -g pnpm`). Running voicecap needs only Node and `npx`.
 
@@ -344,9 +345,22 @@ These steps assume Windows 11, a normal (non-administrator) account, and PowerSh
 
 </details>
 
+### If PowerShell says "running scripts is disabled"
+
+On a new Windows PC, PowerShell can refuse to run `npx` (and `npm`) at all:
+
+```text
+npx : File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scripts is disabled on this system.
+```
+
+Nothing is wrong with voicecap or Node.js. In PowerShell, `npx` runs as a PowerShell script (`npx.ps1`), and Windows starts out not letting PowerShell run any script. Two ways past it:
+
+- **Allow scripts for your own account, once.** Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`, and answer `Y` if it asks. It needs no administrator rights, and it works at once, in the same window. From then on, scripts on this computer run, and a script downloaded from the internet still needs a signature.
+- **Or change nothing, and type `npx.cmd` wherever these steps say `npx`,** as in `npx.cmd @icjia/voicecap preflight`. Use this on a work PC where the first way is refused, or where your organization's settings override it. One catch: an address with `&` in it, such as `--page "https://example.org/search?q=a&lang=en"`, doesn't survive `npx.cmd`.
+
 ### Git Bash and paths that start with "/"
 
-PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash. Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
+PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash (in Windows Terminal, the tab drop-down, the `˅` next to the `+`, lists "Git Bash" once Git is installed). Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
 
 - use full URLs: `--page https://dvfr.illinois.gov/about/` (always works);
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
