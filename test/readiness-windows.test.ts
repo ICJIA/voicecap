@@ -10,6 +10,7 @@ import { ForegroundError, type EnvironmentInfo } from "../src/drivers/types.js";
 import { InterruptedError } from "../src/passes/steps.js";
 import type { LiveCheck } from "../src/readiness/live-check.js";
 import type { Check } from "../src/readiness/model.js";
+import { renderFixes, renderProblems } from "../src/readiness/render.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { silentLogger } from "../src/util/log.js";
 
@@ -232,12 +233,38 @@ describe("Windows quick checks", () => {
         whatsWrong:
           "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).",
         fix: [
-          "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In PowerShell: mkdir C:\\guidepup, then setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
-          "Open a new terminal and run: npx @icjia/voicecap setup",
+          "Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
+          `Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
+          `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
+          "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
         ],
         setupHelps: false,
       },
     });
+  });
+
+  // preflight, init, and doctor wrap each fix step at 92 columns. Each command ends a step of its
+  // own, so it stays whole on its line, with nothing after it to copy.
+  it("show each command of the Guidepup folder fix whole, on a line of its own", async () => {
+    const check = await quickCheck("guidepupFolder", {
+      install: { ...install, cacheDir: "C:\\Users\\Jane Doe\\AppData\\Local\\guidepup" },
+    });
+    const shown = [
+      renderProblems([check], { offerSetup: true }),
+      renderFixes([check], { offerSetup: true }),
+    ];
+    for (const text of shown) {
+      const lines = text.split("\n");
+      expect(lines).toContain(
+        `     2. Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
+      );
+      expect(lines).toContain(
+        `     3. Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
+      );
+      expect(lines).toContain(
+        "     4. Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
+      );
+    }
   });
 
   it("pass NVDA when Guidepup's build is installed", async () => {

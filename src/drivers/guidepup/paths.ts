@@ -79,18 +79,19 @@ export function shellUnsafePart(dir: string): string | null {
   return /\s|[&(,;=^]|%[^%]*%/.exec(dir)?.[0] ?? null;
 }
 
-/** The first fix step for a folder NVDA can't start from, before the commands. */
-const CHOOSE_FOLDER =
-  "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there.";
+/** The plain folder the fix steps choose, one Guidepup can start NVDA from. */
+const SAFE_FOLDER = "C:\\guidepup";
 
 /**
- * The commands that make that folder and point Guidepup at it, for each terminal. PowerShell comes
- * first, and takes two commands: Windows PowerShell 5.1, the one Windows comes with, has no &&.
- * Git Bash's one line is for the people who use it.
+ * The fix for a folder NVDA can't start from, one command to a step, each at the end of its step
+ * with nothing after it, so a step can be pasted as it stands. The double quotes make the commands
+ * the same in PowerShell and Git Bash (measured in Windows PowerShell 5.1 and Git Bash).
  */
-const SAFE_FOLDER_COMMANDS: [terminal: string, commands: string[]][] = [
-  ["PowerShell", ["mkdir C:\\guidepup", "setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup"]],
-  ["Git Bash", ["mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'"]],
+const FIX_STEPS: readonly string[] = [
+  `Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use ${SAFE_FOLDER}.`,
+  `Make the folder, if it isn't there yet: mkdir "${SAFE_FOLDER}"`,
+  `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "${SAFE_FOLDER}"`,
+  "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
 ];
 
 /** Why NVDA can't start from Guidepup's folder and how to fix it, or null if it can. */
@@ -102,28 +103,21 @@ export function unsafePathProblem(
   const what = /^\s$/.test(part) ? "a space" : `"${part}"`;
   return {
     whatsWrong: `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
-    fix: [
-      `${CHOOSE_FOLDER} ${SAFE_FOLDER_COMMANDS.map(([terminal, commands]) => `In ${terminal}: ${commands.join(", then ")}`).join(". ")}`,
-      "Open a new terminal and run: npx @icjia/voicecap setup",
-    ],
+    fix: [...FIX_STEPS],
   };
 }
 
 /**
- * unsafePathProblem as one message, for an error: each terminal's commands on lines of their own,
- * and the second step joined on with "then".
+ * unsafePathProblem as one message, for an error: "How to fix:", then its steps, numbered, each on
+ * a line of its own.
  */
 export function unsafePathMessage(install: GuidepupInstall): string | null {
   const problem = unsafePathProblem(install);
   if (problem === null) return null;
-  const openTerminal = problem.fix[1] ?? "";
   return [
     problem.whatsWrong,
-    ...SAFE_FOLDER_COMMANDS.flatMap(([terminal, commands], index) => [
-      `${index === 0 ? `${CHOOSE_FOLDER} ` : ""}In ${terminal}:`,
-      ...commands.map((command) => `  ${command}`),
-    ]),
-    `then ${openTerminal.charAt(0).toLowerCase()}${openTerminal.slice(1)}`,
+    "How to fix:",
+    ...problem.fix.map((step, index) => `  ${index + 1}. ${step}`),
   ].join("\n");
 }
 
