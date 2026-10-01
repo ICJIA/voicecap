@@ -165,8 +165,11 @@ const KIND_OF_CAUSE: Record<FailureCause, ProblemKind> = {
   unexpected: "unexpected",
 };
 
-/** Each kind in plain words, as the verdict line and the verdicts name it. */
-const PHRASES: Record<ProblemKind, string> = {
+/**
+ * Each kind in plain words, as the verdict line and the verdicts name it, and as the summary names
+ * the kind of failure that kept a page from being read.
+ */
+export const PHRASES: Record<ProblemKind, string> = {
   foreground: "another window took the screen",
   locked: "the computer locked",
   "screen-reader-stopped": "NVDA stopped running",

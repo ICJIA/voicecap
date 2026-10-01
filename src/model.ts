@@ -202,6 +202,13 @@ export interface FlagResult {
   message: string;
   pass?: PassName;
   count?: number;
+  /**
+   * What the rule found, for the rules that find items (generic-link-text and unlabeled): each item,
+   * lowercased, with how many times it was found in the pass, most often first and alphabetical
+   * among those found as often: the order the message lists them in, and the counts add up to
+   * `count`. Absent for the other rules, and in records from before voicecap kept it.
+   */
+  found?: { text: string; count: number }[];
 }
 
 /**

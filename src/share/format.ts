@@ -58,6 +58,22 @@ export function longDate(iso: string): string {
   return `${day} ${month} ${year}`;
 }
 
+/**
+ * The days from one time to another, as short as they can be written: "30 September 2026" for one
+ * day, "29 to 30 September 2026", "30 September to 2 October 2026", and "30 December 2026 to
+ * 2 January 2027". Each end goes by its own date; `first` is the earlier.
+ */
+export function dateRange(first: string, last: string): string {
+  const from = fieldsOf(first);
+  const to = fieldsOf(last);
+  if (from.year !== to.year) return `${longDate(first)} to ${longDate(last)}`;
+  if (from.month !== to.month) {
+    return `${from.day} ${from.month} to ${to.day} ${to.month} ${to.year}`;
+  }
+  if (from.day !== to.day) return `${from.day} to ${to.day} ${to.month} ${to.year}`;
+  return longDate(first);
+}
+
 /** "29 September". */
 export function dayMonth(iso: string): string {
   const { day, month } = fieldsOf(iso);

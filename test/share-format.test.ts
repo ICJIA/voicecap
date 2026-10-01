@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clock, dayMonth, longDate, names } from "../src/share/format.js";
+import { clock, dateRange, dayMonth, longDate, names } from "../src/share/format.js";
 
 describe("longDate, dayMonth, and clock", () => {
   it("write a recorded time as its date and time, for a reader", () => {
@@ -91,5 +91,56 @@ describe("names", () => {
 
   it("leaves each name as it is", () => {
     expect(names(["Pat Reviewer, Sr.", "Lee"])).toBe("Pat Reviewer, Sr. and Lee");
+  });
+});
+
+describe("dateRange", () => {
+  it.each([
+    ["the same day", "2026-09-30T09:00:00-05:00", "2026-09-30T17:30:00-05:00", "30 September 2026"],
+    [
+      "the same time",
+      "2026-09-30T09:00:00-05:00",
+      "2026-09-30T09:00:00-05:00",
+      "30 September 2026",
+    ],
+    [
+      "two days of a month",
+      "2026-09-29T23:30:00-05:00",
+      "2026-09-30T00:20:00-05:00",
+      "29 to 30 September 2026",
+    ],
+    [
+      "two months of a year",
+      "2026-09-30T10:00:00-05:00",
+      "2026-10-02T10:00:00-05:00",
+      "30 September to 2 October 2026",
+    ],
+    [
+      "two years",
+      "2026-12-30T10:00:00-06:00",
+      "2027-01-02T10:00:00-06:00",
+      "30 December 2026 to 2 January 2027",
+    ],
+  ])("writes %s as one date or a range", (_, first, last, expected) => {
+    expect(dateRange(first, last)).toBe(expected);
+  });
+
+  it("leaves off a day's leading zero, and reads times to the millisecond", () => {
+    expect(dateRange("2026-01-05T00:07:00.250-06:00", "2026-01-09T10:00:00.000-06:00")).toBe(
+      "5 to 9 January 2026",
+    );
+  });
+
+  it("goes by the times' own dates, never the machine's time zone", () => {
+    // In UTC the first is 04:30 on 30 September and the second 14:20 on 29 September: the other way
+    // round. Whatever the machine's zone, a range read through it would differ.
+    expect(dateRange("2026-09-29T23:30:00-05:00", "2026-09-30T00:20:00+10:00")).toBe(
+      "29 to 30 September 2026",
+    );
+  });
+
+  it("refuses a time that isn't a recorded local time", () => {
+    expect(() => dateRange("yesterday", "2026-09-30T09:00:00-05:00")).toThrow(/local ISO time/);
+    expect(() => dateRange("2026-09-30T09:00:00-05:00", "2026-09-31")).toThrow(/local ISO time/);
   });
 });

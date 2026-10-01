@@ -163,11 +163,13 @@ function genericLinkText(
     }
     const count = [...found.values()].reduce((sum, n) => sum + n, 0);
     if (count >= rule.minCount) {
+      const ranked = rankFound(found);
       flags.push({
         rule: "generic-link-text",
         pass,
         count,
-        message: `Generic link text announced ${plural(count, "time", "times")} in the ${pass} pass: ${summarize(found)}.`,
+        found: ranked,
+        message: `Generic link text announced ${plural(count, "time", "times")} in the ${pass} pass: ${summarize(ranked)}.`,
       });
     }
   }
@@ -207,11 +209,13 @@ function unlabeled(
     }
     const count = [...found.values()].reduce((sum, n) => sum + n, 0);
     if (count > 0) {
+      const ranked = rankFound(found);
       flags.push({
         rule: "unlabeled",
         pass,
         count,
-        message: `Unlabeled or poorly labeled items in the ${pass} pass: ${summarize(found)}.`,
+        found: ranked,
+        message: `Unlabeled or poorly labeled items in the ${pass} pass: ${summarize(ranked)}.`,
       });
     }
   }
@@ -282,11 +286,15 @@ function repeatedPhrase(passes: PagePasses, minRun: number): FlagResult[] {
   return flags;
 }
 
-function summarize(found: Map<string, number>): string {
+/** What a rule found, most often first, and alphabetical among those found as often. */
+function rankFound(found: Map<string, number>): { text: string; count: number }[] {
   return [...found.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([label, count]) => `"${label}" ×${count}`)
-    .join(", ");
+    .map(([text, count]) => ({ text, count }));
+}
+
+function summarize(found: { text: string; count: number }[]): string {
+  return found.map(({ text, count }) => `"${text}" ×${count}`).join(", ");
 }
 
 function plural(count: number, one: string, many: string): string {

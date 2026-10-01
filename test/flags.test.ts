@@ -184,6 +184,121 @@ describe("unlabeled items", () => {
   });
 });
 
+describe("what a flag found", () => {
+  it("lists the generic link texts, most often first, as the message lists them", () => {
+    // "read more" is spoken first, but "click here" twice, so the order isn't the order spoken.
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "Read more, link", focused: el("Read more") },
+          { spoken: "Click here, link", focused: el("Click here") },
+          { spoken: "Annual report, link", focused: el("Annual report") },
+          { spoken: "Click here, link", focused: el("Click here") },
+        ]),
+      },
+      rules,
+    );
+    const flag = flags.find((f) => f.rule === "generic-link-text");
+
+    expect(flag?.found).toEqual([
+      { text: "click here", count: 2 },
+      { text: "read more", count: 1 },
+    ]);
+    expect(flag?.count).toBe(3);
+    expect(flag?.message).toBe(
+      'Generic link text announced 3 times in the tab pass: "click here" ×2, "read more" ×1.',
+    );
+  });
+
+  it("puts texts that were found as often in alphabetical order", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["link, Read more", "link, Learn more", "link, Click here"]),
+      },
+      rules,
+    );
+
+    expect(flags.find((f) => f.rule === "generic-link-text")?.found).toEqual([
+      { text: "click here", count: 1 },
+      { text: "learn more", count: 1 },
+      { text: "read more", count: 1 },
+    ]);
+  });
+
+  it("lists a link that has no name as '(no name)'", () => {
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "link", focused: el("") },
+          { spoken: "main landmark, link", focused: el("", { inMain: true }) },
+        ]),
+      },
+      rules,
+    );
+
+    expect(flags.find((f) => f.rule === "generic-link-text")?.found).toEqual([
+      { text: "(no name)", count: 2 },
+    ]);
+  });
+
+  it("lists the unlabeled items, most often first, as the message lists them", () => {
+    const flags = evaluateFlags(
+      {
+        tab: tab([
+          { spoken: "button", focused: el("", { tag: "button", role: "button" }) },
+          { spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) },
+          { spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) },
+        ]),
+      },
+      rules,
+    );
+    const flag = flags.find((f) => f.rule === "unlabeled");
+
+    expect(flag?.found).toEqual([
+      { text: "edit", count: 2 },
+      { text: "button", count: 1 },
+    ]);
+    expect(flag?.count).toBe(3);
+    expect(flag?.message).toBe(
+      'Unlabeled or poorly labeled items in the tab pass: "edit" ×2, "button" ×1.',
+    );
+  });
+
+  it("lists each pass's findings in that pass's own flag", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["Intro", "button", "Footer"]),
+        tab: tab([{ spoken: "edit, blank", focused: el("", { tag: "input", role: "textbox" }) }]),
+      },
+      rules,
+    );
+    const unlabeled = flags.filter((f) => f.rule === "unlabeled");
+
+    expect(unlabeled.map((flag) => [flag.pass, flag.found])).toEqual([
+      ["read", [{ text: "button", count: 1 }]],
+      ["tab", [{ text: "edit", count: 1 }]],
+    ]);
+  });
+
+  it("gives no list to the rules that don't find items", () => {
+    const flags = evaluateFlags(
+      {
+        read: read(["a", "b"], "step-cap"),
+        headings: headings(["heading, level 2, Resources"]),
+        tab: tab([]),
+      },
+      rules,
+    );
+
+    expect(rulesOf(flags)).toEqual([
+      "read-not-finished:read",
+      "headings:headings",
+      "tab-no-stops:tab",
+    ]);
+    for (const flag of flags) expect(flag).not.toHaveProperty("found");
+  });
+});
+
 describe("structure rules", () => {
   it("flags a read pass that stopped at the cap or the safety net", () => {
     expect(rulesOf(evaluateFlags({ read: read(["a", "b"], "step-cap") }, rules))).toContain(

@@ -7,8 +7,10 @@
 import {
   PASS_NAMES,
   type AttemptRecord,
+  type EnvironmentRecord,
   type FileHash,
   type FlagResult,
+  type ListenerAnswer,
   type PageRecord,
   type PageSource,
   type PageStatus,
@@ -50,6 +52,34 @@ export interface SharePageSpec {
    * file is written, so a test that needs the lines keeps them itself. Default: none.
    */
   passes?: Partial<Record<PassName, string[]>>;
+  /**
+   * The session (1-based) that produced the page's transcripts, as the record's `session`. Default:
+   * 1 for a page that has been tried, and none for a pending one.
+   */
+  session?: number;
+}
+
+/** One session of a run (see ShareRunSpec.sessions). */
+export interface ShareSessionSpec {
+  /**
+   * Who ran the session, as its `reviewer`: the name `--reviewer` gave (source "option"). null: the
+   * session had no name. Default: absent, as in a run from before voicecap 0.5.0.
+   */
+  reviewer?: string | null;
+  /**
+   * What the person answered when asked whether they listened, as the session's `listener`. It was
+   * asked and answered as the session ended: both times are the session's end, and no test here
+   * reads them. Default: absent, as in a run from before voicecap 0.6.0, and when nothing was asked.
+   */
+  listener?: ListenerAnswer;
+  /** Default: the run's `createdAt`. */
+  startedAt?: string;
+  /** Default: `startedAt`; null when the session never ended cleanly (`endReason` null). */
+  endedAt?: string;
+  /** Default: the run's `endReason`. */
+  endReason?: SessionRecord["endReason"];
+  /** Fields of the session's environment to change, over the run's. Default: none. */
+  environment?: Partial<EnvironmentRecord>;
 }
 
 export interface ShareRunSpec {
@@ -66,10 +96,16 @@ export interface ShareRunSpec {
   /** Default false. */
   replayed?: boolean;
   /**
-   * How the run's one session ended. Default: "completed" for a completed run, "interrupted" for an
-   * incomplete one. null: the session never ended cleanly.
+   * How the run's session ended (a session of `sessions` that doesn't say ends this way too).
+   * Default: "completed" for a completed run, "interrupted" for an incomplete one. null: the
+   * session never ended cleanly.
    */
   endReason?: SessionRecord["endReason"];
+  /**
+   * The run's sessions, in order; a page's `session` says which one produced its transcripts.
+   * Default: one session that starts with the run, with no reviewer and no listener's answer.
+   */
+  sessions?: ShareSessionSpec[];
   /** Default: a page list file, as report-data.ts's runs have. */
   source?: PageSource;
   /**
@@ -118,9 +154,9 @@ const DEFAULT_END: Record<RunJson["status"], SessionRecord["endReason"]> = {
 };
 
 /**
- * A run with one session. Its pages have no transcripts (`passes` summarizes only the lines a spec
- * gives, and `files` lists only what a spec names), and the attempts a spec says (see
- * SharePageSpec.attempts).
+ * A run with the sessions a spec says (one, by default). Its pages have no transcripts (`passes`
+ * summarizes only the lines a spec gives, and `files` lists only what a spec names), and the
+ * attempts a spec says (see SharePageSpec.attempts).
  */
 export function shareRun(spec: ShareRunSpec): RunJson {
   const status = spec.status ?? "completed";
@@ -128,7 +164,7 @@ export function shareRun(spec: ShareRunSpec): RunJson {
   const replayed = spec.replayed ?? false;
   const source = spec.source ?? PAGE_LIST;
   // null is an answer of its own here, so `??` would lose it.
-  const endReason = spec.endReason === undefined ? DEFAULT_END[status] : spec.endReason;
+  const runEnd = spec.endReason === undefined ? DEFAULT_END[status] : spec.endReason;
   const pages = spec.pages.map(sharePage);
   const base = environment({ pageSource: source, runId: spec.id, runStartedAt: createdAt });
   const sessionEnvironment =
@@ -172,16 +208,37 @@ export function shareRun(spec: ShareRunSpec): RunJson {
       warnings: [],
     },
     compareTo: null,
-    sessions: [
-      {
-        n: 1,
-        startedAt: createdAt,
-        endedAt: endReason === null ? null : createdAt,
+    sessions: (spec.sessions ?? [{}]).map((session, index): SessionRecord => {
+      const n = index + 1;
+      const startedAt = session.startedAt ?? createdAt;
+      const endReason = session.endReason === undefined ? runEnd : session.endReason;
+      const endedAt = endReason === null ? null : (session.endedAt ?? startedAt);
+      return {
+        n,
+        startedAt,
+        ...(session.reviewer === undefined
+          ? {}
+          : {
+              reviewer:
+                session.reviewer === null
+                  ? null
+                  : { name: session.reviewer, source: "option" as const },
+            }),
+        ...(session.listener === undefined
+          ? {}
+          : {
+              listener: {
+                answer: session.listener,
+                askedAt: endedAt ?? startedAt,
+                answeredAt: endedAt ?? startedAt,
+              },
+            }),
+        endedAt,
         endReason,
-        pagesDone: pages.filter((page) => page.status === "done").length,
-        environment: sessionEnvironment,
-      },
-    ],
+        pagesDone: pages.filter((page) => page.status === "done" && page.session === n).length,
+        environment: { ...sessionEnvironment, ...session.environment },
+      };
+    }),
     skipped: [],
     pages,
   };
@@ -200,6 +257,7 @@ function sharePage(page: SharePageSpec): PageRecord {
     ...(page.label === undefined ? {} : { label: page.label }),
     status,
     attempts: page.attempts ?? defaultAttempts(status, failed),
+    ...(status === "pending" ? {} : { session: page.session ?? 1 }),
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
     passes: passSummaries(page.passes),
