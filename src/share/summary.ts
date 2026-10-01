@@ -126,8 +126,16 @@ export function summaryOf(input: SummaryInput): Summary {
   const fixed = pages.filter((facts) => facts.review?.fixed === true);
   // Flags no one has decided about, apart from the pages already counted for an issue.
   const undecided = flagged.filter((facts) => !hasOpenIssue(facts) && !decided(facts));
-  const unread = pages.filter((facts) => notRead(facts) === "failed");
-  const skipped = pages.filter((facts) => notRead(facts) === "skipped");
+  // An issue was found that is neither fixed nor open: the page was reviewed again, and no fix was
+  // recorded.
+  const toRecord = issuesFound.filter(
+    (facts) => facts.review?.fixed !== true && !hasOpenIssue(facts),
+  );
+  // Pages with no transcripts whose latest record is a failure, or a skip after loading.
+  const unread = pages.filter((facts) => !facts.transcribed && outcomeOf(facts) === "failed");
+  const skipped = pages.filter((facts) => !facts.transcribed && outcomeOf(facts) === "skipped");
+  // A page the latest run skipped is a task whether or not an earlier run's transcripts are shown.
+  const skippedInLatest = pages.filter((facts) => outcomeOf(facts) === "skipped");
 
   const failureKind = ({ page }: PageFacts): string => {
     const last = problems.problems.findLast(
@@ -182,7 +190,7 @@ export function summaryOf(input: SummaryInput): Summary {
       ...(unread.length > 0 ? [`Couldn't be read after every attempt: ${unread.length}.`] : []),
       ...(skipped.length > 0 ? [`Skipped, not read: ${skipped.length}.`] : []),
     ],
-    todo: todoOf(withIssue, unread, skipped, undecided),
+    todo: todoOf({ withIssue, toRecord, unread, skipped: skippedInLatest, undecided }),
     whenHow: whenHowOf(latest),
     bars: {
       results: {
@@ -229,11 +237,10 @@ function emptySummary(): Summary {
 }
 
 /**
- * Why a page has no transcripts to show, when its record in the latest run says: its attempts all
- * failed, or voicecap skipped it after it loaded.
+ * What the latest run's record of a page says when it wasn't read there: its attempts all failed,
+ * or voicecap skipped it after it loaded. The page may still have an earlier run's transcripts.
  */
-function notRead({ transcribed, page }: PageFacts): "failed" | "skipped" | null {
-  if (transcribed) return null;
+function outcomeOf({ page }: PageFacts): "failed" | "skipped" | null {
   const status = page.latestFailure?.page.status;
   return status === "failed" || status === "skipped" ? status : null;
 }
@@ -406,21 +413,37 @@ const pagesOf = (count: number): string => (count === 1 ? "1 page" : `${count} p
 /** "all 7 pages", and "1 page" for one. */
 const allPages = (count: number): string => (count === 1 ? "1 page" : `all ${count} pages`);
 
+/** The pages each kind of task is about. */
+interface Tasks {
+  /** An issue is open: the latest review is an issue no one has fixed. */
+  withIssue: PageFacts[];
+  /** An issue was found, and it's neither fixed nor open: reviewed again, with no fix recorded. */
+  toRecord: PageFacts[];
+  /** No transcripts: every attempt at the page failed. */
+  unread: PageFacts[];
+  /** The latest run skipped the page after loading it, with or without older transcripts. */
+  skipped: PageFacts[];
+  /** Flags no one has decided about. */
+  undecided: PageFacts[];
+}
+
 /**
- * What's still to do, as a task for each issue to fix, page to read again, page that was skipped,
- * and flagged page to decide about; or that nothing is left, when there is none of these.
+ * What's still to do, as a task for each issue to fix or to record the fix of, page to read again,
+ * page that was skipped, and flagged page to decide about; or that nothing is left. Nothing is left
+ * only when every issue found is fixed and no page is open, unread, skipped, or undecided.
  */
-function todoOf(
-  withIssue: PageFacts[],
-  unread: PageFacts[],
-  skipped: PageFacts[],
-  undecided: PageFacts[],
-): string[] {
+function todoOf({ withIssue, toRecord, unread, skipped, undecided }: Tasks): string[] {
   const todo: string[] = [];
   if (withIssue.length > 0) {
     const one = withIssue.length === 1;
     todo.push(
       `Fix the ${one ? "issue" : "issues"} found on ${pageList(withIssue)}, then record ${one ? "it" : "them"} as fixed.`,
+    );
+  }
+  if (toRecord.length > 0) {
+    const one = toRecord.length === 1;
+    todo.push(
+      `Record whether the ${one ? "issue" : "issues"} found on ${pageList(toRecord)} ${one ? "was" : "were"} fixed.`,
     );
   }
   if (unread.length > 0) {
@@ -453,15 +476,19 @@ const SKIP_REASONS: Record<SkipReason, string> = {
 };
 
 /**
- * A task for each page voicecap skipped: whether it belongs on the list is for a person to decide.
- * Each says why, as its record does; past `NAMED` pages, the first three and a count.
+ * A task for each page the latest run skipped: whether it belongs on the list is for a person to
+ * decide. Each says why, as its record does, and when the page's transcripts are from an earlier
+ * run, that they are; past `NAMED` pages, the first three and a count.
  */
 function skippedTasks(skipped: PageFacts[]): string[] {
-  const task = ({ name, page }: PageFacts): string => {
+  const task = ({ name, page, transcribed }: PageFacts): string => {
     const reason = page.latestFailure?.page.skip?.reason;
     // A reason this version doesn't know (a newer voicecap's) is left unsaid, as is a missing one.
     const why = reason === undefined ? undefined : SKIP_REASONS[reason];
-    return `${name} was skipped${why === undefined ? "" : `: ${why}`}. Check whether it belongs on the list.`;
+    const because = why === undefined ? "" : `: ${why}`;
+    return transcribed
+      ? `${name} was skipped in the latest run${because}. Its transcripts are from an earlier run. Check whether it belongs on the list.`
+      : `${name} was skipped${because}. Check whether it belongs on the list.`;
   };
   if (skipped.length <= NAMED) return skipped.map(task);
   const more = skipped.length - 3;

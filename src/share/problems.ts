@@ -718,16 +718,23 @@ function lineOf(problems: Problem[], standing: Standing): string {
 
 /**
  * The line when nothing failed. "Every page was read in full" is only said when it's so: a page the
- * latest run skipped (its response wasn't a page, say) wasn't read, and no run counting at all
- * leaves no pages to speak of.
+ * latest run skipped (its response wasn't a page, say) wasn't read there, and no run counting at
+ * all leaves no pages to speak of. A skipped page is "not read" only when no earlier run's
+ * transcripts are shown for it; with them, the page was read, and the line says only that the
+ * latest run skipped it.
  */
 function noProblemsLine(standing: Standing): string {
   if (standing.latest === null) return "No problems to report: no live run counts yet.";
-  const skipped = standing.pages.filter(
-    (page) => page.latestFailure?.page.status === "skipped",
-  ).length;
-  if (skipped === 0) return "No problems during the runs: every page was read in full.";
-  return `No problems during the runs: no attempt failed. ${skipped} ${skipped === 1 ? "page was" : "pages were"} skipped, not read.`;
+  const skipped = standing.pages.filter((page) => page.latestFailure?.page.status === "skipped");
+  if (skipped.length === 0) return "No problems during the runs: every page was read in full.";
+  const notRead = skipped.filter((page) => page.shown === null).length;
+  const readBefore = skipped.length - notRead;
+  const pages = (count: number) => (count === 1 ? "1 page was" : `${count} pages were`);
+  const said = [
+    ...(notRead > 0 ? [`${pages(notRead)} skipped, not read.`] : []),
+    ...(readBefore > 0 ? [`${pages(readBefore)} skipped in the latest run.`] : []),
+  ];
+  return `No problems during the runs: no attempt failed. ${said.join(" ")}`;
 }
 
 /** "a", "a and b", "a, b, and c": a list of names. */

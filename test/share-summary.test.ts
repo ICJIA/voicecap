@@ -227,6 +227,10 @@ function summarize(scene: Scene): Summary {
 /** The page most tests give flags to. */
 const COMMON = "/common-mistakes/";
 
+/** What the tasks say when there is nothing left to do. */
+const NOTHING_LEFT =
+  "Nothing left: every issue found is fixed, every page was read, and every flagged page has a decision.";
+
 /** The slug of a page of the site, which names its card. */
 const slugOf = (path: string): string => pageSlug(canonicalKey(new URL(path, SITE).href));
 
@@ -1083,6 +1087,8 @@ describe("summaryOf: the sentence", () => {
       );
       expect(summary.sentence).not.toMatch(/no issues were found/);
       expect(summary.bars.review.fixed).toEqual([1, 1]);
+      // Every issue found is fixed, so there is nothing to record.
+      expect(summary.todo).toEqual([NOTHING_LEFT]);
     });
 
     it("says every issue was fixed when an issue was found and then fixed", () => {
@@ -1092,6 +1098,7 @@ describe("summaryOf: the sentence", () => {
         `${LEAD}, and reviewed 1 of the 7 transcripts. Every issue found in review was fixed.`,
       );
       expect(summary.bars.review.fixed).toEqual([1, 1]);
+      expect(summary.todo).toEqual([NOTHING_LEFT]);
     });
 
     it("counts a fixed entry with no issue before it as neither found nor fixed", () => {
@@ -1101,6 +1108,7 @@ describe("summaryOf: the sentence", () => {
         `${LEAD}, and reviewed 1 of the 7 transcripts. No flags were raised, and no issues were found.`,
       );
       expect(summary.bars.review.fixed).toEqual([0, 0]);
+      expect(summary.todo).toEqual([NOTHING_LEFT]);
     });
 
     it("says neither no issues nor every issue fixed when an issue was reviewed again with no fix", () => {
@@ -1108,6 +1116,10 @@ describe("summaryOf: the sentence", () => {
 
       expect(summary.sentence).toBe(`${LEAD}, and reviewed 1 of the 7 transcripts.`);
       expect(summary.bars.review.fixed).toEqual([0, 1]);
+      // The bar says 0 of 1 fixed, so the tasks can't say every issue found is fixed: someone has
+      // to record whether it was.
+      expect(summary.todo).toEqual(["Record whether the issue found on Home was fixed."]);
+      expect(summary.todo).not.toContain(NOTHING_LEFT);
     });
 
     it("says every issue was fixed only when every page that had one was fixed", () => {
@@ -1118,6 +1130,43 @@ describe("summaryOf: the sentence", () => {
 
       expect(summary.sentence).toBe(`${LEAD}, and reviewed 2 of the 7 transcripts.`);
       expect(summary.bars.review.fixed).toEqual([1, 2]);
+      expect(summary.todo).toEqual([
+        "Record whether the issue found on Before you start was fixed.",
+      ]);
+    });
+
+    it("names the pages whose issue isn't recorded as fixed, in the plural, up to four and then a count", () => {
+      const two = summed(
+        ...history("/", "issue", "reviewed"),
+        ...history("/before-you-start/", "issue", "reviewed"),
+      );
+      expect(two.todo).toEqual([
+        "Record whether the issues found on Home and Before you start were fixed.",
+      ]);
+
+      const five = summed(
+        ...history("/", "issue", "reviewed"),
+        ...history("/before-you-start/", "issue", "reviewed"),
+        ...history("/how-a-run-works/", "issue", "reviewed"),
+        ...history("/reading-transcripts/", "issue", "reviewed"),
+        ...history("/the-report/", "issue", "reviewed"),
+      );
+      expect(five.todo).toEqual([
+        "Record whether the issues found on Home, Before you start, How a run works, and 2 more were fixed.",
+      ]);
+    });
+
+    it("asks for the fix of an open issue first, and then for the record of one that isn't", () => {
+      const summary = summed(
+        ...history("/", "issue"),
+        ...history("/before-you-start/", "issue", "reviewed"),
+        ...history("/how-a-run-works/", "issue", "fixed"),
+      );
+
+      expect(summary.todo).toEqual([
+        "Fix the issue found on Home, then record it as fixed.",
+        "Record whether the issue found on Before you start was fixed.",
+      ]);
     });
 
     it("counts an issue found after a fix as open again", () => {
@@ -1682,9 +1731,6 @@ describe("summaryOf: the panels", () => {
 });
 
 describe("summaryOf: pages that were skipped", () => {
-  const NOTHING_LEFT =
-    "Nothing left: every issue found is fixed, every page was read, and every flagged page has a decision.";
-
   /** A run of the pages `skipped` names, which voicecap loaded and skipped, and two it read. */
   function withSkipped(
     skipped: [path: string, label: string, skip?: SkipReason | null][],
@@ -1703,6 +1749,25 @@ describe("summaryOf: pages that were skipped", () => {
         })),
       ],
     });
+  }
+
+  /**
+   * An earlier run that read all seven pages, and a later one that loaded the pages `paths` names
+   * and skipped them (for `skip`, as the helper has it), and read the rest.
+   */
+  function skippedLater(paths: string[], skip?: SkipReason | null): RunJson[] {
+    return [
+      sevenPages({ id: "r1", createdAt: "2026-09-25T10:00:00-05:00" }),
+      sevenPages({
+        id: "r2",
+        createdAt: "2026-09-26T14:05:00-05:00",
+        sessions: [{ reviewer: CHRIS }],
+        page: (path) =>
+          paths.includes(path)
+            ? { status: "skipped", ...(skip === undefined ? {} : { skip }) }
+            : {},
+      }),
+    ];
   }
 
   it("says a skipped page in the sentence, and as a task to check", () => {
@@ -1744,6 +1809,74 @@ describe("summaryOf: pages that were skipped", () => {
     expect(
       summarize({ runs: [withSkipped([["/files/report/", "Annual report", newer]])] }).todo,
     ).toEqual([task]);
+  });
+
+  it("counts a page the latest run skipped, with an earlier run's transcripts, as read, and still asks about it", () => {
+    const summary = summarize({ runs: skippedLater(["/"]) });
+
+    // Home's transcripts are the earlier run's, so all seven pages were read: nothing is "skipped,
+    // not read" beside that.
+    expect(summary.sentence).toBe(
+      "NVDA read all 7 pages, run by Christopher Schweda. No flags were raised, and no issues were found.",
+    );
+    expect(summary.numbers.transcribed).toBe(7);
+    expect(summary.todo).toEqual([
+      "Home was skipped in the latest run: the site didn't answer with an HTML page. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+    expect(summary.todo).not.toContain(NOTHING_LEFT);
+    // The line about the problems agrees with "Pages read: 7 of 7".
+    expect(summary.complete).toEqual([
+      "Pages read: 7 of 7.",
+      "No problems during the runs: no attempt failed. 1 page was skipped in the latest run.",
+      "Unexpected errors: none.",
+    ]);
+  });
+
+  it("says a page skipped in the latest run, with transcripts from before, without a reason when the record has none", () => {
+    expect(summarize({ runs: skippedLater(["/"], null) }).todo).toEqual([
+      "Home was skipped in the latest run. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+    expect(summarize({ runs: skippedLater(["/"], "somewhere-new" as SkipReason) }).todo).toEqual([
+      "Home was skipped in the latest run. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+  });
+
+  it("says each page the latest run skipped its own way: one read before, and one never read", () => {
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [
+        { path: "/", label: "Home" },
+        { path: "/about/", label: "About", status: "skipped" },
+      ],
+    });
+    const latest = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      sessions: [{ reviewer: CHRIS }],
+      pages: [
+        { path: "/", label: "Home", status: "skipped", skip: "redirect-off-origin" },
+        { path: "/about/", label: "About", status: "skipped", skip: "off-origin" },
+        { path: "/contact/", label: "Contact" },
+      ],
+    });
+
+    const summary = summarize({ runs: [earlier, latest] });
+
+    // Only About was never read: it's the one the sentence and "Skipped, not read" count.
+    expect(summary.sentence).toBe(
+      "NVDA read 2 of the 3 pages, run by Christopher Schweda. No flags were raised, and no issues were found. 1 page was skipped, not read.",
+    );
+    expect(summary.todo).toEqual([
+      "Home was skipped in the latest run: it redirected to another site. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+      "About was skipped: it's on another site. Check whether it belongs on the list.",
+    ]);
+    expect(summary.complete).toEqual([
+      "Pages read: 2 of 3.",
+      "No problems during the runs: no attempt failed. 1 page was skipped, not read. 1 page was skipped in the latest run.",
+      "Unexpected errors: none.",
+      "Skipped, not read: 1.",
+    ]);
   });
 
   it("says each skipped page as a task, up to four, and then how many more", () => {

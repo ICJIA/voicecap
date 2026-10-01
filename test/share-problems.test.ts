@@ -1709,6 +1709,52 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
+  it("says a page the latest run skipped, with an earlier run's transcripts, was skipped in the latest run", () => {
+    // The pages were read in full in run r1, so skipping one in r2 doesn't leave it unread.
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [{ path: "/" }, { path: "/a" }, { path: "/b" }],
+    });
+    const skipping = (...skipped: string[]) =>
+      shareRun({
+        id: "r2",
+        createdAt: "2026-09-26T10:00:00-05:00",
+        pages: ["/", "/a", "/b"].map((path) => ({
+          path,
+          ...(skipped.includes(path) ? { status: "skipped" as const } : {}),
+        })),
+      });
+
+    expect(problemsFor(earlier, skipping("/a")).line).toBe(
+      "No problems during the runs: no attempt failed. 1 page was skipped in the latest run.",
+    );
+    expect(problemsFor(earlier, skipping("/a", "/b")).line).toBe(
+      "No problems during the runs: no attempt failed. 2 pages were skipped in the latest run.",
+    );
+  });
+
+  it("says both when the latest run skipped pages an earlier run read, and pages no run read", () => {
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [{ path: "/" }, { path: "/read-before" }, { path: "/never", status: "skipped" }],
+    });
+    const latest = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T10:00:00-05:00",
+      pages: [
+        { path: "/" },
+        { path: "/read-before", status: "skipped" },
+        { path: "/never", status: "skipped" },
+      ],
+    });
+
+    expect(problemsFor(earlier, latest).line).toBe(
+      "No problems during the runs: no attempt failed. 1 page was skipped, not read. 1 page was skipped in the latest run.",
+    );
+  });
+
   it("has no problems to report when no run counts", () => {
     const section = problemsFor(shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] }));
 
