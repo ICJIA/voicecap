@@ -122,7 +122,7 @@ To try voicecap first, `npx @icjia/voicecap demo` takes it through its own built
 <details>
 <summary>The four steps on a Windows PC, what <code>init</code> shows on a ready computer, and the reviewer name</summary>
 
-In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows)):
+In PowerShell inside Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows); if you use Git Bash, read [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-) first):
 
 1. **Set up, once:** `npx @icjia/voicecap setup` installs voicecap's own copy of NVDA, and Playwright's Chromium if Google Chrome isn't installed, with no administrator rights. It ends by checking this computer.
 2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report.
@@ -132,7 +132,7 @@ In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, s
 `init` on a ready computer, declining the live test:
 
 ```
-$ npx @icjia/voicecap init
+PS> npx @icjia/voicecap init
 
 voicecap preflight, 2026-09-28 11:10
 
@@ -311,7 +311,7 @@ The demo's files go in a `voicecap-demo` folder in the current folder, never in 
 <details>
 <summary>Six steps for a new Windows PC, from installing Git and Node.js to what to do before a run</summary>
 
-These steps assume Windows 11, a normal (non-administrator) account, and Git Bash inside Windows Terminal.
+These steps assume Windows 11, a normal (non-administrator) account, and PowerShell inside Windows Terminal (its default profile).
 
 1. **Install Git and Node.js** with winget from a Windows Terminal (PowerShell) window:
 
@@ -320,15 +320,15 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
    winget install --id OpenJS.NodeJS.LTS -e
    ```
 
-   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too). Close and reopen Windows Terminal afterwards so both are on your PATH.
+   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too). Close Windows Terminal afterwards, and open it again in step 2, so both are on your PATH.
 
-2. **Open Git Bash** in Windows Terminal: the tab drop-down (the `˅` next to the `+`) lists "Git Bash" once Git is installed. You can make it the default profile in Windows Terminal's settings. Check with `node --version` (22.19 or later) and `git --version`.
+2. **Open Windows Terminal** from the Start menu. It starts in PowerShell, its default profile. Check with `node --version` (22.19 or later) and `git --version`.
 
 3. **Only if you'll develop voicecap:** install pnpm with `corepack enable pnpm` (or `npm install -g pnpm`). Running voicecap needs only Node and `npx`.
 
-4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first.
+4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first (in PowerShell, `$env:HTTPS_PROXY = "http://your-proxy:port"` sets it for the current window).
 
-   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup`, open a new terminal, and run setup again.
+   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (in PowerShell, `mkdir C:\guidepup`, then `setx GUIDEPUP_SCREEN_READERS_PATH C:\guidepup`), open a new terminal, and run setup again.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
@@ -346,7 +346,7 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
 
 ### Git Bash and paths that start with "/"
 
-Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
+PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash. Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
 
 - use full URLs: `--page https://dvfr.illinois.gov/about/` (always works);
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
@@ -492,6 +492,8 @@ Then voicecap puts VoiceOver back the way it found it (see [Checks before a run,
 
 ## Commands and options
 
+You type these commands the same way in PowerShell, in Git Bash, and in a Mac's terminal, except that Git Bash rewrites arguments that start with `/` (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)).
+
 ### Run an audit
 
 <details>
@@ -558,7 +560,7 @@ Wherever a command takes a page, give a full URL or a root-relative path (`/abou
 **`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
 
 ```
-$ npx @icjia/voicecap doctor
+PS> npx @icjia/voicecap doctor
 
 The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
 voicecap doctor, 2026-09-28 11:10
@@ -900,15 +902,17 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 <details>
 <summary>Making the private repository on Windows or a Mac, saving runs to it, and protecting the branch</summary>
 
-**Windows, in Git Bash:**
+**Windows, in PowerShell:**
 
-```bash
-mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts && git init
+```powershell
+mkdir C:\Users\cschw\code\voicecap-transcripts
+cd C:\Users\cschw\code\voicecap-transcripts
+git init
 gh repo create voicecap-transcripts --private --source .
 setx VOICECAP_TRANSCRIPTS 'C:\Users\cschw\code\voicecap-transcripts'
 ```
 
-`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal.
+`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal. In Git Bash, the same lines work, except that the first two become `mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts`.
 
 **macOS:**
 
@@ -923,7 +927,7 @@ If the repository already exists, made on another computer, clone it instead: `g
 export VOICECAP_TRANSCRIPTS=~/webdev/voicecap-transcripts
 ```
 
-**After runs, reviews, or manual sessions:**
+**After runs, reviews, or manual sessions,** the same in PowerShell, Git Bash, and a Mac's terminal:
 
 ```bash
 git add -A
