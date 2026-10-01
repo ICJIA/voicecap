@@ -45,7 +45,7 @@ export const NOT_READY_AGAIN = "When this computer is ready, run npx @icjia/voic
  */
 export const WHERE_THE_TOUR_RUNS = `The tour runs on a Windows PC, or on a Mac for the checks: run ${TOUR_COMMAND} there.`;
 /** After the audit stopped on failed pages in a row, which the run has explained. */
-export const STOPPED_RUN_NEXT = `Run npx @icjia/voicecap doctor to check this computer, then ${TOUR_COMMAND} again.`;
+export const STOPPED_RUN_NEXT = `Run npx @icjia/voicecap preflight to see what to fix, then ${TOUR_COMMAND} again.`;
 export const STOPPED = "Stopped. Nothing is left running.";
 export const OPEN_REPORT = "Open the report now?";
 export const OPENING_REPORT = "Opening the report…";
@@ -125,7 +125,7 @@ export function welcome(options: {
 
 /** Step 2's words before the preflight. */
 export const CHECKING_INTRO = paragraph(
-  "Before voicecap touches a screen reader, it checks this computer can run one. On its own, that's: npx @icjia/voicecap doctor",
+  "Before voicecap touches a screen reader, it checks this computer can run one. On its own, that's: npx @icjia/voicecap preflight",
 );
 
 /**

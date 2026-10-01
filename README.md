@@ -256,7 +256,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 `npx @icjia/voicecap demo` is a guided first run, about 9 minutes, against a small demo site that comes with voicecap. The site runs only on this computer, and only while the tour needs it: nothing is downloaded, and nothing is sent anywhere. The tour goes one step at a time, and each step waits for Enter. Ctrl+C at any of them stops the tour, with nothing left running.
 
 1. **Welcome:** what voicecap does, and what the tour will do.
-2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap doctor`.
+2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap preflight`.
 3. **The live test:** about 20 seconds of NVDA speaking. Keep your hands off the keyboard.
 4. **Auditing the demo site:** NVDA reads the demo's seven pages, hands off, for about 7 minutes. The tour shows the command it runs, such as `npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh`. To stop early, click the terminal window first (the browser is in front), then press Ctrl+C.
 5. **The transcripts:** where they are, and the first lines NVDA said on the demo's home page.

@@ -108,7 +108,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
     expect(CHECKING_INTRO).toBe(
       [
         "Before voicecap touches a screen reader, it checks this computer can run one. On its own,",
-        "that's: npx @icjia/voicecap doctor",
+        "that's: npx @icjia/voicecap preflight",
       ].join("\n"),
     );
   });
@@ -138,7 +138,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
   it("says what to do after the audit stopped on failed pages in a row", () => {
     expect(TOUR_COMMAND).toBe("npx @icjia/voicecap demo");
     expect(STOPPED_RUN_NEXT).toBe(
-      "Run npx @icjia/voicecap doctor to check this computer, then npx @icjia/voicecap demo again.",
+      "Run npx @icjia/voicecap preflight to see what to fix, then npx @icjia/voicecap demo again.",
     );
   });
 
