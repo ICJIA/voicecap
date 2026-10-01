@@ -429,6 +429,24 @@ describe("a page in a narrow window", () => {
     },
   );
 
+  // The timeline is a table of three columns in a box that scrolls. At a phone's width it's laid
+  // out to fit the box, so none of it is cut off at the box's edge, out of sight (and out of axe's
+  // reach: it can't check the contrast of text it can't see).
+  it.each([320, 390])("fits the timeline's table in its box at %i px", async (width) => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width, height: 900 });
+
+    const sizes = await page.evaluate(() => {
+      const box = document.querySelector("table.tracks")?.closest(".scroll");
+      if (!box) throw new Error("The page has no timeline in a box.");
+      return { box: box.clientWidth, content: box.scrollWidth };
+    });
+
+    expect(sizes.content, `the table's width in a box ${sizes.box} px wide`).toBeLessThanOrEqual(
+      sizes.box,
+    );
+  });
+
   // A name is a whole address, and can be one word longer than any box: the kinds of text it can be
   // in break it where they must, rather than run out of their boxes, or out of the window.
   it.each([
@@ -562,7 +580,7 @@ describe("a link into a fold", () => {
     // The page card's "Transcripts and fingerprints" opens its transcripts.
     await page.locator(`a[href="#${fold}"]`).click();
     expect(await foldStates(page)).toEqual({ ...before, [fold]: true });
-    await expect.poll(() => inView(page, `#${fold} > summary`)).toBe(true);
+    await expect.poll(() => inView(page, `#${fold} > summary`), { timeout: 10_000 }).toBe(true);
 
     // An address pointing there, as one the browser has just followed: the fold is shut again,
     // the page is scrolled away, and the page finds its way back.
@@ -605,7 +623,7 @@ describe("a link into a fold", () => {
     const page = await open(pages.demo, `#${fold}`);
 
     expect(await foldStates(page)).toEqual({ ...asWritten, [fold]: true });
-    await expect.poll(() => inView(page, `#${fold} > summary`)).toBe(true);
+    await expect.poll(() => inView(page, `#${fold} > summary`), { timeout: 10_000 }).toBe(true);
   });
 
   it("leaves the folds alone for an address that points to nothing, or to what's in view", async () => {

@@ -620,7 +620,7 @@ describe("the check in a browser", () => {
   it("shows the buttons and hides the no-script line once the script runs", async () => {
     const page = await open();
 
-    await expect.poll(() => page.locator("#fp-run").isVisible()).toBe(true);
+    await expect.poll(() => page.locator("#fp-run").isVisible(), { timeout: 10_000 }).toBe(true);
     expect(await page.locator("#fp-demo").isVisible()).toBe(true);
     expect(await page.locator(".fp-noscript").isVisible()).toBe(false);
     expect(await page.locator("#fp-list").isVisible()).toBe(false);

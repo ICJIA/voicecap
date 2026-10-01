@@ -16,7 +16,8 @@
  *   in the light theme, and red, not green, behind the words a removed line lost;
  * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches), and in
  *   print no box scrolls or cuts anything short, since paper can't scroll;
- * - long words in tables wrap at a phone's width, and the timeline fits it;
+ * - long words in tables wrap at a phone's width, and the timeline's table fits its box down to 320
+ *   pixels (closer columns, no dots, smaller type), so nothing in it is cut off at the box's edge;
  * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
  *   be in (paragraphs, list items, headings, a fold's line, terms and what they mean, captions, the
  *   command that verifies the records, the site's name and address) breaks it where it must
@@ -283,6 +284,8 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 .worth p { margin: 0; font-size: 0.9rem; }
 .cite { font-size: 0.84rem; color: var(--muted); }
 @media (max-width: 640px) { .tx-grid { grid-template-columns: 1fr; } dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }
+/* At a phone's width, down to 320 pixels, the timeline's three columns fit their box: closer together, inside it, without the dots, and in smaller type. */
+@media (max-width: 400px) { table.tracks { border-spacing: 4px 6px; margin: 4px 0 10px; font-size: 0.86rem; } table.tracks caption { padding: 0 0 2px; } table.tracks thead th { padding: 4px 4px 0; letter-spacing: 0.02em; } table.tracks tbody th { padding: 8px 4px; font-size: 0.74rem; } table.tracks tbody th::before { display: none; } table.tracks td { padding: 8px 6px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 /* Paper doesn't scroll: in print, every box shows all it holds. After the rules that limit the boxes, so it wins. */
 @media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } }
