@@ -113,10 +113,16 @@ describe("the fixed text", () => {
     expect(everyString().filter((string) => string === "" || string !== string.trim())).toEqual([]);
   });
 
-  it("quotes the study's title once in the story, for the renderer to link to Deque", () => {
+  it("quotes the study by its article's own headline, once in the story, for the renderer to link to Deque", () => {
     const { title, url } = STORY.deque;
 
+    // Deque's headline word for word, as the article prints it (published 10 March 2021). A quoted
+    // title shown to auditors must be exact, so it is never trimmed.
+    expect(title).toBe(
+      "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks",
+    );
     expect(STORY.why.split(title)).toHaveLength(2);
+    expect(STORY.why).toContain(`“${title}”`);
     expect(new URL(url).protocol).toBe("https:");
     expect(new URL(url).hostname).toBe("www.deque.com");
   });

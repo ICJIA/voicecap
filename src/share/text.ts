@@ -90,8 +90,10 @@ export const WHEN_TO_RUN: {
 
 /**
  * Why voicecap exists, in the order the page tells it: `why` first, then `usual` and `answer` in
- * the fold beneath. `why` quotes the study it rests on by its title, once, and `deque` is that
- * study: the renderer links the title where `why` has it, to `url`.
+ * the fold beneath. `why` quotes the study it rests on by its article's headline, once, and `deque`
+ * is that article: the renderer links the title where `why` has it, to `url`. The title is the
+ * headline word for word, as Deque printed it on 10 March 2021, since a quoted title shown to
+ * auditors must be exact.
  */
 export const STORY: {
   why: string;
@@ -99,13 +101,14 @@ export const STORY: {
   answer: string;
   deque: { title: string; url: string };
 } = {
-  why: "Automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: “Automated Testing Identifies 57 Percent of Digital Accessibility Issues”, March 2021, over 2,000 audits and 13,000 pages. And no checker can say what a page sounds like.",
+  why: "Automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: “Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks”, March 2021, over 2,000 audits and 13,000 pages. And no checker can say what a page sounds like.",
   usual:
     "The usual answer, a person with a screen reader, page by page, is slow, hard to show afterward, and hard to repeat.",
   answer:
     "voicecap's answer: keep the person and the real screen reader, and take over the slow parts. Working from the list makes the review more thorough than going page by page by hand: every page is accounted for, none is missed or done twice, and each is heard the same way, with the same keys in the same order. voicecap is free and open source, from ICJIA (MIT license).",
   deque: {
-    title: "Automated Testing Identifies 57 Percent of Digital Accessibility Issues",
+    title:
+      "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks",
     url: "https://www.deque.com/blog/automated-testing-study-identifies-57-percent-of-digital-accessibility-issues/",
   },
 };
