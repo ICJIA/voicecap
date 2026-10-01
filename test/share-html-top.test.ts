@@ -508,14 +508,16 @@ describe("renderTop", () => {
     expect(renderTop(await demoModel())).toContain("<h1>127.0.0.1:4848</h1>");
   });
 
-  it("has the two buttons, the theme starting as dark with a light one to switch to", () => {
+  it("has the two buttons, hidden until the page's script shows them, the theme's offering light", () => {
     const html = renderTop(richModel());
 
+    // Each does nothing without the script, which shows it. The theme's words say what it
+    // switches to, so it has no pressed state to contradict them.
     expect(html).toContain(
-      '<button class="theme" id="open-all" type="button">Open every section</button>',
+      '<button class="theme" id="open-all" type="button" hidden>Open every section</button>',
     );
     expect(html).toContain(
-      '<button class="theme" id="theme-toggle" type="button" aria-pressed="false">Light version</button>',
+      '<button class="theme" id="theme-toggle" type="button" hidden>Light version</button>',
     );
     expect(html.match(/<button /g)).toHaveLength(2);
   });

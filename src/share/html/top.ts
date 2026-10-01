@@ -36,6 +36,10 @@ function testedPhrase(tested: string): string {
  * The page's header: the site's name as the headline, two plain lines on what the page is, who
  * and when, the site's address, and the two buttons the page's script wires up.
  *
+ * The buttons do nothing without the script, so they start hidden and the script shows them. The
+ * theme's says what it switches to ("Light version", then "Dark version"), so it has no pressed
+ * state: one that changed with its words would say "pressed" of the theme it no longer names.
+ *
  * When no run counts there is no date to give, so the line says so, and says what voicecap does
  * rather than what it did: no run that counts took the screen reader through any page.
  */
@@ -60,7 +64,7 @@ export function renderTop(model: ShareModel): string {
     `<header class="mast">`,
     `  <div class="mast-top">`,
     `    <div class="eyebrow">Screen reader test results</div>`,
-    `    <div class="chips"><button class="theme" id="open-all" type="button">Open every section</button><button class="theme" id="theme-toggle" type="button" aria-pressed="false">Light version</button></div>`,
+    `    <div class="chips"><button class="theme" id="open-all" type="button" hidden>Open every section</button><button class="theme" id="theme-toggle" type="button" hidden>Light version</button></div>`,
     `  </div>`,
     `  <h1>${esc(header.siteName)}</h1>`,
     `  <p class="mast-lead">How its pages read aloud with ${readerLink}, a free screen reader${dated} voicecap ${tested === null ? "takes" : "took"} ${reader} through every page, pressing its keys the way a person would. Every word shown here is what ${reader} said.</p>`,
