@@ -556,7 +556,7 @@ describe("Guidepup's folder, when NVDA can't start from it", () => {
     expect(unsafePathProblem(install)).toEqual({
       whatsWrong,
       fix: [
-        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
+        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In PowerShell: mkdir C:\\guidepup, then setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
         "Open a new terminal and run: npx @icjia/voicecap setup",
       ],
     });
@@ -578,14 +578,36 @@ describe("Guidepup's folder, when NVDA can't start from it", () => {
     expect(unsafePathMessage(safe)).toBeNull();
   });
 
-  it("says the same in one message, worded as it always has been", () => {
+  it("says the same in one message, with each command on a line of its own", () => {
     expect(unsafePathMessage(install)).toBe(
       [
         whatsWrong,
-        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
+        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In PowerShell:",
+        "  mkdir C:\\guidepup",
+        "  setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup",
+        "In Git Bash:",
         "  mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
         "then open a new terminal and run: npx @icjia/voicecap setup",
       ].join("\n"),
     );
+  });
+
+  // Windows PowerShell 5.1, the PowerShell Windows comes with, has no &&: the line that works in
+  // Git Bash is an error there, so the PowerShell form is two commands, and comes first.
+  it("gives the PowerShell form first, in two commands with no && in them", () => {
+    const problem = unsafePathProblem(install);
+    const message = unsafePathMessage(install);
+    for (const text of [problem?.fix[0], message]) {
+      const powershell = text?.indexOf("In PowerShell:") ?? -1;
+      const gitBash = text?.indexOf("In Git Bash:") ?? -1;
+      expect(powershell).toBeGreaterThan(-1);
+      expect(gitBash).toBeGreaterThan(powershell);
+      expect(text?.slice(powershell, gitBash)).not.toContain("&&");
+      expect(text?.slice(powershell, gitBash)).toMatch(
+        /mkdir C:\\guidepup\D+setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup/,
+      );
+      // Git Bash's one line is still there, for the people who use it.
+      expect(text?.slice(gitBash)).toContain("mkdir -p /c/guidepup && setx");
+    }
   });
 });

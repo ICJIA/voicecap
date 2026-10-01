@@ -79,9 +79,19 @@ export function shellUnsafePart(dir: string): string | null {
   return /\s|[&(,;=^]|%[^%]*%/.exec(dir)?.[0] ?? null;
 }
 
-/** The Git Bash command that ends the first fix step for a folder NVDA can't start from. */
-const SAFE_FOLDER_COMMAND =
-  "mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'";
+/** The first fix step for a folder NVDA can't start from, before the commands. */
+const CHOOSE_FOLDER =
+  "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there.";
+
+/**
+ * The commands that make that folder and point Guidepup at it, for each terminal. PowerShell comes
+ * first, and takes two commands: Windows PowerShell 5.1, the one Windows comes with, has no &&.
+ * Git Bash's one line is for the people who use it.
+ */
+const SAFE_FOLDER_COMMANDS: [terminal: string, commands: string[]][] = [
+  ["PowerShell", ["mkdir C:\\guidepup", "setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup"]],
+  ["Git Bash", ["mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'"]],
+];
 
 /** Why NVDA can't start from Guidepup's folder and how to fix it, or null if it can. */
 export function unsafePathProblem(
@@ -93,23 +103,26 @@ export function unsafePathProblem(
   return {
     whatsWrong: `Guidepup's NVDA is in ${install.cacheDir}, and that path has ${what} in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).`,
     fix: [
-      `Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: ${SAFE_FOLDER_COMMAND}`,
+      `${CHOOSE_FOLDER} ${SAFE_FOLDER_COMMANDS.map(([terminal, commands]) => `In ${terminal}: ${commands.join(", then ")}`).join(". ")}`,
       "Open a new terminal and run: npx @icjia/voicecap setup",
     ],
   };
 }
 
 /**
- * unsafePathProblem as one message, for an error: the Git Bash command on a line of its own, and
- * the second step joined on with "then".
+ * unsafePathProblem as one message, for an error: each terminal's commands on lines of their own,
+ * and the second step joined on with "then".
  */
 export function unsafePathMessage(install: GuidepupInstall): string | null {
   const problem = unsafePathProblem(install);
   if (problem === null) return null;
-  const [chooseFolder = "", openTerminal = ""] = problem.fix;
+  const openTerminal = problem.fix[1] ?? "";
   return [
     problem.whatsWrong,
-    chooseFolder.replace(` ${SAFE_FOLDER_COMMAND}`, () => `\n  ${SAFE_FOLDER_COMMAND}`),
+    ...SAFE_FOLDER_COMMANDS.flatMap(([terminal, commands], index) => [
+      `${index === 0 ? `${CHOOSE_FOLDER} ` : ""}In ${terminal}:`,
+      ...commands.map((command) => `  ${command}`),
+    ]),
     `then ${openTerminal.charAt(0).toLowerCase()}${openTerminal.slice(1)}`,
   ].join("\n");
 }

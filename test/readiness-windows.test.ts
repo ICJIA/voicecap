@@ -232,7 +232,7 @@ describe("Windows quick checks", () => {
         whatsWrong:
           "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).",
         fix: [
-          "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
+          "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In PowerShell: mkdir C:\\guidepup, then setx GUIDEPUP_SCREEN_READERS_PATH C:\\guidepup. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
           "Open a new terminal and run: npx @icjia/voicecap setup",
         ],
         setupHelps: false,
