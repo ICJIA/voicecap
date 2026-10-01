@@ -33,6 +33,9 @@ const NVDA_CONNECTION =
 const STEP_TIMEOUT = "nextLine did not finish within 30s";
 const OPEN_TIMEOUT = "Opening the page did not finish within 45s";
 const PAGE_TIMEOUT = "The whole page did not finish within 5m 0s";
+// What Playwright's error for a navigation says: the first line, then its call log.
+const NAME_NOT_RESOLVED =
+  'page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.gov/\nCall log:\n  - navigating to "https://example.gov/", waiting until "load"';
 const BROWSER_START = "Chrome didn't start: it didn't open its DevTools port within 30s";
 const BROWSER_CHANGED =
   "The browser changed during the run: Chrome 141.0.7390.55 was recorded, and Chrome 142.0.7444.60 started now (browsers update themselves). Transcripts from different browser versions aren't comparable, so run the same command again to resume with the new version recorded.";
@@ -154,14 +157,54 @@ describe("kindFromWording", () => {
       wording("unexpected", "read", null, "Cannot read properties of undefined (reading 'name')"),
     ],
     [
-      "a browser library's own error, which voicecap didn't word",
+      "a network error Chrome reported, as voicecap 0.5.0 recorded it",
       "Could not open the page for the read pass: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4848/",
       wording(
-        "unexpected",
+        "unreachable",
         "read",
         null,
         "page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4848/",
       ),
+    ],
+    [
+      "a network error with Playwright's call log, in a retry",
+      `Attempt 2 failed (Could not open the page for the tab pass: ${NAME_NOT_RESOLVED}); retrying.`,
+      wording("unreachable", "tab", 2, NAME_NOT_RESOLVED),
+    ],
+    [
+      "a network error without the method's name",
+      "Could not open the page for the headings pass: net::ERR_INTERNET_DISCONNECTED at https://example.gov/",
+      wording(
+        "unreachable",
+        "headings",
+        null,
+        "net::ERR_INTERNET_DISCONNECTED at https://example.gov/",
+      ),
+    ],
+    [
+      "a network error with nothing around it",
+      "page.goto: net::ERR_CONNECTION_RESET at http://127.0.0.1:4848/",
+      wording(
+        "unreachable",
+        null,
+        null,
+        "page.goto: net::ERR_CONNECTION_RESET at http://127.0.0.1:4848/",
+      ),
+    ],
+    [
+      "another browser library error, which voicecap didn't word",
+      "Could not open the page for the read pass: page.evaluate: Execution context was destroyed, most likely because of a navigation",
+      wording(
+        "unexpected",
+        "read",
+        null,
+        "page.evaluate: Execution context was destroyed, most likely because of a navigation",
+      ),
+    ],
+    [
+      "a network error of Node's, not Chrome's",
+      "Could not open the page for the read pass: connect ECONNREFUSED 127.0.0.1:4848",
+      wording("unexpected", "read", null, "connect ECONNREFUSED 127.0.0.1:4848"),
     ],
     [
       "something that is no form voicecap wrote",
@@ -232,6 +275,52 @@ describe("problemsOf: which problems, and their kinds", () => {
       causes.map(([cause, kind]) => [`/${cause}`, kind]),
     );
     expect(problems.every((problem) => !problem.fromWording)).toBe(true);
+  });
+
+  it("reads a cause code it doesn't know as an unexpected error", () => {
+    // A newer voicecap's code: the spec's rule is that any other error is unexpected.
+    const stack = "Error: a newer failure\n    at somewhere (file:///C:/voicecap/dist/x.js:1:1)";
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/a",
+          status: "failed",
+          failedAttempts: [
+            failedAttempt({
+              n: 1,
+              cause: "some-newer-cause" as never,
+              message: "A newer voicecap's message",
+              stack,
+              startedAt: at(7),
+              endedAt: at(7, 5),
+            }),
+          ],
+        },
+      ],
+    });
+    const { problems, line, unexpected } = problemsFor(run);
+
+    expect(problems.map((problem) => [problem.kind, problem.fromWording])).toEqual([
+      ["unexpected", false],
+    ]);
+    expect(problems[0]?.happened).toBe(
+      "During the read pass, at step 12 (Down Arrow), an unexpected error came up.",
+    );
+    // The record keeps the code as it was written, and an unexpected error shows its stack.
+    expect(problems[0]?.record).toEqual([
+      { time: at(7), source: "run.json", entry: "Attempt 1 started" },
+      {
+        time: at(7, 5),
+        source: "run.json",
+        entry: "Failed: some-newer-cause: A newer voicecap's message",
+      },
+      { time: at(7, 5), source: "stack", entry: stack },
+    ]);
+    expect(unexpected).toBe(1);
+    expect(line).toBe(
+      "1 problem: an unexpected error. It wasn't tried again. 1 was an unexpected error, the kind that could mean a problem in voicecap itself: see its record.",
+    );
   });
 
   it("takes every failed attempt of the runs the standing draws on, and no others", () => {
@@ -627,6 +716,12 @@ describe("problemsOf: what happened, and what voicecap did", () => {
 });
 
 describe("problemsOf: did it happen again?", () => {
+  const NOT_KNOWN =
+    "Not known: this run didn't try the page again, and no other run read it in full.";
+  const ON_THIS_COMPUTER =
+    "That points to something on this computer, such as another program, rather than a one-off.";
+  const THIS_PAGE_OR_VOICECAP = "That points to this page, or to voicecap, rather than a one-off.";
+
   it("says no, read in full on a later attempt, with NVDA started fresh", () => {
     const run = shareRun({
       id: "r1",
@@ -660,6 +755,7 @@ describe("problemsOf: did it happen again?", () => {
     });
     const { problems } = problemsFor(run);
 
+    // Neither was followed by a failure of its own kind, so neither happened again.
     expect(field(problems, "verdict")).toEqual({
       "/a 1": "No: read in full on attempt 3, with NVDA and the browser started fresh.",
       "/a 2": "No: read in full on attempt 3, with NVDA and the browser started fresh.",
@@ -724,26 +820,67 @@ describe("problemsOf: did it happen again?", () => {
     ]);
   });
 
+  it("says yes, then read in full, when the next attempt failed the same way and the page got through", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/a",
+          failedAttempts: [
+            failedAttempt({ n: 1, restarted: true }),
+            failedAttempt({ n: 2, restarted: true }),
+          ],
+        },
+      ],
+    });
+    const { problems, line } = problemsFor(run);
+
+    expect(field(problems, "verdict")).toEqual({
+      "/a 1": "Yes, on attempt 2, then read in full on attempt 3.",
+      "/a 2": "No: read in full on attempt 3, with NVDA and the browser started fresh.",
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "no"]);
+    expect(line).toBe(
+      "2 problems, both outside voicecap: another window took the screen. 1 happened again, and 1 didn't happen again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.",
+    );
+  });
+
+  it("counts a later failure of the same kind even when another kind came between", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/a",
+          failedAttempts: [
+            failedAttempt({ n: 1, restarted: true }),
+            failedAttempt({ n: 2, cause: "step-timeout", restarted: true }),
+            failedAttempt({ n: 3, restarted: true }),
+          ],
+        },
+      ],
+    });
+    const { problems } = problemsFor(run);
+
+    expect(field(problems, "verdict")).toEqual({
+      "/a 1": "Yes, on attempt 3, then read in full on attempt 4.",
+      "/a 2": "No: read in full on attempt 4, with NVDA and the browser started fresh.",
+      "/a 3": "No: read in full on attempt 4, with NVDA and the browser started fresh.",
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "no", "no"]);
+  });
+
   it.each<[string, FailureCause, string]>([
-    [
-      "a foreground loss",
-      "foreground",
-      "Yes, on every attempt (3 of 3). That points to this page, or to voicecap, rather than a one-off.",
-    ],
-    [
-      "a step that took too long",
-      "step-timeout",
-      "Yes, on every attempt (3 of 3). That points to this page, or to voicecap, rather than a one-off.",
-    ],
-    ["an HTTP error", "http", "Yes, on every attempt (3 of 3). That points to the website."],
-    [
-      "a website that couldn't be reached",
-      "unreachable",
-      "Yes, on every attempt (3 of 3). That points to the website.",
-    ],
+    ["a foreground loss", "foreground", ON_THIS_COMPUTER],
+    ["the computer locked", "locked", ON_THIS_COMPUTER],
+    ["NVDA stopping", "screen-reader-stopped", THIS_PAGE_OR_VOICECAP],
+    ["a browser that didn't start", "browser", THIS_PAGE_OR_VOICECAP],
+    ["a step that took too long", "step-timeout", THIS_PAGE_OR_VOICECAP],
+    ["an unexpected error", "unexpected", THIS_PAGE_OR_VOICECAP],
+    ["an HTTP error", "http", "That points to the website."],
+    ["a website that couldn't be reached", "unreachable", "That points to the website."],
   ])(
     "says yes, on every attempt, and points to the website for an HTTP error: %s",
-    (_name, cause, verdict) => {
+    (_name, cause, points) => {
       const run = shareRun({
         id: "r1",
         pages: [
@@ -763,12 +900,15 @@ describe("problemsOf: did it happen again?", () => {
       });
       const { problems } = problemsFor(run);
 
-      expect(problems.map((problem) => problem.verdict)).toEqual([verdict, verdict, verdict]);
-      expect(problems.map((problem) => problem.again)).toEqual(["same", "same", "same"]);
+      // Each of the first two was followed by the same failure. The third was followed by nothing:
+      // the run didn't try the page again.
+      const every = `Yes, on every attempt (3 of 3). ${points}`;
+      expect(problems.map((problem) => problem.verdict)).toEqual([every, every, NOT_KNOWN]);
+      expect(problems.map((problem) => problem.again)).toEqual(["same", "same", "unknown"]);
     },
   );
 
-  it("says yes when the page failed every time here, whatever an earlier run read", () => {
+  it("decides the last attempt by whether another run read the page, and the others by what followed", () => {
     const earlier = shareRun({
       id: "r1",
       createdAt: "2026-09-20T09:30:00-05:00",
@@ -787,14 +927,15 @@ describe("problemsOf: did it happen again?", () => {
     });
     const { problems } = problemsFor(earlier, latest);
 
-    // It did happen again, as an earlier run's read of the page doesn't change.
-    const verdict =
-      "Yes, on every attempt (2 of 2). That points to this page, or to voicecap, rather than a one-off.";
-    expect(problems.map((problem) => problem.verdict)).toEqual([verdict, verdict]);
-    expect(problems.map((problem) => problem.again)).toEqual(["same", "same"]);
+    // The first did happen again, as an earlier run's read of the page doesn't change.
+    expect(problems.map((problem) => problem.verdict)).toEqual([
+      `Yes, on every attempt (2 of 2). ${ON_THIS_COMPUTER}`,
+      "No: read in full in run r1.",
+    ]);
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "no"]);
   });
 
-  it("says yes, in different ways, naming each", () => {
+  it("says yes, on the attempt it happened again, when not every attempt failed that way", () => {
     const run = shareRun({
       id: "r1",
       pages: [
@@ -804,9 +945,25 @@ describe("problemsOf: did it happen again?", () => {
           failedAttempts: [
             failedAttempt({ n: 1, restarted: true }),
             failedAttempt({ n: 2, cause: "step-timeout", restarted: true }),
-            failedAttempt({ n: 3, restarted: true }),
+            failedAttempt({ n: 3 }),
           ],
         },
+      ],
+    });
+    const { problems } = problemsFor(run);
+
+    expect(field(problems, "verdict")).toEqual({
+      "/a 1": "Yes, on attempt 3.",
+      "/a 2": "Yes, in different ways: another window took the screen (attempt 3).",
+      "/a 3": NOT_KNOWN,
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "different", "unknown"]);
+  });
+
+  it("says yes, in different ways, naming what followed", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
         {
           path: "/b",
           status: "failed",
@@ -819,45 +976,41 @@ describe("problemsOf: did it happen again?", () => {
       ],
     });
     const { problems } = problemsFor(run);
-    const a =
-      "Yes, in different ways: another window took the screen (attempts 1 and 3), and a step took too long (attempt 2).";
-    const b =
-      "Yes, in different ways: another window took the screen (attempt 1), a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).";
 
     expect(field(problems, "verdict")).toEqual({
-      "/a 1": a,
-      "/a 2": a,
-      "/a 3": a,
-      "/b 1": b,
-      "/b 2": b,
-      "/b 3": b,
+      "/b 1":
+        "Yes, in different ways: a step took too long (attempt 2), and the browser stopped or didn't start (attempt 3).",
+      "/b 2": "Yes, in different ways: the browser stopped or didn't start (attempt 3).",
+      "/b 3": NOT_KNOWN,
     });
-    expect(problems.map((problem) => problem.again)).toEqual(Array<string>(6).fill("different"));
+    expect(problems.map((problem) => problem.again)).toEqual(["different", "different", "unknown"]);
   });
 
-  it("lists three or more attempts of a kind with commas", () => {
+  it("lists two, three, or more attempts of a kind that followed", () => {
+    const failing = (kinds: FailureCause[]) => ({
+      status: "failed" as const,
+      failedAttempts: kinds.map((cause, index) =>
+        failedAttempt({ n: index + 1, cause, restarted: true }),
+      ),
+    });
     const run = shareRun({
       id: "r1",
       pages: [
-        {
-          path: "/a",
-          status: "failed",
-          failedAttempts: [
-            failedAttempt({ n: 1, restarted: true }),
-            failedAttempt({ n: 2, restarted: true }),
-            failedAttempt({ n: 3, cause: "step-timeout", restarted: true }),
-            failedAttempt({ n: 4 }),
-          ],
-        },
+        { path: "/two", ...failing(["step-timeout", "foreground", "foreground"]) },
+        { path: "/three", ...failing(["step-timeout", "foreground", "foreground", "foreground"]) },
       ],
     });
     const { problems } = problemsFor(run);
 
-    expect(new Set(problems.map((problem) => problem.verdict))).toEqual(
-      new Set([
-        "Yes, in different ways: another window took the screen (attempts 1, 2, and 4), and a step took too long (attempt 3).",
-      ]),
-    );
+    expect(field(problems, "verdict")).toEqual({
+      "/two 1": "Yes, in different ways: another window took the screen (attempts 2 and 3).",
+      "/two 2": "Yes, on attempt 3.",
+      "/two 3": NOT_KNOWN,
+      "/three 1": "Yes, in different ways: another window took the screen (attempts 2, 3, and 4).",
+      "/three 2": "Yes, on attempt 3.",
+      "/three 3": "Yes, on attempt 4.",
+      "/three 4": NOT_KNOWN,
+    });
   });
 
   it("says what a problem written as text came to", () => {
@@ -890,20 +1043,28 @@ describe("problemsOf: did it happen again?", () => {
             `read pass: ${STEP_TIMEOUT}`,
           ],
         },
+        {
+          path: "/then-read",
+          attempts: 3,
+          errors: [
+            `Attempt 1 failed (read pass: ${FOREGROUND}); retrying.`,
+            `Attempt 2 failed (read pass: ${FOREGROUND}); retrying.`,
+          ],
+        },
       ],
     });
     const { problems } = problemsFor(run);
     const everyTime = "Yes, on every attempt (3 of 3). That points to the website.";
-    const inWays =
-      "Yes, in different ways: another window took the screen (attempt 1), and a step took too long (attempt 2).";
 
     expect(field(problems, "verdict")).toEqual({
       "/retried 1": "No: read in full on attempt 2.",
       "/every-time 1": everyTime,
       "/every-time 2": everyTime,
-      "/every-time -": everyTime,
-      "/in-ways 1": inWays,
-      "/in-ways -": inWays,
+      "/every-time -": NOT_KNOWN,
+      "/in-ways 1": "Yes, in different ways: a step took too long (attempt 2).",
+      "/in-ways -": NOT_KNOWN,
+      "/then-read 1": "Yes, on attempt 2, then read in full on attempt 3.",
+      "/then-read 2": "No: read in full on attempt 3.",
     });
   });
 
@@ -923,9 +1084,7 @@ describe("problemsOf: did it happen again?", () => {
     });
     const { problems } = problemsFor(run);
 
-    const verdict =
-      "Not known: this run didn't try the page again, and no other run read it in full.";
-    expect(problems.map((problem) => problem.verdict)).toEqual([verdict, verdict, verdict]);
+    expect(problems.map((problem) => problem.verdict)).toEqual([NOT_KNOWN, NOT_KNOWN, NOT_KNOWN]);
     expect(problems.map((problem) => problem.again)).toEqual(["unknown", "unknown", "unknown"]);
   });
 
@@ -963,13 +1122,42 @@ describe("problemsOf: did it happen again?", () => {
       ["No: attempt 2 loaded the page, and voicecap skipped it.", "no"],
     ]);
   });
+
+  it("says what followed a failure on a page that was skipped in the end", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/same",
+          status: "skipped",
+          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2 })],
+        },
+        {
+          path: "/other",
+          status: "skipped",
+          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2, cause: "step-timeout" })],
+        },
+      ],
+    });
+    const { problems } = problemsFor(run);
+
+    expect(field(problems, "verdict")).toEqual({
+      "/same 1": "Yes, on attempt 2.",
+      "/same 2": "No: attempt 3 loaded the page, and voicecap skipped it.",
+      "/other 1": "Yes, in different ways: a step took too long (attempt 2).",
+      "/other 2": "No: attempt 3 loaded the page, and voicecap skipped it.",
+    });
+    expect(problems.map((problem) => problem.again)).toEqual(["same", "no", "different", "no"]);
+  });
 });
 
 describe("problemsOf: the effect, and the record", () => {
+  // A failure that a later attempt followed had its partial transcripts moved into attempts/<slug>/
+  // when that attempt began, if it left any. An attempt record lists no files to say whether it did.
   const kept = (slug: string) =>
-    `Partial transcripts from failed attempts are kept in attempts/${slug}/ in the run's folder.`;
+    `Earlier attempts' partial transcripts, if any, are kept in attempts/${slug}/ in the run's folder.`;
 
-  it("says which attempt's transcripts are shown, and where the failed attempts' are kept", () => {
+  it("says which attempt's transcripts are shown, and where a failure a later attempt followed left its own", () => {
     const run = shareRun({
       id: "r1",
       pages: [{ path: "/a", files: ["read.txt"], failedAttempts: [failedAttempt({ n: 1 })] }],
@@ -981,7 +1169,31 @@ describe("problemsOf: the effect, and the record", () => {
     ]);
   });
 
-  it("says the page failed, and where the last attempt's partial transcripts are", () => {
+  it("says nothing of earlier attempts' folders for a page's only attempt", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        // A 404 answers before any pass begins, and trying again can't help: one attempt, no files.
+        { path: "/missing", status: "failed", failedAttempts: [httpAttempt(1, 404)] },
+        {
+          path: "/read-some",
+          status: "failed",
+          files: ["read.txt"],
+          failedAttempts: [
+            failedAttempt({ n: 1, pass: "headings", step: 1, command: "nextHeading" }),
+          ],
+        },
+      ],
+    });
+    const { problems } = problemsFor(run);
+
+    expect(field(problems, "effect")).toEqual({
+      "/missing 1": "No transcripts from this run: the page failed.",
+      "/read-some 1": `No transcripts from this run: the page failed. The partial transcripts it left are in pages/${findPage(run, "/read-some").slug}/.`,
+    });
+  });
+
+  it("says where the last attempt's partial transcripts are, and where the earlier ones' are kept", () => {
     const run = shareRun({
       id: "r1",
       pages: [
@@ -989,24 +1201,22 @@ describe("problemsOf: the effect, and the record", () => {
           path: "/read-some",
           status: "failed",
           files: ["read.txt", "read.json"],
-          failedAttempts: [failedAttempt({ n: 1, restarted: true }), failedAttempt({ n: 2 })],
-        },
-        // It failed before any pass finished, so there's nothing in its folder to point to.
-        {
-          path: "/read-none",
-          status: "failed",
-          failedAttempts: [failedAttempt({ n: 1, command: "openPage", step: null })],
+          failedAttempts: [
+            failedAttempt({ n: 1, restarted: true }),
+            failedAttempt({ n: 2, restarted: true }),
+            failedAttempt({ n: 3 }),
+          ],
         },
       ],
     });
     const { problems } = problemsFor(run);
-    const some = findPage(run, "/read-some").slug;
-    const none = findPage(run, "/read-none").slug;
+    const slug = findPage(run, "/read-some").slug;
 
+    // The last attempt's files stay in pages/<slug>/: nothing followed it to move them.
     expect(field(problems, "effect")).toEqual({
-      "/read-some 1": `No transcripts from this run: the page failed. ${kept(some)}`,
-      "/read-some 2": `No transcripts from this run: the page failed. The partial transcripts it left are in pages/${some}/. ${kept(some)}`,
-      "/read-none 1": `No transcripts from this run: the page failed. ${kept(none)}`,
+      "/read-some 1": `No transcripts from this run: the page failed. ${kept(slug)}`,
+      "/read-some 2": `No transcripts from this run: the page failed. ${kept(slug)}`,
+      "/read-some 3": `No transcripts from this run: the page failed. The partial transcripts it left are in pages/${slug}/.`,
     });
   });
 
@@ -1061,9 +1271,10 @@ describe("problemsOf: the effect, and the record", () => {
           shareRun({ id: "r1", voicecapVersion: version, pages: pages() }),
         );
 
+        // The retry was followed by another attempt, which moved its files. The last wasn't.
         expect(problems.map((problem) => problem.effect)).toEqual([
           `No transcripts from this run: the page failed. ${earlierAttempts}`,
-          `No transcripts from this run: the page failed. ${left} ${earlierAttempts}`,
+          `No transcripts from this run: the page failed. ${left}`,
         ]);
       },
     );
@@ -1078,6 +1289,49 @@ describe("problemsOf: the effect, and the record", () => {
           `No transcripts from this run: the page failed. ${left}`,
         ]);
       }
+    });
+
+    it("says nothing of earlier attempts' folders for a page's only attempt", () => {
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.4.1",
+        pages: [
+          { path: "/gone", status: "failed", attempts: 1, errors: ["HTTP 404"] },
+          {
+            path: "/read-some",
+            status: "failed",
+            attempts: 1,
+            files: ["read.txt"],
+            errors: [`read pass: ${FOREGROUND}`],
+          },
+        ],
+      });
+      const { problems } = problemsFor(run);
+
+      expect(field(problems, "effect")).toEqual({
+        "/gone -": "No transcripts from this run: the page failed.",
+        "/read-some -": `No transcripts from this run: the page failed. The partial transcripts it left are in pages/${findPage(run, "/read-some").slug}/.`,
+      });
+    });
+
+    it("says where a failure a later attempt followed left its transcripts, for a page read in full", () => {
+      const { problems } = problemsFor(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.5.0",
+          pages: [
+            {
+              path: "/a",
+              attempts: 2,
+              errors: [`Attempt 1 failed (read pass: ${STEP_TIMEOUT}); retrying.`],
+            },
+          ],
+        }),
+      );
+
+      expect(problems.map((problem) => problem.effect)).toEqual([
+        `The transcripts shown are from attempt 2. ${earlierAttempts}`,
+      ]);
     });
   });
 
@@ -1213,19 +1467,44 @@ describe("problemsOf: the effect, and the record", () => {
       ...run,
       sessions: run.sessions.map((session) => ({ ...session, environment: null })),
     });
-    const events = (used: string) =>
-      `The event log and NVDA's own log: not recorded: this run used ${used}.`;
+    const stepAndKey = (used: string) =>
+      `The step and the key: not recorded: this run used ${used}.`;
     const program = (used: string) =>
       `Which program came to the front: not recorded: this run used ${used}.`;
+    const events = (used: string) =>
+      `The event log and NVDA's own log: not recorded: this run used ${used}.`;
 
-    // The program in front is for a foreground loss only; the event log and NVDA's own log, for every problem.
+    // An error written as text doesn't give its step or its key. The program in front is for a
+    // foreground loss only; the event log and NVDA's own log, for every problem.
     expect(older.problems.map((problem) => problem.notRecorded)).toEqual([
-      [program("voicecap 0.5.0"), events("voicecap 0.5.0")],
-      [events("voicecap 0.5.0")],
+      [stepAndKey("voicecap 0.5.0"), program("voicecap 0.5.0"), events("voicecap 0.5.0")],
+      [stepAndKey("voicecap 0.5.0"), events("voicecap 0.5.0")],
     ]);
     expect(noVersion.problems.map((problem) => problem.notRecorded)).toEqual([
-      [program("an earlier version of voicecap"), events("an earlier version of voicecap")],
-      [events("an earlier version of voicecap")],
+      [
+        stepAndKey("an earlier version of voicecap"),
+        program("an earlier version of voicecap"),
+        events("an earlier version of voicecap"),
+      ],
+      [stepAndKey("an earlier version of voicecap"), events("an earlier version of voicecap")],
+    ]);
+  });
+
+  it("doesn't say the step and the key weren't recorded when an attempt record has them", () => {
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.6.0",
+      pages: [
+        { path: "/a", failedAttempts: [failedAttempt({ n: 1 })] },
+        { path: "/b", failedAttempts: [httpAttempt(1)] },
+      ],
+    });
+    const { problems } = problemsFor(run);
+    const events = "The event log and NVDA's own log: not recorded: this run used voicecap 0.6.0.";
+
+    expect(problems.map((problem) => problem.notRecorded)).toEqual([
+      ["Which program came to the front: not recorded: this run used voicecap 0.6.0.", events],
+      [events],
     ]);
   });
 });
@@ -1255,47 +1534,24 @@ describe("problemsOf: the verdict line", () => {
     return readBefore ? [before, failed] : [failed];
   };
 
-  /**
-   * Runs whose problems have the answers to "did it happen again?" given, as numbers of pages. A
-   * `no` page failed once and an earlier run read it in full. A `same` page failed twice the same
-   * way, and a `different` one in different ways, so each has two problems. An `unknown` page
-   * failed once, and nothing else reads it.
-   */
-  const answering = (pages: Partial<Record<Problem["again"], number>>): RunJson[] => {
-    const count = (answer: Problem["again"]) =>
-      Array.from({ length: pages[answer] ?? 0 }, (_, i) => i);
-    const failedOnce = [failedAttempt({ n: 1 })];
-    const latest = shareRun({
-      id: "latest",
-      pages: [
-        ...count("no").map((i) => ({
-          path: `/no-${i}`,
-          status: "failed" as const,
-          failedAttempts: failedOnce,
-        })),
-        ...count("same").map((i) => ({
-          path: `/same-${i}`,
-          status: "failed" as const,
-          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2 })],
-        })),
-        ...count("different").map((i) => ({
-          path: `/different-${i}`,
-          status: "failed" as const,
-          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2, cause: "step-timeout" })],
-        })),
-        ...count("unknown").map((i) => ({
-          path: `/unknown-${i}`,
-          status: "failed" as const,
-          failedAttempts: failedOnce,
-        })),
-      ],
-    });
+  /** A page that failed, one attempt for each cause given, and was never read in full here. */
+  const failedAs = (path: string, causes: FailureCause[]): SharePageSpec => ({
+    path,
+    status: "failed",
+    failedAttempts: causes.map((cause, index) =>
+      failedAttempt({ n: index + 1, cause, restarted: true }),
+    ),
+  });
+  /** The latest run has these pages, and an earlier run read the paths given in full. */
+  const runsWith = (pages: SharePageSpec[], readEarlier: string[] = []): RunJson[] => {
+    const latest = shareRun({ id: "latest", pages });
+    if (readEarlier.length === 0) return [latest];
     const earlier = shareRun({
       id: "earlier",
       createdAt: "2026-09-20T09:30:00-05:00",
-      pages: count("no").map((i) => ({ path: `/no-${i}` })),
+      pages: readEarlier.map((path) => ({ path })),
     });
-    return pages.no ? [earlier, latest] : [latest];
+    return [earlier, latest];
   };
   /** The sentence of a verdict line that says what became of the problems. */
   const againOf = (line: string) => line.split(". ")[1];
@@ -1372,9 +1628,10 @@ describe("problemsOf: the verdict line", () => {
       verdict: "No: read in full in run 2026-09-29_1402.",
       again: "no",
       effect:
-        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/the-report-03940c2f88/. Earlier attempts' partial transcripts, if any, are kept in attempts/the-report-03940c2f88/ in the run's folder.",
+        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/the-report-03940c2f88/.",
       record: [{ time: null, source: "run.json", entry: `read pass: ${FOREGROUND}` }],
       notRecorded: [
+        "The step and the key: not recorded: this run used voicecap 0.4.1.",
         "Which program came to the front: not recorded: this run used voicecap 0.4.1.",
         "The event log and NVDA's own log: not recorded: this run used voicecap 0.4.1.",
       ],
@@ -1388,7 +1645,7 @@ describe("problemsOf: the verdict line", () => {
       verdict: "No: read in full in run 2026-09-29_1315.",
       again: "no",
       effect:
-        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/how-a-run-works-fd116f9328/. Earlier attempts' partial transcripts, if any, are kept in attempts/how-a-run-works-fd116f9328/ in the run's folder.",
+        "No transcripts from this run: the page failed. The partial transcripts it left are in pages/how-a-run-works-fd116f9328/.",
       record: [{ time: null, source: "run.json", entry: `headings pass: ${FOREGROUND}` }],
     });
   });
@@ -1438,53 +1695,83 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
-  it.each<[string, Partial<Record<Problem["again"], number>>, string]>([
+  // A failure that was followed by another is "happened again", whether the same way or in a
+  // different one; one that nothing followed is "didn't" if another run read the page in full, and
+  // "wasn't tried again" if not.
+  it.each<[string, () => RunJson[], string]>([
     [
-      "one that didn't happen again, and one not tried again",
-      { no: 1, unknown: 1 },
+      "one that happened again, and one that wasn't tried again",
+      () => runsWith([failedAs("/a", ["foreground", "foreground"])]),
+      "1 happened again, and 1 wasn't tried again",
+    ],
+    [
+      "one that happened again, and one that didn't",
+      () => runsWith([failedAs("/a", ["foreground", "foreground"])], ["/a"]),
+      "1 happened again, and 1 didn't happen again",
+    ],
+    [
+      "one that happened in a different way, and one that wasn't tried again",
+      () => runsWith([failedAs("/a", ["foreground", "step-timeout"])]),
+      "1 happened again, and 1 wasn't tried again",
+    ],
+    [
+      "several that happened again, and one that wasn't tried again",
+      () => runsWith([failedAs("/a", ["foreground", "foreground", "foreground"])]),
+      "2 happened again, and 1 wasn't tried again",
+    ],
+    [
+      "one that didn't happen again, and one that wasn't tried again",
+      () => runsWith([failedAs("/a", ["foreground"]), failedAs("/b", ["foreground"])], ["/a"]),
       "1 didn't happen again, and 1 wasn't tried again",
     ],
     [
-      "one that didn't happen again, and two not tried again",
-      { no: 1, unknown: 2 },
+      "one that didn't happen again, and two that weren't tried again",
+      () =>
+        runsWith(
+          [
+            failedAs("/a", ["foreground"]),
+            failedAs("/b", ["foreground"]),
+            failedAs("/c", ["locked"]),
+          ],
+          ["/a"],
+        ),
       "1 didn't happen again, and 2 weren't tried again",
     ],
     [
-      "one that happened again on every attempt, and one not tried again",
-      { same: 1, unknown: 1 },
-      "2 happened again on every attempt, and 1 wasn't tried again",
-    ],
-    [
-      "one that happened again in different ways, and one not tried again",
-      { different: 1, unknown: 1 },
-      "2 happened again, in different ways, and 1 wasn't tried again",
-    ],
-    [
-      "one that didn't happen again, and one that did",
-      { no: 1, same: 1 },
-      "1 didn't happen again, and 2 happened again on every attempt",
-    ],
-    [
       "every answer",
-      { no: 1, same: 1, different: 1, unknown: 1 },
-      "1 didn't happen again, 2 happened again on every attempt, 2 happened again, in different ways, and 1 wasn't tried again",
+      () =>
+        runsWith(
+          [failedAs("/a", ["foreground", "foreground"]), failedAs("/b", ["foreground"])],
+          ["/b"],
+        ),
+      "1 happened again, 1 didn't happen again, and 1 wasn't tried again",
     ],
-  ])("counts what became of each problem when the answers differ: %s", (_name, pages, again) => {
-    const { line } = problemsFor(...answering(pages));
+  ])("counts what became of each problem when the answers differ: %s", (_name, runs, again) => {
+    const { line } = problemsFor(...runs());
 
     expect(againOf(line)).toBe(again);
   });
 
-  it("gives each problem the answer that belongs to its page", () => {
-    const { problems } = problemsFor(...answering({ no: 1, same: 1, different: 1, unknown: 1 }));
+  it("gives each problem the answer that belongs to what followed it", () => {
+    const { problems } = problemsFor(
+      ...runsWith(
+        [
+          failedAs("/a", ["foreground", "foreground"]),
+          failedAs("/b", ["foreground", "step-timeout"]),
+          failedAs("/c", ["foreground"]),
+          failedAs("/d", ["foreground"]),
+        ],
+        ["/c"],
+      ),
+    );
 
-    expect(problems.map((problem) => [pathOf(problem), problem.again])).toEqual([
-      ["/no-0", "no"],
-      ["/same-0", "same"],
-      ["/same-0", "same"],
-      ["/different-0", "different"],
-      ["/different-0", "different"],
-      ["/unknown-0", "unknown"],
+    expect(problems.map((problem) => [pathOf(problem), problem.n, problem.again])).toEqual([
+      ["/a", 1, "same"],
+      ["/a", 2, "unknown"],
+      ["/b", 1, "different"],
+      ["/b", 2, "unknown"],
+      ["/c", 1, "no"],
+      ["/d", 1, "unknown"],
     ]);
   });
 
@@ -1534,38 +1821,16 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
-  it("says when a problem happened again on every attempt, or in different ways", () => {
-    const mixed = shareRun({
-      id: "r1",
-      pages: [
-        {
-          path: "/same",
-          status: "failed",
-          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2 })],
-        },
-        {
-          path: "/different",
-          status: "failed",
-          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2, cause: "step-timeout" })],
-        },
-      ],
-    });
-    const same = shareRun({
-      id: "r2",
-      pages: [
-        {
-          path: "/same",
-          status: "failed",
-          failedAttempts: [failedAttempt({ n: 1 }), failedAttempt({ n: 2 })],
-        },
-      ],
-    });
-
-    expect(problemsFor(mixed).line).toBe(
-      `4 problems: another window took the screen (3), and a step took too long (1). 2 happened again on every attempt, and 2 happened again, in different ways. None was an unexpected error, ${NOT_VOICECAP}`,
+  it("counts a problem that happened again, whether the same way or in a different one", () => {
+    const { line } = problemsFor(
+      ...runsWith([
+        failedAs("/same", ["foreground", "foreground"]),
+        failedAs("/different", ["foreground", "step-timeout"]),
+      ]),
     );
-    expect(problemsFor(same).line).toBe(
-      `2 problems, both outside voicecap: another window took the screen. 2 happened again on every attempt. Neither was an unexpected error, ${NOT_VOICECAP}`,
+
+    expect(line).toBe(
+      `4 problems: another window took the screen (3), and a step took too long (1). 2 happened again, and 2 weren't tried again. None was an unexpected error, ${NOT_VOICECAP}`,
     );
   });
 

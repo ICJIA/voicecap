@@ -54,9 +54,13 @@ export interface Problem {
   /** "Did it happen again?" */
   verdict: string;
   /**
-   * What the verdict comes to: "no", "same" (on every attempt), "different" (in different ways), or
-   * "unknown", when the page wasn't tried again here and no other run the standing draws on read
-   * it in full, so nothing says whether it would have happened again.
+   * What the verdict comes to, for this problem and what followed it in the run:
+   * - "same": a later attempt failed the same way;
+   * - "different": later attempts failed in other ways, and the page never got through;
+   * - "no": it didn't come back (the page was read in full, or loaded and skipped, on a later
+   *   attempt; or nothing followed it, and another run the standing draws on read the page in full);
+   * - "unknown": nothing followed it, and no other run read the page in full, so nothing says
+   *   whether it would have happened again.
    */
   again: "no" | "same" | "different" | "unknown";
   /** "Effect on the results". */
@@ -233,6 +237,10 @@ function kindOfMessage(message: string): ProblemKind {
   }
   if (/ did not finish within \d/.test(message)) return "timeout";
   if (/^HTTP \d{3}$/.test(message)) return "http";
+  // Chrome's own network errors, as Playwright words them ("page.goto: net::ERR_NAME_NOT_RESOLVED
+  // at …"): the website couldn't be reached, as voicecap's own browser code now says (asUnreachable
+  // in src/drivers/guidepup/chrome.ts).
+  if (/net::ERR_[A-Z0-9_]+/.test(message)) return "unreachable";
   if (
     /^The browser changed during the run: |^(?:Chromium|Chrome|Microsoft Edge)(?: Beta| Dev| Canary)? didn't start: /.test(
       message,
@@ -292,8 +300,10 @@ interface Failure {
 
 function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => string): Failure {
   const message = redact(attempt.message);
-  const stack =
-    attempt.cause === "unexpected" && attempt.stack !== undefined ? redact(attempt.stack) : null;
+  // A cause code this version doesn't know (a newer voicecap's) is an unexpected error, as the
+  // spec says of any other: it's shown as possibly voicecap's own, with its stack.
+  const kind = KIND_OF_CAUSE[attempt.cause] ?? "unexpected";
+  const stack = kind === "unexpected" && attempt.stack !== undefined ? redact(attempt.stack) : null;
   return {
     attempt: attempt.n,
     next: attempt.n + 1,
@@ -305,7 +315,7 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
       n: attempt.n,
       startedAt: attempt.startedAt,
       endedAt: attempt.endedAt,
-      kind: KIND_OF_CAUSE[attempt.cause],
+      kind,
       fromWording: false,
       pass: attempt.pass,
       step: attempt.step,
@@ -396,9 +406,9 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
   if (failures.length === 0) return [];
 
   const version = run.sessions[0]?.environment?.voicecap.version ?? null;
-  const { verdict, again } = verdictOf(ctx, failures);
   return failures.map((failure, index) => {
     const endsPage = page.status === "failed" && index === failures.length - 1;
+    const { verdict, again } = verdictOf(ctx, failures, failure, failures.slice(index + 1));
     const problem: Problem = {
       run: run.id,
       page: {
@@ -413,7 +423,7 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
       verdict,
       again,
       effect: effectOf(ctx, failure, endsPage, version),
-      notRecorded: notRecordedOf(failure.fields.kind, version),
+      notRecorded: notRecordedOf(failure, version),
     };
     return { problem, at: failure.at };
   });
@@ -454,54 +464,79 @@ function didOf(failure: Failure, endsPage: boolean, version: string | null): str
 }
 
 /**
- * "Did it happen again?", for a page's failed attempts in a run, which share one answer.
+ * What a failure that happened on every attempt points to. Another program, or someone at the
+ * computer, is outside voicecap, so it's said to be on the computer, not the page or voicecap.
+ */
+function pointsTo(kind: ProblemKind): string {
+  if (THE_WEBSITE.has(kind)) return "That points to the website.";
+  if (OUTSIDE.has(kind)) {
+    return "That points to something on this computer, such as another program, rather than a one-off.";
+  }
+  return "That points to this page, or to voicecap, rather than a one-off.";
+}
+
+/**
+ * "Did it happen again?", decided for each problem by what followed it in the same run.
  *
- * - The page was read in full in the run, on a later attempt: no. (Or loaded on one, and skipped:
- *   no, but it wasn't read.)
- * - It failed more than once here and never got through: yes, on every attempt or in different
- *   ways. An earlier run's read of it doesn't change that, so this comes before the next.
- * - It failed once, and another run the standing draws on read it in full: no.
- * - It failed once, and that's all there is: not known. Not "no": nothing shows the problem didn't
- *   come back, only that the page wasn't tried again.
+ * - A later attempt failed the same way: yes (`same`), on the next attempt that did. Then the page
+ *   either got through ("then read in full on attempt k"), or every attempt of it failed that way
+ *   ("on every attempt", and what that points to), or neither.
+ * - No later attempt failed the same way, and the page got through: no, read in full on attempt k.
+ * - Later attempts failed in other ways, and the page never got through: yes, in different ways
+ *   (`different`), naming them.
+ * - The next attempt loaded the page, and voicecap skipped it: no, but it wasn't read.
+ * - Nothing followed it in this run: no, if another run the standing draws on read the page in
+ *   full, and otherwise not known (`unknown`). Not "no": nothing shows it didn't come back, only
+ *   that the page wasn't tried again.
  */
 function verdictOf(
   ctx: PageContext,
   failures: Failure[],
+  failure: Failure,
+  later: Failure[],
 ): { verdict: string; again: Problem["again"] } {
   const { standing, run, page } = ctx;
+  const kind = failure.fields.kind;
+
+  const repeat = later.find((next) => next.fields.kind === kind);
+  if (repeat) {
+    if (page.status === "done") {
+      return {
+        again: "same",
+        verdict: `Yes, on attempt ${repeat.attempt}, then read in full on attempt ${page.attempts}.`,
+      };
+    }
+    if (page.status === "failed" && failures.every((each) => each.fields.kind === kind)) {
+      const tries = failures.length;
+      return {
+        again: "same",
+        verdict: `Yes, on every attempt (${tries} of ${tries}). ${pointsTo(kind)}`,
+      };
+    }
+    return { again: "same", verdict: `Yes, on attempt ${repeat.attempt}.` };
+  }
+
   if (page.status === "done") {
     // The page's attempts end with the one that read it, and the one before it is the last to fail.
     const fresh = failures.at(-1)?.restarted ? ", with NVDA and the browser started fresh" : "";
     return { again: "no", verdict: `No: read in full on attempt ${page.attempts}${fresh}.` };
+  }
+  if (later.length > 0) {
+    const attemptsByKind = new Map<ProblemKind, number[]>();
+    for (const next of later) {
+      const nextKind = next.fields.kind;
+      attemptsByKind.set(nextKind, [...(attemptsByKind.get(nextKind) ?? []), next.attempt]);
+    }
+    const named = [...attemptsByKind].map(
+      ([nextKind, attempts]) => `${PHRASES[nextKind]} (${attemptsText(attempts)})`,
+    );
+    return { again: "different", verdict: `Yes, in different ways: ${joinList(named)}.` };
   }
   if (page.status === "skipped") {
     return {
       again: "no",
       verdict: `No: attempt ${page.attempts} loaded the page, and voicecap skipped it.`,
     };
-  }
-
-  const attemptsByKind = new Map<ProblemKind, number[]>();
-  for (const failure of failures) {
-    const kind = failure.fields.kind;
-    attemptsByKind.set(kind, [...(attemptsByKind.get(kind) ?? []), failure.attempt]);
-  }
-  if (failures.length > 1) {
-    const [only, ...others] = [...attemptsByKind.keys()];
-    if (only !== undefined && others.length === 0) {
-      const points = THE_WEBSITE.has(only)
-        ? "That points to the website."
-        : "That points to this page, or to voicecap, rather than a one-off.";
-      const tries = failures.length;
-      return {
-        again: "same",
-        verdict: `Yes, on every attempt (${tries} of ${tries}). ${points}`,
-      };
-    }
-    const named = [...attemptsByKind].map(
-      ([kind, attempts]) => `${PHRASES[kind]} (${attemptsText(attempts)})`,
-    );
-    return { again: "different", verdict: `Yes, in different ways: ${joinList(named)}.` };
   }
 
   const elsewhere = standing.drawnOn.findLast(
@@ -518,9 +553,10 @@ function verdictOf(
 
 /**
  * "Effect on the results": which transcripts the page shows, and where this run kept partial
- * ones. A record of failed attempts says they're kept in attempts/<slug>/ (with the run's folder
- * numbering them, which doesn't match the attempts' own); the last attempt of a failed page left
- * what it wrote in pages/<slug>/. A run's errors only say that from 0.3.0 on.
+ * ones. The last attempt of a failed page left what it wrote in pages/<slug>/. An attempt that a
+ * later one followed had it moved into attempts/<slug>/ (the folder's numbers don't match the
+ * attempts', so it's not numbered here), if it left any: an attempt record lists no files, so that
+ * is always hedged. A run's errors say so only from 0.3.0 on, the first version to keep them.
  */
 function effectOf(
   ctx: PageContext,
@@ -549,11 +585,7 @@ function effectOf(
   if (endsPage && Object.keys(page.files).length > 0) {
     parts.push(`The partial transcripts it left are in pages/${page.slug}/.`);
   }
-  if (failure.recorded) {
-    parts.push(
-      `Partial transcripts from failed attempts are kept in attempts/${page.slug}/ in the run's folder.`,
-    );
-  } else if (keepsEarlierAttempts(version)) {
+  if (!endsPage && (failure.recorded || keepsEarlierAttempts(version))) {
     parts.push(
       `Earlier attempts' partial transcripts, if any, are kept in attempts/${page.slug}/ in the run's folder.`,
     );
@@ -571,12 +603,20 @@ function keepsEarlierAttempts(version: string | null): boolean {
   return Number(match[1]) > 0 || Number(match[2]) >= 3;
 }
 
-/** What a run didn't record, said where it matters: the program in front, the event log, NVDA's log. */
-function notRecordedOf(kind: ProblemKind, version: string | null): string[] {
-  const events = `The event log and NVDA's own log: not recorded: this run used ${used(version)}.`;
-  return kind === "foreground"
-    ? [`Which program came to the front: not recorded: this run used ${used(version)}.`, events]
-    : [events];
+/**
+ * What a run didn't record, said where it matters. An error written as text doesn't give the step
+ * that failed or the key it pressed. The program in front is for a foreground loss only, and the
+ * event log and NVDA's own log are for every problem.
+ */
+function notRecordedOf(failure: Failure, version: string | null): string[] {
+  const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
+  return [
+    ...(failure.recorded ? [] : [notRecorded("The step and the key")]),
+    ...(failure.fields.kind === "foreground"
+      ? [notRecorded("Which program came to the front")]
+      : []),
+    notRecorded("The event log and NVDA's own log"),
+  ];
 }
 
 /** The voicecap a run used, for a sentence about what it didn't record. */
@@ -612,12 +652,10 @@ function lineOf(problems: Problem[], standing: Standing): string {
   // wasn't tried again is in neither the count that happened again nor the count that didn't.
   const answers: Record<Problem["again"], number> = { no: 0, same: 0, different: 0, unknown: 0 };
   for (const { again } of problems) answers[again]++;
+  const happened = answers.same + answers.different;
   const counted: string[] = [];
+  if (happened > 0) counted.push(`${happened} happened again`);
   if (answers.no > 0) counted.push(`${answers.no} didn't happen again`);
-  if (answers.same > 0) counted.push(`${answers.same} happened again on every attempt`);
-  if (answers.different > 0) {
-    counted.push(`${answers.different} happened again, in different ways`);
-  }
   if (answers.unknown > 0) {
     counted.push(`${answers.unknown} ${answers.unknown === 1 ? "wasn't" : "weren't"} tried again`);
   }
