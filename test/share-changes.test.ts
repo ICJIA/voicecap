@@ -729,6 +729,24 @@ describe("changesOf: runs that read different passes", () => {
   const lines = (passes: PassName[]) =>
     Object.fromEntries(passes.map((pass) => [pass, [`${pass} line`]]));
 
+  /** A flag of `rule`, in `pass` (or on the page as a whole, with no pass). */
+  const flag = (rule: string, pass?: PassName): FlagResult => ({
+    rule,
+    ...(pass === undefined ? {} : { pass }),
+    message: `A ${rule} flag.`,
+  });
+
+  /** A run that read all three passes, then one that read only the read pass, each as its pages. */
+  const allThenRead = (before: SharePageSpec[], after: SharePageSpec[]) => {
+    const t = transcripts();
+    return changesOf(
+      t.run({ id: "r1", createdAt: BEFORE, passes: [...PASS_NAMES], pages: before }),
+      t.run({ id: "r2", createdAt: AFTER, passes: ["read"], pages: after }),
+      t.body,
+      pageName,
+    );
+  };
+
   it.each([
     { before: ["read", "headings", "tab"], after: ["read"] },
     { before: ["read"], after: ["read", "headings", "tab"] },
@@ -821,7 +839,13 @@ describe("changesOf: runs that read different passes", () => {
     const earlier = t.run({ id: "r1", createdAt: BEFORE, passes: ["tab", "read"], pages });
     const later = t.run({ id: "r2", createdAt: AFTER, passes: ["read", "tab"], pages });
 
-    expect(changesOf(earlier, later, t.body, pageName).passesNote).toBeNull();
+    const changes = changesOf(earlier, later, t.body, pageName);
+
+    expect(changes.passesNote).toBeNull();
+    // Nothing to qualify: the summary says what it always says.
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: every page sounds the same.",
+    );
   });
 
   it("says nothing could be compared when the runs have no pass in common", () => {
@@ -856,6 +880,127 @@ describe("changesOf: runs that read different passes", () => {
       "Since the last run on 26 September: no pass was read in both runs, so no page could be compared.",
     );
     expect(body).not.toHaveBeenCalled();
+  });
+
+  it("says in the summary that it speaks for the passes both runs read", () => {
+    const same = allThenRead(
+      [{ path: "/", passes: { read: ["a"], tab: ["t"] } }],
+      [{ path: "/", passes: { read: ["a"] } }],
+    );
+    const flagged = allThenRead(
+      [
+        { path: "/a", label: "Contact", passes: { read: ["a1"] } },
+        { path: "/b", label: "Reports", passes: { read: ["b1"] } },
+        {
+          path: "/c",
+          label: "Common mistakes",
+          flags: [flag("generic-link-text", "read")],
+          passes: { read: ["click here, link"] },
+        },
+      ],
+      [
+        { path: "/a", label: "Contact", passes: { read: ["a2"] } },
+        { path: "/b", label: "Reports", passes: { read: ["b2"] } },
+        { path: "/c", label: "Common mistakes", passes: { read: ["Read the plan, link"] } },
+      ],
+    );
+    const plain = allThenRead(
+      [
+        { path: "/a", passes: { read: ["a1"] } },
+        { path: "/b", passes: { read: ["b"] } },
+      ],
+      [
+        { path: "/a", passes: { read: ["a2"] } },
+        { path: "/b", passes: { read: ["b"] } },
+      ],
+    );
+
+    expect(same.summaryLine).toBe(
+      "Since the last run on 26 September: in the passes both runs read, every page sounds the same.",
+    );
+    expect(flagged.summaryLine).toBe(
+      "Since the last run on 26 September: in the passes both runs read, 3 pages sound different; resolved: on Common mistakes, the links that don't say where they go.",
+    );
+    expect(plain.summaryLine).toBe(
+      "Since the last run on 26 September: in the passes both runs read, 1 page sounds different.",
+    );
+    // The section's line stands under the note, which says which passes, so it isn't qualified.
+    expect(same.line).toBe("Every page read in full in both runs sounds exactly the same.");
+    expect(flagged.line).toBe(
+      "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Common mistakes, the links that don't say where they go (generic-link-text).",
+    );
+  });
+
+  it("doesn't compare the flags of a pass only the earlier run read", () => {
+    const changes = allThenRead(
+      [
+        {
+          path: "/",
+          label: "Home",
+          flags: [
+            flag("generic-link-text", "read"),
+            flag("generic-link-text", "tab"),
+            flag("tab-no-stops", "tab"),
+            flag("headings", "headings"),
+            flag("unlabeled", "read"),
+            flag("brand-name"),
+          ],
+          passes: { read: ["a"], headings: ["h"], tab: ["t"] },
+        },
+      ],
+      [
+        {
+          path: "/",
+          label: "Home",
+          flags: [flag("unlabeled", "read"), flag("repeated-phrase", "read")],
+          passes: { read: ["b"] },
+        },
+      ],
+    );
+
+    // The later run didn't read the tab or headings passes, so their flags aren't gone: nothing
+    // looked for them. A flag with no pass belongs to the page, and is compared.
+    expect(changes.changed[0]?.flags).toEqual({
+      resolved: [flag("generic-link-text", "read"), flag("brand-name")],
+      added: [flag("repeated-phrase", "read")],
+      unchanged: [flag("unlabeled", "read")],
+    });
+    expect(changes.line).toContain(
+      "Resolved: on Home, the links that don't say where they go (generic-link-text); on Home, brand-name.",
+    );
+    expect(changes.line).not.toContain("Tab stops");
+    expect(changes.line).not.toContain("heading structure");
+  });
+
+  it("doesn't call the flags of a pass only the later run read new", () => {
+    const t = transcripts();
+    const earlier = t.run({
+      id: "r1",
+      createdAt: BEFORE,
+      passes: ["read"],
+      pages: [{ path: "/", label: "Home", passes: { read: ["a"] } }],
+    });
+    const later = t.run({
+      id: "r2",
+      createdAt: AFTER,
+      passes: [...PASS_NAMES],
+      pages: [
+        {
+          path: "/",
+          label: "Home",
+          flags: [flag("tab-no-stops", "tab"), flag("unlabeled", "read")],
+          passes: { read: ["b"], tab: ["t"] },
+        },
+      ],
+    });
+
+    const changes = changesOf(earlier, later, t.body, pageName);
+
+    expect(changes.changed[0]?.flags).toEqual({
+      resolved: [],
+      added: [flag("unlabeled", "read")],
+      unchanged: [],
+    });
   });
 });
 

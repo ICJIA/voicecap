@@ -92,7 +92,10 @@ export interface Changes {
   passesNote: string | null;
   /** The section's line. */
   line: string;
-  /** The summary's line. */
+  /**
+   * The summary's line. When the runs read different passes, it says it speaks for "the passes both
+   * runs read", since the note that says which isn't beside it.
+   */
   summaryLine: string;
 }
 
@@ -162,7 +165,7 @@ export function changesOf(before: RunJson, after: RunJson, body: BodyOf, name: P
           slug: page.slug,
           passes,
           unreadable,
-          flags: flagChanges(was.flags, page.flags),
+          flags: flagChanges(was.flags, page.flags, compared),
         });
       }
     }
@@ -173,6 +176,7 @@ export function changesOf(before: RunJson, after: RunJson, body: BodyOf, name: P
     }
   }
 
+  const note = passesNote(readBefore, readAfter, compared);
   return {
     before,
     after,
@@ -180,8 +184,15 @@ export function changesOf(before: RunJson, after: RunJson, body: BodyOf, name: P
     same,
     onlyInOne,
     tools: environmentDifferences(before, after),
-    passesNote: passesNote(readBefore, readAfter, compared),
-    ...sentences(dayMonth(before.createdAt), changed, same, compared.length, name),
+    passesNote: note,
+    ...sentences({
+      date: dayMonth(before.createdAt),
+      changed,
+      same,
+      passesCompared: compared.length,
+      differentPasses: note !== null,
+      name,
+    }),
   };
 }
 
@@ -222,14 +233,26 @@ function pageRef(page: PageRecord): { key: string; url: string; label?: string }
   };
 }
 
-function flagChanges(was: FlagResult[], now: FlagResult[]): PageChange["flags"] {
+/**
+ * A page's flags in the two runs, by rule and pass. A flag of a pass only one run read isn't
+ * compared, any more than the pass is: the other run never looked for it, so it isn't gone or new.
+ * A flag with no pass belongs to the page as a whole.
+ */
+function flagChanges(
+  was: FlagResult[],
+  now: FlagResult[],
+  compared: PassName[],
+): PageChange["flags"] {
+  const isCompared = (flag: FlagResult) => flag.pass === undefined || compared.includes(flag.pass);
+  const before = was.filter(isCompared);
+  const after = now.filter(isCompared);
   const idOf = (flag: FlagResult) => JSON.stringify([flag.rule, flag.pass ?? null]);
-  const had = new Set(was.map(idOf));
-  const has = new Set(now.map(idOf));
+  const had = new Set(before.map(idOf));
+  const has = new Set(after.map(idOf));
   return {
-    resolved: was.filter((flag) => !has.has(idOf(flag))),
-    added: now.filter((flag) => !had.has(idOf(flag))),
-    unchanged: now.filter((flag) => had.has(idOf(flag))),
+    resolved: before.filter((flag) => !has.has(idOf(flag))),
+    added: after.filter((flag) => !had.has(idOf(flag))),
+    unchanged: after.filter((flag) => had.has(idOf(flag))),
   };
 }
 
@@ -427,14 +450,22 @@ interface Resolved {
   rule: string | null;
 }
 
-function sentences(
-  date: string,
-  changed: PageChange[],
-  same: number,
-  passesCompared: number,
-  name: PageName,
-): Pick<Changes, "line" | "summaryLine"> {
+function sentences(input: {
+  /** The earlier run's day and month. */
+  date: string;
+  changed: PageChange[];
+  same: number;
+  /** How many passes were compared. */
+  passesCompared: number;
+  /** Whether the runs read different passes, which `passesNote` says. */
+  differentPasses: boolean;
+  name: PageName;
+}): Pick<Changes, "line" | "summaryLine"> {
+  const { date, changed, same, passesCompared, differentPasses, name } = input;
   const since = `Since the last run on ${date}:`;
+  // The section's line stands under the note that says which passes were compared. The summary's
+  // doesn't, so when the passes differ it says whose it speaks for.
+  const speaksFor = differentPasses ? " in the passes both runs read," : "";
   if (passesCompared === 0) {
     return {
       line: "No pass was read in both runs, so no page could be compared.",
@@ -451,7 +482,7 @@ function sentences(
   if (changed.length === 0) {
     return {
       line: "Every page read in full in both runs sounds exactly the same.",
-      summaryLine: `${since} every page sounds the same.`,
+      summaryLine: `${since}${speaksFor} every page sounds the same.`,
     };
   }
 
@@ -461,7 +492,8 @@ function sentences(
     `Compared with the run on ${date}: ${count} of ${pages} ` +
     `${pages === 1 ? "page" : "pages"} ${sound(count)} different, ` +
     `and ${same} ${sound(same)} exactly the same.`;
-  const summary = `${since} ${count} ${count === 1 ? "page sounds" : "pages sound"} different`;
+  const pagesSound = count === 1 ? "page sounds" : "pages sound";
+  const summary = `${since}${speaksFor} ${count} ${pagesSound} different`;
   const resolved = resolvedFlags(changed, name);
   if (resolved.length === 0) return { line: lead, summaryLine: `${summary}.` };
 
@@ -469,10 +501,13 @@ function sentences(
   const where = (item: Resolved) => `on ${item.page}, ${item.finds}`;
   const withRule = (item: Resolved) =>
     item.rule === null ? where(item) : `${where(item)} (${item.rule})`;
+  const items = resolved.map(where).join("; ");
   const are = resolved.length === 1 ? "this flag is" : "these flags are";
   return {
     line: `${lead} Resolved: ${resolved.map(withRule).join("; ")}.`,
-    summaryLine: `${summary}, and ${are} resolved: ${resolved.map(where).join("; ")}.`,
+    summaryLine: differentPasses
+      ? `${summary}; resolved: ${items}.`
+      : `${summary}, and ${are} resolved: ${items}.`,
   };
 }
 
