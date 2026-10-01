@@ -455,6 +455,20 @@ describe("SHARE_CSS", () => {
     expect(SHARE_CSS).not.toMatch(/:empty/);
   });
 
+  it("lets no grid of cards, tiles, or steps ask for a column wider than its own box", () => {
+    // repeat(auto-fit, minmax(300px, 1fr)) keeps a 300 px column in a window of 272 px (a phone's
+    // 320 less the page's margins), and the page scrolls sideways. minmax(min(300px, 100%), 1fr)
+    // lets the column shrink to its box.
+    const grids = [
+      ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
+    ];
+
+    expect(grids.length).toBeGreaterThan(10);
+    for (const [grid, column = ""] of grids) {
+      expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
+    }
+  });
+
   it("keeps the mockup's print rules, and holds nothing from outside or of its samples", () => {
     // Light in print, without the buttons, which do nothing on paper.
     expect(SHARE_CSS).toMatch(

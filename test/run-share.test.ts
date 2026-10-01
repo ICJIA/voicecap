@@ -214,7 +214,7 @@ describe("writeSharePage", () => {
     expect(logger.entries).toEqual([]);
   });
 
-  it("writes the page whole, through a temporary file renamed over it", async () => {
+  it("writes the whole page in one call to writeFileAtomic", async () => {
     const { site } = await siteWithRun();
     vi.mocked(writeFileAtomic).mockClear();
 
@@ -254,6 +254,25 @@ describe("writeSharePage", () => {
     expect(await readFile(sharePath(site), "utf8")).toContain(
       "<title>The agency: how its pages read aloud with NVDA</title>",
     );
+  });
+
+  // Where neither HOME (USERPROFILE on Windows) nor the account's entry gives one, Node throws.
+  it("writes the page where Node can't find a home folder, which leaves nothing to replace", async () => {
+    const dir = await setup();
+    const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+      throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+    });
+    try {
+      const logger = createMemoryLogger();
+
+      const result = await runAudit(options(dir, new ScriptedDriver(sitePages()), { logger }));
+
+      expect(result.outcome).toBe("completed");
+      expect(logger.text("warn")).toBe("");
+      expect(await readFile(sharePath(outDir(dir)), "utf8")).toContain("how its pages read aloud");
+    } finally {
+      homedir.mockRestore();
+    }
   });
 
   it("says nothing, writes nothing, and gives null for a site with no run to share", async () => {

@@ -4,7 +4,6 @@
  * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
  */
 import { readFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
@@ -26,6 +25,7 @@ import {
   type TranscriptJson,
 } from "../model.js";
 import { readReviews } from "../reviews/store.js";
+import { homeFolder } from "../run/failure.js";
 import { pageDir } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
 import { UsageError } from "../util/errors.js";
@@ -75,7 +75,10 @@ export interface ShareInput {
   generatedAt: string;
   /** The time zone its times are in, as Intl names it ("America/Chicago"). */
   timeZone: string;
-  /** os.homedir(): the page replaces it wherever it would show it. */
+  /**
+   * The home folder: the page replaces it wherever it would show it. "" where Node can't give one,
+   * which leaves nothing to replace.
+   */
   home: string;
   platform: NodeJS.Platform;
   /** The page's own file name, for the footer: "current.html" here; plan 3 passes the dated names. */
@@ -117,7 +120,7 @@ export async function loadShareInput(options: {
     flagRulesSha256: flagRulesSha256(config.flags),
     generatedAt: isoLocal(options.now ?? new Date()),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    home: os.homedir(),
+    home: homeFolder() ?? "",
     platform: process.platform,
     fileName: options.fileName ?? "current.html",
   };

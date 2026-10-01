@@ -4,11 +4,12 @@
  * both themes, with its folds closed and open), for loading nothing from outside the file, for what
  * its scripts do with its folds, and for its fingerprint check, run on the page's own data.
  *
- * Four sites make the pages: the demo runs of 29 September 2026 (copied, so the page goes in the
+ * Five sites make the pages: the demo runs of 29 September 2026 (copied, so the page goes in the
  * copy), where each run failed a page the other read, as Review Focus 5 describes; a site made by
  * voicecap's own commands, with reviews, a manual session, a page that sounds different, and a
- * page that failed; a site whose transcripts hold markup and a closing script tag; and a site whose
- * only run was a replay, as in CI's smoke test.
+ * page that failed; a site whose transcripts hold markup and a closing script tag; a site whose
+ * host is one long word, with no name set and no title on its home page; and a site whose only run
+ * was a replay, as in CI's smoke test.
  */
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -59,6 +60,12 @@ const HOSTILE_LINES = [
 const LONG_PATH =
   "/researchhub/articles/a-very-long-article-title-about-trauma-informed-practice-in-illinois-courts-2026-update" +
   "/with/another/very/long/segment/that/continues/for/quite/a/while/more";
+
+/**
+ * A site's host as long as the sub-site of an agency can have: 30 characters, in one word. With no
+ * name set for the site and no title on its home page, it's the page's name and its address.
+ */
+const LONG_HOST = "researchhub.icjia.illinois.gov";
 
 /** What the check's data holds, as far as these tests look at it. */
 interface Data {
@@ -185,6 +192,20 @@ async function hostilePage(): Promise<{ file: string; siteDir: string; runId: st
   return { file: sharePath(result.siteDir), siteDir: result.siteDir, runId: result.runId };
 }
 
+/** One run of the scripted site's pages on a host that is LONG_HOST, with no title for any page. */
+async function longHostPage(): Promise<string> {
+  const dir = await setup();
+  folders.push(dir);
+  const site = `https://${LONG_HOST}`;
+  const scripted = sitePages().map((page) => ({ ...page, url: page.url.replace(SITE, site) }));
+  const result = await runAudit({ ...options(dir, new ScriptedDriver(scripted)), site });
+  expect(result.outcome).toBe("completed");
+  // Its name is the host, since nothing else names it.
+  const written = await readFile(sharePath(result.siteDir), "utf8");
+  expect(written).toContain(`<h1>${LONG_HOST}</h1>`);
+  return sharePath(result.siteDir);
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -201,7 +222,7 @@ async function replayPage(): Promise<{ file: string; runId: string }> {
 
 let browser: Browser;
 /** The page files, by the site they were written for. */
-let pages: { demo: string; rich: string; hostile: string; replay: string };
+let pages: { demo: string; rich: string; hostile: string; longHost: string; replay: string };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
 let replayRunId: string;
@@ -216,8 +237,9 @@ beforeAll(async () => {
   const demo = await demoPage();
   const rich = await richPage();
   const hostile = await hostilePage();
+  const longHost = await longHostPage();
   const replay = await replayPage();
-  pages = { demo, rich, hostile: hostile.file, replay: replay.file };
+  pages = { demo, rich, hostile: hostile.file, longHost, replay: replay.file };
   hostileRun = hostile;
   replayRunId = replay.runId;
 });
@@ -288,6 +310,29 @@ const dispatch = (page: Page, type: string): Promise<void> =>
 const result = async (page: Page): Promise<string> =>
   (await page.locator("#fp-result").textContent()) ?? "";
 
+/**
+ * What runs out of its box or past the window: how far the page is wider than the window, and each
+ * box whose contents are wider than it is (clipped by it, or running out of it). A box the reader
+ * scrolls on purpose isn't counted, nor what's in it.
+ */
+const overflowOf = (page: Page): Promise<{ beyondTheWindow: number; boxes: string[] }> =>
+  page.evaluate(() => {
+    const root = document.documentElement;
+    const boxes = [...document.querySelectorAll("body *")]
+      .filter(
+        (box) =>
+          !box.closest("svg, .sr, .scroll, .events") &&
+          box.clientWidth > 0 &&
+          box.scrollWidth > box.clientWidth + 1 &&
+          !["auto", "scroll"].includes(getComputedStyle(box).overflowX),
+      )
+      .map(
+        (box) =>
+          `${box.tagName.toLowerCase()}.${box.className}: ${(box.textContent ?? "").trim().slice(0, 40)}`,
+      );
+    return { beyondTheWindow: root.scrollWidth - root.clientWidth, boxes };
+  });
+
 describe("axe, in Chromium", () => {
   /** Four runs of axe over a page 20,000 pixels tall take a while, more on a slow computer. */
   const AXE_TIMEOUT = 120_000;
@@ -298,6 +343,8 @@ describe("axe, in Chromium", () => {
    * so the result would depend on where the window ends.
    */
   async function axeFindings(page: Page, width = 1280): Promise<string[]> {
+    // The page's height depends on its width, so the width is set first.
+    await page.setViewportSize({ width, height: 900 });
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.setViewportSize({ width, height });
     return violations(page);
@@ -337,16 +384,21 @@ describe("axe, in Chromium", () => {
     AXE_TIMEOUT,
   );
 
-  it(
-    "has no axe violations at the width of a phone",
-    async () => {
-      // Long addresses are what a narrow card holds worst: the page's names are whole URLs.
-      const page = await open(pages.rich);
-
-      expect(await axeFindings(page, 390), "dark, folds closed").toEqual([]);
-      await page.locator("#open-all").click();
-      await page.locator("#theme-toggle").click();
-      expect(await axeFindings(page, 390), "light, folds open").toEqual([]);
+  it.each([
+    ["390 px, the width of a phone", 390],
+    ["320 px, the narrowest window WCAG's reflow rule asks a page to fit", 320],
+  ] as const)(
+    "has no axe violations at %s, on pages with long names",
+    async (_, width) => {
+      // What a narrow window holds worst: the page's names are whole addresses, and a site's host
+      // is one word. One page has a long address, and the other a long host.
+      for (const which of ["rich", "longHost"] as const) {
+        const page = await open(pages[which]);
+        expect(await axeFindings(page, width), `${which}, dark, folds closed`).toEqual([]);
+        await page.locator("#open-all").click();
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light, folds open`).toEqual([]);
+      }
     },
     AXE_TIMEOUT,
   );
@@ -361,29 +413,48 @@ describe("axe, in Chromium", () => {
   });
 });
 
-describe("a page whose addresses are long", () => {
-  it.each([1280, 390])(
-    "keeps each address inside its card, and the page inside the window, at %i px",
+describe("a page in a narrow window", () => {
+  const FITS = { beyondTheWindow: 0, boxes: [] };
+
+  it.each([1280, 390, 320])(
+    "keeps every box's contents, and the page, inside the window at %i px, with folds closed and open",
     async (width) => {
-      const page = await open(pages.rich);
-      await page.setViewportSize({ width, height: 900 });
-      await page.locator("#open-all").click();
-
-      const overflowing = await page.evaluate(() => {
-        const root = document.documentElement;
-        // A box whose contents are wider than it is: clipped by it, or running out of it.
-        const boxes = [...document.querySelectorAll(".panel, .card, details.fold > summary")]
-          .filter((box) => box.scrollWidth > box.clientWidth)
-          .map(
-            (box) =>
-              `${box.className || box.tagName.toLowerCase()}: ${(box.textContent ?? "").slice(0, 50)}`,
-          );
-        return { pageBeyondWindow: root.scrollWidth - root.clientWidth, boxes };
-      });
-
-      expect(overflowing).toEqual({ pageBeyondWindow: 0, boxes: [] });
+      for (const which of ["demo", "rich", "longHost"] as const) {
+        const page = await open(pages[which]);
+        await page.setViewportSize({ width, height: 900 });
+        expect(await overflowOf(page), `${which}, folds closed`).toEqual(FITS);
+        await page.locator("#open-all").click();
+        expect(await overflowOf(page), `${which}, folds open`).toEqual(FITS);
+      }
     },
   );
+
+  // A name is a whole address, and can be one word longer than any box: the kinds of text it can be
+  // in break it where they must, rather than run out of their boxes, or out of the window.
+  it.each([
+    ["a paragraph", "main p"],
+    ["a list item", "main li"],
+    ["a section's heading", "main h3"],
+    ["a fold's line", "main summary"],
+    ["a term", "main dt"],
+    ["what a term means", "main dd"],
+    ["a caption", "main figcaption"],
+    ["the command that verifies the records", ".verify pre"],
+    ["the site's name", ".mast h1"],
+    ["the site's address", ".mast-meta .addr"],
+  ])("breaks a word longer than the window in %s", async (_, selector) => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.locator("#open-all").click();
+
+    await page.evaluate((selected) => {
+      const text = document.querySelector(selected);
+      if (text === null) throw new Error(`The page has no ${selected}.`);
+      text.textContent = "w".repeat(150);
+    }, selector);
+
+    expect(await overflowOf(page)).toEqual(FITS);
+  });
 });
 
 describe("a page that needs nothing from outside its file", () => {

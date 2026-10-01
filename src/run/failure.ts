@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -24,6 +25,19 @@ export function causeOf(error: unknown): FailureCause {
 
 /** The next character isn't one a folder's name goes on with (a letter, digit, _, ., or -). */
 const NAME_ENDS = String.raw`(?![\p{L}\p{N}_.-])`;
+
+/**
+ * The home folder, or null where there's none: Node throws when neither HOME (USERPROFILE on
+ * Windows) nor the account's entry gives one. A failed attempt isn't lost to that, and neither is
+ * the page that shows records: with no home folder, redactHome has nothing to replace.
+ */
+export function homeFolder(): string | null {
+  try {
+    return os.homedir();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Replace the home folder in some text, such as a stack trace, so the account name isn't kept:

@@ -7,7 +7,8 @@
  * It is the page's only styling: the page sets no `style` attribute, since a Content Security
  * Policy that hashes this block allows nothing else. So where the mockup set a style attribute,
  * there's a rule here, and so for what each section's markup added; each was checked with axe in
- * Chromium, in both themes, at 1100 and 390 pixels. Beyond the mockup's own rules:
+ * Chromium, in both themes, at 1100 and 390 pixels, and the page's fit at 320. Beyond the mockup's
+ * own rules:
  * - only the hidden attribute shows or hides what a script shows (`[hidden]`), and the check's
  *   result is never `display: none` when empty, so a screen reader announces what it finds;
  * - "Not recorded" lines (`.not-recorded`), and the margins the mockup gave by attribute;
@@ -16,6 +17,13 @@
  * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches), and in
  *   print no box scrolls or cuts anything short, since paper can't scroll;
  * - long words in tables wrap at a phone's width, and the timeline fits it;
+ * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
+ *   be in (paragraphs, list items, headings, a fold's line, terms and what they mean, captions, the
+ *   command that verifies the records, the site's name and address) breaks it where it must
+ *   (`overflow-wrap: anywhere`), rather than run out of its box or the window;
+ * - every grid of cards, tiles, or steps asks for columns no wider than its own box
+ *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
+ *   reflow rule is measured;
  * - the folds' triangle is drawn but not read aloud.
  *
  * Nothing from the mockup's samples (`.mock`) is here.
@@ -41,8 +49,8 @@ body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); pad
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
 main { display: grid; gap: 56px; }
-/* A page's name is its whole address, and one word of it can be longer than any box: break it there, rather than run out of the box or the window. */
-main :where(p, li, h3, summary) { overflow-wrap: anywhere; }
+/* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead and the verify command do the same, where they are. */
+main :where(p, li, h3, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 16px; background: var(--panel); padding: 8px 12px; z-index: 5; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -60,11 +68,11 @@ code { overflow-wrap: anywhere; }
 /* masthead */
 .mast { display: grid; gap: 14px; border-bottom: 1px solid var(--line); padding-bottom: 28px; }
 .mast-top { display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; align-items: center; }
-.mast h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.02; margin: 4px 0 0; font-weight: 700; }
+.mast h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.02; margin: 4px 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .mast-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 0.92rem; }
 .mast-meta b { color: var(--fg); font-weight: 500; }
 .mast-lead { font-size: 1.1rem; color: var(--muted); margin: 0; max-width: 60ch; }
-.mast-meta .addr { font-family: var(--mono); font-size: 0.8rem; align-self: center; }
+.mast-meta .addr { font-family: var(--mono); font-size: 0.8rem; align-self: center; overflow-wrap: anywhere; }
 .file { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
 .file span { border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel); }
 .theme { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: 500 0.82rem var(--body); cursor: pointer; }
@@ -72,7 +80,7 @@ code { overflow-wrap: anywhere; }
 .glance { display: grid; gap: 22px; }
 .verdict { font-size: 1.3rem; line-height: 1.45; font-weight: 500; max-width: 60ch; }
 .verdict + .gist { margin: 10px 0 0; }
-.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
 .panel h3 { font-size: 0.95rem; }
 .panel p, .panel ul { margin: 0; font-size: 0.93rem; }
@@ -81,13 +89,13 @@ code { overflow-wrap: anywhere; }
 .panel.attention h3 { color: var(--warn); }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 14px; display: grid; gap: 4px; align-content: start; }
 .tile .n { font: 700 2.5rem/1 var(--display); font-variant-numeric: tabular-nums; }
 .tile .n small { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
 .tile .k { color: var(--muted); font-size: 0.86rem; }
 .tile.ok .n { color: var(--ok); } .tile.warn .n { color: var(--warn); } .tile.quiet .n { color: var(--fg); }
-.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; }
 .meter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
 .meter h3 { font-size: 0.95rem; }
 .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--panel-2); }
@@ -108,7 +116,7 @@ code { overflow-wrap: anywhere; }
 .c-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 .c-quiet { color: var(--muted); }
 /* pages */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
 .cards + .folds, .cards + .panel, .folds + .panel { margin-top: 16px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
 .card img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border-bottom: 1px solid var(--line); background: #fff; }
@@ -130,7 +138,7 @@ table.plain th, table.plain td { text-align: left; padding: 9px 10px; border-top
 table.plain thead th { border-top: 0; color: var(--muted); font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
 .panel table.plain th, .panel table.plain td { overflow-wrap: anywhere; }
 td.said code { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; margin: 2px 0; }
-.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 14px; }
+.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; margin-top: 14px; }
 .limits > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .limits ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
 /* evidence */
@@ -138,7 +146,7 @@ td.said code { display: inline-block; background: var(--panel-2); border: 1px so
 .run-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; justify-content: space-between; }
 .run-inside h3 { margin-bottom: 8px; }
 .run-inside table.plain td { overflow-wrap: anywhere; }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 10px; }
 .facts div { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; }
 .facts dt { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .facts dd { margin: 2px 0 0; font: 600 1.05rem var(--display); }
@@ -155,7 +163,7 @@ details.log > summary, details.tx-page > summary { cursor: pointer; }
 .events { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 .events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; }
 .ev-fail td { color: var(--bad); } .ev-own td { color: var(--warn); } .ev-lock td { color: var(--accent); }
-.cross { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.cross { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
 .cross div { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
 .cross .big { font: 700 1.8rem/1 var(--display); }
 dl.spec { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; margin: 0; border-top: 1px solid var(--line); }
@@ -164,7 +172,7 @@ dl.spec dt { color: var(--muted); }
 .hashes code { color: var(--fg); }
 .verify { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; display: grid; gap: 6px; }
 .scroll + .verify { margin-top: 12px; }
-.verify pre { margin: 0; font: 0.84rem var(--mono); white-space: pre-wrap; }
+.verify pre { margin: 0; font: 0.84rem var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* transcripts */
 .appendix { display: grid; gap: 10px; }
 .appendix details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
@@ -191,7 +199,7 @@ details.fold > .run-inside { gap: 22px; }
 .gist { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
 .gist b { color: var(--fg); font-weight: 500; }
 /* how voicecap works */
-.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .flow li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; grid-template-columns: 44px 1fr; gap: 4px 14px; align-content: start; }
 .flow .ico { grid-row: span 2; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); color: var(--accent); }
 .flow .ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -201,7 +209,7 @@ details.fold > .run-inside { gap: 22px; }
 .heard { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
 .heard h3 { font-size: 1rem; }
 .heard > .sub { margin: 0; }
-.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px; }
 .lane { margin: 0; display: grid; gap: 8px; align-content: start; }
 .lane figcaption { font-size: 0.86rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
 kbd { font: 600 0.8rem var(--mono); border: 1px solid var(--line); border-bottom-width: 3px; border-radius: 6px; padding: 2px 8px; background: var(--panel-2); color: var(--fg); }
@@ -213,7 +221,7 @@ kbd { font: 600 0.8rem var(--mono); border: 1px solid var(--line); border-bottom
 .when-title { font: 700 clamp(1.35rem, 3.2vw, 1.8rem)/1.2 var(--display); margin: 0; }
 .when-title span { color: var(--warn); }
 .when-lead { margin: 0; color: var(--muted); max-width: 72ch; }
-.stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
 .stages li { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 7px; align-content: start; }
 .stages li b { font: 600 1.02rem var(--display); }
 .stages .st { font-size: 0.88rem; color: var(--muted); }
@@ -269,7 +277,7 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 .days li { position: relative; font-size: 0.92rem; }
 .days li::before { content: ""; position: absolute; left: -27px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
 .days time { display: block; font: 600 0.8rem var(--mono); color: var(--accent); }
-.worth { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.worth { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .worth div { background: var(--panel-2); border-radius: 12px; padding: 14px 16px; }
 .worth h3 { font-size: 0.98rem; margin-bottom: 4px; }
 .worth p { margin: 0; font-size: 0.9rem; }
