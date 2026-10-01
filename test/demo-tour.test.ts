@@ -899,7 +899,7 @@ describe("stopping the tour", () => {
     expect(result.screen).not.toContain(STEPS[4]);
     // I3: the tour's own next step, since the run can't be resumed.
     expect(result.screen).toMatch(
-      /\n\nRun npx @icjia\/voicecap preflight to see what to fix, then npx @icjia\/voicecap demo again\.\n$/,
+      /\n\nRun npx @icjia\/voicecap doctor to check this computer, then npx @icjia\/voicecap demo again\.\n$/,
     );
     expect(result.listening).toEqual([]);
   });
@@ -1052,7 +1052,7 @@ describe("the tour with a real run of the real demo site", () => {
     );
     expect(result.errors).not.toContain("the same command");
     expect(result.screen).toMatch(
-      /\n\nRun npx @icjia\/voicecap preflight to see what to fix, then npx @icjia\/voicecap demo again\.\n$/,
+      /\n\nRun npx @icjia\/voicecap doctor to check this computer, then npx @icjia\/voicecap demo again\.\n$/,
     );
     expect(result.listening).toEqual([]);
   });
