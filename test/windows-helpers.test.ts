@@ -552,12 +552,14 @@ describe("Guidepup's folder, when NVDA can't start from it", () => {
   const whatsWrong =
     "Guidepup's NVDA is in C:\\Users\\Jane Doe\\AppData\\Local\\guidepup, and that path has a space in it. Guidepup can't start NVDA from such a path (it runs nvda.exe through the Windows command shell without quoting its path).";
 
-  it("says what's wrong, and how to fix it step by step", () => {
+  it("says what's wrong, and how to fix it one command to a step", () => {
     expect(unsafePathProblem(install)).toEqual({
       whatsWrong,
       fix: [
-        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash: mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
-        "Open a new terminal and run: npx @icjia/voicecap setup",
+        "Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
+        `Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
+        `Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
+        "Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
       ],
     });
   });
@@ -578,14 +580,30 @@ describe("Guidepup's folder, when NVDA can't start from it", () => {
     expect(unsafePathMessage(safe)).toBeNull();
   });
 
-  it("says the same in one message, worded as it always has been", () => {
+  it("says the same in one message, the steps numbered, each on a line of its own", () => {
     expect(unsafePathMessage(install)).toBe(
       [
         whatsWrong,
-        "Choose a folder whose path has only letters, digits, and - _ . in its names, set GUIDEPUP_SCREEN_READERS_PATH to it, and install NVDA there. In Git Bash:",
-        "  mkdir -p /c/guidepup && setx GUIDEPUP_SCREEN_READERS_PATH 'C:\\guidepup'",
-        "then open a new terminal and run: npx @icjia/voicecap setup",
+        "How to fix:",
+        "  1. Choose a folder whose path has only letters, digits, and - _ . in its names. These steps use C:\\guidepup.",
+        `  2. Make the folder, if it isn't there yet: mkdir "C:\\guidepup"`,
+        `  3. Tell Guidepup to use it: setx GUIDEPUP_SCREEN_READERS_PATH "C:\\guidepup"`,
+        "  4. Open a new terminal and install NVDA there: npx @icjia/voicecap setup",
       ].join("\n"),
     );
+  });
+
+  // The steps are shown wrapped, so a command inside a sentence breaks in the middle, and the
+  // sentence's comma or period gets copied after it. So each command ends a step of its own, and
+  // double quotes make the commands the same in PowerShell and Git Bash: no step names a terminal
+  // (Windows PowerShell 5.1 has no &&, so none chains commands with it either).
+  it("ends each command's step with the command, and names no terminal", () => {
+    const steps = unsafePathProblem(install)?.fix ?? [];
+    const message = unsafePathMessage(install) ?? "";
+    expect(steps).toHaveLength(4);
+    for (const step of steps.slice(1)) expect(step).not.toMatch(/[.,;:!?]$/);
+    for (const text of [...steps, ...message.split("\n").slice(1)]) {
+      expect(text).not.toMatch(/PowerShell|Git Bash|&&|\bthen\b/);
+    }
   });
 });

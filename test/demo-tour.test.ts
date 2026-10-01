@@ -467,7 +467,7 @@ describe("the tour on a ready Windows PC", () => {
   it("says step 2's preflight as init does, with no demo line", async () => {
     const result = await tour({ platform: windows(), answers: WINDOWS_ANSWERS });
     expect(result.screen).toContain(
-      "that's: npx @icjia/voicecap doctor\n\nvoicecap preflight, 2026-09-29 14:05\n",
+      "that's: npx @icjia/voicecap preflight\n\nvoicecap preflight, 2026-09-29 14:05\n",
     );
     expect(result.screen).toContain("  OK    NVDA 2026.2 is installed\n");
     expect(result.screen).toContain("Ready: this computer can run NVDA for voicecap.\n");

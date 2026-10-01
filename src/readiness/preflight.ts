@@ -1,5 +1,5 @@
 /**
- * Runs a platform's machine info and quick checks, for init, doctor, setup, and runs.
+ * Runs a platform's machine info and quick checks, for preflight, init, doctor, setup, and runs.
  */
 import type { Check, CheckRunner, PlatformReadiness, PreflightResult } from "./model.js";
 import { errorMessage } from "../util/errors.js";

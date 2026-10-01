@@ -138,7 +138,6 @@ Deferred from the readiness reviews (each judged "can wait" by the final review)
   - `shutDown` releases the lock while a Guidepup start or stop it gave up on is still running. This predates this work.
   - A final `stop()` that joins after the restore point loses its final flag. This can't happen today.
   - No test pins the restore coming before the lock's release.
-  - `unsafePathMessage` rebuilds its text by string replacement. An exact-text test guards it.
   - The "person's NVDA beside Guidepup's" test checks only for WARN.
 - **Mac** (`src/drivers/voiceover/`):
   - `wasOn` is read before the lock is taken, which leaves a race of about 1 ms between two voicecaps.

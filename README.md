@@ -77,6 +77,7 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
   - [On a Mac](#on-a-mac)
 - [Try it first: npx @icjia/voicecap demo](#try-it-first-npx-icjiavoicecap-demo)
 - [Windows setup (for someone new to Windows)](#windows-setup-for-someone-new-to-windows)
+  - [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)
 - [Mac setup](#mac-setup)
 - [Commands and options](#commands-and-options)
 - [Page sources](#page-sources)
@@ -97,15 +98,33 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 - [Known limitations](#known-limitations)
 - [Future enhancements](#future-enhancements)
 - [Development](#development)
+- [Credits](#credits)
 - [License](#license)
 
 ## Quick start
 
 voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to start: run it with `npx`, as below. npx downloads voicecap the first time and reuses it; `npx @icjia/voicecap@latest …` picks up a newer version. pnpm is only for developing voicecap, or for the replay demo below.
 
+Why voicecap is built the way it is, in three short answers:
+
+- **Why an npm package.** voicecap runs on your own computer, where the screen reader is. It's one package for Windows and a Mac, `npx` fetches the version you ask for, and every run records the version of voicecap that made it.
+- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal. When it doesn't, voicecap leaves out what needs one: the live test that `init` and `setup` offer, and "Did you listen?" at the end of a run. `demo` won't start at all. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
+- **Why a command-line app, not a web app.** voicecap has to start a real screen reader, press its keys on your computer, and capture what it says. A web page can't do any of that from inside the browser's sandbox. Running on your own computer also keeps every transcript in a folder you control. The web part is what voicecap makes: [the shareable page](#the-shareable-page).
+
+Three steps take you from a new computer to a first run:
+
+1. **Check your computer:** in PowerShell on a PC, or Terminal on a Mac, run `npx @icjia/voicecap preflight`. It never starts the screen reader, and it needs no site. It ends with a verdict, in words as well as color: "Ready", in green, means you can go on to step 3. "Not ready", in red, comes after a numbered list of exactly what to fix. See [The checks, and the live test](#the-checks-and-the-live-test). If PowerShell refuses to run `npx` at all, see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled).
+2. **Fix what it lists,** then run `preflight` again, until it says Ready. Each problem comes with its own numbered steps. `npx @icjia/voicecap setup` installs what's missing and, on a Mac, walks you through the permissions. [Windows setup](#windows-setup-for-someone-new-to-windows) and [Mac setup](#mac-setup), below, have the details.
+3. **Run voicecap:** `npx @icjia/voicecap init` asks a few questions, then prints the command for your first real run and starts it when you say yes. NVDA speaks and takes over the keyboard until the run ends, so keep your hands off. (On a Mac, voicecap can't run VoiceOver yet: `init` ends with the command to run on a Windows computer.)
+
+To try voicecap first, `npx @icjia/voicecap demo` is a guided first run on voicecap's own built-in demo site, so you need no site of your own (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
+
 ### On Windows
 
-In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows)):
+<details>
+<summary>The four steps on a Windows PC, what <code>init</code> shows on a ready computer, and the reviewer name</summary>
+
+In PowerShell inside Windows Terminal (on a computer new to all this, start with [Windows setup](#windows-setup-for-someone-new-to-windows); if you use Git Bash, read [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-) first):
 
 1. **Set up, once:** `npx @icjia/voicecap setup` installs voicecap's own copy of NVDA, and Playwright's Chromium if Google Chrome isn't installed, with no administrator rights. It ends by checking this computer.
 2. **Check:** `npx @icjia/voicecap doctor` checks this computer and runs a 20-second live test with NVDA, then prints a report to paste into a bug report.
@@ -115,7 +134,7 @@ In PowerShell, or Git Bash in Windows Terminal (on a computer new to all this, s
 `init` on a ready computer, declining the live test:
 
 ```
-$ npx @icjia/voicecap init
+PS> npx @icjia/voicecap init
 
 voicecap preflight, 2026-09-28 11:10
 
@@ -175,7 +194,12 @@ Run it now? [y/N]:
 
 **The reviewer** is recorded with each session of the run, and the report shows it. Enter takes the quick default, `icjia`; type a person's name to record who ran it. The command ends with `--reviewer`, so it's easy to change for someone else. To make your own name the default, set `VOICECAP_REVIEWER` once: in PowerShell, `setx VOICECAP_REVIEWER "Your Name"`, then open a new window (on a Mac, add `export VOICECAP_REVIEWER="Your Name"` to `~/.zshrc`). `voicecap review` records the same name.
 
+</details>
+
 ### On a Mac
+
+<details>
+<summary>The four steps on a Mac, and what the checks and <code>init</code> end with</summary>
 
 In Terminal, iTerm, or Visual Studio Code's terminal:
 
@@ -201,6 +225,8 @@ Run the same command again later to resume where it stopped.
 voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer.
 ```
 
+</details>
+
 ### Try it without a screen reader
 
 The replay driver plays back a run recorded with real NVDA, so the whole pipeline works on any computer, Linux included. With the test fixture in this repository:
@@ -217,13 +243,39 @@ Then open `transcripts/127.0.0.1_4747/report.html`.
 
 ### The checks, and the live test
 
-**`init`, `doctor`, and `setup` check this computer:** `init` and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
+<details>
+<summary>What the checks look at, what <code>preflight</code> prints and its exit codes, and the 20-second live test</summary>
 
-**A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `init` stops there, with exit code 2.
+**`preflight`, `init`, `doctor`, and `setup` check this computer:** `preflight`, `init`, and `doctor` first, `setup` after installing. A real run on Windows does too, before NVDA starts (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)). In about three seconds, the checks show this computer's details and whether NVDA (on Windows) or VoiceOver (on a Mac) is ready. They only read, with two exceptions on a Mac: the Full Disk Access check creates and removes a small file in the folder where VoiceOver keeps its settings, and the System Events check makes macOS ask, the first time, whether your terminal app may control System Events. So on a Mac they start with `Checking this Mac. If macOS asks for access to control "System Events", click Allow.`
 
-**A ready computer can take the live test.** It starts NVDA or VoiceOver for real, brings the browser to the front with a small check page, and checks that the screen reader can be heard, then puts everything back as it was, your own screen reader included. It takes about 20 seconds, after a warning to keep your hands off. `init` and `setup` offer it when you're at a terminal to answer; `doctor` runs it without asking. If it fails, voicecap says what's wrong and exits with code 2. To stop it early, click the terminal window first (the browser is in front, and would get the keystroke), then press Ctrl+C: voicecap stops the test and puts everything back the same way.
+**`npx @icjia/voicecap preflight` is the checks on their own,** for finding out whether a computer is ready with nothing else happening. It shows this computer's details, each check passed or failed, and for each failure the numbered steps that fix it. It never starts NVDA or VoiceOver, never opens the browser, and never runs the live test, and it needs no site. `doctor` adds the live test to the same checks.
+
+It ends with a verdict, in words as well as color: green or red where the output is a terminal, and plain when it isn't or when `NO_COLOR` is set. A ready computer exits with code 0:
+
+```
+✓ Ready: this computer can run voicecap.
+Next: npx @icjia/voicecap doctor adds a 20-second live test with NVDA (hands off the keyboard and mouse), or npx @icjia/voicecap init sets up a run.
+```
+
+A computer that isn't ready exits with code 2, as `init` does, after the numbered fixes:
+
+```
+✗ Not ready: 2 things to fix.
+Fix these, then run npx @icjia/voicecap preflight again.
+```
+
+On a Mac that passes every check, the verdict is `✓ Ready: this Mac passed every check.`, followed by a note that voicecap can't run VoiceOver audits yet, and that `npx @icjia/voicecap doctor`, a 20-second live test, shows VoiceOver working now. The exit code is still 0, so a script can tell that the checks passed. On Linux, which has no screen reader for voicecap to drive, it says so, with exit code 2.
+
+**A computer that isn't ready** gets a numbered diagnosis of what's wrong and how to fix it (see the example under [Mac setup](#mac-setup)), and `preflight` and `init` stop there, with exit code 2.
+
+**A ready computer can take the live test.** It starts NVDA or VoiceOver for real, brings the browser to the front with a small check page, and checks that the screen reader can be heard, then puts everything back as it was, your own screen reader included. It takes about 20 seconds, after a warning to keep your hands off. `init` and `setup` offer it when you're at a terminal to answer; `doctor` runs it without asking; `preflight` never runs it. If it fails, voicecap says what's wrong and exits with code 2. To stop it early, click the terminal window first (the browser is in front, and would get the keystroke), then press Ctrl+C: voicecap stops the test and puts everything back the same way.
+
+</details>
 
 ### Installing voicecap
+
+<details>
+<summary>Installing it anyway, how the command <code>init</code> prints is quoted, and the <code>ffmpeg-static</code> notice</summary>
 
 You don't have to: npx runs voicecap without installing it. `npx @icjia/voicecap` with nothing after it starts `init` too, in a terminal. Git Bash's own window (mintty) doesn't always let Node see a terminal, though, and there the bare command prints the usage error instead, so type `npx @icjia/voicecap init`.
 
@@ -233,12 +285,17 @@ The command `init` prints always starts with `npx @icjia/voicecap`, so it works 
 
 npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmpeg (about 30 MB): `@guidepup/setup` can screen-record its own macOS setup with it, which voicecap never does. Either way, voicecap works the same.
 
+</details>
+
 ## Try it first: `npx @icjia/voicecap demo`
+
+<details>
+<summary>The tour's seven steps, where its files go, and what it does on a Mac</summary>
 
 `npx @icjia/voicecap demo` is a guided first run, about 9 minutes, against a small demo site that comes with voicecap. The site runs only on this computer, and only while the tour needs it: nothing is downloaded, and nothing is sent anywhere. The tour goes one step at a time, and each step waits for Enter. Ctrl+C at any of them stops the tour, with nothing left running.
 
 1. **Welcome:** what voicecap does, and what the tour will do.
-2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap doctor`.
+2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap preflight`.
 3. **The live test:** about 20 seconds of NVDA speaking. Keep your hands off the keyboard.
 4. **Auditing the demo site:** NVDA reads the demo's seven pages, hands off, for about 7 minutes. The tour shows the command it runs, such as `npx @icjia/voicecap --site http://127.0.0.1:4848 --sitemap sitemap.xml --out voicecap-demo --fresh`. To stop early, click the terminal window first (the browser is in front), then press Ctrl+C.
 5. **The transcripts:** where they are, and the first lines NVDA said on the demo's home page.
@@ -249,26 +306,31 @@ The demo's files go in a `voicecap-demo` folder in the current folder, never in 
 
 **On a Mac, for now,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit will do, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report come with voicecap's VoiceOver driver, in a later release; a Windows PC runs the full tour.
 
+</details>
+
 ## Windows setup (for someone new to Windows)
 
-These steps assume Windows 11, a normal (non-administrator) account, and Git Bash inside Windows Terminal.
+<details>
+<summary>Six steps for a new Windows PC, from installing Git and Node.js to what to do before a run</summary>
 
-1. **Install Git and Node.js** with winget from a Windows Terminal (PowerShell) window:
+These steps assume Windows 11, a normal (non-administrator) account, and PowerShell inside Windows Terminal (its default profile).
+
+1. **Install Git and Node.js.** Open Windows Terminal from the Start menu (it starts in PowerShell, its default profile), and run:
 
    ```powershell
    winget install --id Git.Git -e
    winget install --id OpenJS.NodeJS.LTS -e
    ```
 
-   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too). Close and reopen Windows Terminal afterwards so both are on your PATH.
+   Node's installer is machine-wide and usually needs administrator rights once, so on a managed PC you may need IT to run it (Git may prompt too).
 
-2. **Open Git Bash** in Windows Terminal: the tab drop-down (the `˅` next to the `+`) lists "Git Bash" once Git is installed. You can make it the default profile in Windows Terminal's settings. Check with `node --version` (22.19 or later) and `git --version`.
+2. **Close Windows Terminal and open it again,** so both are on your PATH. Check with `node --version` (22.19 or later), `git --version`, and `npx --version`. If PowerShell refuses to run `npx`, see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled).
 
 3. **Only if you'll develop voicecap:** install pnpm with `corepack enable pnpm` (or `npm install -g pnpm`). Running voicecap needs only Node and `npx`.
 
-4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first.
+4. **Install NVDA for voicecap:** `npx @icjia/voicecap setup`. This downloads (about 100 MB, from GitHub) the portable NVDA build that voicecap's pinned Guidepup expects into `%LOCALAPPDATA%\guidepup`. It's separate from any NVDA you already have installed, and needs no administrator rights. If Google Chrome isn't installed, setup also installs Playwright's Chromium for voicecap to use instead. Behind a proxy, set `HTTPS_PROXY` first (in PowerShell, `$env:HTTPS_PROXY = "http://your-proxy:port"` sets it for the current window).
 
-   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup`, open a new terminal, and run setup again.
+   - **If your Windows user folder's path has a space or one of `& ( , ; = ^`** (`C:\Users\Jane Doe`, `C:\Users\R&D`), Guidepup can't start NVDA from there. setup explains the fix: set `GUIDEPUP_SCREEN_READERS_PATH` to a plain folder such as `C:\guidepup` (`mkdir "C:\guidepup"`, then `setx GUIDEPUP_SCREEN_READERS_PATH "C:\guidepup"`, the same in PowerShell and Git Bash), open a new terminal, and run setup again.
    - **The first time NVDA starts**, Windows may ask whether NVDA can communicate on networks. voicecap talks to NVDA only on this computer (127.0.0.1); it doesn't need network access.
    - **Then setup checks this computer.** If it's ready, setup offers the live test (see [The checks, and the live test](#the-checks-and-the-live-test)); if it isn't, setup says what's wrong and exits with code 2.
 
@@ -282,9 +344,24 @@ These steps assume Windows 11, a normal (non-administrator) account, and Git Bas
    - **Turn on Do Not Disturb** (Settings → System → Notifications) so notifications don't get read into transcripts.
    - **Pause Windows Update** restarts during long runs (Settings → Windows Update → Pause updates). If a restart happens anyway, voicecap resumes where it stopped.
 
+</details>
+
+### If PowerShell says "running scripts is disabled"
+
+On a new Windows PC, PowerShell can refuse to run `npx` (and `npm`) at all:
+
+```text
+npx : File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scripts is disabled on this system.
+```
+
+Nothing is wrong with voicecap or Node.js. In PowerShell, `npx` runs as a PowerShell script (`npx.ps1`), and Windows starts out not letting PowerShell run any script. Two ways past it:
+
+- **Allow scripts for your own account, once.** Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`, and answer `Y` if it asks. It needs no administrator rights, and it works at once, in the same window. From then on, your account can run scripts written on this computer. One downloaded from the internet still needs a signature.
+- **Or change nothing, and type `npx.cmd` wherever these steps say `npx`,** as in `npx.cmd @icjia/voicecap preflight`. Use this on a work PC where the first way is refused, or where your organization's settings override it. One catch: an address with `&` in it, such as `--page "https://example.org/search?q=a&lang=en"`, doesn't survive `npx.cmd`. For an address like that, use the first way, or put the address in a `--pages` file.
+
 ### Git Bash and paths that start with "/"
 
-Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
+PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash. To open Git Bash in Windows Terminal, use the tab drop-down, the small down arrow (`˅`) next to the `+`: it lists "Git Bash" once Git is installed. Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
 
 - use full URLs: `--page https://dvfr.illinois.gov/about/` (always works);
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
@@ -294,6 +371,9 @@ Git Bash rewrites command-line arguments that start with `/` into Windows paths,
 With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--replay-from`, and the files `manual add` and `list-urls` take all accept it.
 
 ## Mac setup
+
+<details>
+<summary>What <code>setup</code> does on a Mac, and <code>init</code> on a Mac that's missing one permission</summary>
 
 `npx @icjia/voicecap setup` prepares a Mac for VoiceOver. It:
 
@@ -363,7 +443,12 @@ Not ready: 1 problem.
    Or run npx @icjia/voicecap setup, which walks you through it.
 ```
 
+</details>
+
 ### Permissions and the terminal app
+
+<details>
+<summary>The five permissions voicecap needs, how <code>setup</code> walks you through them, and the Full Disk Access check</summary>
 
 Every permission belongs to the app you run voicecap in (Terminal, iTerm, Visual Studio Code, or another editor's terminal), not to voicecap itself, because that's the app macOS sees asking. voicecap finds it by walking up its own parent processes to the outermost app, and calls it by the name System Settings lists, in the machine details ("Terminal app") and in every check and step. Switch to another terminal app and you'll need to grant these again; over SSH there's no app to find, and the check fails.
 
@@ -392,7 +477,12 @@ The Full Disk Access check looks at the folder Guidepup will actually use, so it
 - `Full Disk Access: not needed on this Mac`, where VoiceOver keeps your settings outside the protected folder;
 - `VoiceOver: not set up for this user yet`, when VoiceOver has never been turned on for your user, so your settings don't exist yet. Press Command-F5 to turn VoiceOver on, press it again once VoiceOver starts speaking, then run setup again.
 
+</details>
+
 ### The live test on a Mac
+
+<details>
+<summary>What the live test says and checks on a Mac, and what a pass looks like</summary>
 
 Before it starts, voicecap says:
 
@@ -413,9 +503,16 @@ Checks
 
 Then voicecap puts VoiceOver back the way it found it (see [Checks before a run, and getting your screen reader back](#checks-before-a-run-and-getting-your-screen-reader-back)).
 
+</details>
+
 ## Commands and options
 
+You type these commands the same way in PowerShell, in Git Bash, and in a Mac's terminal, except that Git Bash rewrites arguments that start with `/` (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)).
+
 ### Run an audit
+
+<details>
+<summary>The command, every option, how patterns match, and the question voicecap asks at the end</summary>
 
 ```bash
 npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url>...) [options]
@@ -454,7 +551,12 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
   - for a replay, or for a session that read no pages;
   - by `voicecap demo`.
 
+</details>
+
 ### Other commands
+
+<details>
+<summary>One line for each of the other commands, how they pick a site's folder, and what <code>doctor</code> prints</summary>
 
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
@@ -463,6 +565,7 @@ voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <Y
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
+voicecap preflight # check this computer is ready for a run, without starting the screen reader
 voicecap doctor    # check this computer and print a summary to paste into a bug report
 voicecap demo      # a guided first run against a demo site that comes with voicecap
 ```
@@ -472,7 +575,7 @@ Wherever a command takes a page, give a full URL or a root-relative path (`/abou
 **`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
 
 ```
-$ npx @icjia/voicecap doctor
+PS> npx @icjia/voicecap doctor
 
 The live test takes about 20 seconds. NVDA speaks and takes over the keyboard, so keep your hands off.
 voicecap doctor, 2026-09-28 11:10
@@ -507,7 +610,12 @@ Ready: this computer can run NVDA for voicecap.
 
 A problem reads the same way as the example under [Mac setup](#mac-setup): a numbered "Not ready" entry with what's wrong and how to fix it, usually ending with a nudge to run `setup`.
 
+</details>
+
 ### Checks before a run, and getting your screen reader back
+
+<details>
+<summary>The checks a real run starts with, and how voicecap turns your own NVDA or VoiceOver back on</summary>
 
 **Before NVDA starts, a real run does the same quick checks as `doctor`** (see [The checks, and the live test](#the-checks-and-the-live-test)). If the computer isn't ready, voicecap prints the same "Not ready" diagnosis as `init` and `doctor`, and stops with exit code 2 before anything else happens: no site folder, no lock file, no NVDA. If it's ready, voicecap logs one line plus any warnings, for example:
 
@@ -540,6 +648,8 @@ Warning: Couldn't turn your NVDA back on (PowerShell didn't start it). Start it 
 
 **On a Mac, the live test does the same for VoiceOver** (real VoiceOver runs come with its driver). The checks warn first if VoiceOver is on, and afterwards the test leaves it as it found it: on, with your own settings, or off. Turning it back on is silent when it works; if it doesn't, voicecap says `Couldn't turn VoiceOver back on: press Command-F5` (or `Couldn't turn VoiceOver off: press Command-F5`, if VoiceOver should have gone back off).
 
+</details>
+
 ### Exit codes
 
 | Code | Meaning |
@@ -562,6 +672,9 @@ voicecap reads `<urlset>` sitemaps and `<sitemapindex>` files, following child s
 - A run records the sitemap's full URL, so resuming with the name or with the full URL finds the same run.
 
 ### Page lists (`--pages`)
+
+<details>
+<summary>The CSV and JSON formats, with examples, and saving a CSV from Excel</summary>
 
 For the routine case: a list you curate, such as about 10 routes for each of a site's main templates. The format is picked by file extension.
 
@@ -586,6 +699,8 @@ Quoted fields, blank lines, a byte-order mark, and Windows (CRLF) line endings a
 ```
 
 Entries may be absolute URLs or root-relative paths, resolved against `--site`. Malformed or missing URLs are reported with their line numbers, and the run continues with the valid entries. A CSV without a `url` column is an error.
+
+</details>
 
 ### One page (`--page`)
 
@@ -626,11 +741,19 @@ With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL p
 
 ## What voicecap does on each page
 
+<details>
+<summary>How each page is loaded, and how voicecap captures everything NVDA says</summary>
+
 For each page, voicecap runs up to three **passes** in a real browser with NVDA running. Before each pass it loads the page fresh, in a new browser with a new profile (so no page's speech depends on the pages before it: no "visited" links, cookies, or saved state), and waits until it's ready (network idle, plus an optional `readySelector` and settle delay for sites like Nuxt that keep rendering after load). Then it brings the browser window to the front and checks with NVDA+T (report title) that NVDA sees it there: keystrokes go to whichever window is in front, so if the browser can't be brought forward, the page is recorded as an error rather than transcribing the wrong window. Finally it moves NVDA to the top of the page, in browse mode.
 
 voicecap captures **everything** NVDA says after each keystroke: it waits until NVDA has been quiet for a second, so a step takes about 1.3 seconds. That's the right trade for an audit trail. A step during which another window came to the front is thrown away and the page recorded as failed, so another window's speech never ends up in a transcript.
 
+</details>
+
 ### read
+
+<details>
+<summary>How the read pass walks a page, and how it decides it has reached the end</summary>
 
 Walks the page line by line in browse mode (Down Arrow) to the end. NVDA has no end-of-document announcement: on the last line, Down Arrow simply says the last line again. So voicecap:
 
@@ -639,6 +762,8 @@ Walks the page line by line in browse mode (Down Arrow) to the end. NVDA has no 
 3. stops when that line is spoken and the next step repeats it, then presses Down once more to confirm (`read.endConfirmations`).
 
 Two identical lines in a row mid-page, such as back-to-back "Read more" links, don't stop it, and neither does a last line that also appears earlier. (A run of three or more identical lines mid-page that also matches the last line can still end it early; raise `read.endConfirmations` if your pages have those.) When NVDA moves onto the last line it also announces containers it enters (like "content info landmark"), but it leaves them out when it repeats the line; voicecap matches the repeat against the end of what Ctrl+End said, so this doesn't matter. The pass also stops if the same speech repeats `repeatLimit` times in a row (a safety net) or at the step cap (default 400), and records which condition stopped it.
+
+</details>
 
 ### headings
 
@@ -659,6 +784,9 @@ voicecap prints one line per page with an estimate of the time left:
 ```
 
 ## The transcripts folder
+
+<details>
+<summary>The folder tree, how pages are named, and what the TXT and JSON transcripts, the environment record, and the hashes hold</summary>
 
 Everything goes in the transcripts home: `--out <dir>`, else the `VOICECAP_TRANSCRIPTS` environment variable, else `./transcripts` in the current folder. Inside it, each site you run voicecap against gets its own folder:
 
@@ -693,6 +821,8 @@ voicecap-transcripts/                  ← the transcripts home
 - **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, or page list file with its SHA-256), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings. It also holds the computer's details (see [What each run records](#what-each-run-records)), which `run.json` and the JSON transcripts keep, and the TXT header leaves out.
 - **Hashes.** `run.json` records the SHA-256 of every transcript file (integrity) and of each pass's TXT body without the header (content). "Changed since review" and `--compare` use the content hashes, because headers include timestamps and run ids.
 
+</details>
+
 ## The audit record
 
 voicecap can keep a permanent, non-destructive record of every run and every manual session, for audit and legal purposes: one private Git repository, pushed often, where the runs for any site can be counted and every file can be trusted not to have changed. Point every voicecap command at one folder outside your site's own repository — the **transcripts home** — and give that folder to Git on its own.
@@ -704,6 +834,9 @@ The home's folders are shown under [The transcripts folder](#the-transcripts-fol
 The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, and `verify` never take it for a site.
 
 ### What each run records
+
+<details>
+<summary>Page titles, every failed attempt and its code, the reviewer and the listener's statement, and the computer's details</summary>
 
 Beyond its transcripts, each run's `run.json` records:
 
@@ -734,6 +867,8 @@ Beyond its transcripts, each run's `run.json` records:
 
 Once the run completes, its seal covers all of this.
 
+</details>
+
 ### What's guaranteed
 
 - **A completed run is never modified again.** `run.json` records every transcript file's SHA-256 as it's written, and once the run completes, the whole record is sealed (see "Checking the record," below).
@@ -742,6 +877,9 @@ Once the run completes, its seal covers all of this.
 - **voicecap 0.2.0's layout is left alone.** If a home still has its `runs/` or `manual/` folders, they're never read or moved; a run just says once that it saw them.
 
 ### Checking the record: `voicecap verify`
+
+<details>
+<summary>How seals and the review chain work, what <code>voicecap verify</code> checks, and what it can't catch</summary>
 
 ```bash
 voicecap verify [--site <url>] [--out <dir>]
@@ -755,7 +893,12 @@ Every record voicecap finishes writing is sealed: a completed run's `run.json`, 
 
 **What it can't catch on its own:** someone who edits a record and recomputes its seal, and every later seal and `prev`; and someone who deletes the newest review entries, or a whole run or manual session, which leaves nothing for `verify` to find: only Git history shows it. Git history pushed to a protected branch catches both, since rewriting commits that are already pushed takes a force-push, and a branch protected against force-pushes refuses it — which is why the setup below has you protect the branch and push often.
 
+</details>
+
 ### What `.gitignore` keeps out, and why
+
+<details>
+<summary>What <code>.gitignore</code> keeps out of Git, and why</summary>
 
 voicecap writes `.gitattributes` and `.gitignore` at the home's top the first time it needs them, and never overwrites them, so your own edits or additions stay. `.gitattributes` (`* -text`) keeps Git from changing line endings on checkout, which would otherwise make the recorded hashes stop matching the files. `.gitignore` keeps out:
 
@@ -767,17 +910,24 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 
 > **Never commit an unredacted raw NVDA log.** See [Manual NVDA sessions](#manual-nvda-sessions).
 
+</details>
+
 ### Setting it up
 
-**Windows, in Git Bash:**
+<details>
+<summary>Making the private repository on Windows or a Mac, saving runs to it, and protecting the branch</summary>
 
-```bash
-mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts && git init
+**Windows, in PowerShell:**
+
+```powershell
+mkdir C:\Users\cschw\code\voicecap-transcripts
+cd C:\Users\cschw\code\voicecap-transcripts
+git init
 gh repo create voicecap-transcripts --private --source .
 setx VOICECAP_TRANSCRIPTS 'C:\Users\cschw\code\voicecap-transcripts'
 ```
 
-`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal.
+`gh repo create --private --source .` is one way to make the private repository; it adds the `origin` remote. Leave off `--push` — there's nothing to push yet. `setx` only takes effect in a new terminal. In Git Bash, the same lines work, except that the first two become `mkdir -p /c/Users/cschw/code/voicecap-transcripts && cd /c/Users/cschw/code/voicecap-transcripts`.
 
 **macOS:**
 
@@ -792,7 +942,7 @@ If the repository already exists, made on another computer, clone it instead: `g
 export VOICECAP_TRANSCRIPTS=~/webdev/voicecap-transcripts
 ```
 
-**After runs, reviews, or manual sessions:**
+**After runs, reviews, or manual sessions,** the same in PowerShell, Git Bash, and a Mac's terminal:
 
 ```bash
 git add -A
@@ -806,7 +956,12 @@ After the first push, plain `git push` is enough. `git commit -S` signs the comm
 
 Keep the repository private: manual sessions can carry reviewer names, notes, and typed text.
 
+</details>
+
 ## Long runs, interruptions, and resuming
+
+<details>
+<summary>Measured run times, and how voicecap resumes, retries failed pages, and handles Ctrl+C and crashes</summary>
 
 **Measured run times** (Windows 11, NVDA 2026.2, Chrome 153): each step takes **1.3 seconds** (voicecap waits for a second of silence after every keystroke), and each page adds about **17 seconds**, about 6 per pass, to load the page in a fresh browser, bring it to the front, and move NVDA to the top. So a page takes about 1.3 s × its steps + 17 s:
 
@@ -831,7 +986,12 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 - **HTTP errors are page problems.** A page that answers 404 gets a single try, since trying again can't help. A 5xx is tried again, up to `pageAttempts` times. Either is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA; only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
 - **Avoid synced folders** (OneDrive, Dropbox) for the output: sync clients and antivirus scans can hold files open. voicecap retries, but a folder they keep locked can still stop a run. If Git on Windows complains about long paths in `transcripts/`, run `git config core.longpaths true`.
 
+</details>
+
 ## Reviews: the audit trail
+
+<details>
+<summary>Recording what you found with <code>voicecap review</code>, and how the history is kept</summary>
 
 A reviewer reads a page's transcripts and catches what automated checkers such as axe can't: reading order that is technically right but confusing, alt text that is present but unhelpful, a page that is hard to use. `voicecap review` records what they found:
 
@@ -845,6 +1005,8 @@ Each page has a full, append-only history in its site's `reviews.json` (see [The
 The reviewer name comes from `--reviewer`, then the `VOICECAP_REVIEWER` environment variable, then `git config user.name`, then `reviewer` in the config. voicecap won't record a review without one. Runs record the same name with each session (`--reviewer` on the run, which `init` asks for), but go ahead without one.
 
 A page is **changed since review** when its transcripts in the run shown differ from the ones recorded with its latest review.
+
+</details>
 
 ## Manual NVDA sessions
 
@@ -862,6 +1024,9 @@ Speech Viewer has no timestamps or keystrokes: each line is one utterance, and i
 
 ### The NVDA log (Input/output level)
 
+<details>
+<summary>Turning on NVDA's log, importing it, and importing just part of it</summary>
+
 The log records each keystroke and what NVDA said, with times:
 
 1. NVDA menu → Preferences → Settings → General → **Logging level → Input/output**. Press OK.
@@ -876,6 +1041,8 @@ npx @icjia/voicecap manual add nvda.log --page https://dvfr.illinois.gov/about/ 
 
 voicecap keeps only the keystrokes (`Input: …`) and speech (`Speaking […]`) and discards everything else. Log times have no date: the session date comes from `--date`, or else the file's modification date (voicecap prints it so you can confirm), and sessions that cross midnight are handled. `--from` and `--to` import part of a log, as in the second example, so one log can cover several pages.
 
+</details>
+
 ### What gets saved
 
 - a clean `.txt` transcript (for logs: each keystroke followed by what NVDA said in response);
@@ -885,6 +1052,9 @@ voicecap keeps only the keystrokes (`Input: …`) and speech (`Speaking […]`) 
 Sessions are named by their date and time, so several sessions per page can coexist.
 
 ### Privacy
+
+<details>
+<summary>Typed text in NVDA's log, what <code>--redact-typing</code> does, and what it can miss</summary>
 
 **Input/output logs record every keystroke, including text typed into form and password fields.** voicecap warns on every log import, and warns again if it finds typing in form fields and you didn't ask to redact it.
 
@@ -901,7 +1071,12 @@ It errs on the side of hiding things. After focus leaves a field by mouse click,
 
 Check the clean transcript before committing it, and never commit an unredacted raw log.
 
+</details>
+
 ## Verifying transcript fidelity
+
+<details>
+<summary>How to compare a run's transcript with a Speech Viewer capture, and what to normalize first</summary>
 
 This is a different question from `voicecap verify` (see [The audit record](#the-audit-record)), which checks that a recorded file hasn't changed since voicecap wrote it. To check that a run's transcript really is everything NVDA said, compare it with a Speech Viewer capture of the same page:
 
@@ -913,7 +1088,12 @@ This is a different question from `voicecap verify` (see [The audit record](#the
 
 `fixture/manual/speech-viewer.txt` is a real capture of the fixture's home page, and the fixture tests compare it with the fixture run's read transcript this way. On Windows, `pnpm test:nvda` repeats the whole check against live NVDA.
 
+</details>
+
 ## Reading the report
+
+<details>
+<summary>What the report shows, when it's regenerated, and how <code>--compare</code> marks changes</summary>
 
 Open a site's `report.html` in a browser: `transcripts/dvfr.illinois.gov/report.html`, say, or the path a run prints when it completes. It's a single self-contained file (no external assets) and is itself accessible.
 
@@ -926,7 +1106,12 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 
 **Compare.** `--compare previous` (or a run id) compares the pages both runs contain, marks changed pages, and links to line diffs of the transcripts (not the header blocks). Pages that appear in only one run are listed. If the two runs' environments differ (NVDA, browser, voicecap, NVDA settings, capture mode), the report says so prominently, because some changes may come from the tooling rather than the site.
 
+</details>
+
 ## The shareable page
+
+<details>
+<summary>What the page is, how voicecap writes it, which runs count, its sections, the fingerprint check, and what to know before you send it</summary>
 
 `share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they listened to, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network.
 
@@ -959,7 +1144,12 @@ Its sections, in order:
 
 **The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
 
+</details>
+
 ## Heuristic flags
+
+<details>
+<summary>Each flag and when it's raised, and how the rules can be changed</summary>
 
 Flags point a person at pages worth a closer listen. They never fail a page or change the exit code.
 
@@ -975,7 +1165,12 @@ Flags point a person at pages worth a closer listen. They never fail a page or c
 
 The rules, including the NVDA phrasing they match, live in the config (`flags`), and you can add your own phrase rules. The phrasing assumes NVDA's English interface. If you change the rules, `voicecap report` recomputes the flags from the transcripts, without running NVDA again.
 
+</details>
+
 ## Configuration
+
+<details>
+<summary>An example config file, and every setting with its default</summary>
 
 Put a `voicecap.config.ts` (or `.mts`, `.js`, `.mjs`, `.json`) in the folder you run voicecap from. Every setting is optional:
 
@@ -1024,7 +1219,12 @@ export default defineConfig({
 
 Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run.
 
+</details>
+
 ## Programmatic API
+
+<details>
+<summary>An example, and what <code>runAudit</code> and the other functions take and return</summary>
 
 ```ts
 import {
@@ -1048,7 +1248,12 @@ await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogg
 
 `runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person listened, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
 
+</details>
+
 ## Drivers
+
+<details>
+<summary>The <code>guidepup</code>, <code>replay</code>, and <code>at-driver</code> drivers, and why there's no VoiceOver driver yet</summary>
 
 A driver owns both the screen reader and the browser, so the rest of voicecap never touches Guidepup or Playwright. The `ScreenReaderDriver` interface (`src/drivers/types.ts`) is expressed in actions (open a page, next line, next heading, next focusable, to top, to bottom, focus checks); voicecap's core decides when a pass stops from what the driver returns, so replay exercises the same stop logic as a real run.
 
@@ -1058,7 +1263,12 @@ A driver owns both the screen reader and the browser, so the rest of voicecap ne
 
 There's no VoiceOver driver yet: it comes in a later release. Until then, the Mac's checks and live test drive VoiceOver through Guidepup directly, in `src/drivers/voiceover/`.
 
+</details>
+
 ## Updating Guidepup
+
+<details>
+<summary>The five steps for moving to a new Guidepup</summary>
 
 Guidepup changes its API across versions and releases often, so voicecap pins `@guidepup/guidepup` and `@guidepup/setup` exactly and upgrades them together:
 
@@ -1068,7 +1278,12 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 4. On Windows, run `pnpm test:nvda`: it runs voicecap with real NVDA on the fixture site and checks end-of-page detection, "no next heading", the tab pass starting at the skip link, and complete capture against Speech Viewer. Then `pnpm fixture:capture` replaces the fixture's recorded run; review the transcript changes with `git diff`, and update the flag phrasing in `src/config/defaults.ts` if NVDA's wording changed.
 5. For a temporary fix in Guidepup itself, use `pnpm patch @guidepup/guidepup` and `pnpm patch-commit` rather than forking it.
 
+</details>
+
 ## Known limitations
+
+<details>
+<summary>Timing, a portable NVDA, English phrasing, the computer being voicecap's during a run, and more</summary>
 
 - **Timing.** Driving a screen reader is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
@@ -1081,11 +1296,21 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 - **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
 
+</details>
+
 ## Future enhancements
+
+<details>
+<summary>Single-file executables for Windows and Mac, and what stands in the way</summary>
 
 **Single-file executables for Windows and Mac.** Node's single-executable build could package voicecap as one file per platform, so there would be no Node.js to install. It isn't built, and it takes more than packaging. voicecap's own files (the demo site, the shareable page's fonts, and Guidepup's files) would have to be embedded. `setup` installs Playwright's fallback browser by running Playwright's own installer, from the packages `npx` downloads today, so an executable would need another way to get it. The commands voicecap prints would name the executable in place of `npx @icjia/voicecap`, and the executable would need its own way to update. It would have to be signed, since Windows SmartScreen warns about unsigned downloads; on a Mac it would also need notarizing, and its Accessibility and Automation permissions, which belong to the terminal app today, would have to be sorted out. It would count as ready only once real NVDA and VoiceOver runs had been made with it, and each run would then record which build made it.
 
+</details>
+
 ## Development
+
+<details>
+<summary>The development commands, the test fixture, and where the specs and plans are</summary>
 
 | Command | What it does |
 | --- | --- |
@@ -1104,7 +1329,12 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 
 `docs/build-prompt.md` is the specification and `docs/plan.md` the approved plan. `docs/phase-b-handoff.md` and `docs/phase-c-handoff.md` are the notes for Phase B (the real NVDA driver) and Phase C (VoiceOver on the Mac), and `docs/superpowers/` holds the specs and plans for the audit record, `init`, and the readiness checks. `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
 
+</details>
+
 ### Publishing to npm
+
+<details>
+<summary>How <code>publish.sh</code> works, and what it checks before publishing</summary>
 
 Always publish with `publish.sh`, from an up-to-date `main`. It's a bash script, so on Windows run it from Git Bash. Add the release to `CHANGELOG.md` first (move items from `[Unreleased]` under `## [x.y.z] - date`).
 
@@ -1123,6 +1353,18 @@ It stops before publishing unless:
 - the packed tarball installs in a scratch project and `voicecap --version` prints the new version.
 
 It restores `package.json` if anything fails before publishing. After publishing it commits the version bump, tags `vX.Y.Z`, and pushes.
+
+</details>
+
+## Credits
+
+**A hat tip to [Guidepup](https://www.guidepup.dev/), where voicecap began.** Guidepup is Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap is built on it. voicecap starts the screen reader, presses its keys, and reads back what it said, all through Guidepup. The NVDA it runs is Guidepup's portable build.
+
+voicecap also stands on:
+
+- **[NVDA](https://www.nvaccess.org/)**, the free, open-source screen reader from NV Access, which does the reading on Windows;
+- **[Playwright](https://playwright.dev/)**, which opens each page in a real browser;
+- **[IBM Plex](https://github.com/IBM/plex)**, the typefaces in the shareable page, under the SIL Open Font License.
 
 ## License
 

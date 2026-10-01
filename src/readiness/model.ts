@@ -1,7 +1,7 @@
 /**
  * The screen-reader-neutral readiness model: what a platform's checks report, and what a
- * platform module (Mac or Windows) exposes so `init`, `doctor`, `setup`, and runs can use the
- * same checks. Types only; see render.ts for the text these are turned into.
+ * platform module (Mac or Windows) exposes so `preflight`, `init`, `doctor`, `setup`, and runs can
+ * use the same checks. Types only; see render.ts for the text these are turned into.
  */
 
 export type CheckStatus = "OK" | "WARN" | "FAIL";
@@ -57,8 +57,9 @@ export interface PlatformReadiness {
   /** Said before asking to run the live test. */
   readonly liveTestNotice: string[];
   /**
-   * Said just before the quick checks start, by init, doctor, and setup: on a Mac, a check can
-   * raise macOS's System Events prompt, and wait up to 60 seconds for it. Empty elsewhere.
+   * Said just before the quick checks start, by preflight, init, doctor, and setup: on a Mac, a
+   * check can raise macOS's System Events prompt, and wait up to 60 seconds for it. Empty
+   * elsewhere.
    */
   readonly checkingNotice: string[];
   machineInfo(): Promise<MachineInfo>;

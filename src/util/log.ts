@@ -1,8 +1,17 @@
 import { styleText } from "node:util";
 
+/**
+ * What a result line says: that something passed or failed. At a terminal, the console logger
+ * shows a passing line in green and a failing one in red. The words must say it too: color never
+ * carries the meaning alone.
+ */
+export type Outcome = "pass" | "fail";
+
+const OUTCOME_COLOR = { pass: "green", fail: "red" } as const;
+
 /** Where voicecap sends console messages. Commands take one so tests can capture output. */
 export interface Logger {
-  info(message: string): void;
+  info(message: string, outcome?: Outcome): void;
   warn(message: string): void;
   /** A warning the user must not miss, printed prominently. */
   alert(message: string): void;
@@ -26,7 +35,8 @@ export function createConsoleLogger(
   const paint = (stream: OutputStream, format: Parameters<typeof styleText>[0], text: string) =>
     color(stream) ? styleText(format, text) : text;
   return {
-    info: (message) => out.write(`${message}\n`),
+    info: (message, outcome) =>
+      out.write(`${outcome ? paint(out, OUTCOME_COLOR[outcome], message) : message}\n`),
     warn: (message) => err.write(`${paint(err, "yellow", `Warning: ${message}`)}\n`),
     alert: (message) => {
       const rule = "=".repeat(72);

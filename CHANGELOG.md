@@ -37,10 +37,14 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
   - `voicecap verify` leaves the `share/` folder alone: the page is made again from the records each time, and `verify` checks the records themselves.
   - The transcripts home's `.gitignore` keeps `share/current.*` out of Git, since it's written again after every run and review. voicecap never rewrites a `.gitignore` it wrote before, so add `**/share/current.*` to an older home's by hand.
 - **`report.siteName`**, a new setting: the site's name, as the shareable page's headline. It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, then the site's host name.
+- **`voicecap preflight`**: checks this computer and says how to fix anything that isn't ready, without starting the screen reader.
 
 ### Changed
 
 - **A page's `attempts` counts each attempt as it ends,** across sessions, those before a Ctrl+C included. An attempt that Ctrl+C stopped midway still isn't counted.
+- **The README starts with a Quick start in three steps:** check the computer with `voicecap preflight`, fix what it lists, then `voicecap init`. It says why voicecap is an npm package, why PowerShell is preferred to Git Bash on a PC, and why it's a command-line app. Its long reference sections are folded, each behind a line that says what's inside. It ends with Credits: a hat tip to Guidepup, where voicecap began, and to NVDA, Playwright, and IBM Plex.
+- **The README's Windows setup is written for PowerShell,** Windows Terminal's default. It says what to do when a new PC's PowerShell refuses to run `npx` ("running scripts is disabled on this system"). Git Bash still works: "Git Bash and paths that start with "/"" is its note.
+- **The fix for a Windows user folder that NVDA can't start from** (a space, or one of `& ( , ; = ^`, in its path) gives each command a step of its own. The commands are written the same for PowerShell and Git Bash, so each can be pasted as it is.
 
 ## [0.5.0] - 2026-09-30
 

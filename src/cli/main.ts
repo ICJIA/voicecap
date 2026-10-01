@@ -14,6 +14,7 @@ import { InterruptedError } from "../passes/steps.js";
 import { offerLiveTest } from "../readiness/guided.js";
 import type { PlatformReadiness } from "../readiness/model.js";
 import { runPreflight } from "../readiness/preflight.js";
+import { runPreflightCommand } from "../readiness/preflight-command.js";
 import { renderCheckingNotice, renderPreflight } from "../readiness/render.js";
 import { addReview } from "../reviews/review.js";
 import { runAudit } from "../run/audit.js";
@@ -43,11 +44,14 @@ export interface CliContext {
   /** Whether no arguments at all should start init. Default: stdin and stdout are both a terminal. */
   interactive: boolean;
   /**
-   * Tests: replaces the platform readiness check of doctor, init, and setup's preflight and live
-   * test.
+   * Tests: replaces the platform readiness check of preflight, doctor, init, and setup's preflight
+   * and live test.
    */
   platformReadiness?: () => Promise<PlatformReadiness>;
-  /** Which operating system's init, setup, and doctor to run; tests set it. Default: process.platform. */
+  /**
+   * Which operating system's init, setup, doctor, and preflight to run; tests set it. Default:
+   * process.platform.
+   */
   platform: NodeJS.Platform;
 }
 
@@ -509,6 +513,17 @@ Exit codes: 0 everything matches, 3 something recorded has changed, is missing, 
       } finally {
         prompter?.close();
       }
+    });
+
+  program
+    .command("preflight")
+    .description("check this computer is ready for a run, without starting the screen reader")
+    .action(async () => {
+      const again = "npx @icjia/voicecap preflight";
+      const platform = ctx.platformReadiness
+        ? await ctx.platformReadiness()
+        : await loadPlatform(ctx, logger, again);
+      setExit(await runPreflightCommand({ platform, logger, again }));
     });
 
   program

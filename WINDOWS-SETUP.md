@@ -6,7 +6,7 @@ This is the checklist for developing voicecap on a new Windows machine. (It was 
 
 **PowerShell only for step 1.** You're installing Git, and Git Bash doesn't exist until Git is installed.
 
-**Git Bash for everything after that**: installing pnpm and Claude Code, cloning the repository, running Claude Code, and running voicecap. Git Bash is the same bash you use on macOS and Ubuntu, voicecap's docs and scripts assume it, and Claude Code on Windows runs its commands through Git Bash anyway.
+**Git Bash for everything after that**: installing pnpm and Claude Code, cloning the repository, running Claude Code, and running voicecap. Git Bash is the same bash you use on macOS and Ubuntu, voicecap's development scripts assume it, and Claude Code on Windows runs its commands through Git Bash anyway. (To run voicecap, not develop it, the README's Windows setup uses PowerShell.)
 
 Both run inside **Windows Terminal**. New tabs of either kind open from the **`˅`** next to the **`+`** at the top.
 
@@ -91,4 +91,4 @@ Sign in when it asks (the first time only). Then paste this as your first messag
 - **`winget` isn't found** (PowerShell): update **App Installer** from the Microsoft Store, then try again.
 - **`node`, `npm`, or `git` isn't found** (Git Bash): you didn't restart Windows Terminal after step 1. Close it completely and open it again.
 - **A path like `/about` turns into `C:/Program Files/Git/about`** (Git Bash): Git Bash rewrites arguments that start with `/`. voicecap explains this when it happens. Use a full URL instead, or put `MSYS_NO_PATHCONV=1` in front of the command.
-- **Can I use PowerShell instead?** Most things work there too, but stay in Git Bash so the commands in the docs work exactly as written.
+- **Can I use PowerShell instead?** For running voicecap, yes: the README's commands are written for PowerShell. For developing it, stay in Git Bash so this checklist's commands and voicecap's scripts work exactly as written.
