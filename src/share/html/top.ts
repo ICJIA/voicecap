@@ -189,7 +189,10 @@ function resultsMeter({ bars }: Summary): string {
   return `<div class="meter"><h3>Every page's latest result</h3>${html}</div>`;
 }
 
-/** "Flags by rule": a row for each rule, as long as its count is against the most. */
+/**
+ * "Flags by rule": a row for each rule, as long as its count is against the most. A rule's count is
+ * how many times it was raised, once for each page and pass.
+ */
 function rulesMeter({ bars }: Summary): string {
   const { flagsByRule } = bars;
   const most = flagsByRule.reduce((top, { count: times }) => Math.max(top, times), 0);
@@ -201,7 +204,7 @@ function rulesMeter({ bars }: Summary): string {
     rows.length === 0
       ? '<p class="sub">No flags were raised.</p>'
       : `<div class="rules">${rows.join("")}</div>`;
-  return `<div class="meter"><h3>Flags by rule <span class="sub">times raised, in every pass</span></h3>${body}</div>`;
+  return `<div class="meter"><h3>Flags by rule <span class="sub">times each rule was raised, across pages and passes</span></h3>${body}</div>`;
 }
 
 /** A count out of its total in a row: "3/3" as it looks, and "3 of 3" as a screen reader says it. */

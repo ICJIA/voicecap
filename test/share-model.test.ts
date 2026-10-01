@@ -365,6 +365,46 @@ describe("buildShareModel", () => {
     });
   });
 
+  it("says a page whose read stopped before its end was transcribed, never read in full", () => {
+    const notFinished: FlagResult = {
+      rule: "read-not-finished",
+      pass: "read",
+      message:
+        "The read pass stopped at its step cap (2 steps) instead of reaching the end of the page.",
+    };
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        { path: "/", passes: { read: ["One", "Two"] } },
+        {
+          path: "/long",
+          passes: { read: ["One", "Two"] },
+          stopped: { read: "step-cap" },
+          flags: [notFinished],
+        },
+        // The repeat safety net stopped it, and the rule that flags that is turned off: the card
+        // says so all the same.
+        { path: "/looping", passes: { read: ["One", "One"] }, stopped: { read: "repeat-limit" } },
+      ],
+    });
+    const { pages } = buildShareModel(inputOf([run]));
+
+    expect(
+      pages.map((card) => [card.path, card.status, card.statusText, card.readStopped]),
+    ).toEqual([
+      ["/", "no-flags", "Transcribed", null],
+      ["/long", "flags", "Transcribed; its read stopped at the step limit", "step-cap"],
+      [
+        "/looping",
+        "no-flags",
+        "Transcribed; its read stopped before the end of the page",
+        "repeat-limit",
+      ],
+    ]);
+    // Never folded away as having nothing to note.
+    expect(pages.map((card) => card.needsAttention)).toEqual([false, true, true]);
+  });
+
   it("puts the person's review on each card, as far as the records show it", async () => {
     const siteDir = await tempOutDir();
     const paths = ["/", "/issue", "/fixed", "/changed", "/part", "/unreviewed"];

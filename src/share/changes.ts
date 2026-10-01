@@ -479,10 +479,11 @@ function sentences(input: {
       summaryLine: `${since} no page was read in full in both runs, so none could be compared.`,
     };
   }
+  // Only the pages read in full in both runs were compared, so the line says it of those.
   if (changed.length === 0) {
     return {
       line: "Every page read in full in both runs sounds exactly the same.",
-      summaryLine: `${since}${speaksFor} every page sounds the same.`,
+      summaryLine: `${since}${speaksFor} every page read in full in both runs sounds the same.`,
     };
   }
 

@@ -3,7 +3,7 @@
  * panels, and three bars. Pure: every part is worked out from records already read.
  */
 import type { FlagResult, RunJson, SkipReason } from "../model.js";
-import { attentionClauses } from "./attention.js";
+import { attentionClauses, type ReadFailure } from "./attention.js";
 import type { Changes } from "./changes.js";
 import { dateRange, names } from "./format.js";
 import { PHRASES, type ProblemsSection } from "./problems.js";
@@ -13,7 +13,7 @@ import type { PageStanding, Standing } from "./standing.js";
 export interface Summary {
   /** The result in one sentence, leading with the person's review as far as the records show it. */
   sentence: string;
-  /** Fixed. */
+  /** Fixed: what voicecap does, and what the person running it does, in the present tense. */
   second: string;
   numbers: {
     pagesInScope: number;
@@ -28,9 +28,10 @@ export interface Summary {
     nvdaMs: number;
   };
   /**
-   * "What needs attention": each page with flags, a failure, or an open issue. `slug` is the page's,
-   * to link its card. `clauses` is what a listener hears on it, "<what>; <what>", so `name` and
-   * `clauses` make `attentionLine`'s line.
+   * "What needs attention": each page with flags, an open issue, or a failure in the latest run
+   * (whether or not an earlier run's transcripts are shown). `slug` is the page's, to link its card.
+   * `clauses` is what a listener hears on it, "<what>; <what>", so `name` and `clauses` make
+   * `attentionLine`'s line.
    */
   attention: { slug: string; name: string; clauses: string }[];
   /** "How complete the test was". */
@@ -42,7 +43,10 @@ export interface Summary {
   bars: {
     /** Each page's latest result: transcribed with no flags, with flags, or never transcribed. */
     results: { done: number; flagged: number; never: number };
-    /** How many times each rule was raised, in every pass of every page, most often first. */
+    /**
+     * How many times each rule was raised: once for each page and pass it was raised in, whatever
+     * the flag's own count (links, items, stops, or repeats, by rule), most often first.
+     */
     flagsByRule: { rule: string; count: number }[];
     /** Each count out of its total: pages transcribed, or issues found. */
     review: { listened: [number, number]; reviewed: [number, number]; fixed: [number, number] };
@@ -67,8 +71,12 @@ export interface SummaryInput {
   nvdaMs: number;
 }
 
+/**
+ * What voicecap does and what the person running it does, in the present tense: it describes the
+ * method, so it claims no listening or review the records may not show.
+ */
 const SECOND_LINE =
-  "A human review, sped up: voicecap pressed NVDA's keys and moved from page to page; a person did the listening, the reading, and the deciding.";
+  "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.";
 
 const NO_RUN =
   "No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.";
@@ -82,6 +90,12 @@ interface PageFacts {
   /** The flags of the transcripts shown; none when none are shown. */
   flags: FlagResult[];
   review: PageReview | null;
+  /**
+   * Why the latest run couldn't read it, when it failed there: whether or not an earlier run's
+   * transcripts are shown (`shownFrom`), an older read doesn't settle what the latest run couldn't
+   * do.
+   */
+  failure: ReadFailure | null;
 }
 
 /**
@@ -107,6 +121,21 @@ export function summaryOf(input: SummaryInput): Summary {
   const latest = standing.latest;
   if (latest === null) return emptySummary();
 
+  /**
+   * Why the latest run that tried a page couldn't read it (the latest, or a spot check after it), as
+   * its last problem there says; null when that run read it.
+   */
+  const failureOf = (page: PageStanding): ReadFailure | null => {
+    const failed = page.latestFailure;
+    if (failed?.page.status !== "failed") return null;
+    const last = problems.problems.findLast(
+      (problem) => problem.run === failed.run.id && problem.page.key === page.key,
+    );
+    return {
+      kind: last === undefined ? "" : PHRASES[last.kind],
+      shownFrom: page.shown?.run.id ?? null,
+    };
+  };
   const pages = standing.pages.map((page): PageFacts => {
     const transcribed = page.shown !== null;
     return {
@@ -115,6 +144,7 @@ export function summaryOf(input: SummaryInput): Summary {
       transcribed,
       flags: transcribed ? (input.flags.get(page.key) ?? []) : [],
       review: input.review.get(page.key) ?? null,
+      failure: failureOf(page),
     };
   });
   const transcribed = pages.filter((facts) => facts.transcribed);
@@ -134,17 +164,15 @@ export function summaryOf(input: SummaryInput): Summary {
   // Pages with no transcripts whose latest record is a failure, or a skip after loading.
   const unread = pages.filter((facts) => !facts.transcribed && outcomeOf(facts) === "failed");
   const skipped = pages.filter((facts) => !facts.transcribed && outcomeOf(facts) === "skipped");
-  // A page the latest run skipped is a task whether or not an earlier run's transcripts are shown.
+  // A page the latest run failed or skipped is a task whether or not an earlier run's transcripts
+  // are shown: an older read doesn't settle what the latest run couldn't do.
+  const readBefore = pages.flatMap(({ name, failure }) =>
+    failure?.shownFrom ? [{ name, kind: failure.kind, shownFrom: failure.shownFrom }] : [],
+  );
   const skippedInLatest = pages.filter((facts) => outcomeOf(facts) === "skipped");
 
-  const failureKind = ({ page }: PageFacts): string => {
-    const last = problems.problems.findLast(
-      (problem) => problem.run === latest.id && problem.page.key === page.key,
-    );
-    return last === undefined ? "" : PHRASES[last.kind];
-  };
   const attention = pages.flatMap((facts) => {
-    const failure = unread.includes(facts) ? failureKind(facts) : null;
+    const { failure } = facts;
     const issue = hasOpenIssue(facts) ? (facts.review?.latest?.note ?? "") : null;
     if (facts.flags.length === 0 && failure === null && issue === null) return [];
     return [
@@ -190,7 +218,14 @@ export function summaryOf(input: SummaryInput): Summary {
       ...(unread.length > 0 ? [`Couldn't be read after every attempt: ${unread.length}.`] : []),
       ...(skipped.length > 0 ? [`Skipped, not read: ${skipped.length}.`] : []),
     ],
-    todo: todoOf({ withIssue, toRecord, unread, skipped: skippedInLatest, undecided }),
+    todo: todoOf({
+      withIssue,
+      toRecord,
+      unread,
+      readBefore,
+      skipped: skippedInLatest,
+      undecided,
+    }),
     whenHow: whenHowOf(latest),
     bars: {
       results: {
@@ -421,6 +456,11 @@ interface Tasks {
   toRecord: PageFacts[];
   /** No transcripts: every attempt at the page failed. */
   unread: PageFacts[];
+  /**
+   * The latest run couldn't read the page, and an earlier run's transcripts are shown: the page's
+   * name, the kind of failure in words ("" when not recorded), and the run they come from.
+   */
+  readBefore: { name: string; kind: string; shownFrom: string }[];
   /** The latest run skipped the page after loading it, with or without older transcripts. */
   skipped: PageFacts[];
   /** Flags no one has decided about. */
@@ -428,11 +468,12 @@ interface Tasks {
 }
 
 /**
- * What's still to do, as a task for each issue to fix or to record the fix of, page to read again,
- * page that was skipped, and flagged page to decide about; or that nothing is left. Nothing is left
- * only when every issue found is fixed and no page is open, unread, skipped, or undecided.
+ * What's still to do, as a task for each issue to fix or to record the fix of, page to read again
+ * (none of its runs read it, or the latest couldn't), page that was skipped, and flagged page to
+ * decide about; or that nothing is left. Nothing is left only when every issue found is fixed and
+ * no page is open, unread, failed or skipped in the latest run, or undecided.
  */
-function todoOf({ withIssue, toRecord, unread, skipped, undecided }: Tasks): string[] {
+function todoOf({ withIssue, toRecord, unread, readBefore, skipped, undecided }: Tasks): string[] {
   const todo: string[] = [];
   if (withIssue.length > 0) {
     const one = withIssue.length === 1;
@@ -451,7 +492,7 @@ function todoOf({ withIssue, toRecord, unread, skipped, undecided }: Tasks): str
       `Run voicecap again on ${pageList(unread)}: ${unread.length === 1 ? "it" : "they"} couldn't be read after every attempt.`,
     );
   }
-  todo.push(...skippedTasks(skipped));
+  todo.push(...readAgainTasks(readBefore), ...skippedTasks(skipped));
   if (undecided.length > 0) {
     todo.push(
       `Take a closer listen to ${pageList(undecided)}, where flags were raised, and record what you decide.`,
@@ -476,9 +517,31 @@ export const SKIP_REASONS: Record<SkipReason, string> = {
 };
 
 /**
+ * A task for each of `items`, up to `NAMED` of them; past that, one for each of the first
+ * `NAMED - 1`, and `rest` with how many more there are.
+ */
+function upToNamed<T>(items: T[], task: (item: T) => string, rest: (more: number) => string) {
+  if (items.length <= NAMED) return items.map(task);
+  return [...items.slice(0, NAMED - 1).map(task), rest(items.length - (NAMED - 1))];
+}
+
+/**
+ * A task for each page the latest run couldn't read, whose transcripts are from an earlier run: what
+ * stopped it, as its problems say, and the run the transcripts come from.
+ */
+function readAgainTasks(pages: Tasks["readBefore"]): string[] {
+  return upToNamed(
+    pages,
+    ({ name, kind, shownFrom }) =>
+      `${name} couldn't be read in the latest run${kind === "" ? "" : ` (${kind})`}. Its transcripts are from run ${shownFrom}. Read it again.`,
+    (more) => `And ${more} more pages couldn't be read in the latest run. Read them again.`,
+  );
+}
+
+/**
  * A task for each page the latest run skipped: whether it belongs on the list is for a person to
  * decide. Each says why, as its record does, and when the page's transcripts are from an earlier
- * run, that they are; past `NAMED` pages, the first three and a count.
+ * run, that they are.
  */
 function skippedTasks(skipped: PageFacts[]): string[] {
   const task = ({ name, page, transcribed }: PageFacts): string => {
@@ -490,27 +553,29 @@ function skippedTasks(skipped: PageFacts[]): string[] {
       ? `${name} was skipped in the latest run${because}. Its transcripts are from an earlier run. Check whether it belongs on the list.`
       : `${name} was skipped${because}. Check whether it belongs on the list.`;
   };
-  if (skipped.length <= NAMED) return skipped.map(task);
-  const more = skipped.length - 3;
-  return [
-    ...skipped.slice(0, 3).map(task),
-    `And ${more} more pages were skipped. Check whether they belong on the list.`,
-  ];
+  return upToNamed(
+    skipped,
+    task,
+    (more) => `And ${more} more pages were skipped. Check whether they belong on the list.`,
+  );
 }
 
 /** Pages by name: "A", "A and B", "A, B, and C", and past `NAMED`, the first three and a count. */
 function pageList(pages: PageFacts[]): string {
   const list = pages.map(({ name }) => name);
   if (list.length <= NAMED) return names(list);
-  return names([...list.slice(0, 3), `${list.length - 3} more`]);
+  return names([...list.slice(0, NAMED - 1), `${list.length - (NAMED - 1)} more`]);
 }
 
-/** How many times each rule was raised on the pages with flags, most often first. */
+/**
+ * How many times each rule was raised on the pages with flags, most often first: each flag once (a
+ * rule raised on a page in a pass), since a flag's own count means something different for each
+ * rule, and adding them up would add links to repeats.
+ */
 function flagsByRule(flagged: PageFacts[]): { rule: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const { flags } of flagged) {
-    for (const flag of flags)
-      counts.set(flag.rule, (counts.get(flag.rule) ?? 0) + (flag.count ?? 1));
+    for (const flag of flags) counts.set(flag.rule, (counts.get(flag.rule) ?? 0) + 1);
   }
   return [...counts]
     .map(([rule, count]) => ({ rule, count }))

@@ -852,11 +852,11 @@ describe("renderProblems", () => {
       expect(html).toMatch(/^<section aria-labelledby="prob-h">\s*<h2 id="prob-h">/);
       expect(html).toContain('<h2 id="prob-h">Problems during the runs</h2>');
       expect(model.problems.line).toBe(
-        "2 problems, both outside voicecap: another window took the screen. Neither happened again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.",
+        "2 problems, both outside voicecap: another window took the screen. 1 didn't happen again, and 1 wasn't tried again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.",
       );
       expect(textOf(html)).toContain(model.problems.line);
       expect(html).toContain(
-        '<p class="prob-verdict"><b>2 problems, both outside voicecap: another window took the screen.</b> Neither happened again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.</p>',
+        '<p class="prob-verdict"><b>2 problems, both outside voicecap: another window took the screen.</b> 1 didn&#39;t happen again, and 1 wasn&#39;t tried again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.</p>',
       );
     });
 
@@ -867,7 +867,7 @@ describe("renderProblems", () => {
       expect(html.match(/<details class="fold problem" id="[^"]+">/g)).toHaveLength(2);
       expect(summariesIn(html)).toEqual([
         "Run 2026-09-29_1315 · /the-report/ time not recorded Another window came to the front Didn't happen again",
-        "Run 2026-09-29_1402 · /how-a-run-works/ time not recorded Another window came to the front Didn't happen again",
+        "Run 2026-09-29_1402 · /how-a-run-works/ time not recorded Another window came to the front Not tried again",
         "How voicecap tells causes apart 9 kinds of problem, and whose each is",
       ]);
       // Each starts closed: a problem opens to show its record.

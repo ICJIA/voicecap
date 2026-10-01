@@ -762,7 +762,7 @@ describe("problemsOf: did it happen again?", () => {
     });
   });
 
-  it("says no, read in full in another run", () => {
+  it("says no only when a later run read the page in full; an earlier one doesn't say", () => {
     const failedFirst = shareRun({
       id: "r1",
       createdAt: "2026-09-20T09:30:00-05:00",
@@ -781,43 +781,57 @@ describe("problemsOf: did it happen again?", () => {
     });
     const { problems } = problemsFor(failedFirst, failedLast);
 
+    // Nothing that came after r2's failure read /b: that r1 read it before shows nothing about it.
     expect(problems.map((problem) => [problem.run, pathOf(problem), problem.verdict])).toEqual([
       ["r1", "/a", "No: read in full in run r2."],
-      ["r2", "/b", "No: read in full in run r1."],
+      [
+        "r2",
+        "/b",
+        "Not known: this run didn't try the page again; run r1, before it, read it in full.",
+      ],
     ]);
-    expect(problems.map((problem) => problem.again)).toEqual(["no", "no"]);
+    expect(problems.map((problem) => problem.again)).toEqual(["no", "unknown"]);
   });
 
-  it("names the newest of the other runs that read the page in full", () => {
+  it("names the nearest run that read the page in full: the next after it, else the last before", () => {
     const attempt = (path: string) => ({
       path,
       status: "failed" as const,
       failedAttempts: [failedAttempt({ n: 1 })],
     });
-    // /other keeps the first run among those the standing draws on: it's where /other was last read.
+    // /x keeps the first run among those the standing draws on: it's where /x was last read.
     const { problems } = problemsFor(
       shareRun({
         id: "ra",
         createdAt: "2026-09-18T09:30:00-05:00",
-        pages: [{ path: "/a" }, { path: "/other" }],
+        pages: [attempt("/a"), { path: "/x" }],
       }),
       shareRun({
         id: "rb",
         createdAt: "2026-09-20T09:30:00-05:00",
-        pages: [attempt("/a"), attempt("/other")],
+        pages: [{ path: "/a" }, attempt("/x")],
       }),
       shareRun({
         id: "rc",
         createdAt: "2026-09-26T14:05:00-05:00",
-        pages: [{ path: "/a" }, attempt("/other")],
+        pages: [{ path: "/a" }, attempt("/x")],
       }),
     );
 
     expect(problems.map((problem) => [problem.run, pathOf(problem), problem.verdict])).toEqual([
-      ["rb", "/a", "No: read in full in run rc."],
-      ["rb", "/other", "No: read in full in run ra."],
-      ["rc", "/other", "No: read in full in run ra."],
+      ["ra", "/a", "No: read in full in run rb."],
+      [
+        "rb",
+        "/x",
+        "Not known: this run didn't try the page again; run ra, before it, read it in full.",
+      ],
+      [
+        "rc",
+        "/x",
+        "Not known: this run didn't try the page again; run ra, before it, read it in full.",
+      ],
     ]);
+    expect(problems.map((problem) => problem.again)).toEqual(["no", "unknown", "unknown"]);
   });
 
   it("says yes, then read in full, when the next attempt failed the same way and the page got through", () => {
@@ -1155,7 +1169,21 @@ describe("problemsOf: did it happen again?", () => {
     expect(problems.map((problem) => problem.again)).toEqual(["unknown", "unknown", "unknown"]);
   });
 
-  it("says no, not unknown, once another run the standing draws on read the page in full", () => {
+  it("says no, not unknown, once a later run the standing draws on read the page in full", () => {
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
+    });
+    const latest = shareRun({ id: "r2", pages: [{ path: "/a" }] });
+    const { problems } = problemsFor(earlier, latest);
+
+    expect(problems.map((problem) => [problem.verdict, problem.again])).toEqual([
+      ["No: read in full in run r2.", "no"],
+    ]);
+  });
+
+  it("says it isn't known, naming the run before, when only an earlier run read the page in full", () => {
     const earlier = shareRun({
       id: "r1",
       createdAt: "2026-09-20T09:30:00-05:00",
@@ -1165,11 +1193,17 @@ describe("problemsOf: did it happen again?", () => {
       id: "r2",
       pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
     });
-    const { problems } = problemsFor(earlier, latest);
+    const { problems, line } = problemsFor(earlier, latest);
 
     expect(problems.map((problem) => [problem.verdict, problem.again])).toEqual([
-      ["No: read in full in run r1.", "no"],
+      [
+        "Not known: this run didn't try the page again; run r1, before it, read it in full.",
+        "unknown",
+      ],
     ]);
+    expect(line).toBe(
+      "1 problem, outside voicecap: another window took the screen. It wasn't tried again. It wasn't an unexpected error, the kind that could mean a problem in voicecap itself.",
+    );
   });
 
   it("says when a later attempt loaded the page and voicecap skipped it", () => {
@@ -1630,11 +1664,11 @@ describe("problemsOf: the effect, and the record", () => {
 
 describe("problemsOf: the verdict line", () => {
   /**
-   * Runs in which each page fails once, with the cause given. Unless `readBefore` is false, an
-   * earlier run read every page in full, so none of the problems happened again; without it, the
-   * one attempt is all there is, and nothing says what would have come after it.
+   * Runs in which each page fails once, with the cause given. Unless `readAfter` is false, a later
+   * run read every page in full, so none of the problems happened again; without it, the one
+   * attempt is all there is, and nothing says what would have come after it.
    */
-  const failing = (causes: FailureCause[], { readBefore = true } = {}): RunJson[] => {
+  const failing = (causes: FailureCause[], { readAfter = true } = {}): RunJson[] => {
     const failed = shareRun({
       id: "failed",
       pages: causes.map((cause, index) => ({
@@ -1645,12 +1679,12 @@ describe("problemsOf: the verdict line", () => {
         ],
       })),
     });
-    const before = shareRun({
-      id: "before",
-      createdAt: "2026-09-20T09:30:00-05:00",
+    const after = shareRun({
+      id: "after",
+      createdAt: "2026-09-27T09:30:00-05:00",
       pages: causes.map((cause, index) => ({ path: `/${index}-${cause}` })),
     });
-    return readBefore ? [before, failed] : [failed];
+    return readAfter ? [failed, after] : [failed];
   };
 
   /** A page that failed, one attempt for each cause given, and was never read in full here. */
@@ -1661,16 +1695,16 @@ describe("problemsOf: the verdict line", () => {
       failedAttempt({ n: index + 1, cause, restarted: true }),
     ),
   });
-  /** The latest run has these pages, and an earlier run read the paths given in full. */
-  const runsWith = (pages: SharePageSpec[], readEarlier: string[] = []): RunJson[] => {
-    const latest = shareRun({ id: "latest", pages });
-    if (readEarlier.length === 0) return [latest];
-    const earlier = shareRun({
-      id: "earlier",
-      createdAt: "2026-09-20T09:30:00-05:00",
-      pages: readEarlier.map((path) => ({ path })),
+  /** A run with these pages, and a later run that read the paths given in full. */
+  const runsWith = (pages: SharePageSpec[], readLater: string[] = []): RunJson[] => {
+    const failing = shareRun({ id: "failing", pages });
+    if (readLater.length === 0) return [failing];
+    const later = shareRun({
+      id: "later",
+      createdAt: "2026-09-27T09:30:00-05:00",
+      pages: readLater.map((path) => ({ path })),
     });
-    return [earlier, latest];
+    return [failing, later];
   };
   /** The sentence of a verdict line that says what became of the problems. */
   const againOf = (line: string) => line.split(". ")[1];
@@ -1684,6 +1718,38 @@ describe("problemsOf: the verdict line", () => {
       line: "No problems during the runs: every page was read in full.",
       unexpected: 0,
     });
+  });
+
+  it("says no problems, but never that every page was read in full, when a read stopped short", () => {
+    // A read that stopped at its step limit, or one the repeat safety net stopped, was transcribed,
+    // but not read to the page's end.
+    const stoppedAt = (...stops: ("step-cap" | "repeat-limit")[]) =>
+      problemsFor(
+        shareRun({
+          id: "r1",
+          pages: [
+            { path: "/", passes: { read: ["One"] } },
+            ...stops.map((stop, index) => ({
+              path: `/long-${index + 1}`,
+              passes: { read: ["One", "Two"] },
+              stopped: { read: stop },
+            })),
+          ],
+        }),
+      ).line;
+
+    expect(stoppedAt("step-cap")).toBe(
+      "No problems during the runs: no attempt failed. 1 page was transcribed; its read stopped at the step limit.",
+    );
+    expect(stoppedAt("step-cap", "step-cap")).toBe(
+      "No problems during the runs: no attempt failed. 2 pages were transcribed; their reads stopped at the step limit.",
+    );
+    expect(stoppedAt("repeat-limit")).toBe(
+      "No problems during the runs: no attempt failed. 1 page was transcribed; its read stopped before the end of the page.",
+    );
+    expect(stoppedAt("step-cap", "repeat-limit", "repeat-limit")).toBe(
+      "No problems during the runs: no attempt failed. 1 page was transcribed; its read stopped at the step limit. 2 pages were transcribed; their reads stopped before the end of the page.",
+    );
   });
 
   it("says so when there were no problems, but pages weren't read", () => {
@@ -1769,7 +1835,7 @@ describe("problemsOf: the verdict line", () => {
     const section = problemsFor(demoRun("1315"), demoRun("1402"));
 
     expect(section.line).toBe(
-      "2 problems, both outside voicecap: another window took the screen. Neither happened again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.",
+      "2 problems, both outside voicecap: another window took the screen. 1 didn't happen again, and 1 wasn't tried again. Neither was an unexpected error, the kind that could mean a problem in voicecap itself.",
     );
     expect(section.unexpected).toBe(0);
     expect(section.problems).toHaveLength(2);
@@ -1807,8 +1873,9 @@ describe("problemsOf: the verdict line", () => {
       kind: "foreground",
       pass: "headings",
       happened: "During the headings pass, another window took the screen.",
-      verdict: "No: read in full in run 2026-09-29_1315.",
-      again: "no",
+      verdict:
+        "Not known: this run didn't try the page again; run 2026-09-29_1315, before it, read it in full.",
+      again: "unknown",
       effect:
         "No transcripts from this run: the page failed. The partial transcripts it left are in pages/how-a-run-works-fd116f9328/.",
       record: [{ time: null, source: "run.json", entry: `headings pass: ${FOREGROUND}` }],
@@ -1843,10 +1910,10 @@ describe("problemsOf: the verdict line", () => {
   });
 
   it("says when a problem wasn't tried again, which isn't that it didn't happen again", () => {
-    const one = problemsFor(...failing(["foreground"], { readBefore: false }));
-    const two = problemsFor(...failing(["foreground", "locked"], { readBefore: false }));
+    const one = problemsFor(...failing(["foreground"], { readAfter: false }));
+    const two = problemsFor(...failing(["foreground", "locked"], { readAfter: false }));
     const three = problemsFor(
-      ...failing(["foreground", "locked", "foreground"], { readBefore: false }),
+      ...failing(["foreground", "locked", "foreground"], { readAfter: false }),
     );
 
     expect(one.line).toBe(
@@ -1862,7 +1929,7 @@ describe("problemsOf: the verdict line", () => {
 
   // A page that failed more than once, and never got through, has every problem happened again.
   // A page that got through after a failure has that failure happened again, and the one before the
-  // read didn't. A page tried once is "didn't" if another run read the page in full, and "wasn't
+  // read didn't. A page tried once is "didn't" if a later run read the page in full, and "wasn't
   // tried again" if not.
   it.each<[string, () => RunJson[], string]>([
     [

@@ -84,12 +84,15 @@ function titleLine({ title }: PageCard): string {
   return text === "" ? "" : small(`Title: ${text}`);
 }
 
-/** The result's color: red for a page that failed or never had transcripts, amber for a skip. */
+/**
+ * The result's color: red for a page that failed or never had transcripts, amber for a skip or a
+ * read that stopped before the page's end.
+ */
 function resultKind(card: PageCard): Kind {
   switch (card.status) {
     case "no-flags":
     case "flags":
-      return "ok";
+      return card.readStopped === null ? "ok" : "warn";
     case "skipped":
       return card.counts === null ? "bad" : "warn";
     case "failed":
@@ -180,7 +183,8 @@ const cardsBox = (cards: string[]): string => `<div class="cards">${cards.join("
 
 /**
  * The line that opens "Every page": how many pages there are and how many were read in full in the
- * latest run, then what each card has.
+ * latest run, then what each card has. A page whose read stopped before its end was transcribed,
+ * but never counts as read in full.
  */
 function pagesGist({ pages, header }: ShareModel): string {
   if (pages.length === 0) {
@@ -190,9 +194,11 @@ function pagesGist({ pages, header }: ShareModel): string {
   }
   const total = pages.length;
   const of = (status: PageCard["status"]) => pages.filter((card) => card.status === status).length;
-  const read = of("no-flags") + of("flags");
+  const transcribed = pages.filter(({ status }) => status === "no-flags" || status === "flags");
+  const read = transcribed.filter((card) => card.readStopped === null).length;
   const results = [
     [read, "read in full"],
+    [transcribed.length - read, "transcribed but not in full"],
     [of("failed"), "failed in the latest run"],
     [of("skipped"), "skipped in the latest run"],
     [of("never"), "never transcribed"],

@@ -419,7 +419,7 @@ describe("attentionLine", () => {
       attentionLine(
         "The report",
         [genericFlag("tab", [{ text: "read more", count: 2 }])],
-        "another window took the screen",
+        { kind: "another window took the screen", shownFrom: null },
         "The search box has no name.",
       ),
     ).toBe(
@@ -428,10 +428,26 @@ describe("attentionLine", () => {
   });
 
   it("says a failure without its kind, and an issue without its note, as far as it goes", () => {
-    expect(attentionLine("The report", [], "", null)).toBe(
+    expect(attentionLine("The report", [], { kind: "", shownFrom: null }, null)).toBe(
       "The report: it couldn't be read after every attempt",
     );
     expect(attentionLine("The report", [], null, "")).toBe("The report: a reviewer found an issue");
+  });
+
+  it("says the latest run couldn't read a page whose transcripts are from an earlier run", () => {
+    expect(
+      attentionLine(
+        "The report",
+        [genericFlag("tab", [{ text: "read more", count: 2 }])],
+        { kind: "another window took the screen", shownFrom: "2026-09-25_1000" },
+        null,
+      ),
+    ).toBe(
+      "The report: 2 links say only “read more”; the latest run couldn't read it (another window took the screen); its transcripts are from run 2026-09-25_1000",
+    );
+    expect(attentionLine("The report", [], { kind: "", shownFrom: "2026-09-25_1000" }, null)).toBe(
+      "The report: the latest run couldn't read it; its transcripts are from run 2026-09-25_1000",
+    );
   });
 
   it("keeps a reviewer's note to one line", () => {
@@ -447,7 +463,9 @@ describe("attentionLine", () => {
   it("gives the clauses alone, for a page's line to follow its name", () => {
     const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
 
-    expect(attentionClauses(flags, "another window took the screen", "")).toBe(
+    expect(
+      attentionClauses(flags, { kind: "another window took the screen", shownFrom: null }, ""),
+    ).toBe(
       "2 links say only “read more”; it couldn't be read after every attempt (another window took the screen); a reviewer found an issue",
     );
     expect(attentionLine("Page", flags, null, null)).toBe(
@@ -1239,8 +1257,19 @@ describe("summaryOf: the sentence", () => {
       "NVDA read all 7 pages, run by Christopher Schweda. No flags were raised, and no issues were found.",
     );
     expect(summary.numbers.transcribed).toBe(7);
-    expect(summary.attention).toEqual([]);
     expect(summary.bars.results).toEqual({ done: 7, flagged: 0, never: 0 });
+    // Read, from the earlier run: and the latest run's failure is still said, and still a task.
+    expect(summary.attention).toEqual([
+      {
+        slug: slugOf("/how-a-run-works/"),
+        name: "How a run works",
+        clauses:
+          "the latest run couldn't read it (another window took the screen); its transcripts are from run r1",
+      },
+    ]);
+    expect(summary.todo).toEqual([
+      "How a run works couldn't be read in the latest run (another window took the screen). Its transcripts are from run r1. Read it again.",
+    ]);
   });
 });
 
@@ -1289,12 +1318,14 @@ describe("summaryOf: the numbers and the bars", () => {
     expect(summarize({ runs: [run] }).bars.results).toEqual({ done: 4, flagged: 2, never: 1 });
   });
 
-  it("counts how many times each rule was raised, in every pass, most often first", () => {
+  it("counts how many times each rule was raised, once for each page and pass, most often first", () => {
+    // Common mistakes raised generic-link-text and unlabeled in two passes each, and headings once;
+    // Ask a question raised repeated-phrase once, whatever its own count of five in a row says.
     expect(summarize({ runs: [run] }).bars.flagsByRule).toEqual([
-      { rule: "generic-link-text", count: 6 },
-      { rule: "repeated-phrase", count: 5 },
-      { rule: "unlabeled", count: 3 },
+      { rule: "generic-link-text", count: 2 },
+      { rule: "unlabeled", count: 2 },
       { rule: "headings", count: 1 },
+      { rule: "repeated-phrase", count: 1 },
     ]);
   });
 
@@ -1306,17 +1337,26 @@ describe("summaryOf: the numbers and the bars", () => {
     });
 
     expect(summarize({ runs: [tied] }).bars.flagsByRule).toEqual([
-      { rule: "apple", count: 2 },
-      { rule: "zebra", count: 2 },
+      { rule: "apple", count: 1 },
+      { rule: "zebra", count: 1 },
     ]);
   });
 
-  it("counts a flag with no count of its own once", () => {
+  it("counts each flag once, whether or not it has a count of its own", () => {
+    // A flag's own count means something different for each rule: links, items, stops, or repeats.
     const once = sevenPages({
-      page: (path) => (path === "/" ? { flags: [headingsFlag([])] } : {}),
+      page: (path) =>
+        path === "/"
+          ? { flags: [headingsFlag([]), genericFlag("read", [{ text: "click here", count: 4 }])] }
+          : path === COMMON
+            ? { flags: [genericFlag("read", [{ text: "read more", count: 3 }])] }
+            : {},
     });
 
-    expect(summarize({ runs: [once] }).bars.flagsByRule).toEqual([{ rule: "headings", count: 1 }]);
+    expect(summarize({ runs: [once] }).bars.flagsByRule).toEqual([
+      { rule: "generic-link-text", count: 2 },
+      { rule: "headings", count: 1 },
+    ]);
   });
 
   it("gives the human review out of its totals", () => {
@@ -1723,7 +1763,7 @@ describe("summaryOf: the panels", () => {
 
   it("is the same second line every time", () => {
     const second =
-      "A human review, sped up: voicecap pressed NVDA's keys and moved from page to page; a person did the listening, the reading, and the deciding.";
+      "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.";
 
     expect(summarize({ runs: [sevenPages()] }).second).toBe(second);
     expect(summarize({ runs: [] }).second).toBe(second);
@@ -1928,6 +1968,162 @@ describe("summaryOf: pages that were skipped", () => {
   });
 });
 
+describe("summaryOf: pages the latest run couldn't read, shown from an earlier run", () => {
+  /** The page the latest run lost, as its record names it. */
+  const A = new URL("/a", SITE).href;
+
+  /** What voicecap 0.5.0 wrote, as text, when another window took the screen during the read pass. */
+  const FOREGROUND =
+    "read pass: The browser lost the foreground to another window, so this step's keystroke and speech were discarded.";
+
+  /**
+   * The final review's case: a run on 1 September read both pages, and the run on 30 September,
+   * made with voicecap 0.5.0, lost /a to another window, so /a shows the first run's transcripts.
+   */
+  const reviewCase = (): RunJson[] => [
+    shareRun({
+      id: "2026-09-01_1000",
+      createdAt: "2026-09-01T10:00:00-05:00",
+      voicecapVersion: "0.5.0",
+      pages: [{ path: "/" }, { path: "/a" }],
+    }),
+    shareRun({
+      id: "2026-09-30_1000",
+      createdAt: "2026-09-30T10:00:00-05:00",
+      voicecapVersion: "0.5.0",
+      pages: [{ path: "/" }, { path: "/a", status: "failed", attempts: 1, errors: [FOREGROUND] }],
+    }),
+  ];
+
+  it("says the latest run's failure in what needs attention, and makes it a task", () => {
+    const summary = summarize({ runs: reviewCase() });
+
+    expect(summary.sentence).toBe(
+      "NVDA read all 2 pages. No flags were raised, and no issues were found.",
+    );
+    expect(summary.attention).toEqual([
+      {
+        slug: slugOf("/a"),
+        name: A,
+        clauses:
+          "the latest run couldn't read it (another window took the screen); its transcripts are from run 2026-09-01_1000",
+      },
+    ]);
+    expect(summary.todo).toEqual([
+      `${A} couldn't be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-01_1000. Read it again.`,
+    ]);
+    // So nothing is left only when it's so.
+    expect(summary.todo).not.toContain(NOTHING_LEFT);
+  });
+
+  it("says it without the kind when the latest run's record doesn't say why", () => {
+    const [first] = reviewCase();
+    if (first === undefined) throw new Error("No runs");
+    const silent = shareRun({
+      id: "2026-09-30_1000",
+      createdAt: "2026-09-30T10:00:00-05:00",
+      pages: [{ path: "/" }, { path: "/a", status: "failed" }],
+    });
+
+    const summary = summarize({ runs: [first, silent] });
+
+    expect(summary.attention.map((item) => item.clauses)).toEqual([
+      "the latest run couldn't read it; its transcripts are from run 2026-09-01_1000",
+    ]);
+    expect(summary.todo).toEqual([
+      `${A} couldn't be read in the latest run. Its transcripts are from run 2026-09-01_1000. Read it again.`,
+    ]);
+  });
+
+  it("says each such page as a task, up to four, and then how many more", () => {
+    const paths = Array.from({ length: 5 }, (_, index) => `/page-${index + 1}/`);
+    const pages = (failed: boolean): SharePageSpec[] =>
+      paths.map((path, index) => ({
+        path,
+        label: `Page ${index + 1}`,
+        ...(failed ? { status: "failed" as const, failedAttempts: [failedAttempt({ n: 1 })] } : {}),
+      }));
+    const task = (name: string) =>
+      `${name} couldn't be read in the latest run (another window took the screen). Its transcripts are from run r1. Read it again.`;
+    const runsOf = (count: number) => [
+      shareRun({ id: "r1", createdAt: "2026-09-25T10:00:00-05:00", pages: pages(false) }),
+      shareRun({
+        id: "r2",
+        createdAt: "2026-09-26T14:05:00-05:00",
+        pages: [...pages(true).slice(0, count), ...pages(false).slice(count)],
+      }),
+    ];
+
+    expect(summarize({ runs: runsOf(4) }).todo).toEqual([
+      task("Page 1"),
+      task("Page 2"),
+      task("Page 3"),
+      task("Page 4"),
+    ]);
+    expect(summarize({ runs: runsOf(5) }).todo).toEqual([
+      task("Page 1"),
+      task("Page 2"),
+      task("Page 3"),
+      "And 2 more pages couldn't be read in the latest run. Read them again.",
+    ]);
+  });
+
+  it("says the kind of failure from the spot check with --page that couldn't read the page", () => {
+    const full = sevenPages({ id: "r1", createdAt: "2026-09-25T10:00:00-05:00" });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: { kind: "urls", urls: [new URL("/how-a-run-works/", SITE).href] },
+      pages: [
+        {
+          path: "/how-a-run-works/",
+          label: "How a run works",
+          status: "failed",
+          failedAttempts: [failedAttempt({ n: 1, cause: "step-timeout", message: "x" })],
+        },
+      ],
+    });
+
+    const summary = summarize({ runs: [full, spotCheck] });
+
+    expect(summary.numbers.pagesInScope).toBe(7);
+    expect(summary.attention.map(({ name, clauses }) => [name, clauses])).toEqual([
+      [
+        "How a run works",
+        "the latest run couldn't read it (a step took too long); its transcripts are from run r1",
+      ],
+    ]);
+  });
+
+  it("says it after the pages no run could read, and before the pages that were skipped", () => {
+    // The report failed in both runs, so it was never read.
+    const theReport = (path: string): Partial<SharePageSpec> =>
+      path === "/the-report/" ? { status: "failed" } : {};
+    const earlier = sevenPages({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      page: theReport,
+    });
+    const latest = sevenPages({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      page: (path) => {
+        if (path === "/") return { status: "skipped" };
+        if (path === "/how-a-run-works/") {
+          return { status: "failed", failedAttempts: [failedAttempt({ n: 1 })] };
+        }
+        return theReport(path);
+      },
+    });
+
+    expect(summarize({ runs: [earlier, latest] }).todo).toEqual([
+      "Run voicecap again on The report: it couldn't be read after every attempt.",
+      "How a run works couldn't be read in the latest run (another window took the screen). Its transcripts are from run r1. Read it again.",
+      "Home was skipped in the latest run: the site didn't answer with an HTML page. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+  });
+});
+
 describe("summaryOf: the demo runs of 29 September 2026", () => {
   // voicecap 0.4.1 recorded these: no reviewers, no listener's statement, and flags with no list of
   // what they found. Each of runs 1315 and 1402 lost a page the other read.
@@ -1955,16 +2151,25 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     });
     expect(summary.bars.results).toEqual({ done: 6, flagged: 1, never: 0 });
     expect(summary.bars.flagsByRule).toEqual([
-      { rule: "generic-link-text", count: 6 },
-      { rule: "unlabeled", count: 3 },
+      { rule: "generic-link-text", count: 2 },
+      { rule: "unlabeled", count: 2 },
       { rule: "headings", count: 1 },
     ]);
   });
+
+  /** Run 1402 lost /how-a-run-works/ to another window: what needs attention says so first. */
+  const HOW_FAILED = {
+    slug: "how-a-run-works-fd116f9328",
+    name: "/how-a-run-works/",
+    clauses:
+      "the latest run couldn't read it (another window took the screen); its transcripts are from run 2026-09-29_1315",
+  };
 
   it("says each flag's message when the record has no list of what it found", () => {
     const { attention } = summarize({ runs: runs(), name: pathOf });
 
     expect(attention).toEqual([
+      HOW_FAILED,
       {
         slug: slugOfDemo("/common-mistakes/"),
         name: "/common-mistakes/",
@@ -1990,6 +2195,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     ]);
 
     expect(summarize({ runs: runs(), flags, name: pathOf }).attention).toEqual([
+      HOW_FAILED,
       {
         slug: slugOfDemo("/common-mistakes/"),
         name: "/common-mistakes/",
@@ -2012,8 +2218,10 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
       /^2 problems, both outside voicecap: another window took the screen\./,
     );
     expect(todo).toEqual([
+      "/how-a-run-works/ couldn't be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.",
       "Take a closer listen to /common-mistakes/, where flags were raised, and record what you decide.",
     ]);
+    expect(slugOfDemo("/how-a-run-works/")).toBe(HOW_FAILED.slug);
   });
 
   it("says when and how, and that who ran it was not recorded", () => {
@@ -2032,7 +2240,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     const changes = changesOf(before, after, () => null, pathOf);
 
     expect(summarize({ runs: runs(), changes, name: pathOf }).changesLine).toBe(
-      "Since the last run on 29 September: every page sounds the same.",
+      "Since the last run on 29 September: every page read in full in both runs sounds the same.",
     );
   });
 });
@@ -2051,7 +2259,7 @@ describe("summaryOf: no run counts yet", () => {
         sentence:
           "No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.",
         second:
-          "A human review, sped up: voicecap pressed NVDA's keys and moved from page to page; a person did the listening, the reading, and the deciding.",
+          "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.",
         numbers: {
           pagesInScope: 0,
           transcribed: 0,

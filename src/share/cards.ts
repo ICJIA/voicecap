@@ -19,7 +19,7 @@ import { pageName } from "../report/model.js";
 import { attentionClauses } from "./attention.js";
 import { longDate, pagePath } from "./format.js";
 import type { TranscriptStore } from "./load.js";
-import type { ProblemsSection } from "./problems.js";
+import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
 import type { PageReview } from "./review.js";
 import { notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
 import type { PageStanding, Standing } from "./standing.js";
@@ -39,15 +39,24 @@ export interface PageCard {
    */
   title: string | null | { notRecorded: string };
   /**
-   * The page's latest result: read in full in the latest run with no flags or with flags; failed
-   * there, with transcripts from an earlier run; never transcribed; or skipped there.
+   * The page's latest result: transcribed in the latest run, with no flags or with flags (read in
+   * full only when its read reached the page's end: see `readStopped`); failed there, with
+   * transcripts from an earlier run; never transcribed; or skipped there.
    */
   status: "no-flags" | "flags" | "failed" | "never" | "skipped";
   /**
    * The status chip's words: "Transcribed" for a page read in full in the latest run (its flags have
-   * chips of their own), else what the latest run did and where the transcripts come from.
+   * chips of their own), "Transcribed; its read stopped at the step limit" (or "before the end of
+   * the page") for one whose read stopped short, else what the latest run did and where the
+   * transcripts come from.
    */
   statusText: string;
+  /**
+   * How the read pass of the transcripts shown stopped before the page's end: at its step limit, or
+   * by the repeat safety net (see READ_STOPPED). Such a page was transcribed, but not read in full.
+   * Null when the read reached the end, and for a page with no read pass or no transcripts.
+   */
+  readStopped: keyof typeof READ_STOPPED | null;
   /**
    * The person's review, as far as the records show it: "Listened to live by <name>" ("Listened to
    * live" with no name), "<name> listened to part of this session", "Reviewed, no issues", "Issue
@@ -77,8 +86,9 @@ export interface PageCard {
   /** The flags of the shown transcripts, computed with the current rules. */
   flags: FlagResult[];
   /**
-   * No transcripts, flags, a failure or a skip, an open issue, or transcripts that changed since
-   * their review: the card is never folded away as having nothing to note.
+   * No transcripts, flags, a read that stopped short, a failure or a skip, an open issue, or
+   * transcripts that changed since their review: the card is never folded away as having nothing
+   * to note.
    */
   needsAttention: boolean;
 }
@@ -119,7 +129,8 @@ export function cardsOf(input: CardsInput): PageCard[] {
     const { shown } = page;
     const flags = shown?.page.flags ?? [];
     const review = input.review.get(page.key) ?? null;
-    const { status, statusText } = statusOf(page, flags);
+    const readStopped = shown === null ? null : readStoppedOf(shown.page);
+    const { status, statusText } = statusOf(page, flags, readStopped);
     // The record the card speaks for: the transcripts shown, else the latest run's. A completed run
     // has a record of every page, done, failed, or skipped, so there is always one.
     const source = shown ?? page.latestFailure;
@@ -135,6 +146,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       title: source === null ? null : titleOf(source.page, version),
       status,
       statusText,
+      readStopped,
       reviewChips: reviewChips(review),
       manual: (review?.manual ?? []).map(({ json }) => ({
         // A session's local date, as its record keeps it: "2026-09-25".
@@ -160,6 +172,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       needsAttention:
         shown === null ||
         flags.length > 0 ||
+        readStopped !== null ||
         page.latestFailure !== null ||
         review?.latest?.status === "issue" ||
         review?.changedSinceReview === true,
@@ -170,6 +183,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
 function statusOf(
   page: PageStanding,
   flags: FlagResult[],
+  readStopped: PageCard["readStopped"],
 ): Pick<PageCard, "status" | "statusText"> {
   const { shown, latestFailure } = page;
   const transcribed = shown === null ? "never transcribed" : `transcribed in run ${shown.run.id}`;
@@ -186,7 +200,11 @@ function statusOf(
     };
   }
   if (shown === null) return { status: "never", statusText: "Never transcribed" };
-  return { status: flags.length > 0 ? "flags" : "no-flags", statusText: "Transcribed" };
+  return {
+    status: flags.length > 0 ? "flags" : "no-flags",
+    statusText:
+      readStopped === null ? "Transcribed" : `Transcribed; its read ${READ_STOPPED[readStopped]}`,
+  };
 }
 
 function titleOf(page: PageRecord, version: string | null): PageCard["title"] {

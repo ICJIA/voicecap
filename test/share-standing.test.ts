@@ -281,6 +281,160 @@ describe("standingOf: each page's result", () => {
   });
 });
 
+describe("standingOf: the pages in scope", () => {
+  const SITEMAP: PageSource = { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" };
+  /** What a run given its pages with --page records as its source. */
+  const given = (...paths: string[]): PageSource => ({
+    kind: "urls",
+    urls: paths.map((path) => new URL(path, SITE).href),
+  });
+
+  it("keeps the sitemap's pages in scope after a spot check of one of them with --page", () => {
+    const full = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: SITEMAP,
+      pages: [{ path: "/" }, { path: "/a" }, { path: "/b" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a" }],
+    });
+    const standing = standingOf([full, spotCheck]);
+
+    expect(standing.latest?.id).toBe("r1");
+    expect(standing.pages.map((page) => page.url)).toEqual(full.pages.map((page) => page.url));
+    // The spot check's newer transcripts are shown for its page; the others are the full run's.
+    expect(standing.pages.map((page) => page.shown?.run.id)).toEqual(["r1", "r2", "r1"]);
+    expect(standing.pages.map((page) => page.latestFailure)).toEqual([null, null, null]);
+    expect(standing.noLongerListed).toEqual([]);
+    expect(ids(standing.drawnOn)).toEqual(["r1", "r2"]);
+  });
+
+  it("takes the pages in scope from a page list as from a sitemap", () => {
+    const list = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/"),
+      pages: [{ path: "/" }],
+    });
+    const standing = standingOf([list, spotCheck]);
+
+    expect(standing.latest?.id).toBe("r1");
+    expect(standing.pages.map((page) => page.shown?.run.id)).toEqual(["r2", "r1"]);
+    expect(standing.noLongerListed).toEqual([]);
+  });
+
+  it("says a page a later spot check couldn't read failed there, beside its last good transcripts", () => {
+    const full = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: SITEMAP,
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a", status: "failed" }],
+    });
+    const standing = standingOf([full, spotCheck]);
+    const a = pageAt(standing, "/a");
+
+    expect(a.shown?.run.id).toBe("r1");
+    expect(a.latestFailure?.run.id).toBe("r2");
+    expect(a.latestFailure?.page).toBe(findPage(spotCheck, "/a"));
+    // The spot check is drawn on: its failure is the page's latest, and its problem is shown.
+    expect(ids(standing.drawnOn)).toEqual(["r1", "r2"]);
+  });
+
+  it("takes a page's newest record, so a later spot check that read it settles the failure before", () => {
+    const full = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: SITEMAP,
+      pages: [{ path: "/" }, { path: "/a", status: "failed" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a" }],
+    });
+    const a = pageAt(standingOf([full, spotCheck]), "/a");
+
+    expect(a.shown?.run.id).toBe("r2");
+    expect(a.latestFailure).toBeNull();
+  });
+
+  it("compares the run that decides the pages with the run before it, from the same sitemap", () => {
+    const sitemapRun = (id: string, createdAt: string) =>
+      shareRun({ id, createdAt, source: SITEMAP, pages: [{ path: "/" }, { path: "/a" }] });
+    const r0 = sitemapRun("r0", "2026-09-18T09:30:00-05:00");
+    const r1 = sitemapRun("r1", "2026-09-20T09:30:00-05:00");
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a" }],
+    });
+    const standing = standingOf([r0, r1, spotCheck]);
+
+    expect(standing.latest?.id).toBe("r1");
+    expect(runBefore(standing.counted, r1)?.id).toBe("r0");
+    expect(ids(standing.drawnOn)).toEqual(["r0", "r1", "r2"]);
+  });
+
+  it("lists no page a later spot check read that the list doesn't have, as no longer listed or in scope", () => {
+    const full = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: SITEMAP,
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const offList = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/elsewhere"),
+      pages: [{ path: "/elsewhere" }],
+    });
+    const standing = standingOf([full, offList]);
+
+    expect(standing.pages.map((page) => page.url)).toEqual(full.pages.map((page) => page.url));
+    expect(standing.noLongerListed).toEqual([]);
+    expect(ids(standing.drawnOn)).toEqual(["r1"]);
+  });
+
+  it("takes the pages from the newest run when every run was given its pages with --page", () => {
+    const first = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: given("/", "/a"),
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const second = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a" }],
+    });
+    const standing = standingOf([first, second]);
+
+    expect(standing.latest?.id).toBe("r2");
+    expect(standing.pages.map((page) => page.url)).toEqual([new URL("/a", SITE).href]);
+    expect(standing.noLongerListed.map((gone) => [gone.page.url, gone.run.id])).toEqual([
+      [new URL("/", SITE).href, "r1"],
+    ]);
+  });
+});
+
 describe("standingOf: the runs it draws on", () => {
   it("draws on the run before too, for what changed", () => {
     const pages = [{ path: "/" }, { path: "/a" }];

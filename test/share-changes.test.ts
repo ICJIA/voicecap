@@ -102,7 +102,7 @@ describe("changesOf: the demo runs of 29 September 2026", () => {
     ]);
     expect(changes.line).toBe("Every page read in full in both runs sounds exactly the same.");
     expect(changes.summaryLine).toBe(
-      "Since the last run on 29 September: every page sounds the same.",
+      "Since the last run on 29 September: every page read in full in both runs sounds the same.",
     );
     // Both runs read all three passes, so there is nothing to say about passes.
     expect(changes.passesNote).toBeNull();
@@ -844,7 +844,7 @@ describe("changesOf: runs that read different passes", () => {
     expect(changes.passesNote).toBeNull();
     // Nothing to qualify: the summary says what it always says.
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: every page sounds the same.",
+      "Since the last run on 26 September: every page read in full in both runs sounds the same.",
     );
   });
 
@@ -916,7 +916,7 @@ describe("changesOf: runs that read different passes", () => {
     );
 
     expect(same.summaryLine).toBe(
-      "Since the last run on 26 September: in the passes both runs read, every page sounds the same.",
+      "Since the last run on 26 September: in the passes both runs read, every page read in full in both runs sounds the same.",
     );
     expect(flagged.summaryLine).toBe(
       "Since the last run on 26 September: in the passes both runs read, 3 pages sound different; resolved: on Common mistakes, the links that don't say where they go.",
@@ -1328,7 +1328,7 @@ describe("changesOf: the lines that open the section and the summary", () => {
 
     expect(changes.line).toBe("Every page read in full in both runs sounds exactly the same.");
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: every page sounds the same.",
+      "Since the last run on 26 September: every page read in full in both runs sounds the same.",
     );
   });
 

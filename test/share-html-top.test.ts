@@ -626,7 +626,7 @@ describe("renderSummary", () => {
       '<p class="lead verdict">NVDA read all 7 pages. 1 page has flags worth a closer listen.</p>',
     );
     expect(html).toContain(
-      '<p class="gist">A human review, sped up: voicecap pressed NVDA&#39;s keys and moved from page to page; a person did the listening, the reading, and the deciding.</p>',
+      '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the listening, the reading, and the deciding.</p>',
     );
     expect(html.indexOf("lead verdict")).toBeLessThan(html.indexOf('class="gist"'));
   });
@@ -790,9 +790,13 @@ describe("renderSummary", () => {
     const model = await demoModel();
     const html = renderSummary(model);
 
-    expect(model.summary.attention.map(({ slug }) => slug)).toEqual(["common-mistakes-db8c98dbfa"]);
+    expect(model.summary.attention.map(({ slug }) => slug)).toEqual([
+      "how-a-run-works-fd116f9328",
+      "common-mistakes-db8c98dbfa",
+    ]);
     expect(html).toContain(
       '<div class="panel attention"><h3>What needs attention</h3>' +
+        '<p><a href="#pg-how-a-run-works-fd116f9328"><b>http://127.0.0.1:4848/how-a-run-works/</b></a>: the latest run couldn&#39;t read it (another window took the screen); its transcripts are from run 2026-09-29_1315.</p>' +
         '<p><a href="#pg-common-mistakes-db8c98dbfa"><b>http://127.0.0.1:4848/common-mistakes/</b></a>: 3 links say only “click here”; 2 controls have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1.</p></div>',
     );
   });
@@ -830,17 +834,17 @@ describe("renderSummary", () => {
     const [pagesRead, problems, unexpected] = model.summary.complete;
 
     expect(html).toContain("<h3>How complete the test was</h3><ul>");
-    expect(html).toContain(`<li>${pagesRead}</li>`);
-    expect(html).toContain(`<li>${problems} <a href="#prob-h">What happened</a></li>`);
-    expect(html).toContain(`<li>${unexpected}</li>`);
+    expect(html).toContain(`<li>${esc(pagesRead)}</li>`);
+    expect(html).toContain(`<li>${esc(problems)} <a href="#prob-h">What happened</a></li>`);
+    expect(html).toContain(`<li>${esc(unexpected)}</li>`);
     // The run before: one line, after the rest, with its link.
     expect(model.summary.changesLine).toBe(
-      "Since the last run on 29 September: every page sounds the same.",
+      "Since the last run on 29 September: every page read in full in both runs sounds the same.",
     );
     expect(html).toContain(
-      '<li>Since the last run on 29 September: every page sounds the same. <a href="#chg-h">What changed</a></li>',
+      '<li>Since the last run on 29 September: every page read in full in both runs sounds the same. <a href="#chg-h">What changed</a></li>',
     );
-    expect(html.indexOf(unexpected ?? "")).toBeLessThan(html.indexOf("Since the last run"));
+    expect(html.indexOf(esc(unexpected))).toBeLessThan(html.indexOf("Since the last run"));
   });
 
   it("leaves out the changes line when there's no run before", () => {
@@ -854,7 +858,9 @@ describe("renderSummary", () => {
     const html = renderSummary(await demoModel());
 
     expect(html).toContain(
-      "<h3>What's still to do</h3><ul><li>Take a closer listen to http://127.0.0.1:4848/common-mistakes/, where flags were raised, and record what you decide.</li></ul>",
+      "<h3>What's still to do</h3><ul>" +
+        "<li>http://127.0.0.1:4848/how-a-run-works/ couldn&#39;t be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.</li>" +
+        "<li>Take a closer listen to http://127.0.0.1:4848/common-mistakes/, where flags were raised, and record what you decide.</li></ul>",
     );
     expect(html).toContain(
       "<h3>When and how</h3><ul>" +
@@ -871,7 +877,7 @@ describe("renderSummary", () => {
 
     expect(meters.map((meter) => textOf(/<h3>(.*?)<\/h3>/s.exec(meter)?.[1] ?? ""))).toEqual([
       "Every page's latest result",
-      "Flags by rule times raised, in every pass",
+      "Flags by rule times each rule was raised, across pages and passes",
       "The human review each out of its total",
     ]);
 
@@ -886,13 +892,13 @@ describe("renderSummary", () => {
     expect(results).toContain('<span class="l-warn"><b>1</b> flags</span>');
     expect(results).toContain('<span class="l-bad"><b>0</b> never transcribed</span>');
 
-    // Flags by rule: each rule's count, as wide as it is against the most.
+    // Flags by rule: each rule's count, as wide as it is against the most. Each flag counts once:
+    // the links and the unnamed controls were each raised in two passes, the headings in one.
     expect(textOf(rules)).toBe(
-      "Flags by rule times raised, in every pass generic-link-text 6 unlabeled 3 headings 1",
+      "Flags by rule times each rule was raised, across pages and passes generic-link-text 2 unlabeled 2 headings 1",
     );
-    expect(rules).toContain('<rect class="c-warn" x="0" y="0" width="100%"');
+    expect(rules.match(/<rect class="c-warn" x="0" y="0" width="100%"/g)).toHaveLength(2);
     expect(rules).toContain('<rect class="c-warn" x="0" y="0" width="50%"');
-    expect(rules).toContain('<rect class="c-warn" x="0" y="0" width="16.67%"');
 
     // The human review: each count out of its total, said in words to a screen reader.
     expect(textOf(review.replace(/<span aria-hidden="true">.*?<\/span>/gs, ""))).toBe(
@@ -945,7 +951,9 @@ describe("renderSummary", () => {
     const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
     const [, rules = ""] = metersOf(renderSummary(buildShareModel(inputOf([run]))));
 
-    expect(textOf(rules)).toBe("Flags by rule times raised, in every pass No flags were raised.");
+    expect(textOf(rules)).toBe(
+      "Flags by rule times each rule was raised, across pages and passes No flags were raised.",
+    );
     expect(rules).not.toContain("<svg");
   });
 

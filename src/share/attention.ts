@@ -12,14 +12,23 @@ type FindingRule = "generic-link-text" | "unlabeled";
 const NO_NAME = "(no name)";
 
 /**
+ * Why the latest run couldn't read a page: what kind of failure stopped it, in words ("another
+ * window took the screen"), "" when the record doesn't say; and the earlier run whose transcripts
+ * the page shows, or null when no run read it.
+ */
+export interface ReadFailure {
+  kind: string;
+  shownFrom: string | null;
+}
+
+/**
  * "<what>; <what>": a clause for each rule the page's flags raised, in the order the flags first
  * raise them, then a clause for a failure, then one for an issue. Empty when there is nothing to
  * say.
  *
- * `failure` is what kind of failure stopped the page being read, in words ("another window took the
- * screen"), "" when the record doesn't say, and null when the page has none. `issueNote` is the
- * note of the issue a reviewer found and no one has fixed, "" when the review has no note, and null
- * when the page has no open issue.
+ * `failure` is why the latest run couldn't read the page (see ReadFailure), and null when it read
+ * it. `issueNote` is the note of the issue a reviewer found and no one has fixed, "" when the review
+ * has no note, and null when the page has no open issue.
  *
  * A rule raised in more than one pass is one clause, since the passes hear the same page: the links
  * the read pass and the Tab pass both hear are counted once. A flag from a record that has no list
@@ -27,17 +36,11 @@ const NO_NAME = "(no name)";
  */
 export function attentionClauses(
   flags: FlagResult[],
-  failure: string | null,
+  failure: ReadFailure | null,
   issueNote: string | null,
 ): string {
   const clauses = new Set<string>(flags.map((flag) => flagClause(flag, flags)));
-  if (failure !== null) {
-    clauses.add(
-      failure === ""
-        ? "it couldn't be read after every attempt"
-        : `it couldn't be read after every attempt (${failure})`,
-    );
-  }
+  if (failure !== null) clauses.add(failureClause(failure));
   if (issueNote !== null) {
     const note = tidy(issueNote);
     clauses.add(note === "" ? "a reviewer found an issue" : `a reviewer found an issue: ${note}`);
@@ -52,11 +55,22 @@ export function attentionClauses(
 export function attentionLine(
   name: string,
   flags: FlagResult[],
-  failure: string | null,
+  failure: ReadFailure | null,
   issueNote: string | null,
 ): string {
   const clauses = attentionClauses(flags, failure, issueNote);
   return clauses === "" ? name : `${name}: ${clauses}`;
+}
+
+/**
+ * A failure as a clause: a page no run read "couldn't be read after every attempt"; one an earlier
+ * run read is said to be the latest run's failure, with the run its transcripts are from.
+ */
+function failureClause({ kind, shownFrom }: ReadFailure): string {
+  const why = kind === "" ? "" : ` (${kind})`;
+  return shownFrom === null
+    ? `it couldn't be read after every attempt${why}`
+    : `the latest run couldn't read it${why}; its transcripts are from run ${shownFrom}`;
 }
 
 function flagClause(flag: FlagResult, all: FlagResult[]): string {

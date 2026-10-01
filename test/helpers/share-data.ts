@@ -18,6 +18,7 @@ import {
   type RunJson,
   type SessionRecord,
   type SkipReason,
+  type StopReason,
 } from "../../src/model.js";
 import { pageSlug } from "../../src/pages/slug.js";
 import { canonicalKey } from "../../src/pages/url.js";
@@ -53,6 +54,11 @@ export interface SharePageSpec {
    * file is written, so a test that needs the lines keeps them itself. Default: none.
    */
   passes?: Partial<Record<PassName, string[]>>;
+  /**
+   * How each pass of `passes` stopped, as its summary's `stopReason`: "step-cap" for a read that
+   * stopped at its step limit, say. Default: "end-reached".
+   */
+  stopped?: Partial<Record<PassName, StopReason>>;
   /**
    * The session (1-based) that produced the page's transcripts, as the record's `session`. Default:
    * 1 for a page that has been tried, and none for a pending one.
@@ -270,7 +276,7 @@ function sharePage(page: SharePageSpec): PageRecord {
       : {}),
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
-    passes: passSummaries(page.passes),
+    passes: passSummaries(page.passes, page.stopped),
     files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
@@ -279,16 +285,19 @@ function sharePage(page: SharePageSpec): PageRecord {
 
 /**
  * A summary of each pass a spec gives lines for, in pass order. Its step count and fingerprint are
- * the lines'; the rest is the same placeholder in every run.
+ * the lines', and it stopped as `stopped` says; the rest is the same placeholder in every run.
  */
-function passSummaries(lines: SharePageSpec["passes"] = {}): PageRecord["passes"] {
+function passSummaries(
+  lines: SharePageSpec["passes"] = {},
+  stopped: SharePageSpec["stopped"] = {},
+): PageRecord["passes"] {
   const summaries: PageRecord["passes"] = {};
   for (const pass of PASS_NAMES) {
     const body = lines[pass];
     if (body === undefined) continue;
     summaries[pass] = {
       steps: body.length,
-      stopReason: "end-reached",
+      stopReason: stopped[pass] ?? "end-reached",
       durationMs: 0,
       contentSha256: contentSha256(body),
       errors: [],

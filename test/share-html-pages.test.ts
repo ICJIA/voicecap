@@ -636,6 +636,28 @@ describe("renderPages", () => {
     );
   });
 
+  it("never counts a page whose read stopped before its end as read in full", () => {
+    const gist = (html: string) => /<p class="gist">(.*?)<\/p>/s.exec(html)?.[1];
+    const model = modelOf([
+      done("/a"),
+      done("/b", { stopped: { read: "step-cap" } }),
+      done("/c", { stopped: { read: "repeat-limit" } }),
+    ]);
+    const html = renderPages(model);
+
+    expect(gist(html)).toContain(
+      "<b>3 pages: 1 read in full and 2 transcribed but not in full.</b>",
+    );
+    expect(gist(renderPages(modelOf([done("/b", { stopped: { read: "step-cap" } })])))).toContain(
+      "<b>1 page: 1 transcribed but not in full.</b>",
+    );
+    // Each such card says why in its first chip, amber, as something to note.
+    const [, second = ""] = cardsIn(html);
+    expect(second).toContain(
+      '<div class="chips"><span class="chip c-warn">Transcribed; its read stopped at the step limit</span>',
+    );
+  });
+
   it("says there are no pages when no run counts, and still names its section", () => {
     const html = renderPages(noRunModel());
 

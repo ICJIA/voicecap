@@ -60,10 +60,11 @@ export interface Problem {
    * - "different": later attempts failed in other ways, or the page never got through and failed in
    *   different ways over its attempts;
    * - "no": it didn't come back: the page was read in full, or loaded and skipped, on a later
-   *   attempt; or it was the page's only attempt, and another run the standing draws on read the
+   *   attempt; or it was the page's only attempt, and a later run the standing draws on read the
    *   page in full;
-   * - "unknown": it was the page's only attempt in the run, and no other run read the page in full,
-   *   so nothing says whether it would have happened again.
+   * - "unknown": it was the page's only attempt in the run, and no later run read the page in full,
+   *   so nothing says whether it would have happened again (an earlier run that read it is named,
+   *   but shows only that the page could be read before).
    */
   again: "no" | "same" | "different" | "unknown";
   /** "Effect on the results". */
@@ -179,6 +180,22 @@ export const PHRASES: Record<ProblemKind, string> = {
   timeout: "a step took too long",
   unexpected: "an unexpected error",
 };
+
+/**
+ * How a read pass stopped before the page's end, in words that follow "its read": at its step limit,
+ * or by the repeat safety net (NVDA said the same thing too many times in a row). Such a page was
+ * transcribed, but not read in full: only a read that reached the page's end was.
+ */
+export const READ_STOPPED = {
+  "step-cap": "stopped at the step limit",
+  "repeat-limit": "stopped before the end of the page",
+} as const;
+
+/** How the read pass of a page's record stopped short of the page's end; null when it didn't. */
+export function readStoppedOf(page: PageRecord): keyof typeof READ_STOPPED | null {
+  const stop = page.passes.read?.stopReason;
+  return stop === "step-cap" || stop === "repeat-limit" ? stop : null;
+}
 
 /** The kinds that are another program's doing, or someone's at the computer: not voicecap's. */
 const OUTSIDE: ReadonlySet<ProblemKind> = new Set(["foreground", "locked"]);
@@ -530,9 +547,10 @@ function everyAttempt(kind: ProblemKind, tries: number): { verdict: string; agai
  * - Nothing followed it, and the page never got through here:
  *   - tried more than once: how it failed over all its attempts, which is the answer for the last
  *     of them as for the rest: on every attempt (`same`), or in different ways (`different`);
- *   - tried once: no, if another run the standing draws on read the page in full, and otherwise
- *     not known (`unknown`). Not "no": nothing shows it didn't come back, only that the page wasn't
- *     tried again.
+ *   - tried once: no, if a later run the standing draws on read the page in full (the next that
+ *     did is named), and otherwise not known (`unknown`), naming the last earlier run that read
+ *     it, if one did. Not "no": nothing that came after shows it didn't come back, only that the
+ *     page wasn't tried again.
  */
 function verdictOf(
   ctx: PageContext,
@@ -576,15 +594,20 @@ function verdictOf(
       ? everyAttempt(kind, failures.length)
       : { again: "different", verdict: `Yes, in different ways: ${waysOf(failures)}.` };
   }
-  const elsewhere = standing.drawnOn.findLast(
-    (other) =>
-      other !== run &&
-      other.pages.some((there) => there.key === page.key && there.status === "done"),
-  );
-  if (elsewhere) return { again: "no", verdict: `No: read in full in run ${elsewhere.id}.` };
+  // Only what came after the failure can say it didn't come back: the next run that read the page
+  // in full. A run before it shows the page could be read, not that the failure didn't recur.
+  const at = standing.drawnOn.indexOf(run);
+  const readIt = (other: RunJson) =>
+    other.pages.some((there) => there.key === page.key && there.status === "done");
+  const after = standing.drawnOn.slice(at + 1).find(readIt);
+  if (after) return { again: "no", verdict: `No: read in full in run ${after.id}.` };
+  const before = standing.drawnOn.slice(0, Math.max(at, 0)).findLast(readIt);
   return {
     again: "unknown",
-    verdict: "Not known: this run didn't try the page again, and no other run read it in full.",
+    verdict:
+      before === undefined
+        ? "Not known: this run didn't try the page again, and no other run read it in full."
+        : `Not known: this run didn't try the page again; run ${before.id}, before it, read it in full.`,
   };
 }
 
@@ -718,21 +741,37 @@ function lineOf(problems: Problem[], standing: Standing): string {
 
 /**
  * The line when nothing failed. "Every page was read in full" is only said when it's so: a page the
- * latest run skipped (its response wasn't a page, say) wasn't read there, and no run counting at
- * all leaves no pages to speak of. A skipped page is "not read" only when no earlier run's
+ * latest run skipped (its response wasn't a page, say) wasn't read there; a page whose read stopped
+ * before its end (at the step limit, say) was transcribed, but not read in full; and no run counting
+ * at all leaves no pages to speak of. A skipped page is "not read" only when no earlier run's
  * transcripts are shown for it; with them, the page was read, and the line says only that the
  * latest run skipped it.
  */
 function noProblemsLine(standing: Standing): string {
   if (standing.latest === null) return "No problems to report: no live run counts yet.";
   const skipped = standing.pages.filter((page) => page.latestFailure?.page.status === "skipped");
-  if (skipped.length === 0) return "No problems during the runs: every page was read in full.";
+  const stopped = (stop: keyof typeof READ_STOPPED) =>
+    standing.pages.filter(({ shown }) => shown !== null && readStoppedOf(shown.page) === stop)
+      .length;
+  const stops = (["step-cap", "repeat-limit"] as const).map(
+    (stop) => [stop, stopped(stop)] as const,
+  );
+  if (skipped.length === 0 && stops.every(([, count]) => count === 0)) {
+    return "No problems during the runs: every page was read in full.";
+  }
   const notRead = skipped.filter((page) => page.shown === null).length;
   const readBefore = skipped.length - notRead;
   const pages = (count: number) => (count === 1 ? "1 page was" : `${count} pages were`);
   const said = [
     ...(notRead > 0 ? [`${pages(notRead)} skipped, not read.`] : []),
     ...(readBefore > 0 ? [`${pages(readBefore)} skipped in the latest run.`] : []),
+    ...stops.flatMap(([stop, count]) =>
+      count === 0
+        ? []
+        : [
+            `${pages(count)} transcribed; ${count === 1 ? "its read" : "their reads"} ${READ_STOPPED[stop]}.`,
+          ],
+    ),
   ];
   return `No problems during the runs: no attempt failed. ${said.join(" ")}`;
 }
