@@ -4,18 +4,21 @@
  * test reads are the same in every run. A task that needs more of a run (reviewers, a listener's
  * answer, the computer) adds it to these specs rather than building its own runs.
  */
-import type {
-  AttemptRecord,
-  FileHash,
-  FlagResult,
-  PageRecord,
-  PageSource,
-  PageStatus,
-  RunJson,
-  SessionRecord,
+import {
+  PASS_NAMES,
+  type AttemptRecord,
+  type FileHash,
+  type FlagResult,
+  type PageRecord,
+  type PageSource,
+  type PageStatus,
+  type PassName,
+  type RunJson,
+  type SessionRecord,
 } from "../../src/model.js";
 import { pageSlug } from "../../src/pages/slug.js";
 import { canonicalKey } from "../../src/pages/url.js";
+import { contentSha256 } from "../../src/transcripts/format.js";
 import { sealOf } from "../../src/util/hash.js";
 import { environment, SITE } from "./report-data.js";
 
@@ -41,6 +44,12 @@ export interface SharePageSpec {
    * a placeholder fingerprint: no file is written, and no test here reads one. Default: none.
    */
   files?: string[];
+  /**
+   * The passes the page was read in, each as the body lines of its TXT transcript (as `extractBody`
+   * gives them): the record gets a summary of each pass, whose `contentSha256` is the lines'. No
+   * file is written, so a test that needs the lines keeps them itself. Default: none.
+   */
+  passes?: Partial<Record<PassName, string[]>>;
 }
 
 export interface ShareRunSpec {
@@ -104,8 +113,9 @@ const DEFAULT_END: Record<RunJson["status"], SessionRecord["endReason"]> = {
 };
 
 /**
- * A run with one session. Its pages have no transcripts (`passes` is empty, and `files` lists only
- * what a spec names), and the attempts a spec says (see SharePageSpec.attempts).
+ * A run with one session. Its pages have no transcripts (`passes` summarizes only the lines a spec
+ * gives, and `files` lists only what a spec names), and the attempts a spec says (see
+ * SharePageSpec.attempts).
  */
 export function shareRun(spec: ShareRunSpec): RunJson {
   const status = spec.status ?? "completed";
@@ -187,11 +197,32 @@ function sharePage(page: SharePageSpec): PageRecord {
     attempts: page.attempts ?? defaultAttempts(status, failed),
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
-    passes: {},
+    passes: passSummaries(page.passes),
     files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
   };
+}
+
+/**
+ * A summary of each pass a spec gives lines for, in pass order. Its step count and fingerprint are
+ * the lines'; the rest is the same placeholder in every run.
+ */
+function passSummaries(lines: SharePageSpec["passes"] = {}): PageRecord["passes"] {
+  const summaries: PageRecord["passes"] = {};
+  for (const pass of PASS_NAMES) {
+    const body = lines[pass];
+    if (body === undefined) continue;
+    summaries[pass] = {
+      steps: body.length,
+      stopReason: "end-reached",
+      durationMs: 0,
+      contentSha256: contentSha256(body),
+      errors: [],
+      warnings: [],
+    };
+  }
+  return summaries;
 }
 
 /** The attempts a page has ended, given how many failed (see SharePageSpec.attempts). */
