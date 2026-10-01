@@ -1,5 +1,5 @@
 /**
- * Dates, times, lists, and page addresses in the plain words the shareable page uses.
+ * Dates, times, lists, and page names and addresses in the plain words the shareable page uses.
  *
  * The times are the local ISO times voicecap records ("2026-09-29T13:15:02-05:00", or to the
  * millisecond). Each is read from its own date and time fields, never through the machine's time
@@ -95,6 +95,11 @@ export function seconds(ms: number): string {
 export function pagePath(url: string): string {
   const { pathname, search } = new URL(url);
   return `${pathname}${search}`;
+}
+
+/** What a page is called on a line of the page: its label, else its address without the site's. */
+export function pageTitle(page: { label?: string; url: string }): string {
+  return page.label?.trim() || pagePath(page.url);
 }
 
 /** A list as a sentence has it: "A", "A and B", "A, B, and C". */

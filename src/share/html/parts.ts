@@ -1,14 +1,15 @@
 /**
  * The parts every section of the shareable page draws with: a fold, a chip, a "Not recorded" line,
- * a bar, and the strip of spoken lines. Each returns HTML.
+ * a scroll box, a verdict line, a bar, and the strip of spoken lines. Each returns HTML.
  *
  * None sets a `style` attribute: the page's Content Security Policy hashes its one style block and
  * allows nothing else. So sizes are attributes, and colors are classes the style block gives
  * their colors to (`c-ok`, `c-warn`, `c-bad`, and `c-quiet`, the chips' own), which an SVG shape
  * takes as its fill with `fill="currentColor"`.
  *
- * What the callers pass is HTML only where a parameter says so (a fold's summary line and body);
- * it is escaped by whoever builds it. Every other string is text, and escaped here.
+ * What the callers pass is HTML only where a parameter says so (a fold's summary line and body, and
+ * what a scroll box holds); it is escaped by whoever builds it. Every other string is text, and
+ * escaped here.
  */
 import { esc, idFragment, plural } from "../../report/html.js";
 import { seconds } from "../format.js";
@@ -76,13 +77,34 @@ export function chip(kind: string, words: string): string {
 
 /**
  * A line that says something wasn't recorded, as a paragraph. `text` is the whole line, which the
- * model words ("Not recorded: this run used voicecap 0.4.1."). A line that doesn't start with
- * those words gets them put in front, so a gap never reads as a pass.
+ * model words ("Not recorded: this run used voicecap 0.4.1.", or, for a line about one thing, "The
+ * step and the key: not recorded: this run used voicecap 0.4.1."). A line that doesn't say so gets
+ * those words put in front, so a gap never reads as a pass.
  */
 export function notRecorded(text: string): string {
   const line = text.trim();
-  const said = /^not recorded\b/i.test(line) ? line : `Not recorded: ${line}`;
+  const said = /\bnot recorded\b/i.test(line) ? line : `Not recorded: ${line}`;
   return `<p class="not-recorded">${esc(said)}</p>`;
+}
+
+/**
+ * A box a keyboard can reach (Tab) and scroll, and a screen reader names: every table that can be
+ * wider than the page, and every block of code, sits in one. `inner` is HTML, already escaped.
+ */
+export function scroll(label: string, inner: string): string {
+  return `<div class="scroll" tabindex="0" role="region" aria-label="${esc(label)}">${inner}</div>`;
+}
+
+/**
+ * A section's verdict line: its first sentence in bold, as the mockup sets it, and the rest as it
+ * is. `text` is plain words, escaped here. A sentence ends at a ".", "!", or "?" that a space or the
+ * end follows, so a version number in it ("0.4.1") never ends it.
+ */
+export function verdictLine(text: string): string {
+  const end = /[.!?](?=\s|$)/.exec(text);
+  const cut = end === null ? text.length : end.index + 1;
+  const rest = text.slice(cut).trim();
+  return `<p class="prob-verdict"><b>${esc(text.slice(0, cut))}</b>${rest === "" ? "" : ` ${esc(rest)}`}</p>`;
 }
 
 /** A part of a bar: the number it counts, what it counts, and its color's kind. */

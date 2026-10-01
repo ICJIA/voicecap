@@ -8,7 +8,17 @@ import { describe, expect, it } from "vitest";
 import type { FlagResult } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
 import { STEP_ICONS } from "../src/share/html/icons.js";
-import { bar, chip, count, fold, notRecorded, strip, track } from "../src/share/html/parts.js";
+import {
+  bar,
+  chip,
+  count,
+  fold,
+  notRecorded,
+  scroll,
+  strip,
+  track,
+  verdictLine,
+} from "../src/share/html/parts.js";
 import { renderHow, renderSummary, renderTop } from "../src/share/html/top.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
@@ -197,6 +207,48 @@ describe("notRecorded", () => {
       '<p class="not-recorded">Not recorded: no screenshot was taken before 0.6.0.</p>',
     );
     expect(notRecorded("a <b> line")).toContain("a &lt;b&gt; line");
+  });
+
+  it("keeps a line that says it after what it's about, so the words aren't said twice", () => {
+    expect(notRecorded("The step and the key: not recorded: this run used voicecap 0.4.1.")).toBe(
+      '<p class="not-recorded">The step and the key: not recorded: this run used voicecap 0.4.1.</p>',
+    );
+  });
+});
+
+describe("scroll", () => {
+  it("is a box a keyboard can reach and a screen reader names, with its contents as they are", () => {
+    expect(scroll("Changes, table", "<table></table>")).toBe(
+      '<div class="scroll" tabindex="0" role="region" aria-label="Changes, table"><table></table></div>',
+    );
+  });
+
+  it("escapes its name", () => {
+    expect(scroll('a "b" <c>', "")).toContain('aria-label="a &quot;b&quot; &lt;c&gt;"');
+  });
+});
+
+describe("verdictLine", () => {
+  it("sets the first sentence in bold, and the rest as it is", () => {
+    expect(verdictLine("Two problems. Neither came back. It was fine.")).toBe(
+      '<p class="prob-verdict"><b>Two problems.</b> Neither came back. It was fine.</p>',
+    );
+    expect(verdictLine("All the same!")).toBe('<p class="prob-verdict"><b>All the same!</b></p>');
+  });
+
+  it("doesn't end the sentence at a version number, and bolds a line with no end whole", () => {
+    expect(verdictLine("Run on voicecap 0.4.1 failed. It came back.")).toBe(
+      '<p class="prob-verdict"><b>Run on voicecap 0.4.1 failed.</b> It came back.</p>',
+    );
+    expect(verdictLine("No full stop here")).toBe(
+      '<p class="prob-verdict"><b>No full stop here</b></p>',
+    );
+  });
+
+  it("escapes what it's given", () => {
+    expect(verdictLine("<i>One</i>. <b>Two</b>")).toBe(
+      '<p class="prob-verdict"><b>&lt;i&gt;One&lt;/i&gt;.</b> &lt;b&gt;Two&lt;/b&gt;</p>',
+    );
   });
 });
 

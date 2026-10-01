@@ -7,6 +7,7 @@ import {
   longDate,
   names,
   pagePath,
+  pageTitle,
   seconds,
 } from "../src/share/format.js";
 
@@ -172,6 +173,21 @@ describe("pagePath", () => {
     expect(pagePath("http://127.0.0.1:4848/")).toBe("/");
     expect(pagePath("http://127.0.0.1:4848/how-a-run-works/")).toBe("/how-a-run-works/");
     expect(pagePath("https://example.illinois.gov/grants?year=2027#apply")).toBe(
+      "/grants?year=2027",
+    );
+  });
+});
+
+describe("pageTitle", () => {
+  it("is the page's label, without the spaces around it", () => {
+    expect(pageTitle({ label: "  About us ", url: "http://127.0.0.1:4848/about/" })).toBe(
+      "About us",
+    );
+  });
+
+  it("is the page's address without the site's when it has no label, or a blank one", () => {
+    expect(pageTitle({ url: "http://127.0.0.1:4848/how-a-run-works/" })).toBe("/how-a-run-works/");
+    expect(pageTitle({ label: "   ", url: "https://example.illinois.gov/grants?year=2027" })).toBe(
       "/grants?year=2027",
     );
   });

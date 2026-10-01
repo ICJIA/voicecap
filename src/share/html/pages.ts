@@ -20,7 +20,7 @@ import { PASS_NAMES, type PassName } from "../../model.js";
 import { esc, idFragment, plural } from "../../report/html.js";
 import { names, seconds } from "../format.js";
 import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
-import { chip, count, fold, notRecorded, strip } from "./parts.js";
+import { chip, count, fold, notRecorded, scroll, strip } from "./parts.js";
 
 /** More pages than this, and the cards with nothing to note fold behind one line. */
 const MOST_PAGES_OPEN = 12;
@@ -42,11 +42,6 @@ const NOT_READ = "Not read";
 const ADDRESS = /^https?:\/\//i;
 
 type Kind = "ok" | "warn" | "bad" | "quiet";
-
-/** A box a keyboard can reach (Tab) and scroll, and a screen reader names. */
-function scroll(label: string, inner: string): string {
-  return `<div class="scroll" tabindex="0" role="region" aria-label="${esc(label)}">${inner}</div>`;
-}
 
 /**
  * A page's screenshot as the markup of the two places it can be: the picture, as the mockup has it,
