@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-01
+
+The shareable page, and a way to check a computer first: `share/current.html` in every site's folder, what each run now records for it (every failed attempt, the computer, and whether the person listened), and `voicecap preflight`.
+
 ### Added
 
 - **Each page's title**, as the browser reports it, in the page's record in `run.json` (`title`). A page with no title, or one that was tried but never loaded, has none (`null`), and so does every page of a replayed run.
@@ -212,7 +216,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/ICJIA/voicecap/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ICJIA/voicecap/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/ICJIA/voicecap/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ICJIA/voicecap/compare/v0.3.1...v0.4.0
