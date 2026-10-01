@@ -23,7 +23,17 @@ import {
   type SharePageSpec,
   type ShareRunSpec,
 } from "./helpers/share-data.js";
-import { attributes, foldsIn, scrollBoxes, summariesIn, textOf } from "./helpers/share-html.js";
+import {
+  attributes,
+  foldsIn,
+  listsOf,
+  rowsOf,
+  scrollBoxes,
+  summariesIn,
+  tableOf,
+  termsOf,
+  textOf,
+} from "./helpers/share-html.js";
 import { demoModel, inputOf, storeOf, TRANSCRIPTS, type Lines } from "./helpers/share-model.js";
 
 const ISSUES = "https://github.com/ICJIA/voicecap/issues";
@@ -154,36 +164,6 @@ const LATER = {
   startedAt: "2026-09-26T14:06:00.000-05:00",
   endedAt: "2026-09-26T14:06:10.000-05:00",
 } as const;
-
-/** The text of each row of a table's markup, its cells set apart by " | ". */
-function rowsOf(table: string): string[] {
-  return [...table.matchAll(/<tr[ >].*?<\/tr>/gs)].map((row) =>
-    [...row[0].matchAll(/<t[dh][^>]*>(.*?)<\/t[dh]>/gs)]
-      .map((cell) => textOf(cell[1] ?? "", ""))
-      .join(" | "),
-  );
-}
-
-/** The markup of the first table of a class in some HTML. */
-function tableOf(html: string, className: string): string {
-  const found = new RegExp(`<table class="${className}">.*?</table>`, "s").exec(html);
-  if (found === null) throw new Error(`No ${className} table`);
-  return found[0];
-}
-
-/** What a fold's `dl` says: each term, and what it's said to be. */
-function termsOf(fold: string): [string, string][] {
-  return [...fold.matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/gs)].map(
-    ([, term = "", said = ""]): [string, string] => [textOf(term, ""), textOf(said, "")],
-  );
-}
-
-/** The text of each item of each list in some markup. */
-function listsOf(html: string): string[][] {
-  return [...html.matchAll(/<ul>(.*?)<\/ul>/gs)].map((list) =>
-    [...(list[1] ?? "").matchAll(/<li>(.*?)<\/li>/gs)].map((item) => textOf(item[1] ?? "", "")),
-  );
-}
 
 describe("renderChanges", () => {
   describe("for the demo runs of 29 September 2026", () => {

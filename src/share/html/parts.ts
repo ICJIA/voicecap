@@ -33,8 +33,12 @@ export interface FoldOptions {
   id?: string;
   /** Starts open. Default: closed. */
   open?: boolean;
+  /** Starts hidden, for a fold a script shows once it has something to say. Default: shown. */
+  hidden?: boolean;
   /** More classes for the details element, after "fold". */
   className?: string;
+  /** More classes for the inside box, after "inside". */
+  insideClassName?: string;
 }
 
 /**
@@ -60,8 +64,9 @@ export function fold(summary: string, body: string, options: FoldOptions = {}): 
     );
   }
   const classes = options.className ? `fold ${options.className}` : "fold";
+  const insideClasses = options.insideClassName ? `inside ${options.insideClassName}` : "inside";
   const id = options.id === undefined ? "" : ` id="${esc(options.id)}"`;
-  return `<details class="${esc(classes)}"${id}${options.open ? " open" : ""}><summary>${summary}</summary><div class="inside">${body}</div></details>`;
+  return `<details class="${esc(classes)}"${id}${options.open ? " open" : ""}${options.hidden ? " hidden" : ""}><summary>${summary}</summary><div class="${esc(insideClasses)}">${body}</div></details>`;
 }
 
 /**

@@ -44,3 +44,33 @@ export function summariesIn(html: string): string[] {
 export function scrollBoxes(html: string): string[] {
   return html.match(/<div class="scroll"[^>]*>/g) ?? [];
 }
+
+/** The text of each row of a table's markup, its cells set apart by " | ". */
+export function rowsOf(table: string): string[] {
+  return [...table.matchAll(/<tr[ >].*?<\/tr>/gs)].map((row) =>
+    [...row[0].matchAll(/<t[dh][^>]*>(.*?)<\/t[dh]>/gs)]
+      .map((cell) => textOf(cell[1] ?? "", ""))
+      .join(" | "),
+  );
+}
+
+/** The markup of the first table of a class in some HTML. */
+export function tableOf(html: string, className: string): string {
+  const found = new RegExp(`<table class="${className}">.*?</table>`, "s").exec(html);
+  if (found === null) throw new Error(`No ${className} table`);
+  return found[0];
+}
+
+/** What a `dl` says: each term, and what it's said to be. */
+export function termsOf(html: string): [string, string][] {
+  return [...html.matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/gs)].map(
+    ([, term = "", said = ""]): [string, string] => [textOf(term, ""), textOf(said, "")],
+  );
+}
+
+/** The text of each item of each list in some markup. */
+export function listsOf(html: string): string[][] {
+  return [...html.matchAll(/<ul>(.*?)<\/ul>/gs)].map((list) =>
+    [...(list[1] ?? "").matchAll(/<li>(.*?)<\/li>/gs)].map((item) => textOf(item[1] ?? "", "")),
+  );
+}

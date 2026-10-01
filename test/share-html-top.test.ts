@@ -170,9 +170,28 @@ describe("fold", () => {
   });
 
   it("escapes its id and class names", () => {
-    const html = fold("<span>Why</span>", "", { id: 'a"b', className: 'c"d' });
+    const html = fold("<span>Why</span>", "", {
+      id: 'a"b',
+      className: 'c"d',
+      insideClassName: 'e"f',
+    });
 
     expect(html).toContain('class="fold c&quot;d" id="a&quot;b"');
+    expect(html).toContain('<div class="inside e&quot;f">');
+  });
+
+  it("can start hidden, for a fold a script shows once it has something to say", () => {
+    expect(fold("<span>Every file checked</span>", "", { id: "fp-list", hidden: true })).toBe(
+      '<details class="fold" id="fp-list" hidden><summary><span>Every file checked</span></summary><div class="inside"></div></details>',
+    );
+    expect(fold("<span>Why</span>", "")).not.toContain("hidden");
+    expect(fold("<span>Why</span>", "", { hidden: false })).not.toContain("hidden");
+  });
+
+  it("can give its inside box more classes, as the mockup's run folds have", () => {
+    expect(fold("<span>Run 1402</span>", "<p>Body</p>", { insideClassName: "run-inside" })).toBe(
+      '<details class="fold"><summary><span>Run 1402</span></summary><div class="inside run-inside"><p>Body</p></div></details>',
+    );
   });
 });
 
