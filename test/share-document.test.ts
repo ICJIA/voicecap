@@ -594,6 +594,27 @@ describe("the page's script, in Chromium", () => {
     expect(problems.get(page)).toEqual([]);
   });
 
+  it("prints every transcript and table whole, with nothing left in a box to scroll", async () => {
+    const page = await open();
+    // The boxes a keyboard scrolls on screen that hold more than they show, by their names.
+    const cutShort = (): Promise<(string | null)[]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll(".scroll")]
+          .filter((box) => box.scrollHeight > box.clientHeight || box.scrollWidth > box.clientWidth)
+          .map((box) => box.getAttribute("aria-label")),
+      );
+    // About the width a printed A4 page gives, inside Chromium's margins.
+    await page.setViewportSize({ width: 718, height: 1000 });
+
+    await page.emulateMedia({ media: "print" });
+    await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
+    expect(await closedFolds(page)).toBe(0);
+    expect(await cutShort()).toEqual([]);
+    // On screen the same boxes scroll: the longest transcripts are taller than their boxes.
+    await page.emulateMedia({ media: "screen" });
+    expect((await cutShort()).length).toBeGreaterThan(0);
+  });
+
   it("still switches when the browser won't store anything", async () => {
     const page = await open({
       before: `Object.defineProperty(window, "localStorage", {

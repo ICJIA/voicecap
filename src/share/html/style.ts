@@ -13,7 +13,8 @@
  * - "Not recorded" lines (`.not-recorded`), and the margins the mockup gave by attribute;
  * - colors axe needs: a solid background behind "When to run voicecap", a darker green for chips
  *   in the light theme, and red, not green, behind the words a removed line lost;
- * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches);
+ * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches), and in
+ *   print no box scrolls or cuts anything short, since paper can't scroll;
  * - long words in tables wrap at a phone's width, and the timeline fits it;
  * - the folds' triangle is drawn but not read aloud.
  *
@@ -273,4 +274,6 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 .cite { font-size: 0.84rem; color: var(--muted); }
 @media (max-width: 640px) { .tx-grid { grid-template-columns: 1fr; } dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+/* Paper doesn't scroll: in print, every box shows all it holds. After the rules that limit the boxes, so it wins. */
+@media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } }
 `;
