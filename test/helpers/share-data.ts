@@ -6,6 +6,7 @@
  */
 import type {
   AttemptRecord,
+  FileHash,
   FlagResult,
   PageRecord,
   PageSource,
@@ -28,6 +29,18 @@ export interface SharePageSpec {
   flags?: FlagResult[];
   failedAttempts?: AttemptRecord[];
   errors?: string[];
+  /**
+   * How many attempts at the page have ended, as the record's `attempts`. Default: its failed
+   * attempts, plus the one that got a done or skipped page through. A page that failed has at
+   * least one (a record from before attempts were kept has none listed, and still failed once),
+   * and a pending page has only those it failed before it was stopped.
+   */
+  attempts?: number;
+  /**
+   * The transcript files the record lists in `files`, by name ("read.txt", "read.json"), each with
+   * a placeholder fingerprint: no file is written, and no test here reads one. Default: none.
+   */
+  files?: string[];
 }
 
 export interface ShareRunSpec {
@@ -50,10 +63,40 @@ export interface ShareRunSpec {
   endReason?: SessionRecord["endReason"];
   /** Default: a page list file, as report-data.ts's runs have. */
   source?: PageSource;
+  /**
+   * The voicecap version the session's environment records, as `environment.voicecap.version`:
+   * "0.5.0" gives a run from before attempt records were kept. Default: report-data.ts's.
+   */
+  voicecapVersion?: string;
   pages: SharePageSpec[];
 }
 
+/**
+ * A failed attempt at a page, for `failedAttempts`. By default it's attempt `n`, lost to another
+ * window at step 12 (Down Arrow) of the read pass, with no restart after it; a test says what
+ * differs. Its times default to 14:05:00.000 and 14:05:10.000 on 26 September 2026.
+ */
+export function failedAttempt(
+  overrides: Partial<AttemptRecord> & Pick<AttemptRecord, "n">,
+): AttemptRecord {
+  return {
+    startedAt: "2026-09-26T14:05:00.000-05:00",
+    endedAt: "2026-09-26T14:05:10.000-05:00",
+    pass: "read",
+    step: 12,
+    command: "nextLine",
+    cause: "foreground",
+    message:
+      "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
+    restarted: false,
+    ...overrides,
+  };
+}
+
 const PAGE_LIST: PageSource = { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) };
+
+/** The fingerprint a listed transcript file has when a spec only names the file. */
+const PLACEHOLDER_FILE: FileHash = { sha256: "0".repeat(64), bytes: 1 };
 
 const DEFAULT_END: Record<RunJson["status"], SessionRecord["endReason"]> = {
   completed: "completed",
@@ -61,8 +104,8 @@ const DEFAULT_END: Record<RunJson["status"], SessionRecord["endReason"]> = {
 };
 
 /**
- * A run with one session. Its pages have no transcripts (`passes` and `files` are empty) and one
- * attempt each, none for a pending page.
+ * A run with one session. Its pages have no transcripts (`passes` is empty, and `files` lists only
+ * what a spec names), and the attempts a spec says (see SharePageSpec.attempts).
  */
 export function shareRun(spec: ShareRunSpec): RunJson {
   const status = spec.status ?? "completed";
@@ -72,6 +115,11 @@ export function shareRun(spec: ShareRunSpec): RunJson {
   // null is an answer of its own here, so `??` would lose it.
   const endReason = spec.endReason === undefined ? DEFAULT_END[status] : spec.endReason;
   const pages = spec.pages.map(sharePage);
+  const base = environment({ pageSource: source, runId: spec.id, runStartedAt: createdAt });
+  const sessionEnvironment =
+    spec.voicecapVersion === undefined
+      ? base
+      : { ...base, voicecap: { ...base.voicecap, version: spec.voicecapVersion } };
 
   const run: RunJson = {
     schemaVersion: 1,
@@ -116,7 +164,7 @@ export function shareRun(spec: ShareRunSpec): RunJson {
         endedAt: endReason === null ? null : createdAt,
         endReason,
         pagesDone: pages.filter((page) => page.status === "done").length,
-        environment: environment({ pageSource: source, runId: spec.id, runStartedAt: createdAt }),
+        environment: sessionEnvironment,
       },
     ],
     skipped: [],
@@ -129,18 +177,26 @@ function sharePage(page: SharePageSpec): PageRecord {
   const url = new URL(page.path, SITE).href;
   const key = canonicalKey(url);
   const status = page.status ?? "done";
+  const failed = page.failedAttempts?.length ?? 0;
   return {
     url,
     key,
     slug: pageSlug(key),
     ...(page.label === undefined ? {} : { label: page.label }),
     status,
-    attempts: status === "pending" ? 0 : 1,
+    attempts: page.attempts ?? defaultAttempts(status, failed),
     ...(page.title === undefined ? {} : { title: page.title }),
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
     passes: {},
-    files: {},
+    files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
   };
+}
+
+/** The attempts a page has ended, given how many failed (see SharePageSpec.attempts). */
+function defaultAttempts(status: PageStatus, failed: number): number {
+  if (status === "pending") return failed;
+  if (status === "failed") return Math.max(failed, 1);
+  return failed + 1;
 }

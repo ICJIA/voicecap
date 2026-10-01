@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1402",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/the-report/",
+    "key": "http://127.0.0.1:4848/the-report",
+    "slug": "the-report-03940c2f88",
+    "finalUrl": "http://127.0.0.1:4848/the-report/"
+  },
+  "capturedAt": "2026-09-29T14:06:50-05:00",
+  "durationMs": 23003,
+  "stepCount": 18,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.58"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "42265cce6894eb8aa3314ababd06f5fcfcdd848d4adddbad9172d8e10ba071d2"
+    },
+    "runId": "2026-09-29_1402",
+    "runStartedAt": "2026-09-29T14:02:51-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1277,
+      "offsetMs": 1277
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1277,
+      "offsetMs": 2554
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1275,
+      "offsetMs": 3829
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 2 items, link, Previous: Reading transcripts",
+      "durationMs": 1279,
+      "offsetMs": 5108
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Next: Ask a question",
+      "durationMs": 1274,
+      "offsetMs": 6382
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, The report",
+      "durationMs": 1284,
+      "offsetMs": 7667
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "After the last page, voicecap builds a report, report dot html, about every page.",
+      "durationMs": 1274,
+      "offsetMs": 8940
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Coverage",
+      "durationMs": 1277,
+      "offsetMs": 10217
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "For each page, the report shows what each pass captured, and where it stopped.",
+      "durationMs": 1276,
+      "offsetMs": 11493
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Flags",
+      "durationMs": 1279,
+      "offsetMs": 12772
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "Flags point to pages worth a closer listen, such as a field with no name.",
+      "durationMs": 1278,
+      "offsetMs": 14050
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "A flag never fails a page: a person listens, and decides.",
+      "durationMs": 1280,
+      "offsetMs": 15330
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Reviews",
+      "durationMs": 1280,
+      "offsetMs": 16610
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "A reviewer records what they found, and voicecap keeps every review.",
+      "durationMs": 1275,
+      "offsetMs": 17885
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1284,
+      "offsetMs": 19169
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1278,
+      "offsetMs": 20447
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1286,
+      "offsetMs": 21732
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1270,
+      "offsetMs": 23003
+    }
+  ]
+}

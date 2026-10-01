@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/reading-transcripts/",
+    "key": "http://127.0.0.1:4848/reading-transcripts",
+    "slug": "reading-transcripts-1bc29b7494",
+    "finalUrl": "http://127.0.0.1:4848/reading-transcripts/"
+  },
+  "capturedAt": "2026-09-29T13:19:02-05:00",
+  "durationMs": 24299,
+  "stepCount": 19,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1277,
+      "offsetMs": 1277
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1280,
+      "offsetMs": 2558
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1277,
+      "offsetMs": 3835
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 2 items, link, Previous: How a run works",
+      "durationMs": 1277,
+      "offsetMs": 5112
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Next: The report",
+      "durationMs": 1282,
+      "offsetMs": 6394
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, Reading transcripts",
+      "durationMs": 1276,
+      "offsetMs": 7671
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "Each page gets a folder, with read dot txt, headings dot txt, and tab dot txt in it.",
+      "durationMs": 1277,
+      "offsetMs": 8948
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "Each line of a transcript is what the screen reader said after one key press.",
+      "durationMs": 1278,
+      "offsetMs": 10226
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "heading, level 2, An example",
+      "durationMs": 1277,
+      "offsetMs": 11503
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "This page's headings dot txt starts like this:",
+      "durationMs": 1277,
+      "offsetMs": 12780
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, Reading transcripts, heading, level 1",
+      "durationMs": 1282,
+      "offsetMs": 14062
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "An example, heading, level 2",
+      "durationMs": 1273,
+      "offsetMs": 15335
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "heading, level 2, What a line tells you",
+      "durationMs": 1282,
+      "offsetMs": 16616
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "A heading gives its text and its level, and a link says that it's a link.",
+      "durationMs": 1276,
+      "offsetMs": 17892
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "A form field gives its label, if it has one, and what kind of field it is.",
+      "durationMs": 1281,
+      "offsetMs": 19174
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1282,
+      "offsetMs": 20456
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1285,
+      "offsetMs": 21741
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1280,
+      "offsetMs": 23021
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, and runs only on this computer.",
+      "durationMs": 1278,
+      "offsetMs": 24299
+    }
+  ]
+}

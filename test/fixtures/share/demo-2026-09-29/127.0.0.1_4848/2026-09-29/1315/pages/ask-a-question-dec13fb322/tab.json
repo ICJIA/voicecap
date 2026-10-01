@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4848/ask-a-question/",
+    "key": "http://127.0.0.1:4848/ask-a-question",
+    "slug": "ask-a-question-dec13fb322",
+    "finalUrl": "http://127.0.0.1:4848/ask-a-question/"
+  },
+  "capturedAt": "2026-09-29T13:20:53-05:00",
+  "durationMs": 11973,
+  "stepCount": 8,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1317,
+      "offsetMs": 1318,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Tour, navigation landmark, list, with 2 items, Previous: The report, link",
+      "durationMs": 1324,
+      "offsetMs": 2642,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Previous: The report",
+        "inMain": false,
+        "href": "/the-report/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "Next: Common mistakes (on purpose), link",
+      "durationMs": 1319,
+      "offsetMs": 3961,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Next: Common mistakes (on purpose)",
+        "inMain": false,
+        "href": "/common-mistakes/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "main landmark. form landmark. Your name, edit, blank",
+      "durationMs": 1324,
+      "offsetMs": 5284,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Your name",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Your question (required), edit, required, multi line, Ask anything about voicecap, or about this tour., blank",
+      "durationMs": 1319,
+      "offsetMs": 6603,
+      "inDocument": true,
+      "focused": {
+        "tag": "textarea",
+        "role": "textbox",
+        "name": "Your question (required)",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "How did you hear about voicecap?, grouping. From a colleague, radio button, not checked, 1 of 3",
+      "durationMs": 1306,
+      "offsetMs": 7909,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "radio",
+        "name": "From a colleague",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Send your question, button",
+      "durationMs": 1308,
+      "offsetMs": 9217,
+      "inDocument": true,
+      "focused": {
+        "tag": "button",
+        "role": "button",
+        "name": "Send your question",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Ask a question voicecap demo - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2756,
+      "offsetMs": 11973,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

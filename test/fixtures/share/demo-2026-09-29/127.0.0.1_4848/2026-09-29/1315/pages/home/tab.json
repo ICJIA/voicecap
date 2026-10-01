@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.4.1",
+  "replayed": false,
+  "run": "2026-09-29_1315",
+  "pass": "tab",
+  "page": {
+    "url": "http://127.0.0.1:4848/",
+    "key": "http://127.0.0.1:4848/",
+    "slug": "home",
+    "finalUrl": "http://127.0.0.1:4848/"
+  },
+  "capturedAt": "2026-09-29T13:16:50-05:00",
+  "durationMs": 13232,
+  "stepCount": 9,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "153.0.8010.53"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.4.1",
+      "configSha256": "c628d7574232fdd1c0e4fc91049de1b5a4cecdb535e03c73bed1fbeebc793df1"
+    },
+    "runId": "2026-09-29_1315",
+    "runStartedAt": "2026-09-29T13:15:48-05:00"
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1311,
+      "offsetMs": 1312,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Tour, navigation landmark, list, with 1 item, Next: Before you start, link",
+      "durationMs": 1325,
+      "offsetMs": 2638,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Next: Before you start",
+        "inMain": false,
+        "href": "/before-you-start/"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "main landmark, list, with 6 items, Before you start, link",
+      "durationMs": 1310,
+      "offsetMs": 3948,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Before you start",
+        "inMain": true,
+        "href": "/before-you-start/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "How a run works, link",
+      "durationMs": 1309,
+      "offsetMs": 5256,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "How a run works",
+        "inMain": true,
+        "href": "/how-a-run-works/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Reading transcripts, link",
+      "durationMs": 1308,
+      "offsetMs": 6565,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Reading transcripts",
+        "inMain": true,
+        "href": "/reading-transcripts/"
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "The report, link",
+      "durationMs": 1309,
+      "offsetMs": 7874,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "The report",
+        "inMain": true,
+        "href": "/the-report/"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Ask a question, link",
+      "durationMs": 1307,
+      "offsetMs": 9181,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Ask a question",
+        "inMain": true,
+        "href": "/ask-a-question/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Common mistakes (on purpose), link",
+      "durationMs": 1306,
+      "offsetMs": 10487,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Common mistakes (on purpose)",
+        "inMain": true,
+        "href": "/common-mistakes/"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "Welcome voicecap demo - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2745,
+      "offsetMs": 13232,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

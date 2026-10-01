@@ -1,6 +1,7 @@
 dist/
 coverage/
 fixture/
+test/fixtures/
 voicecap-demo/
 transcripts/
 docs/
