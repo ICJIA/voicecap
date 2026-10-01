@@ -108,7 +108,7 @@ voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to 
 Why voicecap is built the way it is, in three short answers:
 
 - **Why an npm package.** voicecap runs on your own computer, where the screen reader is. It's one package for Windows and a Mac, `npx` fetches the version you ask for, and every run records the version of voicecap that made it.
-- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal, and voicecap then leaves out what needs one: the live test that `init` and `setup` offer, and "Did you listen?" at the end of a run; and `demo` won't start. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
+- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal. When it doesn't, voicecap leaves out what needs one: the live test that `init` and `setup` offer, and "Did you listen?" at the end of a run. `demo` won't start at all. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
 - **Why a command-line app, not a web app.** voicecap has to start a real screen reader, press its keys on your computer, and capture what it says. A web page can't do any of that from inside the browser's sandbox. Running on your own computer also keeps every transcript in a folder you control. The web part is what voicecap makes: [the shareable page](#the-shareable-page).
 
 Three steps take you from a new computer to a first run:
@@ -356,12 +356,12 @@ npx : File C:\Program Files\nodejs\npx.ps1 cannot be loaded because running scri
 
 Nothing is wrong with voicecap or Node.js. In PowerShell, `npx` runs as a PowerShell script (`npx.ps1`), and Windows starts out not letting PowerShell run any script. Two ways past it:
 
-- **Allow scripts for your own account, once.** Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`, and answer `Y` if it asks. It needs no administrator rights, and it works at once, in the same window. From then on, scripts on this computer run, and a script downloaded from the internet still needs a signature.
-- **Or change nothing, and type `npx.cmd` wherever these steps say `npx`,** as in `npx.cmd @icjia/voicecap preflight`. Use this on a work PC where the first way is refused, or where your organization's settings override it. One catch: an address with `&` in it, such as `--page "https://example.org/search?q=a&lang=en"`, doesn't survive `npx.cmd`.
+- **Allow scripts for your own account, once.** Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`, and answer `Y` if it asks. It needs no administrator rights, and it works at once, in the same window. From then on, your account can run scripts written on this computer. One downloaded from the internet still needs a signature.
+- **Or change nothing, and type `npx.cmd` wherever these steps say `npx`,** as in `npx.cmd @icjia/voicecap preflight`. Use this on a work PC where the first way is refused, or where your organization's settings override it. One catch: an address with `&` in it, such as `--page "https://example.org/search?q=a&lang=en"`, doesn't survive `npx.cmd`. For an address like that, use the first way, or put the address in a `--pages` file.
 
 ### Git Bash and paths that start with "/"
 
-PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash (in Windows Terminal, the tab drop-down, the `˅` next to the `+`, lists "Git Bash" once Git is installed). Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
+PowerShell doesn't rewrite arguments, so this note is only for people who use Git Bash. To open Git Bash in Windows Terminal, use the tab drop-down, the small down arrow (`˅`) next to the `+`: it lists "Git Bash" once Git is installed. Git Bash rewrites command-line arguments that start with `/` into Windows paths, so `--page /about` reaches voicecap as `C:/Program Files/Git/about`. voicecap detects this and stops with an explanation. Four ways around it:
 
 - use full URLs: `--page https://dvfr.illinois.gov/about/` (always works);
 - leave off the leading slash in patterns: `--include 'news/*'` (patterns match with or without it);
@@ -1358,7 +1358,7 @@ It restores `package.json` if anything fails before publishing. After publishing
 
 ## Credits
 
-**A hat tip to [Guidepup](https://www.guidepup.dev/), where voicecap began.** Guidepup is Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap is built on it. It starts the screen reader through Guidepup, presses its keys through Guidepup, and reads back what it said, and the NVDA it runs is Guidepup's portable build.
+**A hat tip to [Guidepup](https://www.guidepup.dev/), where voicecap began.** Guidepup is Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap is built on it. voicecap starts the screen reader, presses its keys, and reads back what it said, all through Guidepup. The NVDA it runs is Guidepup's portable build.
 
 voicecap also stands on:
 
