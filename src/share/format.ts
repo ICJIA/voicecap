@@ -86,15 +86,9 @@ export function clock(iso: string): string {
   return `${hour}:${minute}`;
 }
 
-/**
- * The time since a pass began, as a stopwatch shows it, to the nearest tenth of a second: "0:02.4",
- * "1:05.0".
- */
-export function elapsed(ms: number): string {
-  const tenths = Math.round(Math.max(0, ms) / 100);
-  const minutes = Math.floor(tenths / 600);
-  const seconds = Math.floor((tenths % 600) / 10);
-  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths % 10}`;
+/** How long something took, in seconds to the nearest tenth: "1.3 s". */
+export function seconds(ms: number): string {
+  return `${(Math.round(Math.max(0, ms) / 100) / 10).toFixed(1)} s`;
 }
 
 /** A page's address without the site's: its path, and its query if it has one ("/about/"). */

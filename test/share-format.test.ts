@@ -4,10 +4,10 @@ import {
   clock,
   dateRange,
   dayMonth,
-  elapsed,
   longDate,
   names,
   pagePath,
+  seconds,
 } from "../src/share/format.js";
 
 describe("longDate, dayMonth, and clock", () => {
@@ -153,17 +153,17 @@ describe("dateRange", () => {
   });
 });
 
-describe("elapsed", () => {
+describe("seconds", () => {
   it.each([
-    [0, "0:00.0"],
-    [2_400, "0:02.4"],
-    [3_825, "0:03.8"],
-    [12_960, "0:13.0"],
-    [59_960, "1:00.0"],
-    [65_049, "1:05.0"],
-    [754_000, "12:34.0"],
-  ])("writes %i ms as a stopwatch shows it, to the tenth of a second", (ms, expected) => {
-    expect(elapsed(ms)).toBe(expected);
+    [0, "0.0 s"],
+    [50, "0.1 s"],
+    [1_249, "1.2 s"],
+    [1_276, "1.3 s"],
+    [1_318, "1.3 s"],
+    [2_742, "2.7 s"],
+    [61_931, "61.9 s"],
+  ])("writes %i ms in seconds, to the tenth", (ms, expected) => {
+    expect(seconds(ms)).toBe(expected);
   });
 });
 

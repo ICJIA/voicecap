@@ -67,7 +67,9 @@ export interface ShareInput {
   transcripts: TranscriptStore;
   /** config.report.siteName. */
   siteName: string | null;
-  /** The fingerprint of the flag rules the flags were computed with: the current config's. */
+  /** The current config's flag rules: the flags were computed with them, and quote by them. */
+  flagRules: FlagRules;
+  /** Their fingerprint, part of the evidence. */
   flagRulesSha256: string;
   /** When the page was made, as a local ISO time (isoLocal). */
   generatedAt: string;
@@ -111,6 +113,7 @@ export async function loadShareInput(options: {
     manual,
     transcripts: storeOf(read),
     siteName: config.report.siteName,
+    flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
     generatedAt: isoLocal(options.now ?? new Date()),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

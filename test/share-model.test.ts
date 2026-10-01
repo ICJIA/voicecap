@@ -116,6 +116,7 @@ function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInp
     manual: [],
     transcripts: NO_TRANSCRIPTS,
     siteName: null,
+    flagRules: DEFAULT_CONFIG.flags,
     flagRulesSha256: "f".repeat(64),
     generatedAt: "2026-09-27T09:00:00-05:00",
     timeZone: "America/Chicago",
@@ -217,6 +218,7 @@ describe("loadShareInput", () => {
     expect(input).toMatchObject({
       site: "http://127.0.0.1:4848",
       siteName: "The voicecap demo",
+      flagRules: DEFAULT_CONFIG.flags,
       flagRulesSha256: flagRulesSha256(DEFAULT_CONFIG.flags),
       generatedAt: isoLocal(now),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -343,9 +345,10 @@ describe("buildShareModel", () => {
     });
     const { pages } = buildShareModel(inputOf([earlier, latest]));
 
+    // The flags get chips of their own, so the status of a page with transcripts is only that.
     expect(pages.map((card) => [card.path, card.status, card.statusText])).toEqual([
-      ["/", "no-flags", "Transcribed, no flags"],
-      ["/flagged", "flags", "Transcribed, with flags"],
+      ["/", "no-flags", "Transcribed"],
+      ["/flagged", "flags", "Transcribed"],
       ["/moved", "failed", "Failed in run r2 · transcribed in run r1"],
       ["/never", "never", "Failed in run r2 · never transcribed"],
       ["/now-skipped", "skipped", "Skipped in run r2 · transcribed in run r1"],
@@ -392,6 +395,18 @@ describe("buildShareModel", () => {
       { read: null, headings: null, tab: null },
       null,
     ]);
+  });
+
+  it("never folds away a page with no transcripts, whatever its record says", () => {
+    // A completed run has no page still pending; were there one, its card would still show.
+    const run = shareRun({ id: "r1", pages: [{ path: "/" }, { path: "/a", status: "pending" }] });
+    const [, pending] = buildShareModel(inputOf([run])).pages;
+
+    expect(pending).toMatchObject({
+      status: "never",
+      statusText: "Never transcribed",
+      needsAttention: true,
+    });
   });
 
   it("puts the person's review on each card, as far as the records show it", async () => {
@@ -716,54 +731,61 @@ describe("buildShareModel", () => {
       `Text noted in ${redact(notes)} (1 match in the read pass).`,
     ]);
     expect(model.summary.attention[0]?.clauses).toContain(`As noted in ${redact(notes)}`);
-    // Nothing the page shows holds the home folder. The records and transcripts it carries for the
-    // fingerprint check are exactly as recorded.
+    // Nothing the page shows holds the home folder. The records, review entries, and transcripts it
+    // carries for the fingerprint check are exactly as recorded, since a seal covers every field.
     expect(stringsIn(shown(model)).filter(mentionsHome)).toEqual([]);
     expect(model.check.runs[0]?.settings.source).toEqual({
       kind: "pages",
       file: list,
       sha256: "a".repeat(64),
     });
+    expect(Object.values(model.check.reviews ?? {}).flat()).toMatchObject([
+      { note: `As noted in ${notes}` },
+    ]);
   });
 
-  it("hears the home page three ways, with the time of each line", async () => {
+  it("hears the home page three ways, with how long each line took", async () => {
     const { heard } = await demoModel();
 
     // The read pass's first two steps, Ctrl+End and Ctrl+Home, set the pass up: they aren't lines.
+    // Each line took 1.27 to 1.32 seconds: voicecap waits for NVDA to be quiet after each key.
     expect(heard).toEqual({
       page: "http://127.0.0.1:4848/",
       passes: [
         {
           pass: "read",
           lines: [
-            { text: "banner landmark, voicecap demo", at: "0:03.8" },
+            { text: "banner landmark, voicecap demo", took: "1.3 s" },
             {
               text: "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
-              at: "0:05.1",
+              took: "1.3 s",
             },
             {
               text: "out of list, main landmark, heading, level 1, Welcome to the voicecap demo",
-              at: "0:06.4",
+              took: "1.3 s",
             },
           ],
         },
         {
           pass: "headings",
           lines: [
-            { text: "main landmark, Welcome to the voicecap demo, heading, level 1", at: "0:01.3" },
-            { text: "The tour's pages, heading, level 2", at: "0:02.6" },
-            { text: "no next heading", at: "0:03.8" },
+            {
+              text: "main landmark, Welcome to the voicecap demo, heading, level 1",
+              took: "1.3 s",
+            },
+            { text: "The tour's pages, heading, level 2", took: "1.3 s" },
+            { text: "no next heading", took: "1.3 s" },
           ],
         },
         {
           pass: "tab",
           lines: [
-            { text: "Skip to main content, same page, link", at: "0:01.3" },
+            { text: "Skip to main content, same page, link", took: "1.3 s" },
             {
               text: "Tour, navigation landmark, list, with 1 item, Next: Before you start, link",
-              at: "0:02.6",
+              took: "1.3 s",
             },
-            { text: "main landmark, list, with 6 items, Before you start, link", at: "0:03.9" },
+            { text: "main landmark, list, with 6 items, Before you start, link", took: "1.3 s" },
           ],
         },
       ],
@@ -792,7 +814,11 @@ describe("buildShareModel", () => {
         // Not the browser's own "Tab search, button" after focus left the page: no rule hears it.
         said: ["button", "main landmark. edit, blank"],
       },
-      { rule: "headings", text: "Its first heading is level 2, not 1.", said: [] },
+      {
+        rule: "headings",
+        text: "Its first heading is level 2, not 1.",
+        said: ["main landmark, Common mistakes (on purpose), heading, level 2"],
+      },
     ]);
   });
 

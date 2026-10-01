@@ -34,7 +34,7 @@ import {
 } from "./cards.js";
 import { changesOf, type Changes } from "./changes.js";
 import type { CheckData } from "./check.js";
-import { dateRange, elapsed, longDate, names } from "./format.js";
+import { dateRange, longDate, names, seconds } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { problemsOf, type ProblemsSection } from "./problems.js";
 import { reviewOf } from "./review.js";
@@ -76,12 +76,11 @@ export interface ShareModel {
   summary: Summary;
   /**
    * The first three lines of each pass on the home page (the page at "/", else the first in scope),
-   * from its shown transcripts, each with its time since the pass began ("0:02.4"). Null when that
-   * page has none.
+   * from its shown transcripts, each with how long it took ("1.3 s"). Null when that page has none.
    */
   heard: {
     page: string;
-    passes: { pass: PassName; lines: { text: string; at: string }[] }[];
+    passes: { pass: PassName; lines: { text: string; took: string }[] }[];
   } | null;
   pages: PageCard[];
   noLongerListed: NoLongerListed[];
@@ -139,7 +138,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     heard: heardOf(standing.pages, input.transcripts),
     pages,
     noLongerListed: noLongerListedOf(standing),
-    flagged: flaggedOf(standing, pages, input.transcripts),
+    flagged: flaggedOf(standing, pages, input.transcripts, input.flagRules),
     changes,
     problems,
     coverage: coverageOf(standing, redact),
@@ -272,7 +271,8 @@ const HEARD = 3;
 
 /**
  * The home page's first lines in each pass: the steps of the key that pass presses, so not the
- * read pass's Ctrl+End and Ctrl+Home, which set it up.
+ * read pass's Ctrl+End and Ctrl+Home, which set it up. Each with how long it took: the key press
+ * and NVDA's speech, until NVDA was quiet.
  */
 function heardOf(pages: PageStanding[], transcripts: TranscriptStore): ShareModel["heard"] {
   const home = homeOf(pages);
@@ -283,7 +283,7 @@ function heardOf(pages: PageStanding[], transcripts: TranscriptStore): ShareMode
     const lines = steps
       .filter((step) => step.command === MAIN_COMMAND[pass])
       .slice(0, HEARD)
-      .map((step) => ({ text: stepLine(step, pass), at: elapsed(step.offsetMs) }));
+      .map((step) => ({ text: stepLine(step, pass), took: seconds(step.durationMs) }));
     return lines.length === 0 ? [] : [{ pass, lines }];
   });
   return passes.length === 0 ? null : { page: pageName(home), passes };

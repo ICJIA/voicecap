@@ -3,15 +3,16 @@
  * what each pass captured, and its flags. Then NVDA's own words that raised each flag, and the
  * pages the latest list no longer has. Pure: it works from records already read.
  */
-import { contentSteps, items } from "../flags/evaluate.js";
-import type {
-  FlagResult,
-  PageRecord,
-  PageStatus,
-  PassName,
-  ReviewStatus,
-  RunJson,
-  StopReason,
+import { flagQuotes, type FlagRules, type PagePasses } from "../flags/evaluate.js";
+import {
+  PASS_NAMES,
+  type FlagResult,
+  type PageRecord,
+  type PageStatus,
+  type PassName,
+  type ReviewStatus,
+  type RunJson,
+  type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { pageName } from "../report/model.js";
@@ -42,7 +43,10 @@ export interface PageCard {
    * there, with transcripts from an earlier run; never transcribed; or skipped there.
    */
   status: "no-flags" | "flags" | "failed" | "never" | "skipped";
-  /** The status chip's words. */
+  /**
+   * The status chip's words: "Transcribed" for a page read in full in the latest run (its flags have
+   * chips of their own), else what the latest run did and where the transcripts come from.
+   */
   statusText: string;
   /**
    * The person's review, as far as the records show it: "Listened to live by <name>" ("Listened to
@@ -72,7 +76,10 @@ export interface PageCard {
   failure: string | null;
   /** The flags of the shown transcripts, computed with the current rules. */
   flags: FlagResult[];
-  /** Flags, a failure or a skip, an open issue, or transcripts that changed since their review. */
+  /**
+   * No transcripts, flags, a failure or a skip, an open issue, or transcripts that changed since
+   * their review: the card is never folded away as having nothing to note.
+   */
   needsAttention: boolean;
 }
 
@@ -151,6 +158,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       failure: failureOf(page, input.problems),
       flags,
       needsAttention:
+        shown === null ||
         flags.length > 0 ||
         page.latestFailure !== null ||
         review?.latest?.status === "issue" ||
@@ -178,9 +186,7 @@ function statusOf(
     };
   }
   if (shown === null) return { status: "never", statusText: "Never transcribed" };
-  return flags.length > 0
-    ? { status: "flags", statusText: "Transcribed, with flags" }
-    : { status: "no-flags", statusText: "Transcribed, no flags" };
+  return { status: flags.length > 0 ? "flags" : "no-flags", statusText: "Transcribed" };
 }
 
 function titleOf(page: PageRecord, version: string | null): PageCard["title"] {
@@ -267,55 +273,50 @@ const QUOTED = 3;
 
 /**
  * Each page with flags, with NVDA's own words that raised them: a row for each rule, what it found
- * in plain words, and up to 3 of the lines it found its items in, as the rule heard them.
+ * in plain words, and up to 3 of the lines it matched in the shown transcripts, as the rule itself
+ * matched them with `rules` (flagQuotes).
  */
 export function flaggedOf(
   standing: Standing,
   cards: PageCard[],
   transcripts: TranscriptStore,
+  rules: FlagRules,
 ): FlaggedPage[] {
   return standing.pages.flatMap((page, index) => {
     const card = cards[index];
     const { shown } = page;
     if (card === undefined || shown === null || card.flags.length === 0) return [];
-    const rules = [...new Set(card.flags.map((flag) => flag.rule))];
-    const quotes = rules.map((rule): FlagQuote => {
+    const passes = shownPasses(shown, transcripts);
+    const ruleIds = [...new Set(card.flags.map((flag) => flag.rule))];
+    const quotes = ruleIds.map((rule): FlagQuote => {
       const flags = card.flags.filter((flag) => flag.rule === rule);
       const clause = attentionClauses(flags, null, null);
+      // A rule raised in more than one pass quotes each line once, the first pass's first.
+      const said = [...new Set(flags.flatMap((flag) => flagQuotes(passes, rules, flag)))];
       return {
         rule,
         text: `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`,
-        said: saidFor(flags, shown, transcripts),
+        said: said.slice(0, QUOTED),
       };
     });
     return [{ card, quotes }];
   });
 }
 
-/**
- * The distinct lines, in pass order, among the steps each flag's rule looked at, that hold an item
- * it found. A flag from a record that lists nothing found quotes nothing.
- */
-function saidFor(
-  flags: FlagResult[],
+/** The passes of a page's shown transcripts, as the flag rules read them: steps and stop reason. */
+function shownPasses(
   shown: { run: RunJson; page: PageRecord },
   transcripts: TranscriptStore,
-): string[] {
-  const said: string[] = [];
-  for (const flag of flags) {
-    const stopReason = flag.pass && shown.page.passes[flag.pass]?.stopReason;
-    const steps = flag.pass && transcripts.steps(shown.run.id, shown.page.slug, flag.pass);
-    if (!flag.pass || !stopReason || !steps || !flag.found) continue;
-    const found = new Set(flag.found.map((item) => item.text));
-    for (const step of contentSteps(flag.pass, { steps, stopReason })) {
-      const line = normalizeSpeech(step.spoken);
-      if (said.length === QUOTED) return said;
-      if (!said.includes(line) && items(step.spoken).some((item) => found.has(item))) {
-        said.push(line);
-      }
+): PagePasses {
+  const passes: PagePasses = {};
+  for (const pass of PASS_NAMES) {
+    const summary = shown.page.passes[pass];
+    const steps = transcripts.steps(shown.run.id, shown.page.slug, pass);
+    if (summary !== undefined && steps !== null) {
+      passes[pass] = { steps, stopReason: summary.stopReason };
     }
   }
-  return said;
+  return passes;
 }
 
 /** A page's status in its last record, for the "No longer listed" table. */
