@@ -245,7 +245,7 @@ The owner's standing rules, from Phases A and B:
   - 0.5.0 added `voicecap demo`, the four fixes the Windows checks found (2026-09-29 and 30), a failed page tried up to 5 times, and the reviewer's name on every session. It was merged to `main` from the branch `windows-checks-fixes`.
 - **Being built:** 0.6.0, the shareable report, in six plans.
   - Plan 1, the run records, is merged to `main` (2026-09-30).
-  - Plan 2, the page, is done, on the branch `0.6.0-the-page`: every site folder's `share/current.html`, written after a completed run, a review, a manual session, and `voicecap report`.
+  - Plan 2, the page, is merged to `main` (2026-10-01): every site folder's `share/current.html`, written after a completed run, a review, a manual session, and `voicecap report`.
   - Plans 3 to 6 follow: the Word copy and sharing (`voicecap share`, the dated copies, and `verify`'s checks of them), the walkthrough file, the website, and the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
 - **Tests:** 2,230 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
