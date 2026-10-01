@@ -678,6 +678,7 @@ voicecap-transcripts/                  ← the transcripts home
         session.json  session.txt  raw/nvda-log.txt
     reviews.json                       ← append-only review history, by page; persists across runs
     report.html  latest.txt            ← live report, and the id of the most recently completed run
+    share/current.html                 ← the shareable page, written again with report.html
     compare/<base>__<run>/             ← diffs made by `voicecap report --compare`
     .voicecap.lock                     ← only while a run writes here
   i2i.illinois.gov/
@@ -750,7 +751,7 @@ Every record voicecap finishes writing is sealed: a completed run's `run.json`, 
 
 `verify` checks every site folder in the home, or one with `--site`: each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; and the whole review chain. It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
 
-`verify` doesn't check the regenerated views (a site's `report.html`, `latest.txt`, and `compare/`), a run's own `report.html` and `compare/` diffs, or kept earlier attempts.
+`verify` doesn't check the regenerated views (a site's `report.html`, `latest.txt`, `share/current.html`, and `compare/`), a run's own `report.html` and `compare/` diffs, or kept earlier attempts.
 
 **What it can't catch on its own:** someone who edits a record and recomputes its seal, and every later seal and `prev`; and someone who deletes the newest review entries, or a whole run or manual session, which leaves nothing for `verify` to find: only Git history shows it. Git history pushed to a protected branch catches both, since rewriting commits that are already pushed takes a force-push, and a branch protected against force-pushes refuses it — which is why the setup below has you protect the branch and push often.
 
@@ -760,6 +761,7 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 
 - **`.voicecap.lock`**, the marker a run holds while it's writing.
 - **Manual sessions' raw NVDA logs** (`**/*_manual_*/raw/`). At Input/output level, NVDA's log records every keystroke, including passwords typed into forms — not something to put in Git. The raw copy's SHA-256 stays in `session.json` either way, so a home missing a raw copy isn't something `verify` will flag.
+- **The shareable page** (`**/share/current.*`). voicecap writes it again after every run and review, so a copy in Git each time would only make the record bigger; it's made from the records, which are in Git. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
 - **Temporary files a crash can leave behind** (`.*.tmp`). voicecap writes each file under a temporary name first, then renames it into place.
 - **Files the operating system adds** to folders you open: `.DS_Store` (macOS), `Thumbs.db` and `desktop.ini` (Windows).
 
@@ -931,7 +933,10 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 voicecap writes it whenever it rewrites the site's `report.html`: when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`, which also prints `Shareable page: <path>`. (The programmatic API's `generateReport`, `addReview`, and `addManualSession` write it too.) It's rewritten each time, so keep a copy of the file you send. A page that can't be written is a warning, never a failed run, review, or report.
 
 - **One self-contained file.** Its styles, fonts, and data are inside it, and nothing is loaded from outside. It's dark at first, with a button for a light version, and it prints light. Its detail is folded under lines that say what's inside. Each fold opens with a click, scripts or not; "Open every section", at the top, opens them all; and so does printing. Like the report, it's itself accessible: voicecap's tests run axe on it, in both themes, with every fold shut and every fold open.
-- **Only completed, sealed, live runs count.** Its pages are those of the site's latest run that counts, and each page shows its newest transcripts from any run that counts. A page that failed in the latest run shows the failure beside its last good transcripts, and a page the latest run no longer lists goes in a small table, "No longer listed". A replayed run (`--replay-from`), a run that was interrupted or never finished, and a completed run with no seal never count toward a result. The page lists each one it left out, with why, and with no run that counts, it says so.
+- **Only completed, sealed, live runs count.** Its pages are those of the latest run that counts whose pages came from a sitemap or a page list. A later run given its pages with `--page` is a spot check: its transcripts are shown for the pages it read, and its failures are said, but it doesn't change which pages are in scope. Each page shows its newest transcripts from any run that counts.
+  - A page whose latest attempt failed shows the failure beside its last good transcripts, and is a task under "What's still to do".
+  - A page the latest run's list no longer has goes in a small table, "No longer listed".
+  - A replayed run (`--replay-from`), a run that was interrupted or never finished, a completed run with no seal, and a run whose `run.json` can't be read never count toward a result. The page lists each one it left out, with why, and with no run that counts, it says so.
 - **A person's review, first.** The summary leads with what the person did: that they listened as NVDA read the pages (their answer to the question at the end, under [Run an audit](#run-an-audit)), what they found, and what they fixed (see [Reviews: the audit trail](#reviews-the-audit-trail)). It says a person listened, reviewed, or fixed something only where the records say so, and what's left appears as tasks, under "What's still to do".
 - **Nothing left blank.** Where a run didn't record something the page shows, it says so, as in "Not recorded: this run used voicecap 0.5.0".
 
@@ -942,15 +947,17 @@ Its sections, in order:
 - **Every page**: a card for each page, with its result, flags, review, line counts, and a link to its transcripts.
 - **What the flags found**: each flagged page's rules, with NVDA's own words quoted from the transcripts.
 - **What changed since the last run**: the pages that sound different from the run before (the latest earlier run that counts, with the same page source), line by line, with the changed words marked. Pages that sound the same are counted, not listed.
-- **Problems during the runs**: every failed attempt, including those a later attempt made good, with its kind (another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself), what voicecap did, whether it happened again, what it means for the results, and the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`).
+- **Problems during the runs**: every failed attempt in the runs the page draws on, including those a later attempt made good. Each has its kind: another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself. Each says what voicecap did, whether it happened again (by what came after it: a run before it that read the page shows only that the page could be read), and what it means for the results. Then comes the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`).
 - **What these results cover**: the pages and passes, and the technical limits.
-- **The evidence behind these results**: each run the page draws on, with its facts, its test environment, and the fingerprint of every file, and the fingerprint check below.
+- **The evidence behind these results**: the fingerprint check, then each run the page draws on, with its facts, its test environment, and the fingerprint of every file.
 - **How voicecap came to be**: why it exists, its timeline, and a few things worth knowing.
 - **Appendix: every transcript**: each page's read, headings, and Tab transcripts, word for word.
 
-**The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint (`Get-FileHash <file>` in PowerShell, `shasum -a 256 <file>` on a Mac) with one its sender noted down, or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `share/` alone: the page is made again from the records each time, and `verify` checks the records.
+**The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows in the appendix is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint (`Get-FileHash <file>` in PowerShell, `shasum -a 256 <file>` on a Mac) with one its sender noted down, or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `share/` alone: the page is made again from the records each time, and `verify` checks the records.
 
-**The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name.
+**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows.
+
+**The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
 
 ## Heuristic flags
 
@@ -1013,7 +1020,7 @@ export default defineConfig({
 | `manual.focusKeys` | `["tab", "shift+tab", "enter", …]` | NVDA key names that move focus (redaction). |
 | `reviewer` | `null` | Default reviewer name. |
 | `report.title`, `report.agency`, `report.logo` | `"NVDA transcript report"`, `null`, `null` | Report branding; the logo must be a `data:image/…` URI. |
-| `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
+| `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
 
 Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run.
 
