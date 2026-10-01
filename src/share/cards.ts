@@ -3,7 +3,7 @@
  * what each pass captured, and its flags. Then NVDA's own words that raised each flag, and the
  * pages the latest list no longer has. Pure: it works from records already read.
  */
-import { flagQuotes, type FlagRules, type PagePasses } from "../flags/evaluate.js";
+import { flagQuotes, QUOTED, type FlagRules, type PagePasses } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
   type FlagResult,
@@ -30,6 +30,8 @@ export interface PageCard {
   slug: string;
   /** What the page is called: its label, else its address. */
   name: string;
+  /** The page list gave the page a label (one that isn't blank): `name` is it, whatever it says. */
+  labeled: boolean;
   /** Its address without the site's: "/how-a-run-works/". */
   path: string;
   /**
@@ -70,8 +72,11 @@ export interface PageCard {
    * stops. A pass the run didn't read is null. Null for a page with no transcripts.
    */
   counts: { read: number | null; headings: number | null; tab: number | null } | null;
-  /** How long the shown transcription of the page took. */
-  timeMs: number | null;
+  /**
+   * How long the shown transcription of the page took, or "Not recorded: this run used voicecap
+   * <v>." when its record keeps no time. Null for a page with no transcripts.
+   */
+  timeMs: number | { notRecorded: string } | null;
   /** One bar per read-pass line: how long it took, and its length in characters. */
   strip: { ms: number; chars: number }[];
   /**
@@ -83,8 +88,16 @@ export interface PageCard {
   from: { run: string; date: string } | null;
   /** The latest run's failure, or why it skipped the page, in plain words; home replaced. */
   failure: string | null;
-  /** The flags of the shown transcripts, computed with the current rules. */
+  /**
+   * The flags of the shown transcripts, computed with the current rules, unless `flagsAsRecorded`
+   * says they're as the run recorded them.
+   */
   flags: FlagResult[];
+  /**
+   * The shown transcripts' flags are their record's, not the current rules': a JSON transcript of
+   * the page couldn't be read here to compute them afresh.
+   */
+  flagsAsRecorded: boolean;
   /**
    * No transcripts, flags, a read that stopped short, a failure or a skip, an open issue, or
    * transcripts that changed since their review: the card is never folded away as having nothing
@@ -97,7 +110,10 @@ export interface FlagQuote {
   rule: string;
   /** What the rule found, in plain words. */
   text: string;
-  /** Up to 3 lines NVDA spoke that raised it, word for word: none for a rule that finds no items. */
+  /**
+   * Up to 3 lines NVDA spoke that raised it, word for word (flagQuotes): none only for a page with
+   * no headings, or Tab reaching nothing, which have no line to quote.
+   */
   said: string[];
 }
 
@@ -120,11 +136,14 @@ interface CardsInput {
   review: Map<string, PageReview>;
   problems: ProblemsSection;
   transcripts: TranscriptStore;
+  /** The pages whose flags are their record's (ShareInput.flagsAsRecorded). */
+  flagsAsRecorded: { run: string; slug: string }[];
 }
 
 /** A card for each page in scope, in the latest run's page order. */
 export function cardsOf(input: CardsInput): PageCard[] {
   const { standing, transcripts } = input;
+  const asRecorded = new Set(input.flagsAsRecorded.map(({ run, slug }) => `${run}/${slug}`));
   return standing.pages.map((page) => {
     const { shown } = page;
     const flags = shown?.page.flags ?? [];
@@ -142,6 +161,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       key: page.key,
       slug: page.slug,
       name: pageName(page),
+      labeled: (page.label?.trim() ?? "") !== "",
       path: pagePath(page.url),
       title: source === null ? null : titleOf(source.page, version),
       status,
@@ -154,7 +174,8 @@ export function cardsOf(input: CardsInput): PageCard[] {
         reviewer: json.reviewer || null,
       })),
       counts: shown === null ? null : countsOf(shown.page),
-      timeMs: shown?.page.durationMs ?? null,
+      timeMs:
+        shown === null ? null : (shown.page.durationMs ?? { notRecorded: notRecordedBy(version) }),
       strip:
         shown === null
           ? []
@@ -169,6 +190,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
           : null,
       failure: failureOf(page, input.problems),
       flags,
+      flagsAsRecorded: shown !== null && asRecorded.has(`${shown.run.id}/${shown.page.slug}`),
       needsAttention:
         shown === null ||
         flags.length > 0 ||
@@ -281,13 +303,13 @@ function failureOf(page: PageStanding, problems: ProblemsSection): string | null
   return `It failed on ${all} attempts. On the last, ${lowerFirst(last.happened)}`;
 }
 
-/** A sentence's first word in lowercase, to follow other words: never a name such as "NVDA". */
+/**
+ * A sentence's first word in lowercase, to follow other words: "A step" as well as "During", and
+ * never a name in capitals such as "NVDA".
+ */
 function lowerFirst(text: string): string {
-  return /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  return /^[A-Z](?![A-Z])/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
-
-/** The most lines quoted for a rule. */
-const QUOTED = 3;
 
 /**
  * Each page with flags, with NVDA's own words that raised them: a row for each rule, what it found

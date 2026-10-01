@@ -300,21 +300,41 @@ function count(amount: number, thing: string): string {
   return `${amount} ${amount === 1 ? thing : `${thing}s`}`;
 }
 
-/** What a run left out did, in words that follow its id. */
-const LEFT_OUT: Record<LeftOutReason, (processed: number, pages: number) => string> = {
+/**
+ * What a run left out did, in words that follow its id. An unsealed run is said to be from before
+ * voicecap sealed runs only when its version says so: every version from 0.3.0 seals a run as it
+ * completes.
+ */
+const LEFT_OUT: Record<LeftOutReason, (run: RunJson, processed: number) => string> = {
   replayed: () => "replayed, so it never counts as a live result",
-  interrupted: (processed, pages) => `interrupted after ${processed} of ${pages} pages`,
-  unfinished: (processed, pages) => `not finished: ${processed} of ${pages} pages`,
-  unsealed: () => "completed without a seal (recorded before voicecap sealed runs)",
+  interrupted: (run, processed) => `interrupted after ${processed} of ${run.pages.length} pages`,
+  unfinished: (run, processed) => `not finished: ${processed} of ${run.pages.length} pages`,
+  unsealed: (run) =>
+    beforeSeals(versionOf(run))
+      ? "completed without a seal (recorded before voicecap sealed runs)"
+      : "completed without a seal",
 };
 
+/** Whether a run's voicecap is older than 0.3.0, the first to seal runs. Unknown is not. */
+function beforeSeals(version: string | null): boolean {
+  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
+  return match !== null && Number(match[1]) === 0 && Number(match[2]) < 3;
+}
+
 /**
- * Every run the standing leaves out, oldest first, each as one line that starts with its id:
- * "2026-09-29_1415: interrupted after 1 of 7 pages".
+ * Every run the standing leaves out, and every run whose record couldn't be read (`unreadable`, by
+ * id), oldest first, each as one line that starts with its id: "2026-09-29_1415: interrupted after
+ * 1 of 7 pages", "2026-09-25_0900: its record couldn't be read".
  */
-export function leftOutOf(standing: Standing): { id: string; text: string }[] {
-  return standing.leftOut.map(({ run, reason, processed }) => ({
+export function leftOutOf(
+  standing: Standing,
+  unreadable: string[] = [],
+): { id: string; text: string }[] {
+  const left = standing.leftOut.map(({ run, reason, processed }) => ({
     id: run.id,
-    text: `${run.id}: ${LEFT_OUT[reason](processed, run.pages.length)}`,
+    text: `${run.id}: ${LEFT_OUT[reason](run, processed)}`,
   }));
+  const unread = unreadable.map((id) => ({ id, text: `${id}: its record couldn't be read` }));
+  // A run's id begins with its date and time, so it orders the two lists as one.
+  return [...left, ...unread].sort((a, b) => a.id.localeCompare(b.id));
 }

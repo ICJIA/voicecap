@@ -119,8 +119,11 @@ export interface BarSegment {
   kind: string;
 }
 
-/** A whole number as the page writes it, on any computer: "1,204". */
-export const count = (value: number): string => value.toLocaleString("en-US");
+/**
+ * A whole number as the page writes it, on any computer: "1,204". It's made a number first, so a
+ * record's field that holds something else never reaches the page as markup.
+ */
+export const count = (value: number): string => Number(value).toLocaleString("en-US");
 
 /** A part of a track as a percentage, to two decimals. A bare 0 for none. */
 function percent(part: number, total: number): string {

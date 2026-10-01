@@ -3,7 +3,8 @@
  * runs, reviews, and manual sessions, and the transcripts the page shows or compares. Every read is
  * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
  */
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { VoicecapConfig } from "../config/schema.js";
@@ -26,7 +27,7 @@ import {
 } from "../model.js";
 import { readReviews } from "../reviews/store.js";
 import { homeFolder } from "../run/failure.js";
-import { pageDir } from "../run/paths.js";
+import { pageDir, runJsonPath } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
@@ -65,6 +66,16 @@ export interface ShareInput {
    * sounds different in the latest run (the page compares them line by line).
    */
   transcripts: TranscriptStore;
+  /**
+   * The pages read here whose flags couldn't be computed afresh, since a JSON transcript of theirs
+   * couldn't be read: each keeps the flags its record has, by run id and slug.
+   */
+  flagsAsRecorded: { run: string; slug: string }[];
+  /**
+   * The ids of the run folders whose run.json is there but couldn't be read (damaged, or not
+   * JSON): no record says what they did, and the page lists them among the runs left out.
+   */
+  unreadableRuns: string[];
   /** config.report.siteName. */
   siteName: string | null;
   /** The current config's flag rules: the flags were computed with them, and quote by them. */
@@ -73,8 +84,6 @@ export interface ShareInput {
   flagRulesSha256: string;
   /** When the page was made, as a local ISO time (isoLocal). */
   generatedAt: string;
-  /** The time zone its times are in, as Intl names it ("America/Chicago"). */
-  timeZone: string;
   /**
    * The home folder: the page replaces it wherever it would show it. "" where Node can't give one,
    * which leaves nothing to replace.
@@ -107,11 +116,22 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual] = await Promise.all([readReviews(siteDir), listManualSessions(siteDir)]);
+  const [reviews, manual, unreadableRuns] = await Promise.all([
+    readReviews(siteDir),
+    listManualSessions(siteDir),
+    runsNotRead(siteDir, records),
+  ]);
+  const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
     site: (standing.latest ?? newest).site,
-    runs: records.map((record) => withFlagsFromTranscripts(record, read, config.flags)),
+    runs: records.map((record) =>
+      withFlagsFromTranscripts(record, read, config.flags, (slug) =>
+        flagsAsRecorded.push({ run: record.id, slug }),
+      ),
+    ),
     records,
+    flagsAsRecorded,
+    unreadableRuns,
     reviews,
     manual,
     transcripts: storeOf(read),
@@ -119,7 +139,6 @@ export async function loadShareInput(options: {
     flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
     generatedAt: isoLocal(options.now ?? new Date()),
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     home: homeFolder() ?? "",
     platform: process.platform,
     fileName: options.fileName ?? "current.html",
@@ -206,23 +225,49 @@ async function readTranscript(file: string): Promise<TranscriptJson | null> {
 /**
  * The run with the flags of each page read here computed from its JSON transcripts with `rules`,
  * so every flag the page shows or compares is the current rules', with what each found. A page
- * whose transcripts can't all be read keeps the flags its record has. The record itself is never
- * changed: a page with flags computed here is a new object, and so is its run.
+ * whose transcripts can't all be read keeps the flags its record has, and `asRecorded` is told its
+ * slug. The record itself is never changed: a page with flags computed here is a new object, and
+ * so is its run.
  */
 function withFlagsFromTranscripts(
   run: RunJson,
   read: Map<string, PageTranscripts>,
   rules: FlagRules,
+  asRecorded: (slug: string) => void,
 ): RunJson {
   let computed = false;
   const pages = run.pages.map((page) => {
     const transcripts = read.get(storeKey(run.id, page.slug));
-    const flags = transcripts === undefined ? null : flagsOf(page, transcripts, rules);
-    if (flags === null) return page;
+    if (transcripts === undefined) return page;
+    const flags = flagsOf(page, transcripts, rules);
+    if (flags === null) {
+      asRecorded(page.slug);
+      return page;
+    }
     computed = true;
     return { ...page, flags };
   });
   return computed ? { ...run, pages } : run;
+}
+
+/**
+ * The run folders of a site whose run.json is there but wasn't read (listRuns leaves out one it
+ * can't parse), by run id, oldest first. A folder with no run.json at all, as a manual session's,
+ * isn't a run.
+ */
+async function runsNotRead(siteDir: string, records: RunJson[]): Promise<string[]> {
+  const read = new Set(records.map((run) => run.id));
+  const ids: string[] = [];
+  for (const day of await readdir(siteDir, { withFileTypes: true })) {
+    if (!day.isDirectory() || !/^\d{4}-\d{2}-\d{2}$/.test(day.name)) continue;
+    for (const entry of await readdir(path.join(siteDir, day.name), { withFileTypes: true })) {
+      const id = `${day.name}_${entry.name}`;
+      if (entry.isDirectory() && !read.has(id) && existsSync(runJsonPath(siteDir, id))) {
+        ids.push(id);
+      }
+    }
+  }
+  return ids.sort();
 }
 
 /** A page's flags from its transcripts: null when a pass it read has no JSON transcript to read. */

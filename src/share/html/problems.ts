@@ -173,7 +173,7 @@ function kindsFold(): string {
 
 /** What the section says of what's in it, when something is. */
 const GIST =
-  "Every attempt that failed is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.";
+  "Every attempt that failed in the runs these results come from is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.";
 
 /**
  * "Problems during the runs": the verdict line, a fold for each problem, oldest first, and the

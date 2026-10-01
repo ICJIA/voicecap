@@ -893,7 +893,7 @@ describe("problemsOf: did it happen again?", () => {
     ["an HTTP error", "http", "That points to the website."],
     ["a website that couldn't be reached", "unreachable", "That points to the website."],
   ])(
-    "says yes, on every attempt, and points to the website for an HTTP error: %s",
+    "says yes, on every attempt, and what failing every time points to, for each kind: %s",
     (_name, cause, points) => {
       const run = shareRun({
         id: "r1",

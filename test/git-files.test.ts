@@ -55,4 +55,22 @@ describe("ensureGitFiles", () => {
       expect(ignored("dvfr.illinois.gov/report.html")).toBe(1);
     },
   );
+
+  it.skipIf(!gitAvailable)(
+    "keeps the shareable page that's written again after every run out of Git, and not the copies that are sent",
+    async () => {
+      const home = await tmp();
+      expect(git(["init"], home)).toBe(0);
+      await ensureGitFiles(home);
+
+      const ignored = (relativePath: string) => git(["check-ignore", "-q", relativePath], home);
+
+      expect(ignored("dvfr.illinois.gov/share/current.html")).toBe(0);
+      expect(ignored("dvfr.illinois.gov/share/current.docx")).toBe(0);
+      expect(ignored("voicecap-demo/127.0.0.1_4848/share/current.html")).toBe(0);
+      // The dated copies a person sends, and the record of what was sent, stay in Git.
+      expect(ignored("dvfr.illinois.gov/share/dvfr.illinois.gov_2026-09-30.html")).toBe(1);
+      expect(ignored("dvfr.illinois.gov/share/shares.json")).toBe(1);
+    },
+  );
 });

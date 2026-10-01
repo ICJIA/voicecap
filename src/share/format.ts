@@ -86,6 +86,17 @@ export function clock(iso: string): string {
   return `${hour}:${minute}`;
 }
 
+/**
+ * A recorded time's offset from UTC, as a reader writes it: "UTC−05:00", with a minus sign, not a
+ * hyphen, and "UTC+00:00" for a time recorded in UTC ("Z").
+ */
+export function utcOffset(iso: string): string {
+  const found = /(?:([+-])(\d{2}):(\d{2})|Z)$/.exec(iso);
+  if (found === null) throw new Error(`Not a local ISO time: ${JSON.stringify(iso)}`);
+  const [, sign = "+", hours = "00", minutes = "00"] = found;
+  return `UTC${sign === "-" ? "−" : "+"}${hours}:${minutes}`;
+}
+
 /** How long something took, in seconds to the nearest tenth: "1.3 s". */
 export function seconds(ms: number): string {
   return `${(Math.round(Math.max(0, ms) / 100) / 10).toFixed(1)} s`;

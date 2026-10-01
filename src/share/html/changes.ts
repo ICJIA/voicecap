@@ -14,6 +14,7 @@
  */
 import { PASS_NAMES, type FlagResult, type PassName } from "../../model.js";
 import { esc, plural } from "../../report/html.js";
+import { attentionClauses } from "../attention.js";
 import type { Changes, DiffLine, OnlyInOnePage, PageChange, PassChange } from "../changes.js";
 import { pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
@@ -89,8 +90,9 @@ function onlyInOneNote(pages: OnlyInOnePage[]): string {
 
 /**
  * How much a page changed, for its fold's line: each pass that sounds different, in pass order,
- * with the lines it lost and gained, or that its transcript couldn't be read, so no count is
- * known. "read: 3 lines removed and 2 added; headings: couldn't be read; Tab: 1 line removed".
+ * with the lines it lost and gained, or that its transcript couldn't be read here, so no count is
+ * known. "read: 3 lines removed and 2 added; headings: couldn't be read here; Tab: 1 line removed".
+ * ("Here", since a pass named "read" that couldn't be read would say "read" twice over.)
  */
 function countsOf({ passes, unreadable }: PageChange): string {
   const clauses = PASS_NAMES.flatMap((pass) => {
@@ -98,24 +100,25 @@ function countsOf({ passes, unreadable }: PageChange): string {
     if (change !== undefined) {
       return [`${PASS_WORDS[pass]}: ${sizesOf(change.removed, change.added)}`];
     }
-    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read`] : [];
+    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read here`] : [];
   });
   return clauses.join("; ");
 }
 
 /**
  * A chip for each rule whose flag went or came, in words. A rule that another pass still raises
- * isn't resolved for the page, and one it already raised in another pass isn't new: the paragraph
- * inside says each flag, pass by pass.
+ * (one both runs read, or one only the later run read) isn't resolved for the page, and one it
+ * already raised in another pass isn't new: the paragraph inside says each flag, pass by pass.
  */
-function flagChips({ resolved, added, unchanged }: PageChange["flags"]): string[] {
+function flagChips({ resolved, added, unchanged, changed, uncompared }: PageChange["flags"]) {
   const rulesOf = (flags: FlagResult[]) => new Set(flags.map(({ rule }) => rule));
   const gone = rulesOf(resolved);
   const came = rulesOf(added);
-  const kept = rulesOf(unchanged);
+  const kept = rulesOf([...unchanged, ...changed.map(({ after }) => after)]);
+  const stillRaised = rulesOf(uncompared);
   return [
     ...[...gone]
-      .filter((rule) => !kept.has(rule) && !came.has(rule))
+      .filter((rule) => !kept.has(rule) && !came.has(rule) && !stillRaised.has(rule))
       .map((rule) => chip("ok", `${rule} resolved`)),
     ...[...came]
       .filter((rule) => !kept.has(rule) && !gone.has(rule))
@@ -123,8 +126,11 @@ function flagChips({ resolved, added, unchanged }: PageChange["flags"]): string[
   ];
 }
 
-/** Each flag in the passes both runs read: resolved, then new, then unchanged. */
-function flagsParagraph({ resolved, added, unchanged }: PageChange["flags"]): string {
+/**
+ * Each flag in the passes both runs read: resolved, then new, then changed, then unchanged. A flag
+ * whose count changed gives both counts; one with no count, what it finds now, in plain words.
+ */
+function flagsParagraph({ resolved, added, changed, unchanged }: PageChange["flags"]): string {
   const which = (flag: FlagResult) =>
     `<b>${esc(flag.rule)}</b>${flag.pass === undefined ? "" : ` (${PASS_WORDS[flag.pass]} pass)`}`;
   const clauses = [
@@ -135,6 +141,11 @@ function flagsParagraph({ resolved, added, unchanged }: PageChange["flags"]): st
     ...added.map(
       (flag) =>
         `${which(flag)}, none before, ${flag.count === undefined ? "new" : `${count(flag.count)} now (new)`}.`,
+    ),
+    ...changed.map(({ before, after }) =>
+      before.count !== undefined && after.count !== undefined
+        ? `${which(after)}, ${count(before.count)} before, ${count(after.count)} now (changed).`
+        : `${which(after)}, changed: now ${esc(attentionClauses([after], null, null))}.`,
     ),
     ...unchanged.map((flag) => `${which(flag)}, unchanged.`),
   ];
@@ -184,15 +195,18 @@ function passBlock({ pass, removed, added, lines }: PassChange, address: string)
 /**
  * A page that sounds different, folded behind its name, how many lines changed, and the flags that
  * went or came. Inside: each pass's changes, any pass that sounds different but whose transcript
- * can't be read, and each flag.
+ * can't be read, and each flag. Heard, the counts end before the chips start, and each chip is said
+ * apart from the next, with stops a screen reader hears and the eye doesn't see.
  */
 function changeFold(page: PageChange): string {
   const title = pageTitle(page);
   const chips = flagChips(page.flags);
+  const counts = `<span class="sub">${esc(countsOf(page))}</span>`;
   const summary = [
     `<span class="what">${esc(title)}:</span>`,
-    `<span class="sub">${esc(countsOf(page))}</span>`,
-    ...(chips.length === 0 ? [] : [`<span class="chips">${chips.join(" ")}</span>`]),
+    chips.length === 0
+      ? counts
+      : `${counts}<span class="sr">.</span> <span class="chips">${chips.join('<span class="sr">,</span> ')}</span>`,
   ];
   const body = [
     ...page.passes.map((change) => passBlock(change, pagePath(page.url))),

@@ -75,7 +75,7 @@ describe("share/current.html, written where report.html is", () => {
       "<title>example.illinois.gov: how its pages read aloud with NVDA</title>",
     );
     // Dated by the run's clock, as the run's own times are.
-    expect(page).toContain("Generated on 27 September 2026 at 11:02.");
+    expect(page).toMatch(/Generated on 27 September 2026 at 11:02 \(UTC[−+]\d\d:\d\d\)\./);
     // Its fonts are inside it, and its pages are the run's.
     expect(page).toContain("data:font/woff2;base64,");
     for (const pagePath of ["/about", "/resources"]) {
@@ -239,7 +239,7 @@ describe("writeSharePage", () => {
 
     const page = await readFile(sharePath(site), "utf8");
     expect(page).toContain("As of <b>5 January 2027</b>");
-    expect(page).toContain("Generated on 5 January 2027 at 09:30.");
+    expect(page).toMatch(/Generated on 5 January 2027 at 09:30 \(UTC[−+]\d\d:\d\d\)\./);
   });
 
   it("takes the site's name from the config", async () => {

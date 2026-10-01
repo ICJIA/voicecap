@@ -8,6 +8,7 @@
  * The page's own script is tried in Chromium too, on the demo's page opened from a file: the theme,
  * the two buttons it shows, and that each part of the page's one script starts on its own.
  */
+import type * as FsPromises from "node:fs/promises";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -15,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 import type { Browser, BrowserContext, Page } from "playwright";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { FlagResult } from "../src/model.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, type CheckData } from "../src/share/check.js";
@@ -395,6 +396,31 @@ describe("fontFaceCss", () => {
 
   it("reads the files once", () => {
     expect(fontFaceCss()).toBe(fontFaceCss());
+  });
+
+  it("reads the files again after a read that failed, rather than keep the failure", async () => {
+    // A fresh copy of the module, whose reads fail until told otherwise, as when another program
+    // holds a file for a moment.
+    vi.resetModules();
+    let failing = true;
+    vi.doMock("node:fs/promises", async (importOriginal) => {
+      const real = await importOriginal<typeof FsPromises>();
+      const readFile = (file: URL) =>
+        failing
+          ? Promise.reject(new Error("The file is held by another program."))
+          : real.readFile(file);
+      return { ...real, readFile };
+    });
+    try {
+      const fonts = await import("../src/share/fonts.js");
+
+      await expect(fonts.fontFaceCss()).rejects.toThrow("held by another program");
+      failing = false;
+      await expect(fonts.fontFaceCss()).resolves.toContain("@font-face");
+    } finally {
+      vi.doUnmock("node:fs/promises");
+      vi.resetModules();
+    }
   });
 
   it("ships the fonts with their licence, and nothing else", async () => {

@@ -964,6 +964,8 @@ describe("changesOf: runs that read different passes", () => {
       resolved: [flag("generic-link-text", "read"), flag("brand-name")],
       added: [flag("repeated-phrase", "read")],
       unchanged: [flag("unlabeled", "read")],
+      changed: [],
+      uncompared: [],
     });
     expect(changes.line).toContain(
       "Resolved: on Home, the links that don't say where they go (generic-link-text); on Home, brand-name.",
@@ -996,11 +998,53 @@ describe("changesOf: runs that read different passes", () => {
 
     const changes = changesOf(earlier, later, t.body, pageName);
 
+    // The later run's flag in the Tab pass is kept apart: the earlier run didn't look for it.
     expect(changes.changed[0]?.flags).toEqual({
       resolved: [],
       added: [flag("unlabeled", "read")],
       unchanged: [],
+      changed: [],
+      uncompared: [flag("tab-no-stops", "tab")],
     });
+  });
+
+  it("doesn't call a rule resolved while a pass only the later run read still raises it", () => {
+    const t = transcripts();
+    const earlier = t.run({
+      id: "r1",
+      createdAt: BEFORE,
+      passes: ["read"],
+      pages: [
+        {
+          path: "/",
+          label: "Home",
+          flags: [flag("generic-link-text", "read")],
+          passes: { read: ["a"] },
+        },
+      ],
+    });
+    const later = t.run({
+      id: "r2",
+      createdAt: AFTER,
+      passes: [...PASS_NAMES],
+      pages: [
+        {
+          path: "/",
+          label: "Home",
+          flags: [flag("generic-link-text", "tab")],
+          passes: { read: ["b"], tab: ["t"] },
+        },
+      ],
+    });
+
+    const changes = changesOf(earlier, later, t.body, pageName);
+
+    // Gone from the read pass, which both runs read; but the page still has the links, in the Tab
+    // pass, so no sentence calls the rule resolved.
+    expect(changes.changed[0]?.flags.resolved).toEqual([flag("generic-link-text", "read")]);
+    expect(changes.changed[0]?.flags.uncompared).toEqual([flag("generic-link-text", "tab")]);
+    expect(changes.line).not.toContain("Resolved");
+    expect(changes.summaryLine).not.toContain("resolved");
   });
 });
 
@@ -1105,10 +1149,29 @@ describe("changesOf: flags", () => {
     );
 
     // Resolved flags are as the earlier run had them; new and unchanged ones, as the later run does.
+    // A flag both runs raised, but with another count, changed: it's never "unchanged".
     expect(changes.changed[0]?.flags).toEqual({
       resolved: [generic("read", 3), generic("tab", 3)],
       added: [repeated],
-      unchanged: [unlabeled(1), headings],
+      unchanged: [headings],
+      changed: [{ before: unlabeled(2), after: unlabeled(1) }],
+      uncompared: [],
+    });
+  });
+
+  it("calls a flag with no count changed when what it found changed", () => {
+    const level3: FlagResult = {
+      ...headings,
+      message: "The first heading is level 3, not level 1.",
+    };
+    const changes = compare(
+      [{ path: "/", flags: [headings, unlabeled(2)], passes: { read: ["a"] } }],
+      [{ path: "/", flags: [level3, unlabeled(2)], passes: { read: ["b"] } }],
+    );
+
+    expect(changes.changed[0]?.flags).toMatchObject({
+      unchanged: [unlabeled(2)],
+      changed: [{ before: headings, after: level3 }],
     });
   });
 
@@ -1123,6 +1186,8 @@ describe("changesOf: flags", () => {
       resolved: [unlabeled(2)],
       added: [inTab],
       unchanged: [],
+      changed: [],
+      uncompared: [],
     });
     // The rule is still on the page, so no sentence calls it resolved.
     expect(changes.line).not.toContain("Resolved");
@@ -1135,10 +1200,13 @@ describe("changesOf: flags", () => {
       [{ path: "/", flags: [own("said 3 times")], passes: { read: ["b"] } }],
     );
 
+    // What it found changed, and it has no count to say so: its message does.
     expect(changes.changed[0]?.flags).toEqual({
       resolved: [headings],
       added: [],
-      unchanged: [own("said 3 times")],
+      unchanged: [],
+      changed: [{ before: own("said 2 times"), after: own("said 3 times") }],
+      uncompared: [],
     });
   });
 
@@ -1148,7 +1216,13 @@ describe("changesOf: flags", () => {
       [{ path: "/", passes: { read: ["b"] } }],
     );
 
-    expect(changes.changed[0]?.flags).toEqual({ resolved: [], added: [], unchanged: [] });
+    expect(changes.changed[0]?.flags).toEqual({
+      resolved: [],
+      added: [],
+      unchanged: [],
+      changed: [],
+      uncompared: [],
+    });
   });
 });
 
@@ -1244,10 +1318,10 @@ describe("changesOf: the lines that open the section and the summary", () => {
     // People hear these read aloud, so each says where first, and the items are set apart by
     // semicolons, since a plain name can have a comma of its own.
     expect(changes.line).toBe(
-      "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Contact, the unnamed controls (unlabeled); on Common mistakes, the links that don't say where they go (generic-link-text); on Home, the heading structure (headings).",
+      "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Contact, the unnamed items (unlabeled); on Common mistakes, the links that don't say where they go (generic-link-text); on Home, the heading structure (headings).",
     );
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: on Contact, the unnamed controls; on Common mistakes, the links that don't say where they go; on Home, the heading structure.",
+      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: on Contact, the unnamed items; on Common mistakes, the links that don't say where they go; on Home, the heading structure.",
     );
   });
 
@@ -1264,13 +1338,13 @@ describe("changesOf: the lines that open the section and the summary", () => {
     );
 
     expect(changes.line).toContain(
-      "Resolved: on Contact, the unnamed controls (unlabeled); on Home, the heading structure (headings).",
+      "Resolved: on Contact, the unnamed items (unlabeled); on Home, the heading structure (headings).",
     );
   });
 
   it.each([
     ["generic-link-text", "the links that don't say where they go"],
-    ["unlabeled", "the unnamed controls"],
+    ["unlabeled", "the unnamed items"],
     ["headings", "the heading structure"],
     ["read-not-finished", "the unfinished read"],
     ["tab-no-stops", "the missing Tab stops"],

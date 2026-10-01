@@ -50,10 +50,23 @@ export interface PageChange {
    */
   unreadable: PassName[];
   /**
-   * The page's flags in the two runs, compared by rule and pass. A resolved flag is as the earlier
-   * run recorded it, and the others are as the later run did.
+   * The page's flags in the two runs, compared by rule and pass, in the passes both runs read: the
+   * flags of a pass only one run read are left out of these, since the other run never looked for
+   * them. A resolved flag is as the earlier run recorded it, and the others are as the later run
+   * did. A flag in both runs is unchanged only when it's the same in both (its count, or, for a
+   * flag with no count, its message); otherwise it changed, and both are kept.
    */
-  flags: { resolved: FlagResult[]; added: FlagResult[]; unchanged: FlagResult[] };
+  flags: {
+    resolved: FlagResult[];
+    added: FlagResult[];
+    unchanged: FlagResult[];
+    changed: { before: FlagResult; after: FlagResult }[];
+    /**
+     * The later run's flags in the passes the earlier run didn't read: not compared, but a rule
+     * still raised there isn't resolved for the page.
+     */
+    uncompared: FlagResult[];
+  };
 }
 
 export interface OnlyInOnePage {
@@ -117,7 +130,7 @@ const CONTEXT = 2;
  */
 const RULE_FINDS = new Map([
   ["generic-link-text", "the links that don't say where they go"],
-  ["unlabeled", "the unnamed controls"],
+  ["unlabeled", "the unnamed items"],
   ["headings", "the heading structure"],
   ["read-not-finished", "the unfinished read"],
   ["tab-no-stops", "the missing Tab stops"],
@@ -235,8 +248,10 @@ function pageRef(page: PageRecord): { key: string; url: string; label?: string }
 
 /**
  * A page's flags in the two runs, by rule and pass. A flag of a pass only one run read isn't
- * compared, any more than the pass is: the other run never looked for it, so it isn't gone or new.
- * A flag with no pass belongs to the page as a whole.
+ * compared, any more than the pass is: the other run never looked for it, so it isn't gone or new
+ * (the later run's are kept apart, in `uncompared`). A flag with no pass belongs to the page as a
+ * whole. A flag in both runs is the same when its count is, or, for a flag with no count, its
+ * message: what the rule found.
  */
 function flagChanges(
   was: FlagResult[],
@@ -247,12 +262,24 @@ function flagChanges(
   const before = was.filter(isCompared);
   const after = now.filter(isCompared);
   const idOf = (flag: FlagResult) => JSON.stringify([flag.rule, flag.pass ?? null]);
-  const had = new Set(before.map(idOf));
+  const earlier = new Map(before.map((flag): [string, FlagResult] => [idOf(flag), flag]));
   const has = new Set(after.map(idOf));
+  const same = (old: FlagResult, flag: FlagResult) =>
+    old.count === undefined && flag.count === undefined
+      ? old.message === flag.message
+      : old.count === flag.count;
   return {
     resolved: before.filter((flag) => !has.has(idOf(flag))),
-    added: after.filter((flag) => !had.has(idOf(flag))),
-    unchanged: after.filter((flag) => had.has(idOf(flag))),
+    added: after.filter((flag) => !earlier.has(idOf(flag))),
+    unchanged: after.filter((flag) => {
+      const old = earlier.get(idOf(flag));
+      return old !== undefined && same(old, flag);
+    }),
+    changed: after.flatMap((flag) => {
+      const old = earlier.get(idOf(flag));
+      return old === undefined || same(old, flag) ? [] : [{ before: old, after: flag }];
+    }),
+    uncompared: now.filter((flag) => !isCompared(flag)),
   };
 }
 
@@ -514,11 +541,13 @@ function sentences(input: {
 
 /**
  * The flags gone from each changed page: one for each rule on each page, and none for a rule the
- * page still has in another pass.
+ * page still has in another pass, a compared one or one only the later run read.
  */
 function resolvedFlags(changed: PageChange[], name: PageName): Resolved[] {
   return changed.flatMap((page) => {
-    const kept = new Set([...page.flags.unchanged, ...page.flags.added].map((flag) => flag.rule));
+    const { unchanged, changed: different, added, uncompared } = page.flags;
+    const still = [...unchanged, ...different.map(({ after }) => after), ...added, ...uncompared];
+    const kept = new Set(still.map((flag) => flag.rule));
     const gone = new Set(
       page.flags.resolved.map((flag) => flag.rule).filter((rule) => !kept.has(rule)),
     );

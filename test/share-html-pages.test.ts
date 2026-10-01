@@ -291,16 +291,28 @@ describe("renderPages", () => {
     expect(cardsIn(renderPages(model))[1]).not.toMatch(/Listened|Reviewed|Issue found/);
   });
 
+  it("marks a card whose flags are as its run recorded them, not the current rules'", async () => {
+    const model = await demoModel();
+    const [card = ""] = cardsIn(renderPages(withCard(model, 0, { flagsAsRecorded: true })));
+    const [plain = ""] = cardsIn(renderPages(model));
+
+    expect(card).toContain('<span class="chip c-quiet">Flags as recorded</span>');
+    expect(plain).not.toContain("Flags as recorded");
+  });
+
   it("says a pass wasn't read, never 0, and a time that wasn't recorded", async () => {
     const model = await demoModel();
     const partial = renderPages(
-      withCard(model, 0, { counts: { read: 1, headings: null, tab: null }, timeMs: null }),
+      withCard(model, 0, {
+        counts: { read: 1, headings: null, tab: null },
+        timeMs: { notRecorded: "Not recorded: this run used voicecap 0.4.1." },
+      }),
     );
     const [card = ""] = cardsIn(partial);
 
     expect(card).toContain(
       '<dl class="passes"><div><dt>Read</dt><dd>1 line</dd></div><div><dt>Headings</dt><dd>Not read</dd></div>' +
-        "<div><dt>Tab stops</dt><dd>Not read</dd></div><div><dt>Time</dt><dd>Not recorded</dd></div></dl>",
+        "<div><dt>Tab stops</dt><dd>Not read</dd></div><div><dt>Time</dt><dd>Not recorded: this run used voicecap 0.4.1.</dd></div></dl>",
     );
     expect(card).not.toContain("<dd>0</dd>");
     // Any pass can be the one that wasn't read: the read pass, too.
@@ -481,6 +493,21 @@ describe("renderPages", () => {
     expect(html).toContain(`<span class="num">2</span> ${esc(model.pages[1]?.path)}</h3>`);
     expect(html).not.toContain("<i>");
     expect(html).not.toContain("<2>");
+  });
+
+  it("names a page by its label whatever the label looks like, and by its path when it has none", () => {
+    // A page list can give a page a label that is an address: it's still the page's label.
+    const model = modelOf([
+      done("/about", { label: "https://example.illinois.gov/about-us" }),
+      done("/contact", { label: "  " }),
+    ]);
+    const [labeled = "", blank = ""] = cardsIn(renderPages(model));
+
+    expect(model.pages.map((card) => card.labeled)).toEqual([true, false]);
+    expect(labeled).toContain(
+      '<h3><span class="num">1</span> https://example.illinois.gov/about-us <span class="sub">/about</span></h3>',
+    );
+    expect(blank).toContain('<h3><span class="num">2</span> /contact</h3>');
   });
 
   it("folds the pages with nothing to note at 13 pages, never at 12", () => {
@@ -714,13 +741,16 @@ describe("renderFlags", () => {
       const [, rule = "", found = "", said = ""] = rows[index] ?? [];
       expect(rule).toBe(`<span class="chip c-warn">${esc(quote.rule)}</span>`);
       expect(found).toBe(esc(quote.text));
-      expect(said).toBe(quote.said.map((line) => `<code>${esc(line)}</code>`).join(" "));
+      // Each line in quotes, and a pause between them for a screen reader.
+      expect(said).toBe(
+        quote.said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> '),
+      );
       expect(quote.said.length).toBeGreaterThan(0);
     }
-    expect(rows.map((row) => textOf(row[3] ?? ""))).toEqual([
-      "To see how a run works,, link, click here, dot To read about transcripts,, link, click here, dot To learn about the report,, link, click here, dot",
-      "button main landmark. edit, blank",
-      "main landmark, Common mistakes (on purpose), heading, level 2",
+    expect(rows.map((row) => textOf(row[3] ?? "", ""))).toEqual([
+      "“To see how a run works,, link, click here, dot”; “To read about transcripts,, link, click here, dot”; “To learn about the report,, link, click here, dot”",
+      "“button”; “main landmark. edit, blank”",
+      "“main landmark, Common mistakes (on purpose), heading, level 2”",
     ]);
   });
 
@@ -801,7 +831,7 @@ describe("renderFlags", () => {
     expect(html).toContain('<span class="what">&lt;Page&gt; &amp; &quot;Co&quot;:</span>');
     expect(html).toContain('<span class="chip c-warn">&lt;rule&gt; &amp; co</span>');
     expect(html).toContain(
-      "<code>To apply,, link, click here, dot &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; more</code>",
+      "<code>“To apply,, link, click here, dot &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; more”</code>",
     );
     expect(html).not.toContain("<script");
     expect(html).not.toContain("<rule>");
@@ -912,18 +942,25 @@ describe("renderAppendix", () => {
       );
       const lines = file.lines === 1 ? "1 line" : `${file.lines} lines`;
       const bytes = file.bytes.toLocaleString("en-US");
+      // The heading names the page too, for a reader going from heading to heading, who would
+      // otherwise hear "Read", "Headings", and "Tab" for every page alike.
       expect(sections[index]).toContain(
-        `<h3>${title} <span class="sub">${lines} · ${bytes} bytes</span></h3>`,
+        `<h3>${title} <span class="sr">transcript of /</span> <span class="sub">${lines}</span></h3>`,
       );
-      // The fingerprint is the whole code, from the run's record.
-      expect(sections[index]).toContain(`<p class="fp">SHA-256 <code>${file.sha256}</code></p>`);
+      // The size and the fingerprint are the whole file's, from the run's record: its header too.
+      expect(sections[index]).toContain(
+        `<p class="fp">The whole file, its header included: ${bytes} bytes, SHA-256 <code>${file.sha256}</code></p>`,
+      );
       expect(file.sha256).toMatch(/^[0-9a-f]{64}$/);
       // The words, as the TXT has them, in a box that scrolls and a screen reader can reach.
       expect(sections[index]).toContain(
         `<div class="scroll" tabindex="0" role="region" aria-label="${title} transcript, /"><pre>${esc(file.text)}</pre></div></section>`,
       );
     }
-    expect(sections[0]).toContain('<h3>Read <span class="sub">18 lines · 2,306 bytes</span></h3>');
+    expect(sections[0]).toContain(
+      '<h3>Read <span class="sr">transcript of /</span> <span class="sub">18 lines</span></h3>',
+    );
+    expect(sections[0]).toContain("The whole file, its header included: 2,306 bytes, SHA-256");
     expect(sections[0]).toContain(
       "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe",
     );
@@ -1042,7 +1079,7 @@ describe("renderAppendix", () => {
     expect(sections).toHaveLength(3);
     // In the Tab transcript's own place, under its own heading.
     expect(sections[2]).toContain(
-      "<h3>Tab</h3><p>This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.</p>",
+      `<h3>Tab <span class="sr">transcript of /a</span></h3><p>This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.</p>`,
     );
     expect(sections[2]).not.toContain("<pre>");
     expect(sections[2]).not.toContain("scroll");
@@ -1066,7 +1103,10 @@ describe("renderAppendix", () => {
     });
     const sections = renderAppendix(model).split('<section class="tx"').slice(1);
 
-    expect(sections[1]).toContain('<h3>Headings <span class="sub">0 lines · 1 byte</span></h3>');
+    expect(sections[1]).toContain(
+      '<h3>Headings <span class="sr">transcript of /a</span> <span class="sub">0 lines</span></h3>',
+    );
+    expect(sections[1]).toContain("The whole file, its header included: 1 byte, SHA-256");
     expect(sections[1]).toContain('<p class="sub">This transcript has no lines.</p>');
     expect(sections[1]).not.toContain("<pre>");
     expect(sections[0]).toContain("<pre>");
@@ -1082,7 +1122,9 @@ describe("renderAppendix", () => {
     });
     const [first = ""] = renderAppendix(model).split('<section class="tx"').slice(1);
 
-    expect(first).toContain('<h3>Read <span class="sub">1 line · 1 byte</span></h3>');
+    expect(first).toContain(
+      '<h3>Read <span class="sr">transcript of /a</span> <span class="sub">1 line</span></h3>',
+    );
   });
 
   it("names no run for the transcripts of the latest run when the model has none", async () => {

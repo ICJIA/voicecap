@@ -38,9 +38,6 @@ const PASS_WORDS: Record<PassName, string> = { read: "read", headings: "headings
 /** What a card says of a pass the shown run didn't read, which is never "0". */
 const NOT_READ = "Not read";
 
-/** A page's name when its page list gave it none: its address. */
-const ADDRESS = /^https?:\/\//i;
-
 type Kind = "ok" | "warn" | "bad" | "quiet";
 
 /**
@@ -70,11 +67,11 @@ const fromLine = ({ from }: PageCard): string =>
 
 // Every page.
 
-/** The page's path, or the name its page list gave it with its path beside it. */
+/** The page's path, or the label its page list gave it with its path beside it. */
 function heading(card: PageCard, number: number): string {
-  const named = ADDRESS.test(card.name)
-    ? esc(card.path)
-    : `${esc(card.name)} <span class="sub">${esc(card.path)}</span>`;
+  const named = card.labeled
+    ? `${esc(card.name)} <span class="sub">${esc(card.path)}</span>`
+    : esc(card.path);
   return `<h3><span class="num">${number}</span> ${named}</h3>`;
 }
 
@@ -111,7 +108,8 @@ function reviewKind(words: string): Kind {
  * The result, the flags, and the review, each a chip that says it in words. The result is one chip
  * ("Transcribed", or what the latest run did); each rule that raised a flag is a chip of its own, or
  * "No flags" for a page with transcripts and none; a page with no transcripts has neither, since
- * nothing was read to flag.
+ * nothing was read to flag. Flags that are the run's record's, not the current rules', say so
+ * ("Flags as recorded").
  */
 function chipsOf(card: PageCard): string {
   const rules = [...new Set(card.flags.map(({ rule }) => rule))];
@@ -121,8 +119,9 @@ function chipsOf(card: PageCard): string {
       : rules.length === 0
         ? [chip("quiet", "No flags")]
         : ['<span class="sr">Flags raised: </span>', ...rules.map((rule) => chip("warn", rule))];
+  const recorded = card.flagsAsRecorded ? [chip("quiet", "Flags as recorded")] : [];
   const review = card.reviewChips.map((words) => chip(reviewKind(words), words));
-  return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...review].join("")}</div>`;
+  return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...recorded, ...review].join("")}</div>`;
 }
 
 /** How long a page took, as the mockup writes it: "55.1 s", then "1 min 2 s". */
@@ -140,7 +139,10 @@ function passesOf({ counts, timeMs }: PageCard): string {
     box("Read", counts.read === null ? NOT_READ : plural(counts.read, "line")),
     box("Headings", counts.headings === null ? NOT_READ : count(counts.headings)),
     box("Tab stops", counts.tab === null ? NOT_READ : count(counts.tab)),
-    box("Time", timeMs === null ? "Not recorded" : took(timeMs)),
+    box(
+      "Time",
+      typeof timeMs === "number" ? took(timeMs) : esc(timeMs?.notRecorded ?? "Not recorded"),
+    ),
   ].join("")}</dl>`;
 }
 
@@ -285,15 +287,16 @@ function flagSummary({ name, flags }: PageCard): string {
 
 /**
  * A row for each rule that raised a flag: the rule, what it found, and the lines NVDA spoke that
- * raised it, each in its own code. A rule with no line to quote (a page with no headings, Tab
- * reaching nothing) says so, never an empty quote.
+ * raised it, each in its own code, in quotes, with a stop between them that a screen reader hears.
+ * A rule with no line to quote (a page with no headings, Tab reaching nothing) says so, never an
+ * empty quote.
  */
 function flagBody({ card, quotes }: FlaggedPage): string {
   const rows = quotes.map(({ rule, text, said }) => {
     const spoken =
       said.length === 0
         ? '<span class="sub">No line to quote</span>'
-        : said.map((line) => `<code>${esc(line)}</code>`).join(" ");
+        : said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> ');
     return `<tr><th scope="row">${chip("warn", rule)}</th><td>${esc(text)}</td><td class="said">${spoken}</td></tr>`;
   });
   const head = ["Rule", "What NVDA showed", "NVDA said"]
@@ -321,11 +324,21 @@ export function renderFlags(model: ShareModel): string {
 // The appendix.
 
 /**
- * A transcript: its pass, how long it is, its fingerprint, and what NVDA said, word for word, in a
- * box to scroll. A transcript with no lines says so rather than show an empty box. A browser drops
- * the newline right after `<pre>`, so a first line that's blank needs one more. Its section names
- * its file (`data-run`, `data-slug`, `data-file`), so the fingerprint check can compare the text
- * shown with the file the page carries.
+ * A transcript's heading: its pass, with the page's address for a screen reader (every page has
+ * a "Read", a "Headings", and a "Tab", which a reader going by headings couldn't tell apart).
+ */
+function transcriptHeading(pass: PassName, path: string, sub = ""): string {
+  const after = sub === "" ? "" : ` <span class="sub">${sub}</span>`;
+  return `<h3>${PASS_TITLE[pass]} <span class="sr">transcript of ${esc(path)}</span>${after}</h3>`;
+}
+
+/**
+ * A transcript: its pass, how many lines it has, its file's size and fingerprint (the whole file's,
+ * its header included, as its run recorded them), and what NVDA said, word for word, in a box to
+ * scroll. A transcript with no lines says so rather than show an empty box. A browser drops the
+ * newline right after `<pre>`, so a first line that's blank needs one more. Its section names its
+ * file (`data-run`, `data-slug`, `data-file`), so the fingerprint check can compare the text shown
+ * with the file the page carries.
  */
 function transcriptOf(file: AppendixFile, path: string): string {
   const title = PASS_TITLE[file.pass];
@@ -334,14 +347,15 @@ function transcriptOf(file: AppendixFile, path: string): string {
     file.lines === 0
       ? '<p class="sub">This transcript has no lines.</p>'
       : scroll(`${title} transcript, ${path}`, `<pre>${lead}${esc(file.text)}</pre>`);
-  const size = `${plural(file.lines, "line")} · ${plural(file.bytes, "byte")}`;
   const names = `data-run="${esc(file.run)}" data-slug="${esc(file.slug)}" data-file="${esc(file.name)}"`;
-  return `<section class="tx" ${names}><h3>${title} <span class="sub">${size}</span></h3>\n<p class="fp">SHA-256 <code>${esc(file.sha256)}</code></p>\n${words}</section>`;
+  const heading = transcriptHeading(file.pass, path, plural(file.lines, "line"));
+  const fingerprint = `<p class="fp">The whole file, its header included: ${plural(file.bytes, "byte")}, SHA-256 <code>${esc(file.sha256)}</code></p>`;
+  return `<section class="tx" ${names}>${heading}\n${fingerprint}\n${words}</section>`;
 }
 
 /** A transcript the run recorded but that couldn't be read here: said in words, in its place. */
-function unreadableOf(pass: PassName): string {
-  return `<section class="tx"><h3>${PASS_TITLE[pass]}</h3><p>This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.</p></section>`;
+function unreadableOf(pass: PassName, path: string): string {
+  return `<section class="tx">${transcriptHeading(pass, path)}<p>This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.</p></section>`;
 }
 
 /** The run a page's transcripts are from: its id, and its date for a run before the latest. */
@@ -373,7 +387,7 @@ function appendixPage(
   const path = card?.path ?? entry.name;
   const sections = passes.map((pass) => {
     const file = entry.files.find((each) => each.pass === pass);
-    return file === undefined ? unreadableOf(pass) : transcriptOf(file, path);
+    return file === undefined ? unreadableOf(pass, path) : transcriptOf(file, path);
   });
   const none =
     passes.length === 0 ? "<p>This run's record lists no transcript files for the page.</p>" : "";

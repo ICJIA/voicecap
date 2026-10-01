@@ -225,9 +225,11 @@ describe("renderChanges", () => {
       const html = renderChanges(grantsModel());
 
       expect(foldsIn(html)).toHaveLength(1);
-      expect(summariesIn(html)).toEqual([
-        "/grants/: read: 2 lines removed and 2 added generic-link-text resolved",
-      ]);
+      // As heard: a stop the eye doesn't see ends the counts before the chip.
+      const summary = /<summary>(.*?)<\/summary>/s.exec(html)?.[1] ?? "";
+      expect(textOf(summary, "")).toBe(
+        "/grants/: read: 2 lines removed and 2 added. generic-link-text resolved",
+      );
       expect(html).toContain('<details class="fold"><summary><span class="what">/grants/:</span>');
       // Closed: a page that sounds different opens to show what changed.
       expect(html).not.toMatch(/<details[^>]* open/);
@@ -486,9 +488,66 @@ describe("renderChanges", () => {
       expect(summary).not.toContain("unlabeled");
       expect(html).toContain('<span class="chip c-ok">generic-link-text resolved</span>');
       expect(html).toContain('<span class="chip c-warn">headings new</span>');
+      // Heard, the counts end before the chips start, and each chip is said apart.
+      expect(html).toContain(
+        '<span class="sub">read: 1 line removed and 1 added</span><span class="sr">.</span> <span class="chips"><span class="chip c-ok">generic-link-text resolved</span><span class="sr">,</span> <span class="chip c-warn">headings new</span></span>',
+      );
       // Inside: each flag, with its pass and what happened to it.
       expect(textOf(html)).toContain(
         "Flags: generic-link-text (read pass), 2 before, none now (resolved). headings (headings pass), none before, new. unlabeled (read pass), unchanged.",
+      );
+    });
+
+    it("says a flag changed, with both counts, or with what it finds now when it has no count", () => {
+      const fewer: FlagResult = {
+        ...LINK_FLAG,
+        count: 1,
+        found: [{ text: "click here", count: 1 }],
+        message: 'Generic link text announced 1 time in the read pass: "click here" ×1.',
+      };
+      const level3: FlagResult = {
+        ...HEADINGS_FLAG,
+        message: "The first heading is level 3, not level 1.",
+      };
+      const html = renderChanges(
+        changedModel(
+          [done("/a/", { read: ["old"], headings: ["h"] }, { flags: [LINK_FLAG, HEADINGS_FLAG] })],
+          [done("/a/", { read: ["new"], headings: ["h"] }, { flags: [fewer, level3] })],
+        ),
+      );
+
+      // Neither went or came, so the line has no chip for them; inside, neither is "unchanged".
+      expect(summariesIn(html)).toEqual(["/a/: read: 1 line removed and 1 added"]);
+      expect(textOf(html)).toContain(
+        "Flags: generic-link-text (read pass), 2 before, 1 now (changed). headings (headings pass), changed: now its first heading is level 3, not 1.",
+      );
+      expect(textOf(html)).not.toContain("unchanged");
+    });
+
+    it("leaves a rule out of the chips while a pass only the later run read still raises it", () => {
+      const tabFlag: FlagResult = { ...LINK_FLAG, pass: "tab" };
+      const html = renderChanges(
+        modelOfRuns([
+          {
+            id: "r1",
+            createdAt: BEFORE,
+            passes: ["read"],
+            pages: [done("/a/", { read: ["old"] }, { flags: [LINK_FLAG] })],
+          },
+          {
+            id: "r2",
+            createdAt: AFTER,
+            pages: [done("/a/", { read: ["new"], tab: ["t"] }, { flags: [tabFlag] })],
+          },
+        ]),
+      );
+
+      // Gone from the read pass, which both runs read; but the Tab pass, which only the later run
+      // read, still has the links, so the page doesn't call the rule resolved.
+      expect(summariesIn(html)).toEqual(["/a/: read: 1 line removed and 1 added"]);
+      expect(html).not.toContain("resolved</span>");
+      expect(textOf(html)).toContain(
+        "Flags: generic-link-text (read pass), 2 before, none now (resolved).",
       );
     });
 
@@ -561,7 +620,7 @@ describe("renderChanges", () => {
       // Only the pass that can be read has a table. The line counts that one and names the other.
       expect(fold.match(/<table class="difftable">/g)).toHaveLength(1);
       expect(summariesIn(html)).toEqual([
-        "/a/: read: 1 line removed and 1 added; Tab: couldn't be read",
+        "/a/: read: 1 line removed and 1 added; Tab: couldn't be read here",
       ]);
     });
 
@@ -576,7 +635,7 @@ describe("renderChanges", () => {
       const [fold = ""] = foldsIn(html);
 
       expect(summariesIn(html)).toEqual([
-        "/a/: read: 1 line removed and 1 added; headings: couldn't be read; Tab: 1 line removed",
+        "/a/: read: 1 line removed and 1 added; headings: couldn't be read here; Tab: 1 line removed",
       ]);
       expect(fold.match(/<table class="difftable">/g)).toHaveLength(2);
       expect(textOf(fold)).toContain(
@@ -592,7 +651,8 @@ describe("renderChanges", () => {
       );
       const [fold = ""] = foldsIn(html);
 
-      expect(summariesIn(html)).toEqual(["/a/: read: couldn't be read"]);
+      // "here": a pass named "read" that couldn't be read would otherwise say "read" twice over.
+      expect(summariesIn(html)).toEqual(["/a/: read: couldn't be read here"]);
       expect(fold).not.toContain("difftable");
       expect(textOf(fold)).toContain(
         "The read pass sounds different, but its transcript couldn't be read here.",
@@ -976,7 +1036,7 @@ describe("renderProblems", () => {
 
     it("tells the reader what is here", async () => {
       expect(textOf(renderProblems(await demoModel()))).toContain(
-        "Every attempt that failed is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.",
+        "Every attempt that failed in the runs these results come from is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.",
       );
     });
   });
@@ -1292,7 +1352,7 @@ describe("renderProblems", () => {
       expect(summariesIn(html)).toEqual([
         "How voicecap tells causes apart 9 kinds of problem, and whose each is",
       ]);
-      expect(textOf(html)).not.toContain("Every attempt that failed is here");
+      expect(textOf(html)).not.toContain("Every attempt that failed");
     });
 
     it("says so, with its heading, when no run counts", () => {

@@ -56,6 +56,28 @@ describe("standingOf: which runs count", () => {
     ]);
   });
 
+  it("calls an incomplete run of several sessions interrupted only when its last session was", () => {
+    const sessions = (...ends: ("interrupted" | "error")[]) =>
+      shareRun({
+        id: ends.join("-then-"),
+        status: "incomplete",
+        sessions: ends.map((endReason, index) => ({
+          startedAt: `2026-09-26T1${index}:00:00-05:00`,
+          endReason,
+        })),
+        pages,
+      });
+    const standing = standingOf([
+      sessions("interrupted", "error"),
+      sessions("error", "interrupted"),
+    ]);
+
+    expect(standing.leftOut.map((left) => [left.run.id, left.reason])).toEqual([
+      ["error-then-interrupted", "interrupted"],
+      ["interrupted-then-error", "unfinished"],
+    ]);
+  });
+
   it("names a replayed run replayed first, however far it got", () => {
     const standing = standingOf([
       shareRun({ id: "p1", replayed: true, status: "incomplete", endReason: "interrupted", pages }),
@@ -125,6 +147,8 @@ describe("standingOf: which runs count", () => {
 
     expect(standing.latest?.id).toBe("r1");
     expect(standing.pages.map((page) => page.key)).toEqual(["https://example.illinois.gov/"]);
+    // The replay read "/" later, but a run that doesn't count is never shown.
+    expect(pageAt(standing, "/").shown?.run.id).toBe("r1");
     expect(pageAt(standing, "/").latestFailure).toBeNull();
     expect(standing.noLongerListed).toEqual([]);
     expect(ids(standing.drawnOn)).toEqual(["r1"]);
@@ -181,7 +205,29 @@ describe("standingOf: each page's result", () => {
 
   it("marks a page never transcribed", () => {
     const r1 = shareRun({ id: "r1", pages: [{ path: "/" }, { path: "/b", status: "failed" }] });
-    const b = pageAt(standingOf([r1]), "/b");
+    // Runs that read /b in full but don't count: a replay, one that wasn't sealed, and one that was
+    // interrupted. None of their transcripts is shown.
+    const uncounted = [
+      shareRun({
+        id: "r0",
+        createdAt: "2026-09-20T09:30:00-05:00",
+        replayed: true,
+        pages: [{ path: "/b" }],
+      }),
+      shareRun({
+        id: "r2",
+        createdAt: "2026-09-27T09:30:00-05:00",
+        sealed: false,
+        pages: [{ path: "/b" }],
+      }),
+      shareRun({
+        id: "r3",
+        createdAt: "2026-09-28T09:30:00-05:00",
+        status: "incomplete",
+        pages: [{ path: "/b" }, { path: "/", status: "pending" }],
+      }),
+    ];
+    const b = pageAt(standingOf([r1, ...uncounted]), "/b");
 
     expect(b.shown).toBeNull();
     expect(b.latestFailure?.run.id).toBe("r1");

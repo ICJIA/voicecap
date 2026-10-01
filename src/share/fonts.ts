@@ -45,9 +45,15 @@ let cached: Promise<string> | undefined;
 
 /**
  * The nine `@font-face` rules, one a line, each with its file as a `data:font/woff2;base64,…`
- * source. The files are read once, and the rules kept.
+ * source. The files are read once, and the rules kept; a read that failed (a file another program
+ * held, say) isn't kept, so the next page reads them again.
  */
 export function fontFaceCss(): Promise<string> {
-  cached ??= Promise.all(FACES.map(faceRule)).then((rules) => rules.join("\n"));
+  cached ??= Promise.all(FACES.map(faceRule))
+    .then((rules) => rules.join("\n"))
+    .catch((error: unknown) => {
+      cached = undefined;
+      throw error;
+    });
   return cached;
 }

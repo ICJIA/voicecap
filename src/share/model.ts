@@ -34,7 +34,7 @@ import {
 } from "./cards.js";
 import { changesOf, type Changes } from "./changes.js";
 import type { CheckData } from "./check.js";
-import { dateRange, longDate, names, seconds } from "./format.js";
+import { dateRange, longDate, names, seconds, utcOffset } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { problemsOf, type ProblemsSection } from "./problems.js";
 import { reviewOf } from "./review.js";
@@ -70,7 +70,11 @@ export interface ShareModel {
     siteName: string;
     /** The site's address, as its runs recorded it: shown small. */
     site: string;
-    /** The days of the runs the standing draws on ("29 to 30 September 2026"); null when no run counts. */
+    /**
+     * The days of the runs the results come from ("29 to 30 September 2026"): the latest run, and
+     * each run a page's transcripts or its latest failure come from, but not a run the page only
+     * compares the latest with. Null when no run counts.
+     */
     tested: string | null;
     /** The page's own date: "30 September 2026". */
     asOf: string;
@@ -108,7 +112,11 @@ export interface ShareModel {
   check: CheckData;
   /** The flag rules the page's flags were computed with: their fingerprint, part of the evidence. */
   flagRulesSha256: string;
-  footer: { generatedAt: string; timeZone: string; fileName: string };
+  /**
+   * When the page was made, its file's name, and each UTC offset the runs it draws on recorded
+   * their times in ("UTC−05:00"), in the order met: the page shows each time as its run recorded it.
+   */
+  footer: { generatedAt: string; fileName: string; offsets: string[] };
 }
 
 /** Build the page's model from what loadShareInput read. Pure. */
@@ -124,8 +132,10 @@ export function buildShareModel(input: ShareInput): ShareModel {
   const problems = problemsOf(standing, { home: input.home, platform: input.platform });
   const { latest } = standing;
   const before = latest && runBefore(standing.counted, latest);
-  const changes =
+  const compared =
     latest && before ? changesOf(before, latest, bodyOf(input.transcripts), pageName) : null;
+  // What tools differ can name a setting's path, which can hold the home folder.
+  const changes = compared && { ...compared, tools: compared.tools.map(redact) };
   const summary = summaryOf({
     standing,
     review,
@@ -135,8 +145,17 @@ export function buildShareModel(input: ShareInput): ShareModel {
     name: pageName,
     linesSpoken: linesSpokenOf(standing),
     nvdaMs: nvdaMsOf(standing.drawnOn),
+    sessionsWithoutEnd: standing.drawnOn
+      .flatMap((run) => run.sessions)
+      .filter((session) => session.endedAt === null).length,
   });
-  const pages = cardsOf({ standing, review, problems, transcripts: input.transcripts });
+  const pages = cardsOf({
+    standing,
+    review,
+    problems,
+    transcripts: input.transcripts,
+    flagsAsRecorded: input.flagsAsRecorded,
+  });
   const recordOf = recordsOf(input.records);
   return {
     header: headerOf(input, standing),
@@ -149,7 +168,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     problems,
     coverage: coverageOf(standing, redact),
     evidence: evidenceOf({ standing, recordOf, site: input.site, redact }),
-    leftOut: leftOutOf(standing),
+    leftOut: leftOutOf(standing, input.unreadableRuns),
     appendix: appendixOf(standing, input.transcripts),
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
     // exactly as recorded, and the review entries.
@@ -163,7 +182,11 @@ export function buildShareModel(input: ShareInput): ShareModel {
       reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
     },
     flagRulesSha256: input.flagRulesSha256,
-    footer: { generatedAt: input.generatedAt, timeZone: input.timeZone, fileName: input.fileName },
+    footer: {
+      generatedAt: input.generatedAt,
+      fileName: input.fileName,
+      offsets: offsetsOf(standing.drawnOn),
+    },
   };
 }
 
@@ -215,7 +238,10 @@ function linesSpokenOf(standing: Standing): number {
   );
 }
 
-/** How long the runs held NVDA: each session from its start to its end, when it has both. */
+/**
+ * How long the runs held NVDA: each session from its start to its end, when it has both. A session
+ * with no recorded end isn't counted, and the page says how many (Summary.numbers).
+ */
 function nvdaMsOf(runs: RunJson[]): number {
   return runs.reduce(
     (sum, run) =>
@@ -235,14 +261,14 @@ function homeOf<T extends { url: string }>(pages: T[]): T | undefined {
 }
 
 function headerOf(input: ShareInput, standing: Standing): ShareModel["header"] {
-  const { latest, drawnOn } = standing;
+  const { latest } = standing;
   const environment = latest?.sessions.findLast(
     (session) => session.environment?.screenReader,
   )?.environment;
   return {
     siteName: siteNameOf(input, latest),
     site: input.site,
-    tested: drawnOn.length === 0 ? null : testedOf(drawnOn),
+    tested: latest === null ? null : testedOf(resultsFrom(standing, latest)),
     asOf: longDate(input.generatedAt),
     preparedBy: latest?.sessions.at(-1)?.reviewer?.name ?? null,
     // Every run voicecap can count today is NVDA's.
@@ -262,6 +288,43 @@ function siteNameOf(input: ShareInput, latest: RunJson | null): string {
   const title = home?.status === "done" ? home.title?.trim() : undefined;
   return title || new URL(input.site).host;
 }
+
+/**
+ * The runs the results come from: the latest, and each run a page's shown transcripts or latest
+ * failure come from. The run before the latest is among them only when one of those is its.
+ */
+function resultsFrom(standing: Standing, latest: RunJson): RunJson[] {
+  const runs = new Set<RunJson>([latest]);
+  for (const { shown, latestFailure } of standing.pages) {
+    if (shown) runs.add(shown.run);
+    if (latestFailure) runs.add(latestFailure.run);
+  }
+  return [...runs];
+}
+
+/**
+ * Each UTC offset the runs recorded their times in, once, in the order met: their starts, ends,
+ * sessions, listeners' answers, and failed attempts, the times the page shows.
+ */
+function offsetsOf(runs: RunJson[]): string[] {
+  const times = runs.flatMap((run) => [
+    run.createdAt,
+    run.completedAt,
+    ...run.sessions.flatMap((session) => [
+      session.startedAt,
+      session.endedAt,
+      session.listener?.answeredAt,
+    ]),
+    ...run.pages.flatMap((page) =>
+      (page.failedAttempts ?? []).flatMap((attempt) => [attempt.startedAt, attempt.endedAt]),
+    ),
+  ]);
+  const recorded = times.filter((time): time is string => typeof time === "string");
+  return [...new Set(recorded.filter((time) => OFFSET.test(time)).map(utcOffset))];
+}
+
+/** A recorded time's offset at its end: "-05:00", or "Z". */
+const OFFSET = /(?:[+-]\d{2}:\d{2}|Z)$/;
 
 /** The days the runs ran, from the first one's start to the last one's end. */
 function testedOf(runs: RunJson[]): string {

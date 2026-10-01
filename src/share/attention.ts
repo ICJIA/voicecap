@@ -113,7 +113,8 @@ function foundClause(rule: FindingRule, all: FlagResult[]): string {
   if (rule === "generic-link-text") {
     return `${count === 1 ? "1 link says" : `${count} links say`} ${only}`;
   }
-  return `${count === 1 ? "1 control has no name" : `${count} controls have no names`}, so NVDA says ${only}`;
+  // Items, not controls: the rule finds graphics and other unnamed things too.
+  return `${count === 1 ? "1 item has no name" : `${count} items have no names`}, so NVDA says ${only}`;
 }
 
 /**

@@ -4,7 +4,7 @@
  * case; site folders written as voicecap writes them, and runs built in memory, cover the rest.
  */
 import { readFileSync } from "node:fs";
-import { rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
@@ -177,7 +177,6 @@ describe("loadShareInput", () => {
       flagRules: DEFAULT_CONFIG.flags,
       flagRulesSha256: flagRulesSha256(DEFAULT_CONFIG.flags),
       generatedAt: isoLocal(now),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       home: os.homedir(),
       platform: process.platform,
       fileName: "current.html",
@@ -327,7 +326,8 @@ describe("buildShareModel", () => {
       name: SITE,
       title: "Home",
       counts: { read: 2, headings: 1, tab: 3 },
-      timeMs: null,
+      // The record keeps no time for the page: a run from before voicecap recorded one.
+      timeMs: { notRecorded: "Not recorded: this run used voicecap 0.1.0." },
       strip: [],
       reviewChips: [],
       manual: [],
@@ -350,6 +350,49 @@ describe("buildShareModel", () => {
       null,
       { read: null, headings: null, tab: null },
       null,
+    ]);
+  });
+
+  it("lowers only a first word that isn't a name, a word of one letter too", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        {
+          path: "/",
+          status: "failed",
+          failedAttempts: [
+            failedAttempt({ n: 1 }),
+            failedAttempt({
+              n: 2,
+              cause: "open-timeout",
+              pass: "read",
+              step: null,
+              command: "openPage",
+              message: "The page didn't open within 30s.",
+            }),
+          ],
+        },
+        {
+          path: "/a",
+          status: "failed",
+          failedAttempts: [
+            failedAttempt({ n: 1 }),
+            failedAttempt({
+              n: 2,
+              cause: "screen-reader-stopped",
+              pass: "read",
+              step: null,
+              command: "openPage",
+              message: "NVDA stopped running.",
+            }),
+          ],
+        },
+      ],
+    });
+
+    expect(buildShareModel(inputOf([run])).pages.map((card) => card.failure)).toEqual([
+      "It failed on both attempts. On the last, a step took too long while opening the page for the read pass.",
+      "It failed on both attempts. On the last, NVDA stopped running while opening the page for the read pass.",
     ]);
   });
 
@@ -640,6 +683,17 @@ describe("buildShareModel", () => {
       { id: "r1", text: "r1: completed without a seal (recorded before voicecap sealed runs)" },
       { id: "r2", text: "r2: not finished: 1 of 2 pages" },
     ]);
+    // voicecap seals every run it completes from 0.3.0 on: an unsealed one from then has no such
+    // reason to give.
+    const sinceSeals = shareRun({
+      id: "r3",
+      sealed: false,
+      voicecapVersion: "0.5.0",
+      pages: [{ path: "/" }],
+    });
+    expect(buildShareModel(inputOf([sinceSeals])).leftOut).toEqual([
+      { id: "r3", text: "r3: completed without a seal" },
+    ]);
   });
 
   it("checks its own fingerprints, and finds everything matching, as the page will", async () => {
@@ -806,7 +860,7 @@ describe("buildShareModel", () => {
       },
       {
         rule: "unlabeled",
-        text: "2 controls have no names, so NVDA says only “button” and “edit”.",
+        text: "2 items have no names, so NVDA says only “button” and “edit”.",
         // Not the browser's own "Tab search, button" after focus left the page: no rule hears it.
         said: ["button", "main landmark. edit, blank"],
       },
@@ -825,6 +879,22 @@ describe("buildShareModel", () => {
     expect(summary.numbers.linesSpoken).toBe(204);
     // 13:15:48 to 13:21:59, and 14:02:51 to 14:09:14.
     expect(summary.numbers.nvdaMs).toBe(371_000 + 383_000);
+    expect(summary.numbers.sessionsWithoutEnd).toBe(0);
+
+    // A session that never recorded its end held NVDA for a time no record gives: it isn't counted,
+    // and the page says so.
+    const resumed = shareRun({
+      id: "r1",
+      sessions: [
+        { startedAt: "2026-09-26T14:05:00-05:00", endReason: null },
+        { startedAt: "2026-09-26T15:00:00-05:00", endedAt: "2026-09-26T15:10:00-05:00" },
+      ],
+      pages: [{ path: "/" }],
+    });
+    expect(buildShareModel(inputOf([resumed])).summary.numbers).toMatchObject({
+      nvdaMs: 600_000,
+      sessionsWithoutEnd: 1,
+    });
   });
 
   it("covers the pages on the list and its passes, and says what limits the results", async () => {
@@ -928,6 +998,64 @@ describe("buildShareModel", () => {
     expect(model.check.files.map((file) => file.name)).toEqual(["read.txt", "headings.txt"]);
   });
 
+  it("marks a page whose flags are as its run recorded them, when a JSON transcript is gone", async () => {
+    const siteDir = await tempOutDir();
+    const run = await sealedRun(siteDir, {
+      id: "2026-09-26_1405",
+      pages: [{ path: "/" }, { path: "/about" }],
+    });
+    const about = run.pages[1]!;
+    await rm(path.join(pageDir(siteDir, run.id, about.slug), "tab.json"));
+
+    const model = buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG }));
+
+    // The flags of /about couldn't be worked out with the current rules: its card says so.
+    expect(model.pages.map((card) => [card.path, card.flagsAsRecorded])).toEqual([
+      ["/", false],
+      ["/about", true],
+    ]);
+  });
+
+  it("lists a run whose record couldn't be read among the runs left out", async () => {
+    const siteDir = await tempOutDir();
+    await sealedRun(siteDir, { id: "2026-09-26_1405", pages: [{ path: "/" }] });
+    const damaged = path.join(siteDir, "2026-09-25", "0900");
+    await mkdir(damaged, { recursive: true });
+    await writeFile(path.join(damaged, "run.json"), "{ not a whole record");
+    // A folder with no record at all (as a manual session's is) isn't a run, and isn't listed.
+    await mkdir(path.join(siteDir, "2026-09-25", "1000_manual_home"), { recursive: true });
+
+    const model = buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG }));
+
+    expect(model.leftOut).toEqual([
+      { id: "2026-09-25_0900", text: "2026-09-25_0900: its record couldn't be read" },
+    ]);
+    expect(model.evidence.map((each) => each.run.id)).toEqual(["2026-09-26_1405"]);
+  });
+
+  it("replaces the home folder in the tools the two runs differ in", () => {
+    // Written with forward slashes, which a setting's JSON keeps as they are (backslashes it
+    // doubles), so the text can be searched for the folder.
+    const home = os.homedir().replaceAll(path.sep, "/");
+    const settings = (synth: string) => ({ screenReaderSettings: { speech: { synth } } });
+    const before = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      sessions: [{ environment: settings(`${home}/synths/old`) }],
+      pages: [{ path: "/", passes: { read: ["a"] } }],
+    });
+    const after = shareRun({
+      id: "r2",
+      sessions: [{ environment: settings(`${home}/synths/new`) }],
+      pages: [{ path: "/", passes: { read: ["b"] } }],
+    });
+
+    const tools = buildShareModel(inputOf([before, after])).changes?.tools ?? [];
+
+    expect(tools.join(" ")).toContain("speech.synth");
+    expect(tools.filter(mentionsHome)).toEqual([]);
+  });
+
   it("dates the page, and names who prepared it", async () => {
     const earlier = shareRun({
       id: "r1",
@@ -947,18 +1075,20 @@ describe("buildShareModel", () => {
       }),
     );
 
+    // Every page's results are the latest run's: the run before is only compared with it, so its
+    // day isn't a day these results were tested.
     expect(model.header).toEqual({
       siteName: "example.illinois.gov",
       site: SITE,
-      tested: "29 to 30 September 2026",
+      tested: "30 September 2026",
       asOf: "1 October 2026",
       preparedBy: CHRIS,
       screenReader: "NVDA",
     });
     expect(model.footer).toEqual({
       generatedAt: "2026-10-01T08:30:00-05:00",
-      timeZone: "America/Chicago",
       fileName: "example.illinois.gov_2026-10-01.html",
+      offsets: ["UTC−05:00"],
     });
     expect(model.flagRulesSha256).toBe("f".repeat(64));
 
@@ -967,6 +1097,41 @@ describe("buildShareModel", () => {
     expect(buildShareModel(inputOf([unnamed])).header.preparedBy).toBeNull();
     // The demo's runs were both on 29 September.
     expect((await demoModel()).header.tested).toBe("29 September 2026");
+    // A page shown from the earlier run makes its day one of the days tested.
+    const failedLater = shareRun({
+      id: "r2",
+      createdAt: "2026-09-30T09:00:00-05:00",
+      pages: [{ path: "/", status: "failed" }],
+    });
+    expect(buildShareModel(inputOf([earlier, failedLater])).header.tested).toBe(
+      "29 to 30 September 2026",
+    );
+  });
+
+  it("names each UTC offset the runs recorded their times in, for the footer", () => {
+    // A run recorded in Chicago in September, and one recorded in New York, resumed in Chicago.
+    const chicago = shareRun({
+      id: "r1",
+      createdAt: "2026-09-29T13:15:00-05:00",
+      pages: [{ path: "/" }],
+    });
+    const travelled = shareRun({
+      id: "r2",
+      createdAt: "2026-09-30T09:00:00-04:00",
+      sessions: [
+        { startedAt: "2026-09-30T09:00:00-04:00" },
+        { startedAt: "2026-09-30T10:00:00-05:00" },
+      ],
+      pages: [{ path: "/" }, { path: "/a", session: 2 }],
+    });
+
+    expect(buildShareModel(inputOf([chicago, travelled])).footer.offsets).toEqual([
+      "UTC−05:00",
+      "UTC−04:00",
+    ]);
+    // No run counts: no run's times to speak of.
+    const replayed = shareRun({ id: "r3", replayed: true, pages: [{ path: "/" }] });
+    expect(buildShareModel(inputOf([replayed])).footer.offsets).toEqual([]);
   });
 
   it("says what each run recorded: when, its pages, who ran it, what they said, and the computer", () => {

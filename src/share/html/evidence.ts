@@ -25,7 +25,7 @@
 import type { RunJson } from "../../model.js";
 import { esc, idFragment, plural } from "../../report/html.js";
 import { checkDataJson } from "../check.js";
-import { clock, dayMonth, longDate, names } from "../format.js";
+import { clock, dayMonth, longDate, names, utcOffset } from "../format.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import { runEnd, runStart } from "../run-evidence.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING, type TimelineRow } from "../text.js";
@@ -143,7 +143,12 @@ function checkBox(model: ShareModel, verify: string): string {
 function evidenceGist(model: ShareModel): string {
   const runs = model.evidence.length;
   const each = runs === 1 ? "" : runs === 2 ? " both" : " all";
-  return `<p class="gist"><b>${plural(runs, "run")},${each} completed and sealed.</b> The flags were computed with the current flag rules, fingerprint <code>${esc(model.flagRulesSha256)}</code>.</p>`;
+  const recorded = model.pages.filter((card) => card.flagsAsRecorded).length;
+  const except =
+    recorded === 0
+      ? ""
+      : `, except on ${plural(recorded, "page")} marked “Flags as recorded”, whose transcripts couldn&#39;t all be read here: ${recorded === 1 ? "its flags are as its run" : "their flags are as their runs"} recorded them`;
+  return `<p class="gist"><b>${plural(runs, "run")},${each} completed and sealed.</b> The flags were computed with the current flag rules, fingerprint <code>${esc(model.flagRulesSha256)}</code>${except}.</p>`;
 }
 
 /** When a run ran: "29 September 2026, 14:02 to 14:09", with the day again for a run that crossed one. */
@@ -358,15 +363,19 @@ export function renderStory(_model: ShareModel): string {
 // The footer.
 
 /**
- * What voicecap is, with the link again; when the page was made, and the time zone its times are
- * in; and the file's own name.
+ * What voicecap is, with the link again; when the page was made, with its offset from UTC, and the
+ * offsets the runs recorded their times in, since each time is shown as its run recorded it (a run
+ * recorded elsewhere keeps its own); and the file's own name.
  */
 export function renderFooter(model: ShareModel): string {
-  const { generatedAt, timeZone, fileName } = model.footer;
+  const { generatedAt, fileName, offsets } = model.footer;
+  const generated = `Generated on ${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)}).`;
+  const times =
+    offsets.length === 0 ? "" : ` Times are as each run recorded them (${names(offsets)}).`;
   return [
     `<footer>`,
     `  <span>${esc(ABOUT)} <a href="${GITHUB}">github.com/ICJIA/voicecap</a></span>`,
-    `  <span>Generated on ${esc(longDate(generatedAt))} at ${esc(clock(generatedAt))}. Times are in the ${esc(timeZone)} time zone.</span>`,
+    `  <span>${esc(`${generated}${times}`)}</span>`,
     `  <span>This file: <span class="mono">${esc(fileName)}</span></span>`,
     `</footer>`,
   ].join("\n");

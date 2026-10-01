@@ -76,6 +76,10 @@ describe("the timeline", () => {
             ),
     );
 
+    // The rows read at all, with versions in bold among them, so a check of nothing can't pass.
+    expect(TIMELINE.filter((row) => row.date !== null && boldVersions(row).length > 0)).not.toEqual(
+      [],
+    );
     expect(wrong).toEqual([]);
   });
 
@@ -144,10 +148,19 @@ describe("the fixed text", () => {
   it("never calls voicecap automated", () => {
     const strings = everyString();
 
-    // The word is there, about other tools (the lead's and the story's "automated checkers"); a test
-    // that found none would be reading nothing.
+    // The word is there, about other tools (the lead's and the story's "automated checkers", and
+    // card 5's axe); a test that found none would be reading nothing. A clause that names voicecap,
+    // up to a full stop, a colon, or a semicolon, never calls it automated.
     expect(strings.some((string) => /\bautomated\b/i.test(string))).toBe(true);
-    expect(strings.filter((string) => /voicecap[^.]*\bautomated\b/i.test(string))).toEqual([]);
+    expect(strings.filter((string) => /voicecap[^.:;]*\bautomated\b/i.test(string))).toEqual([]);
+  });
+
+  it("says what axe checks: the page's design, in voicecap's own tests", () => {
+    // The page a run writes isn't itself checked as it's written, so the card says what is.
+    expect(WORTH_KNOWING[4]).toEqual({
+      title: "Both kinds of testing",
+      text: "voicecap checks this page's design with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
+    });
   });
 
   it("has the parts the renderers draw: six steps with their icons, four stages with one marked, six cards", () => {

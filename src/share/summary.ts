@@ -26,6 +26,8 @@ export interface Summary {
     listened: number;
     linesSpoken: number;
     nvdaMs: number;
+    /** The sessions `nvdaMs` leaves out: those with no recorded end, whose time no record gives. */
+    sessionsWithoutEnd: number;
   };
   /**
    * "What needs attention": each page with flags, an open issue, or a failure in the latest run
@@ -69,6 +71,8 @@ export interface SummaryInput {
   linesSpoken: number;
   /** How long the runs the standing draws on held NVDA, in milliseconds. */
   nvdaMs: number;
+  /** Their sessions with no recorded end, which `nvdaMs` can't count. */
+  sessionsWithoutEnd: number;
 }
 
 /**
@@ -207,6 +211,7 @@ export function summaryOf(input: SummaryInput): Summary {
       listened: heard.length,
       linesSpoken: input.linesSpoken,
       nvdaMs: input.nvdaMs,
+      sessionsWithoutEnd: input.sessionsWithoutEnd,
     },
     attention,
     complete: [
@@ -257,6 +262,7 @@ function emptySummary(): Summary {
       listened: 0,
       linesSpoken: 0,
       nvdaMs: 0,
+      sessionsWithoutEnd: 0,
     },
     attention: [],
     complete: [],

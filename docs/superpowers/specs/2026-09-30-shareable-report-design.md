@@ -166,7 +166,7 @@ Opened, each shows:
 |---|---|---|
 | Another window came to the front | Outside voicecap: another program, or someone at the computer | The step is thrown out, so the other window's speech never reaches a transcript, and the page is tried again. |
 | The computer locked | Outside voicecap: Win+L, a screen saver, or a lock policy | As above. voicecap keeps the screen awake, but can't stop a lock. |
-| NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown. |
+| NVDA stopped running | The screen reader | voicecap can't tell why. NVDA's own log from that moment is shown when the run recorded it. |
 | The browser stopped, or didn't start | The browser | Tried again with a fresh browser. |
 | The website answered with an error | The website | A 5xx is tried again. A 4xx isn't, since trying again can't help. |
 | The website couldn't be reached | The website or the network: the address didn't answer, the connection failed, or its certificate wasn't valid | Tried again. If it keeps failing, the site was down or couldn't be reached from this computer. |

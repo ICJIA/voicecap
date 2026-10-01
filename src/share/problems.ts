@@ -70,7 +70,11 @@ export interface Problem {
   /** "Effect on the results". */
   effect: string;
   record: ProblemRecordRow[];
-  /** What this run didn't record: the program in front, the event log, and NVDA's own log. */
+  /**
+   * What this run didn't record, each where it matters: the step and the key (for an error from a
+   * pass's step, written as text), the program in front (for a foreground loss), and the event log
+   * and NVDA's own log.
+   */
   notRecorded: string[];
 }
 
@@ -106,7 +110,8 @@ export const KIND_ROWS: {
     kind: "screen-reader-stopped",
     title: "NVDA stopped running",
     whose: "The screen reader",
-    meaning: "voicecap can't tell why. NVDA's own log from that moment is shown.",
+    meaning:
+      "voicecap can't tell why. NVDA's own log from that moment is shown when the run recorded it.",
   },
   {
     kind: "browser",

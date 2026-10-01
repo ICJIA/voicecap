@@ -227,7 +227,7 @@ export const WORTH_KNOWING: { title: string; text: string }[] = [
   },
   {
     title: "Both kinds of testing",
-    text: "This report is itself checked with axe, with no violations: the automated checker and the listen-through, side by side.",
+    text: "voicecap checks this page's design with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
   },
   {
     title: "Tested itself",

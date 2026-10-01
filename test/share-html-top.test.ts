@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlagResult } from "../src/model.js";
-import { esc, idFragment } from "../src/report/html.js";
+import { esc, idFragment, plural } from "../src/report/html.js";
 import { STEP_ICONS } from "../src/share/html/icons.js";
 import {
   bar,
@@ -272,6 +272,14 @@ describe("verdictLine", () => {
 });
 
 describe("count", () => {
+  it("writes a number, and only a number, whatever it's given", () => {
+    // A record's field that should be a number, but holds markup, never reaches the page as markup.
+    const markup = "<b>7</b>" as unknown as number;
+
+    expect(count(markup)).toBe("NaN");
+    expect(plural(markup, "page")).toBe("NaN pages");
+  });
+
   it("writes a number the same on any computer, with its thousands set apart", () => {
     expect([0, 7, 204, 1204, 1_234_567].map(count)).toEqual([
       "0",
@@ -772,6 +780,19 @@ describe("renderSummary", () => {
     );
   });
 
+  it("says how many sessions the NVDA time leaves out, having no recorded end", () => {
+    const label = (sessionsWithoutEnd: number) =>
+      tilesOf(renderSummary(withNumbers(richModel(), { sessionsWithoutEnd }))).at(-1)?.label;
+
+    expect(label(0)).toBe("of NVDA time, across 1 run");
+    expect(label(1)).toBe(
+      "of NVDA time, across 1 run; 1 session without a recorded end isn't counted",
+    );
+    expect(label(2)).toBe(
+      "of NVDA time, across 1 run; 2 sessions without a recorded end aren't counted",
+    );
+  });
+
   it("writes four panels, each an h3, in order", async () => {
     const html = renderSummary(await demoModel());
     const titles = [...html.matchAll(/<div class="panel[^"]*"><h3>(.*?)<\/h3>/g)].map((found) =>
@@ -797,7 +818,7 @@ describe("renderSummary", () => {
     expect(html).toContain(
       '<div class="panel attention"><h3>What needs attention</h3>' +
         '<p><a href="#pg-how-a-run-works-fd116f9328"><b>http://127.0.0.1:4848/how-a-run-works/</b></a>: the latest run couldn&#39;t read it (another window took the screen); its transcripts are from run 2026-09-29_1315.</p>' +
-        '<p><a href="#pg-common-mistakes-db8c98dbfa"><b>http://127.0.0.1:4848/common-mistakes/</b></a>: 3 links say only “click here”; 2 controls have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1.</p></div>',
+        '<p><a href="#pg-common-mistakes-db8c98dbfa"><b>http://127.0.0.1:4848/common-mistakes/</b></a>: 3 links say only “click here”; 2 items have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1.</p></div>',
     );
   });
 
@@ -893,7 +914,7 @@ describe("renderSummary", () => {
     expect(results).toContain('<span class="l-bad"><b>0</b> never transcribed</span>');
 
     // Flags by rule: each rule's count, as wide as it is against the most. Each flag counts once:
-    // the links and the unnamed controls were each raised in two passes, the headings in one.
+    // the links and the unnamed items were each raised in two passes, the headings in one.
     expect(textOf(rules)).toBe(
       "Flags by rule times each rule was raised, across pages and passes generic-link-text 2 unlabeled 2 headings 1",
     );
@@ -1150,7 +1171,7 @@ describe("renderHow", () => {
     expect(model.heard).toBeNull();
     expect(html).toContain("<h3>Heard on this site</h3>");
     expect(html).toContain(
-      '<p class="not-recorded">Not recorded: no transcripts of the home page are shown.</p>',
+      '<p class="not-recorded">Not recorded: no sample of the home page&#39;s lines is available.</p>',
     );
     expect(html).not.toContain('class="lanes"');
     // The rest of the section is the same.

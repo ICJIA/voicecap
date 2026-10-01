@@ -112,6 +112,11 @@ function duration(ms: number): string {
 function tiles(model: ShareModel): string {
   const { numbers } = model.summary;
   const { pagesInScope, transcribed, flagged, rules, listened, linesSpoken, nvdaMs } = numbers;
+  const { sessionsWithoutEnd: uncounted } = numbers;
+  const left =
+    uncounted === 0
+      ? ""
+      : `; ${plural(uncounted, "session")} without a recorded end ${uncounted === 1 ? "isn't" : "aren't"} counted`;
   const flagsLabel = `${flagged === 1 ? "page" : "pages"} with flags${flagged > 0 ? `, ${plural(rules, "rule")}` : ""}`;
   const transcribedTone =
     pagesInScope === 0 ? "quiet" : transcribed === pagesInScope ? "ok" : "warn";
@@ -125,7 +130,11 @@ function tiles(model: ShareModel): string {
       "listened to live by a person",
     ),
     tile("quiet", count(linesSpoken), linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke"),
-    tile("quiet", duration(nvdaMs), `of NVDA time, across ${plural(model.evidence.length, "run")}`),
+    tile(
+      "quiet",
+      duration(nvdaMs),
+      `of NVDA time, across ${plural(model.evidence.length, "run")}${left}`,
+    ),
   ].join("")}</div>`;
 }
 
@@ -307,12 +316,12 @@ const HOW_MANY = ["no ways", "one way", "two ways", "three ways"];
 
 /**
  * A sample of what NVDA said on this site: the first lines of each pass on its home page, as the
- * transcripts shown have them, each with how long it took. Without a home page that has
- * transcripts, it says so.
+ * transcripts shown have them, each with how long it took. Without a sample (no home page with
+ * transcripts, or none whose lines can be read), it says so.
  */
 function heard(sample: ShareModel["heard"]): string {
   if (sample === null) {
-    return `<div class="heard"><h3>Heard on this site</h3>${notRecorded("Not recorded: no transcripts of the home page are shown.")}</div>`;
+    return `<div class="heard"><h3>Heard on this site</h3>${notRecorded("Not recorded: no sample of the home page's lines is available.")}</div>`;
   }
   const lanes = sample.passes.map(({ pass, lines }) => {
     const { key, words } = WAYS[pass];

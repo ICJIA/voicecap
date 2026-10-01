@@ -9,6 +9,7 @@ import {
   pagePath,
   pageTitle,
   seconds,
+  utcOffset,
 } from "../src/share/format.js";
 
 describe("longDate, dayMonth, and clock", () => {
@@ -86,6 +87,18 @@ describe("longDate, dayMonth, and clock", () => {
     expect(() => longDate(text)).toThrow(/local ISO time/);
     expect(() => dayMonth(text)).toThrow(/local ISO time/);
     expect(() => clock(text)).toThrow(/local ISO time/);
+  });
+});
+
+describe("utcOffset", () => {
+  it("writes a recorded time's offset from UTC as a reader does, with a minus sign", () => {
+    expect(utcOffset("2026-09-29T13:15:02-05:00")).toBe("UTC−05:00");
+    expect(utcOffset("2026-09-29T13:15:02.481+05:30")).toBe("UTC+05:30");
+    expect(utcOffset("2026-09-29T18:15:02.481Z")).toBe("UTC+00:00");
+  });
+
+  it("refuses a time with no offset", () => {
+    expect(() => utcOffset("2026-09-29T13:15:02")).toThrow("Not a local ISO time");
   });
 });
 

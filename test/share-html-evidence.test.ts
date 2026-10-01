@@ -224,6 +224,20 @@ describe("renderEvidence", () => {
       );
     });
 
+    it("says which pages' flags aren't the current rules', when any are as recorded", async () => {
+      const model = await demoModel();
+      const marked = {
+        ...model,
+        pages: model.pages.map((card, index) =>
+          index === 1 ? { ...card, flagsAsRecorded: true } : card,
+        ),
+      };
+
+      expect(renderEvidence(marked)).toContain(
+        `The flags were computed with the current flag rules, fingerprint <code>${model.flagRulesSha256}</code>, except on 1 page marked “Flags as recorded”, whose transcripts couldn&#39;t all be read here: its flags are as its run recorded them.</p>`,
+      );
+    });
+
     it.each([
       [1, "1 run, completed and sealed."],
       [2, "2 runs, both completed and sealed."],
@@ -850,7 +864,7 @@ describe("renderStory", () => {
 });
 
 describe("renderFooter", () => {
-  it("says what voicecap is, with its link, when the page was made and in what time zone, and what file it is", async () => {
+  it("says what voicecap is, with its link, when the page was made, how its times are given, and what file it is", async () => {
     const model = await demoModel();
     const html = renderFooter(model);
 
@@ -858,35 +872,46 @@ describe("renderFooter", () => {
     expect(textOf(html)).toContain(`${ABOUT} github.com/ICJIA/voicecap`);
     expect(attributes(html, "href")).toEqual([GITHUB]);
     expect(html).toContain(`<a href="${GITHUB}">github.com/ICJIA/voicecap</a>`);
+    // The demo's runs were recorded in Chicago, on daylight time: its times are as they were.
     expect(textOf(html)).toContain(
-      `Generated on 30 September 2026 at 09:00. Times are in the ${model.footer.timeZone} time zone.`,
+      "Generated on 30 September 2026 at 09:00 (UTC−05:00). Times are as each run recorded them (UTC−05:00).",
     );
     expect(textOf(html)).toContain("This file: current.html");
   });
 
-  it("names the file as the model has it, and the day and time the page was made", async () => {
+  it("names the file as the model has it, the day and time the page was made, and each offset its runs used", async () => {
     const html = renderFooter({
       ...(await demoModel()),
       footer: {
         generatedAt: "2026-12-01T17:45:00-06:00",
-        timeZone: "America/Chicago",
         fileName: "127.0.0.1_4848_2026-12-01.html",
+        offsets: ["UTC−05:00", "UTC−06:00"],
       },
     });
 
     expect(html).toContain('This file: <span class="mono">127.0.0.1_4848_2026-12-01.html</span>');
     expect(textOf(html)).toContain(
-      "Generated on 1 December 2026 at 17:45. Times are in the America/Chicago time zone.",
+      "Generated on 1 December 2026 at 17:45 (UTC−06:00). Times are as each run recorded them (UTC−05:00 and UTC−06:00).",
     );
   });
 
-  it("escapes the file's name and the time zone, and sets no style attribute", async () => {
+  it("says nothing of the runs' times when no run counts", async () => {
+    const html = renderFooter({
+      ...(await demoModel()),
+      footer: { generatedAt: "2026-12-01T17:45:00+01:00", fileName: "x.html", offsets: [] },
+    });
+
+    expect(textOf(html)).toContain("Generated on 1 December 2026 at 17:45 (UTC+01:00).");
+    expect(textOf(html)).not.toContain("Times are");
+  });
+
+  it("escapes the file's name and the offsets, and sets no style attribute", async () => {
     const html = renderFooter({
       ...(await demoModel()),
       footer: {
         generatedAt: "2026-12-01T17:45:00-06:00",
-        timeZone: "<i>Zone</i>",
         fileName: "<b>x</b>.html",
+        offsets: ["<i>Zone</i>"],
       },
     });
 

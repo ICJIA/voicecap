@@ -221,6 +221,7 @@ function summarize(scene: Scene): Summary {
     name: scene.name ?? pageName,
     linesSpoken: 204,
     nvdaMs: 383_000,
+    sessionsWithoutEnd: 0,
   });
 }
 
@@ -254,7 +255,7 @@ describe("attentionLine", () => {
     );
 
     expect(line).toBe(
-      "Common mistakes: 3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+      "Common mistakes: 3 links say only “click here”; 2 items have no names, so NVDA says only “edit” and “button”",
     );
   });
 
@@ -277,13 +278,13 @@ describe("attentionLine", () => {
     ).toBe("Page: 4 links say only “click here”, “read more”, and “learn more”");
   });
 
-  it("says one link, or one control, in the singular", () => {
+  it("says one link, or one item, in the singular", () => {
     expect(
       attentionLine("Page", [genericFlag("tab", [{ text: "read more", count: 1 }])], null, null),
     ).toBe("Page: 1 link says only “read more”");
     expect(
       attentionLine("Page", [unlabeledFlag("tab", [{ text: "edit", count: 1 }])], null, null),
-    ).toBe("Page: 1 control has no name, so NVDA says only “edit”");
+    ).toBe("Page: 1 item has no name, so NVDA says only “edit”");
   });
 
   it("says a link with no name says only what NVDA says of any link", () => {
@@ -316,7 +317,7 @@ describe("attentionLine", () => {
     ];
 
     expect(attentionLine("Common mistakes", flags, null, null)).toBe(
-      "Common mistakes: 4 links say only “click here” and “read more”; 2 controls have no names, so NVDA says only “button” and “edit”",
+      "Common mistakes: 4 links say only “click here” and “read more”; 2 items have no names, so NVDA says only “button” and “edit”",
     );
   });
 
@@ -1311,6 +1312,7 @@ describe("summaryOf: the numbers and the bars", () => {
       listened: 6,
       linesSpoken: 204,
       nvdaMs: 383_000,
+      sessionsWithoutEnd: 0,
     });
   });
 
@@ -1412,12 +1414,12 @@ describe("summaryOf: the panels", () => {
         slug: slugOf(COMMON),
         name: "Common mistakes",
         clauses:
-          "3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+          "3 links say only “click here”; 2 items have no names, so NVDA says only “edit” and “button”",
       },
     ]);
     // As one line of plain text, the name and the clauses.
     expect(attentionLine("Common mistakes", COMMON_MISTAKES_FLAGS, null, null)).toBe(
-      "Common mistakes: 3 links say only “click here”; 2 controls have no names, so NVDA says only “edit” and “button”",
+      "Common mistakes: 3 links say only “click here”; 2 items have no names, so NVDA says only “edit” and “button”",
     );
   });
 
@@ -2148,6 +2150,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
       listened: 0,
       linesSpoken: 204,
       nvdaMs: 383_000,
+      sessionsWithoutEnd: 0,
     });
     expect(summary.bars.results).toEqual({ done: 6, flagged: 1, never: 0 });
     expect(summary.bars.flagsByRule).toEqual([
@@ -2200,7 +2203,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
         slug: slugOfDemo("/common-mistakes/"),
         name: "/common-mistakes/",
         clauses:
-          "3 links say only “click here”; 2 controls have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1",
+          "3 links say only “click here”; 2 items have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1",
       },
     ]);
   });
@@ -2268,6 +2271,7 @@ describe("summaryOf: no run counts yet", () => {
           listened: 0,
           linesSpoken: 0,
           nvdaMs: 0,
+          sessionsWithoutEnd: 0,
         },
         attention: [],
         complete: [],
