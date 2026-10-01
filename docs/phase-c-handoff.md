@@ -243,8 +243,11 @@ The owner's standing rules, from Phases A and B:
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
   - 0.4.0 added readiness: the checks, the live test, and `setup` and `doctor` on macOS; 0.4.1 let `--sitemap` take a sitemap's name.
   - 0.5.0 added `voicecap demo`, the four fixes the Windows checks found (2026-09-29 and 30), a failed page tried up to 5 times, and the reviewer's name on every session. It was merged to `main` from the branch `windows-checks-fixes`.
-- **Being built:** 0.6.0, the shareable report, on the branch `0.6.0-run-records`: plan 1 of 6, the run records.
-- **Tests:** 1,442 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
+- **Being built:** 0.6.0, the shareable report, in six plans.
+  - Plan 1, the run records, is merged to `main` (2026-09-30).
+  - Plan 2, the page, is done, on the branch `0.6.0-the-page`: every site folder's `share/current.html`, written after a completed run, a review, a manual session, and `voicecap report`.
+  - Plans 3 to 6 follow: the Word copy and sharing (`voicecap share`, the dated copies, and `verify`'s checks of them), the walkthrough file, the website, and the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
+- **Tests:** 2,181 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.

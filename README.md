@@ -88,12 +88,14 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 - [Manual NVDA sessions](#manual-nvda-sessions)
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
+- [The shareable page](#the-shareable-page)
 - [Heuristic flags](#heuristic-flags)
 - [Configuration](#configuration)
 - [Programmatic API](#programmatic-api)
 - [Drivers](#drivers)
 - [Updating Guidepup](#updating-guidepup)
 - [Known limitations](#known-limitations)
+- [Future enhancements](#future-enhancements)
 - [Development](#development)
 - [License](#license)
 
@@ -922,6 +924,34 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 
 **Compare.** `--compare previous` (or a run id) compares the pages both runs contain, marks changed pages, and links to line diffs of the transcripts (not the header blocks). Pages that appear in only one run are listed. If the two runs' environments differ (NVDA, browser, voicecap, NVDA settings, capture mode), the report says so prominently, because some changes may come from the tooling rather than the site.
 
+## The shareable page
+
+`share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they listened to, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network.
+
+voicecap writes it whenever it rewrites the site's `report.html`: when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`, which also prints `Shareable page: <path>`. (The programmatic API's `generateReport`, `addReview`, and `addManualSession` write it too.) It's rewritten each time, so keep a copy of the file you send. A page that can't be written is a warning, never a failed run, review, or report.
+
+- **One self-contained file.** Its styles, fonts, and data are inside it, and nothing is loaded from outside. It's dark at first, with a button for a light version, and it prints light. Its detail is folded under lines that say what's inside. Each fold opens with a click, scripts or not; "Open every section", at the top, opens them all; and so does printing. Like the report, it's itself accessible: voicecap's tests run axe on it, in both themes, with every fold shut and every fold open.
+- **Only completed, sealed, live runs count.** Its pages are those of the site's latest run that counts, and each page shows its newest transcripts from any run that counts. A page that failed in the latest run shows the failure beside its last good transcripts, and a page the latest run no longer lists goes in a small table, "No longer listed". A replayed run (`--replay-from`), a run that was interrupted or never finished, and a completed run with no seal never count toward a result. The page lists each one it left out, with why, and with no run that counts, it says so.
+- **A person's review, first.** The summary leads with what the person did: that they listened as NVDA read the pages (their answer to the question at the end, under [Run an audit](#run-an-audit)), what they found, and what they fixed (see [Reviews: the audit trail](#reviews-the-audit-trail)). It says a person listened, reviewed, or fixed something only where the records say so, and what's left appears as tasks, under "What's still to do".
+- **Nothing left blank.** Where a run didn't record something the page shows, it says so, as in "Not recorded: this run used voicecap 0.5.0".
+
+Its sections, in order:
+
+- **Summary**: the result in one sentence, six numbers (pages in scope, pages transcribed, pages with flags, pages listened to live, lines NVDA spoke, and NVDA time), what needs attention, how complete the test was, what's still to do, and when and how it was run.
+- **How voicecap works**: the six steps, the first lines NVDA said on the site's home page, and when to run voicecap.
+- **Every page**: a card for each page, with its result, flags, review, line counts, and a link to its transcripts.
+- **What the flags found**: each flagged page's rules, with NVDA's own words quoted from the transcripts.
+- **What changed since the last run**: the pages that sound different from the run before (the latest earlier run that counts, with the same page source), line by line, with the changed words marked. Pages that sound the same are counted, not listed.
+- **Problems during the runs**: every failed attempt, including those a later attempt made good, with its kind (another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself), what voicecap did, whether it happened again, what it means for the results, and the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`).
+- **What these results cover**: the pages and passes, and the technical limits.
+- **The evidence behind these results**: each run the page draws on, with its facts, its test environment, and the fingerprint of every file, and the fingerprint check below.
+- **How voicecap came to be**: why it exists, its timeline, and a few things worth knowing.
+- **Appendix: every transcript**: each page's read, headings, and Tab transcripts, word for word.
+
+**The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint (`Get-FileHash <file>` in PowerShell, `shasum -a 256 <file>` on a Mac) with one its sender noted down, or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `share/` alone: the page is made again from the records each time, and `verify` checks the records.
+
+**The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name.
+
 ## Heuristic flags
 
 Flags point a person at pages worth a closer listen. They never fail a page or change the exit code.
@@ -983,6 +1013,7 @@ export default defineConfig({
 | `manual.focusKeys` | `["tab", "shift+tab", "enter", …]` | NVDA key names that move focus (redaction). |
 | `reviewer` | `null` | Default reviewer name. |
 | `report.title`, `report.agency`, `report.logo` | `"NVDA transcript report"`, `null`, `null` | Report branding; the logo must be a `data:image/…` URI. |
+| `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
 
 Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run.
 
@@ -1042,6 +1073,10 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 - **Pages that talk nonstop.** Guidepup waits for NVDA to fall silent before each keystroke. On a page with content that announces itself continuously (a fast-updating live region, an auto-advancing carousel), a step can time out; voicecap then restarts NVDA and the browser and tries the page again, up to 5 times in all, and records it as failed if every try times out.
 - **Folders with spaces or special characters.** Guidepup 0.34.0 starts NVDA through the Windows command shell without quoting its path, so it can't start NVDA from a path with a space or one of `& ( , ; = ^`; see [Windows setup](#windows-setup-for-someone-new-to-windows).
 - **Symbols.** Transcripts contain NVDA's spoken names for symbols (`copyright`, `bullet`), not the characters.
+
+## Future enhancements
+
+**Single-file executables for Windows and Mac.** Node's single-executable build could package voicecap as one file per platform, so there would be no Node.js to install. It isn't built, and it takes more than packaging. voicecap's own files (the demo site, the shareable page's fonts, and Guidepup's files) would have to be embedded. `setup` installs Playwright's fallback browser by running Playwright's own installer, from the packages `npx` downloads today, so an executable would need another way to get it. The commands voicecap prints would name the executable in place of `npx @icjia/voicecap`, and the executable would need its own way to update. It would have to be signed, since Windows SmartScreen warns about unsigned downloads; on a Mac it would also need notarizing, and its Accessibility and Automation permissions, which belong to the terminal app today, would have to be sorted out. It would count as ready only once real NVDA and VoiceOver runs had been made with it, and each run would then record which build made it.
 
 ## Development
 

@@ -6,15 +6,34 @@ import * as text from "../src/share/text.js";
 
 const { HOW_STEPS, STORY, TIMELINE, WHEN_TO_RUN, WORTH_KNOWING } = text;
 
+/** A release's heading in the CHANGELOG: `## [x.y.z] - YYYY-MM-DD`. */
+const RELEASE_HEADING = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/;
+
+/** Every `## [` heading in the CHANGELOG, as written, `## [Unreleased]` among them. */
+function changelogHeadings(): string[] {
+  const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8");
+  return changelog.split(/\r?\n/).filter((line) => line.startsWith("## ["));
+}
+
 /** The CHANGELOG's releases, as its `## [x.y.z] - YYYY-MM-DD` headings give them: version to date. */
 function changelogReleases(): Map<string, string> {
-  const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8");
   const releases = new Map<string, string>();
-  for (const heading of changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/gm)) {
-    const [, version, date] = heading;
+  for (const heading of changelogHeadings()) {
+    const [, version, date] = RELEASE_HEADING.exec(heading) ?? [];
     if (version !== undefined && date !== undefined) releases.set(version, date);
   }
   return releases;
+}
+
+/** The versions a row's cells name in bold, as `<b>x.y.z</b>`. */
+function boldVersions(row: text.TimelineRow): string[] {
+  return [row.pc, row.mac, row.both].flatMap((cell) =>
+    cell === null
+      ? []
+      : [...cell.matchAll(/<b>(\d+\.\d+\.\d+)<\/b>/g)].flatMap(([, version]) =>
+          version === undefined ? [] : [version],
+        ),
+  );
 }
 
 /** Every string the module exports, however deep: all of the page's fixed text. */
@@ -44,6 +63,22 @@ describe("the timeline", () => {
     expect(wrong).toEqual([]);
   });
 
+  it("names in bold only the release its dated row announces, and no version in a row with none", () => {
+    // A bold version the row's `release` doesn't match is never checked against the CHANGELOG's
+    // date, so its date could be wrong, or its release missing, with every other test passing.
+    const wrong = TIMELINE.flatMap((row) =>
+      row.date === null
+        ? []
+        : boldVersions(row)
+            .filter((version) => version !== row.release)
+            .map(
+              (version) => `${row.date}: <b>${version}</b>, in a row that announces ${row.release}`,
+            ),
+    );
+
+    expect(wrong).toEqual([]);
+  });
+
   it("gives every minor release its line", () => {
     const minors = [...changelogReleases().keys()].filter((version) =>
       /^\d+\.\d+\.0$/.test(version),
@@ -53,6 +88,28 @@ describe("the timeline", () => {
     // The CHANGELOG read at all, so an empty list can't pass for "every release has its line".
     expect(minors).toEqual(expect.arrayContaining(["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]));
     expect(minors.filter((version) => !announced.has(version))).toEqual([]);
+  });
+
+  it("doesn't leave a release in Next once the CHANGELOG has its heading", () => {
+    const released = changelogReleases();
+    const next = TIMELINE.at(-1);
+
+    // The CHANGELOG read at all, so no release can pass for being absent from it.
+    expect(released.has("0.5.0")).toBe(true);
+    expect(
+      next === undefined ? [] : boldVersions(next).filter((version) => released.has(version)),
+    ).toEqual([]);
+  });
+
+  it("reads every release heading in the CHANGELOG, so a malformed one can't skip its release's check", () => {
+    const headings = changelogHeadings();
+    const malformed = headings.filter(
+      (heading) => heading !== "## [Unreleased]" && !RELEASE_HEADING.test(heading),
+    );
+
+    // Read at all, with the one heading that isn't a release.
+    expect(headings).toContain("## [Unreleased]");
+    expect(malformed).toEqual([]);
   });
 
   it("keeps the rows in date order, with Next last", () => {

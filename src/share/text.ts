@@ -192,6 +192,13 @@ export const TIMELINE: TimelineRow[] = [
     both: null,
   },
   {
+    date: "2026-10-01",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline.",
+  },
+  {
     date: null,
     release: null,
     pc: "<b>0.6.0</b>: the shareable report, a page and a Word copy for managers and auditors.",

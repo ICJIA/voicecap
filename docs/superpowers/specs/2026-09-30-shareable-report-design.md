@@ -1,6 +1,6 @@
 # The shareable report: a dated page and its Word copy, showing what the runs found and proving they ran
 
-Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup built from the real records of the demo runs on 2026-09-29 is at https://claude.ai/artifact/ESwcXRQX7BHEDG5vwkC247 (private to the owner). Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. A throwaway script built it; it isn't in the repository.
+Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup built from the real records of the demo runs on 2026-09-29 is at https://claude.ai/artifact/ESwcXRQX7BHEDG5vwkC247 (private to the owner). Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. Its HTML is in the repository, `2026-09-30-shareable-report-mockup.html`, as the design the page follows.
 
 ## Why
 
@@ -284,7 +284,7 @@ These two sections are the page's only prose not computed from the records, and 
 - The keys named, and the sample, come from the screen reader the section is about. For NVDA, they're Down Arrow, H, and Tab. VoiceOver's come with its driver.
 
 **How voicecap came to be:**
-- **Why it exists:** automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: "Automated Testing Identifies 57 Percent of Digital Accessibility Issues", March 2021, over 2,000 audits and 13,000 pages, linked. And no checker can say what a page sounds like.
+- **Why it exists:** automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks", March 2021, over 2,000 audits and 13,000 pages, linked. And no checker can say what a page sounds like.
 - **The usual answer,** a person with a screen reader, page by page, is slow, hard to show afterward, and hard to repeat.
 - **voicecap's answer:** keep the person and the real screen reader, and take over the slow parts. Working from the list makes the review more thorough than going page by page by hand: every page is accounted for, none is missed or done twice, and each is heard the same way, with the same keys in the same order. voicecap is free and open source, from ICJIA (MIT license).
 - **The timeline,** as a table with two tracks, a Windows PC with NVDA and a Mac with VoiceOver:
