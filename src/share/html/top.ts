@@ -62,7 +62,7 @@ export function renderTop(model: ShareModel): string {
     ...(header.preparedBy === null
       ? []
       : [`<span>${esc(TOP_TEXT.preparedBy)} <b>${esc(header.preparedBy)}</b></span>`]),
-    `<span>${esc(TOP_TEXT.madeWith)} <a href="${esc(TOP_TEXT.github)}">voicecap</a></span>`,
+    `<span>${esc(TOP_TEXT.madeWith)} <a href="${esc(TOP_TEXT.github)}">${esc(TOP_TEXT.madeWithLink)}</a></span>`,
     `<span class="addr">${esc(TOP_TEXT.siteAddress)} ${esc(header.site)}</span>`,
   ];
   return [
@@ -174,7 +174,7 @@ function rulesMeter({ bars }: Summary): string {
     rows.length === 0
       ? `<p class="sub">${esc(SUMMARY_TEXT.noFlagsRaised)}</p>`
       : `<div class="rules">${rows.join("")}</div>`;
-  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.rules)} <span class="sub">times each rule was raised, across pages and passes</span></h3>${body}</div>`;
+  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.rules)} <span class="sub">${esc(SUMMARY_TEXT.rulesNote)}</span></h3>${body}</div>`;
 }
 
 /** A count out of its total in a row: "3/3" as it looks, and "3 of 3" as a screen reader says it. */
@@ -193,7 +193,7 @@ function reviewMeter({ bars }: Summary): string {
     const tone = part >= whole ? "ok" : "warn";
     return `<div class="rule"><span>${esc(label)}</span>${track(part, whole, tone)}${tally(part, whole)}</div>`;
   });
-  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.review)} <span class="sub">each out of its total</span></h3><div class="rules">${html.join("")}</div></div>`;
+  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.review)} <span class="sub">${esc(SUMMARY_TEXT.reviewNote)}</span></h3><div class="rules">${html.join("")}</div></div>`;
 }
 
 /**

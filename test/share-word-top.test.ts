@@ -6,6 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { esc } from "../src/report/html.js";
+import { renderSummary, renderTop } from "../src/share/html/top.js";
 import { lineText, type Line } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
@@ -19,7 +21,14 @@ import {
   WORD_TEXT,
 } from "../src/share/text.js";
 import { heardTitle, shareOf, topLead } from "../src/share/words.js";
-import { PAGE_BREAK, heading, para, wordsOf, type Block } from "../src/share/word/blocks.js";
+import {
+  PAGE_BREAK,
+  heading,
+  monoCell,
+  para,
+  wordsOf,
+  type Block,
+} from "../src/share/word/blocks.js";
 import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
@@ -167,6 +176,11 @@ describe("wordTop", () => {
       text: "voicecap",
       href: "https://github.com/ICJIA/voicecap",
     });
+    // The link's words are the top's own text, which the page's link says too.
+    expect(TOP_TEXT.madeWithLink).toBe("voicecap");
+    expect(renderTop(model)).toContain(
+      `<a href="${TOP_TEXT.github}">${esc(TOP_TEXT.madeWithLink)}</a>`,
+    );
     // A screen reader other than NVDA is named, and isn't linked to NVDA's makers.
     const other = wordTop({ ...model, header: { ...model.header, screenReader: "VoiceOver" } });
     expect(wordsOf(other)[2]).toContain("How its pages read aloud with VoiceOver, a free");
@@ -374,6 +388,7 @@ describe("wordSummary", () => {
     const model = await demoModel();
 
     expect(wordsOf(under(wordSummary(model), "Flags by rule"))).toEqual([
+      "Times each rule was raised, across pages and passes.",
       "Rule | Times raised | Share of all flags raised",
       "generic-link-text | 2 | 40%",
       "unlabeled | 2 | 40%",
@@ -381,17 +396,38 @@ describe("wordSummary", () => {
     ]);
   });
 
+  it("sets each rule's name in the fixed-width font, as the page does, and its counts in plain", async () => {
+    const model = await demoModel();
+    const [rules] = tablesIn(under(wordSummary(model), "Flags by rule"));
+
+    expect(rules?.rows.map(([rule]) => rule)).toEqual(
+      model.summary.bars.flagsByRule.map(({ rule }) => monoCell(rule)),
+    );
+    expect(rules?.rows.map((row) => row.slice(1).some((cell) => cell.mono === true))).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it("says no flags were raised, rather than draw an empty table", () => {
     const model = cleanModel();
+    const rules = under(wordSummary(model), "Flags by rule");
 
     expect(model.summary.bars.flagsByRule).toEqual([]);
-    expect(under(wordSummary(model), "Flags by rule")).toEqual([para("No flags were raised.")]);
+    // After what a rule's count is, as the page has it in the title, and with no table.
+    expect(wordsOf(rules)).toEqual([
+      "Times each rule was raised, across pages and passes.",
+      "No flags were raised.",
+    ]);
+    expect(rules.map(({ kind }) => kind)).toEqual(["para", "para"]);
   });
 
   it("has the human review as counts out of their totals, so nothing looks complete that isn't", async () => {
     const model = await demoModel();
 
     expect(wordsOf(under(wordSummary(model), "The human review"))).toEqual([
+      "Each out of its total.",
       "What | Count | Out of | Share",
       "Heard live | 0 | 7 | 0%",
       "Transcripts reviewed | 0 | 7 | 0%",
@@ -404,11 +440,41 @@ describe("wordSummary", () => {
       },
     });
     expect(wordsOf(under(wordSummary(some), "The human review"))).toEqual([
+      "Each out of its total.",
       "What | Count | Out of | Share",
       "Heard live | 1 | 3 | 33%",
       "Transcripts reviewed | 3 | 3 | 100%",
       "Issues fixed | 0 | 0 | nothing to count",
     ]);
+  });
+
+  it("says under each bar's title, before its table, what the page says beside the title", async () => {
+    const model = await demoModel();
+    const page = renderSummary(model);
+    const summary = wordSummary(model);
+    const notes = [
+      [
+        "Flags by rule",
+        SUMMARY_TEXT.rulesNote,
+        "Times each rule was raised, across pages and passes.",
+      ],
+      ["The human review", SUMMARY_TEXT.reviewNote, "Each out of its total."],
+    ] as const;
+
+    // The page's words, as its summary text has them, so that both copies say the same.
+    expect(SUMMARY_TEXT.rulesNote).toBe("times each rule was raised, across pages and passes");
+    expect(SUMMARY_TEXT.reviewNote).toBe("each out of its total");
+    for (const [title, note, said] of notes) {
+      // The last section of the summary ends with its page break, after the table.
+      const [first, second] = under(summary, title);
+
+      // The page still says it, beside the title. The Word copy says it as a paragraph of its own:
+      // the same words, with a capital and a full stop, and then the table.
+      expect(page, title).toContain(`<h3>${esc(title)} <span class="sub">${esc(note)}</span></h3>`);
+      expect([first?.kind, second?.kind], title).toEqual(["para", "table"]);
+      expect(wordsOf(first ? [first] : []), title).toEqual([said]);
+      expect(said.toLowerCase(), title).toBe(`${note}.`);
+    }
   });
 
   it("calls the three results what the page's words call them, with a capital", () => {

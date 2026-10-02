@@ -22,13 +22,16 @@ import type { Problem } from "./problems.js";
 
 /**
  * The top of the page: the line above the site's name, the labels in the line below its lead (each
- * is followed by what it labels), and the two addresses the top links to.
+ * is followed by what it labels), the words of the link that follows "Made with", and the two
+ * addresses the top links to.
  */
 export const TOP_TEXT = {
   eyebrow: "Screen reader test results",
   asOf: "As of",
   preparedBy: "Prepared by",
   madeWith: "Made with",
+  /** The words of the link that follows `madeWith`, which goes to `github`. */
+  madeWithLink: "voicecap",
   siteAddress: "Site address",
   /** Where "voicecap", in "Made with voicecap", links to. */
   github: "https://github.com/ICJIA/voicecap",
@@ -37,8 +40,9 @@ export const TOP_TEXT = {
 };
 
 /**
- * The Summary: its heading, the titles of its panels and bars, the line for no page that needs
- * attention, and the words for what a page's latest result can be.
+ * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
+ * by a phrase that says what the bar counts), the line for no page that needs attention, and the
+ * words for what a page's latest result can be.
  */
 export const SUMMARY_TEXT = {
   title: "Summary",
@@ -51,9 +55,19 @@ export const SUMMARY_TEXT = {
   /** What a page's latest result can be, as the words that follow a count of pages. */
   resultWords: { done: "without flags", flagged: "with flags", never: "never transcribed" },
   rules: "Flags by rule",
+  /**
+   * The phrase after that title, which says what each rule's count is. The page sets it beside the
+   * title; the Word copy says it in a paragraph of its own, with a capital and a full stop.
+   */
+  rulesNote: "times each rule was raised, across pages and passes",
   /** Said in place of the rules and their counts, when no flag was raised. */
   noFlagsRaised: "No flags were raised.",
   review: "The human review",
+  /**
+   * The phrase after that title, which says that each count is out of its total. Each copy says it
+   * as it says `rulesNote`.
+   */
+  reviewNote: "each out of its total",
   /** The three counts of the human review, each out of its total. */
   reviewRows: { heard: "Heard live", reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
 };
@@ -591,14 +605,12 @@ export const FOOTER_TEXT = {
 };
 
 /**
- * What only the Word copy says, in a group for each section: where the page draws tiles and bars,
- * the Word copy has tables, and these are the heads of their columns and the labels of their rows.
- * What the page says too (a panel's title, a bar's label) is in the objects above, and the Word
- * copy says it from there, never again here.
+ * The Word copy's own words, in a group for each section: where the page draws tiles and bars, the
+ * Word copy has tables, and these are the heads of their columns and the labels of their rows. A
+ * few say a word of the page's in the Word copy's form ("Without flags", for the page's "without
+ * flags"); the rest are the Word copy's alone.
  */
 export const WORD_TEXT = {
-  /** The top: the words of the link to voicecap's page, whose address is `TOP_TEXT.github`. */
-  top: { madeWithLink: "voicecap" },
   /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
   summary: {
     /** The heads of the table of the six numbers: the number, and what it counts. */

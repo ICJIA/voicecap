@@ -18,12 +18,23 @@ import {
   heardTitle,
   howLead,
   numbersOf,
+  sentence,
   shareOf,
   spokenDuration,
   topLead,
   type NumberTile,
 } from "../words.js";
-import { PAGE_BREAK, cell, heading, list, para, table, title, type Block } from "./blocks.js";
+import {
+  PAGE_BREAK,
+  cell,
+  heading,
+  list,
+  monoCell,
+  para,
+  table,
+  title,
+  type Block,
+} from "./blocks.js";
 
 // The top.
 
@@ -42,7 +53,7 @@ function metaLine({ asOf, preparedBy, site }: ShareModel["header"]): Line {
     ".",
     ...prepared,
     ` ${TOP_TEXT.madeWith} `,
-    { text: WORD_TEXT.top.madeWithLink, href: TOP_TEXT.github },
+    { text: TOP_TEXT.madeWithLink, href: TOP_TEXT.github },
     `. ${TOP_TEXT.siteAddress} ${site}.`,
   ];
 }
@@ -135,14 +146,23 @@ function resultsBlocks({ bars }: Summary): Block[] {
 }
 
 /**
- * "Flags by rule": a row for each rule, with how many times it was raised (once for each page and
- * pass) and its share of every flag raised; or that no flag was.
+ * What the page says beside the title of a bar (`SUMMARY_TEXT.rulesNote`, `.reviewNote`), as a
+ * paragraph of its own under the title: the same words, with a capital and a full stop.
+ */
+function noteBlock(phrase: string): Block {
+  return para(sentence(`${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}`));
+}
+
+/**
+ * "Flags by rule": what a rule's count is (once for each page and pass it was raised in), then a
+ * row for each rule, its name in the fixed-width font as the page sets it, with how many times it
+ * was raised and its share of every flag raised; or that no flag was.
  */
 function rulesBlocks({ bars }: Summary): Block[] {
   const { flagsByRule } = bars;
   const total = flagsByRule.reduce((sum, { count: times }) => sum + times, 0);
   const rows = flagsByRule.map(({ rule, count: times }) => [
-    rule,
+    monoCell(rule),
     count(times),
     shareOf(times, total),
   ]);
@@ -150,12 +170,12 @@ function rulesBlocks({ bars }: Summary): Block[] {
     rows.length === 0
       ? para(SUMMARY_TEXT.noFlagsRaised)
       : table(WORD_TEXT.summary.rulesHead, rows, [40, 25, 35]);
-  return [heading(2, SUMMARY_TEXT.rules), body];
+  return [heading(2, SUMMARY_TEXT.rules), noteBlock(SUMMARY_TEXT.rulesNote), body];
 }
 
 /**
- * "The human review": each count out of its total, with its share, so nothing looks complete that
- * isn't.
+ * "The human review": a line that says each count is out of its total, then each count with its
+ * total and its share, so nothing looks complete that isn't.
  */
 function reviewBlocks({ bars }: Summary): Block[] {
   const { reviewRows } = SUMMARY_TEXT;
@@ -173,6 +193,7 @@ function reviewBlocks({ bars }: Summary): Block[] {
   ]);
   return [
     heading(2, SUMMARY_TEXT.review),
+    noteBlock(SUMMARY_TEXT.reviewNote),
     table(WORD_TEXT.summary.reviewHead, rows, [40, 20, 20, 20]),
   ];
 }
