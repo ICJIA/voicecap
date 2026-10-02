@@ -18,7 +18,7 @@ Every line of a transcript is what the screen reader actually said. voicecap pre
 
 It's a human review, sped up: voicecap does the key presses and the page turning, so the person running it can:
 
-- listen along as the screen reader reads, then go back over exactly what it said, line by line;
+- hear the screen reader at work, then go back over exactly what it said, line by line;
 - compare runs to see exactly what changed after an update;
 - record what they found and what they fixed, and add their own hands-on NVDA sessions.
 
@@ -36,13 +36,13 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 
 ![How voicecap works: a human review, sped up. Six steps, each described in the list below, and three lines NVDA said on voicecap's demo site.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/how-voicecap-works.png)
 
-Automated checkers such as axe and Lighthouse read a page's code and test it against rules. voicecap is a human review, sped up: it takes a real screen reader through each page the way a person would and saves every word it says, while the person running it listens, reads the transcripts, and fixes what they find.
+Automated checkers such as axe and Lighthouse read a page's code and test it against rules. voicecap is a human review, sped up: it takes a real screen reader through each page the way a person would and saves every word it says, while the person running it reads the transcripts and fixes what they find.
 
 1. **Every page on the list.** voicecap works from the site's sitemap, or a list of chosen pages in a CSV or JSON file. Each page is read once, in full, or recorded with the reason it couldn't be. None is missed or done twice, an easy slip when clicking through a site by hand.
 2. **The real screen reader.** voicecap runs NVDA itself, never a simulation, with a fresh browser for every page, so no page's results depend on the pages before it.
 3. **Three ways through each page.** It presses NVDA's keys as a person would: Down Arrow to go line by line, H to go heading by heading, and Tab to go control by control.
 4. **Every word, checked.** It saves each key press and everything NVDA said, in order, waiting until NVDA has been quiet for a second so nothing is cut off. Before and after every key press, it checks that the page still has the screen. If another window took it, the step is thrown out and the page tried again, with NVDA and the browser started fresh.
-5. **A person reviews.** The person running voicecap listens as NVDA reads, then reads the transcripts, records what they found with `voicecap review`, and fixes it. Flags point to moments worth a second listen, such as links that say only "click here".
+5. **A person reviews.** The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read: the person reads them, records what they found with `voicecap review`, and fixes it. Flags point to moments worth a closer look, such as links that say only "click here".
 6. **A sealed record.** Every file gets a fingerprint (SHA-256) and each run is sealed, so `voicecap verify` can show that nothing has changed since.
 
 The first lines NVDA said on the demo site's home page, in each pass:
@@ -108,7 +108,7 @@ voicecap needs **Node.js 22.19 or later** (24 recommended), and nothing else to 
 Why voicecap is built the way it is, in three short answers:
 
 - **Why an npm package.** voicecap runs on your own computer, where the screen reader is. It's one package for Windows and a Mac, `npx` fetches the version you ask for, and every run records the version of voicecap that made it.
-- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal. When it doesn't, voicecap leaves out what needs one: the live test that `init` and `setup` offer, and "Did you listen?" at the end of a run. `demo` won't start at all. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
+- **Why PowerShell, not Git Bash, on a PC.** Git Bash rewrites any argument that starts with `/` into a Windows path (`--page /about` arrives as `C:/Program Files/Git/about`). voicecap catches that and explains it, but it's an extra step. Git Bash's own window (mintty) also doesn't always let Node see a terminal. When it doesn't, voicecap leaves out what needs one: the live test that `init` and `setup` offer, and "Did you hear NVDA speaking as it read these pages?" at the end of a run. `demo` won't start at all. PowerShell has neither problem, on its own or in Windows Terminal (see [Git Bash and paths that start with "/"](#git-bash-and-paths-that-start-with-)). It has one catch of its own, fixed once: on a new PC it can refuse to run `npx` (see [If PowerShell says "running scripts is disabled"](#if-powershell-says-running-scripts-is-disabled)).
 - **Why a command-line app, not a web app.** voicecap has to start a real screen reader, press its keys on your computer, and capture what it says. A web page can't do any of that from inside the browser's sandbox. Running on your own computer also keeps every transcript in a folder you control. The web part is what voicecap makes: [the shareable page](#the-shareable-page).
 
 Three steps take you from a new computer to a first run:
@@ -540,7 +540,7 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 
 **Patterns.** Globs match the URL's path: `news/*` matches `/news/fy27-grants` but not `/news/` itself; `news/**` matches both, and deeper paths. The leading slash is optional in both the pattern and the path. `re:` patterns are regular expressions tested against the path plus the query string (with and without the leading slash), e.g. `--exclude 're:\?page=\d+'`. `--include`, then `--exclude`, then `--limit` apply, in that order.
 
-**The question at the end.** When a session that read pages ends, voicecap asks at the terminal, once NVDA has stopped: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No", typed as 1, 2, or 3. Enter picks No, so a run never says you listened unless you said so. The session's record keeps the answer, with when voicecap asked and when it was answered, and the run's seal covers it (see [What each run records](#what-each-run-records)).
+**The question at the end.** When a session that read pages ends, voicecap asks at the terminal, once NVDA has stopped: "Did you hear NVDA speaking as it read these pages?" With it, voicecap says that NVDA speaks very fast during a run, so the words are hard to follow, and that the transcripts have every word. The answers are "Yes, the whole time", "Part of the time", and "No", typed as 1, 2, or 3. Enter picks No, so a run never says you heard it unless you said so. The session's record keeps the answer, with when voicecap asked and when it was answered, and the run's seal covers it (see [What each run records](#what-each-run-records)).
 
 - **It's asked however the session ends:** when the run completes; after Ctrl+C; when the run stops after too many failed pages in a row (exit code 2); and when an error ends it (the browser updating itself mid-run, say). After an error, a line before the question says why the session stopped, and the full explanation follows your answer.
 - **Only an answer typed after the question appears counts.** Keys pressed while the run went on, a stray Enter say, are dropped before the question shows, so they can't answer it for you.
@@ -836,7 +836,7 @@ The home's top can also hold your own files and folders, notes for example. A fo
 ### What each run records
 
 <details>
-<summary>Page titles, every failed attempt and its code, the reviewer and the listener's statement, and the computer's details</summary>
+<summary>Page titles, every failed attempt and its code, the reviewer and whether NVDA was heard, and the computer's details</summary>
 
 Beyond its transcripts, each run's `run.json` records:
 
@@ -856,7 +856,7 @@ Beyond its transcripts, each run's `run.json` records:
     - `page-timeout`: the whole page took too long;
     - `unexpected`: an error voicecap didn't expect, which may be a fault in voicecap itself. Its record also keeps the error's stack, with the home folder replaced by `%USERPROFILE%` (or `~`);
   - whether the screen reader and browser were started again for the next attempt.
-- **Each session's reviewer, and the listener's statement.** The statement is the answer to "Did you listen as NVDA read these pages?" The session's record keeps the answer, when voicecap asked and when it was answered, and how many pages the session went through (see [Run an audit](#run-an-audit)).
+- **Each session's reviewer, and whether NVDA was heard.** That's the answer to "Did you hear NVDA speaking as it read these pages?" The session's record keeps the answer (`listener`), when voicecap asked and when it was answered, and how many pages the session went through (see [Run an audit](#run-an-audit)).
 - **The computer's details**, in each session's environment record, and never the computer's maker, model, or name, or the account's name:
   - the operating system: its edition, version, build, and architecture;
   - the processor: its name, base speed, physical cores, and logical processors;
@@ -981,7 +981,7 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
 - **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser and tries the page again, up to `pageAttempts` times in all.
 - **If the browser updates itself** during a run (Chrome does, in the background), the page being opened when the new version starts fails, and voicecap stops with exit code 2 when it restarts the browser for the next page, so the version recorded with the transcripts stays true. Run the same command again to resume with the new version recorded; the failed page is retried. (On the last page, the run completes instead, with that page failed: exit code 3.)
-- **Ctrl+C** saves state and shuts down NVDA and the browser. When the session read pages, voicecap then asks whether you listened (see "The question at the end" under [Run an audit](#run-an-audit)), and it exits with code 130 once you've answered. The page in progress is redone on resume. Press Ctrl+C a second time to exit immediately; at the question, Ctrl+C gives no answer, and voicecap exits. The browser is in front while voicecap works, so click the terminal window first, or the keystroke goes to the browser.
+- **Ctrl+C** saves state and shuts down NVDA and the browser. When the session read pages, voicecap then asks whether you heard NVDA speaking (see "The question at the end" under [Run an audit](#run-an-audit)), and it exits with code 130 once you've answered. The page in progress is redone on resume. Press Ctrl+C a second time to exit immediately; at the question, Ctrl+C gives no answer, and voicecap exits. The browser is in front while voicecap works, so click the terminal window first, or the keystroke goes to the browser.
 - **One run per output folder** at a time (a lock file, taken over if the process that held it is gone).
 - **HTTP errors are page problems.** A page that answers 404 gets a single try, since trying again can't help. A 5xx is tried again, up to `pageAttempts` times. Either is recorded as failed, but it doesn't count toward stopping the run and doesn't restart NVDA; only timeouts and driver errors do. When a run resumes, pages never tried come first and pages that failed earlier are retried last, so a resumed run always makes progress.
 - **Avoid synced folders** (OneDrive, Dropbox) for the output: sync clients and antivirus scans can hold files open. voicecap retries, but a folder they keep locked can still stop a run. If Git on Windows complains about long paths in `transcripts/`, run `git config core.longpaths true`.
@@ -1113,7 +1113,7 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 <details>
 <summary>What the page is, how voicecap writes it, which runs count, its sections, the fingerprint check, and what to know before you send it</summary>
 
-`share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they listened to, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network.
+`share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they heard, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network.
 
 voicecap writes it whenever it rewrites the site's `report.html`: when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`, which also prints `Shareable page: <path>`. (The programmatic API's `generateReport`, `addReview`, and `addManualSession` write it too.) It's rewritten each time, so keep a copy of the file you send. A page that can't be written is a warning, never a failed run, review, or report.
 
@@ -1122,12 +1122,12 @@ voicecap writes it whenever it rewrites the site's `report.html`: when a run com
   - A page whose latest attempt failed shows the failure beside its last good transcripts, and is a task under "What's still to do".
   - A page the latest run's list no longer has goes in a small table, "No longer listed".
   - A replayed run (`--replay-from`), a run that was interrupted or never finished, a completed run with no seal, and a run whose `run.json` can't be read never count toward a result. The page lists each one it left out, with why, and with no run that counts, it says so.
-- **A person's review, first.** The summary leads with what the person did: that they listened as NVDA read the pages (their answer to the question at the end, under [Run an audit](#run-an-audit)), what they found, and what they fixed (see [Reviews: the audit trail](#reviews-the-audit-trail)). It says a person listened, reviewed, or fixed something only where the records say so, and what's left appears as tasks, under "What's still to do".
+- **A person's review, first.** The summary leads with what the person did: that they heard NVDA speaking as it read the pages (their answer to the question at the end, under [Run an audit](#run-an-audit)), what they found, and what they fixed (see [Reviews: the audit trail](#reviews-the-audit-trail)). It says a person heard, reviewed, or fixed something only where the records say so, and what's left appears as tasks, under "What's still to do".
 - **Nothing left blank.** Where a run didn't record something the page shows, it says so, as in "Not recorded: this run used voicecap 0.5.0".
 
 Its sections, in order:
 
-- **Summary**: the result in one sentence, six numbers (pages in scope, pages transcribed, pages with flags, pages listened to live, lines NVDA spoke, and NVDA time), what needs attention, how complete the test was, what's still to do, and when and how it was run.
+- **Summary**: the result in one sentence, six numbers (pages in scope, pages transcribed, pages with flags, pages heard live, lines NVDA spoke, and NVDA time), what needs attention, how complete the test was, what's still to do, and when and how it was run.
 - **How voicecap works**: the six steps, the first lines NVDA said on the site's home page, and when to run voicecap.
 - **Every page**: a card for each page, with its result, flags, review, line counts, and a link to its transcripts.
 - **What the flags found**: each flagged page's rules, with NVDA's own words quoted from the transcripts.
@@ -1246,7 +1246,7 @@ const { config } = await loadConfig();
 await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogger() });
 ```
 
-`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person listened, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
+`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
 
 </details>
 
@@ -1285,6 +1285,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 <details>
 <summary>Timing, a portable NVDA, English phrasing, the computer being voicecap's during a run, and more</summary>
 
+- **NVDA speaks very fast during a run.** voicecap runs Guidepup's own copy of NVDA, which Guidepup sets to NVDA's top speed, and Guidepup silences NVDA before each key press, so a long line is cut off. The transcripts have every word. To hear a page at your own speed, run NVDA yourself: see [Manual NVDA sessions](#manual-nvda-sessions).
 - **Timing.** Driving a screen reader is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
 - **English phrasing.** Stop detection and flags match NVDA's English wording; `voicecap doctor` warns when NVDA's language isn't English (NVDA follows the Windows display language).
