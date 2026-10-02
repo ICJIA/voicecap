@@ -464,14 +464,14 @@ describe("wordHow", () => {
     expect(outlineOf(how)[1]).toBe("2 Heard on this site: http://127.0.0.1:4848/, three ways");
     expect(wordsOf([sample])).toEqual([
       "Down Arrow, line by line | H, heading by heading | Tab, control by control",
-      "“banner landmark, voicecap demo” [1.3 s] | “main landmark, Welcome to the voicecap demo, heading, level 1” [1.3 s] | “Skip to main content, same page, link” [1.3 s]",
-      "“Tour, navigation landmark, list, with 1 item, link, Next: Before you start” [1.3 s] | “The tour's pages, heading, level 2” [1.3 s] | “Tour, navigation landmark, list, with 1 item, Next: Before you start, link” [1.3 s]",
-      "“out of list, main landmark, heading, level 1, Welcome to the voicecap demo” [1.3 s] | “no next heading” [1.3 s] | “main landmark, list, with 6 items, Before you start, link” [1.3 s]",
+      "“banner landmark, voicecap demo” (1.3 s) | “main landmark, Welcome to the voicecap demo, heading, level 1” (1.3 s) | “Skip to main content, same page, link” (1.3 s)",
+      "“Tour, navigation landmark, list, with 1 item, link, Next: Before you start” (1.3 s) | “The tour's pages, heading, level 2” (1.3 s) | “Tour, navigation landmark, list, with 1 item, Next: Before you start, link” (1.3 s)",
+      "“out of list, main landmark, heading, level 1, Welcome to the voicecap demo” (1.3 s) | “no next heading” (1.3 s) | “main landmark, list, with 6 items, Before you start, link” (1.3 s)",
     ]);
     // Every line the model has, in the column of its pass.
     for (const [column, { lines }] of (model.heard?.passes ?? []).entries()) {
       const said = sample.rows.map((row) => lineText(row[column]?.lines[0] ?? []));
-      expect(said).toEqual(lines.map(({ text, took }) => `“${text}” [${took}]`));
+      expect(said).toEqual(lines.map(({ text, took }) => `“${text}” (${took})`));
     }
     // What the words are, and what each time is, said once, under the table.
     expect(heard).toEqual([sample, para(HOW_TEXT.heardNote)]);
@@ -500,9 +500,9 @@ describe("wordHow", () => {
     expect(outlineOf(how)[1]).toBe("2 Heard on this site: /, two ways");
     expect(wordsOf([table])).toEqual([
       "Down Arrow, line by line | Tab, control by control",
-      "“a” [1.0 s] | “x” [0.9 s]",
-      "“b” [1.1 s] | ",
-      "“c” [1.2 s] | ",
+      "“a” (1.0 s) | “x” (0.9 s)",
+      "“b” (1.1 s) | ",
+      "“c” (1.2 s) | ",
     ]);
     // A cell with no line is empty, and is still a cell: each row has one for each heading.
     expect(table.rows.map((row) => row.length)).toEqual([2, 2, 2]);

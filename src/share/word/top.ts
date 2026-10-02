@@ -222,7 +222,7 @@ function stepsTable(): Block {
 
 /**
  * What NVDA said on this site: its heading, a table with a column for each pass and a row for each
- * line, each cell “what it said” and [how long it took], and what those words and times are. A
+ * line, each cell “what it said” and (how long it took), and what those words and times are. A
  * pass with fewer lines than another has empty cells below its last. Without a sample (no home page
  * with transcripts, or none whose lines can be read), the line that says none is available.
  */
@@ -236,7 +236,7 @@ function heardBlocks(sample: ShareModel["heard"]): Block[] {
   const rows = Array.from({ length: longest }, (_, at) =>
     sample.passes.map(({ lines }) => {
       const line = lines[at];
-      return line === undefined ? cell() : `“${line.text}” [${line.took}]`;
+      return line === undefined ? cell() : `“${line.text}” (${line.took})`;
     }),
   );
   return [heading(2, heardTitle(sample)), table(head, rows), para(HOW_TEXT.heardNote)];
