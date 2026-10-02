@@ -137,15 +137,15 @@ export interface RunAuditOptions {
    */
   again?: string;
   /**
-   * Asks the person running the session whether they listened, when the session ends: once the
-   * screen reader has stopped and the session's end is written, and before a completed run is
-   * sealed, so its seal covers the answer. Asked only of a session that read pages, and never of a
-   * replayed run. A session that ends with an error is asked too, after a line that says why it
-   * stopped; the error is thrown once the answer is kept. Resolves null for no answer (Ctrl+C at
-   * the question, the input ended, or the window closed). The CLI gives it only to a person at a
-   * terminal whose output is the terminal too: a script, CI, or output redirected to a file is
-   * never asked. The session's record keeps the answer, with when it was asked and answered, and
-   * nothing when there's no answer.
+   * Asks the person running the session whether they heard the screen reader speaking, when the
+   * session ends: once the screen reader has stopped and the session's end is written, and before a
+   * completed run is sealed, so its seal covers the answer. Asked only of a session that read
+   * pages, and never of a replayed run. A session that ends with an error is asked too, after a
+   * line that says why it stopped; the error is thrown once the answer is kept. Resolves null for
+   * no answer (Ctrl+C at the question, the input ended, or the window closed). The CLI gives it
+   * only to a person at a terminal whose output is the terminal too: a script, CI, or output
+   * redirected to a file is never asked. The session's record keeps the answer, with when it was
+   * asked and answered, and nothing when there's no answer.
    */
   askListener?: (question: {
     /** The screen reader's name, as the session's environment gives it. */
@@ -448,12 +448,12 @@ function endReasonOf(ending: Ending): NonNullable<SessionRecord["endReason"]> {
 }
 
 /**
- * Ask whether the person running the session listened, and put the answer in the session's record,
- * written at once. Asked only when the caller can ask, the session read pages, and the run isn't a
- * replay. A session that ended with an error is told why first, in one line, so the question
- * doesn't come out of nowhere; the error's full explanation follows the question. With no answer
- * the record has no statement. A question that fails is said, and the run goes on without a
- * statement: a run's record is never lost over a question.
+ * Ask whether the person running the session heard the screen reader speaking, and put the answer
+ * in the session's record, written at once. Asked only when the caller can ask, the session read
+ * pages, and the run isn't a replay. A session that ended with an error is told why first, in one
+ * line, so the question doesn't come out of nowhere; the error's full explanation follows the
+ * question. With no answer the record has no statement. A question that fails is said, and the run
+ * goes on without a statement: a run's record is never lost over a question.
  */
 async function recordListener(
   ctx: ExecuteContext,
@@ -476,7 +476,7 @@ async function recordListener(
     });
   } catch (error) {
     logger.warn(
-      `Couldn't ask whether you listened (${errorMessage(error)}), so this session's record won't say.`,
+      `Couldn't ask whether you heard the screen reader (${errorMessage(error)}), so this session's record won't say.`,
     );
     return;
   }
@@ -579,8 +579,8 @@ async function transcribePages(
 }
 
 /**
- * Complete the run: seal it, and write its reports. The session's end, and the listener's
- * statement, are in its record already.
+ * Complete the run: seal it, and write its reports. The session's end, and whether the person heard
+ * the screen reader speaking, are in its record already.
  */
 async function complete(ctx: ExecuteContext): Promise<void> {
   const { outDir, config, logger, now } = ctx;

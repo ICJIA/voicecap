@@ -319,10 +319,16 @@ export interface ReviewerRecord {
   source: "option" | "environment" | "git" | "config";
 }
 
-/** What a person says about listening to a session: all of it, part of it, or none of it. */
+/**
+ * What a person says about hearing the screen reader speak during a session: the whole time, part
+ * of the time, or not at all.
+ */
 export type ListenerAnswer = "all" | "part" | "no";
 
-/** Whether the person running voicecap listened: asked when the session ended, at a terminal. */
+/**
+ * Whether the person running voicecap heard the screen reader speaking: asked when the session
+ * ended, at a terminal.
+ */
 export interface ListenerStatement {
   answer: ListenerAnswer;
   /** Local ISO times, to the millisecond. */
@@ -340,9 +346,9 @@ export interface SessionRecord {
    */
   reviewer?: ReviewerRecord | null;
   /**
-   * What the person running this session said when it ended, asked whether they listened as the
-   * screen reader read its pages: once it had stopped, however the session ended (completed,
-   * stopped, interrupted, or with an error). Absent when there's no answer to keep:
+   * What the person running this session said when it ended, asked whether they heard the screen
+   * reader speaking as it read the pages: once it had stopped, however the session ended
+   * (completed, stopped, interrupted, or with an error). Absent when there's no answer to keep:
    * - no terminal, or the output redirected from it (a script, CI, `> log.txt`);
    * - a replayed run;
    * - no pages read;

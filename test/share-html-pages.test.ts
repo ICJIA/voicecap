@@ -268,27 +268,34 @@ describe("renderPages", () => {
   it("shows the person's review as chips, leading with what they did", async () => {
     const model = withCard(await demoModel(), 0, {
       reviewChips: [
-        "Listened to live by Pat Lee",
+        "Heard live by Pat Lee",
         "Reviewed, no issues",
         "Issue found",
         "Fixed",
         "Changed since review",
-        "Sam Roe listened to part of this session",
+        "Sam Roe heard part of this session",
       ],
     });
     const [card = ""] = cardsIn(renderPages(model));
 
     expect(card).toContain(
       '<span class="chip c-quiet">No flags</span>' +
-        '<span class="chip c-ok">Listened to live by Pat Lee</span>' +
+        '<span class="chip c-ok">Heard live by Pat Lee</span>' +
         '<span class="chip c-ok">Reviewed, no issues</span>' +
         '<span class="chip c-warn">Issue found</span>' +
         '<span class="chip c-ok">Fixed</span>' +
         '<span class="chip c-warn">Changed since review</span>' +
-        '<span class="chip c-quiet">Sam Roe listened to part of this session</span></div>',
+        '<span class="chip c-quiet">Sam Roe heard part of this session</span></div>',
     );
     // A page nobody has reviewed has no review chip: nothing says what a person hasn't done.
-    expect(cardsIn(renderPages(model))[1]).not.toMatch(/Listened|Reviewed|Issue found/);
+    expect(cardsIn(renderPages(model))[1]).not.toMatch(/Heard|Reviewed|Issue found/);
+  });
+
+  it("keeps part of a session quiet when no name was recorded, too", async () => {
+    const model = withCard(await demoModel(), 0, { reviewChips: ["Heard part of this session"] });
+    const [card = ""] = cardsIn(renderPages(model));
+
+    expect(card).toContain('<span class="chip c-quiet">Heard part of this session</span>');
   });
 
   it("marks a card whose flags are as its run recorded them, not the current rules'", async () => {

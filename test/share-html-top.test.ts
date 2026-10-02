@@ -634,7 +634,7 @@ describe("renderSummary", () => {
       '<p class="lead verdict">NVDA read all 7 pages. 1 page has flags worth a closer listen.</p>',
     );
     expect(html).toContain(
-      '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the listening, the reading, and the deciding.</p>',
+      '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the reading and the deciding.</p>',
     );
     expect(html.indexOf("lead verdict")).toBeLessThan(html.indexOf('class="gist"'));
   });
@@ -646,7 +646,7 @@ describe("renderSummary", () => {
       ["7", "pages in scope"],
       ["7/7", "transcribed by NVDA"],
       ["1", "page with flags, 3 rules"],
-      ["0/7", "listened to live by a person"],
+      ["0/7", "heard live by a person"],
       ["204", "lines NVDA spoke"],
       ["12m 34s", "of NVDA time, across 2 runs"],
     ]);
@@ -672,7 +672,7 @@ describe("renderSummary", () => {
       [String(numbers.pagesInScope), "pages in scope"],
       [`${numbers.transcribed}/${numbers.pagesInScope}`, "transcribed by NVDA"],
       [String(numbers.flagged), "page with flags, 1 rule"],
-      [`${numbers.listened}/${numbers.transcribed}`, "listened to live by a person"],
+      [`${numbers.listened}/${numbers.transcribed}`, "heard live by a person"],
       [String(numbers.linesSpoken), "lines NVDA spoke"],
       ["1h 5m", "of NVDA time, across 1 run"],
     ]);
@@ -725,7 +725,7 @@ describe("renderSummary", () => {
       "page in scope",
       "transcribed by NVDA",
       "page with flags, 1 rule",
-      "listened to live by a person",
+      "heard live by a person",
       "line NVDA spoke",
       "of NVDA time, across 1 run",
     ]);
@@ -923,7 +923,7 @@ describe("renderSummary", () => {
 
     // The human review: each count out of its total, said in words to a screen reader.
     expect(textOf(review.replace(/<span aria-hidden="true">.*?<\/span>/gs, ""))).toBe(
-      "The human review each out of its total Listened to live 0 of 7 Transcripts reviewed 0 of 7 Issues fixed 0 of 0",
+      "The human review each out of its total Heard live 0 of 7 Transcripts reviewed 0 of 7 Issues fixed 0 of 0",
     );
   });
 
@@ -953,7 +953,7 @@ describe("renderSummary", () => {
 
     expect(textOf(results)).toContain("2 no flags 1 flags 0 never transcribed");
     // A complete row is "ok", and a row with no total has nothing to fill.
-    expect(review).toContain('<span>Listened to live</span><svg class="track"');
+    expect(review).toContain('<span>Heard live</span><svg class="track"');
     expect(review).toContain('<rect class="c-ok" x="0" y="0" width="100%"');
     expect(review).toContain(
       '<span class="c"><span aria-hidden="true">3/3</span><span class="sr">3 of 3</span></span>',
@@ -1076,13 +1076,13 @@ describe("renderHow", () => {
 
     expect(html).toMatch(/^<section aria-labelledby="how-h">/);
     expect(html).toContain('<h2 id="how-h">How voicecap works</h2>');
-    // The lead is the fixed text, with "The person running it listens along," in bold, as the mockup has it.
-    expect(HOW_LEAD).toContain("The person running it listens along,");
+    // The lead is the fixed text, with "The person running it reads the transcripts" in bold.
+    expect(HOW_LEAD).toContain("The person running it reads the transcripts");
     expect(textOf(html.match(/<p class="gist">(.*?)<\/p>/s)?.[1] ?? "", "")).toBe(HOW_LEAD);
     // And escaped, as the rest of the page is: the start of the lead has an apostrophe in it.
     expect(html).toContain(`<p class="gist">${esc(HOW_LEAD.slice(0, 60))}`);
     expect(html).toContain(
-      "<b>The person running it listens along,</b> then reads the transcripts",
+      "<b>The person running it reads the transcripts</b> and fixes what they find",
     );
     expect(html.match(/<b>The person/g)).toHaveLength(1);
   });

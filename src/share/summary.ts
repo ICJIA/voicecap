@@ -77,10 +77,10 @@ export interface SummaryInput {
 
 /**
  * What voicecap does and what the person running it does, in the present tense: it describes the
- * method, so it claims no listening or review the records may not show.
+ * method, so it claims no hearing or review the records may not show.
  */
 const SECOND_LINE =
-  "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.";
+  "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the reading and the deciding.";
 
 const NO_RUN =
   "No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.";
@@ -313,9 +313,9 @@ interface People {
 }
 
 /**
- * The result in one sentence, as far as the records go. It leads with the person: who listened as
- * NVDA read the pages and who reviewed what it said; failing that, who ran it. What a person hasn't
- * done is never said, only what was found.
+ * The result in one sentence, as far as the records go. It leads with the person: who heard NVDA
+ * speaking as it read the pages and who reviewed what it said; failing that, who ran it. What a
+ * person hasn't done is never said, only what was found.
  */
 function sentenceOf(parts: SentenceParts): string {
   const {
@@ -336,16 +336,16 @@ function sentenceOf(parts: SentenceParts): string {
   const some = listeners(transcribed, "part");
   let lead: string;
   // Who the lead names, for saying whether the same people reviewed. NVDA is the lead's subject when
-  // no one is said to have listened, so the people who ran it are who "run by" names.
+  // no one is said to have heard it, so the people who ran it are who "run by" names.
   let sameAs: string[];
   let personIsSubject = true;
   if (heard.length > 0) {
-    lead = `${them(all)} listened as NVDA read ${
+    lead = `${them(all)} heard NVDA speaking as it read ${
       heard.length === total ? allPages(total) : `${heard.length} of the ${pagesOf(total)}`
     }`;
     sameAs = all.unnamed ? [] : all.names;
   } else if (some.names.length > 0 || some.unnamed) {
-    lead = `${them(some)} listened to part of the runs as NVDA read ${pagesOf(total)}`;
+    lead = `${them(some)} heard NVDA speaking for part of the runs, as it read ${pagesOf(total)}`;
     sameAs = some.unnamed ? [] : some.names;
   } else {
     const runners = ranBy(transcribed, parts.latest);
@@ -431,7 +431,7 @@ function ranBy(transcribed: PageFacts[], latest: RunJson): string[] {
   return unique(sessions.flatMap((session) => (session.reviewer ? [session.reviewer.name] : [])));
 }
 
-/** The people who listened with `answer`, in the order of the pages their sessions produced. */
+/** The people who heard NVDA with `answer`, in the order of the pages their sessions produced. */
 function listeners(transcribed: PageFacts[], answer: "all" | "part"): People {
   const heard = transcribed.flatMap(({ review }) =>
     review?.listened?.answer === answer ? [review.listened.name] : [],

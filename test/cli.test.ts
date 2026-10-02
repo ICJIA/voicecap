@@ -501,7 +501,7 @@ describe("a full session through the CLI", () => {
         if (shown.includes("Choose [3]: ")) setImmediate(() => keyboard.write("2\n"));
       });
       expect(await command(keyboard, screen.stream)).toBe(0);
-      expect(screen.text()).toContain("Did you listen as NVDA read these pages?");
+      expect(screen.text()).toContain("Did you hear NVDA speaking as it read these pages?");
       expect(answer).toBe("part");
       keyboard.end();
 
@@ -509,7 +509,7 @@ describe("a full session through the CLI", () => {
       answer = "not asked";
       const piped = capture();
       expect(await command(linesStream(["2"]), piped.stream)).toBe(0);
-      expect(piped.text()).not.toContain("Did you listen");
+      expect(piped.text()).not.toContain("Did you hear");
       expect(answer).toBeUndefined();
     } finally {
       vi.doUnmock("../src/run/audit.js");
@@ -546,7 +546,7 @@ describe("a full session through the CLI", () => {
       keyboard.end();
       expect(code).toBe(0);
       expect(asked).toBe(false);
-      expect(file.text()).not.toContain("Did you listen");
+      expect(file.text()).not.toContain("Did you hear");
     } finally {
       vi.doUnmock("../src/run/audit.js");
       vi.resetModules();

@@ -39,7 +39,7 @@ export const STEP_ICONS: Record<StepIcon, string> = {
   words: picture(
     '<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
   ),
-  // Headphones: a person listens, reads, and fixes.
+  // Headphones: a person hears NVDA at work, reads the transcripts, and fixes.
   person: picture(
     '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>',
   ),

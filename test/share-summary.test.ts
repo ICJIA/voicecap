@@ -599,7 +599,7 @@ describe("reviewOf", () => {
     });
   });
 
-  it("counts a page as listened to only when its session answered all of them", () => {
+  it("counts a page as heard live only when its session answered that it heard NVDA the whole time", () => {
     const run = sevenPages({
       sessions: [
         { reviewer: CHRIS, listener: "all" },
@@ -620,7 +620,7 @@ describe("reviewOf", () => {
     const reviewed = reviewOf(standingOf([run]), NO_REVIEWS, [], AS_OF);
     const listened = (path: string) => reviewed.get(recordOf(run, path).key)?.listened;
 
-    // "Part of them" is shown on its page and never counted.
+    // "Part of the time" is shown on its page and never counted.
     expect(listened("/how-a-run-works/")).toEqual({ answer: "part", name: PAT });
     expect(listened("/reading-transcripts/")).toEqual({ answer: "part", name: PAT });
     expect(listened("/")).toEqual({ answer: "all", name: CHRIS });
@@ -635,13 +635,13 @@ describe("reviewOf", () => {
     expect(summary.numbers.listened).toBe(3);
     expect(summary.bars.review.listened).toEqual([3, 7]);
     expect(summary.sentence).toMatch(
-      /^Christopher Schweda and another person listened as NVDA read 3 of the 7 pages\./,
+      /^Christopher Schweda and another person heard NVDA speaking as it read 3 of the 7 pages\./,
     );
   });
 
-  it("takes who listened from the session that produced the transcripts shown", () => {
+  it("takes who heard NVDA from the session that produced the transcripts shown", () => {
     // The latest run couldn't read /how-a-run-works/: its transcripts are the earlier run's, and so
-    // is who listened to them.
+    // is who heard NVDA speaking as they were made.
     const earlier = sevenPages({
       id: "r1",
       createdAt: "2026-09-25T10:00:00-05:00",
@@ -731,8 +731,8 @@ describe("reviewOf", () => {
 });
 
 describe("summaryOf: the sentence", () => {
-  it("leads with the person who listened and reviewed", () => {
-    // Seven pages, all listened to and reviewed by one person. Common mistakes has flags, and an
+  it("leads with the person who heard NVDA speaking and reviewed", () => {
+    // Seven pages, all heard live and reviewed by one person. Common mistakes has flags, and an
     // issue found in review, so it is one finding, not two.
     const run = sevenPages({
       sessions: [{ reviewer: CHRIS, listener: "all" }],
@@ -743,7 +743,7 @@ describe("summaryOf: the sentence", () => {
     const { sentence } = summarize({ runs: [run], reviews });
 
     expect(sentence).toBe(
-      "Christopher Schweda listened as NVDA read all 7 pages, and reviewed every transcript. 1 page has an issue a screen reader user would hear, found in review.",
+      "Christopher Schweda heard NVDA speaking as it read all 7 pages, and reviewed every transcript. 1 page has an issue a screen reader user would hear, found in review.",
     );
   });
 
@@ -814,7 +814,7 @@ describe("summaryOf: the sentence", () => {
     );
   });
 
-  it("says how many of the pages were listened to, when only some were", () => {
+  it("says how many of the pages were heard live, when only some were", () => {
     const run = sevenPages({
       sessions: [
         { reviewer: CHRIS, listener: "all" },
@@ -829,11 +829,11 @@ describe("summaryOf: the sentence", () => {
     });
 
     expect(summarize({ runs: [run] }).sentence).toBe(
-      "Christopher Schweda listened as NVDA read 3 of the 7 pages. No flags were raised, and no issues were found.",
+      "Christopher Schweda heard NVDA speaking as it read 3 of the 7 pages. No flags were raised, and no issues were found.",
     );
   });
 
-  it("says it's part of the runs when no one listened to all of any session", () => {
+  it("says it's part of the runs when no one heard NVDA for the whole of any session", () => {
     const run = sevenPages({
       sessions: [
         { reviewer: PAT, listener: "part" },
@@ -850,7 +850,7 @@ describe("summaryOf: the sentence", () => {
     });
 
     expect(summarize({ runs: [run] }).sentence).toBe(
-      "Pat Lee and Sam Roe listened to part of the runs as NVDA read 7 pages. No flags were raised, and no issues were found.",
+      "Pat Lee and Sam Roe heard NVDA speaking for part of the runs, as it read 7 pages. No flags were raised, and no issues were found.",
     );
   });
 
@@ -858,14 +858,14 @@ describe("summaryOf: the sentence", () => {
     const sessions = [{ reviewer: null, listener: "all" as const }];
 
     expect(summarize({ runs: [sevenPages({ sessions })] }).sentence).toBe(
-      "The person running voicecap listened as NVDA read all 7 pages. No flags were raised, and no issues were found.",
+      "The person running voicecap heard NVDA speaking as it read all 7 pages. No flags were raised, and no issues were found.",
     );
     const mixed = sevenPages({
       sessions: [{ reviewer: CHRIS, listener: "all" }, ...sessions],
       page: inSessions({ "/the-report/": 2 }),
     });
     expect(summarize({ runs: [mixed] }).sentence).toMatch(
-      /^Christopher Schweda and another person listened as NVDA read all 7 pages\./,
+      /^Christopher Schweda and another person heard NVDA speaking as it read all 7 pages\./,
     );
   });
 
@@ -880,28 +880,28 @@ describe("summaryOf: the sentence", () => {
     );
 
     expect(summarize({ runs: [run], reviews: some }).sentence).toBe(
-      "Christopher Schweda listened as NVDA read all 7 pages, and reviewed 3 of the 7 transcripts. 1 page has an issue a screen reader user would hear, found in review.",
+      "Christopher Schweda heard NVDA speaking as it read all 7 pages, and reviewed 3 of the 7 transcripts. 1 page has an issue a screen reader user would hear, found in review.",
     );
     expect(summarize({ runs: [run] }).sentence).toBe(
-      "Christopher Schweda listened as NVDA read all 7 pages. No flags were raised, and no issues were found.",
+      "Christopher Schweda heard NVDA speaking as it read all 7 pages. No flags were raised, and no issues were found.",
     );
   });
 
-  it("names the reviewers before 'reviewed' when they aren't the people who listened", () => {
+  it("names the reviewers before 'reviewed' when they aren't the people who heard NVDA speaking", () => {
     const run = sevenPages({ sessions: [{ reviewer: CHRIS, listener: "all" }] });
     const by = (reviewer: string) => reviewsOf(...reviewAll(run, "reviewed", {}, reviewer));
 
     expect(summarize({ runs: [run], reviews: by(PAT) }).sentence).toMatch(
-      /^Christopher Schweda listened as NVDA read all 7 pages, and Pat Lee reviewed every transcript\. /,
+      /^Christopher Schweda heard NVDA speaking as it read all 7 pages, and Pat Lee reviewed every transcript\. /,
     );
     const two = reviewsOf(
       ...reviewAll(run, "reviewed", {}, PAT).slice(0, 3),
       ...reviewAll(run, "reviewed", {}, SAM).slice(3),
     );
     expect(summarize({ runs: [run], reviews: two }).sentence).toMatch(
-      /^Christopher Schweda listened as NVDA read all 7 pages, and Pat Lee and Sam Roe reviewed every transcript\. /,
+      /^Christopher Schweda heard NVDA speaking as it read all 7 pages, and Pat Lee and Sam Roe reviewed every transcript\. /,
     );
-    // The listener and another person: it isn't only the person who listened.
+    // The person who heard NVDA and another person: it isn't only the person who heard it.
     const mixed = reviewsOf(
       ...reviewAll(run, "reviewed", {}, CHRIS).slice(0, 3),
       ...reviewAll(run, "reviewed", {}, PAT).slice(3),
@@ -915,11 +915,11 @@ describe("summaryOf: the sentence", () => {
       summarize({ runs: [unnamed], reviews: reviewsOf(...reviewAll(unnamed, "reviewed")) })
         .sentence,
     ).toMatch(
-      /^The person running voicecap listened as NVDA read all 7 pages, and Christopher Schweda reviewed every transcript\. /,
+      /^The person running voicecap heard NVDA speaking as it read all 7 pages, and Christopher Schweda reviewed every transcript\. /,
     );
   });
 
-  it("says who reviewed when no one is said to have listened", () => {
+  it("says who reviewed when no one is said to have heard NVDA speaking", () => {
     const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
     const by = (reviewer: string) => reviewsOf(...reviewAll(run, "reviewed", {}, reviewer));
 
@@ -961,7 +961,7 @@ describe("summaryOf: the sentence", () => {
     const summary = summarize({ runs: [first, second], reviews });
 
     expect(summary.sentence).toBe(
-      "Christopher Schweda listened as NVDA read all 7 pages, and reviewed 6 of the 7 transcripts. No flags were raised, and no issues were found.",
+      "Christopher Schweda heard NVDA speaking as it read all 7 pages, and reviewed 6 of the 7 transcripts. No flags were raised, and no issues were found.",
     );
     expect(summary.bars.review.reviewed).toEqual([6, 7]);
   });
@@ -975,10 +975,10 @@ describe("summaryOf: the sentence", () => {
     const reviews = reviewsOf(review(run, "/", "reviewed"));
 
     expect(summarize({ runs: [run], reviews }).sentence).toBe(
-      "Christopher Schweda listened as NVDA read 1 page, and reviewed the transcript. No flags were raised, and no issues were found.",
+      "Christopher Schweda heard NVDA speaking as it read 1 page, and reviewed the transcript. No flags were raised, and no issues were found.",
     );
     expect(summarize({ runs: [run] }).sentence).toBe(
-      "Christopher Schweda listened as NVDA read 1 page. No flags were raised, and no issues were found.",
+      "Christopher Schweda heard NVDA speaking as it read 1 page. No flags were raised, and no issues were found.",
     );
   });
 
@@ -990,7 +990,7 @@ describe("summaryOf: the sentence", () => {
           ? { flags: [genericFlag("tab", [{ text: "read more", count: 2 }])] }
           : {},
     });
-    /** The sentence after the first, which says who listened and reviewed. */
+    /** The sentence after the first, which says who heard NVDA speaking and reviewed. */
     const findings = (reviews: ReviewsFile) => {
       const { sentence } = summarize({ runs: [run], reviews });
       const end = sentence.indexOf(". ");
@@ -1082,7 +1082,7 @@ describe("summaryOf: the sentence", () => {
       const reviews = reviewsOf(...reviewAll(clean, "reviewed"));
 
       expect(summarize({ runs: [clean], reviews }).sentence).toBe(
-        "Christopher Schweda listened as NVDA read all 7 pages, and reviewed every transcript. No flags were raised, and no issues were found.",
+        "Christopher Schweda heard NVDA speaking as it read all 7 pages, and reviewed every transcript. No flags were raised, and no issues were found.",
       );
     });
   });
@@ -1096,7 +1096,7 @@ describe("summaryOf: the sentence", () => {
       );
     const summed = (...entries: ReviewEntry[]) =>
       summarize({ runs: [run], reviews: reviewsOf(...entries) });
-    const LEAD = "Christopher Schweda listened as NVDA read all 7 pages";
+    const LEAD = "Christopher Schweda heard NVDA speaking as it read all 7 pages";
 
     it("says every issue was fixed when it was fixed and the page was then reviewed again", () => {
       const summary = summed(...history("/", "issue", "fixed", "reviewed"));
@@ -1765,7 +1765,7 @@ describe("summaryOf: the panels", () => {
 
   it("is the same second line every time", () => {
     const second =
-      "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.";
+      "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the reading and the deciding.";
 
     expect(summarize({ runs: [sevenPages()] }).second).toBe(second);
     expect(summarize({ runs: [] }).second).toBe(second);
@@ -2262,7 +2262,7 @@ describe("summaryOf: no run counts yet", () => {
         sentence:
           "No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.",
         second:
-          "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding.",
+          "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the reading and the deciding.",
         numbers: {
           pagesInScope: 0,
           transcribed: 0,

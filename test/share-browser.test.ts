@@ -105,7 +105,8 @@ async function demoPage(): Promise<string> {
  * Two runs, a review, a fixed issue, and a manual session, all through voicecap's own commands,
  * each of which writes the page again. In the second run the home page and /about are read (and
  * /about sounds different), and the page with the long address (LONG_PATH) can't be opened, so its
- * transcripts are the first run's. A person said they listened to both runs, all the way through.
+ * transcripts are the first run's. A person said they heard NVDA speaking in both runs, the whole
+ * time.
  */
 async function richPage(): Promise<string> {
   const dir = await setup(["/", "/about", LONG_PATH]);
