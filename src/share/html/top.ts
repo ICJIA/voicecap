@@ -127,7 +127,7 @@ function tiles(model: ShareModel): string {
     tile(
       transcribed > 0 && listened === transcribed ? "ok" : "quiet",
       fraction(listened, transcribed),
-      "listened to live by a person",
+      "heard live by a person",
     ),
     tile("quiet", count(linesSpoken), linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke"),
     tile(
@@ -223,7 +223,7 @@ const tally = (part: number, whole: number): string =>
 /** "The human review": each count out of its total, so nothing looks complete that isn't. */
 function reviewMeter({ bars }: Summary): string {
   const rows: [string, [number, number]][] = [
-    ["Listened to live", bars.review.listened],
+    ["Heard live", bars.review.listened],
     ["Transcripts reviewed", bars.review.reviewed],
     ["Issues fixed", bars.review.fixed],
   ];
@@ -284,11 +284,11 @@ export function renderSummary(model: ShareModel): string {
 
 // How voicecap works.
 
-/** The lead's first words, which the mockup sets in bold: that a person listens along. */
-const LISTENS = "The person running it listens along,";
+/** The lead's bold words, as the mockup sets them: that the person reads the transcripts. */
+const READS_TRANSCRIPTS = "The person running it reads the transcripts";
 
 function lead(): string {
-  return esc(HOW_LEAD).replace(LISTENS, (found) => `<b>${found}</b>`);
+  return esc(HOW_LEAD).replace(READS_TRANSCRIPTS, (found) => `<b>${found}</b>`);
 }
 
 /** The six steps, each with its picture, in order. */

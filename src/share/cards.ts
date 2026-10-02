@@ -60,9 +60,9 @@ export interface PageCard {
    */
   readStopped: keyof typeof READ_STOPPED | null;
   /**
-   * The person's review, as far as the records show it: "Listened to live by <name>" ("Listened to
-   * live" with no name), "<name> listened to part of this session", "Reviewed, no issues", "Issue
-   * found", "Fixed", and "Changed since review".
+   * The person's review, as far as the records show it: "Heard live by <name>" ("Heard live" with no
+   * name), "<name> heard part of this session" ("Heard part of this session" with no name),
+   * "Reviewed, no issues", "Issue found", "Fixed", and "Changed since review".
    */
   reviewChips: string[];
   /** The manual NVDA sessions on the page: the day each was, and who imported it. */
@@ -246,14 +246,12 @@ function reviewChips(review: PageReview | null): string[] {
   const chips: string[] = [];
   const { listened, latest } = review;
   if (listened?.answer === "all") {
-    chips.push(
-      listened.name === null ? "Listened to live" : `Listened to live by ${listened.name}`,
-    );
+    chips.push(listened.name === null ? "Heard live" : `Heard live by ${listened.name}`);
   } else if (listened?.answer === "part") {
     chips.push(
       listened.name === null
-        ? "Listened to part of this session"
-        : `${listened.name} listened to part of this session`,
+        ? "Heard part of this session"
+        : `${listened.name} heard part of this session`,
     );
   }
   const decision = latest === null ? undefined : REVIEWED[latest.status];

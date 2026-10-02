@@ -1437,7 +1437,7 @@ describe("the listener's statement", () => {
         }),
       }),
     );
-    expect(screen).toContain("Did you listen as NVDA read these pages?");
+    expect(screen).toContain("Did you hear NVDA speaking as it read these pages?");
     expect(result.run.sessions[0]?.listener?.answer).toBe("part");
     expect(result.run.seal).toBe(sealOf(result.run));
   });
@@ -1454,7 +1454,9 @@ describe("the listener's statement", () => {
     expect(result.outcome).toBe("completed");
     expect(result.run.sessions[0]).not.toHaveProperty("listener");
     expect(result.run.seal).toBe(sealOf(result.run));
-    expect(logger.text("warn")).toContain("The terminal went away");
+    expect(logger.text("warn")).toContain(
+      "Couldn't ask whether you heard the screen reader (The terminal went away), so this session's record won't say.",
+    );
   });
 });
 

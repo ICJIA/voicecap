@@ -10,13 +10,25 @@ import { isTerminalStream } from "../util/terminal.js";
 
 /** What the question lists, in order, and the answer each one records. */
 const CHOICES: readonly { text: string; answer: ListenerAnswer }[] = [
-  { text: "Yes, all of them", answer: "all" },
-  { text: "Part of them", answer: "part" },
+  { text: "Yes, the whole time", answer: "all" },
+  { text: "Part of the time", answer: "part" },
   { text: "No", answer: "no" },
 ];
 
-/** Enter alone picks "No", so a statement never claims listening by accident. */
+/** Enter alone picks "No", so a statement never says the screen reader was heard by accident. */
 const DEFAULT_CHOICE = CHOICES.findIndex(({ answer }) => answer === "no");
+
+/**
+ * The question, and the line under it that says why the words are hard to follow: said together
+ * each time the question is asked, so a wrong answer, which asks again, shows both again. Both name
+ * the screen reader.
+ */
+function questionAbout(screenReader: string): string {
+  return (
+    `Did you hear ${screenReader} speaking as it read these pages?\n` +
+    `During a run ${screenReader} speaks very fast, so the words are hard to follow. That's expected: the transcripts have every word.`
+  );
+}
 
 /** How long the keys waiting before the question are read and dropped, in milliseconds. */
 const DROP_MS = 250;
@@ -32,8 +44,10 @@ export interface AskListenerOptions {
 }
 
 /**
- * The question a session ends with, for a person at a terminal: "Did you listen as NVDA read these
- * pages?", answered "Yes, all of them", "Part of them", or "No", typed as 1, 2, or 3.
+ * The question a session ends with, for a person at a terminal: "Did you hear NVDA speaking as it
+ * read these pages?", with a line under it that says NVDA speaks very fast during a run, so the
+ * words are hard to follow, and the transcripts have every word. It's answered "Yes, the whole
+ * time", "Part of the time", or "No", typed as 1, 2, or 3.
  *
  * Only an answer typed after the question appears counts. Keys pressed during the run wait in the
  * terminal's input and would answer it the instant it appeared (Enter, a "No" the person never
@@ -68,7 +82,7 @@ export function makeAskListener(
       closed.signal.addEventListener("abort", giveUp, { once: true });
       try {
         const picked = await prompter.choose(
-          `Did you listen as ${screenReader} read these pages?`,
+          questionAbout(screenReader),
           CHOICES.map(({ text }) => text),
           DEFAULT_CHOICE,
         );

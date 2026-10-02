@@ -497,13 +497,13 @@ describe("buildShareModel", () => {
 
     const { pages } = buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG }));
 
-    const live = `Listened to live by ${CHRIS}`;
+    const live = `Heard live by ${CHRIS}`;
     expect(Object.fromEntries(pages.map((card) => [card.path, card.reviewChips]))).toEqual({
       "/": [live, "Reviewed, no issues"],
       "/issue": [live, "Issue found"],
       "/fixed": [live, "Fixed"],
       "/changed": [live, "Reviewed, no issues", "Changed since review"],
-      "/part": [`${PAT} listened to part of this session`],
+      "/part": [`${PAT} heard part of this session`],
       "/unreviewed": [live],
     });
     expect(pages.map((card) => card.manual)).toEqual([
@@ -574,7 +574,7 @@ describe("buildShareModel", () => {
       expect(each.timeline).toEqual({ notRecorded: BEFORE_0_6 });
       expect(each.nvdaLog).toEqual({ notRecorded: BEFORE_0_6 });
       const facts = new Map(each.facts.map((fact) => [fact.label, fact.value]));
-      for (const label of ["NVDA restarts", "Run by", "The listener's statement"]) {
+      for (const label of ["NVDA restarts", "Run by", "Whether NVDA was heard"]) {
         expect(facts.get(label)).toBe(BEFORE_0_6);
       }
     }
@@ -1167,8 +1167,8 @@ describe("buildShareModel", () => {
       { label: "NVDA restarts", value: "Not recorded: this run used voicecap 0.1.0." },
       { label: "Run by", value: CHRIS },
       {
-        label: "The listener's statement",
-        value: `Yes, all of them. Asked as the session ended, and answered at 14:31 by ${CHRIS}.`,
+        label: "Whether NVDA was heard",
+        value: `Yes, the whole time. Asked as the session ended, and answered at 14:31 by ${CHRIS}.`,
       },
     ]);
     const rows = new Map(evidence?.environment.map((row) => [row.label, row.value]));
@@ -1213,12 +1213,12 @@ describe("buildShareModel", () => {
     expect(evidence?.facts.slice(-3)).toEqual([
       { label: "Run by", value: PAT },
       {
-        label: "The listener's statement, session 1",
+        label: "Whether NVDA was heard, session 1",
         value: "Not recorded: the session ended without an answer.",
       },
       {
-        label: "The listener's statement, session 2",
-        value: `Part of them. Asked as the session ended, and answered at 16:20 by ${PAT}.`,
+        label: "Whether NVDA was heard, session 2",
+        value: `Part of the time. Asked as the session ended, and answered at 16:20 by ${PAT}.`,
       },
     ]);
   });

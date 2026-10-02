@@ -80,9 +80,10 @@ export interface ShareSessionSpec {
    */
   reviewer?: string | null;
   /**
-   * What the person answered when asked whether they listened, as the session's `listener`. It was
-   * asked and answered as the session ended: both times are the session's end, and no test here
-   * reads them. Default: absent, as in a run from before voicecap 0.6.0, and when nothing was asked.
+   * What the person answered when asked whether they heard the screen reader speaking, as the
+   * session's `listener`. It was asked and answered as the session ended: both times are the
+   * session's end, and no test here reads them. Default: absent, as in a run from before voicecap
+   * 0.6.0, and when nothing was asked.
    */
   listener?: ListenerAnswer;
   /** Default: the run's `createdAt`. */

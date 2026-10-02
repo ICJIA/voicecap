@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import * as text from "../src/share/text.js";
 
-const { HOW_STEPS, STORY, TIMELINE, WHEN_TO_RUN, WORTH_KNOWING } = text;
+const { HOW_LEAD, HOW_STEPS, STORY, TIMELINE, WHEN_TO_RUN, WORTH_KNOWING } = text;
 
 /** A release's heading in the CHANGELOG: `## [x.y.z] - YYYY-MM-DD`. */
 const RELEASE_HEADING = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/;
@@ -133,6 +133,31 @@ describe("the timeline", () => {
     expect(wrong).toEqual([]);
   });
 
+  it("tells 0.6.0 in two rows: the shareable page and preflight, then the day it was published", () => {
+    const rows = TIMELINE.filter((row) => row.date === "2026-10-01" || row.date === "2026-10-02");
+
+    expect(rows).toEqual([
+      {
+        date: "2026-10-01",
+        release: null,
+        pc: null,
+        mac: null,
+        both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline. Then <code>voicecap preflight</code>, which checks a computer without starting the screen reader.",
+      },
+      {
+        date: "2026-10-02",
+        release: "0.6.0",
+        pc: null,
+        mac: null,
+        both: "<b>0.6.0</b>: the shareable page, what each run records for it, and <code>voicecap preflight</code>. A last check on a real Windows PC found that a run didn't end after its closing question, and that NVDA speaks too fast in a run to follow; the first was fixed that day, and the page now says the person heard NVDA speaking, and read the transcripts.",
+      },
+    ]);
+    // 0.5.0's row says what 0.6.0 began to record: whether the person heard NVDA speaking.
+    expect(TIMELINE.find((row) => row.release === "0.5.0")?.pc).toBe(
+      "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person heard NVDA speaking.",
+    );
+  });
+
   it("writes each cell as bold and code only, or leaves it null, so the renderer can insert it as given", () => {
     const cells = TIMELINE.flatMap((row) => [row.pc, row.mac, row.both]).filter(
       (cell) => cell !== null,
@@ -161,6 +186,31 @@ describe("the fixed text", () => {
       title: "Both kinds of testing",
       text: "voicecap checks this page's design with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
     });
+  });
+
+  it("says the person hears NVDA speaking and reads the transcripts, and that NVDA speaks very fast in a run", () => {
+    expect(HOW_LEAD).toBe(
+      "Automated checkers read a page's code and test it against rules. voicecap takes a real screen reader through each page the way a person would, and saves every word it says. It can spot-check a large site, zero in on the pages that need attention, or go through a whole small site. The person running it reads the transcripts and fixes what they find. voicecap presses the keys and turns the pages, and NVDA speaks very fast as it goes, so the transcripts are where its words are read.",
+    );
+    expect(HOW_STEPS[4]).toEqual({
+      icon: "person",
+      title: "A person reads and fixes",
+      text: "The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read. The person reads them, records what they found, and fixes it. Flags point to moments worth a closer look.",
+    });
+  });
+
+  it("never says the person listened during a run, and keeps the word only in the two phrases that stay", () => {
+    // Card 5 says "the automated checker and the listen-through", and the band on when to run
+    // voicecap says screen reader users hear the deployed site, "so that's the one to listen to".
+    const kept = ["the listen-through", "the one to listen to"];
+    const strings = everyString();
+    const rest = strings.map((string) =>
+      kept.reduce((left, phrase) => left.replaceAll(phrase, ""), string),
+    );
+
+    // The phrases are there, so a test that found no "listen" at all can't pass for this.
+    expect(kept.filter((phrase) => !strings.some((string) => string.includes(phrase)))).toEqual([]);
+    expect(rest.filter((string) => /listen/i.test(string))).toEqual([]);
   });
 
   it("has the parts the renderers draw: six steps with their icons, four stages with one marked, six cards", () => {

@@ -4,7 +4,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-10-01
+## [0.6.0] - 2026-10-02
 
 The shareable page, and a way to check a computer first: `share/current.html` in every site's folder, what each run now records for it (every failed attempt, the computer, and whether the person listened), and `voicecap preflight`.
 

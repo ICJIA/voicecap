@@ -16,7 +16,7 @@
   <text x="66" y="80" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="5" fill="#6E7AA0">HOW VOICECAP WORKS</text>
   <text x="64" y="128" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="38" font-weight="700" fill="#F4F2EC">A human review, sped up</text>
   <rect x="66" y="144" width="66" height="5" rx="2.5" fill="#F4B53F"/>
-  <text x="65" y="180" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" fill="#BBC2D8">voicecap presses the screen reader's keys and turns the pages. A person listens, reads, and fixes.</text>
+  <text x="65" y="180" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="19" fill="#BBC2D8">voicecap presses the screen reader's keys and turns the pages. A person reads and fixes.</text>
 
   <g>
     <rect x="64" y="200" width="341.3333333333333" height="196" rx="16" fill="url(#card)" stroke="#2F3A64" stroke-width="1.5"/>
@@ -68,9 +68,9 @@
     <g transform="translate(465.3333333333333 452)" fill="none" stroke="#F4B53F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></g>
     <text x="517.3333333333333" y="470" font-family="Menlo, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace" font-size="16" font-weight="700" fill="#F4B53F">05</text>
     <text x="453.3333333333333" y="522" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="21" font-weight="700" fill="#F4F2EC">A person reviews</text>
-    <text x="453.3333333333333" y="550" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">The person running voicecap listens</text>
-    <text x="453.3333333333333" y="573" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">live, reads the transcripts, and</text>
-    <text x="453.3333333333333" y="596" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">fixes what they find.</text>
+    <text x="453.3333333333333" y="550" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">The person running voicecap reads</text>
+    <text x="453.3333333333333" y="573" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">the transcripts, records what they</text>
+    <text x="453.3333333333333" y="596" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" fill="#BBC2D8">found, and fixes it.</text>
   </g>
 
   <g>

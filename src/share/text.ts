@@ -13,7 +13,7 @@
 
 /** The paragraph that opens "How voicecap works". */
 export const HOW_LEAD =
-  "Automated checkers read a page's code and test it against rules. voicecap takes a real screen reader through each page the way a person would, and saves every word it says. It can spot-check a large site, zero in on the pages that need attention, or go through a whole small site. The person running it listens along, then reads the transcripts and fixes what they find. voicecap presses the keys and turns the pages, so the person can give the listening their full attention.";
+  "Automated checkers read a page's code and test it against rules. voicecap takes a real screen reader through each page the way a person would, and saves every word it says. It can spot-check a large site, zero in on the pages that need attention, or go through a whole small site. The person running it reads the transcripts and fixes what they find. voicecap presses the keys and turns the pages, and NVDA speaks very fast as it goes, so the transcripts are where its words are read.";
 
 /** The six steps, in order. `icon` names the picture the renderer draws beside a step. */
 export const HOW_STEPS: {
@@ -43,8 +43,8 @@ export const HOW_STEPS: {
   },
   {
     icon: "person",
-    title: "A person listens, reads, and fixes",
-    text: "The person running voicecap listens as it reads, and says so when the run ends. Then they read the transcripts, record what they found, and fix it. Flags point to moments worth a second listen.",
+    title: "A person reads and fixes",
+    text: "The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read. The person reads them, records what they found, and fixes it. Flags point to moments worth a closer look.",
   },
   {
     icon: "seal",
@@ -187,16 +187,23 @@ export const TIMELINE: TimelineRow[] = [
   {
     date: "2026-09-30",
     release: "0.5.0",
-    pc: "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person listened.",
+    pc: "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person heard NVDA speaking.",
     mac: null,
     both: null,
   },
   {
     date: "2026-10-01",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "For 0.6.0, the shareable page: the site's standing, the person's review, and every problem, with a fingerprint check that works offline. Then <code>voicecap preflight</code>, which checks a computer without starting the screen reader.",
+  },
+  {
+    date: "2026-10-02",
     release: "0.6.0",
     pc: null,
     mac: null,
-    both: "<b>0.6.0</b>: the shareable page, with the site's standing, the person's review, and every problem, and a fingerprint check that works offline. Also <code>voicecap preflight</code>, which checks a computer without starting the screen reader.",
+    both: "<b>0.6.0</b>: the shareable page, what each run records for it, and <code>voicecap preflight</code>. A last check on a real Windows PC found that a run didn't end after its closing question, and that NVDA speaks too fast in a run to follow; the first was fixed that day, and the page now says the person heard NVDA speaking, and read the transcripts.",
   },
   {
     date: null,

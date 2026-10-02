@@ -1,7 +1,7 @@
 /**
- * The human review of each page in a standing: who listened as its transcripts were made, what the
- * person who reviewed it decided, whether its transcripts have changed since, and its manual
- * sessions. Pure: it works from records already read, and reads no files.
+ * The human review of each page in a standing: who heard NVDA speaking as its transcripts were made,
+ * what the person who reviewed it decided, whether its transcripts have changed since, and its
+ * manual sessions. Pure: it works from records already read, and reads no files.
  */
 import type { ManualSessionFile } from "../manual/list.js";
 import type { ReviewEntry, ReviewsFile } from "../model.js";

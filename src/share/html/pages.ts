@@ -101,7 +101,7 @@ function resultKind(card: PageCard): Kind {
 /** A review chip's color: a problem is amber, part of a session is quiet, the rest is good. */
 function reviewKind(words: string): Kind {
   if (words === "Issue found" || words === "Changed since review") return "warn";
-  return words.endsWith("listened to part of this session") ? "quiet" : "ok";
+  return words.endsWith("heard part of this session") ? "quiet" : "ok";
 }
 
 /**

@@ -27,7 +27,7 @@ export interface RunEvidence {
   run: RunJson;
   /**
    * When it started and finished, its pages, how many of them the page shows from it, NVDA
-   * restarts, who ran it, and the listener's statement for each session.
+   * restarts, who ran it, and whether NVDA was heard in each session.
    */
   facts: EvidenceRow[];
   /**
@@ -125,8 +125,8 @@ const PAGE_STATUS: Record<PageStatus, string> = {
 };
 
 const ANSWERS: Record<ListenerAnswer, string> = {
-  all: "Yes, all of them",
-  part: "Part of them",
+  all: "Yes, the whole time",
+  part: "Part of the time",
   no: "No",
 };
 
@@ -175,20 +175,21 @@ function ranBy(run: RunJson, version: string | null): string {
 }
 
 /**
- * What the person running each session said when asked whether they listened. It was asked as the
- * session ended: the record keeps when, but not the second the question appeared, so the page says
- * only that. A session that never started the screen reader read no pages, and wasn't asked.
+ * What the person running each session said when asked whether they heard NVDA speaking. It was
+ * asked as the session ended: the record keeps when, but not the second the question appeared, so
+ * the page says only that. A session that never started the screen reader read no pages, and wasn't
+ * asked.
  */
 function statements(run: RunJson): EvidenceRow[] {
   const sessions = run.sessions.filter((session) => session.environment !== null);
   if (sessions.length === 0) {
-    return [{ label: "The listener's statement", value: notRecordedBy(versionOf(run)) }];
+    return [{ label: "Whether NVDA was heard", value: notRecordedBy(versionOf(run)) }];
   }
   return sessions.map((session) => ({
     label:
       sessions.length === 1
-        ? "The listener's statement"
-        : `The listener's statement, session ${session.n}`,
+        ? "Whether NVDA was heard"
+        : `Whether NVDA was heard, session ${session.n}`,
     value: statementOf(session),
   }));
 }

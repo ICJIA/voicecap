@@ -9,6 +9,18 @@ import { fakeSignals } from "./helpers/fake-signals.js";
 const PROMPT = "Choose [3]: ";
 
 /**
+ * The question as a person sees it each time it's asked: the question, the line under it, the
+ * choices, and the prompt. `screenReader` is named in both lines.
+ */
+function questionFor(screenReader: string): string {
+  return (
+    `Did you hear ${screenReader} speaking as it read these pages?\n` +
+    `During a run ${screenReader} speaks very fast, so the words are hard to follow. That's expected: the transcripts have every word.\n` +
+    `  1. Yes, the whole time\n  2. Part of the time\n  3. No\n${PROMPT}`
+  );
+}
+
+/**
  * A plain collecting writer (all a prompter needs to show its questions), and a way to wait until
  * the question's prompt has been shown `times` times.
  */
@@ -61,13 +73,15 @@ describe("the listener's question", () => {
     await screen.prompted();
     input.write("1\n");
     await expect(answer).resolves.toBe("all");
-    expect(screen.text()).toContain("Did you listen as NVDA read these pages?");
+    expect(screen.text()).toContain("Did you hear NVDA speaking as it read these pages?");
     expect(screen.text()).toContain(
-      "  1. Yes, all of them\n  2. Part of them\n  3. No\nChoose [3]: ",
+      "  1. Yes, the whole time\n  2. Part of the time\n  3. No\nChoose [3]: ",
     );
+    // The question, then the line under it, then the choices.
+    expect(screen.text()).toContain(questionFor("NVDA"));
   });
 
-  it("defaults to No on Enter, so it never claims listening by accident", async () => {
+  it("defaults to No on Enter, so it never says the screen reader was heard by accident", async () => {
     const input = terminal();
     const screen = capture();
     const answer = listener(input, screen.stream)(question);
@@ -117,7 +131,28 @@ describe("the listener's question", () => {
     await screen.prompted();
     input.write("2\n");
     await expect(answer).resolves.toBe("part");
-    expect(screen.text()).toContain("Did you listen as VoiceOver read these pages?");
+    expect(screen.text()).toContain("Did you hear VoiceOver speaking as it read these pages?");
+  });
+
+  // The line under the question is said with it, each time: also when a wrong answer makes it ask
+  // again. It names the screen reader the question names.
+  it("says under the question, each time it asks, that the screen reader speaks very fast", async () => {
+    const input = terminal();
+    const screen = capture();
+    const answer = listener(input, screen.stream)({ screenReader: "VoiceOver", pagesRead: 2 });
+    await screen.prompted();
+    input.write("yes\n");
+    await screen.prompted(2);
+    input.write("2\n");
+    await expect(answer).resolves.toBe("part");
+
+    expect(screen.text()).toContain(
+      "During a run VoiceOver speaks very fast, so the words are hard to follow. That's expected: the transcripts have every word.\n",
+    );
+    // The whole question, line under it and choices too, twice: the first time, and again after the
+    // wrong answer.
+    expect(screen.text().split(questionFor("VoiceOver"))).toHaveLength(3);
+    expect(screen.text()).not.toContain("NVDA");
   });
 
   it("asks again after something that isn't one of the choices", async () => {
@@ -155,7 +190,7 @@ describe("keys typed before the question appears", () => {
     // Pressed a moment after the session ended, before the question shows.
     setTimeout(() => input.write("1\n"), 50);
     await screen.prompted();
-    expect(screen.text()).toContain("Did you listen");
+    expect(screen.text()).toContain("Did you hear");
     input.write("3\n");
     await expect(answer).resolves.toBe("no");
   });
@@ -210,7 +245,7 @@ describe("a window closed at the question", () => {
     })(question);
     signals.send("SIGHUP");
     await expect(answer).resolves.toBeNull();
-    expect(screen.text()).not.toContain("Did you listen");
+    expect(screen.text()).not.toContain("Did you hear");
     expect(signals.listening()).toEqual([]);
   });
 
