@@ -60,13 +60,33 @@ function pageCell(card: PageCard): Cell {
   );
 }
 
-/** A page's result in words, the failure when it has one, and the run its transcripts are from. */
-function resultCell(card: PageCard): Cell {
+/**
+ * A page's screenshot as a line: its label in bold, then the line that says it wasn't recorded, as
+ * the page does. A screenshot that was recorded has no place in this copy yet, which holds no
+ * image, so it is said by its words for the picture.
+ */
+function screenshotLine({ screenshot }: PageCard): Line {
+  if ("notRecorded" in screenshot) {
+    return [
+      { text: `${PAGES_TEXT.screenshot}:`, bold: true },
+      ` ${notRecordedLine(screenshot.notRecorded)}`,
+    ];
+  }
+  return [screenshot.alt];
+}
+
+/**
+ * A page's result in words, the failure when it has one, and the run its transcripts are from. A
+ * page with no entry in the appendix (it has no transcripts) says its screenshot last, since no
+ * entry does; every other page says it in its entry, so each page says it once.
+ */
+function resultCell(card: PageCard, inAppendix: boolean): Cell {
   const from = fromRun(card);
   return cell(
     card.statusText,
     ...(card.failure === null ? [] : [card.failure]),
     ...(from === null ? [] : [from]),
+    ...(inAppendix ? [] : [screenshotLine(card)]),
   );
 }
 
@@ -102,13 +122,13 @@ function passesCell(card: PageCard): Cell {
 
 /**
  * Every page as one table: a row for each, in the latest run's order, and a column for each part
- * of a card.
+ * of a card. `inAppendix` holds the pages that have an entry there.
  */
-function pagesTable(pages: PageCard[]): Block {
+function pagesTable(pages: PageCard[], inAppendix: Set<string>): Block {
   const rows = pages.map((card, index) => [
     `${index + 1}`,
     pageCell(card),
-    resultCell(card),
+    resultCell(card, inAppendix.has(card.slug)),
     flagsCell(card),
     reviewCell(card),
     passesCell(card),
@@ -141,10 +161,11 @@ function noLongerListedBlocks(gone: NoLongerListed[]): Block[] {
  * is the line alone, with no table.
  */
 export function wordPages(model: ShareModel): Block[] {
+  const inAppendix = new Set(model.appendix.map(({ slug }) => slug));
   return [
     heading(1, PAGES_TEXT.title),
     para(...pagesGist(model)),
-    ...(model.pages.length === 0 ? [] : [pagesTable(model.pages)]),
+    ...(model.pages.length === 0 ? [] : [pagesTable(model.pages, inAppendix)]),
     ...noLongerListedBlocks(model.noLongerListed),
   ];
 }
@@ -197,20 +218,15 @@ function transcriptHeading(pass: PassName, path: string, lines: number | null): 
   return heading(3, lines === null ? title : `${title}, ${lineCount(lines)}`);
 }
 
-/** A transcript's lines as its text has them: split at its line breaks, none after the last. */
-function linesIn(text: string): string[] {
-  const lines = text.split(/\r?\n/);
-  if (lines.at(-1) === "") lines.pop();
-  return lines;
-}
-
 /**
  * A transcript: its heading, its file's size and fingerprint (the whole file's, its header
  * included, as its run recorded them), and what NVDA said, word for word, as one fixed-width block
- * however many lines it has. A transcript with no lines says so, rather than show an empty block.
+ * however many lines it has. The model's text is its lines joined by newlines, with no final
+ * newline, so splitting it at them gives the `file.lines` lines it has, a blank last one too, and
+ * nothing is dropped. A transcript with no lines says so, rather than show an empty block.
  */
 function transcriptBlocks(file: AppendixFile, path: string): Block[] {
-  const words = file.lines === 0 ? para(APPENDIX_TEXT.noLines) : mono(linesIn(file.text));
+  const words = file.lines === 0 ? para(APPENDIX_TEXT.noLines) : mono(file.text.split(/\r?\n/));
   return [transcriptHeading(file.pass, path, file.lines), para(...fileFingerprint(file)), words];
 }
 
@@ -223,26 +239,11 @@ function unreadableBlocks(pass: PassName, path: string): Block[] {
 }
 
 /**
- * A page's screenshot: its label, then the line that says it wasn't recorded, as the page does. A
- * screenshot that was recorded has no place in this copy yet, which holds no image, so it is said
- * by its words for the picture.
- */
-function screenshotBlock({ screenshot }: PageCard): Block {
-  if ("notRecorded" in screenshot) {
-    return para(
-      { text: `${PAGES_TEXT.screenshot}:`, bold: true },
-      ` ${notRecordedLine(screenshot.notRecorded)}`,
-    );
-  }
-  return para(screenshot.alt);
-}
-
-/**
  * One page of the appendix: its number, its name, and the transcripts it has (a heading as the
  * page's fold has it, which says which, as many as there are); the run its transcripts are from;
- * its screenshot; and a transcript for each pass the run recorded. A page whose record lists no
- * transcript files says so. A page with no card has the latest run's transcripts, and no
- * screenshot.
+ * its screenshot (the only place a page with transcripts says it); and a transcript for each pass
+ * the run recorded. A page whose record lists no transcript files says so. A page with no card
+ * has the latest run's transcripts, and no screenshot.
  */
 function appendixPage(
   entry: ShareModel["appendix"][number],
@@ -262,16 +263,17 @@ function appendixPage(
   return [
     heading(2, `${number} ${entry.name}: ${transcriptsInside(passes)}`),
     ...(origin === null ? [] : [para(...origin)]),
-    ...(card === undefined ? [] : [screenshotBlock(card)]),
+    ...(card === undefined ? [] : [para(...screenshotLine(card))]),
     ...transcripts,
     ...(passes.length === 0 ? [para(APPENDIX_TEXT.noFiles)] : []),
   ];
 }
 
 /**
- * "Appendix: every transcript", on a page of its own: the line on how many pages and transcripts
- * there are (without the page's sentence on opening a page, since nothing here is folded), then
- * each page with transcripts, in the latest run's order, with the number its row has.
+ * "Appendix: every transcript", starting on a new page and running on from there: the line on how
+ * many pages and transcripts there are (without the page's sentence on opening a page, since
+ * nothing here is folded), then each page with transcripts, in the latest run's order, with the
+ * number its row has.
  */
 export function wordAppendix(model: ShareModel): Block[] {
   const cards = new Map(model.pages.map((card, index) => [card.slug, { card, number: index + 1 }]));

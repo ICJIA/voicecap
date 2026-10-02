@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { esc } from "../src/report/html.js";
 import { renderSummary, renderTop } from "../src/share/html/top.js";
-import { lineText, type Line } from "../src/share/line.js";
+import { lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import {
@@ -33,8 +33,7 @@ import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { demoModel, inputOf } from "./helpers/share-model.js";
-
-type Table = Extract<Block, { kind: "table" }>;
+import { boldIn, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
 
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
@@ -60,55 +59,6 @@ function withSummary(model: ShareModel, parts: Partial<Summary>): ShareModel {
 /** The model with some of the summary's six numbers changed. */
 function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): ShareModel {
   return withSummary(model, { numbers: { ...model.summary.numbers, ...numbers } });
-}
-
-/** The tables among the blocks, in order. */
-function tablesIn(blocks: Block[]): Table[] {
-  return blocks.filter((block): block is Table => block.kind === "table");
-}
-
-/** The table at a place among the blocks' tables, counting from 0. */
-function tableAt(blocks: Block[], at: number): Table {
-  const found = tablesIn(blocks)[at];
-  if (found === undefined) throw new Error(`No table at ${at}`);
-  return found;
-}
-
-/** The headings among the blocks, in order, each as its level and its words: "2 Flags by rule". */
-function outlineOf(blocks: Block[]): string[] {
-  return blocks.flatMap((block) =>
-    block.kind === "heading" ? [`${block.level} ${block.text}`] : [],
-  );
-}
-
-/** The blocks under a heading: those after it, up to the next heading or the end. */
-function under(blocks: Block[], words: string): Block[] {
-  const start = blocks.findIndex((block) => block.kind === "heading" && block.text === words);
-  if (start === -1) throw new Error(`No heading "${words}"`);
-  const rest = blocks.slice(start + 1);
-  const end = rest.findIndex((block) => block.kind === "heading");
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-/** The pieces of a line that are in bold, as their words. */
-function boldIn(line: Line): string[] {
-  return line.flatMap((piece) => (typeof piece !== "string" && piece.bold ? [piece.text] : []));
-}
-
-/** Every line the blocks hold, in order: a paragraph's, each list item's, and each cell's lines. */
-function linesIn(blocks: Block[]): Line[] {
-  return blocks.flatMap((block): Line[] => {
-    switch (block.kind) {
-      case "para":
-        return [block.line];
-      case "list":
-        return block.items;
-      case "table":
-        return block.rows.flatMap((row) => row.flatMap((cell) => cell.lines));
-      default:
-        return [];
-    }
-  });
 }
 
 /** Every address the blocks link to, in order. */

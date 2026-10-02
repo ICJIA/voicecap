@@ -33,8 +33,15 @@ import {
   storeOf,
   TRANSCRIPTS,
 } from "./helpers/share-model.js";
-
-type Table = Extract<Block, { kind: "table" }>;
+import {
+  boldIn,
+  linesIn,
+  outlineOf,
+  tableAt,
+  tablesIn,
+  under,
+  type Table,
+} from "./helpers/word.js";
 
 /** What the model is built from, for runs built in memory, with their transcripts in memory too. */
 function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
@@ -113,18 +120,6 @@ function threeSections(model: ShareModel): Block[] {
   return [...wordPages(model), ...wordFlags(model), ...wordAppendix(model)];
 }
 
-/** The tables among the blocks, in order. */
-function tablesIn(blocks: Block[]): Table[] {
-  return blocks.filter((block): block is Table => block.kind === "table");
-}
-
-/** The table at a place among the blocks' tables, counting from 0. */
-function tableAt(blocks: Block[], at: number): Table {
-  const found = tablesIn(blocks)[at];
-  if (found === undefined) throw new Error(`No table at ${at}`);
-  return found;
-}
-
 /** The words of each line of a table's cell: one string for each paragraph the cell has. */
 function cellLines(cell: Cell | undefined): string[] {
   return (cell?.lines ?? []).map(lineText);
@@ -137,46 +132,9 @@ function rowAt(table: Table, at: number): Cell[] {
   return found;
 }
 
-/** The headings among the blocks, in order, each as its level and its words: "2 Flags by rule". */
-function outlineOf(blocks: Block[]): string[] {
-  return blocks.flatMap((block) =>
-    block.kind === "heading" ? [`${block.level} ${block.text}`] : [],
-  );
-}
-
-/** The blocks under a heading: those after it, up to the next heading or the end. */
-function under(blocks: Block[], words: string): Block[] {
-  const start = blocks.findIndex((block) => block.kind === "heading" && block.text === words);
-  if (start === -1) throw new Error(`No heading "${words}"`);
-  const rest = blocks.slice(start + 1);
-  const end = rest.findIndex((block) => block.kind === "heading");
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-/** The pieces of a line that are in bold, as their words. */
-function boldIn(line: Line): string[] {
-  return line.flatMap((piece) => (typeof piece !== "string" && piece.bold ? [piece.text] : []));
-}
-
 /** The pieces of a line that are in the fixed-width font, as their words. */
 function monoIn(line: Line): string[] {
   return line.flatMap((piece) => (typeof piece !== "string" && piece.mono ? [piece.text] : []));
-}
-
-/** Every line the blocks hold, in order: a paragraph's, each list item's, and each cell's lines. */
-function linesIn(blocks: Block[]): Line[] {
-  return blocks.flatMap((block): Line[] => {
-    switch (block.kind) {
-      case "para":
-        return [block.line];
-      case "list":
-        return block.items;
-      case "table":
-        return block.rows.flatMap((row) => row.flatMap((cell) => cell.lines));
-      default:
-        return [];
-    }
-  });
 }
 
 /** Two runs: the latest no longer lists two pages the earlier had, and labels one of its own. */
@@ -323,6 +281,49 @@ describe("wordPages", () => {
       "Tab stops: 3",
       "Time: 51.5 s",
     ]);
+  });
+
+  it("says the screenshot's line last in the result of a page with no entry in the appendix, its label in bold", () => {
+    const model = modelOf([FAILED, { path: "/skipped", status: "skipped" }]);
+    const pages = tableAt(wordPages(model), 0);
+    const [failed, skipped] = model.pages;
+    const shot = failed?.screenshot;
+    const unrecorded = shot !== undefined && "notRecorded" in shot ? shot.notRecorded : "";
+
+    // Never transcribed, so the appendix has no entry that says it for either.
+    expect(model.appendix).toEqual([]);
+    expect(unrecorded).toMatch(/^Not recorded: this run used voicecap /);
+    expect(cellLines(rowAt(pages, 0)[2])).toEqual([
+      "Failed in run r1 · never transcribed",
+      failed?.failure ?? "",
+      `Screenshot: ${unrecorded}`,
+    ]);
+    expect(cellLines(rowAt(pages, 1)[2])).toEqual([
+      "Skipped in run r1 · never transcribed",
+      skipped?.failure ?? "",
+      `Screenshot: ${unrecorded}`,
+    ]);
+    // The label is in bold, as the appendix has it, and the lines before it are plain.
+    expect(rowAt(pages, 0)[2]?.lines.map(boldIn)).toEqual([[], [], ["Screenshot:"]]);
+    expect(rowAt(pages, 1)[2]?.lines.map(boldIn)).toEqual([[], [], ["Screenshot:"]]);
+    // Last, after all the rest the cell says, even for a card the records can't make: one with the
+    // run its transcripts are from, and no entry in the appendix.
+    const odd = withCard(model, 0, { from: { run: "r0", date: "25 September 2026" } });
+    expect(cellLines(rowAt(tableAt(wordPages(odd), 0), 0)[2])).toEqual([
+      "Failed in run r1 · never transcribed",
+      failed?.failure ?? "",
+      "From run r0, on 25 September 2026",
+      `Screenshot: ${unrecorded}`,
+    ]);
+  });
+
+  it("says nothing of the screenshot in the row of a page that has an entry in the appendix, which says it", async () => {
+    const model = await demoModel();
+    const said = wordsOf(wordAppendix(model)).filter((words) => words.startsWith("Screenshot:"));
+
+    expect(model.appendix).toHaveLength(model.pages.length);
+    expect(wordsOf([tableAt(wordPages(model), 0)]).join("\n")).not.toContain("Screenshot");
+    expect(said).toHaveLength(7);
   });
 
   it("says a read that stopped short was transcribed, and not in full", () => {
@@ -768,10 +769,16 @@ describe("wordAppendix", () => {
       files.filter((file) => file.lines > 0).length,
     );
     const first = files[0]!;
-    expect(appendix).toContainEqual(mono(first.text.replace(/\r?\n$/, "").split(/\r?\n/)));
+    // The text is split at its line breaks and nothing is dropped: the model's text is its lines
+    // joined by newlines, with no final newline, so a blank last line is a line.
+    expect(appendix).toContainEqual(mono(first.text.split(/\r?\n/)));
     expect(wordsOf(appendix)).toContain(lineText(fileFingerprint(first)));
-    // Every transcript's lines are its block's lines, in order, with nothing added or lost.
+    // Every transcript's lines are its block's lines, in order, with nothing added or lost, and as
+    // many as its heading counts.
     for (const file of files) expect(appendix).toContainEqual(mono(file.text.split("\n")));
+    expect(
+      appendix.flatMap((block) => (block.kind === "mono" ? [block.lines.length] : [])),
+    ).toEqual(files.map((file) => file.lines));
     expect(files).toHaveLength(21);
   });
 
@@ -923,21 +930,57 @@ describe("wordAppendix", () => {
     expect(wordsOf(appendix)).toContain("Read transcript of /a, 5 lines");
   });
 
-  it("drops the empty line a transcript's last line break would add, and splits at either kind of line break", () => {
-    const [first] = lostModel().appendix.flatMap((entry) => entry.files);
-    const file = first!;
-    const model = (text: string) => ({
-      ...lostModel(),
-      appendix: [{ slug: "a", name: "a", files: [{ ...file, text }], unreadable: [] }],
-    });
-    const blocks = (text: string) =>
-      wordAppendix(model(text)).filter((block) => block.kind === "mono");
+  it("keeps every line a transcript has, as many as its heading counts, a blank last line too", () => {
+    /** The model of one page whose read pass has these lines, and the appendix it makes. */
+    const readOf = (lines: string[]) => {
+      const model = modelOf([done("/a")], {
+        transcripts: storeOf(() => ({ read: lines, headings: LINES.headings, tab: LINES.tab })),
+      });
+      return { file: model.appendix[0]?.files[0], appendix: wordAppendix(model) };
+    };
 
-    expect(blocks("one\ntwo\n")).toEqual([mono(["one", "two"])]);
-    expect(blocks("one\r\ntwo\r\n")).toEqual([mono(["one", "two"])]);
-    expect(blocks("one\ntwo")).toEqual([mono(["one", "two"])]);
-    // A blank line between lines is a line.
-    expect(blocks("one\n\ntwo")).toEqual([mono(["one", "", "two"])]);
+    // A last line that is blank: the model's text is its lines joined by newlines, so it ends with
+    // one, and the block has both lines, as the heading says.
+    const two = readOf(["a", ""]);
+    expect(two.file).toMatchObject({ text: "a\n", lines: 2 });
+    expect(wordsOf(two.appendix)).toContain("Read transcript of /a, 2 lines");
+    expect(two.appendix).toContainEqual(mono(["a", ""]));
+
+    // A transcript that is one blank line has one line, not none.
+    const one = readOf([""]);
+    expect(one.file).toMatchObject({ text: "", lines: 1 });
+    expect(wordsOf(one.appendix)).toContain("Read transcript of /a, 1 line");
+    expect(one.appendix).toContainEqual(mono([""]));
+    expect(wordsOf(one.appendix)).not.toContain(APPENDIX_TEXT.noLines);
+
+    // A blank line first, between, and last, and more than one in a row: all of them, in order.
+    for (const lines of [
+      ["", ""],
+      ["", "a"],
+      ["a", "", "b"],
+      ["a", "", ""],
+      ["", "a", ""],
+    ]) {
+      const { file, appendix } = readOf(lines);
+
+      expect(file?.lines, JSON.stringify(lines)).toBe(lines.length);
+      expect(appendix, JSON.stringify(lines)).toContainEqual(mono(lines));
+      expect(wordsOf(appendix)).toContain(`Read transcript of /a, ${lines.length} lines`);
+    }
+  });
+
+  it("splits a text made by hand at either kind of line break", () => {
+    const model = lostModel();
+    const [first] = model.appendix.flatMap((entry) => entry.files);
+    const blocks = (text: string, lines: number) =>
+      wordAppendix({
+        ...model,
+        appendix: [{ slug: "a", name: "a", files: [{ ...first!, text, lines }], unreadable: [] }],
+      }).filter((block) => block.kind === "mono");
+
+    expect(blocks("one\ntwo", 2)).toEqual([mono(["one", "two"])]);
+    expect(blocks("one\r\ntwo", 2)).toEqual([mono(["one", "two"])]);
+    expect(blocks("one\r\n\r\ntwo", 3)).toEqual([mono(["one", "", "two"])]);
   });
 
   it("makes one block of each transcript, however many lines it has: a site of 30 pages and 150 lines a pass", () => {
@@ -1148,6 +1191,51 @@ describe("the three sections together", () => {
     // The tables of two models, so a count of nothing can't pass for this.
     expect(tablesIn(threeSections(manyPages(13, 5)))).toHaveLength(1 + 5);
     expect(tablesIn(threeSections(noLongerModel()))).toHaveLength(2);
+  });
+
+  it("says each page's screenshot once, page by page: in its own row when it has no entry in the appendix, and in its own entry when it has one", async () => {
+    const bases: [string, ShareModel][] = [
+      ["pages in every state", everyStateModel()],
+      ["the demo's", await demoModel()],
+      ["no page with transcripts", modelOf([FAILED, { path: "/skipped", status: "skipped" }])],
+    ];
+
+    for (const [name, base] of bases) {
+      // Each page's own words for its screenshot, so one page's line can't be taken for another's.
+      const shots = base.pages.map((card) => `Not recorded: the screenshot of ${card.path}.`);
+      const model: ShareModel = {
+        ...base,
+        pages: base.pages.map((card, at) => ({
+          ...card,
+          screenshot: { notRecorded: shots[at] ?? "" },
+        })),
+      };
+      const pages = wordPages(model);
+      const appendix = wordAppendix(model);
+      const everything = wordsOf([...pages, ...appendix]).join("\n");
+      const listed = new Set(model.appendix.map(({ slug }) => slug));
+      const table = tableAt(pages, 0);
+
+      for (const [index, card] of model.pages.entries()) {
+        const where = `${name}, ${card.path}`;
+        const line = `Screenshot: ${shots[index]}`;
+        const row = cellLines(rowAt(table, index)[2]);
+        const inside = "read, headings, and Tab transcripts";
+
+        // Once in the whole copy, and once where this page says it.
+        expect(everything.split(line).length - 1, where).toBe(1);
+        if (listed.has(card.slug)) {
+          expect(row, where).not.toContain(line);
+          expect(wordsOf(under(appendix, `${index + 1} ${card.name}: ${inside}`)), where).toContain(
+            line,
+          );
+        } else {
+          expect(row.at(-1), where).toBe(line);
+        }
+      }
+      // A line for each page, and no other.
+      expect(everything.match(/Screenshot:/g) ?? [], name).toHaveLength(model.pages.length);
+    }
   });
 
   it("links to nothing, since the page's links go to its own parts, which this copy has in order", async () => {
