@@ -58,10 +58,20 @@ function sectionsOf(blocks: Block[]): string[] {
   );
 }
 
+/** The headings of the page's sections: its `h2`s, as the words a reader gets of them. */
+function pageSections(page: string): string[] {
+  return [...page.matchAll(/<h2 id="[^"]+">(.*?)<\/h2>/g)].map(([, words]) => textOf(words ?? ""));
+}
+
 describe("wordOutline", () => {
-  it("has the page's sections, in the page's order", async () => {
+  // The page has ten sections, and its footer is a landmark with no heading, which a screen reader
+  // announces. In Word, a footer with no heading would belong to the last transcript's heading 3,
+  // in the navigation pane and for a screen reader alike, and only a change of font would mark where
+  // it begins. So the Word copy has eleven level-1 headings: the page's ten, then the footer's.
+  it("has eleven sections: the page's ten, in the page's order, and then a heading of its own for the footer", async () => {
     const model = await demoModel();
     const sections = sectionsOf(wordOutline(model));
+    const page = renderSharePage(model, { fontCss: "" });
 
     expect(sections).toEqual([
       "Summary",
@@ -74,30 +84,43 @@ describe("wordOutline", () => {
       "The evidence behind these results",
       "How voicecap came to be",
       "Appendix: every transcript",
+      "About this report",
     ]);
-    const page = renderSharePage(model, { fontCss: "" });
-    expect(sections).toEqual(
-      [...page.matchAll(/<h2 id="[^"]+">(.*?)<\/h2>/g)].map(([, words]) => textOf(words ?? "")),
-    );
+    expect(pageSections(page)).toHaveLength(10);
+    expect(sections.slice(0, 10)).toEqual(pageSections(page));
+    expect(sections.at(-1)).toBe("About this report");
   });
 
-  it("has the page's sections, in the page's order, for a site where no run counts too", () => {
+  it("has the same eleven sections for a site where no run counts too", () => {
     const none = noRunModel();
-    const page = renderSharePage(none, { fontCss: "" });
+    const sections = sectionsOf(wordOutline(none));
 
-    expect(sectionsOf(wordOutline(none))).toEqual(
-      [...page.matchAll(/<h2 id="[^"]+">(.*?)<\/h2>/g)].map(([, words]) => textOf(words ?? "")),
-    );
-    expect(sectionsOf(wordOutline(none))).toHaveLength(10);
+    expect(sections).toHaveLength(11);
+    expect(sections.slice(0, 10)).toEqual(pageSections(renderSharePage(none, { fontCss: "" })));
+    expect(sections.at(-1)).toBe("About this report");
   });
 
-  it("starts with the site's name, as the one title, and ends with the footer", async () => {
+  it("starts with the site's name, as the one title, and ends with the footer, heading and all", async () => {
     const model = await demoModel();
     const blocks = wordOutline(model);
 
     expect(blocks[0]).toEqual({ kind: "title", text: model.header.siteName });
     expect(blocks.filter((block) => block.kind === "title")).toHaveLength(1);
-    expect(blocks.slice(-3)).toEqual(wordFooter(model));
+    expect(blocks.slice(-4)).toEqual(wordFooter(model));
+    expect(blocks.slice(-4).map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para"]);
+  });
+
+  it("puts the footer under a heading of its own, never under the last transcript's, with no page break before it", async () => {
+    for (const model of [await demoModel(), noRunModel()]) {
+      const blocks = wordOutline(model);
+      const at = blocks.findLastIndex((block) => block.kind === "heading");
+
+      // The outline's last heading is the footer's, at level 1, so its paragraphs are under it and
+      // no longer under the last transcript's heading 3.
+      expect(blocks[at]).toEqual({ kind: "heading", level: 1, text: "About this report" });
+      expect(blocks.slice(at)).toEqual(wordFooter(model));
+      expect(blocks[at - 1]?.kind).not.toBe("pageBreak");
+    }
   });
 
   it("says every word of the fixed text", async () => {
@@ -219,7 +242,7 @@ describe("renderWordCopy", () => {
     );
   });
 
-  it("has a heading 1 in the file for each of the page's sections, in its order", async () => {
+  it("has a heading 1 in the file for each section of the outline, in its order: the page's ten, then the footer's", async () => {
     const model = await demoModel();
     const { document } = await unzipDocx(await renderWordCopy(model));
     const sections = paragraphsOf(document).flatMap(({ style, text }) =>
@@ -227,6 +250,26 @@ describe("renderWordCopy", () => {
     );
 
     expect(sections).toEqual(sectionsOf(wordOutline(model)));
+    expect(sections).toHaveLength(11);
+    expect(sections.at(-1)).toBe("About this report");
+  });
+
+  it("has the footer's three paragraphs after its heading in the file, with no other heading between and nothing after them", async () => {
+    for (const model of [await demoModel(), noRunModel()]) {
+      const { document } = await unzipDocx(await renderWordCopy(model));
+      const paragraphs = paragraphsOf(document);
+      const at = paragraphs.findLastIndex(({ style }) => style === "Heading1");
+      const after = paragraphs.slice(at + 1);
+
+      // The last Heading 1 of the file is the footer's.
+      expect(paragraphs[at]).toEqual({ style: "Heading1", text: "About this report" });
+      // Its three paragraphs follow, in the ordinary style, and they are the file's last.
+      expect(after.map(({ text }) => text)).toEqual(wordsOf(wordFooter(model).slice(1)));
+      expect(after.map(({ style }) => style)).toEqual(["", "", ""]);
+      expect(after.at(-1)?.text).toBe("This file: current.docx. Its web page: current.html.");
+      // So they are under that heading, and under no heading 3 of a transcript.
+      expect(after.some(({ style }) => style.startsWith("Heading"))).toBe(false);
+    }
   });
 
   it("sets the properties from the model: the title, the preparer as author, and the date in each page's footer", async () => {

@@ -1822,6 +1822,14 @@ describe("the section words in text.ts", () => {
     expect(WORD_TEXT.story.head[0]).toBe(STORY_TEXT.timeline.when);
   });
 
+  it("give the Word copy's footer the heading the page's footer, a landmark, has none of, naming the report as the Word copy does", async () => {
+    expect(WORD_TEXT.footer.heading).toBe("About this report");
+    expect(renderFooter(await demoModel())).not.toMatch(/<h[1-6]/);
+    // "This report" is what the Word copy calls itself where it names the web page's check.
+    expect(lineText(WORD_TEXT.evidence.webPage("current.html"))).toMatch(/^This report's web page/);
+    expect(WORD_TEXT.footer.heading.toLowerCase()).toContain("this report");
+  });
+
   it("say what the Word copy's own pages say: the author when no one prepared it, and what each page's footer starts with", () => {
     expect(WORD_TEXT.document.author).toBe("voicecap");
     expect(WORD_TEXT.document.footer("Grants", "30 September 2026")).toBe(

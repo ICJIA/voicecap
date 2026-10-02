@@ -16,7 +16,9 @@ import { wordHow, wordSummary, wordTop } from "./top.js";
 
 /**
  * The sections, in the page's order (html/document.ts): the top, then the sections inside the
- * page's `main` as the design orders them, then the footer.
+ * page's `main` as the design orders them, then the footer. The footer has a heading of its own
+ * here, which the page's has not (it is a landmark), so the outline has one level-1 heading more
+ * than the page has sections.
  */
 const SECTIONS: ((model: ShareModel) => Block[])[] = [
   wordTop,

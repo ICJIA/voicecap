@@ -736,6 +736,10 @@ export const WORD_TEXT = {
   story: {
     head: [STORY_TEXT.timeline.when, "What happened"],
   },
+  /** The heading the Word copy gives the page's footer, a landmark with no heading on the page. */
+  footer: {
+    heading: "About this report",
+  },
   /**
    * The document itself: its author, when the records name no one who prepared it, and what each
    * page's footer says before its page number ("Grants, as of 30 September 2026").

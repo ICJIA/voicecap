@@ -3,8 +3,8 @@
  * to be", and its footer, as blocks (./blocks.ts). Each takes the model, and says the words of the
  * page's renderer (../html/evidence.ts) in the same order: the fixed ones come from ../text.ts, the
  * ones worked out from the model from ../words.ts, and what only the Word copy says (what stands in
- * for the page's fingerprint check, the heads of the timeline's table, the document's own words)
- * from `WORD_TEXT`. So the two copies can't say different things.
+ * for the page's fingerprint check, the heads of the timeline's table, the footer's heading, the
+ * document's own words) from `WORD_TEXT`. So the two copies can't say different things.
  *
  * The Word copy folds nothing: each run is a heading 2 with what its fold holds under it, and the
  * rest of the story and the six cards are in the open. It has no fingerprint check of its own, so it
@@ -262,12 +262,17 @@ export function wordStory(_model: ShareModel): Block[] {
 // The footer.
 
 /**
- * What voicecap is, with its address linked; when the report was made, with its offset from UTC, and
- * the offsets the runs recorded their times in; and the file's own name, with its web page's.
+ * The footer, under a heading 1 of its own: on the page the footer is a landmark, which a screen
+ * reader announces, but a Word document has none, so without a heading its paragraphs would belong
+ * to the last transcript's heading 3, in the navigation pane and for a screen reader. Then what
+ * voicecap is, with its address linked; when the report was made, with its offset from UTC, and the
+ * offsets the runs recorded their times in; and the file's own name, with its web page's. The
+ * heading follows the last transcript with no page break.
  */
 export function wordFooter(model: ShareModel): Block[] {
   const { fileName, wordName } = model.footer;
   return [
+    heading(1, WORD_TEXT.footer.heading),
     para(`${ABOUT} `, { text: FOOTER_TEXT.address, href: TOP_TEXT.github }),
     para(generatedLine(model.footer)),
     para(...FOOTER_TEXT.word(fileName, wordName)),

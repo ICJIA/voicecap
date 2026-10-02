@@ -1132,17 +1132,44 @@ describe("wordStory", () => {
   });
 });
 
+/** What the footer says after its heading: the words of its three paragraphs. */
+function footerSays(model: ShareModel): string[] {
+  return wordsOf(wordFooter(model).slice(1));
+}
+
 describe("wordFooter", () => {
+  it("is a heading 1, About this report, and then three paragraphs, with nothing after them", async () => {
+    const blocks = wordFooter(await demoModel());
+
+    expect(blocks.map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para"]);
+    expect(blocks[0]).toEqual(heading(1, "About this report"));
+    expect(blocks[0]).toEqual(heading(1, WORD_TEXT.footer.heading));
+    // No page break: the heading and its paragraphs run on from the last transcript.
+    expect(blocks.some(({ kind }) => kind === "pageBreak")).toBe(false);
+  });
+
+  it("has a heading where the page has none: its footer is a landmark, which a screen reader announces", async () => {
+    const model = await demoModel();
+    const page = renderFooter(model);
+
+    expect(page).toMatch(/^<footer>/);
+    expect(page).not.toMatch(/<h[1-6]/);
+    // In Word, a footer with no heading would belong to the last transcript's heading 3.
+    expect(wordFooter(model)[0]).toEqual(heading(1, "About this report"));
+    expect(wordFooter(noRunModel())[0]).toEqual(heading(1, "About this report"));
+  });
+
   it("says what voicecap is with its address linked, when the report was made, and which file it is, in that order", async () => {
     const model = await demoModel();
     const blocks = wordFooter(model);
 
-    expect(blocks).toEqual([
+    expect(blocks.slice(1)).toEqual([
       para(`${ABOUT} `, { text: "github.com/ICJIA/voicecap", href: TOP_TEXT.github }),
       para(generatedLine(model.footer)),
       para(...FOOTER_TEXT.word("current.html", "current.docx")),
     ]);
     expect(wordsOf(blocks)).toEqual([
+      "About this report",
       `${ABOUT} github.com/ICJIA/voicecap`,
       "Generated on 30 September 2026 at 09:00 (UTC−05:00). Times are as each run recorded them (UTC−05:00).",
       "This file: current.docx. Its web page: current.html.",
@@ -1151,7 +1178,7 @@ describe("wordFooter", () => {
   });
 
   it("names the Word copy first and the web page after it, each in the fixed-width font", async () => {
-    const [, , file] = wordFooter(await demoModel());
+    const [, , , file] = wordFooter(await demoModel());
     const named =
       file?.kind === "para" ? file.line.filter((piece) => typeof piece !== "string") : [];
 
@@ -1169,7 +1196,7 @@ describe("wordFooter", () => {
       offsets: ["UTC−05:00", "UTC−06:00"],
     });
 
-    expect(wordsOf(wordFooter(model)).slice(1)).toEqual([
+    expect(footerSays(model).slice(1)).toEqual([
       "Generated on 1 December 2026 at 17:45 (UTC−06:00). Times are as each run recorded them (UTC−05:00 and UTC−06:00).",
       "This file: 127.0.0.1_4848_2026-12-01.docx. Its web page: 127.0.0.1_4848_2026-12-01.html.",
     ]);
@@ -1179,9 +1206,7 @@ describe("wordFooter", () => {
     const none = noRunModel();
 
     expect(none.footer.offsets).toEqual([]);
-    expect(wordsOf(wordFooter(none))[1]).toBe(
-      "Generated on 30 September 2026 at 09:00 (UTC−05:00).",
-    );
+    expect(footerSays(none)[1]).toBe("Generated on 30 September 2026 at 09:00 (UTC−05:00).");
   });
 
   it("keeps the file names and the offsets as words, never as markup", async () => {
@@ -1190,7 +1215,7 @@ describe("wordFooter", () => {
       wordName: "<u>w</u>.docx",
       offsets: ["<i>Zone</i>"],
     });
-    const words = wordsOf(wordFooter(model));
+    const words = footerSays(model);
 
     expect(words[2]).toBe("This file: <u>w</u>.docx. Its web page: <b>x</b>.html.");
     expect(words[1]).toContain("(<i>Zone</i>)");
@@ -1200,7 +1225,7 @@ describe("wordFooter", () => {
   it("says what the page's footer says, with the file's other copy named for the page's", async () => {
     const model = await demoModel();
     const page = textOf(renderFooter(model), "");
-    const [about, generated, file] = wordsOf(wordFooter(model));
+    const [about, generated, file] = footerSays(model);
 
     expect(page).toContain(about);
     expect(page).toContain(generated);
