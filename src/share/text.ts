@@ -6,13 +6,18 @@
  * (a section's opening line, a card's title) are built from the model in words.ts, which says them
  * around their numbers and names. Both renderers draw from these two modules, the page now and its
  * Word copy later, so this one holds words and nothing more: the steps' icons are named here and
- * drawn by the renderer, and the only markup is the bold and code in the timeline's cells.
+ * drawn by the renderer, and the only markup is the bold and code in the timeline's cells. A few
+ * are functions: for a line (./line.ts) with something in bold, in code, or linked out, which holds
+ * those as data, never as markup, or for a sentence with a name or a command in it.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
 import type { PassName } from "../model.js";
+import type { OnlyInOnePage } from "./changes.js";
+import type { Line } from "./line.js";
+import type { Problem } from "./problems.js";
 
 /**
  * The top of the page: the line above the site's name, the labels in the line below its lead (each
@@ -204,6 +209,153 @@ export const FLAGS_TEXT = {
   noLine: "No line to quote",
 };
 
+/**
+ * "What changed since the last run": its heading, what it says with no earlier run to compare with,
+ * the lead before the tools that differ, why a page is in only one of the two runs, what a rule did
+ * between them, and the words of a pass's table of lines.
+ */
+export const CHANGES_TEXT = {
+  title: "What changed since the last run",
+  /** Said in place of the section, when no earlier run has the same pages. */
+  none: "No earlier run with the same pages to compare with.",
+  /**
+   * The lead before the tools that differ between the two runs, which can make a page sound
+   * different alone: its first words are in bold.
+   */
+  tools: (): Line => [
+    { text: "The tools differ between the two runs,", bold: true },
+    " so anything that sounds different may come from the tools rather than the site:",
+  ],
+  /** Why a page is in only one of the two runs, in words that follow the model's reason. */
+  reasons: {
+    new: "new, not in the run before",
+    "no longer listed": "no longer listed, not in the latest run",
+    "failed in one run": "failed in one run, read in full in the other",
+    "skipped in one run": "skipped in one run, read in full in the other",
+  } satisfies Record<OnlyInOnePage["reason"], string>,
+  /** What a rule did between the runs, said after the rule's name: "generic-link-text resolved". */
+  rules: { resolved: "resolved", fresh: "new" },
+  /** The heads of a pass's table of lines: the change, and what NVDA said. */
+  head: ["Change", "What NVDA said"],
+  /**
+   * What a row of that table is: a line the same, a line removed, a line added, and (the mark
+   * before its count) a run of lines the same.
+   */
+  rows: { same: "Same", removed: "Removed", added: "Added", collapsed: "…" },
+  /** Said of a pass that sounds different but whose transcript can't be read here. */
+  unreadable: (pass: PassName): string =>
+    `The ${PASS_WORDS[pass]} pass sounds different, but its transcript couldn't be read here.`,
+};
+
+/** Where an error voicecap didn't expect is reported, which a copy links to. */
+export const ISSUES_URL = "https://github.com/ICJIA/voicecap/issues";
+
+/** The address as the request to report an error, and the table of kinds, print it. */
+const ISSUES_ADDRESS = "github.com/ICJIA/voicecap/issues";
+
+/**
+ * "Problems during the runs": its heading, what it says of what's in it, the labels of a problem's
+ * questions, the request to report an unexpected error, the words for whether a problem happened
+ * again, the parts of a problem's record, and the table of kinds.
+ */
+export const PROBLEMS_TEXT = {
+  title: "Problems during the runs",
+  /** What the section says of what's in it, when something is. */
+  gist: "Every attempt that failed in the runs these results come from is here, with what voicecap recorded about it, word for word: what happened, what voicecap did, whether it happened again, and what it means for the results.",
+  /** The labels of a problem's questions, each followed by its answer. */
+  questions: {
+    happened: "What happened",
+    decided: "How the kind was decided",
+    did: "What voicecap did",
+    again: "Did it happen again?",
+    effect: "Effect on the results",
+    report: "Report it",
+  },
+  /** What an unexpected error asks of a reader: to report it, with the address linked. */
+  report: (): Line => [
+    "This could be a problem in voicecap itself. Please report it, with this record, at ",
+    { text: ISSUES_ADDRESS, href: ISSUES_URL },
+    ".",
+  ],
+  /** Whether a problem happened again, in words that stand alone, as a chip's do. */
+  again: {
+    no: "Didn't happen again",
+    same: "Happened again",
+    different: "Happened again, in different ways",
+    unknown: "Not tried again",
+  } satisfies Record<Problem["again"], string>,
+  /**
+   * A problem's record, word for word: its title, the heads of its table, and what a time says when
+   * the run kept none.
+   */
+  record: {
+    title: "The record of this problem, word for word",
+    head: ["Time", "From", "What was recorded"],
+    noTime: "Not recorded",
+  },
+  /** The title of the stack an unexpected error left: where in voicecap's code it happened. */
+  stack: "Where in voicecap's code it happened",
+  /** The table of kinds of problem: its title, and the heads of its columns. */
+  kinds: {
+    title: "How voicecap tells causes apart",
+    head: ["What happened", "Whose it is", "What voicecap does, and what it means"],
+  },
+  /** The address where an unexpected error is reported, as the table of kinds prints it. */
+  issues: ISSUES_ADDRESS,
+};
+
+/** "What these results cover": its heading, and the titles of its two panels. */
+export const COVERAGE_TEXT = {
+  title: "What these results cover",
+  covered: "Covered",
+  limits: "Technical limits",
+};
+
+/**
+ * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
+ * the titles of a run's parts, the heads of its tables, and the runs left out.
+ */
+export const EVIDENCE_TEXT = {
+  title: "The evidence behind these results",
+  /** What a fingerprint is: its question, which a copy sets in bold, and the answer. */
+  fingerprint:
+    "What's a fingerprint? A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.",
+  /**
+   * What the check proves, and what it can't, with the two stronger checks: the file's own
+   * fingerprint, and `verify`, the command that checks the originals on the transcripts folder.
+   */
+  proves: (verify: string): Line => [
+    { text: "What the check proves:", bold: true },
+    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one the sender recorded (",
+    { text: "Get-FileHash <file>", mono: true },
+    " in PowerShell, or ",
+    { text: "shasum -a 256 <file>", mono: true },
+    " on a Mac, shows it), or run ",
+    { text: verify, mono: true },
+    " on the transcripts folder.",
+  ],
+  /** The titles of a run's four parts. */
+  parts: {
+    timeline: "Minute by minute",
+    nvdaLog: "NVDA's own log, checked against the transcripts",
+    environment: "Test environment",
+    fingerprints: "Fingerprints (SHA-256)",
+  },
+  /** The heads of the table of a run's test environment: what, and what the run recorded. */
+  rowsHead: ["What", "What the run recorded"],
+  /** The heads of the table of a run's files. */
+  filesHead: ["Page", "File", "Size", "SHA-256"],
+  /** Said in place of that table, for a run whose record lists no files. */
+  noFiles: "This run's record lists no files.",
+  /** Before the command that checks a run's files against its record. */
+  verify: "To check these against the recorded files, anyone with the transcripts folder runs:",
+  /** The runs left out: their title, and why a run is left out. */
+  leftOut: {
+    title: "Runs left out",
+    lead: "These runs aren't counted in any result on this page. A run counts only when it completed, was sealed, and wasn't a replay.",
+  },
+};
+
 /** "Appendix: every transcript": its heading, and what it says in place of a transcript's words. */
 export const APPENDIX_TEXT = {
   title: "Appendix: every transcript",
@@ -238,6 +390,30 @@ export const STORY: {
     title:
       "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks",
     url: "https://www.deque.com/blog/automated-testing-study-identifies-57-percent-of-digital-accessibility-issues/",
+  },
+};
+
+/**
+ * "How voicecap came to be", apart from the story itself (`STORY`), the timeline's rows, and the
+ * points worth knowing: its heading, the titles and lines of its two folds, and the timeline's
+ * caption and headings.
+ */
+export const STORY_TEXT = {
+  title: "How voicecap came to be",
+  /** The fold on the rest of the story: its title, and what its line says is inside. */
+  rest: { title: "The rest of the story", inside: "the usual answer, and voicecap's" },
+  /** The title of the fold on the points worth knowing (`WORTH_KNOWING`). */
+  worth: "A few things worth knowing",
+  /**
+   * The timeline: its caption, the head of its days, the head of each track (the platform, and the
+   * screen reader that goes with it), and what heads the row of what isn't done yet.
+   */
+  timeline: {
+    caption: "From the first line of code to today, on a Windows PC and on a Mac",
+    when: "When",
+    pc: { name: "Windows PC", reader: "with NVDA" },
+    mac: { name: "Mac", reader: "with VoiceOver" },
+    next: "Next",
   },
 };
 
@@ -373,3 +549,13 @@ export const WORTH_KNOWING: { title: string; text: string }[] = [
 /** What voicecap is, in the footer. */
 export const ABOUT =
   "voicecap is free, open-source software that speeds up a person's review of a website with a real screen reader. It presses the screen reader's keys the way a person would, moves from page to page on its own, and saves every word the screen reader says.";
+
+/**
+ * The footer, apart from what voicecap is (`ABOUT`) and when the page was made (`generatedLine`,
+ * in words.ts): the address its link to voicecap shows (the link goes to `TOP_TEXT.github`), and
+ * what it says before the file's own name.
+ */
+export const FOOTER_TEXT = {
+  address: "github.com/ICJIA/voicecap",
+  file: "This file:",
+};

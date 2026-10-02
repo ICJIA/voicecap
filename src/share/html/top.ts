@@ -19,10 +19,14 @@ import { formatDuration } from "../../util/time.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
+  CHANGES_TEXT,
+  COVERAGE_TEXT,
   FLAGS_TEXT,
   HOW_STEPS,
   HOW_TEXT,
   PAGES_TEXT,
+  PROBLEMS_TEXT,
+  STORY_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WHEN_TO_RUN,
@@ -194,17 +198,18 @@ function reviewMeter({ bars }: Summary): string {
 
 /**
  * The later sections, in page order: each h2's id, and the words that link to it. Where a
- * section's heading is in ../text.ts, its link says the heading's words.
+ * section's link says its heading's words, they are the heading's in ../text.ts; the links to the
+ * evidence and the appendix are shorter than their headings, and are the contents list's own.
  */
 const CONTENTS = [
   ["how-h", HOW_TEXT.title],
   ["pages-h", PAGES_TEXT.title],
   ["find-h", FLAGS_TEXT.title],
-  ["chg-h", "What changed since the last run"],
-  ["prob-h", "Problems during the runs"],
-  ["lim-h", "What these results cover"],
+  ["chg-h", CHANGES_TEXT.title],
+  ["prob-h", PROBLEMS_TEXT.title],
+  ["lim-h", COVERAGE_TEXT.title],
   ["ev-h", "The evidence"],
-  ["story-h", "How voicecap came to be"],
+  ["story-h", STORY_TEXT.title],
   ["app-h", "Every transcript"],
 ] as const;
 

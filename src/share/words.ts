@@ -1,23 +1,37 @@
 /**
- * The sentences of the shareable report that are worked out from its model, for the page's first
- * half (the top, the summary, "How voicecap works", "Every page", "What the flags found", and the
- * appendix): the numbers, counts, names, and dates in the plain words each copy says them in.
+ * The sentences of the shareable report that are worked out from its model: the numbers, counts,
+ * names, and dates in the plain words each copy says them in. First those of the page's first half
+ * (the top, the summary, "How voicecap works", "Every page", "What the flags found", and the
+ * appendix), then those of its second (what changed since the last run, the problems during the
+ * runs, the evidence, the story, and the footer).
  *
  * Each is a string, or a line (./line.ts): no markup, and nothing escaped. The page's renderers
  * (html/) escape what they draw, and the Word copy sets the same words in its own paragraphs, so the
  * two can't say different things. What no record changes is in text.ts. Pure.
  *
  * A fold's instruction to open it is the page's alone: the Word copy folds nothing. So a line that
- * has one (`appendixGist`) takes the page's sentence, and says none of its own.
+ * has one (`appendixGist`, `changesGist`) takes the page's sentence, and says none of its own.
  */
-import type { PassName } from "../model.js";
+import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
 import { plural } from "../report/html.js";
 import { formatDuration } from "../util/time.js";
-import { count, names, seconds } from "./format.js";
+import { attentionClauses } from "./attention.js";
+import type { Changes, OnlyInOnePage, PageChange } from "./changes.js";
+import { clock, count, dayMonth, longDate, names, pagePath, seconds, utcOffset } from "./format.js";
 import type { Line } from "./line.js";
 import type { AppendixFile, PageCard, ShareModel } from "./model.js";
+import type { Problem, ProblemKind } from "./problems.js";
+import { runEnd, runStart } from "./run-evidence.js";
 import type { Summary } from "./summary.js";
-import { HOW_LEAD, HOW_TEXT, PASS_WORDS, SUMMARY_TEXT, TOP_TEXT } from "./text.js";
+import {
+  HOW_LEAD,
+  HOW_TEXT,
+  PAGES_TEXT,
+  PASS_WORDS,
+  STORY,
+  SUMMARY_TEXT,
+  TOP_TEXT,
+} from "./text.js";
 
 /** The first words of a section's opening line, when no run counts. */
 const NO_RUN = "No live run counts yet.";
@@ -312,4 +326,270 @@ export function fileFingerprint(file: AppendixFile): Line {
     `The whole file, its header included: ${plural(file.bytes, "byte")}, SHA-256 `,
     { text: file.sha256, mono: true },
   ];
+}
+
+// What changed since the last run.
+
+/**
+ * What a pass lost and gained, as a reader says it: "3 lines removed and 2 added", and, for a pass
+ * that only lost or only gained lines, "1 line removed" or "2 lines added", not "and 0 added".
+ */
+export function sizesOf(removed: number, added: number): string {
+  if (removed === 0 && added === 0) return "no lines removed or added";
+  if (added === 0) return `${plural(removed, "line")} removed`;
+  if (removed === 0) return `${plural(added, "line")} added`;
+  return `${plural(removed, "line")} removed and ${count(added)} added`;
+}
+
+/**
+ * How much a page changed, for its fold's line: each pass that sounds different, in pass order,
+ * with the lines it lost and gained, or that its transcript couldn't be read here, so no count is
+ * known. "read: 3 lines removed and 2 added; headings: couldn't be read here; Tab: 1 line removed".
+ * ("Here", since a pass named "read" that couldn't be read would say "read" twice over.)
+ */
+export function countsOf({ passes, unreadable }: PageChange): string {
+  const clauses = PASS_NAMES.flatMap((pass) => {
+    const change = passes.find((each) => each.pass === pass);
+    if (change !== undefined) {
+      return [`${PASS_WORDS[pass]}: ${sizesOf(change.removed, change.added)}`];
+    }
+    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read here`] : [];
+  });
+  return clauses.join("; ");
+}
+
+/**
+ * The line on the two runs compared, how many pages sound the same (counted, not shown), and what
+ * opens. When no page could be compared (the section's line says so), nothing was compared, so there
+ * is none. `open` is the page's sentence about opening a page that sounds different, which comes
+ * last when one does; a copy that folds nothing gives none.
+ */
+export function changesGist({ before, after, same, changed }: Changes, open = ""): Line | null {
+  if (same === 0 && changed.length === 0) return null;
+  const alike =
+    same === 0
+      ? ""
+      : ` ${plural(same, "page")} ${same === 1 ? "sounds" : "sound"} the same, and ${same === 1 ? "is" : "are"} counted, not shown.`;
+  const opening = changed.length === 0 || open === "" ? "" : ` ${open}`;
+  return [
+    "Compared: run ",
+    { text: before.id, mono: true },
+    " (before) and run ",
+    { text: after.id, mono: true },
+    ` (latest).${alike}${opening}`,
+  ];
+}
+
+/**
+ * The lead on the pages read in full in only one of the two runs, which so can't be compared: how
+ * many, in bold. The pages follow it, each with its reason (`CHANGES_TEXT.reasons`).
+ */
+export function onlyInOneLead(pages: OnlyInOnePage[]): Line {
+  const one = pages.length === 1;
+  return [
+    {
+      text: `${plural(pages.length, "page")} ${one ? "was" : "were"} read in full in only one of the two runs,`,
+      bold: true,
+    },
+    ` so ${one ? "it wasn't" : "they weren't"} compared:`,
+  ];
+}
+
+/**
+ * The rules whose flag went or came on a page, for its fold's chips, each once. A rule that another
+ * pass still raises (one both runs read, or one only the later run read) isn't resolved for the
+ * page, and one it already raised in another pass isn't new: the line of flags says each, pass by
+ * pass (`flagsLine`).
+ */
+export function changedRules({
+  resolved,
+  added,
+  unchanged,
+  changed,
+  uncompared,
+}: PageChange["flags"]): { resolved: string[]; fresh: string[] } {
+  const rulesOf = (flags: FlagResult[]) => new Set(flags.map(({ rule }) => rule));
+  const gone = rulesOf(resolved);
+  const came = rulesOf(added);
+  const kept = rulesOf([...unchanged, ...changed.map(({ after }) => after)]);
+  const stillRaised = rulesOf(uncompared);
+  return {
+    resolved: [...gone].filter(
+      (rule) => !kept.has(rule) && !came.has(rule) && !stillRaised.has(rule),
+    ),
+    fresh: [...came].filter((rule) => !kept.has(rule) && !gone.has(rule)),
+  };
+}
+
+/**
+ * Each flag in the passes both runs read: resolved, then new, then changed, then unchanged, each
+ * rule in bold. A flag whose count changed gives both counts; one with no count, what it finds now,
+ * in plain words. None when no flag is in them.
+ */
+export function flagsLine({
+  resolved,
+  added,
+  changed,
+  unchanged,
+}: PageChange["flags"]): Line | null {
+  const which = (flag: FlagResult): Line => [
+    { text: flag.rule, bold: true },
+    ...(flag.pass === undefined ? [] : [` (${PASS_WORDS[flag.pass]} pass)`]),
+  ];
+  const clauses: Line[] = [
+    ...resolved.map((flag) => [
+      ...which(flag),
+      `, ${flag.count === undefined ? "" : `${count(flag.count)} before, `}none now (resolved).`,
+    ]),
+    ...added.map((flag) => [
+      ...which(flag),
+      `, none before, ${flag.count === undefined ? "new" : `${count(flag.count)} now (new)`}.`,
+    ]),
+    ...changed.map(({ before, after }) =>
+      before.count !== undefined && after.count !== undefined
+        ? [...which(after), `, ${count(before.count)} before, ${count(after.count)} now (changed).`]
+        : [...which(after), `, changed: now ${attentionClauses([after], null, null)}.`],
+    ),
+    ...unchanged.map((flag) => [...which(flag), ", unchanged."]),
+  ];
+  if (clauses.length === 0) return null;
+  return ["Flags: ", ...clauses.flatMap((clause, at) => (at === 0 ? clause : [" ", ...clause]))];
+}
+
+// Problems during the runs.
+
+/** Text that ends as a sentence does: voicecap's "did" lines have no full stop of their own. */
+export function sentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+/** The time of day in an ISO time, to the millisecond when it has them: "14:05:10.000". */
+export function timeOfDay(iso: string): string {
+  return /T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)/.exec(iso)?.[1] ?? iso;
+}
+
+/** Why a run's problems have no cause code to read their kind from. */
+const BEFORE_CAUSES = "this run was recorded before voicecap noted a cause for each failure";
+
+/**
+ * How the kind of a problem from an older run's wording was decided, which is not the same for
+ * every kind (src/share/problems.ts reads the wording): most are voicecap's own words; "unreachable"
+ * is Chrome's network error code; and "unexpected" is by exclusion, the wording being one voicecap
+ * doesn't recognize, which is nothing it can say of the error itself.
+ */
+export function decidedFrom(kind: ProblemKind): string {
+  switch (kind) {
+    case "unexpected":
+      return `voicecap didn't recognize this error's wording, so it counts as unexpected: ${BEFORE_CAUSES}.`;
+    case "unreachable":
+      return "From the browser's own network error code in the error's wording.";
+    default:
+      return `From the error's own wording, which voicecap wrote: ${BEFORE_CAUSES}.`;
+  }
+}
+
+/**
+ * Which problem, for the headings and the box names inside its fold, which a screen reader gets
+ * apart from the fold's line: the page's address and the run, and the attempt, or the problem's
+ * place among the page's in the run (a run recorded as text may not number them). No two have the
+ * same words: "on /about/ in run 2026-09-29_1402, attempt 2".
+ */
+export function whereOf(problem: Problem, nth: number): string {
+  const which = problem.n !== null ? `, attempt ${problem.n}` : nth > 1 ? `, problem ${nth}` : "";
+  return `on ${pagePath(problem.page.url)} in run ${problem.run}${which}`;
+}
+
+// The evidence.
+
+/**
+ * The line that opens the evidence: how many runs there are, that each completed and was sealed, and
+ * the fingerprint of the flag rules, with how many pages' flags are as their run recorded them, not
+ * the current rules'. The standing draws only on runs that completed and were sealed (and weren't
+ * replays), so each run here is both. With no run that counts, it says there is no evidence.
+ */
+export function evidenceGist(model: ShareModel): Line {
+  const runs = model.evidence.length;
+  if (runs === 0) return [{ text: NO_RUN, bold: true }, " There is no evidence to show."];
+  const each = runs === 1 ? "" : runs === 2 ? " both" : " all";
+  const recorded = model.pages.filter((card) => card.flagsAsRecorded).length;
+  const except =
+    recorded === 0
+      ? ""
+      : `, except on ${plural(recorded, "page")} marked “${PAGES_TEXT.flagsAsRecorded}”, whose transcripts couldn't all be read here: ${recorded === 1 ? "its flags are as its run" : "their flags are as their runs"} recorded them`;
+  return [
+    { text: `${plural(runs, "run")},${each} completed and sealed.`, bold: true },
+    " The flags were computed with the current flag rules, fingerprint ",
+    { text: model.flagRulesSha256, mono: true },
+    `${except}.`,
+  ];
+}
+
+/**
+ * The transcripts the check leaves out because they couldn't be read here, by page, so its "21 of
+ * 21" never reads as complete when a file is missing from it. None when every one could be read.
+ */
+export function unreadableNote({ appendix }: ShareModel): Line | null {
+  const pages = appendix.filter(({ unreadable }) => unreadable.length > 0);
+  const total = pages.reduce((sum, { unreadable }) => sum + unreadable.length, 0);
+  if (total === 0) return null;
+  const where = pages.map(
+    ({ name, unreadable }) => `${name} (${names(unreadable.map((pass) => `${pass}.txt`))})`,
+  );
+  return [
+    {
+      text: `${plural(total, "transcript")} couldn't be read, so the check leaves ${total === 1 ? "it" : "them"} out:`,
+      bold: true,
+    },
+    ` ${where.join("; ")}.`,
+  ];
+}
+
+/** When a run ran: "29 September 2026, 14:02 to 14:09", with the day again for a run that crossed one. */
+export function whenOf(run: RunJson): string {
+  const [start, end] = [runStart(run), runEnd(run)];
+  const first = `${longDate(start)}, ${clock(start)}`;
+  return longDate(end) === longDate(start)
+    ? `${first} to ${clock(end)}`
+    : `${first} to ${longDate(end)}, ${clock(end)}`;
+}
+
+// How voicecap came to be.
+
+/**
+ * Why voicecap exists (`STORY.why`) as a line, with the study it rests on linked where the text
+ * quotes it: the study's headline, quoted once, is the link.
+ */
+export function whyLine(): Line {
+  const { title, url } = STORY.deque;
+  const pieces = STORY.why.split(title);
+  const [before, after] = pieces;
+  if (pieces.length !== 2 || before === undefined || after === undefined) {
+    throw new Error("STORY.why must quote STORY.deque.title once, for the page to link it there.");
+  }
+  return [before, { text: title, href: url }, after];
+}
+
+/**
+ * A timeline entry's day (a date is read as the day it begins): with its year ("25 September 2026")
+ * for the first date and the first of a later year, and without it ("26 September") for a later
+ * date of the same year. `lastYear` is the year of the date before it, or null for the first.
+ */
+export function timelineDay(date: string, lastYear: string | null): string {
+  const day = `${date}T00:00`;
+  return date.slice(0, 4) === lastYear ? dayMonth(day) : longDate(day);
+}
+
+// The footer.
+
+/**
+ * When the page was made, with its offset from UTC, and the offsets the runs recorded their times
+ * in, since each time is shown as its run recorded it (a run recorded elsewhere keeps its own):
+ * "Generated on 30 September 2026 at 09:00 (UTC−05:00). Times are as each run recorded them
+ * (UTC−05:00)." With no run that counts there are no offsets, and the second sentence is left out.
+ */
+export function generatedLine({ generatedAt, offsets }: ShareModel["footer"]): string {
+  const generated = `Generated on ${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)}).`;
+  const times =
+    offsets.length === 0 ? "" : ` Times are as each run recorded them (${names(offsets)}).`;
+  return `${generated}${times}`;
 }

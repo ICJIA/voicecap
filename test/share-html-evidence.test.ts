@@ -253,7 +253,7 @@ describe("renderEvidence", () => {
       const html = renderEvidence(await demoModel());
 
       expect(html).toContain(
-        `<p class="fp-what"><b>What's a fingerprint?</b> A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.</p>`,
+        `<p class="fp-what"><b>What&#39;s a fingerprint?</b> A fingerprint (SHA-256) is a code computed from a file&#39;s exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn&#39;t changed since.</p>`,
       );
     });
 
@@ -364,7 +364,7 @@ describe("renderEvidence", () => {
     it("puts the parts of the check in the order a reader goes through them", async () => {
       const html = renderEvidence(await demoModel());
       const order = [
-        "What's a fingerprint?",
+        "What&#39;s a fingerprint?",
         'id="fp-run"',
         'id="fp-result"',
         'id="fp-list"',
@@ -413,11 +413,11 @@ describe("renderEvidence", () => {
       // Six transcripts are listed, and the check has the three that could be read.
       expect(model.check.files).toHaveLength(3);
       expect(html).toContain(
-        "<b>3 transcripts couldn't be read, so the check leaves them out:</b> Home (read.txt and tab.txt); About (headings.txt).",
+        "<b>3 transcripts couldn&#39;t be read, so the check leaves them out:</b> Home (read.txt and tab.txt); About (headings.txt).",
       );
       // After the result it sits beside, and before the list that appears with it.
-      expect(html.indexOf('id="fp-result"')).toBeLessThan(html.indexOf("transcripts couldn't"));
-      expect(html.indexOf("transcripts couldn't")).toBeLessThan(html.indexOf('id="fp-list"'));
+      expect(html.indexOf('id="fp-result"')).toBeLessThan(html.indexOf("transcripts couldn&#39;t"));
+      expect(html.indexOf("transcripts couldn&#39;t")).toBeLessThan(html.indexOf('id="fp-list"'));
     });
 
     it("says it of one transcript in the singular", () => {
@@ -477,7 +477,7 @@ describe("renderEvidence", () => {
           /<h3>Minute by minute <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
         );
         expect(fold).toMatch(
-          /<h3>NVDA's own log, checked against the transcripts <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
+          /<h3>NVDA&#39;s own log, checked against the transcripts <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
         );
       }
     });
