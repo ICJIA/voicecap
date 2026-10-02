@@ -8,7 +8,8 @@
  * Word copy later, so this one holds words and nothing more: the steps' icons are named here and
  * drawn by the renderer, and the only markup is the bold and code in the timeline's cells. A few
  * are functions: for a line (./line.ts) with something in bold, in code, or linked out, which holds
- * those as data, never as markup, or for a sentence with a name or a command in it.
+ * those as data, never as markup, or for a sentence with a name or a command in it. What only the
+ * Word copy says, the heads of its tables and the labels of their rows, is last, in `WORD_TEXT`.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
@@ -587,4 +588,38 @@ export const FOOTER_TEXT = {
     { text: fileName, mono: true },
     ".",
   ],
+};
+
+/**
+ * What only the Word copy says, in a group for each section: where the page draws tiles and bars,
+ * the Word copy has tables, and these are the heads of their columns and the labels of their rows.
+ * What the page says too (a panel's title, a bar's label) is in the objects above, and the Word
+ * copy says it from there, never again here.
+ */
+export const WORD_TEXT = {
+  /** The top: the words of the link to voicecap's page, whose address is `TOP_TEXT.github`. */
+  top: { madeWithLink: "voicecap" },
+  /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
+  summary: {
+    /** The heads of the table of the six numbers: the number, and what it counts. */
+    numbersHead: ["Number", "What it counts"],
+    /** A count out of its total, in that table: "7 of 7". */
+    outOf: (part: string, whole: string): string => `${part} of ${whole}`,
+    /** The heads of the table of each page's latest result. */
+    resultsHead: ["Result", "Pages", "Share"],
+    /** What a page's latest result can be, as the label of a row: the page's words, capitalized. */
+    results: {
+      done: "Without flags",
+      flagged: "With flags",
+      never: "Never transcribed",
+    } satisfies Record<keyof typeof SUMMARY_TEXT.resultWords, string>,
+    /** The heads of the table of flags by rule: the rule, how often it was raised, its share. */
+    rulesHead: ["Rule", "Times raised", "Share of all flags raised"],
+    /** The heads of the table of the human review: what, how many, out of how many, the share. */
+    reviewHead: ["What", "Count", "Out of", "Share"],
+  },
+  /** "How voicecap works": the heads of the table of its six steps. */
+  how: {
+    stepsHead: ["No.", "Step", "What it means"],
+  },
 };
