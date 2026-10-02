@@ -1,11 +1,12 @@
 /**
  * Reading the Word copy's blocks (src/share/word/blocks.ts) in a test: the tables among them, the
- * headings in order, the blocks under a heading, and the lines and the bold pieces they hold. The
- * blocks are plain data, so nothing here opens a .docx. The tests of each builder in
- * src/share/word/ share these, so each file says only what it adds.
+ * headings in order, the blocks under a heading, the lines and the bold pieces they hold, the
+ * addresses they link to, and what a part says. The blocks are plain data, so nothing here opens a
+ * .docx. The tests of each builder in src/share/word/ share these, so each file says only what it
+ * adds.
  */
-import type { Line } from "../../src/share/line.js";
-import type { Block } from "../../src/share/word/blocks.js";
+import { lineText, type Line } from "../../src/share/line.js";
+import { wordsOf, type Block, type Cell } from "../../src/share/word/blocks.js";
 
 /** A table among the blocks. */
 export type Table = Extract<Block, { kind: "table" }>;
@@ -64,6 +65,16 @@ export function boldIn(line: Line): string[] {
   return line.flatMap((piece) => (typeof piece !== "string" && piece.bold ? [piece.text] : []));
 }
 
+/** The words of each line of a table's cell: one string for each paragraph the cell has. */
+export function cellLines(cell: Cell | undefined): string[] {
+  return (cell?.lines ?? []).map(lineText);
+}
+
+/** What one part of the outline says, a line for each string `wordsOf` gives. */
+export function saysOf(blocks: Block[]): string {
+  return wordsOf(blocks).join("\n");
+}
+
 /** Every line the blocks hold, in order: a paragraph's, each list item's, and each cell's lines. */
 export function linesIn(blocks: Block[]): Line[] {
   return blocks.flatMap((block): Line[] => {
@@ -78,4 +89,13 @@ export function linesIn(blocks: Block[]): Line[] {
         return [];
     }
   });
+}
+
+/** Every address the blocks link to, in order. */
+export function hrefsOf(blocks: Block[]): string[] {
+  return linesIn(blocks).flatMap((line) =>
+    line.flatMap((piece) =>
+      typeof piece === "string" || piece.href === undefined ? [] : [piece.href],
+    ),
+  );
 }

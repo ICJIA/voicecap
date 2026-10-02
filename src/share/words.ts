@@ -71,6 +71,14 @@ export function topLead(header: ShareModel["header"]): Line {
   ];
 }
 
+/**
+ * What the document is called, in the page's tab and in the Word copy's properties: the site's
+ * name, and what the report shows. "127.0.0.1:4848: how its pages read aloud with NVDA".
+ */
+export function documentTitle({ siteName, screenReader }: ShareModel["header"]): string {
+  return `${siteName}: how its pages read aloud with ${screenReader}`;
+}
+
 // The summary.
 
 /** One of the summary's six numbers: how it's counted, and what it counts. */
@@ -260,6 +268,11 @@ export function lineCount(lines: number): string {
   return plural(lines, "line");
 }
 
+/** How many bytes a file has, as a reader says it: "2,306 bytes", "1 byte". */
+export function byteCount(bytes: number): string {
+  return plural(bytes, "byte");
+}
+
 /** A number a card gives, with its label: "Read" and "18 lines", "Time" and "55.1 s". */
 export interface Captured {
   label: string;
@@ -382,7 +395,7 @@ export function transcriptsInside(passes: PassName[]): string {
  */
 export function fileFingerprint(file: AppendixFile): Line {
   return [
-    `The whole file, its header included: ${plural(file.bytes, "byte")}, SHA-256 `,
+    `The whole file, its header included: ${byteCount(file.bytes)}, SHA-256 `,
     { text: file.sha256, mono: true },
   ];
 }
@@ -583,12 +596,21 @@ export function decidedFrom(kind: ProblemKind): string {
  */
 export function whereOf(problem: Problem, nth: number): string {
   const which = problem.n !== null ? `, attempt ${problem.n}` : nth > 1 ? `, problem ${nth}` : "";
-  return `${onPage(pagePath(problem.page.url))} in run ${problem.run}${which}`;
+  return `${onPage(pagePath(problem.page.url))} ${inRun(problem.run)}${which}`;
 }
 
 /** A run's title, where it has a line or a heading of its own: "Run 2026-09-29_1402". */
 export function runTitle(id: string): string {
   return `Run ${id}`;
+}
+
+/**
+ * Which run a part belongs to, said after the part's title, since two runs have parts with the same
+ * title: "in run 2026-09-29_1402". The page says it for a screen reader alone; the Word copy has it
+ * in view, since its headings are what a reader goes through.
+ */
+export function inRun(id: string): string {
+  return `in run ${id}`;
 }
 
 /**

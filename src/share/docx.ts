@@ -1,7 +1,8 @@
 /**
  * The Word copy as a .docx: an outline of blocks (word/blocks.ts) made into a Word document with the
- * `docx` library. This is the only file that uses the library, and it loads it when a document is
- * made, so no other command pays for loading it.
+ * `docx` library, and `renderWordCopy`, which makes the whole report's copy from its model. This is
+ * the only file that uses the library, and it loads it when a document is made, so no other command
+ * pays for loading it.
  *
  * The document is US Letter with 1-inch margins, black on white, in Word's own styles: Title, and
  * Heading 1 to Heading 3. Body text is Calibri 11 pt, a table's text 10 pt, and fixed-width text
@@ -21,7 +22,9 @@
 import type * as DocxModule from "docx";
 
 import type { Inline, Line } from "./line.js";
+import type { ShareModel } from "./model.js";
 import type { Block, Cell } from "./word/blocks.js";
+import { wordOutline, wordProperties } from "./word/outline.js";
 
 type Docx = typeof DocxModule;
 /** What a document's body, or a table's cell, holds. */
@@ -364,4 +367,12 @@ export async function docxOf(blocks: Block[], properties: WordProperties): Promi
     ],
   });
   return d.Packer.toBuffer(document);
+}
+
+/**
+ * The Word copy of the shareable report, from the model: its outline (word/outline.ts) and its
+ * properties made into a .docx. Loads `docx` when called.
+ */
+export async function renderWordCopy(model: ShareModel): Promise<Uint8Array> {
+  return docxOf(wordOutline(model), wordProperties(model));
 }

@@ -40,8 +40,10 @@ import {
   type TimelineRow,
 } from "../text.js";
 import {
+  byteCount,
   evidenceGist,
   generatedLine,
+  inRun,
   runTitle,
   timelineDay,
   unreadableNote,
@@ -147,7 +149,7 @@ function checkBox(model: ShareModel, verify: string): string {
 
 /** A part of a run's fold: its heading names the run, so a reader going by headings can tell them apart. */
 const runPart = (title: string, run: string, inside: string): string =>
-  `<div><h3>${esc(title)} <span class="sr">in run ${esc(run)}</span></h3>${inside}</div>`;
+  `<div><h3>${esc(title)} <span class="sr">${esc(inRun(run))}</span></h3>${inside}</div>`;
 
 /** The run's facts, as the model has them: a tile for each. */
 function factsOf(rows: EvidenceRow[]): string {
@@ -171,7 +173,7 @@ function fingerprintTable(files: RunEvidence["fingerprints"], run: string): stri
   if (files.length === 0) return `<p>${esc(EVIDENCE_TEXT.noFiles)}</p>`;
   const body = files.map(
     ({ page, file, bytes, sha256 }) =>
-      `<tr><td>${esc(page)}</td><td>${esc(file)}</td><td>${plural(bytes, "byte")}</td><td><code>${esc(sha256)}</code></td></tr>`,
+      `<tr><td>${esc(page)}</td><td>${esc(file)}</td><td>${byteCount(bytes)}</td><td><code>${esc(sha256)}</code></td></tr>`,
   );
   const table = `<table class="plain"><caption class="sr">Fingerprints of run ${esc(run)}</caption>${columns(EVIDENCE_TEXT.filesHead)}<tbody>${body.join("")}</tbody></table>`;
   return scroll(`Fingerprints, run ${run}, table`, table);

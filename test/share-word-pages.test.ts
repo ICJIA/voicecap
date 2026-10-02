@@ -35,6 +35,7 @@ import {
 } from "./helpers/share-model.js";
 import {
   boldIn,
+  cellLines,
   linesIn,
   outlineOf,
   tableAt,
@@ -118,11 +119,6 @@ const NO_STOPS_FLAG: FlagResult = {
 /** The three builders' blocks, in the order the Word copy has them. */
 function threeSections(model: ShareModel): Block[] {
   return [...wordPages(model), ...wordFlags(model), ...wordAppendix(model)];
-}
-
-/** The words of each line of a table's cell: one string for each paragraph the cell has. */
-function cellLines(cell: Cell | undefined): string[] {
-  return (cell?.lines ?? []).map(lineText);
 }
 
 /** The row of a table at a place, counting from 0. */

@@ -32,7 +32,7 @@ import {
   sentence,
   whereOf,
 } from "../src/share/words.js";
-import { heading, para, wordsOf, type Block, type Cell } from "../src/share/word/blocks.js";
+import { heading, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordChanges } from "../src/share/word/changes.js";
 import { wordProblems } from "../src/share/word/problems.js";
 import {
@@ -51,7 +51,16 @@ import {
   textOf,
 } from "./helpers/share-html.js";
 import { demoModel, inputOf, storeOf, TRANSCRIPTS, type Lines } from "./helpers/share-model.js";
-import { boldIn, linesIn, outlineOf, partsAt, tableAt, tablesIn } from "./helpers/word.js";
+import {
+  boldIn,
+  cellLines,
+  hrefsOf,
+  outlineOf,
+  partsAt,
+  saysOf,
+  tableAt,
+  tablesIn,
+} from "./helpers/word.js";
 
 // The models of the changes.
 
@@ -228,25 +237,6 @@ function changesOf(model: ShareModel): NonNullable<ShareModel["changes"]> {
 /** The lines of the first changes table's second column, as pieces of words. */
 function diffRows(blocks: Block[]): Line[] {
   return tableAt(blocks, 0).rows.map((row) => row[1]?.lines[0] ?? []);
-}
-
-/** The words of each line of a table's cell: one string for each paragraph the cell has. */
-function cellLines(cell: Cell | undefined): string[] {
-  return (cell?.lines ?? []).map(lineText);
-}
-
-/** What one part of the outline says, a line for each string `wordsOf` gives. */
-function saysOf(blocks: Block[]): string {
-  return wordsOf(blocks).join("\n");
-}
-
-/** Every address the blocks link to, in order. */
-function hrefsOf(blocks: Block[]): string[] {
-  return linesIn(blocks).flatMap((line) =>
-    line.flatMap((piece) =>
-      typeof piece === "string" || piece.href === undefined ? [] : [piece.href],
-    ),
-  );
 }
 
 // The models of the problems.

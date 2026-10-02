@@ -33,7 +33,7 @@ import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { demoModel, inputOf } from "./helpers/share-model.js";
-import { boldIn, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
+import { boldIn, hrefsOf, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
 
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
@@ -59,15 +59,6 @@ function withSummary(model: ShareModel, parts: Partial<Summary>): ShareModel {
 /** The model with some of the summary's six numbers changed. */
 function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): ShareModel {
   return withSummary(model, { numbers: { ...model.summary.numbers, ...numbers } });
-}
-
-/** Every address the blocks link to, in order. */
-function hrefsOf(blocks: Block[]): string[] {
-  return linesIn(blocks).flatMap((line) =>
-    line.flatMap((piece) =>
-      typeof piece === "string" || piece.href === undefined ? [] : [piece.href],
-    ),
-  );
 }
 
 /** The three builders' blocks, in the order the Word copy has them. */

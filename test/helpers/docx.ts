@@ -152,6 +152,22 @@ export function tablesOf(documentXml: string): { header: boolean; rows: string[]
     });
 }
 
+/**
+ * A property of the document, by its tag in the core properties' XML (`dc:title`, `dc:creator`): its
+ * words, with the XML's escapes read back, so a name with `&` or `'` in it compares as it is.
+ */
+export function propertyOf(core: string, tag: string): string {
+  const [found] = descendants(parse(core), tag);
+  return found?.children.map((child) => child.text).join("") ?? "";
+}
+
+/** The words of each run of the footer's text, in order: its own words, and then what follows them. */
+export function footerWords(footer: string): string[] {
+  return descendants(parse(footer), "w:t").map((run) =>
+    run.children.map((child) => child.text).join(""),
+  );
+}
+
 /** Each address the document links out to, once, in order. */
 export function linksOf(parts: DocxParts): string[] {
   const addresses = new Map<string, string>();

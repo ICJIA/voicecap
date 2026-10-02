@@ -9,8 +9,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { AttemptRecord, FlagResult, PassName, RunJson } from "../src/model.js";
+import { esc } from "../src/report/html.js";
 import type { Changes, OnlyInOnePage, PageChange, PassChange } from "../src/share/changes.js";
 import { renderChanges } from "../src/share/html/changes.js";
+import { renderSharePage } from "../src/share/html/document.js";
 import {
   renderCoverage,
   renderEvidence,
@@ -47,11 +49,13 @@ import {
 } from "../src/share/text.js";
 import {
   appendixGist,
+  byteCount,
   capturedOf,
   changedRules,
   changesGist,
   countsOf,
   decidedFrom,
+  documentTitle,
   evidenceGist,
   fileFingerprint,
   flagCount,
@@ -61,6 +65,7 @@ import {
   generatedLine,
   heardTitle,
   howLead,
+  inRun,
   kindMeaning,
   kindTitle,
   lineCount,
@@ -1531,6 +1536,53 @@ describe("the lines of the evidence, the story, and the footer", () => {
     expect(runTitle("2026-09-29_1402")).toBe("Run 2026-09-29_1402");
   });
 
+  it("says which run a part is of, after the part's title", async () => {
+    const model = await demoModel();
+    const html = renderEvidence(model);
+    const problem = (await demoModel()).problems.problems[0];
+
+    expect(inRun("2026-09-29_1402")).toBe("in run 2026-09-29_1402");
+    // The page says it after each of a run's four parts' titles, for a screen reader.
+    for (const { run } of model.evidence) {
+      expect(html.match(new RegExp(`<span class="sr">${inRun(run.id)}</span>`, "g"))).toHaveLength(
+        4,
+      );
+    }
+    // And a problem's heading names its run the same way.
+    expect(problem === undefined ? "" : whereOf(problem, 1)).toContain(inRun(problem?.run ?? ""));
+  });
+
+  it("says how many bytes a file has, as a reader says it", async () => {
+    const model = await demoModel();
+
+    expect(byteCount(1)).toBe("1 byte");
+    expect(byteCount(0)).toBe("0 bytes");
+    expect(byteCount(2306)).toBe("2,306 bytes");
+    // The page's table of a run's files, and the line under each transcript, say it so.
+    expect(renderEvidence(model)).toContain("<td>2,306 bytes</td>");
+    expect(renderAppendix(model)).toContain(
+      "The whole file, its header included: 2,306 bytes, SHA-256",
+    );
+    const [file] = model.appendix.flatMap(({ files }) => files);
+    expect(lineText(fileFingerprint(file!))).toContain(byteCount(file!.bytes));
+  });
+
+  it("titles the document by the site's name and what the report shows, as the page's tab and the Word copy's properties do", async () => {
+    const model = await demoModel();
+    const page = renderSharePage(model, { fontCss: "" });
+
+    expect(documentTitle(model.header)).toBe("127.0.0.1:4848: how its pages read aloud with NVDA");
+    expect(documentTitle({ ...model.header, siteName: "Grants", screenReader: "VoiceOver" })).toBe(
+      "Grants: how its pages read aloud with VoiceOver",
+    );
+    expect(page).toContain(`<title>${esc(documentTitle(model.header))}</title>`);
+    // Escaped as one sentence, so a name with markup in it is words in the tab.
+    const hostile = { ...model.header, siteName: '<Agency> & "Co"', screenReader: "<b>x</b>" };
+    expect(renderSharePage({ ...model, header: hostile }, { fontCss: "" })).toContain(
+      "<title>&lt;Agency&gt; &amp; &quot;Co&quot;: how its pages read aloud with &lt;b&gt;x&lt;/b&gt;</title>",
+    );
+  });
+
   it("is what each run's fold says: its title, and that it completed and was sealed", async () => {
     const model = await demoModel();
     const html = renderEvidence(model);
@@ -1714,6 +1766,67 @@ describe("the section words in text.ts", () => {
     expect(KIND_ROWS).toHaveLength(9);
     // The page sets a problem's questions as a list; the Word copy sets them as a table.
     expect(WORD_TEXT.problems.questionsHead).toEqual(["Question", "Answer"]);
+  });
+
+  it("say what a reader can check in place of the page's check, as lines with the commands in the fixed-width font", () => {
+    const verify = "npx @icjia/voicecap verify --site http://127.0.0.1:4848";
+    const { evidence } = WORD_TEXT;
+
+    expect(evidence.checks).toBe(
+      "A Word document can't check itself. Two checks show whether anything has changed:",
+    );
+    expect(evidence.compare()).toEqual([
+      "Compare this file's own fingerprint with the one its sender recorded. ",
+      { text: "voicecap share", mono: true },
+      " prints it, ready for the email that sends the file. ",
+      { text: "Get-FileHash <file>", mono: true },
+      " in PowerShell, or ",
+      { text: "shasum -a 256 <file>", mono: true },
+      " on a Mac, shows it for the file you received.",
+    ]);
+    expect(evidence.verify(verify)).toEqual([
+      "Run ",
+      { text: verify, mono: true },
+      " on the transcripts folder. It checks every recorded file against its fingerprint, and every sealed record against its seal.",
+    ]);
+    expect(evidence.webPage("current.html")).toEqual([
+      "This report's web page, ",
+      { text: "current.html", mono: true },
+      ", can also check the transcripts it shows against their fingerprints, in any browser, offline.",
+    ]);
+  });
+
+  it("name the same three commands as the page's line on what its check proves", () => {
+    const commands = (line: Line) =>
+      line.flatMap((piece) => (typeof piece !== "string" && piece.mono ? [piece.text] : []));
+
+    expect(commands(WORD_TEXT.evidence.compare())).toEqual(
+      commands(EVIDENCE_TEXT.proves("verify")).slice(0, 3),
+    );
+    expect(commands(WORD_TEXT.evidence.compare())).toEqual([
+      "voicecap share",
+      "Get-FileHash <file>",
+      "shasum -a 256 <file>",
+    ]);
+  });
+
+  it("say what a run is, as a sentence, in the page's words for it: completed and sealed, with a capital", () => {
+    expect(WORD_TEXT.evidence.status).toBe("Completed and sealed.");
+    expect(WORD_TEXT.evidence.status.toLowerCase()).toBe(
+      `${EVIDENCE_TEXT.completed} and ${EVIDENCE_TEXT.sealed}.`,
+    );
+  });
+
+  it("head the Word copy's timeline with the page's own word for when, and what happened", () => {
+    expect(WORD_TEXT.story.head).toEqual(["When", "What happened"]);
+    expect(WORD_TEXT.story.head[0]).toBe(STORY_TEXT.timeline.when);
+  });
+
+  it("say what the Word copy's own pages say: the author when no one prepared it, and what each page's footer starts with", () => {
+    expect(WORD_TEXT.document.author).toBe("voicecap");
+    expect(WORD_TEXT.document.footer("Grants", "30 September 2026")).toBe(
+      "Grants, as of 30 September 2026",
+    );
   });
 
   it("are the headings and fold lines the page draws for its second half", async () => {

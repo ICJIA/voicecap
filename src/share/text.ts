@@ -341,6 +341,14 @@ export const COVERAGE_TEXT = {
 };
 
 /**
+ * The commands that show a file's own fingerprint, which both copies name: the sender's `voicecap
+ * share` prints it, and whoever receives the file computes it with PowerShell's or the Mac's.
+ */
+const SHARE_COMMAND = "voicecap share";
+const POWERSHELL_HASH = "Get-FileHash <file>";
+const MAC_HASH = "shasum -a 256 <file>";
+
+/**
  * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
  * what a run's line says it is, the titles of a run's parts, the heads of its tables, and the runs
  * left out.
@@ -358,11 +366,11 @@ export const EVIDENCE_TEXT = {
   proves: (verify: string): Line => [
     { text: "What the check proves:", bold: true },
     " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
-    { text: "voicecap share", mono: true },
+    { text: SHARE_COMMAND, mono: true },
     " prints it, ready for the email that sends the file, and ",
-    { text: "Get-FileHash <file>", mono: true },
+    { text: POWERSHELL_HASH, mono: true },
     " in PowerShell, or ",
-    { text: "shasum -a 256 <file>", mono: true },
+    { text: MAC_HASH, mono: true },
     " on a Mac, shows it for the file you received. Or run ",
     { text: verify, mono: true },
     " on the transcripts folder.",
@@ -637,7 +645,8 @@ export const FOOTER_TEXT = {
  * The Word copy's own words, in a group for each section: where the page draws tiles and bars, the
  * Word copy has tables, and these are the heads of their columns and the labels of their rows. A
  * few say a word of the page's in the Word copy's form ("Without flags", for the page's "without
- * flags"); the rest are the Word copy's alone.
+ * flags"); the rest are the Word copy's alone, such as what it says in place of the page's
+ * fingerprint check, which a Word document has none of.
  */
 export const WORD_TEXT = {
   /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
@@ -684,5 +693,55 @@ export const WORD_TEXT = {
   problems: {
     /** The heads of the table of a problem's questions and answers. */
     questionsHead: ["Question", "Answer"],
+  },
+  /**
+   * "The evidence behind these results": the Word copy has no fingerprint check of its own, so it
+   * leaves out the page's (its buttons, its result, its list of every file checked, and what it
+   * can prove), and says instead what a reader can check, and that the web page can check the
+   * transcripts it shows.
+   */
+  evidence: {
+    /** What a run's line says it is, as a sentence: the page's chips, "completed" and "sealed". */
+    status: "Completed and sealed.",
+    /** Before the two checks a reader can make. */
+    checks: "A Word document can't check itself. Two checks show whether anything has changed:",
+    /** The first check: this file's own fingerprint against the one its sender recorded. */
+    compare: (): Line => [
+      "Compare this file's own fingerprint with the one its sender recorded. ",
+      { text: SHARE_COMMAND, mono: true },
+      " prints it, ready for the email that sends the file. ",
+      { text: POWERSHELL_HASH, mono: true },
+      " in PowerShell, or ",
+      { text: MAC_HASH, mono: true },
+      " on a Mac, shows it for the file you received.",
+    ],
+    /** The second check: the command that checks the originals, run on the transcripts folder. */
+    verify: (command: string): Line => [
+      "Run ",
+      { text: command, mono: true },
+      " on the transcripts folder. It checks every recorded file against its fingerprint, and every sealed record against its seal.",
+    ],
+    /** That the report's web page can check the transcripts it shows, named by its file's name. */
+    webPage: (fileName: string): Line => [
+      "This report's web page, ",
+      { text: fileName, mono: true },
+      ", can also check the transcripts it shows against their fingerprints, in any browser, offline.",
+    ],
+  },
+  /**
+   * "How voicecap came to be": the heads of the timeline's table, which has two columns where the
+   * page's has three: the page's own word for when, and what happened. A track's label is the page's
+   * own head for it (`STORY_TEXT.timeline`).
+   */
+  story: {
+    head: [STORY_TEXT.timeline.when, "What happened"],
+  },
+  /**
+   * The document itself: its author, when the records name no one who prepared it, and what each
+   * page's footer says before its page number ("Grants, as of 30 September 2026").
+   */
+  document: {
+    author: "voicecap",
+    footer: (siteName: string, asOf: string): string => `${siteName}, as of ${asOf}`,
   },
 };

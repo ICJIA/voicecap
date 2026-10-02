@@ -11,6 +11,7 @@
 import { esc } from "../../report/html.js";
 import { CHECK_SCRIPT } from "../check.js";
 import type { ShareModel } from "../model.js";
+import { documentTitle } from "../words.js";
 import { renderChanges } from "./changes.js";
 import { SHARE_SCRIPT } from "./client.js";
 import { renderCoverage, renderEvidence, renderFooter, renderStory } from "./evidence.js";
@@ -38,14 +39,13 @@ const SECTIONS = [
  * ../fonts.ts), which the page's style block holds ahead of its own styles. Pure.
  */
 export function renderSharePage(model: ShareModel, assets: { fontCss: string }): string {
-  const { siteName, screenReader } = model.header;
   return [
     "<!doctype html>",
     '<html lang="en">',
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${esc(siteName)}: how its pages read aloud with ${esc(screenReader)}</title>`,
+    `<title>${esc(documentTitle(model.header))}</title>`,
     `<style>\n${assets.fontCss}\n${SHARE_CSS}</style>`,
     "</head>",
     "<body>",
