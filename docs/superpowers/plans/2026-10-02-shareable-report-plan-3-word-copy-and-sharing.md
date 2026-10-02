@@ -32,6 +32,7 @@ The spec is binding except where the owner has since decided otherwise:
 - **"Heard", not "listened"** (2026-10-02). During a run NVDA speaks too fast to follow, so the person running voicecap hears it at work and reads the transcripts. Every sentence either copy says uses the words 0.6.0 shipped: "heard NVDA speaking", "Heard live by <name>", "Whether NVDA was heard". Where the spec says "listened" or "the listener's statement", this plan follows the code. The phrases "listen-through" and "worth a closer listen" stay.
 - **Never say how voicecap started by naming a library** (2026-10-02). Managers and auditors read both copies. Neither names Guidepup in "How voicecap came to be".
 - **0.6.0 is released** (2026-10-02) with plans 1 and 2. This plan's CHANGELOG entries go under `[Unreleased]`.
+- **The story opens with why voicecap was needed** (2026-10-02), on the page and in the Word copy: more than a dozen websites, a methodical pass with a real screen reader beside the automated checkers, and "the April 2027 ADA Title II deadline for accessible digital content", as the owner names it. Neither copy names a library there. The README's Credits tells the same story, and says Guidepup was the starting point (Tasks 3 and 13).
 
 ## Decisions this plan makes beyond the spec
 
@@ -307,10 +308,10 @@ git commit -m "Keep the words of the page's second half in one place, for both c
 
 ### Task 3: What the page now says of its Word copy and of sharing
 
-Three sentences of the page change, on purpose.
+Three sentences of the page change, on purpose, and its story gains an opening paragraph.
 
 **Files:**
-- Modify: `src/share/model.ts`, `src/share/load.ts`, `src/share/text.ts`, `src/share/html/evidence.ts`, `test/helpers/share-model.ts`
+- Modify: `src/share/model.ts`, `src/share/load.ts`, `src/share/text.ts`, `src/share/html/evidence.ts`, `test/helpers/share-model.ts`; `src/share/html/style.ts` only if the story's new paragraph needs a rule
 - Test: `test/share-html-evidence.test.ts`, `test/share-model.test.ts`, `test/share-text.test.ts`
 
 **Interfaces:**
@@ -318,7 +319,7 @@ Three sentences of the page change, on purpose.
   - `ShareInput.wordName: string` and `ShareModel["footer"].wordName: string`, the Word copy's file name. `loadShareInput` takes `wordName?: string`, default `"current.docx"`, beside `fileName?: string`, default `"current.html"`. `inputOf` (the test helper) defaults it the same way.
   - `FOOTER_TEXT.page(fileName, wordName)` gives `This file: current.html. Its Word copy: current.docx.` and `FOOTER_TEXT.word(fileName, wordName)` gives `This file: current.docx. Its web page: current.html.`
 
-**The three sentences:**
+**The four changes:**
 
 1. **The footer** names both files. Each name is in the fixed-width font: `This file: <span class="mono">current.html</span>. Its Word copy: <span class="mono">current.docx</span>.`
 2. **What the check proves** (`EVIDENCE_TEXT`) says where the sender's fingerprint comes from:
@@ -329,15 +330,34 @@ Three sentences of the page change, on purpose.
 
    > voicecap checks the design of this report's web page with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.
 
-- [ ] **Step 1: Write the failing tests.** Change the expected footer, check sentence, and card 5 in the three test files to the text above, and add to `test/share-model.test.ts`:
+4. **The story opens with why voicecap was needed** (`STORY.began`, new; the owner approved it on 2026-10-02). On the page it's the first paragraph of "How voicecap came to be", open, before the paragraph that cites the study:
+
+   > voicecap began at the Illinois Criminal Justice Information Authority (ICJIA) with a practical need: more than a dozen websites to review before the April 2027 ADA Title II deadline for accessible digital content. Automated checkers such as axe, Lighthouse, and Pa11y were one half of that review. The other half was to go through every site methodically with a real screen reader, NVDA or VoiceOver, and keep a transcript of what it said.
+
+- [ ] **Step 1: Write the failing tests.** Change the expected footer, check sentence, and card 5 in the three test files to the text above, and add:
 
 ```ts
+// test/share-model.test.ts
 expect(buildShareModel(inputOf([run], { fileName: "x_2026-09-30.html", wordName: "x_2026-09-30.docx" })).footer)
   .toMatchObject({ fileName: "x_2026-09-30.html", wordName: "x_2026-09-30.docx" });
+
+// test/share-html-evidence.test.ts: the story's first two paragraphs, in order.
+const story = renderStory(model);
+expect(story.indexOf(esc(STORY.began))).toBeGreaterThan(story.indexOf('id="story-h"'));
+expect(story.indexOf(esc(STORY.began))).toBeLessThan(story.indexOf(esc(STORY.deque.title)));
+
+// test/share-text.test.ts: the owner's rule, over every string the module exports.
+it("never names a library as how voicecap began", () => {
+  expect(everyString().join("\n")).not.toMatch(/guidepup/i);
+});
+it("opens the story with why voicecap was needed, naming the deadline as the owner does", () => {
+  expect(STORY.began).toContain("more than a dozen websites");
+  expect(STORY.began).toContain("the April 2027 ADA Title II deadline for accessible digital content");
+});
 ```
 
-- [ ] **Step 2: Run them, and see them fail.** Run: `pnpm exec vitest run test/share-html-evidence.test.ts test/share-model.test.ts test/share-text.test.ts`. Expected: FAIL on the old sentences, and on `wordName`.
-- [ ] **Step 3: Make the changes** in the model, the loader, `text.ts`, and `renderFooter`.
+- [ ] **Step 2: Run them, and see them fail.** Run: `pnpm exec vitest run test/share-html-evidence.test.ts test/share-model.test.ts test/share-text.test.ts`. Expected: FAIL on the old sentences, on `wordName`, and on `STORY.began`.
+- [ ] **Step 3: Make the changes** in the model, the loader, `text.ts`, `renderFooter`, and `renderStory`.
 - [ ] **Step 4: Run `pnpm test`.** Expected: PASS, the page's axe and browser tests included.
 - [ ] **Step 5: Commit**
 
@@ -737,7 +757,7 @@ git commit -m "Add the Word copy's changes and problems"
     - "This report's web page, <fileName>, can also check the transcripts it shows against their fingerprints, in any browser, offline."
   - for each run, the latest first: "Run 2026-09-29_1402" (heading 2); "<whenOf>. Completed and sealed."; its facts as a table of "What" and "What the run recorded"; then, each under a heading 3 that names the run, "Minute by minute" and "NVDA's own log, checked against the transcripts" with their "Not recorded" lines, "Test environment" as a table, and "Fingerprints (SHA-256)" as a table of "Page", "File", "Size", "SHA-256" (the fingerprint fixed-width), or the line that says the record lists no files; then the sentence before the verify command, and the command as a fixed-width block;
   - "Runs left out" (heading 2), its sentence, and the list, when there are any.
-- **How voicecap came to be** (heading 1): why it exists, the study's headline a link; the usual answer; voicecap's answer; the timeline's caption; the timeline as a table of "When" and "What happened", a row for each entry: its day (`timelineDay`; "Next" for what isn't done), and its words, "**Windows PC:** …" and "**Mac:** …" for an entry with tracks, and the words alone for one across both; then "A few things worth knowing" (heading 2), and the six cards as a list, each title in bold.
+- **How voicecap came to be** (heading 1): how it began (`STORY.began`); why it exists, the study's headline a link; the usual answer; voicecap's answer; the timeline's caption; the timeline as a table of "When" and "What happened", a row for each entry: its day (`timelineDay`; "Next" for what isn't done), and its words, "**Windows PC:** …" and "**Mac:** …" for an entry with tracks, and the words alone for one across both; then "A few things worth knowing" (heading 2), and the six cards as a list, each title in bold.
 - **The footer:** `ABOUT`, with the address a link; `generatedLine`; and `FOOTER_TEXT.word(fileName, wordName)`.
 - **The properties:** the title is "<site name>: how its pages read aloud with <screen reader>", as the page's is; the author is who prepared it, or "voicecap"; each page's footer starts "<site name>, as of <date>".
 
@@ -764,7 +784,7 @@ it("says every word of the fixed text", () => {
   const fixed = [
     HOW_LEAD, ...HOW_STEPS.flatMap((step) => [step.title, step.text]),
     WHEN_TO_RUN.headline, WHEN_TO_RUN.text, ...WHEN_TO_RUN.stages.flatMap((stage) => [stage.title, stage.text]),
-    STORY.why, STORY.usual, STORY.answer, ...WORTH_KNOWING.flatMap((card) => [card.title, card.text]), ABOUT,
+    STORY.began, STORY.why, STORY.usual, STORY.answer, ...WORTH_KNOWING.flatMap((card) => [card.title, card.text]), ABOUT,
     ...TIMELINE.flatMap((row) => [row.pc, row.mac, row.both]).flatMap((cell) => (cell === null ? [] : [lineText(lineOfMarkup(cell))])),
   ];
   for (const words of fixed) expect(text).toContain(words);
@@ -1203,7 +1223,12 @@ git commit -m "Have verify check shares.json, and every copy it records"
   - "The audit record": `verify` checks `shares.json` and each copy it records, and names a copy nothing records; the summary line's new form.
   - "Programmatic API": `shareReport`, and that `generateReport`, `addReview`, and `addManualSession` now write `current.docx` too.
   - Wherever it says what `voicecap report` prints: the `Word copy:` line.
-- **`CHANGELOG.md`, `[Unreleased]`, "Added":** the Word copy; `voicecap share` and `shares.json`; `verify`'s checks; `shareReport`. "Changed": the page's footer names its Word copy; "What the check proves" says where the sender's fingerprint comes from; `verify`'s summary line counts shares; `docx` is a new dependency.
+  - "The shareable page", where it says what the story has: that it opens with why voicecap was needed.
+  - "Credits": its first paragraph becomes the origin story, with Guidepup as the starting point, as the owner asked on 2026-10-02. The list under it ("voicecap also stands on") stays as it is:
+
+    > **A hat tip to [Guidepup](https://www.guidepup.dev/), the starting point for voicecap.** voicecap came from a need at ICJIA: more than a dozen websites to go through methodically with a real screen reader, NVDA or VoiceOver, keeping a transcript of each, to round out an accessibility review beside axe, Lighthouse, and Pa11y before the April 2027 ADA Title II deadline for accessible digital content. Guidepup is what made that possible, and where the work started. It's Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap has grown a long way from that start, with its page lists, sealed audit record, reviews, reports, and shareable page. It still starts the screen reader, presses its keys, and reads back what it said, all through Guidepup, and the NVDA it runs is Guidepup's portable build.
+- **`CHANGELOG.md`, `[Unreleased]`, "Added":** the Word copy; `voicecap share` and `shares.json`; `verify`'s checks; `shareReport`. "Changed": the page's story opens with why voicecap was needed; the README's Credits tells that story, with Guidepup as the starting point; the page's footer names its Word copy;
+ "What the check proves" says where the sender's fingerprint comes from; `verify`'s summary line counts shares; `docx` is a new dependency.
 - **The timeline** (`TIMELINE`), for the owner's review:
   - a new row dated the day this is written, `release: null`, across both tracks: `The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.`
   - the "Next" row's Windows PC cell becomes: `A walkthrough file that repeats a run exactly, and a website of the shared reports.`
