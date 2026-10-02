@@ -38,6 +38,27 @@ export function under(blocks: Block[], words: string): Block[] {
   return end === -1 ? rest : rest.slice(0, end);
 }
 
+/**
+ * The blocks split at each heading of a level, one part for each: the heading, and what follows it
+ * up to the next heading of its level or a higher one, so a heading 2's own heading 3s are inside
+ * its part. Blocks before the first heading of the level are in no part. It tells each page, or
+ * each problem, apart from the next, which a search for one's words in the whole outline can't:
+ * another's identical words would stand in for them.
+ */
+export function partsAt(blocks: Block[], level: 1 | 2 | 3): Block[][] {
+  const parts: Block[][] = [];
+  let current: Block[] | null = null;
+  for (const block of blocks) {
+    if (block.kind === "heading" && block.level <= level) {
+      current = block.level === level ? [block] : null;
+      if (current !== null) parts.push(current);
+    } else {
+      current?.push(block);
+    }
+  }
+  return parts;
+}
+
 /** The pieces of a line that are in bold, as their words. */
 export function boldIn(line: Line): string[] {
   return line.flatMap((piece) => (typeof piece !== "string" && piece.bold ? [piece.text] : []));

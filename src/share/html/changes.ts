@@ -24,6 +24,7 @@ import {
   countsOf,
   flagsLine,
   onlyInOneLead,
+  onPage,
   passHeading,
   sameLines,
   sizesOf,
@@ -126,7 +127,7 @@ function rowOf(line: DiffLine): string {
 function passBlock({ pass, removed, added, lines }: PassChange, address: string): string {
   const word = PASS_WORDS[pass];
   const caption = `Changes in the ${word} pass on ${address}`;
-  const head = `<h3 class="logh">${esc(passHeading(pass))} <span class="sr">on ${esc(address)}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
+  const head = `<h3 class="logh">${esc(passHeading(pass))} <span class="sr">${esc(onPage(address))}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
   const columns = CHANGES_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="difftable"><caption class="sr">${esc(caption)}</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${lines.map(rowOf).join("")}</tbody></table>`;
   return `<div>${head}${scroll(`${caption}, table`, table)}</div>`;

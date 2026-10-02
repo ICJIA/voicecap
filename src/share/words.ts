@@ -30,14 +30,16 @@ import {
 } from "./format.js";
 import type { Line } from "./line.js";
 import type { AppendixFile, PageCard, ShareModel } from "./model.js";
-import type { Problem, ProblemKind } from "./problems.js";
+import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
 import type { Summary } from "./summary.js";
 import {
   HOW_LEAD,
   HOW_TEXT,
+  ISSUES_URL,
   PAGES_TEXT,
   PASS_WORDS,
+  PROBLEMS_TEXT,
   STORY,
   SUMMARY_TEXT,
   TOP_TEXT,
@@ -403,6 +405,16 @@ export function passHeading(pass: PassName): string {
   return `The ${PASS_WORDS[pass]} pass`;
 }
 
+/**
+ * Where on a page something is, as a heading says it: "on /about/". A pass's heading says it after
+ * the pass's name, and `whereOf` says it first for a problem. The page says it for a screen reader
+ * alone, since the page's name is on the line above; the Word copy has it in view, since its
+ * headings are what a reader goes through.
+ */
+export function onPage(path: string): string {
+  return `on ${path}`;
+}
+
 /** A run of lines the same, which a pass's table counts and doesn't show: "12 lines the same". */
 export function sameLines(lines: number): string {
   return `${plural(lines, "line")} the same`;
@@ -535,6 +547,14 @@ export function timeOfDay(iso: string): string {
   return /T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)/.exec(iso)?.[1] ?? iso;
 }
 
+/**
+ * The time of a line of a problem's record: its time of day, to the millisecond when it has them
+ * ("14:05:10.000"), or the words that say the run kept none, never a blank.
+ */
+export function recordTime(time: string | null): string {
+  return time === null ? PROBLEMS_TEXT.record.noTime : timeOfDay(time);
+}
+
 /** Why a run's problems have no cause code to read their kind from. */
 const BEFORE_CAUSES = "this run was recorded before voicecap noted a cause for each failure";
 
@@ -563,7 +583,7 @@ export function decidedFrom(kind: ProblemKind): string {
  */
 export function whereOf(problem: Problem, nth: number): string {
   const which = problem.n !== null ? `, attempt ${problem.n}` : nth > 1 ? `, problem ${nth}` : "";
-  return `on ${pagePath(problem.page.url)} in run ${problem.run}${which}`;
+  return `${onPage(pagePath(problem.page.url))} in run ${problem.run}${which}`;
 }
 
 /** A run's title, where it has a line or a heading of its own: "Run 2026-09-29_1402". */
@@ -577,6 +597,39 @@ export function runTitle(id: string): string {
  */
 export function problemTitle(problem: Problem): string {
   return `${runTitle(problem.run)} · ${pageTitle(problem.page)}`;
+}
+
+/**
+ * When a problem happened, for its line: the time of day its attempt failed, else when it began, on
+ * a 24-hour clock ("14:05"); or the words that say the run kept none (a run recorded as text has no
+ * times).
+ */
+export function problemTime({ endedAt, startedAt }: Problem): string {
+  const when = endedAt ?? startedAt;
+  return when === null ? PROBLEMS_TEXT.noTime : clock(when);
+}
+
+/**
+ * What a kind of problem is called: the table of kinds' own words, "Another window came to the
+ * front".
+ */
+export function kindTitle(kind: ProblemKind): string {
+  return KIND_ROWS.find((row) => row.kind === kind)?.title ?? kind;
+}
+
+/**
+ * What voicecap does about a kind of problem, and what it means, as a line. Where the words give the
+ * address at which an error voicecap didn't expect is reported, the address is a link.
+ */
+export function kindMeaning(meaning: string): Line {
+  const address = PROBLEMS_TEXT.issues;
+  const at = meaning.indexOf(address);
+  if (at < 0) return [meaning];
+  return [
+    meaning.slice(0, at),
+    { text: address, href: ISSUES_URL },
+    meaning.slice(at + address.length),
+  ];
 }
 
 // The evidence.

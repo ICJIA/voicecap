@@ -43,6 +43,7 @@ import {
   SUMMARY_TEXT,
   TIMELINE,
   TOP_TEXT,
+  WORD_TEXT,
 } from "../src/share/text.js";
 import {
   appendixGist,
@@ -60,15 +61,20 @@ import {
   generatedLine,
   heardTitle,
   howLead,
+  kindMeaning,
+  kindTitle,
   lineCount,
   manualLine,
   notRecordedLine,
   numbersOf,
   onlyInOneLead,
+  onPage,
   originOf,
   pagesGist,
   passHeading,
+  problemTime,
   problemTitle,
+  recordTime,
   resultsCaption,
   runTitle,
   sameLines,
@@ -1093,6 +1099,11 @@ describe("the lines of what changed since the last run", () => {
     expect(passHeading("tab")).toBe("The Tab pass");
   });
 
+  it("says where a page is, in a pass's heading and a problem's, as 'on' and the page's path", () => {
+    expect(onPage("/a/")).toBe("on /a/");
+    expect(onPage("/grants/?page=2")).toBe("on /grants/?page=2");
+  });
+
   it("is what the page says of a run of lines the same, and of each pass's heading", () => {
     const lines = (change: string) => [
       "first",
@@ -1193,6 +1204,85 @@ describe("the lines of the problems during the runs", () => {
     expect(whereOf(problem, 2)).toBe("on /grants/ in run r1, attempt 1");
     expect(whereOf({ ...problem, n: null }, 1)).toBe("on /grants/ in run r1");
     expect(whereOf({ ...problem, n: null }, 2)).toBe("on /grants/ in run r1, problem 2");
+  });
+
+  it("says where a problem was with the words a pass's heading says its page by", () => {
+    expect(whereOf(onlyProblem(), 1)).toBe(`${onPage("/grants/")} in run r1, attempt 1`);
+  });
+
+  it("gives the time a problem happened: when its attempt failed, else when it began, or that the run kept none", () => {
+    const problem = onlyProblem();
+    const at = (startedAt: string | null, endedAt: string | null) =>
+      problemTime({ ...problem, startedAt, endedAt });
+
+    expect(problem.startedAt).toBe("2026-09-26T14:05:00.000-05:00");
+    expect(problem.endedAt).toBe("2026-09-26T14:05:10.000-05:00");
+    expect(problemTime(problem)).toBe("14:05");
+    // The time it failed, not when it began.
+    expect(at("2026-09-26T14:05:50.000-05:00", "2026-09-26T14:06:20.000-05:00")).toBe("14:06");
+    // Else when it began; else the words that say the run kept none.
+    expect(at("2026-09-26T14:05:50.000-05:00", null)).toBe("14:05");
+    expect(at(null, null)).toBe("time not recorded");
+    expect(at(null, null)).toBe(PROBLEMS_TEXT.noTime);
+  });
+
+  it("gives the time of a line of a problem's record, to the millisecond when it has them, or says the run kept none", () => {
+    expect(recordTime("2026-09-26T14:05:10.000-05:00")).toBe("14:05:10.000");
+    expect(recordTime("2026-09-26T14:05:10-05:00")).toBe("14:05:10");
+    expect(recordTime(null)).toBe("Not recorded");
+    expect(recordTime(null)).toBe(PROBLEMS_TEXT.record.noTime);
+  });
+
+  it("calls each kind of problem what the table of kinds does", () => {
+    let kinds = 0;
+    for (const row of KIND_ROWS) {
+      if (row.kind === "stopped") continue;
+      expect(kindTitle(row.kind), row.kind).toBe(row.title);
+      kinds += 1;
+    }
+
+    expect(kinds).toBe(8);
+    expect(kindTitle("foreground")).toBe("Another window came to the front");
+  });
+
+  it("gives what voicecap does about a kind as a line, with the address where an unexpected error is reported a link", () => {
+    const meaning = KIND_ROWS.find((row) => row.kind === "unexpected")?.meaning ?? "";
+
+    expect(kindMeaning(meaning)).toEqual([
+      "The full error, and where in voicecap's code it happened, are shown, with a link to report it (",
+      { text: "github.com/ICJIA/voicecap/issues", href: ISSUES_URL },
+      ").",
+    ]);
+    expect(lineText(kindMeaning(meaning))).toBe(meaning);
+    // A kind that sends no one anywhere is its words as they are.
+    for (const row of KIND_ROWS) {
+      if (row.kind === "unexpected") continue;
+      expect(kindMeaning(row.meaning), row.kind).toEqual([row.meaning]);
+    }
+  });
+
+  it("is what the page says of a problem's time and kind, of its record's times, and of its table of kinds", async () => {
+    const page: SharePageSpec = {
+      path: "/grants/",
+      status: "failed",
+      failedAttempts: [failedAttempt({ n: 1 })],
+    };
+    const model = buildShareModel(inputOf([shareRun({ id: "r1", pages: [page] })]));
+    const [problem] = model.problems.problems;
+    if (problem === undefined) throw new Error("The failed attempt is a problem.");
+    const html = renderProblems(model);
+    const demo = renderProblems(await demoModel());
+
+    expect(html).toContain(`<span class="sub">${problemTime(problem)}</span>`);
+    expect(html).toContain(`<span class="chip c-warn">${kindTitle(problem.kind)}</span>`);
+    for (const row of problem.record) {
+      expect(html).toContain(`<td class="lt">${recordTime(row.time)}</td>`);
+    }
+    // The demo's runs kept no time for a record's line.
+    expect(demo).toContain(`<td class="lt">${recordTime(null)}</td>`);
+    expect(demo).toContain(
+      `<span class="sub">${PROBLEMS_TEXT.kinds.inside(KIND_ROWS.length)}</span>`,
+    );
   });
 
   it("is what the page names each problem's boxes by", () => {
@@ -1617,6 +1707,13 @@ describe("the section words in text.ts", () => {
     expect(CHANGES_TEXT.unreadable("headings")).toBe(
       "The headings pass sounds different, but its transcript couldn't be read here.",
     );
+  });
+
+  it("say what the table of kinds holds, and head the Word copy's table of a problem's questions", () => {
+    expect(PROBLEMS_TEXT.kinds.inside(9)).toBe("9 kinds of problem, and whose each is");
+    expect(KIND_ROWS).toHaveLength(9);
+    // The page sets a problem's questions as a list; the Word copy sets them as a table.
+    expect(WORD_TEXT.problems.questionsHead).toEqual(["Question", "Answer"]);
   });
 
   it("are the headings and fold lines the page draws for its second half", async () => {

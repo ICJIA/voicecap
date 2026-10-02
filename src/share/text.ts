@@ -320,9 +320,13 @@ export const PROBLEMS_TEXT = {
   },
   /** The title of the stack an unexpected error left: where in voicecap's code it happened. */
   stack: "Where in voicecap's code it happened",
-  /** The table of kinds of problem: its title, and the heads of its columns. */
+  /**
+   * The table of kinds of problem: its title, what its line says is in it (the number of kinds is
+   * the table's), and the heads of its columns.
+   */
   kinds: {
     title: "How voicecap tells causes apart",
+    inside: (kinds: number): string => `${kinds} kinds of problem, and whose each is`,
     head: ["What happened", "Whose it is", "What voicecap does, and what it means"],
   },
   /** The address where an unexpected error is reported, as the table of kinds prints it. */
@@ -671,5 +675,14 @@ export const WORD_TEXT = {
      * no flags. The page's card has no flags chip for such a page: its result says it wasn't read.
      */
     nothingToFlag: "Nothing was read to flag",
+  },
+  /**
+   * "Problems during the runs": where the page sets a problem's questions and answers as a list,
+   * the Word copy has a table. The heads of its other tables (the record, the kinds) and of the
+   * changes' are the page's own.
+   */
+  problems: {
+    /** The heads of the table of a problem's questions and answers. */
+    questionsHead: ["Question", "Answer"],
   },
 };

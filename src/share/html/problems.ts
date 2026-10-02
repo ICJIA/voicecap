@@ -17,15 +17,20 @@
  * classes.
  */
 import { esc, idFragment } from "../../report/html.js";
-import { clock } from "../format.js";
 import type { ShareModel } from "../model.js";
 import { KIND_ROWS, type Problem } from "../problems.js";
-import { ISSUES_URL, PROBLEMS_TEXT } from "../text.js";
-import { decidedFrom, problemTitle, sentence, timeOfDay, whereOf } from "../words.js";
+import { PROBLEMS_TEXT } from "../text.js";
+import {
+  decidedFrom,
+  kindMeaning,
+  kindTitle,
+  problemTime,
+  problemTitle,
+  recordTime,
+  sentence,
+  whereOf,
+} from "../words.js";
 import { chip, fold, lineHtml, notRecorded, scroll, verdictLine } from "./parts.js";
-
-/** What each kind of problem is called: the table of kinds' own words. */
-const KIND_TITLES = new Map(KIND_ROWS.map((row) => [row.kind, row.title]));
 
 /** The color of the chip that says whether a problem happened again, whose words are in text.ts. */
 const AGAIN_KIND: Record<Problem["again"], string> = {
@@ -65,7 +70,7 @@ function recordBox(problem: Problem, where: string): string {
     .filter((entry) => entry.source !== "stack")
     .map(
       (entry) =>
-        `<tr><td class="lt">${esc(entry.time === null ? record.noTime : timeOfDay(entry.time))}</td><td class="src">${esc(entry.source)}</td><td><code>${esc(entry.entry)}</code></td></tr>`,
+        `<tr><td class="lt">${esc(recordTime(entry.time))}</td><td class="src">${esc(entry.source)}</td><td><code>${esc(entry.entry)}</code></td></tr>`,
     );
   const columns = record.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="logtable"><caption class="sr">The record of this problem</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
@@ -84,15 +89,13 @@ function stackBox(stack: string, where: string): string {
  */
 function problemFold(problem: Problem, id: string, nth: number): string {
   const where = whereOf(problem, nth);
-  const when = problem.endedAt ?? problem.startedAt;
-  const kind = KIND_TITLES.get(problem.kind) ?? problem.kind;
   const chips = [
-    chip(problem.kind === "unexpected" ? "bad" : "warn", kind),
+    chip(problem.kind === "unexpected" ? "bad" : "warn", kindTitle(problem.kind)),
     chip(AGAIN_KIND[problem.again], PROBLEMS_TEXT.again[problem.again]),
   ];
   const summary = [
     `<span class="what">${esc(problemTitle(problem))}</span>`,
-    `<span class="sub">${esc(when === null ? PROBLEMS_TEXT.noTime : clock(when))}</span>`,
+    `<span class="sub">${esc(problemTime(problem))}</span>`,
     `<span class="chips">${chips.join(" ")}</span>`,
   ];
   const body = [
@@ -106,28 +109,19 @@ function problemFold(problem: Problem, id: string, nth: number): string {
   return fold(summary.join(" "), body.join(""), { id, className: "problem" });
 }
 
-/** A kind's meaning, with the address where an error voicecap didn't expect is reported a link. */
-function meaningOf(text: string): string {
-  const address = PROBLEMS_TEXT.issues;
-  const at = text.indexOf(address);
-  if (at < 0) return esc(text);
-  return lineHtml([
-    text.slice(0, at),
-    { text: address, href: ISSUES_URL },
-    text.slice(at + address.length),
-  ]);
-}
-
-/** "How voicecap tells causes apart": each kind, whose it is, and what voicecap does about it. */
+/**
+ * "How voicecap tells causes apart": each kind, whose it is, and what voicecap does about it, with
+ * the address where an error voicecap didn't expect is reported a link.
+ */
 function kindsFold(): string {
   const { kinds } = PROBLEMS_TEXT;
   const rows = KIND_ROWS.map(
     (kind) =>
-      `<tr><th scope="row">${esc(kind.title)}</th><td>${esc(kind.whose)}</td><td>${meaningOf(kind.meaning)}</td></tr>`,
+      `<tr><th scope="row">${esc(kind.title)}</th><td>${esc(kind.whose)}</td><td>${lineHtml(kindMeaning(kind.meaning))}</td></tr>`,
   );
   const columns = kinds.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="plain"><caption class="sr">Kinds of problem</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
-  const summary = `<span class="what">${esc(kinds.title)}</span> <span class="sub">${KIND_ROWS.length} kinds of problem, and whose each is</span>`;
+  const summary = `<span class="what">${esc(kinds.title)}</span> <span class="sub">${esc(kinds.inside(KIND_ROWS.length))}</span>`;
   return fold(summary, scroll("Kinds of problem, table", table), { className: "kinds" });
 }
 
