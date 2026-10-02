@@ -544,8 +544,8 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 
 - **It's asked however the session ends:** when the run completes; after Ctrl+C; when the run stops after too many failed pages in a row (exit code 2); and when an error ends it (the browser updating itself mid-run, say). After an error, a line before the question says why the session stopped, and the full explanation follows your answer.
 - **Only an answer typed after the question appears counts.** Keys pressed while the run went on, a stray Enter say, are dropped before the question shows, so they can't answer it for you.
-- **Ctrl+C at the question, or closing the window, gives no answer.** The record then has no statement.
-- **It isn't asked,** and the record has no statement:
+- **Ctrl+C at the question, or closing the window, gives no answer.** The record then has none.
+- **It isn't asked,** and the record has no answer:
   - without a terminal (a script, or CI), or when the output is redirected to a file (`voicecap … > log.txt`), where no one would see the question;
   - in Git Bash's own window (mintty), which doesn't always let Node see a terminal: run voicecap in PowerShell or Windows Terminal to be asked;
   - for a replay, or for a session that read no pages;

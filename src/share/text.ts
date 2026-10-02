@@ -105,7 +105,7 @@ export const STORY: {
   usual:
     "The usual answer, a person with a screen reader, page by page, is slow, hard to show afterward, and hard to repeat.",
   answer:
-    "voicecap's answer: keep the person and the real screen reader, and take over the slow parts. Working from the list makes the review more thorough than going page by page by hand: every page is accounted for, none is missed or done twice, and each is heard the same way, with the same keys in the same order. voicecap is free and open source, from ICJIA (MIT license).",
+    "voicecap's answer: keep the person and the real screen reader, and take over the slow parts. Working from the list makes the review more thorough than going page by page by hand: every page is accounted for, none is missed or done twice, and each is read the same way, with the same keys in the same order. voicecap is free and open source, from ICJIA (MIT license).",
   deque: {
     title:
       "Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks",

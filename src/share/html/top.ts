@@ -284,7 +284,7 @@ export function renderSummary(model: ShareModel): string {
 
 // How voicecap works.
 
-/** The lead's bold words, as the mockup sets them: that the person reads the transcripts. */
+/** The lead's bold words: that the person reads the transcripts. */
 const READS_TRANSCRIPTS = "The person running it reads the transcripts";
 
 function lead(): string {

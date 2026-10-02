@@ -1076,7 +1076,7 @@ describe("renderHow", () => {
 
     expect(html).toMatch(/^<section aria-labelledby="how-h">/);
     expect(html).toContain('<h2 id="how-h">How voicecap works</h2>');
-    // The lead is the fixed text, with "The person running it reads the transcripts" in bold, as the mockup has it.
+    // The lead is the fixed text, with "The person running it reads the transcripts" in bold.
     expect(HOW_LEAD).toContain("The person running it reads the transcripts");
     expect(textOf(html.match(/<p class="gist">(.*?)<\/p>/s)?.[1] ?? "", "")).toBe(HOW_LEAD);
     // And escaped, as the rest of the page is: the start of the lead has an apostrophe in it.
