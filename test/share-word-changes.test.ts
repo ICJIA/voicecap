@@ -679,6 +679,48 @@ describe("wordChanges", () => {
       expect(lines[0]).toEqual(["banner landmark, link, Skip to main content"]);
     });
 
+    it("sets what NVDA said in the fixed-width font, as the page sets it: a line the same, removed, or added, the changed words still in bold", () => {
+      const table = tableAt(wordChanges(grantsModel()), 0);
+      const said = table.rows.map((row) => row[1]);
+
+      // Eight lines NVDA said are fixed-width cells; the ninth row counts a run of lines the same.
+      expect(said.map((cell) => cell?.mono)).toEqual([
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        undefined,
+      ]);
+      // A cell is its line as one paragraph, the changed words in bold inside it.
+      expect(said[0]).toEqual({
+        lines: [["banner landmark, link, Skip to main content"]],
+        mono: true,
+      });
+      expect(said[2]).toEqual({
+        lines: [["To apply,, link, ", { text: "click here", bold: true }, ", dot"]],
+        mono: true,
+      });
+      expect(said[3]).toEqual({
+        lines: [["To apply,, link, ", { text: "Read the FY27 plan", bold: true }, ", dot"]],
+        mono: true,
+      });
+    });
+
+    it("leaves voicecap's own words in the ordinary font: the first column, and the row for a run of lines the same", () => {
+      const table = tableAt(wordChanges(grantsModel()), 0);
+      const [mark, count] = table.rows.at(-1) ?? [];
+
+      // "Same", "Removed", "Added", and the mark of a run of lines the same.
+      expect(table.rows.map((row) => row[0]?.mono)).toEqual(table.rows.map(() => undefined));
+      // "2 lines the same" is voicecap's count, not a line NVDA said.
+      expect([cellLines(mark), cellLines(count)]).toEqual([["…"], ["2 lines the same"]]);
+      expect([mark?.mono, count?.mono]).toEqual([undefined, undefined]);
+    });
+
     it("says each row as Same, Removed, or Added, in words, with no sign and no color to carry it", () => {
       const table = tableAt(wordChanges(grantsModel()), 0);
 
@@ -717,6 +759,8 @@ describe("wordChanges", () => {
       ]);
       expect(diffRows(blocks)[1]).toEqual([{ text: "gone 1", bold: true }]);
       expect(diffRows(blocks)[5]).toEqual([{ text: "new 2", bold: true }]);
+      // A line NVDA said is fixed-width whether it has a partner or not.
+      expect(tableAt(blocks, 0).rows.map((row) => row[1]?.mono)).toEqual(Array(7).fill(true));
     });
 
     it("counts a run of lines the same, in the singular for one, in a cell beside its mark", () => {

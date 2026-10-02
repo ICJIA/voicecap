@@ -8,8 +8,10 @@
  * holds under it, and the line on the two runs gives no sentence about opening a page. Where the
  * page's fold line has a chip for each rule whose flag went or came, the Word copy has one line of
  * them under the heading; where the page marks a line removed or added with a sign and a color, this
- * says it in the first column, and sets the changed words in bold. It leaves out the words the page
- * says for a screen reader alone, which the headings and the first column say in view. Pure.
+ * says it in the first column, and sets the changed words in bold. What NVDA said is in the
+ * fixed-width font, as the page's table has it, and voicecap's own words are not. It leaves out the
+ * words the page says for a screen reader alone, which the headings and the first column say in
+ * view. Pure.
  */
 import type {
   Changes,
@@ -34,7 +36,7 @@ import {
   sameLines,
   sizesOf,
 } from "../words.js";
-import { heading, list, para, table, type Block } from "./blocks.js";
+import { heading, list, para, table, type Block, type Cell } from "./blocks.js";
 
 // Before the line: what could make the runs sound different besides the site.
 
@@ -100,21 +102,30 @@ function markedWords(words: DiffWord[]): Line {
 }
 
 /**
+ * A line NVDA said, as a cell: in the fixed-width font, as the page sets what NVDA said, with the
+ * line's own bold (its changed words) kept inside it.
+ */
+function saidCell(line: Line): Cell {
+  return { lines: [line], mono: true };
+}
+
+/**
  * One row of a pass's table: what became of the line, in words, and the line. A line removed or
  * added says so in its first cell, as well as in the bold of its changed words, since a printed copy
- * may have no color to show it. A run of lines the same is counted.
+ * may have no color to show it. What NVDA said is fixed-width; voicecap's own words (the first cell,
+ * and the count of a run of lines the same) are in the ordinary font.
  */
-function rowOf(line: DiffLine): (string | Line)[] {
+function rowOf(line: DiffLine): (Cell | Line | string)[] {
   const { rows } = CHANGES_TEXT;
   switch (line.kind) {
     case "collapsed":
       return [rows.collapsed, sameLines(line.count)];
     case "same":
-      return [rows.same, line.text];
+      return [rows.same, saidCell([line.text])];
     case "removed":
-      return [rows.removed, markedWords(line.words)];
+      return [rows.removed, saidCell(markedWords(line.words))];
     case "added":
-      return [rows.added, markedWords(line.words)];
+      return [rows.added, saidCell(markedWords(line.words))];
   }
 }
 
