@@ -193,8 +193,8 @@ export const PASS_WORDS: Record<PassName, string> = {
 };
 
 /**
- * "Every page": its heading, what a card says of each pass and of the page's flags, and the table
- * of the pages no longer listed.
+ * "Every page": its heading, what a card says of each pass and of the page's flags, the name of a
+ * page's screenshot, and the table of the pages no longer listed.
  */
 export const PAGES_TEXT = {
   title: "Every page",
@@ -202,8 +202,16 @@ export const PAGES_TEXT = {
   captured: { read: "Read", headings: "Headings", tab: "Tab stops", time: "Time" },
   /** What a card says of a pass the shown run didn't read, which is never "0". */
   notRead: "Not read",
-  /** What a card says of a time when its record has no words of its own for it. */
+  /**
+   * What a card says of a time when its record has no words of its own for it, and what goes in
+   * front of any line that says a record has nothing but doesn't say so itself (`notRecordedLine`).
+   */
   notRecorded: "Not recorded",
+  /**
+   * What a page's screenshot is called: the page names its picture, or the line that says it wasn't
+   * recorded, by it for a screen reader, and the Word copy says it before that line.
+   */
+  screenshot: "Screenshot",
   /** Said of a page that has transcripts and no flags. */
   noFlags: "No flags",
   /** Said of a page whose flags are as its run recorded them, not the current rules'. */
@@ -380,14 +388,31 @@ export const EVIDENCE_TEXT = {
   },
 };
 
-/** "Appendix: every transcript": its heading, and what it says in place of a transcript's words. */
+/**
+ * "Appendix: every transcript": its heading, what a transcript's heading says of its page, and what
+ * it says in place of a transcript's words.
+ */
 export const APPENDIX_TEXT = {
   title: "Appendix: every transcript",
+  /**
+   * Between a transcript's pass and its page's address, in its heading: "Read transcript of
+   * /about/". The page sets it apart for a screen reader, which reads each heading alone; the Word
+   * copy has it in view.
+   */
+  transcriptOf: "transcript of",
   /** For a transcript with no lines. */
   noLines: "This transcript has no lines.",
-  /** For a transcript the run recorded but whose file couldn't be read here, as the page says it. */
-  unreadable:
-    "This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.",
+  /**
+   * For a transcript the run recorded but whose file couldn't be read here, as both copies say it,
+   * before its full stop. The page goes on to say what its fingerprint check does with it
+   * (`unreadableCheck`).
+   */
+  unreadable: "This transcript was recorded, but its file couldn't be read here, so it isn't shown",
+  /**
+   * What the page adds to that sentence, before its full stop: its fingerprint check leaves the
+   * transcript out. The Word copy has no check, so it says none of this.
+   */
+  unreadableCheck: ", and the fingerprint check leaves it out",
   /** For a page whose record lists no transcript files. */
   noFiles: "This run's record lists no transcript files for the page.",
 };
@@ -633,5 +658,18 @@ export const WORD_TEXT = {
   /** "How voicecap works": the heads of the table of its six steps. */
   how: {
     stepsHead: ["No.", "Step", "What it means"],
+  },
+  /**
+   * "Every page": where the page has a card for each page, the Word copy has one table. These are
+   * the heads of its columns, and what its flags column says of a page that has no transcripts.
+   */
+  pages: {
+    /** The heads of the table of every page, one column for each part of a card. */
+    head: ["No.", "Page", "Result", "Flags", "The person's review", "What each pass captured"],
+    /**
+     * Said in a page's flags cell when it has no transcripts, so that an empty cell never reads as
+     * no flags. The page's card has no flags chip for such a page: its result says it wasn't read.
+     */
+    nothingToFlag: "Nothing was read to flag",
   },
 };

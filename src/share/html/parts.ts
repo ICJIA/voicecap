@@ -15,6 +15,7 @@
 import { esc, idFragment, plural } from "../../report/html.js";
 import { count, seconds } from "../format.js";
 import { firstSentenceBold, type Line } from "../line.js";
+import { notRecordedLine } from "../words.js";
 
 /**
  * A heading in a summary line: an `h1` to `h6`, or any tag given the role. Only real tags count:
@@ -86,12 +87,11 @@ export function chip(kind: string, words: string): string {
  * A line that says something wasn't recorded, as a paragraph. `text` is the whole line, which the
  * model words ("Not recorded: this run used voicecap 0.4.1.", or, for a line about one thing, "The
  * step and the key: not recorded: this run used voicecap 0.4.1."). A line that doesn't say so gets
- * those words put in front, so a gap never reads as a pass.
+ * those words put in front (`notRecordedLine`, which the Word copy says its lines with too), so a
+ * gap never reads as a pass.
  */
 export function notRecorded(text: string): string {
-  const line = text.trim();
-  const said = /\bnot recorded\b/i.test(line) ? line : `Not recorded: ${line}`;
-  return `<p class="not-recorded">${esc(said)}</p>`;
+  return `<p class="not-recorded">${esc(notRecordedLine(text))}</p>`;
 }
 
 /**

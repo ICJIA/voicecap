@@ -253,6 +253,48 @@ export function manualLine({ at, reviewer }: PageCard["manual"][number]): string
   return `Manual NVDA session, ${at}${reviewer === null ? "" : `, by ${reviewer}`}`;
 }
 
+/** How many lines, as a reader says it: "18 lines", "1 line". */
+export function lineCount(lines: number): string {
+  return plural(lines, "line");
+}
+
+/** A number a card gives, with its label: "Read" and "18 lines", "Time" and "55.1 s". */
+export interface Captured {
+  label: string;
+  value: string;
+}
+
+/**
+ * What each pass of a page's shown transcripts captured, and how long the page took: the lines the
+ * read pass read, the headings found, the Tab stops, and the time. A pass the run didn't read is
+ * "Not read", never "0", and a time with no record of its own says so in the record's words (or
+ * "Not recorded"). None for a page with no transcripts.
+ */
+export function capturedOf({ counts, timeMs }: PageCard): Captured[] | null {
+  if (counts === null) return null;
+  const { captured, notRead, notRecorded } = PAGES_TEXT;
+  const time = typeof timeMs === "number" ? took(timeMs) : (timeMs?.notRecorded ?? notRecorded);
+  return [
+    { label: captured.read, value: counts.read === null ? notRead : lineCount(counts.read) },
+    {
+      label: captured.headings,
+      value: counts.headings === null ? notRead : count(counts.headings),
+    },
+    { label: captured.tab, value: counts.tab === null ? notRead : count(counts.tab) },
+    { label: captured.time, value: time },
+  ];
+}
+
+/**
+ * A line that says something wasn't recorded: the model's own words ("Not recorded: this run used
+ * voicecap 0.4.1."), or, for words that don't say so, with "Not recorded: " put in front, so a gap
+ * never reads as a pass.
+ */
+export function notRecordedLine(text: string): string {
+  const line = text.trim();
+  return /\bnot recorded\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
+}
+
 // What the flags found.
 
 /** The line that opens "What the flags found": how many pages have flags, and from how many rules. */
@@ -276,6 +318,11 @@ export function flagsGist({ flagged, pages, header }: ShareModel): Line {
     },
     " Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
   ];
+}
+
+/** How many flags a page has, as a reader says it: "5 flags", "1 flag". */
+export function flagCount(flags: number): string {
+  return plural(flags, "flag");
 }
 
 // The appendix.

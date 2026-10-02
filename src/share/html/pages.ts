@@ -18,19 +18,22 @@
  * transcript that couldn't be read), the words are new, and use the mockup's own classes.
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
-import { esc, idFragment, plural } from "../../report/html.js";
+import { esc, idFragment } from "../../report/html.js";
 import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
 import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
 import {
   appendixGist,
+  capturedOf,
   fileFingerprint,
+  flagCount,
   flagsGist,
   fromRun,
+  lineCount,
   manualLine,
   originOf,
   pagesGist,
+  sentence,
   titleOf,
-  took,
   transcriptsInside,
 } from "../words.js";
 import { chip, count, fold, lineHtml, notRecorded, scroll, strip } from "./parts.js";
@@ -60,7 +63,7 @@ function screenshotOf(shot: PageCard["screenshot"]): { picture: string; missing:
   if ("notRecorded" in shot) {
     return {
       picture: "",
-      missing: `<div role="group" aria-label="Screenshot">${notRecorded(shot.notRecorded)}</div>`,
+      missing: `<div role="group" aria-label="${esc(PAGES_TEXT.screenshot)}">${notRecorded(shot.notRecorded)}</div>`,
     };
   }
   const size = `width="${SHOT.width}" height="${SHOT.height}"`;
@@ -140,22 +143,13 @@ function chipsOf(card: PageCard): string {
 }
 
 /** What each pass captured, and the time, for a page with transcripts. */
-function passesOf({ counts, timeMs }: PageCard): string {
-  if (counts === null) return "";
-  const { captured, notRead } = PAGES_TEXT;
-  const box = (label: string, value: string) =>
-    `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
-  return `<dl class="passes">${[
-    box(captured.read, counts.read === null ? esc(notRead) : plural(counts.read, "line")),
-    box(captured.headings, counts.headings === null ? esc(notRead) : count(counts.headings)),
-    box(captured.tab, counts.tab === null ? esc(notRead) : count(counts.tab)),
-    box(
-      captured.time,
-      typeof timeMs === "number"
-        ? took(timeMs)
-        : esc(timeMs?.notRecorded ?? PAGES_TEXT.notRecorded),
-    ),
-  ].join("")}</dl>`;
+function passesOf(card: PageCard): string {
+  const captured = capturedOf(card);
+  if (captured === null) return "";
+  const boxes = captured.map(
+    ({ label, value }) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`,
+  );
+  return `<dl class="passes">${boxes.join("")}</dl>`;
 }
 
 /** One bar for each line of the read pass, with its caption. A page with no lines has no strip. */
@@ -244,7 +238,7 @@ export function renderPages(model: ShareModel): string {
 function flagSummary({ name, flags }: PageCard): string {
   const rules = [...new Set(flags.map(({ rule }) => rule))];
   const chips = rules.map((rule) => chip("warn", rule)).join("");
-  return `<span class="what">${esc(name)}:</span> <span class="sub">${plural(flags.length, "flag")}</span> <span class="chips">${chips}</span>`;
+  return `<span class="what">${esc(name)}:</span> <span class="sub">${esc(flagCount(flags.length))}</span> <span class="chips">${chips}</span>`;
 }
 
 /**
@@ -289,7 +283,7 @@ export function renderFlags(model: ShareModel): string {
  */
 function transcriptHeading(pass: PassName, path: string, sub = ""): string {
   const after = sub === "" ? "" : ` <span class="sub">${sub}</span>`;
-  return `<h3>${esc(PASS_TITLE[pass])} <span class="sr">transcript of ${esc(path)}</span>${after}</h3>`;
+  return `<h3>${esc(PASS_TITLE[pass])} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h3>`;
 }
 
 /**
@@ -308,14 +302,18 @@ function transcriptOf(file: AppendixFile, path: string): string {
       ? `<p class="sub">${esc(APPENDIX_TEXT.noLines)}</p>`
       : scroll(`${title} transcript, ${path}`, `<pre>${lead}${esc(file.text)}</pre>`);
   const names = `data-run="${esc(file.run)}" data-slug="${esc(file.slug)}" data-file="${esc(file.name)}"`;
-  const heading = transcriptHeading(file.pass, path, plural(file.lines, "line"));
+  const heading = transcriptHeading(file.pass, path, esc(lineCount(file.lines)));
   const fingerprint = `<p class="fp">${lineHtml(fileFingerprint(file))}</p>`;
   return `<section class="tx" ${names}>${heading}\n${fingerprint}\n${words}</section>`;
 }
 
-/** A transcript the run recorded but that couldn't be read here: said in words, in its place. */
+/**
+ * A transcript the run recorded but that couldn't be read here: said in words, in its place, with
+ * what the page's fingerprint check does with it.
+ */
 function unreadableOf(pass: PassName, path: string): string {
-  return `<section class="tx">${transcriptHeading(pass, path)}<p>${esc(APPENDIX_TEXT.unreadable)}</p></section>`;
+  const said = sentence(`${APPENDIX_TEXT.unreadable}${APPENDIX_TEXT.unreadableCheck}`);
+  return `<section class="tx">${transcriptHeading(pass, path)}<p>${esc(said)}</p></section>`;
 }
 
 /** The run a page's transcripts are from: its id, and its date for a run before the latest. */

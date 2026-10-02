@@ -46,19 +46,23 @@ import {
 } from "../src/share/text.js";
 import {
   appendixGist,
+  capturedOf,
   changedRules,
   changesGist,
   countsOf,
   decidedFrom,
   evidenceGist,
   fileFingerprint,
+  flagCount,
   flagsGist,
   flagsLine,
   fromRun,
   generatedLine,
   heardTitle,
   howLead,
+  lineCount,
   manualLine,
+  notRecordedLine,
   numbersOf,
   onlyInOneLead,
   originOf,
@@ -530,6 +534,89 @@ describe("a card's lines", () => {
     expect(manualLine({ at: "29 September 2026", reviewer: null })).toBe(
       "Manual NVDA session, 29 September 2026",
     );
+  });
+
+  it("gives what each pass captured and how long the page took, with 'Not read' for a pass that wasn't", async () => {
+    const [card] = await cards();
+    const unrecorded = "Not recorded: this run used voicecap 0.4.1.";
+    const valuesOf = (patch: Partial<PageCard>) =>
+      capturedOf({ ...card, ...patch })?.map(({ value }) => value);
+
+    expect(capturedOf(card)).toEqual([
+      { label: "Read", value: "18 lines" },
+      { label: "Headings", value: "2" },
+      { label: "Tab stops", value: "8" },
+      { label: "Time", value: "55.1 s" },
+    ]);
+    expect(
+      capturedOf({
+        ...card,
+        counts: { read: 1, headings: null, tab: null },
+        timeMs: { notRecorded: unrecorded },
+      }),
+    ).toEqual([
+      { label: "Read", value: "1 line" },
+      { label: "Headings", value: "Not read" },
+      { label: "Tab stops", value: "Not read" },
+      { label: "Time", value: unrecorded },
+    ]);
+    // A pass that read nothing is 0, and a pass that wasn't read is never 0.
+    expect(valuesOf({ counts: { read: 0, headings: 0, tab: 0 } })).toEqual([
+      "0 lines",
+      "0",
+      "0",
+      "55.1 s",
+    ]);
+    expect(valuesOf({ counts: { read: null, headings: 2, tab: 3 } })).toEqual([
+      "Not read",
+      "2",
+      "3",
+      "55.1 s",
+    ]);
+    expect(valuesOf({ counts: { read: 1_204, headings: 1_000, tab: 12 } })).toEqual([
+      "1,204 lines",
+      "1,000",
+      "12",
+      "55.1 s",
+    ]);
+    // A time with no words of its own says "Not recorded"; a page with no transcripts has none.
+    expect(valuesOf({ timeMs: null })?.at(-1)).toBe("Not recorded");
+    expect(capturedOf({ ...card, counts: null, timeMs: null })).toBeNull();
+  });
+
+  it("counts lines and flags as a reader says them, in the singular for one", () => {
+    expect(lineCount(0)).toBe("0 lines");
+    expect(lineCount(1)).toBe("1 line");
+    expect(lineCount(18)).toBe("18 lines");
+    expect(lineCount(1_204)).toBe("1,204 lines");
+    expect(flagCount(1)).toBe("1 flag");
+    expect(flagCount(5)).toBe("5 flags");
+  });
+
+  it("puts 'Not recorded' in front of words that don't say so, and leaves those that do", () => {
+    const said = "Not recorded: this run used voicecap 0.4.1.";
+
+    expect(notRecordedLine(said)).toBe(said);
+    expect(notRecordedLine("this run used voicecap 0.4.1.")).toBe(said);
+    expect(notRecordedLine("  this run used voicecap 0.4.1.  ")).toBe(said);
+    // A line about one thing says so in its own words, wherever they are in it.
+    expect(
+      notRecordedLine("The step and the key: not recorded: this run used voicecap 0.4.1."),
+    ).toBe("The step and the key: not recorded: this run used voicecap 0.4.1.");
+  });
+
+  it("is what the page's cards say of each pass and of the time", async () => {
+    const model = await demoModel();
+    const html = renderPages(model);
+    const lists = [...html.matchAll(/<dl class="passes">(.*?)<\/dl>/g)].map((found) =>
+      [...(found[1] ?? "").matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)].map(([, label, value]) => ({
+        label: textOf(label ?? "", ""),
+        value: textOf(value ?? "", ""),
+      })),
+    );
+
+    expect(lists).toHaveLength(model.pages.length);
+    expect(lists).toEqual(model.pages.map((card) => capturedOf(card)));
   });
 
   it("is what the page's cards say", async () => {
@@ -1414,6 +1501,17 @@ describe("the section words in text.ts", () => {
       headings: { key: "H", words: "heading by heading" },
       tab: { key: "Tab", words: "control by control" },
     });
+  });
+
+  it("name a page's screenshot and a transcript's page as the page's own headings do", async () => {
+    const model = await demoModel();
+
+    expect(PAGES_TEXT.screenshot).toBe("Screenshot");
+    expect(APPENDIX_TEXT.transcriptOf).toBe("transcript of");
+    expect(renderPages(model)).toContain(`aria-label="${PAGES_TEXT.screenshot}"`);
+    expect(renderAppendix(model)).toContain(
+      `<span class="sr">${APPENDIX_TEXT.transcriptOf} /</span>`,
+    );
   });
 
   it("are plain words in the second half too, with no tag or entity", () => {
