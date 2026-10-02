@@ -66,6 +66,19 @@ function runsIn(document: string): string[] {
   return document.match(/<w:r>.*?<\/w:r>/gs) ?? [];
 }
 
+/** What a footer says, in order: each run of its words, and the code of each of its fields. */
+function footerSaid(footer: string): string[] {
+  return [...footer.matchAll(/<w:(?:t|instrText)[^>]*>(.*?)<\/w:(?:t|instrText)>/g)].map(
+    ([, said = ""]) => said,
+  );
+}
+
+/**
+ * The words the library turns into a page-number field when it is handed one in a run's `children`
+ * (the values of its `PageNumber`).
+ */
+const PAGE_NUMBER_WORDS = ["CURRENT", "TOTAL_PAGES", "TOTAL_PAGES_IN_SECTION", "SECTION"];
+
 describe("the Word copy's blocks", () => {
   it("makes each kind of block as plain data", () => {
     expect(title("Demo")).toEqual({ kind: "title", text: "Demo" });
@@ -259,6 +272,55 @@ describe("docxOf", () => {
     const { document } = await opened([para(allowed)]);
     expect(XMLValidator.validate(document)).toBe(true);
     expect(paragraphsOf(document)).toEqual([{ style: "", text: allowed }]);
+  });
+
+  // A word is a word: the library reads these four, handed to it as a run's `children`, as fields.
+  it.each(PAGE_NUMBER_WORDS)("keeps the word %s as a word, wherever it is said", async (word) => {
+    const { document } = await opened([
+      title(word),
+      heading(1, word),
+      para(word),
+      para({ text: word, bold: true }),
+      para({ text: word, mono: true }),
+      para({ text: word, href: "https://github.com/ICJIA/voicecap" }),
+      para(`first\n${word}`),
+      para(`before\t${word}`),
+      list([word]),
+      mono([word]),
+      mono(["first", word]),
+      table([word], [[word], [cell(word, word)], [monoCell(word)]]),
+    ]);
+
+    expect(paragraphsOf(document).map(({ text }) => text)).toEqual([
+      word, // the title
+      word, // the heading
+      word, // a paragraph
+      word, // a bold piece
+      word, // a fixed-width piece
+      word, // a link
+      `first\n${word}`, // after a line break
+      `before\t${word}`, // after a tab
+      word, // a list item
+      word, // a fixed-width line
+      `first\n${word}`, // a fixed-width line after another
+    ]);
+    expect(tablesOf(document)).toEqual([
+      { header: true, rows: [[word], [word], [`${word}\n${word}`], [word]] },
+    ]);
+    // The footer has fields of its own; the body has none.
+    expect(document).not.toContain("<w:fldChar");
+    expect(document).not.toContain("<w:instrText");
+  });
+
+  it("keeps the footer's own words as words, and makes only its two page numbers fields", async () => {
+    for (const word of PAGE_NUMBER_WORDS) {
+      const { footer } = await unzipDocx(
+        await docxOf([para("x")], { ...PROPERTIES, footer: word }),
+      );
+
+      expect(footerSaid(footer), word).toEqual([`${word}. Page `, "PAGE", " of ", "NUMPAGES"]);
+      expect(footer.match(/<w:fldChar w:fldCharType="begin"\/>/g), word).toHaveLength(2);
+    }
   });
 
   it("describes the document as made with voicecap", async () => {
@@ -456,11 +518,13 @@ describe("docxOf", () => {
 
   it("centers the footer in 9 pt: its words, then the page number out of the pages", async () => {
     const { footer } = await opened(BLOCKS);
-    const said = [...footer.matchAll(/<w:(?:t|instrText)[^>]*>(.*?)<\/w:(?:t|instrText)>/g)].map(
-      ([, words]) => words,
-    );
 
-    expect(said).toEqual(["Demo, as of 30 September 2026. Page ", "PAGE", " of ", "NUMPAGES"]);
+    expect(footerSaid(footer)).toEqual([
+      "Demo, as of 30 September 2026. Page ",
+      "PAGE",
+      " of ",
+      "NUMPAGES",
+    ]);
     expect(footer).toContain('<w:jc w:val="center"/>');
     expect(footer.match(/<w:sz w:val="18"\/>/g)).toHaveLength(4);
   });

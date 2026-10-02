@@ -148,27 +148,38 @@ interface Look {
 const LINE_END = /\r\n|\r|\n/;
 
 /**
- * Runs for some words, a run for each of their lines, and each after the first starts with a line
- * break. A tab is a tab. No words, no runs.
+ * Runs for some words: a run for each stretch of them, a run for each tab, and a line break at the
+ * start of each line after the first (a line with no words is a run of the break alone). No words,
+ * no runs.
+ *
+ * The words go to the library as a run's `text`, never in its `children`: a `children` string that
+ * is "CURRENT", "TOTAL_PAGES", "TOTAL_PAGES_IN_SECTION", or "SECTION" is read as a page-number
+ * field, and the word would be gone.
  */
 function runsOf(d: Docx, words: string, look: Look): DocxModule.TextRun[] {
   const text = clean(words);
   if (text === "") return [];
-  return text.split(LINE_END).map((line, index) => {
-    const children: (string | DocxModule.Tab)[] = [];
+  const shared: DocxModule.IRunOptions = {
+    bold: look.bold,
+    font: look.mono ? MONO_FONT : undefined,
+    size: look.mono ? MONO_SIZE : undefined,
+    style: look.href === undefined ? undefined : "Hyperlink",
+  };
+  const runs: DocxModule.TextRun[] = [];
+  for (const [index, line] of text.split(LINE_END).entries()) {
+    // The line's first run carries the break that starts it.
+    let lineBreak = index === 0 ? undefined : 1;
+    const add = (own: DocxModule.IRunOptions) => {
+      runs.push(new d.TextRun({ ...shared, ...own, break: lineBreak }));
+      lineBreak = undefined;
+    };
     for (const [at, piece] of line.split("\t").entries()) {
-      if (at > 0) children.push(new d.Tab());
-      if (piece !== "") children.push(piece);
+      if (at > 0) add({ children: [new d.Tab()] });
+      if (piece !== "") add({ text: piece });
     }
-    return new d.TextRun({
-      children,
-      break: index === 0 ? undefined : 1,
-      bold: look.bold,
-      font: look.mono ? MONO_FONT : undefined,
-      size: look.mono ? MONO_SIZE : undefined,
-      style: look.href === undefined ? undefined : "Hyperlink",
-    });
-  });
+    if (lineBreak !== undefined) add({});
+  }
+  return runs;
 }
 
 /** A piece of a line: its runs, inside a link when it has an address. */
@@ -306,7 +317,11 @@ function blockOf(d: Docx, block: Block): Child[] {
   }
 }
 
-/** The footer of every page: its words, then "Page 3 of 41", centered in 9 pt. */
+/**
+ * The footer of every page: its words, then "Page 3 of 41", centered in 9 pt. The words are a run's
+ * `text`, as everywhere (see `runsOf`); only the two page numbers are in `children`, and they are
+ * the library's own `PageNumber` values.
+ */
 function footerOf(d: Docx, words: string): DocxModule.Footer {
   const run = (options: DocxModule.IRunOptions) => new d.TextRun({ ...options, size: FOOTER_SIZE });
   return new d.Footer({
