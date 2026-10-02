@@ -238,17 +238,28 @@ describe("wordPages", () => {
     });
     expect(pages!.kind === "table" && pages!.rows.length).toBe(model.pages.length);
     for (const card of model.pages) expect(wordsOf([pages!]).join("\n")).toContain(card.statusText);
-    // In the page's order, each page by its number.
+    // In the page's order, each page by its number. None of the demo's pages has a label, so each
+    // is named by its path, as its card is, and not by its whole address.
     const table = tableAt(wordPages(model), 0);
     for (const [index, card] of model.pages.entries()) {
       const [number, page, result] = rowAt(table, index);
+      expect(card.labeled).toBe(false);
       expect(cellLines(number)).toEqual([`${index + 1}`]);
-      expect(cellLines(page)[0]).toBe(card.name);
+      expect(cellLines(page)[0]).toBe(card.path);
       expect(cellLines(result)[0]).toBe(card.statusText);
     }
+    expect(table.rows.map((row) => cellLines(row[1])[0])).toEqual([
+      "/",
+      "/before-you-start/",
+      "/how-a-run-works/",
+      "/reading-transcripts/",
+      "/the-report/",
+      "/ask-a-question/",
+      "/common-mistakes/",
+    ]);
   });
 
-  it("names each page in bold, with its path when the page list gave it a label, and its title", () => {
+  it("names each page in bold, by its label with its path under it, or by its path when it has none, and gives its title", () => {
     const model = modelOf([
       done("/about", { label: "About us" }),
       done("/contact"),
@@ -257,23 +268,25 @@ describe("wordPages", () => {
     const [about, contact, team] = tableAt(wordPages(model), 0).rows.map((row) => row[1]);
 
     expect(model.pages.map((card) => card.labeled)).toEqual([true, false, true]);
-    // A label is the page's name, and its path follows; a page with none is named by its address.
+    // A label is the page's name, and its path follows; a page with none is named by its path, as
+    // its card is (the site's address is at the top of the copy).
     expect(cellLines(about)).toEqual(["About us", "/about", "Title: Page /about"]);
-    expect(cellLines(contact)).toEqual([
-      "https://example.illinois.gov/contact",
-      "Title: Page /contact",
-    ]);
+    expect(cellLines(contact)).toEqual(["/contact", "Title: Page /contact"]);
     // A label that looks like an address is still the page's label.
     expect(cellLines(team)).toEqual([
       "https://example.illinois.gov/team-page",
       "/team",
       "Title: Page /team",
     ]);
-    // Only the name is in bold: its path and its title are plain.
+    // Only the name, or the path that stands for it, is in bold; a label's path and title aren't.
     expect(about?.lines.map(boldIn)).toEqual([["About us"], [], []]);
-    expect(contact?.lines.map(boldIn)).toEqual([["https://example.illinois.gov/contact"], []]);
+    expect(contact?.lines.map(boldIn)).toEqual([["/contact"], []]);
     expect(team?.lines.map(boldIn)).toEqual([["https://example.illinois.gov/team-page"], [], []]);
     expect(about?.mono).toBeUndefined();
+    // The whole address of a page with no label isn't in the table.
+    expect(wordsOf([tableAt(wordPages(model), 0)]).join("\n")).not.toContain(
+      "https://example.illinois.gov/contact",
+    );
   });
 
   it("gives a page's title, says when it wasn't recorded, and leaves it out for a page with none", async () => {
@@ -282,16 +295,13 @@ describe("wordPages", () => {
       cellLines(rowAt(tableAt(wordPages(withCard(model, 0, patch)), 0), 0)[1]);
 
     // The demo's runs are from before voicecap recorded titles, and say so in the model's words.
-    expect(titleCell({})).toEqual([
-      "http://127.0.0.1:4848/",
-      "Title: Not recorded: this run used voicecap 0.4.1.",
-    ]);
+    expect(titleCell({})).toEqual(["/", "Title: Not recorded: this run used voicecap 0.4.1."]);
     expect(titleCell({ title: "Grants | Example Agency" })).toEqual([
-      "http://127.0.0.1:4848/",
+      "/",
       "Title: Grants | Example Agency",
     ]);
-    expect(titleCell({ title: null })).toEqual(["http://127.0.0.1:4848/"]);
-    expect(titleCell({ title: "  " })).toEqual(["http://127.0.0.1:4848/"]);
+    expect(titleCell({ title: null })).toEqual(["/"]);
+    expect(titleCell({ title: "  " })).toEqual(["/"]);
   });
 
   it("says the result in words, with a failure and the run an older page's transcripts come from", async () => {
@@ -1208,7 +1218,7 @@ describe("the three sections together", () => {
       ...first,
       name: marked("name-a"),
       labeled: true,
-      path: marked("path"),
+      path: marked("path-a"),
       title: marked("title"),
       statusText: marked("status"),
       reviewChips: [marked("review")],
@@ -1221,6 +1231,8 @@ describe("the three sections together", () => {
     const other: PageCard = {
       ...second,
       name: marked("name-b"),
+      labeled: false,
+      path: marked("path-b"),
       from: { run: marked("run"), date: marked("date") },
       title: { notRecorded: marked("untitled") },
       flags: [{ rule: marked("flag-b"), message: "m" }],
@@ -1280,10 +1292,10 @@ describe("the three sections together", () => {
     const words = wordsOf(threeSections(markupModel())).join("\n");
     // No field's name is the start of another's, so each is found by its own words.
     const fields = [
-      ...["name-a", "path", "title", "status", "review", "at", "reviewer", "shot", "failure"],
-      ...["time", "flag-a", "name-b", "run", "date", "untitled", "flag-b", "rule-a", "text-a"],
-      ...["said-a", "rule-b", "text-b", "rule-c", "text-c", "said-c", "gone", "url", "lastRun"],
-      ...["lastStatus", "entry-a", "words", "sha", "entry-b", "latest"],
+      ...["name-a", "path-a", "title", "status", "review", "at", "reviewer", "shot", "failure"],
+      ...["time", "flag-a", "name-b", "path-b", "run", "date", "untitled", "flag-b", "rule-a"],
+      ...["text-a", "said-a", "rule-b", "text-b", "rule-c", "text-c", "said-c", "gone", "url"],
+      ...["lastRun", "lastStatus", "entry-a", "words", "sha", "entry-b", "latest"],
     ];
 
     for (const field of fields) expect(words, field).toContain(marked(field));

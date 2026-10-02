@@ -47,13 +47,14 @@ import {
 // Every page.
 
 /**
- * A page's name in bold, then its path when the page list gave it a label (a page with none is
- * named by its address, which has its path in it), then its title.
+ * A page's name in bold, as its card's heading has it: its label with its path under it, or, for a
+ * page with no label, its path alone (the site's address is at the top of the copy, and a whole
+ * address crowds a table of six columns). Then its title.
  */
 function pageCell(card: PageCard): Cell {
   const title = titleOf(card);
   return cell(
-    [{ text: card.name, bold: true }],
+    [{ text: card.labeled ? card.name : card.path, bold: true }],
     ...(card.labeled ? [card.path] : []),
     ...(title === null ? [] : [title]),
   );
