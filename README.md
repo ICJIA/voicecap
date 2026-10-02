@@ -1283,7 +1283,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 ## Known limitations
 
 <details>
-<summary>Timing, a portable NVDA, English phrasing, the computer being voicecap's during a run, and more</summary>
+<summary>NVDA's fast speech during a run, timing, a portable NVDA, English phrasing, the computer being voicecap's during a run, and more</summary>
 
 - **NVDA speaks very fast during a run.** voicecap runs Guidepup's own copy of NVDA, which Guidepup sets to NVDA's top speed, and Guidepup silences NVDA before each key press, so a long line is cut off. The transcripts have every word. To hear a page at your own speed, run NVDA yourself: see [Manual NVDA sessions](#manual-nvda-sessions).
 - **Timing.** Driving a screen reader is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.

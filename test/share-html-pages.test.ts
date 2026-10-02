@@ -291,6 +291,13 @@ describe("renderPages", () => {
     expect(cardsIn(renderPages(model))[1]).not.toMatch(/Heard|Reviewed|Issue found/);
   });
 
+  it("keeps part of a session quiet when no name was recorded, too", async () => {
+    const model = withCard(await demoModel(), 0, { reviewChips: ["Heard part of this session"] });
+    const [card = ""] = cardsIn(renderPages(model));
+
+    expect(card).toContain('<span class="chip c-quiet">Heard part of this session</span>');
+  });
+
   it("marks a card whose flags are as its run recorded them, not the current rules'", async () => {
     const model = await demoModel();
     const [card = ""] = cardsIn(renderPages(withCard(model, 0, { flagsAsRecorded: true })));
