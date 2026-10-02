@@ -19,13 +19,13 @@
  * says "Not recorded: this run used voicecap <version>", and so does the page.
  *
  * Where the mockup set a style attribute, the page's style block gives the same look instead: the
- * box of the two panels (`.limits`), the story's first paragraph (`#story-h + .gist`), the headings
- * of a run's parts (`.run-inside h3`), the command under a table (`.verify`), and the paragraphs in
- * the story's fold each need a rule.
+ * box of the two panels (`.limits`), the story's first two paragraphs (`#story-h + .gist`, and the
+ * one after it), the headings of a run's parts (`.run-inside h3`), the command under a table
+ * (`.verify`), and the paragraphs in the story's fold each need a rule.
  */
 import { esc, idFragment, plural } from "../../report/html.js";
 import { checkDataJson } from "../check.js";
-import { firstSentenceBold } from "../line.js";
+import { firstSentenceBold, type Line } from "../line.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import {
   ABOUT,
@@ -298,9 +298,9 @@ function timelineTable(): string {
 }
 
 /**
- * "How voicecap came to be": why it exists, with the Deque study linked; the rest of the story in a
- * fold; the timeline on a Windows PC and on a Mac; and a few things worth knowing, folded. All of it
- * is fixed text, so it takes nothing from the model.
+ * "How voicecap came to be": how it began, then why it exists, with the Deque study linked, both in
+ * the open; the rest of the story in a fold; the timeline on a Windows PC and on a Mac; and a few
+ * things worth knowing, folded. All of it is fixed text, so it takes nothing from the model.
  */
 export function renderStory(_model: ShareModel): string {
   const rest = fold(
@@ -316,6 +316,7 @@ export function renderStory(_model: ShareModel): string {
   );
   const parts = [
     `<h2 id="story-h">${esc(STORY_TEXT.title)}</h2>`,
+    `<p class="gist">${esc(STORY.began)}</p>`,
     `<p class="gist">${lineHtml(whyLine())}</p>`,
     `<div class="folds">${rest}</div>`,
     timelineTable(),
@@ -327,16 +328,31 @@ export function renderStory(_model: ShareModel): string {
 // The footer.
 
 /**
+ * The footer's line on the file and its Word copy (`FOOTER_TEXT.page`), every word escaped. The
+ * footer sets a name in the fixed-width font as a `<span class="mono">`, where `lineHtml` writes a
+ * `<code>`, so this one line is drawn here. Its pieces are plain words and names, nothing else.
+ */
+function fileLine(line: Line): string {
+  return line
+    .map((piece) => {
+      if (typeof piece === "string") return esc(piece);
+      return piece.mono ? `<span class="mono">${esc(piece.text)}</span>` : esc(piece.text);
+    })
+    .join("");
+}
+
+/**
  * What voicecap is, with the link again; when the page was made, with its offset from UTC, and the
  * offsets the runs recorded their times in, since each time is shown as its run recorded it (a run
- * recorded elsewhere keeps its own); and the file's own name.
+ * recorded elsewhere keeps its own); and the file's own name, with its Word copy's.
  */
 export function renderFooter(model: ShareModel): string {
+  const { fileName, wordName } = model.footer;
   return [
     `<footer>`,
     `  <span>${lineHtml([`${ABOUT} `, { text: FOOTER_TEXT.address, href: TOP_TEXT.github }])}</span>`,
     `  <span>${esc(generatedLine(model.footer))}</span>`,
-    `  <span>${esc(FOOTER_TEXT.file)} <span class="mono">${esc(model.footer.fileName)}</span></span>`,
+    `  <span>${fileLine(FOOTER_TEXT.page(fileName, wordName))}</span>`,
     `</footer>`,
   ].join("\n");
 }

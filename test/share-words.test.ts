@@ -1303,6 +1303,7 @@ describe("the lines of the evidence, the story, and the footer", () => {
     const footer = {
       generatedAt: "2026-09-30T09:00:00-05:00",
       fileName: "current.html",
+      wordName: "current.docx",
       offsets: ["UTC−05:00"],
     };
 
@@ -1466,14 +1467,38 @@ describe("the section words in text.ts", () => {
     const verify = "npx @icjia/voicecap verify --site http://127.0.0.1:4848";
     const proves = EVIDENCE_TEXT.proves(verify);
     expect(lineText(proves)).toBe(
-      `What the check proves: this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one the sender recorded (Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac, shows it), or run ${verify} on the transcripts folder.`,
+      `What the check proves: this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: voicecap share prints it, ready for the email that sends the file, and Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac, shows it for the file you received. Or run ${verify} on the transcripts folder.`,
     );
     expect(proves.filter((piece) => typeof piece !== "string")).toEqual([
       { text: "What the check proves:", bold: true },
+      { text: "voicecap share", mono: true },
       { text: "Get-FileHash <file>", mono: true },
       { text: "shasum -a 256 <file>", mono: true },
       { text: verify, mono: true },
     ]);
+  });
+
+  it("name the file and its other copy in the footer, each name as a piece in the fixed-width font", () => {
+    expect(FOOTER_TEXT.page("current.html", "current.docx")).toEqual([
+      "This file: ",
+      { text: "current.html", mono: true },
+      ". Its Word copy: ",
+      { text: "current.docx", mono: true },
+      ".",
+    ]);
+    expect(FOOTER_TEXT.word("current.html", "current.docx")).toEqual([
+      "This file: ",
+      { text: "current.docx", mono: true },
+      ". Its web page: ",
+      { text: "current.html", mono: true },
+      ".",
+    ]);
+    expect(lineText(FOOTER_TEXT.page("current.html", "current.docx"))).toBe(
+      "This file: current.html. Its Word copy: current.docx.",
+    );
+    expect(lineText(FOOTER_TEXT.word("current.html", "current.docx"))).toBe(
+      "This file: current.docx. Its web page: current.html.",
+    );
   });
 
   it("name the problems' questions, and whether a problem happened again, as the page does", () => {
@@ -1514,6 +1539,8 @@ describe("the section words in text.ts", () => {
     expect(html).toContain(
       `<thead><tr><th scope="col">${timeline.when}</th><th scope="col"><span class="plat pc">${timeline.pc.name}</span>, ${timeline.pc.reader}</th><th scope="col"><span class="plat mac">${timeline.mac.name}</span>, ${timeline.mac.reader}</th></tr></thead>`,
     );
-    expect(textOf(renderFooter(model))).toContain(`${FOOTER_TEXT.file} ${model.footer.fileName}`);
+    expect(textOf(renderFooter(model), "")).toContain(
+      lineText(FOOTER_TEXT.page(model.footer.fileName, model.footer.wordName)),
+    );
   });
 });

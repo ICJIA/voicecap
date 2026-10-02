@@ -476,6 +476,27 @@ describe("a page in a narrow window", () => {
   });
 });
 
+describe("the story's opening", () => {
+  it("sets how voicecap began, and why it exists, in the text color, and every other gist in the muted one", async () => {
+    const page = await open(pages.demo);
+
+    const colors = await page.evaluate(() => {
+      const color = (element: Element): string => getComputedStyle(element).color;
+      const opening = [...document.querySelectorAll("#story-h ~ p.gist")];
+      const others = [...document.querySelectorAll("p.gist")].filter(
+        (paragraph) => !opening.includes(paragraph),
+      );
+      return { text: color(document.body), opening: opening.map(color), others: others.map(color) };
+    });
+
+    // The two paragraphs the story opens with, as its one paragraph always was.
+    expect(colors.opening).toEqual([colors.text, colors.text]);
+    // The line under every other section's heading is set back, in the muted color.
+    expect(colors.others.length).toBeGreaterThan(0);
+    expect(colors.others.filter((color) => color === colors.text)).toEqual([]);
+  });
+});
+
 describe("a page that needs nothing from outside its file", () => {
   it("loads nothing from outside the file", async () => {
     const context = await newContext();

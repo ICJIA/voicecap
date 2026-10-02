@@ -264,7 +264,7 @@ table.difftable tr.del mark { background: color-mix(in srgb, var(--bad) 35%, tra
 .fp-result.good { color: var(--ok); } .fp-result.bad { color: var(--bad); }
 .fp-limit { margin: 0; max-width: 84ch; }
 /* the story */
-#story-h + .gist { color: var(--fg); }
+#story-h + .gist, #story-h + .gist + .gist { color: var(--fg); }
 table.tracks { width: 100%; min-width: 540px; border-collapse: separate; border-spacing: 8px 8px; margin: 4px -8px 10px; font-size: 0.92rem; }
 table.tracks caption { text-align: left; font: 600 1.02rem var(--display); padding: 0 8px 2px; }
 table.tracks thead th { text-align: left; color: var(--muted); font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 10px 0; }

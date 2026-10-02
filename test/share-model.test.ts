@@ -180,6 +180,7 @@ describe("loadShareInput", () => {
       home: os.homedir(),
       platform: process.platform,
       fileName: "current.html",
+      wordName: "current.docx",
     });
     // Every run, oldest first, each record exactly as its run.json holds it.
     expect(input.records).toEqual((["1315", "1402", "1415", "1419"] as const).map(demoRun));
@@ -195,8 +196,13 @@ describe("loadShareInput", () => {
       siteDir: DEMO_SITE,
       config: DEFAULT_CONFIG,
       fileName: "127.0.0.1_4848_2026-10-01.html",
+      wordName: "127.0.0.1_4848_2026-10-01.docx",
     });
-    expect(named).toMatchObject({ siteName: null, fileName: "127.0.0.1_4848_2026-10-01.html" });
+    expect(named).toMatchObject({
+      siteName: null,
+      fileName: "127.0.0.1_4848_2026-10-01.html",
+      wordName: "127.0.0.1_4848_2026-10-01.docx",
+    });
   });
 
   it("refuses a site folder with no run, which has nothing to share", async () => {
@@ -1072,6 +1078,7 @@ describe("buildShareModel", () => {
       inputOf([earlier, latest], {
         generatedAt: "2026-10-01T08:30:00-05:00",
         fileName: "example.illinois.gov_2026-10-01.html",
+        wordName: "example.illinois.gov_2026-10-01.docx",
       }),
     );
 
@@ -1088,6 +1095,7 @@ describe("buildShareModel", () => {
     expect(model.footer).toEqual({
       generatedAt: "2026-10-01T08:30:00-05:00",
       fileName: "example.illinois.gov_2026-10-01.html",
+      wordName: "example.illinois.gov_2026-10-01.docx",
       offsets: ["UTC−05:00"],
     });
     expect(model.flagRulesSha256).toBe("f".repeat(64));
@@ -1106,6 +1114,16 @@ describe("buildShareModel", () => {
     expect(buildShareModel(inputOf([earlier, failedLater])).header.tested).toBe(
       "29 to 30 September 2026",
     );
+  });
+
+  it("names the page's file and its Word copy's, for the footer", () => {
+    const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
+
+    expect(
+      buildShareModel(
+        inputOf([run], { fileName: "x_2026-09-30.html", wordName: "x_2026-09-30.docx" }),
+      ).footer,
+    ).toMatchObject({ fileName: "x_2026-09-30.html", wordName: "x_2026-09-30.docx" });
   });
 
   it("names each UTC offset the runs recorded their times in, for the footer", () => {

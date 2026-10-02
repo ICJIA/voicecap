@@ -325,15 +325,18 @@ export const EVIDENCE_TEXT = {
     "What's a fingerprint? A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.",
   /**
    * What the check proves, and what it can't, with the two stronger checks: the file's own
-   * fingerprint, and `verify`, the command that checks the originals on the transcripts folder.
+   * fingerprint against the one its sender recorded (`voicecap share` prints it, for the email that
+   * sends the file), and `verify`, the command that checks the originals on the transcripts folder.
    */
   proves: (verify: string): Line => [
     { text: "What the check proves:", bold: true },
-    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one the sender recorded (",
+    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
+    { text: "voicecap share", mono: true },
+    " prints it, ready for the email that sends the file, and ",
     { text: "Get-FileHash <file>", mono: true },
     " in PowerShell, or ",
     { text: "shasum -a 256 <file>", mono: true },
-    " on a Mac, shows it), or run ",
+    " on a Mac, shows it for the file you received. Or run ",
     { text: verify, mono: true },
     " on the transcripts folder.",
   ],
@@ -375,18 +378,21 @@ export const APPENDIX_TEXT = {
 };
 
 /**
- * Why voicecap exists, in the order the page tells it: `why` first, then `usual` and `answer` in
- * the fold beneath. `why` quotes the study it rests on by its article's headline, once, and `deque`
- * is that article: the renderer links the title where `why` has it, to `url`. The title is the
- * headline word for word, as Deque printed it on 10 March 2021, since a quoted title shown to
- * auditors must be exact.
+ * How voicecap began, and why it exists, in the order the page tells it: `began` first, then `why`,
+ * then `usual` and `answer` in the fold beneath. `began` is why it was needed. `why` quotes the
+ * study it rests on by its article's headline, once, and `deque` is that article: the renderer
+ * links the title where `why` has it, to `url`. The title is the headline word for word, as Deque
+ * printed it on 10 March 2021, since a quoted title shown to auditors must be exact.
  */
 export const STORY: {
+  began: string;
   why: string;
   usual: string;
   answer: string;
   deque: { title: string; url: string };
 } = {
+  began:
+    "voicecap began at the Illinois Criminal Justice Information Authority (ICJIA) with a practical need: more than a dozen websites to review before the April 2027 ADA Title II deadline for accessible digital content. Automated checkers such as axe, Lighthouse, and Pa11y were one half of that review. The other half was to go through every site methodically with a real screen reader, NVDA or VoiceOver, and keep a transcript of what it said.",
   why: "Automated checkers find what a machine can test, but only part of the problems. Even by Deque's count (Deque makes axe), its automated tests found 57% of the issues in its audits: “Deque Study Shows Its Automated Testing Identifies 57 Percent of Digital Accessibility Issues, Surpassing Accepted Industry Benchmarks”, March 2021, over 2,000 audits and 13,000 pages. And no checker can say what a page sounds like.",
   usual:
     "The usual answer, a person with a screen reader, page by page, is slow, hard to show afterward, and hard to repeat.",
@@ -544,7 +550,7 @@ export const WORTH_KNOWING: { title: string; text: string }[] = [
   },
   {
     title: "Both kinds of testing",
-    text: "voicecap checks this page's design with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
+    text: "voicecap checks the design of this report's web page with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
   },
   {
     title: "Tested itself",
@@ -559,9 +565,26 @@ export const ABOUT =
 /**
  * The footer, apart from what voicecap is (`ABOUT`) and when the page was made (`generatedLine`,
  * in words.ts): the address its link to voicecap shows (the link goes to `TOP_TEXT.github`), and
- * what it says before the file's own name.
+ * the line that names the file and its other copy. Each copy says its own name first, then the
+ * other's, both in the fixed-width font. They take the page's file name, then the Word copy's,
+ * whichever copy is saying it.
  */
 export const FOOTER_TEXT = {
   address: "github.com/ICJIA/voicecap",
-  file: "This file:",
+  /** The page's line: "This file: current.html. Its Word copy: current.docx." */
+  page: (fileName: string, wordName: string): Line => [
+    "This file: ",
+    { text: fileName, mono: true },
+    ". Its Word copy: ",
+    { text: wordName, mono: true },
+    ".",
+  ],
+  /** The Word copy's line: "This file: current.docx. Its web page: current.html." */
+  word: (fileName: string, wordName: string): Line => [
+    "This file: ",
+    { text: wordName, mono: true },
+    ". Its web page: ",
+    { text: fileName, mono: true },
+    ".",
+  ],
 };
