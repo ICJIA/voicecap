@@ -1,6 +1,7 @@
 /**
  * The parts every section of the shareable page draws with: a fold, a chip, a "Not recorded" line,
- * a scroll box, a verdict line, a bar, and the strip of spoken lines. Each returns HTML.
+ * a scroll box, a line of words, a verdict line, a bar, and the strip of spoken lines. Each returns
+ * HTML.
  *
  * None sets a `style` attribute: the page's Content Security Policy hashes its one style block and
  * allows nothing else. So sizes are attributes, and colors are classes the style block gives
@@ -12,7 +13,8 @@
  * escaped here.
  */
 import { esc, idFragment, plural } from "../../report/html.js";
-import { seconds } from "../format.js";
+import { count, seconds } from "../format.js";
+import { firstSentenceBold, type Line } from "../line.js";
 
 /**
  * A heading in a summary line: an `h1` to `h6`, or any tag given the role. Only real tags count:
@@ -101,15 +103,39 @@ export function scroll(label: string, inner: string): string {
 }
 
 /**
+ * A line of words (../line.ts) as HTML, every word escaped: a piece in bold is a `<b>`, one in the
+ * fixed-width font a `<code>`, and one linked out an `<a href>`, outside the other two. A line has
+ * no markup of its own, so a `<` in it is always a word's.
+ */
+export function lineHtml(line: Line): string {
+  return line
+    .map((piece) => {
+      if (typeof piece === "string") return esc(piece);
+      const words = esc(piece.text);
+      const fixed = piece.mono ? `<code>${words}</code>` : words;
+      const set = piece.bold ? `<b>${fixed}</b>` : fixed;
+      return piece.href === undefined ? set : `<a href="${esc(piece.href)}">${set}</a>`;
+    })
+    .join("");
+}
+
+/**
+ * HTML from `esc` or `lineHtml`, with its apostrophes as they were written, not as `&#39;`. HTML
+ * text needs no escape for one, so a reader sees no difference. It's for the page's own words,
+ * which its renderers once wrote into their markup as they were, and the page's tests pin them so.
+ * Words a record supplies stay as `esc` writes them.
+ */
+export function keepApostrophes(html: string): string {
+  return html.replaceAll("&#39;", "'");
+}
+
+/**
  * A section's verdict line: its first sentence in bold, as the mockup sets it, and the rest as it
  * is. `text` is plain words, escaped here. A sentence ends at a ".", "!", or "?" that a space or the
  * end follows, so a version number in it ("0.4.1") never ends it.
  */
 export function verdictLine(text: string): string {
-  const end = /[.!?](?=\s|$)/.exec(text);
-  const cut = end === null ? text.length : end.index + 1;
-  const rest = text.slice(cut).trim();
-  return `<p class="prob-verdict"><b>${esc(text.slice(0, cut))}</b>${rest === "" ? "" : ` ${esc(rest)}`}</p>`;
+  return `<p class="prob-verdict">${lineHtml(firstSentenceBold(text))}</p>`;
 }
 
 /** A part of a bar: the number it counts, what it counts, and its color's kind. */
@@ -120,10 +146,10 @@ export interface BarSegment {
 }
 
 /**
- * A whole number as the page writes it, on any computer: "1,204". It's made a number first, so a
- * record's field that holds something else never reaches the page as markup.
+ * A whole number as the page writes it, on any computer: "1,204". It lives in ../format.ts, so a
+ * copy with no markup writes it the same way.
  */
-export const count = (value: number): string => Number(value).toLocaleString("en-US");
+export { count };
 
 /** A part of a track as a percentage, to two decimals. A bare 0 for none. */
 function percent(part: number, total: number): string {

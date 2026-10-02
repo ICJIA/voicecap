@@ -1,15 +1,85 @@
 /**
- * The shareable page's fixed text: how voicecap works, and how it came to be.
+ * The shareable page's fixed text: how voicecap works, how it came to be, and the headings, labels,
+ * and short lines of each section.
  *
- * These are the only words on the page that aren't computed from a run's records, and none of them
- * says anything about a run's results. Both renderers draw from this one module, the page now and
- * its Word copy later, so it holds words and nothing more: the steps' icons are named here and
+ * These are the words on the page that aren't computed from a run's records. The sentences that are
+ * (a section's opening line, a card's title) are built from the model in words.ts, which says them
+ * around their numbers and names. Both renderers draw from these two modules, the page now and its
+ * Word copy later, so this one holds words and nothing more: the steps' icons are named here and
  * drawn by the renderer, and the only markup is the bold and code in the timeline's cells.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
+import type { PassName } from "../model.js";
+
+/**
+ * The top of the page: the line above the site's name, the labels in the line below its lead (each
+ * is followed by what it labels), and the two addresses the top links to.
+ */
+export const TOP_TEXT = {
+  eyebrow: "Screen reader test results",
+  asOf: "As of",
+  preparedBy: "Prepared by",
+  madeWith: "Made with",
+  siteAddress: "Site address",
+  /** Where "voicecap", in "Made with voicecap", links to. */
+  github: "https://github.com/ICJIA/voicecap",
+  /** Where the screen reader's name links to, when it is NVDA. */
+  nvAccess: "https://www.nvaccess.org/",
+};
+
+/**
+ * The Summary: its heading, the titles of its panels and bars, the line for no page that needs
+ * attention, and the words for what a page's latest result can be.
+ */
+export const SUMMARY_TEXT = {
+  title: "Summary",
+  attention: "What needs attention",
+  noAttention: "No page has flags or an open issue.",
+  complete: "How complete the test was",
+  todo: "What's still to do",
+  whenHow: "When and how",
+  results: "Every page's latest result",
+  /** What a page's latest result can be, as the words that follow a count of pages. */
+  resultWords: { done: "without flags", flagged: "with flags", never: "never transcribed" },
+  rules: "Flags by rule",
+  /** Said in place of the rules and their counts, when no flag was raised. */
+  noFlagsRaised: "No flags were raised.",
+  review: "The human review",
+  /** The three counts of the human review, each out of its total. */
+  reviewRows: { heard: "Heard live", reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
+};
+
+/**
+ * "How voicecap works", apart from its lead, its steps, and its band on when to run voicecap: the
+ * heading, the sample of what NVDA said on the home page, and the keys it was said at.
+ */
+export const HOW_TEXT = {
+  title: "How voicecap works",
+  /** The words of the lead (HOW_LEAD) that are set in bold: that the person reads the transcripts. */
+  leadBold: "The person running it reads the transcripts",
+  /** The sample's heading; with a sample, the page and how many ways through it follow. */
+  heard: "Heard on this site",
+  /** How many ways through the page the sample has, by the number of its passes. */
+  howMany: ["no ways", "one way", "two ways", "three ways"],
+  /**
+   * The key each pass presses, and what it goes by: the keys NVDA's users press. Each key is named
+   * in words. The mockup drew the first as an arrow, which a screen reader says twice ("downwards
+   * arrow, Down Arrow"), and axe can't check the contrast of a character that isn't text.
+   */
+  ways: {
+    read: { key: "Down Arrow", words: "line by line" },
+    headings: { key: "H", words: "heading by heading" },
+    tab: { key: "Tab", words: "control by control" },
+  } satisfies Record<PassName, { key: string; words: string }>,
+  /** Under the sample: what its words are, and what each time is. */
+  heardNote:
+    "NVDA's own words: the first lines of each pass, from the transcripts below. Each time is how long that line took, which includes the wait for NVDA to finish speaking.",
+  /** Said in place of the sample, when the home page has no transcripts to take one from. */
+  noSample: "Not recorded: no sample of the home page's lines is available.",
+};
 
 /** The paragraph that opens "How voicecap works". */
 export const HOW_LEAD =
@@ -86,6 +156,64 @@ export const WHEN_TO_RUN: {
       marked: false,
     },
   ],
+};
+
+/** What a pass is called as a heading. */
+export const PASS_TITLE: Record<PassName, string> = {
+  read: "Read",
+  headings: "Headings",
+  tab: "Tab",
+};
+
+/** What a pass is called in a sentence. */
+export const PASS_WORDS: Record<PassName, string> = {
+  read: "read",
+  headings: "headings",
+  tab: "Tab",
+};
+
+/**
+ * "Every page": its heading, what a card says of each pass and of the page's flags, and the table
+ * of the pages no longer listed.
+ */
+export const PAGES_TEXT = {
+  title: "Every page",
+  /** The label of each number on a card: what each pass captured, and how long the page took. */
+  captured: { read: "Read", headings: "Headings", tab: "Tab stops", time: "Time" },
+  /** What a card says of a pass the shown run didn't read, which is never "0". */
+  notRead: "Not read",
+  /** What a card says of a time when its record has no words of its own for it. */
+  notRecorded: "Not recorded",
+  /** Said of a page that has transcripts and no flags. */
+  noFlags: "No flags",
+  /** Said of a page whose flags are as its run recorded them, not the current rules'. */
+  flagsAsRecorded: "Flags as recorded",
+  noLongerListed: "No longer listed",
+  noLongerListedLead:
+    "Pages that earlier runs tested and the latest page list no longer has, with what the last run that had each one recorded.",
+  /** The heads of that table's columns. */
+  noLongerListedHead: ["Page", "Last run that had it", "What it recorded"],
+};
+
+/** "What the flags found": its heading, and the words of each flagged page's table. */
+export const FLAGS_TEXT = {
+  title: "What the flags found",
+  /** The heads of the table's columns: the rule, what it found, and the lines NVDA spoke. */
+  head: ["Rule", "What NVDA showed", "NVDA said"],
+  /** Said in place of NVDA's words, for a rule with no line to quote. */
+  noLine: "No line to quote",
+};
+
+/** "Appendix: every transcript": its heading, and what it says in place of a transcript's words. */
+export const APPENDIX_TEXT = {
+  title: "Appendix: every transcript",
+  /** For a transcript with no lines. */
+  noLines: "This transcript has no lines.",
+  /** For a transcript the run recorded but whose file couldn't be read here, as the page says it. */
+  unreadable:
+    "This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.",
+  /** For a page whose record lists no transcript files. */
+  noFiles: "This run's record lists no transcript files for the page.",
 };
 
 /**

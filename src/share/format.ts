@@ -1,5 +1,6 @@
 /**
- * Dates, times, lists, and page names and addresses in the plain words the shareable page uses.
+ * Dates, times, lists, numbers, and page names and addresses in the plain words the shareable
+ * report uses.
  *
  * The times are the local ISO times voicecap records ("2026-09-29T13:15:02-05:00", or to the
  * millisecond). Each is read from its own date and time fields, never through the machine's time
@@ -118,3 +119,9 @@ export function names(list: readonly string[]): string {
   if (list.length <= 2) return list.join(" and ");
   return `${list.slice(0, -1).join(", ")}, and ${list.at(-1)}`;
 }
+
+/**
+ * A whole number as a report writes it, on any computer: "1,204". It's made a number first, so a
+ * record's field that holds something else never reaches a copy as markup.
+ */
+export const count = (value: number): string => Number(value).toLocaleString("en-US");

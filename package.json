@@ -54,6 +54,7 @@
     "fixture:reviews": "tsx scripts/fixture-reviews.ts",
     "fixture:capture": "tsx scripts/capture-fixture.ts --write",
     "test:nvda": "tsx scripts/capture-fixture.ts",
+    "share:fixture": "tsx scripts/share-fixture.ts",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
