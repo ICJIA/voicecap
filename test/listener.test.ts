@@ -307,4 +307,42 @@ describe("the listener's question at a real terminal", () => {
     await expect(answer).resolves.toBeNull();
     expect(rawModes).toEqual([true, false, true, false]);
   });
+
+  /**
+   * A keyboard that stops reading only on the tick after pause(), as Node's process.stdin does,
+   * and records whether it was still reading each time raw mode was left.
+   */
+  function lateStoppingKeyboard() {
+    const leftRawWhile: ("reading" | "stopped")[] = [];
+    let reading = false;
+    const input = Object.assign(new PassThrough(), {
+      isTTY: true,
+      setRawMode(mode: boolean) {
+        if (!mode) leftRawWhile.push(reading ? "reading" : "stopped");
+      },
+    });
+    input.on("resume", () => {
+      reading = true;
+    });
+    input.on("pause", () => {
+      process.nextTick(() => {
+        if (!input.readableFlowing) reading = false;
+      });
+    });
+    return { input, leftRawWhile };
+  }
+
+  // Leaving raw mode while a Windows console still reads starts a line-at-a-time read there. With
+  // readline taking the terminal next, voicecap then never exited after the answer in Windows
+  // Terminal (measured 2026-10-02, Node 24.19.0, Windows 11).
+  it("leaves raw mode after dropping typed-ahead keys only once the keyboard has stopped reading", async () => {
+    const { input, leftRawWhile } = lateStoppingKeyboard();
+    const shown = screen();
+    const answer = listener(input, shown.stream, { drainMs: 5 })(question);
+    await shown.prompted();
+    input.write("1\n");
+    await expect(answer).resolves.toBe("all");
+    // The first time is voicecap's own, after the drop; the second is readline's, at its close.
+    expect(leftRawWhile[0]).toBe("stopped");
+  });
 });

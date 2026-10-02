@@ -1,4 +1,4 @@
-import { setTimeout as delay } from "node:timers/promises";
+import { setImmediate as nextTurn, setTimeout as delay } from "node:timers/promises";
 
 import { createPrompter, InputEndedError } from "../init/prompt.js";
 import type { ListenerAnswer } from "../model.js";
@@ -89,8 +89,8 @@ export function makeAskListener(
 /**
  * Read and drop what `input` holds, and whatever arrives for `ms` more. At a terminal (`raw`) it
  * reads in raw mode, as the question does, so the keys come as they were pressed, not a line at a
- * time, and it leaves raw mode after. Resolves false when there's nothing to ask with: the input
- * ended, or `signal` gave up.
+ * time, and it leaves raw mode after, once the input has stopped reading. Resolves false when
+ * there's nothing to ask with: the input ended, or `signal` gave up.
  */
 async function dropWaitingInput(
   input: NodeJS.ReadableStream,
@@ -110,9 +110,16 @@ async function dropWaitingInput(
     await delay(options.ms, undefined, { signal: options.signal }).catch(() => {});
   } finally {
     input.removeListener("data", drop);
-    input.removeListener("end", onEnd);
     input.pause();
-    if (options.raw) keys.setRawMode?.(false);
+    if (options.raw) {
+      // Node stops reading process.stdin on the tick after pause(). Leaving raw mode while it still
+      // reads has a Windows console start a line-at-a-time read, and with readline taking the
+      // terminal next, voicecap then never exited after the answer in Windows Terminal (measured
+      // 2026-10-02, Node 24.19.0, Windows 11). So raw mode is left once the read has stopped.
+      await nextTurn();
+      keys.setRawMode?.(false);
+    }
+    input.removeListener("end", onEnd);
   }
   return !ended && !options.signal.aborted;
 }
