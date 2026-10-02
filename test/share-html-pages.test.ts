@@ -644,7 +644,7 @@ describe("renderPages", () => {
     const gist = (html: string) => /<p class="gist">(.*?)<\/p>/s.exec(html)?.[1];
 
     expect(gist(renderPages(await demoModel()))).toBe(
-      "<b>7 pages: 6 read in full and 1 failed in the latest run.</b> For each page: its result, the person's review as far as the records show it, and what each pass captured.",
+      "<b>7 pages: 6 read in full and 1 failed in the latest run.</b> For each page: its result, the person&#39;s review as far as the records show it, and what each pass captured.",
     );
     expect(gist(renderPages(manyPages(3, 1)))).toContain("<b>3 pages, all read in full.</b>");
     expect(gist(renderPages(manyPages(1, 0)))).toContain("<b>1 page, read in full.</b>");
@@ -909,7 +909,7 @@ describe("renderAppendix", () => {
     expect(html).toMatch(/^<section aria-labelledby="app-h">\s*<h2 id="app-h">/);
     expect(html).toContain('<h2 id="app-h">Appendix: every transcript</h2>');
     expect(html).toContain(
-      `<p class="gist"><b>7 pages, 21 transcripts.</b> What NVDA said on each page, word for word, with each file's fingerprint. Open a page to read them.</p>`,
+      `<p class="gist"><b>7 pages, 21 transcripts.</b> What NVDA said on each page, word for word, with each file&#39;s fingerprint. Open a page to read them.</p>`,
     );
     expect(html).toContain('<div class="appendix">');
     // One closed fold for each page, with the id its card links to, in the page's order.
@@ -1071,7 +1071,7 @@ describe("renderAppendix", () => {
     const none = modelOf([done("/a", { files: [] })]);
     expect(summary(none)).toBe("1 https://example.illinois.gov/a: no transcripts");
     expect(renderAppendix(none)).toContain(
-      "<p>This run's record lists no transcript files for the page.</p>",
+      "<p>This run&#39;s record lists no transcript files for the page.</p>",
     );
   });
 
@@ -1086,7 +1086,7 @@ describe("renderAppendix", () => {
     expect(sections).toHaveLength(3);
     // In the Tab transcript's own place, under its own heading.
     expect(sections[2]).toContain(
-      `<h3>Tab <span class="sr">transcript of /a</span></h3><p>This transcript was recorded, but its file couldn't be read here, so it isn't shown, and the fingerprint check leaves it out.</p>`,
+      `<h3>Tab <span class="sr">transcript of /a</span></h3><p>This transcript was recorded, but its file couldn&#39;t be read here, so it isn&#39;t shown, and the fingerprint check leaves it out.</p>`,
     );
     expect(sections[2]).not.toContain("<pre>");
     expect(sections[2]).not.toContain("scroll");
@@ -1095,13 +1095,13 @@ describe("renderAppendix", () => {
       "1 https://example.illinois.gov/a: read, headings, and Tab transcripts",
     ]);
     expect(html).toContain(
-      "<b>1 page, 2 transcripts.</b> What NVDA said on each page, word for word, with each file's fingerprint. Open a page to read them. 1 transcript couldn't be read, and says so under its page.",
+      "<b>1 page, 2 transcripts.</b> What NVDA said on each page, word for word, with each file&#39;s fingerprint. Open a page to read them. 1 transcript couldn&#39;t be read, and says so under its page.",
     );
     // A page that can't be read at all is still a fold, with all three said.
     const gone = renderAppendix(modelOf([done("/a")], { transcripts: storeOf(() => ({})) }));
-    expect(gone.match(/couldn't be read here/g)).toHaveLength(3);
+    expect(gone.match(/couldn&#39;t be read here/g)).toHaveLength(3);
     expect(gone).toContain("<b>1 page, no transcripts shown.</b>");
-    expect(gone).toContain("3 transcripts couldn't be read, and each says so under its page.");
+    expect(gone).toContain("3 transcripts couldn&#39;t be read, and each says so under its page.");
   });
 
   it("says a transcript with no lines has none, rather than show an empty box", () => {

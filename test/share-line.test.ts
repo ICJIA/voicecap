@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { keepApostrophes, lineHtml, verdictLine } from "../src/share/html/parts.js";
+import { lineHtml, verdictLine } from "../src/share/html/parts.js";
 import { firstSentenceBold, lineOfMarkup, lineText, type Line } from "../src/share/line.js";
 import { TIMELINE } from "../src/share/text.js";
 
@@ -35,6 +35,8 @@ describe("a line", () => {
       "&quot;it&#39;s&quot; <code>&lt;x y=&quot;1&quot;&gt;&amp;&#39;&lt;/x&gt;</code>" +
         '<a href="https://a.gov/?q=&quot;1&quot;&amp;r=&#39;2&#39;">go</a>',
     );
+    // One rule for every word: a sentence the page has always said is escaped as the rest are.
+    expect(lineHtml(["the person's review"])).toBe("the person&#39;s review");
   });
 
   it("sets a piece in bold, in the fixed-width font, and linked, with the link outermost", () => {
@@ -49,15 +51,6 @@ describe("a line", () => {
     expect(lineText([])).toBe("");
     expect(lineHtml([])).toBe("");
     expect(lineHtml([{ text: "", bold: true }])).toBe("<b></b>");
-  });
-
-  it("leaves an apostrophe as it was written, when the page has always written it so", () => {
-    // HTML text needs no escape for an apostrophe, and the page's own words have always had theirs
-    // plain: the rest of a line is escaped as ever.
-    expect(keepApostrophes(lineHtml(["the person's <review>"]))).toBe(
-      "the person's &lt;review&gt;",
-    );
-    expect(keepApostrophes("&amp;#39; and &#39;")).toBe("&amp;#39; and '");
   });
 });
 
@@ -87,9 +80,9 @@ describe("lineOfMarkup", () => {
 
     expect(cells.length).toBeGreaterThan(10);
     for (const cell of cells) {
-      // The cell's words, with its tags dropped; and its markup again, but for the apostrophes.
+      // The cell's words, with its tags dropped; and its markup again, with its apostrophes escaped.
       expect(lineText(lineOfMarkup(cell))).toBe(cell.replace(/<\/?(?:b|code)>/g, ""));
-      expect(keepApostrophes(lineHtml(lineOfMarkup(cell)))).toBe(cell);
+      expect(lineHtml(lineOfMarkup(cell))).toBe(cell.replaceAll("'", "&#39;"));
     }
   });
 });

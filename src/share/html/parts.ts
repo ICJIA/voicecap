@@ -120,16 +120,6 @@ export function lineHtml(line: Line): string {
 }
 
 /**
- * HTML from `esc` or `lineHtml`, with its apostrophes as they were written, not as `&#39;`. HTML
- * text needs no escape for one, so a reader sees no difference. It's for the page's own words,
- * which its renderers once wrote into their markup as they were, and the page's tests pin them so.
- * Words a record supplies stay as `esc` writes them.
- */
-export function keepApostrophes(html: string): string {
-  return html.replaceAll("&#39;", "'");
-}
-
-/**
  * A section's verdict line: its first sentence in bold, as the mockup sets it, and the rest as it
  * is. `text` is plain words, escaped here. A sentence ends at a ".", "!", or "?" that a space or the
  * end follows, so a version number in it ("0.4.1") never ends it.

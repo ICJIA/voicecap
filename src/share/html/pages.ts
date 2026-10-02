@@ -5,9 +5,8 @@
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
- * `lineHtml`. Some of the page's own words were once written into this markup as they were, and
- * keep their apostrophes so (`keepApostrophes`). No `style` attribute is set, and the only links go
- * to the page's own parts: a card to its transcripts in the appendix.
+ * `lineHtml`. No `style` attribute is set, and the only links go to the page's own parts: a card to
+ * its transcripts in the appendix.
  *
  * Most of this starts folded, as the design says: with more than 12 pages, the cards with nothing
  * to note; with more than 3 flagged pages, each page's quotes; and each page's transcripts. A
@@ -20,7 +19,6 @@
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
 import { esc, idFragment, plural } from "../../report/html.js";
-import type { Line } from "../line.js";
 import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
 import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
 import {
@@ -35,16 +33,7 @@ import {
   took,
   transcriptsInside,
 } from "../words.js";
-import {
-  chip,
-  count,
-  fold,
-  keepApostrophes,
-  lineHtml,
-  notRecorded,
-  scroll,
-  strip,
-} from "./parts.js";
+import { chip, count, fold, lineHtml, notRecorded, scroll, strip } from "./parts.js";
 
 /** More pages than this, and the cards with nothing to note fold behind one line. */
 const MOST_PAGES_OPEN = 12;
@@ -62,12 +51,6 @@ const SHOT = { width: 640, height: 480 } as const;
 const OPEN_A_PAGE = "Open a page to read them.";
 
 type Kind = "ok" | "warn" | "bad" | "quiet";
-
-/**
- * A section's opening line as HTML. Its words are counts and fixed words, never a record's, and
- * its apostrophes have always been written as they are.
- */
-const gistHtml = (line: Line): string => keepApostrophes(lineHtml(line));
 
 /**
  * A page's screenshot as the markup of the two places it can be: the picture, as the mockup has it,
@@ -245,7 +228,7 @@ export function renderPages(model: ShareModel): string {
   const summary = `<span class="what">${other}:</span> <span class="sub">nothing to note, all read in full</span>`;
   const parts = [
     `<h2 id="pages-h">${esc(PAGES_TEXT.title)}</h2>`,
-    `<p class="gist">${gistHtml(pagesGist(model))}</p>`,
+    `<p class="gist">${lineHtml(pagesGist(model))}</p>`,
     ...(shown.length === 0 ? [] : [cardsBox(shown.map(({ html }) => html))]),
     ...(quiet.length === 0
       ? []
@@ -292,7 +275,7 @@ export function renderFlags(model: ShareModel): string {
   const folds = model.flagged.map((page) => fold(flagSummary(page.card), flagBody(page), { open }));
   const parts = [
     `<h2 id="find-h">${esc(FLAGS_TEXT.title)}</h2>`,
-    `<p class="gist">${gistHtml(flagsGist(model))}</p>`,
+    `<p class="gist">${lineHtml(flagsGist(model))}</p>`,
     ...(folds.length === 0 ? [] : [`<div class="folds">${folds.join("")}</div>`]),
   ];
   return `<section aria-labelledby="find-h">\n  ${parts.join("\n  ")}\n</section>`;
@@ -332,8 +315,7 @@ function transcriptOf(file: AppendixFile, path: string): string {
 
 /** A transcript the run recorded but that couldn't be read here: said in words, in its place. */
 function unreadableOf(pass: PassName, path: string): string {
-  const said = keepApostrophes(esc(APPENDIX_TEXT.unreadable));
-  return `<section class="tx">${transcriptHeading(pass, path)}<p>${said}</p></section>`;
+  return `<section class="tx">${transcriptHeading(pass, path)}<p>${esc(APPENDIX_TEXT.unreadable)}</p></section>`;
 }
 
 /** The run a page's transcripts are from: its id, and its date for a run before the latest. */
@@ -362,7 +344,7 @@ function appendixPage(
     const file = entry.files.find((each) => each.pass === pass);
     return file === undefined ? unreadableOf(pass, path) : transcriptOf(file, path);
   });
-  const none = passes.length === 0 ? `<p>${keepApostrophes(esc(APPENDIX_TEXT.noFiles))}</p>` : "";
+  const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
   const { picture, missing } =
     card === undefined ? { picture: "", missing: "" } : screenshotOf(card.screenshot);
   const body = `<div class="tx-grid">${picture}${missing}<div>${originLine(card, latest)}${sections.join("")}${none}</div></div>`;
@@ -382,7 +364,7 @@ export function renderAppendix(model: ShareModel): string {
   });
   const parts = [
     `<h2 id="app-h">${esc(APPENDIX_TEXT.title)}</h2>`,
-    `<p class="gist">${gistHtml(appendixGist(model, OPEN_A_PAGE))}</p>`,
+    `<p class="gist">${lineHtml(appendixGist(model, OPEN_A_PAGE))}</p>`,
     ...(folds.length === 0 ? [] : [`<div class="appendix">${folds.join("")}</div>`]),
   ];
   return `<section aria-labelledby="app-h">\n  ${parts.join("\n  ")}\n</section>`;

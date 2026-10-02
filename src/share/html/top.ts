@@ -5,10 +5,9 @@
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts),
  * which is plain words, and so does each line worked out from the model (../words.ts), through
- * `lineHtml`. Some of the page's own words were once written into this markup as they were, and
- * keep their apostrophes so (`keepApostrophes`). No `style` attribute is set (bars and pictures are
- * SVG, sized and colored by attributes and classes), and the only links are to voicecap's GitHub
- * page, NV Access, and the page's own sections.
+ * `lineHtml`. No `style` attribute is set (bars and pictures are SVG, sized and colored by
+ * attributes and classes), and the only links are to voicecap's GitHub page, NV Access, and the
+ * page's own sections.
  *
  * Where the mockup is sample data, nothing of it is here. Where it set a style attribute, the
  * page's style block gives the same look instead: the second line under the summary's sentence
@@ -38,7 +37,7 @@ import {
   type NumberTile,
 } from "../words.js";
 import { STEP_ICONS } from "./icons.js";
-import { bar, count, keepApostrophes, lineHtml, notRecorded, track } from "./parts.js";
+import { bar, count, lineHtml, notRecorded, track } from "./parts.js";
 
 // The top.
 
@@ -69,7 +68,7 @@ export function renderTop(model: ShareModel): string {
     `    <div class="chips"><button class="theme" id="open-all" type="button" hidden>Open every section</button><button class="theme" id="theme-toggle" type="button" hidden>Light version</button></div>`,
     `  </div>`,
     `  <h1>${esc(header.siteName)}</h1>`,
-    `  <p class="mast-lead">${keepApostrophes(lineHtml(topLead(header)))}</p>`,
+    `  <p class="mast-lead">${lineHtml(topLead(header))}</p>`,
     `  <div class="mast-meta">${meta.join("")}</div>`,
     `</header>`,
   ].join("\n");
@@ -135,8 +134,7 @@ function completePanel(model: ShareModel): string {
 
 function todoPanel({ todo }: Summary): string {
   const items = todo.map((line) => `<li>${esc(line)}</li>`);
-  const title = keepApostrophes(esc(SUMMARY_TEXT.todo));
-  return `<div class="panel"><h3>${title}</h3><ul>${items.join("")}</ul></div>`;
+  return `<div class="panel"><h3>${esc(SUMMARY_TEXT.todo)}</h3><ul>${items.join("")}</ul></div>`;
 }
 
 function whenHowPanel({ whenHow }: Summary): string {
@@ -154,8 +152,7 @@ function resultsMeter({ bars }: Summary): string {
     { label: "never transcribed", value: never, kind: "bad" },
   ];
   const html = bar(segments, done + flagged + never, caption === "" ? "No pages" : caption);
-  const title = keepApostrophes(esc(SUMMARY_TEXT.results));
-  return `<div class="meter"><h3>${title}</h3>${html}</div>`;
+  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.results)}</h3>${html}</div>`;
 }
 
 /**
@@ -277,7 +274,7 @@ function heard(sample: ShareModel["heard"]): string {
     `<div class="heard">`,
     `    <h3>${esc(heardTitle(sample))}</h3>`,
     `    <div class="lanes">${lanes.join("")}</div>`,
-    `    <p class="sub">${keepApostrophes(esc(HOW_TEXT.heardNote))}</p>`,
+    `    <p class="sub">${esc(HOW_TEXT.heardNote)}</p>`,
     `  </div>`,
   ].join("\n");
 }
