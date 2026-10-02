@@ -461,6 +461,7 @@ describe("a page in a narrow window", () => {
     ["the command that verifies the records", ".verify pre"],
     ["the site's name", ".mast h1"],
     ["the site's address", ".mast-meta .addr"],
+    ["a file name in the footer", "footer .mono"],
   ])("breaks a word longer than the window in %s", async (_, selector) => {
     const page = await open(pages.demo);
     await page.setViewportSize({ width: 320, height: 900 });

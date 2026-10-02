@@ -20,8 +20,8 @@
  *   pixels (closer columns, no dots, smaller type), so nothing in it is cut off at the box's edge;
  * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
  *   be in (paragraphs, list items, headings, a fold's line, terms and what they mean, captions, the
- *   command that verifies the records, the site's name and address) breaks it where it must
- *   (`overflow-wrap: anywhere`), rather than run out of its box or the window;
+ *   command that verifies the records, the site's name and address, the footer's file names) breaks
+ *   it where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
@@ -50,7 +50,7 @@ body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); pad
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
 main { display: grid; gap: 56px; }
-/* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead and the verify command do the same, where they are. */
+/* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead, the verify command, and the footer's file names do the same, where they are. */
 main :where(p, li, h3, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 16px; background: var(--panel); padding: 8px 12px; z-index: 5; }
@@ -186,6 +186,7 @@ dl.spec dt { color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tx .scroll { max-height: 280px; overflow: auto; }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; }
+footer .mono { overflow-wrap: anywhere; }
 /* collapsed parts: a line that says what's inside, opened with a click (or all at once, or for printing) */
 details.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 details.fold > summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
