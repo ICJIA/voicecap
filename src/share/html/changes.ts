@@ -13,7 +13,7 @@
  * a pass that can't be read, the flags of a page that sounds different), the words are new, and use
  * the mockup's own classes.
  */
-import { esc, plural } from "../../report/html.js";
+import { esc } from "../../report/html.js";
 import type { Changes, DiffLine, OnlyInOnePage, PageChange, PassChange } from "../changes.js";
 import { pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
@@ -24,6 +24,8 @@ import {
   countsOf,
   flagsLine,
   onlyInOneLead,
+  passHeading,
+  sameLines,
   sizesOf,
 } from "../words.js";
 import { chip, fold, lineHtml, scroll, verdictLine } from "./parts.js";
@@ -106,7 +108,7 @@ function rowOf(line: DiffLine): string {
   const { rows } = CHANGES_TEXT;
   switch (line.kind) {
     case "collapsed":
-      return `<tr class="same"><td><span aria-hidden="true">${esc(rows.collapsed)}</span></td><td>${plural(line.count, "line")} the same</td></tr>`;
+      return `<tr class="same"><td><span aria-hidden="true">${esc(rows.collapsed)}</span></td><td>${esc(sameLines(line.count))}</td></tr>`;
     case "same":
       return `<tr class="same"><td>${esc(rows.same)}</td><td>${esc(line.text)}</td></tr>`;
     case "removed":
@@ -124,7 +126,7 @@ function rowOf(line: DiffLine): string {
 function passBlock({ pass, removed, added, lines }: PassChange, address: string): string {
   const word = PASS_WORDS[pass];
   const caption = `Changes in the ${word} pass on ${address}`;
-  const head = `<h3 class="logh">The ${word} pass <span class="sr">on ${esc(address)}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
+  const head = `<h3 class="logh">${esc(passHeading(pass))} <span class="sr">on ${esc(address)}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
   const columns = CHANGES_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="difftable"><caption class="sr">${esc(caption)}</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${lines.map(rowOf).join("")}</tbody></table>`;
   return `<div>${head}${scroll(`${caption}, table`, table)}</div>`;

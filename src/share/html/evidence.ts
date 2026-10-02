@@ -42,6 +42,7 @@ import {
 import {
   evidenceGist,
   generatedLine,
+  runTitle,
   timelineDay,
   unreadableNote,
   whenOf,
@@ -188,8 +189,8 @@ const verifyBox = (verify: string): string =>
 function runFold(each: RunEvidence): string {
   const { run } = each;
   const { parts } = EVIDENCE_TEXT;
-  const chips = [chip("ok", "completed"), chip("ok", "sealed")].join(" ");
-  const summary = `<span class="what">Run ${esc(run.id)}</span> <span class="sub">${esc(whenOf(run))}</span> <span class="chips">${chips}</span>`;
+  const chips = [chip("ok", EVIDENCE_TEXT.completed), chip("ok", EVIDENCE_TEXT.sealed)].join(" ");
+  const summary = `<span class="what">${esc(runTitle(run.id))}</span> <span class="sub">${esc(whenOf(run))}</span> <span class="chips">${chips}</span>`;
   const body = [
     factsOf(each.facts),
     runPart(parts.timeline, run.id, notRecorded(each.timeline.notRecorded)),

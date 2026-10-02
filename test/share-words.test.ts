@@ -63,7 +63,11 @@ import {
   onlyInOneLead,
   originOf,
   pagesGist,
+  passHeading,
+  problemTitle,
   resultsCaption,
+  runTitle,
+  sameLines,
   sentence,
   shareOf,
   sizesOf,
@@ -988,6 +992,40 @@ describe("the lines of what changed since the last run", () => {
       "read: 1 line removed and 1 added; Tab: couldn't be read here",
     );
   });
+
+  it("counts a run of lines the same, in the singular for one", () => {
+    expect(sameLines(1)).toBe("1 line the same");
+    expect(sameLines(2)).toBe("2 lines the same");
+    expect(sameLines(12)).toBe("12 lines the same");
+    expect(sameLines(1298)).toBe("1,298 lines the same");
+  });
+
+  it("heads each pass of a page's changes as a sentence says the pass", () => {
+    expect(passHeading("read")).toBe("The read pass");
+    expect(passHeading("headings")).toBe("The headings pass");
+    expect(passHeading("tab")).toBe("The Tab pass");
+  });
+
+  it("is what the page says of a run of lines the same, and of each pass's heading", () => {
+    const lines = (change: string) => [
+      "first",
+      change,
+      ...Array.from({ length: 14 }, (_, index) => `same ${index + 1}`),
+    ];
+    const model = changedModel(
+      [pageOf("/a/", { read: lines("old"), headings: ["h old"], tab: ["t old"] })],
+      [pageOf("/a/", { read: lines("new"), headings: ["h new"], tab: ["t new"] })],
+    );
+    const html = renderChanges(model);
+
+    // Fourteen lines the same follow the change, and two are kept beside it.
+    expect(html).toContain(`<td>${sameLines(12)}</td>`);
+    for (const pass of ["read", "headings", "tab"] as const) {
+      expect(html).toContain(
+        `<h3 class="logh">${passHeading(pass)} <span class="sr">on /a/</span>`,
+      );
+    }
+  });
 });
 
 describe("the lines of the problems during the runs", () => {
@@ -1080,6 +1118,32 @@ describe("the lines of the problems during the runs", () => {
     expect(attributes(renderProblems(model), "aria-label").slice(0, 2)).toEqual(
       problems.map((problem, at) => `The record of the problem ${whereOf(problem, at + 1)}, table`),
     );
+  });
+
+  it("titles a problem with its run and its page, the page by its label when it has one", () => {
+    const problem = onlyProblem();
+    const labeled = (label: string): Problem => ({ ...problem, page: { ...problem.page, label } });
+
+    expect(problemTitle(problem)).toBe("Run r1 · /grants/");
+    expect(problemTitle(labeled("Grants"))).toBe("Run r1 · Grants");
+    // As the page names a page: a label is trimmed, and a blank one is none.
+    expect(problemTitle(labeled("  Grants  "))).toBe("Run r1 · Grants");
+    expect(problemTitle(labeled("  "))).toBe("Run r1 · /grants/");
+  });
+
+  it("is what the page's line for each problem says, with the words it has when the run kept no time", async () => {
+    const model = await demoModel();
+    const html = renderProblems(model);
+
+    expect(model.problems.problems.map(problemTitle)).toEqual([
+      "Run 2026-09-29_1315 · /the-report/",
+      "Run 2026-09-29_1402 · /how-a-run-works/",
+    ]);
+    for (const problem of model.problems.problems) {
+      expect(html).toContain(`<span class="what">${problemTitle(problem)}</span>`);
+    }
+    expect(PROBLEMS_TEXT.noTime).toBe("time not recorded");
+    expect(html).toContain(`<span class="sub">${PROBLEMS_TEXT.noTime}</span>`);
   });
 });
 
@@ -1283,6 +1347,24 @@ describe("the lines of the evidence, the story, and the footer", () => {
       lastYear = date.slice(0, 4);
     }
     expect(lastYear).not.toBeNull();
+  });
+
+  it("titles a run by its id", () => {
+    expect(runTitle("2026-09-29_1402")).toBe("Run 2026-09-29_1402");
+  });
+
+  it("is what each run's fold says: its title, and that it completed and was sealed", async () => {
+    const model = await demoModel();
+    const html = renderEvidence(model);
+
+    for (const { run } of model.evidence) {
+      expect(html).toContain(`<span class="what">${runTitle(run.id)}</span>`);
+    }
+    expect(EVIDENCE_TEXT.completed).toBe("completed");
+    expect(EVIDENCE_TEXT.sealed).toBe("sealed");
+    expect(html).toContain(
+      `<span class="chips"><span class="chip c-ok">${EVIDENCE_TEXT.completed}</span> <span class="chip c-ok">${EVIDENCE_TEXT.sealed}</span></span>`,
+    );
   });
 
   it("gives why voicecap exists as a line, with the study's headline linked where it quotes it", () => {

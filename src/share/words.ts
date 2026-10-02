@@ -17,7 +17,17 @@ import { plural } from "../report/html.js";
 import { formatDuration } from "../util/time.js";
 import { attentionClauses } from "./attention.js";
 import type { Changes, OnlyInOnePage, PageChange } from "./changes.js";
-import { clock, count, dayMonth, longDate, names, pagePath, seconds, utcOffset } from "./format.js";
+import {
+  clock,
+  count,
+  dayMonth,
+  longDate,
+  names,
+  pagePath,
+  pageTitle,
+  seconds,
+  utcOffset,
+} from "./format.js";
 import type { Line } from "./line.js";
 import type { AppendixFile, PageCard, ShareModel } from "./model.js";
 import type { Problem, ProblemKind } from "./problems.js";
@@ -341,6 +351,16 @@ export function sizesOf(removed: number, added: number): string {
   return `${plural(removed, "line")} removed and ${count(added)} added`;
 }
 
+/** What heads a pass's changes, as a sentence says the pass: "The read pass", "The Tab pass". */
+export function passHeading(pass: PassName): string {
+  return `The ${PASS_WORDS[pass]} pass`;
+}
+
+/** A run of lines the same, which a pass's table counts and doesn't show: "12 lines the same". */
+export function sameLines(lines: number): string {
+  return `${plural(lines, "line")} the same`;
+}
+
 /**
  * How much a page changed, for its fold's line: each pass that sounds different, in pass order,
  * with the lines it lost and gained, or that its transcript couldn't be read here, so no count is
@@ -497,6 +517,19 @@ export function decidedFrom(kind: ProblemKind): string {
 export function whereOf(problem: Problem, nth: number): string {
   const which = problem.n !== null ? `, attempt ${problem.n}` : nth > 1 ? `, problem ${nth}` : "";
   return `on ${pagePath(problem.page.url)} in run ${problem.run}${which}`;
+}
+
+/** A run's title, where it has a line or a heading of its own: "Run 2026-09-29_1402". */
+export function runTitle(id: string): string {
+  return `Run ${id}`;
+}
+
+/**
+ * A problem's title, on its fold's line: its run, and its page by its label, else its address.
+ * "Run 2026-09-29_1402 · How a run works".
+ */
+export function problemTitle(problem: Problem): string {
+  return `${runTitle(problem.run)} · ${pageTitle(problem.page)}`;
 }
 
 // The evidence.

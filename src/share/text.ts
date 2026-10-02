@@ -256,7 +256,7 @@ const ISSUES_ADDRESS = "github.com/ICJIA/voicecap/issues";
 /**
  * "Problems during the runs": its heading, what it says of what's in it, the labels of a problem's
  * questions, the request to report an unexpected error, the words for whether a problem happened
- * again, the parts of a problem's record, and the table of kinds.
+ * again and for a problem with no time, the parts of a problem's record, and the table of kinds.
  */
 export const PROBLEMS_TEXT = {
   title: "Problems during the runs",
@@ -277,6 +277,8 @@ export const PROBLEMS_TEXT = {
     { text: ISSUES_ADDRESS, href: ISSUES_URL },
     ".",
   ],
+  /** Said on a problem's line in place of its time, when the run kept none. */
+  noTime: "time not recorded",
   /** Whether a problem happened again, in words that stand alone, as a chip's do. */
   again: {
     no: "Didn't happen again",
@@ -313,7 +315,8 @@ export const COVERAGE_TEXT = {
 
 /**
  * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
- * the titles of a run's parts, the heads of its tables, and the runs left out.
+ * what a run's line says it is, the titles of a run's parts, the heads of its tables, and the runs
+ * left out.
  */
 export const EVIDENCE_TEXT = {
   title: "The evidence behind these results",
@@ -334,6 +337,9 @@ export const EVIDENCE_TEXT = {
     { text: verify, mono: true },
     " on the transcripts folder.",
   ],
+  /** What a run's line says it is: that it completed, and that it was sealed. */
+  completed: "completed",
+  sealed: "sealed",
   /** The titles of a run's four parts. */
   parts: {
     timeline: "Minute by minute",

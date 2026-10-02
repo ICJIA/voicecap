@@ -17,11 +17,11 @@
  * classes.
  */
 import { esc, idFragment } from "../../report/html.js";
-import { clock, pageTitle } from "../format.js";
+import { clock } from "../format.js";
 import type { ShareModel } from "../model.js";
 import { KIND_ROWS, type Problem } from "../problems.js";
 import { ISSUES_URL, PROBLEMS_TEXT } from "../text.js";
-import { decidedFrom, sentence, timeOfDay, whereOf } from "../words.js";
+import { decidedFrom, problemTitle, sentence, timeOfDay, whereOf } from "../words.js";
 import { chip, fold, lineHtml, notRecorded, scroll, verdictLine } from "./parts.js";
 
 /** What each kind of problem is called: the table of kinds' own words. */
@@ -83,7 +83,6 @@ function stackBox(stack: string, where: string): string {
  * its place among the page's problems in the run, from 1.
  */
 function problemFold(problem: Problem, id: string, nth: number): string {
-  const title = pageTitle(problem.page);
   const where = whereOf(problem, nth);
   const when = problem.endedAt ?? problem.startedAt;
   const kind = KIND_TITLES.get(problem.kind) ?? problem.kind;
@@ -92,8 +91,8 @@ function problemFold(problem: Problem, id: string, nth: number): string {
     chip(AGAIN_KIND[problem.again], PROBLEMS_TEXT.again[problem.again]),
   ];
   const summary = [
-    `<span class="what">Run ${esc(problem.run)} · ${esc(title)}</span>`,
-    `<span class="sub">${when === null ? "time not recorded" : esc(clock(when))}</span>`,
+    `<span class="what">${esc(problemTitle(problem))}</span>`,
+    `<span class="sub">${esc(when === null ? PROBLEMS_TEXT.noTime : clock(when))}</span>`,
     `<span class="chips">${chips.join(" ")}</span>`,
   ];
   const body = [
