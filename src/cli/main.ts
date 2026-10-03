@@ -23,6 +23,7 @@ import { resolveHome } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
 import { shareReport } from "../share/share.js";
+import { writeWalkthrough } from "../share/write-walkthrough.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
@@ -487,6 +488,28 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       await shareReport({
         site: options.site ?? null,
         reviewer: options.reviewer ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+        logger,
+      });
+      setExit(ExitCode.ok);
+    });
+
+  program
+    .command("walkthrough")
+    .description(
+      "write a run's walkthrough file: its pages, in order, and its settings, so anyone can repeat the run",
+    )
+    .argument("<file>", "the file to write (never overwritten)")
+    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option("--run <id>", "the run to write it from (default: the latest completed run)")
+    .option("--out <dir>", OUT_HELP)
+    .action(async (file: string, options: { site?: string; run?: string; out?: string }) => {
+      await writeWalkthrough({
+        file,
+        site: options.site ?? null,
+        run: options.run ?? null,
         out: options.out,
         cwd: ctx.cwd,
         env: ctx.env,
