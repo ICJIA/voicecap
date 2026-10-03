@@ -928,6 +928,7 @@ describe("wordStory", () => {
         ["1 October"],
         ["2 October"],
         ["2 October"],
+        ["3 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -959,7 +960,7 @@ describe("wordStory", () => {
 
         expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
         expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["2 October"]);
+        expect(cellLines(rows[at - 1]?.[0])).toEqual(["3 October"]);
         expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
       } finally {
         TIMELINE.splice(at, 1);

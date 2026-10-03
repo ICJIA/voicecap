@@ -184,9 +184,10 @@ describe("the timeline", () => {
     );
   });
 
-  it("tells the Word copy and voicecap share on the day they were made, and puts the walkthrough file and the website in Next", () => {
+  it("tells 0.7.0 in two rows: the day the Word copy and voicecap share were made, then the day they were published, and puts the walkthrough file and the website in Next", () => {
     const next = TIMELINE.at(-1);
-    const made = TIMELINE.at(-2);
+    const released = TIMELINE.at(-2);
+    const made = TIMELINE.at(-3);
 
     // Next is last, with no day, and its Windows PC cell is what still comes: the walkthrough file
     // and the website.
@@ -194,14 +195,21 @@ describe("the timeline", () => {
     expect(next?.pc).toBe(
       "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
     );
-    // The row before it is the day the Word copy and voicecap share were made: across both tracks,
-    // and it announces no release.
+    // The row before it is the release, across both tracks; the one before that, the day the Word
+    // copy and voicecap share were made, which announces no release.
+    expect(released).toEqual({
+      date: "2026-10-03",
+      release: "0.7.0",
+      pc: null,
+      mac: null,
+      both: "<b>0.7.0</b>: the Word copy of the shareable report, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks of what was sent.",
+    });
     expect(made).toEqual({
       date: "2026-10-02",
       release: null,
       pc: null,
       mac: null,
-      both: "The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+      both: "For 0.7.0, the Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
     });
   });
 

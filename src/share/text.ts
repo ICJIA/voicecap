@@ -587,7 +587,14 @@ export const TIMELINE: TimelineRow[] = [
     release: null,
     pc: null,
     mac: null,
-    both: "The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+    both: "For 0.7.0, the Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+  },
+  {
+    date: "2026-10-03",
+    release: "0.7.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.7.0</b>: the Word copy of the shareable report, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks of what was sent.",
   },
   {
     date: null,

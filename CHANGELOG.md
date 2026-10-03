@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-03
+
 The Word copy of the shareable page, and `voicecap share`: dated copies to send, each recorded with its fingerprint, and what `voicecap verify` checks of them.
 
 **A home made with 0.6.0 needs two small changes.** 0.6.0's README said to keep a copy of the file you send. A copy kept in `share/` by hand is now named by `voicecap verify` as `not recorded in shares.json`: move it out of `share/`. From now on, `voicecap share` makes and records the copies. Also, that home's `.gitignore` doesn't keep Word's lock files out of Git: add `~$*` to it.
@@ -252,7 +254,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ICJIA/voicecap/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ICJIA/voicecap/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ICJIA/voicecap/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/ICJIA/voicecap/compare/v0.4.0...v0.4.1
