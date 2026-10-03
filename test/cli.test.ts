@@ -12,7 +12,7 @@ import { main } from "../src/cli/main.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
-import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
+import type { RunAuditOptions } from "../src/run/audit.js";
 import { manualSessionDir, runDir, shareDir, sharesPath } from "../src/run/paths.js";
 import { longDate } from "../src/share/format.js";
 import { sizeLine } from "../src/share/share.js";
@@ -21,15 +21,7 @@ import type { OutputStream } from "../src/util/log.js";
 import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
-import {
-  MACHINE_PROBE,
-  options as runOptions,
-  outDir,
-  SITE as EXAMPLE_SITE,
-  setup,
-  sitePages,
-} from "./helpers/run-site.js";
-import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -1070,14 +1062,6 @@ describe("voicecap verify", () => {
 });
 
 describe("voicecap share", () => {
-  /** A home with one completed, sealed, live run of the scripted site: the kind of run that counts. */
-  async function homeWithCountedRun(): Promise<{ dir: string; siteDir: string }> {
-    const dir = await setup();
-    const run = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
-    expect(run.outcome).toBe("completed");
-    return { dir, siteDir: outDir(dir) };
-  }
-
   /** Whatever the help says, on one line, so where it wraps doesn't matter. */
   const squeezed = (text: string) => text.replace(/\s+/g, " ");
 

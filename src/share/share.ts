@@ -37,7 +37,7 @@ import { count } from "./format.js";
 import { renderSharePage } from "./html/document.js";
 import { loadShareInput } from "./load.js";
 import { buildShareModel } from "./model.js";
-import { appendShare, readShares } from "./shares.js";
+import { appendShare, readShares, recordedNames } from "./shares.js";
 import { MAC_HASH, POWERSHELL_HASH } from "./text.js";
 
 export interface ShareReportOptions {
@@ -213,28 +213,6 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 function pasteLineOf(files: SharedFile[]): string {
   const fingerprints = files.map(({ name, sha256: fingerprint }) => `${name} ${fingerprint}`);
   return `Fingerprints (SHA-256): ${fingerprints.join("; ")}. To check a file you received: ${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac. PowerShell shows the same letters in capitals.`;
-}
-
-/** Whether a value is an object: not null, and not a list. */
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * The file names the record gives its copies. Reading the record checks only that each entry is an
- * object, so an entry may hold anything a person left in it: one whose files aren't a list, or
- * whose items aren't objects with a name, names nothing.
- */
-function recordedNames(shares: readonly unknown[]): Set<string> {
-  const names = new Set<string>();
-  for (const share of shares) {
-    const files = isObject(share) ? share.files : undefined;
-    if (!Array.isArray(files)) continue;
-    for (const file of files as unknown[]) {
-      if (isObject(file) && typeof file.name === "string") names.add(file.name);
-    }
-  }
-  return names;
 }
 
 /** Whether anything is at `file`: a file, a folder, or a link, even one that points nowhere. */

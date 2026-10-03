@@ -39,7 +39,13 @@ import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
-import { options as runOptions, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
+import {
+  homeWithCountedRun,
+  options as runOptions,
+  setup,
+  SITE,
+  sitePages,
+} from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 // Every call goes through as it did, and is kept, so a test can count the calls, make one fail, or
@@ -127,10 +133,8 @@ function sharing(dir: string): { logger: MemoryLogger; options: ShareReportOptio
 
 /** A home with one completed, sealed, live run of the scripted site, and what shares it. */
 async function homeWithRun() {
-  const dir = await newHome();
-  const run = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
-  expect(run.outcome).toBe("completed");
-  return { dir, siteDir: outDir(dir), run, ...sharing(dir) };
+  const { dir, siteDir, run } = await homeWithCountedRun(await newHome());
+  return { dir, siteDir, run, ...sharing(dir) };
 }
 
 /** A home whose only run is a replay, which doesn't count. */

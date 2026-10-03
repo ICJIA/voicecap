@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
-import { appendShare, readShares } from "../src/share/shares.js";
+import { appendShare, readShares, recordedNames } from "../src/share/shares.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 
@@ -234,5 +234,37 @@ describe("appendShare", () => {
     expect(await readFile(sharesPath(siteDir))).toEqual(before);
     // And nothing else is left beside it.
     expect(await readdir(shareDir(siteDir))).toEqual(["shares.json"]);
+  });
+});
+
+describe("recordedNames", () => {
+  it("names the file of each well-formed item of each entry that lists its files", () => {
+    const names = recordedNames([
+      { seq: 1, files: FILES },
+      { seq: 2, files: [{ name: "b.html" }, { name: "c.docx", bytes: 1 }] },
+    ]);
+    expect(names).toEqual(new Set([...FILES.map(({ name }) => name), "b.html", "c.docx"]));
+  });
+
+  it("takes an entry whose files aren't a list, and an item with no name, as naming nothing", () => {
+    const odd = [
+      null,
+      7,
+      "x_2026-09-30.html",
+      ["x_2026-09-30.html"],
+      {},
+      { files: "x_2026-09-30.html" },
+      { files: { name: "x_2026-09-30.html" } },
+      {
+        files: [null, 7, "x_2026-09-30.html", ["x_2026-09-30.html"], {}, { name: 5 }, { bytes: 1 }],
+      },
+    ];
+    expect(recordedNames(odd)).toEqual(new Set());
+    expect(recordedNames([])).toEqual(new Set());
+  });
+
+  it("keeps the good names of an entry that has odd items beside them", () => {
+    const names = recordedNames([{ files: [null, { name: 5 }, { name: "a.docx" }, 7] }]);
+    expect(names).toEqual(new Set(["a.docx"]));
   });
 });

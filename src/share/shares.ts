@@ -24,7 +24,8 @@ const NEVER_OVERWRITES =
 /**
  * A site folder's shares.json. A missing file is an empty record. A file that isn't JSON, or isn't
  * `{ schemaVersion: 1, shares: [...] }` with an object for each entry, is refused with a
- * UsageError: it's never overwritten.
+ * UsageError: it's never overwritten. Of each entry it checks only that it's an object, so its
+ * seq, seal, and files are whatever a person left there, and a caller reads each as unknown.
  */
 export async function readShares(siteDir: string): Promise<SharesFile> {
   const file = sharesPath(siteDir);
@@ -64,6 +65,23 @@ export async function appendShare(
   }
   await writeFileAtomic(file, `${JSON.stringify(after, null, 2)}\n`);
   return sealed;
+}
+
+/**
+ * The file names the record gives its copies. Reading the record checks only that each entry is an
+ * object, so an entry may hold anything a person left in it: one whose files aren't a list, or
+ * whose items aren't objects with a name, names nothing.
+ */
+export function recordedNames(shares: readonly unknown[]): Set<string> {
+  const names = new Set<string>();
+  for (const share of shares) {
+    const files = isObject(share) ? share.files : undefined;
+    if (!Array.isArray(files)) continue;
+    for (const file of files as unknown[]) {
+      if (isObject(file) && typeof file.name === "string") names.add(file.name);
+    }
+  }
+  return names;
 }
 
 /**

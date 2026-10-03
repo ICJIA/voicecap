@@ -6,16 +6,18 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { expect } from "vitest";
+
 import { resolveConfig, type LoadedConfig } from "../../src/config/load.js";
 import type { UserConfig } from "../../src/config/schema.js";
-import type { RunAuditOptions } from "../../src/run/audit.js";
+import { runAudit, type RunAuditOptions, type RunAuditResult } from "../../src/run/audit.js";
 import type { MachineProbe } from "../../src/run/machine-record.js";
 import { siteFolder } from "../../src/run/paths.js";
 import { createMemoryLogger } from "../../src/util/log.js";
 import {
   element,
+  ScriptedDriver,
   type Command,
-  type ScriptedDriver,
   type ScriptedOptions,
   type ScriptedPage,
 } from "./scripted-driver.js";
@@ -127,6 +129,21 @@ export function options(
 
 /** SITE's folder in the default home, where these runs go. */
 export const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(SITE));
+
+/**
+ * A home with one completed, sealed, live run of the scripted site: the kind of run that counts for
+ * the shareable page. It's made in `existing`, a folder from `setup` that the caller has already
+ * made (and so can take away afterwards), or in a new one. Gives that folder, which holds the home
+ * (its transcripts/), and SITE's folder in the home.
+ */
+export async function homeWithCountedRun(
+  existing?: string,
+): Promise<{ dir: string; siteDir: string; run: RunAuditResult }> {
+  const dir = existing ?? (await setup());
+  const run = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+  expect(run.outcome).toBe("completed");
+  return { dir, siteDir: outDir(dir), run };
+}
 
 /** A scripted driver's `hang` option: the first call of `command` hangs, and no other call does. */
 export function hangOnce(command: Command): NonNullable<ScriptedOptions["hang"]> {
