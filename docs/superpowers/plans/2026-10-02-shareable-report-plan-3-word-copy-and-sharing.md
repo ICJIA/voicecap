@@ -1,7 +1,5 @@
 # The Shareable Report, Plan 3 of 6: The Word Copy and Sharing Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Every site folder gets `share/current.docx` beside `share/current.html`, and `voicecap share` writes a dated copy of both to send, records it in a sealed `share/shares.json`, and `voicecap verify` checks what was sent.
 
 **Architecture:**
