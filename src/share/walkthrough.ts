@@ -211,9 +211,9 @@ export function walkthroughJson(walkthrough: Walkthrough): string {
 /**
  * Why parseWalkthrough would refuse this walkthrough, in the same words without the file's name, as
  * a sentence; null when it wouldn't. walkthroughOf builds the walkthrough of any completed run, and
- * the config allows runs that a file can't hold (more than 10,000 pages, a step limit above
- * 100,000, or pages whose addresses make the file larger than 8 MB), so a writer asks here before it
- * writes one.
+ * the config and page lists allow runs that a file can't hold (more than 10,000 pages, a step limit
+ * above 100,000, a page label with a control character in it, or pages whose addresses make the
+ * file larger than 8 MB, say), so a writer asks here before it writes one.
  */
 export function walkthroughProblem(walkthrough: Walkthrough): string | null {
   // The size first, as parseWalkthrough checks it: that of the file this would be written as.
@@ -619,8 +619,8 @@ function differingSettings(
   original: Record<string, unknown>,
   now: Record<string, unknown>,
 ): string[] {
-  const names = new Set([...Object.keys(original), ...Object.keys(now)]);
-  return [...names]
+  const settingNames = new Set([...Object.keys(original), ...Object.keys(now)]);
+  return [...settingNames]
     .filter((name) => settingValue(original, name) !== settingValue(now, name))
     .sort()
     .map(shown);
