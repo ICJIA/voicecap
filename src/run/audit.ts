@@ -84,13 +84,13 @@ export interface RunAuditOptions {
   pageUrls?: string[] | null;
   /**
    * Repeat a run from its walkthrough file (`voicecap walkthrough` writes one): the same pages, in
-   * the same order, with the same passes, step limits, capture mode, and readiness settings. The
-   * NVDA settings and the browser are this computer's, whatever the file recorded. The file
-   * decides all of that, so it's refused beside `site` (unless it's the file's own), `sitemap`,
-   * `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps`, before anything
-   * runs. Needs no `site`. `compare`, `fresh`, `out`, `runName`, `reviewer`, and `replayFrom` go
-   * with it as with any run. A repeat that completes says, page by page, how it sounds against the
-   * original.
+   * the same order, with the same passes, step limits, capture mode, and readiness settings (the
+   * config's readiness settings, when the file has none). The NVDA settings and the browser are
+   * this computer's, whatever the file recorded. The file decides what's read, so it's refused
+   * beside `site` (unless it's the file's own), `sitemap`, `pages`, `pageUrls`, `limit`,
+   * `include`, `exclude`, `passes`, and `maxSteps`, before anything runs. Needs no `site`.
+   * `compare`, `fresh`, `out`, `runName`, `reviewer`, and `replayFrom` go with it as with any run.
+   * A repeat that completes says, page by page, how it sounds against the original.
    */
   walkthrough?: string | null;
   limit?: number | null;

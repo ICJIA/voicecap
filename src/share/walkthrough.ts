@@ -212,8 +212,9 @@ export function walkthroughJson(walkthrough: Walkthrough): string {
  * Why parseWalkthrough would refuse this walkthrough, in the same words without the file's name, as
  * a sentence; null when it wouldn't. walkthroughOf builds the walkthrough of any completed run, and
  * the config and page lists allow runs that a file can't hold (more than 10,000 pages, a step limit
- * above 100,000, a page label with a control character in it, or pages whose addresses make the
- * file larger than 8 MB, say), so a writer asks here before it writes one.
+ * above 100,000, a page label with a control character in it other than a tab or a line break, or
+ * pages whose addresses make the file larger than 8 MB, say), so a writer asks here before it
+ * writes one.
  */
 export function walkthroughProblem(walkthrough: Walkthrough): string | null {
   // The size first, as parseWalkthrough checks it: that of the file this would be written as.
