@@ -4,7 +4,8 @@
  * file and no clock.
  *
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A key the
- * type doesn't have, a page address that isn't on the file's own site, or a number beyond what the
+ * type doesn't have, a page address that isn't on the file's own site (or is too long, or is written
+ * with a space or a control character), NVDA settings nested too deep, or a number beyond what the
  * config allows refuses the whole file, saying what's wrong and where, before anything runs.
  * `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say why a
  * file of it couldn't be read back before it writes one.
@@ -80,6 +81,20 @@ export interface Walkthrough {
 
 /** The most pages a walkthrough file may list: a file with more is refused, not run. */
 export const MAX_WALKTHROUGH_PAGES = 10_000;
+
+/**
+ * The longest a page's address, or the site's, may be, in characters. A longer one is refused
+ * before it's parsed: parsing a very long address with an international host takes seconds on some
+ * versions of Node, and no run's address is anywhere near this long.
+ */
+export const MAX_ADDRESS_LENGTH = 8_192;
+
+/**
+ * The most levels the recorded NVDA settings may be nested, the settings themselves being the
+ * first, and a list a level as an object is. They're recorded and never applied, but a later task
+ * reads them, and nothing real is anywhere near this deep.
+ */
+export const MAX_NVDA_SETTINGS_DEPTH = 32;
 
 /**
  * The most a step limit may be. The config allows any whole number above 0; this only refuses an
@@ -319,9 +334,13 @@ function wholeNumber(min: number, max: number): z.ZodNumber {
 // place in the file; reasonOf uses it as it is. A type, a range, or a key gives only what's wrong,
 // and reasonOf puts the place before it.
 
-const siteSchema = z
-  .string()
-  .refine((site) => siteOrigin(site) !== null, { error: "its site isn't a web address" });
+const siteSchema = z.string().superRefine((site, ctx) => {
+  // How it's written first, so a very long address is never parsed.
+  const problem =
+    writtenProblem("its site", site) ??
+    (siteOrigin(site) === null ? "its site isn't a web address" : null);
+  if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
+});
 
 /** Every kind of page source a run records. A fourth kind is one more entry here. */
 const sourceSchema = z.discriminatedUnion(
@@ -389,9 +408,13 @@ const originSchema = z.strictObject({
   screenReader: versionSchema.nullable(),
   browser: versionSchema.nullable(),
   // Kept exactly as written, a key named __proto__ too (a record schema would drop it).
-  nvdaSettings: z.custom<Record<string, unknown>>(isRecord, {
-    error: "its original.nvdaSettings isn't an object",
-  }),
+  nvdaSettings: z
+    .custom<Record<string, unknown>>(isRecord, {
+      error: "its original.nvdaSettings isn't an object",
+    })
+    .refine((settings) => !isNestedTooDeep(settings), {
+      error: `its original.nvdaSettings is nested more than ${MAX_NVDA_SETTINGS_DEPTH} levels deep`,
+    }),
   browserChannel: z.string(),
 });
 
@@ -409,14 +432,9 @@ const walkthroughSchema = z
       // The site is a web address by now: a file whose site isn't one has been refused already.
       if (origin === null) return;
       for (const [index, page] of walkthrough.pages.entries()) {
-        const problem = addressProblem(page.url, origin);
+        const problem = pageAddressProblem(index + 1, page.url, origin);
         if (problem === null) continue;
-        const address = page.url === "" ? '""' : shown(page.url);
-        ctx.addIssue({
-          code: "custom",
-          message: `page ${index + 1}'s address, ${address}, ${problem}`,
-          path: ["pages", index, "url"],
-        });
+        ctx.addIssue({ code: "custom", message: problem, path: ["pages", index, "url"] });
         // One reason is all a refusal gives.
         return;
       }
@@ -441,6 +459,42 @@ function siteOrigin(site: string): string | null {
   return url !== null && isWeb(url) ? url.origin : null;
 }
 
+/**
+ * What an address may not be written with. The URL standard drops some characters as it parses an
+ * address (a tab or a newline anywhere, spaces at either end) and rewrites others, so an address can
+ * pass as parsed and still hold them as written, and the file keeps it as written. Control
+ * characters (an escape, a bell), format characters (a zero-width space, a right-to-left override),
+ * and spaces and separators are all refused.
+ */
+const UNSAFE_IN_AN_ADDRESS = /[\p{Cc}\p{Cf}\p{Z}]/u;
+
+/**
+ * What's wrong with how an address is written, before it's parsed, as a reason that names it
+ * (`subject` is "its site", or "page 3's address"); null when nothing is. The length comes first,
+ * so a very long address is never searched or parsed.
+ */
+function writtenProblem(subject: string, address: string): string | null {
+  if (address.length > MAX_ADDRESS_LENGTH) {
+    return `${subject} is longer than ${MAX_ADDRESS_LENGTH.toLocaleString("en-US")} characters`;
+  }
+  return UNSAFE_IN_AN_ADDRESS.test(address)
+    ? `${subject} has a space or a control character in it`
+    : null;
+}
+
+/**
+ * Why page number `place` (counted from 1) can't be read as a page of the site, as a reason; null
+ * when its address is a web address on the site.
+ */
+function pageAddressProblem(place: number, address: string, origin: string): string | null {
+  const subject = `page ${place}'s address`;
+  const written = writtenProblem(subject, address);
+  if (written !== null) return written;
+  const problem = addressProblem(address, origin);
+  if (problem === null) return null;
+  return `${subject}, ${address === "" ? '""' : shown(address)}, ${problem}`;
+}
+
 /** What's wrong with a page's address for a site, or null when it's a web address on the site. */
 function addressProblem(address: string, origin: string): string | null {
   const url = parseAddress(address);
@@ -462,6 +516,23 @@ function isWeb(url: URL): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a value is nested more than MAX_NVDA_SETTINGS_DEPTH levels deep, an object or a list being
+ * a level. It's checked with a stack of what's left to look at, never by calling itself: the value
+ * may come from a file built to be deep enough to overflow the call stack, or (in memory) to hold
+ * itself, and the search stops at the first level too deep.
+ */
+function isNestedTooDeep(value: unknown): boolean {
+  const pending: { item: unknown; level: number }[] = [{ item: value, level: 1 }];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const { item, level } = next;
+    if (typeof item !== "object" || item === null) continue;
+    if (level > MAX_NVDA_SETTINGS_DEPTH) return true;
+    for (const inside of Object.values(item)) pending.push({ item: inside, level: level + 1 });
+  }
+  return false;
 }
 
 // How a refusal says what's wrong:

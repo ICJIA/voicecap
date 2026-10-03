@@ -2,10 +2,12 @@
  * The walkthrough file's format: built from a run's record, written as the file holds it, and read
  * back strictly, since a walkthrough file may come from anyone.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { PageSource, PassName, RunJson } from "../src/model.js";
 import {
+  MAX_ADDRESS_LENGTH,
+  MAX_NVDA_SETTINGS_DEPTH,
   MAX_WALKTHROUGH_PAGES,
   parseWalkthrough,
   walkthroughJson,
@@ -576,6 +578,41 @@ function textOf(file: unknown): string {
   return typeof file === "string" ? file : JSON.stringify(file, null, 2);
 }
 
+// The limits Rulings P15 and P14 set, written out here so a change to either shows in a test.
+const ADDRESS_LIMIT = 8_192;
+const SETTINGS_LEVELS = 32;
+
+/** An address on the site (the sample's) that is exactly `length` characters long. */
+function addressOfLength(length: number): string {
+  const start = "https://example.illinois.gov/";
+  return start + "a".repeat(length - start.length);
+}
+
+/**
+ * NVDA settings nested `levels` deep: the settings are the first level, and each next level is an
+ * object inside the one before.
+ */
+function settingsNested(levels: number): Record<string, unknown> {
+  let settings: Record<string, unknown> = {};
+  for (let level = 1; level < levels; level += 1) settings = { inner: settings };
+  return settings;
+}
+
+/**
+ * NVDA settings with `lists` lists inside one another under one key. Lists are levels as objects
+ * are: with the settings themselves, that is `lists` + 1 levels.
+ */
+function settingsWithLists(lists: number): Record<string, unknown> {
+  let list: unknown[] = [];
+  for (let count = 1; count < lists; count += 1) list = [list];
+  return { list };
+}
+
+/** The walkthrough with its NVDA settings replaced by anything. */
+function withNvdaSettings(walkthrough: Walkthrough, nvdaSettings: unknown): unknown {
+  return { ...walkthrough, original: { ...walkthrough.original, nvdaSettings } };
+}
+
 /**
  * A run whose walkthrough has a value in every place the format has one, with its pages from
  * `source`: every optional page field on one page, every pass on another, and the settings,
@@ -768,6 +805,31 @@ describe("parseWalkthrough", () => {
       (w) => ({ ...w, run: "2026-09-26_1405" }),
       "w.json isn't a voicecap walkthrough file: it has a key voicecap doesn't know: \"run\".",
     ],
+    [
+      "an address with an escape sequence in it",
+      (w) => withPageUrl(w, 2, "https://example.illinois.gov/\u{1b}[2J\u{1b}]0;pwned\u{7}"),
+      "w.json isn't a voicecap walkthrough file: page 3's address has a space or a control character in it.",
+    ],
+    [
+      "a site with a space in front of it",
+      (w) => ({ ...w, site: " https://example.illinois.gov" }),
+      "w.json isn't a voicecap walkthrough file: its site has a space or a control character in it.",
+    ],
+    [
+      "an address of 8,193 characters",
+      (w) => withPageUrl(w, 2, addressOfLength(ADDRESS_LIMIT + 1)),
+      "w.json isn't a voicecap walkthrough file: page 3's address is longer than 8,192 characters.",
+    ],
+    [
+      "a site of 8,193 characters",
+      (w) => ({ ...w, site: addressOfLength(ADDRESS_LIMIT + 1) }),
+      "w.json isn't a voicecap walkthrough file: its site is longer than 8,192 characters.",
+    ],
+    [
+      "NVDA settings nested 33 levels deep",
+      (w) => withNvdaSettings(w, settingsNested(SETTINGS_LEVELS + 1)),
+      "w.json isn't a voicecap walkthrough file: its original.nvdaSettings is nested more than 32 levels deep.",
+    ],
   ])("says it in plain words: %s", (_name, file, message) => {
     expect(refusal(textOf(file(valid())))).toBe(message);
   });
@@ -877,6 +939,32 @@ describe("parseWalkthrough", () => {
       "isn't on its site",
     ],
     [
+      // The host with a dot after it is another host to a browser, and to the origin.
+      "a host with a dot at its end",
+      (w) => withPageUrl(w, 0, "https://example.illinois.gov./x"),
+      "page 1's address, https://example.illinois.gov./x, isn't on its site",
+    ],
+    [
+      "an address that starts with two slashes, as a page could write it",
+      (w) => withPageUrl(w, 0, "//example.illinois.gov/x"),
+      "page 1's address, //example.illinois.gov/x, isn't a full web address",
+    ],
+    [
+      "a host that looks like the site's, with a letter from another script",
+      (w) => withPageUrl(w, 0, "https://ex\u{430}mple.illinois.gov/x"),
+      "page 1's address, https://ex\u{430}mple.illinois.gov/x, isn't on its site",
+    ],
+    [
+      "the same look-alike host, written as punycode",
+      (w) => withPageUrl(w, 0, "https://xn--exmple-cua.illinois.gov/x"),
+      "page 1's address, https://xn--exmple-cua.illinois.gov/x, isn't on its site",
+    ],
+    [
+      "backslashes where another host's address has slashes",
+      (w) => withPageUrl(w, 0, "https:\\\\evil\\x"),
+      "page 1's address, https:\\\\evil\\x, isn't on its site",
+    ],
+    [
       "a site that isn't an address",
       (w) => ({ ...w, site: "example.illinois.gov" }),
       "its site isn't a web address",
@@ -922,15 +1010,192 @@ describe("parseWalkthrough", () => {
     );
   });
 
-  it("shows an address with its control characters escaped and its length cut", () => {
-    const hostile = `https://elsewhere.example/\u{1b}[2J\u{9b}\u{202e}${"x".repeat(5_000)}`;
+  it("shows a long address cut short, however it goes on", () => {
+    const long = `https://elsewhere.example/${"x".repeat(5_000)}`;
 
-    const message = refusal(textOf(withPageUrl(valid(), 0, hostile)));
+    const message = refusal(textOf(withPageUrl(valid(), 0, long)));
 
-    // Nothing in the text can move the terminal's cursor, clear it, or turn the words around.
-    expect(message).not.toMatch(/[\p{Cc}\p{Cf}]/u);
-    expect(message).toContain("elsewhere.example/\\u{1b}[2J\\u{9b}\\u{202e}");
-    expect(message.length).toBeLessThan(300);
+    expect(message).toBe(
+      `${NOT_A_WALKTHROUGH}page 1's address, ${long.slice(0, 80)}\u{2026}, isn't on its site.`,
+    );
+  });
+
+  // An address is checked as the URL standard reads it, which drops some characters and rewrites
+  // others, and then kept as it was written: so what it's written with is checked first.
+  it.each<[name: string, address: string]>([
+    [
+      "an escape and a bell in the path",
+      "https://example.illinois.gov/\u{1b}[2J\u{1b}]0;pwned\u{7}",
+    ],
+    ["a space in front", " https://example.illinois.gov/x"],
+    ["a tab in front", "\thttps://example.illinois.gov/x"],
+    ["a space at the end", "https://example.illinois.gov/x "],
+    ["a newline at the end", "https://example.illinois.gov/x\n"],
+    ["a tab inside the host", "https://exam\tple.illinois.gov/x"],
+    ["a space inside the path", "https://example.illinois.gov/a b"],
+    ["a non-breaking space", "https://example.illinois.gov/a\u{a0}b"],
+    ["an ideographic space", "https://example.illinois.gov/a\u{3000}b"],
+    ["a line separator", "https://example.illinois.gov/a\u{2028}b"],
+    ["a zero-width space inside the host", "https://exam\u{200b}ple.illinois.gov/x"],
+    ["a soft hyphen inside the host", "https://exam\u{ad}ple.illinois.gov/x"],
+    ["a right-to-left override", "https://example.illinois.gov/\u{202e}x"],
+    ["a byte-order mark", "https://example.illinois.gov/\u{feff}x"],
+    ["a null character", "https://example.illinois.gov/\u{0}x"],
+    ["a delete character", "https://example.illinois.gov/\u{7f}x"],
+    ["a control character from the C1 block", "https://example.illinois.gov/\u{9b}x"],
+  ])(
+    "refuses an address with %s, in a page and in the site, and doesn't repeat it",
+    (_name, address) => {
+      const inPage = refusal(textOf(withPageUrl(valid(), 2, address)));
+      const inSite = refusal(textOf({ ...valid(), site: address }));
+
+      expect(inPage).toBe(
+        `${NOT_A_WALKTHROUGH}page 3's address has a space or a control character in it.`,
+      );
+      expect(inSite).toBe(`${NOT_A_WALKTHROUGH}its site has a space or a control character in it.`);
+    },
+  );
+
+  it.each<[name: string, address: string]>([
+    ["the site's own credentials", "https://user:pass@example.illinois.gov/x"],
+    ["a query and a fragment", "https://example.illinois.gov/x?y=1&z=2#top"],
+    ["a space and a newline written percent-encoded", "https://example.illinois.gov/a%20b%0Ac"],
+    ["exactly 8,192 characters", addressOfLength(ADDRESS_LIMIT)],
+  ])("accepts an address with %s", (_name, address) => {
+    const walkthrough = withPageUrl(valid(), 0, address);
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  it("accepts a site of exactly 8,192 characters, and pages on it", () => {
+    const walkthrough: Walkthrough = { ...valid(), site: addressOfLength(ADDRESS_LIMIT) };
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+  });
+
+  it.each<
+    [name: string, put: (walkthrough: Walkthrough, address: string) => unknown, reason: string]
+  >([
+    [
+      "a page address",
+      (w, address) => withPageUrl(w, 2, address),
+      "page 3's address is longer than 8,192 characters.",
+    ],
+    [
+      "the site",
+      (w, address) => ({ ...w, site: address }),
+      "its site is longer than 8,192 characters.",
+    ],
+  ])("turns away %s with a very long international host, unparsed", (_name, put, reason) => {
+    const address = `https://${"\u{e9}".repeat(200_000)}.illinois.gov/x`;
+    const text = textOf(put(valid(), address));
+
+    const started = performance.now();
+    const message = refusal(text);
+    const elapsed = performance.now() - started;
+
+    expect(message).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+    // Some versions of Node take seconds to parse an address like this, so it's never tried.
+    expect(elapsed).toBeLessThan(1_000);
+  });
+
+  // The cost of parsing a long address depends on the version of Node, so this doesn't time it: it
+  // watches what the URL parser is handed.
+  it("never hands the URL parser an address that is too long or has a control character", () => {
+    const handed: string[] = [];
+    vi.stubGlobal(
+      "URL",
+      class extends URL {
+        constructor(input: string | URL, base?: string | URL) {
+          handed.push(String(input));
+          super(input, base);
+        }
+      },
+    );
+    const tooLong = `https://${"\u{e9}".repeat(ADDRESS_LIMIT)}.illinois.gov/x`;
+    const withControl = "https://example.illinois.gov/\u{1b}[2J";
+    try {
+      for (const address of [tooLong, withControl]) {
+        refusal(textOf(withPageUrl(valid(), 2, address)));
+        refusal(textOf({ ...valid(), site: address }));
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(handed.length).toBeGreaterThan(0);
+    expect(handed).not.toContain(tooLong);
+    expect(handed).not.toContain(withControl);
+  });
+
+  it("names the limits it holds a file's addresses and NVDA settings to", () => {
+    expect(MAX_ADDRESS_LENGTH).toBe(ADDRESS_LIMIT);
+    expect(MAX_NVDA_SETTINGS_DEPTH).toBe(SETTINGS_LEVELS);
+  });
+
+  it("accepts NVDA settings nested 32 levels deep, and writes them back", () => {
+    const walkthrough = withNvdaSettings(valid(), settingsNested(SETTINGS_LEVELS)) as Walkthrough;
+
+    expect(parseWalkthrough(walkthroughJson(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  // Lists are levels too: the settings are the first, and each list inside another is one more.
+  it.each<[name: string, lists: number, refused: boolean]>([
+    ["31 lists inside one another, which makes 32 levels", 31, false],
+    ["32 lists inside one another, which makes 33 levels", 32, true],
+  ])("with %s in the NVDA settings, takes or refuses them", (_name, lists, refused) => {
+    const walkthrough = withNvdaSettings(valid(), settingsWithLists(lists)) as Walkthrough;
+
+    if (refused) {
+      expect(refusal(textOf(walkthrough))).toBe(
+        `${NOT_A_WALKTHROUGH}its original.nvdaSettings is nested more than 32 levels deep.`,
+      );
+    } else {
+      expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    }
+  });
+
+  it("accepts wide, shallow NVDA settings of any size", () => {
+    const settings = Object.fromEntries(
+      Array.from({ length: 20_000 }, (_, index) => [
+        `setting${index}`,
+        { value: index, list: [index] },
+      ]),
+    );
+    const walkthrough = withNvdaSettings(valid(), settings) as Walkthrough;
+
+    expect(parseWalkthrough(walkthroughJson(walkthrough), "w.json")).toStrictEqual(walkthrough);
+  });
+
+  it("refuses NVDA settings nested a hundred thousand levels deep, however it's asked", () => {
+    const depth = 100_000;
+    const deep = `${'{"a":'.repeat(depth)}1${"}".repeat(depth)}`;
+    const text = walkthroughJson(valid()).replace('"nvdaSettings": {}', `"nvdaSettings": ${deep}`);
+    const reason = "its original.nvdaSettings is nested more than 32 levels deep.";
+    expect(text).toContain('"nvdaSettings": {"a":{"a":');
+
+    expect(refusal(text)).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+    // And for the object, which JSON can't write out at this depth.
+    expect(walkthroughProblem(JSON.parse(text) as Walkthrough)).toBe(reason);
+  });
+
+  it("stops at the first level too deep in NVDA settings that hold themselves", () => {
+    // A walk that never stopped would never end, so this one throws if it goes on too long.
+    let visits = 0;
+    const loop: Record<string, unknown> = {
+      get again() {
+        visits += 1;
+        if (visits > 1_000) throw new Error("walked the NVDA settings without end");
+        return loop;
+      },
+    };
+
+    expect(walkthroughProblem(withNvdaSettings(valid(), loop) as Walkthrough)).toBe(
+      "its original.nvdaSettings is nested more than 32 levels deep.",
+    );
+    expect(visits).toBeLessThanOrEqual(SETTINGS_LEVELS + 1);
   });
 
   it("shows a key it doesn't have with its control characters escaped", () => {
@@ -1207,11 +1472,17 @@ describe("parseWalkthrough", () => {
     });
 
     it("refuses a value of the wrong kind in any place", () => {
+      // An object is wrong wherever it is. Text, a number, or true or false is wrong where the place
+      // holds something else; where it holds the same kind, it may well be right, so it's skipped.
+      const wrongValues: unknown[] = [{ wrong: "kind" }, "text", 5, true];
       const accepted = placesIn(complete()).filter((place) => {
         if (place.length === 0) return false;
-        const file = complete();
-        setAt(file, place, { wrong: "kind" });
-        return reads(file);
+        return wrongValues.some((wrong) => {
+          const file = complete();
+          if (typeof wrong !== "object" && typeof wrong === typeof at(file, ...place)) return false;
+          setAt(file, place, wrong);
+          return reads(file);
+        });
       });
 
       // The NVDA settings are recorded, not read: they may hold any object.
@@ -1325,6 +1596,22 @@ describe("walkthroughProblem", () => {
         }),
       "its settings.readiness.settleMs: must be a whole number from 0 to 600,000.",
     ],
+    [
+      "a page address of 8,193 characters",
+      () =>
+        walkthroughOf(
+          shareRun({
+            id: "2026-09-26_1405",
+            pages: [{ path: new URL(addressOfLength(ADDRESS_LIMIT + 1)).pathname }],
+          }),
+        ),
+      "page 1's address is longer than 8,192 characters.",
+    ],
+    [
+      "NVDA settings nested 33 levels deep",
+      () => withSettings({ nvdaSettings: settingsNested(SETTINGS_LEVELS + 1) }),
+      "its original.nvdaSettings is nested more than 32 levels deep.",
+    ],
   ];
 
   it.each<[name: string, run: () => RunJson]>([
@@ -1415,6 +1702,48 @@ describe("walkthroughProblem", () => {
     ],
     ["two keys it doesn't have", (w) => ({ ...w, run: 1, seal: 2 })],
     ["several things wrong at once", (w) => ({ ...w, site: "file:///C:/", run: 1 })],
+    [
+      "an address with an escape sequence in it",
+      (w) => withPageUrl(w, 2, "https://example.illinois.gov/\u{1b}[2J\u{1b}]0;pwned\u{7}"),
+    ],
+    [
+      "an address with a space in front",
+      (w) => withPageUrl(w, 0, " https://example.illinois.gov/x"),
+    ],
+    [
+      "an address with a newline at its end",
+      (w) => withPageUrl(w, 0, "https://example.illinois.gov/x\n"),
+    ],
+    [
+      "an address with a tab inside its host",
+      (w) => withPageUrl(w, 0, "https://exam\tple.illinois.gov/x"),
+    ],
+    [
+      "a site with a space in front of it",
+      (w) => ({ ...w, site: " https://example.illinois.gov" }),
+    ],
+    [
+      "an address of 8,193 characters",
+      (w) => withPageUrl(w, 0, addressOfLength(ADDRESS_LIMIT + 1)),
+    ],
+    ["a site of 8,193 characters", (w) => ({ ...w, site: addressOfLength(ADDRESS_LIMIT + 1) })],
+    [
+      "an address with a very long international host",
+      (w) => withPageUrl(w, 0, `https://${"\u{e9}".repeat(200_000)}.illinois.gov/x`),
+    ],
+    ["a host with a dot at its end", (w) => withPageUrl(w, 0, "https://example.illinois.gov./x")],
+    [
+      "an address that starts with two slashes",
+      (w) => withPageUrl(w, 0, "//example.illinois.gov/x"),
+    ],
+    [
+      "NVDA settings nested 33 levels deep",
+      (w) => withNvdaSettings(w, settingsNested(SETTINGS_LEVELS + 1)),
+    ],
+    [
+      "NVDA settings with lists nested to 33 levels deep",
+      (w) => withNvdaSettings(w, settingsWithLists(SETTINGS_LEVELS)),
+    ],
   ])("says what parseWalkthrough says of a file with %s, after the file's name", (_name, file) => {
     const broken = file(valid());
 
