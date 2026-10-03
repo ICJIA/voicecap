@@ -1,6 +1,6 @@
 # Windows PC checks: `voicecap demo` and readiness (before 0.5.0)
 
-This file was written on the Mac on 2026-09-29, for a Claude Code session on the owner's Windows PC. Notes kept on the Mac don't travel, so everything the PC session needs is here.
+This file was written on the Mac on 2026-09-29, for a working session on the owner's Windows PC. Notes kept on the Mac don't travel, so everything the PC session needs is here.
 
 `voicecap demo` (the guided first run) and readiness (0.4.x) have both been built, reviewed, and tested with fakes, and CI passes on Windows. The checks below need a real Windows PC with NVDA. They're what stands between `main` and a 0.5.0 release.
 
@@ -14,7 +14,7 @@ pnpm install
 pnpm build
 ```
 
-Then start Claude Code there and paste:
+Then start from this brief:
 
 > I'm on the Windows PC to run the checks in `docs/windows-pc-checks.md` for voicecap. Read that file first, and follow its working rules exactly. Also read `docs/phase-c-handoff.md` ("Still to check by hand"). Don't start NVDA, or run anything that starts a screen reader, until I say so. Then we'll go through the checks together.
 
@@ -24,7 +24,7 @@ These are the owner's standing rules:
 
 - **Real screen-reader runs need the owner's OK.** They take over the keyboard and speech. Warn every time: hands off the keyboard and mouse, Do Not Disturb on, and the screen awake and unlocked.
 - **Commit, push, or publish only when the owner asks.** Before merging to `main`, check CI on a pushed branch.
-- **Never add a `Co-Authored-By`, `Claude-Session`, or any other AI trailer** to a commit message.
+- **Commit messages are one subject line, with no trailers of any kind.**
 - **Never use or repeat a password or PIN pasted into the chat.** A fresh npm 2FA code, given at publish time, is the only exception.
 - **Never write that voicecap doesn't replace screen reader testing.**
 - **Ask before working around how Guidepup or NVDA actually behave.** Keep screen-reader specifics in the driver layer and the config.

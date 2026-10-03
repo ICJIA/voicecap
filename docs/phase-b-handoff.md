@@ -30,14 +30,14 @@ Phase B was built on Windows 11 (Git Bash, non-admin) and checked end to end wit
 - Guidepup's reconnect also writes to NVDA from an async `secureConnect` listener that nothing waits for. If the connection dies in the instant after it's made, that rejection is still unhandled; only the stop-speech key presses are covered.
 - A page that fails with a foreground error (someone used the computer) is recorded as failed without an immediate retry. The core retries timeouts once; retrying foreground errors the same way is a small change in `src/run/page-runner.ts`.
 
-Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/ICJIA/voicecap. This file is everything a new Claude Code chat on a new Windows machine needs to pick up Phase B. The chat has none of the earlier conversation, so everything it needs is here.
+Phase A was finished on macOS on 2026-09-26, merged to `main`, and tagged `v0.1.0` at https://github.com/ICJIA/voicecap. This file is everything a new working session on a new Windows machine needs to pick up Phase B. Nothing from the earlier sessions travels, so everything it needs is here.
 
-## 1. Setting up the machine and starting the chat
+## 1. Setting up the machine
 
 Follow [`WINDOWS-SETUP.md`](../WINDOWS-SETUP.md) at the repository root. It covers:
 - which window to use (PowerShell only to install Git and Node, Git Bash for everything else);
 - each setup step;
-- the prompt to paste into a new Claude Code chat.
+- the brief that started Phase B.
 
 ## 2. State at handoff
 

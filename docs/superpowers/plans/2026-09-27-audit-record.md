@@ -1,7 +1,5 @@
 # The Audit Record Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Every automatic run and manual session lands in `<home>/<site>/<date>/<its own folder>/`, the home comes from `--out`, `VOICECAP_TRANSCRIPTS`, or `transcripts/`, nothing voicecap records is ever deleted or rewritten, and `voicecap verify` shows whether anything recorded has changed since.
 
 **Architecture:** Every internal function that takes an `outDir` keeps doing so, but `outDir` now means the site's folder inside the home. The home and site folder are worked out once at each entry point (`runAudit`, `addReview`, `addManualSession`, the `report` command). First every command moves into the site folder, keeping the old run and manual layout inside it; then runs and manual sessions move into dated folders, a retried page's earlier attempt is moved aside instead of deleted, and the home gets `.gitattributes` and `.gitignore`.

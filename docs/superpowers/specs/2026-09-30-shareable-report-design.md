@@ -1,6 +1,6 @@
 # The shareable report: a dated page and its Word copy, showing what the runs found and proving they ran
 
-Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup built from the real records of the demo runs on 2026-09-29 is at https://claude.ai/artifact/ESwcXRQX7BHEDG5vwkC247 (private to the owner). Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. Its HTML is in the repository, `2026-09-30-shareable-report-mockup.html`, as the design the page follows.
+Design approved in conversation with the owner on 2026-09-30, then extended the same day at the owner's request: the human review first, every problem explained with its record, how voicecap works, how it came to be, and folds to keep the page quiet at first glance. For voicecap 0.6.0, after 0.5.0 (the demo and the Windows checks' fixes). A mockup was built from the real records of the demo runs on 2026-09-29. Its parts those records can't show yet, such as the listener's statement and the reviews, are marked as samples. Its HTML is in the repository, `2026-09-30-shareable-report-mockup.html`, as the design the page follows.
 
 ## Why
 

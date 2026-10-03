@@ -1,7 +1,5 @@
 # voicecap init and --page Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `npx @icjia/voicecap init` (or no arguments in a terminal) asks a few questions and prints a copy-pasteable `npx @icjia/voicecap …` command, offering to run it; runs gain a repeatable `--page <url>` page source; every example in the README and help is a real, checkable one on i2i.illinois.gov or dvfr.illinois.gov.
 
 **Architecture:** A new page source kind, `{ kind: "urls"; urls }`, is added and described everywhere first; `--page` then feeds it through the existing page resolution as entries without line numbers. The tool is four small units under `src/init/` (line prompts, site checks, command composition, the question flow) wired into the CLI; running the composed command goes back through `main()` in the same process.

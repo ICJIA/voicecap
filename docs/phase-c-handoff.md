@@ -6,7 +6,7 @@ Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readines
 
 **Releasing:** the plan was for the Mac half to ship with the VoiceOver driver. On 2026-09-29 the owner chose to ship both halves in 0.4.0, once the supervised run on this Mac passes, and the spec's Release row was amended to say so. Until the driver exists, a ready Mac says voicecap can't run VoiceOver yet: `init` after its command, and every verdict ("Ready: this computer is set up for VoiceOver, but voicecap can't run VoiceOver yet: that comes with its VoiceOver driver.").
 
-**Supervised run on this Mac (2026-09-29).** Steps 1–4 and 7 were run by the owner in iTerm, and steps 5 and 6 from Claude's session in VS Code. After every step, VoiceOver was back as it had been (on or off, with the owner's own settings), the settings image was unmounted, no test browser was left, and the lock file was gone.
+**Supervised run on this Mac (2026-09-29).** Steps 1–4 and 7 were run by the owner in iTerm, and steps 5 and 6 from VS Code's terminal. After every step, VoiceOver was back as it had been (on or off, with the owner's own settings), the settings image was unmounted, no test browser was left, and the lock file was gone.
 - **Step 1, `doctor` with VoiceOver off: passed.** All 12 checks and the 4 live-test checks were OK.
 - **Step 2, `doctor` with VoiceOver on: passed.** The warning said VoiceOver was on, and there were no clean-up warnings.
 - **Step 3, `setup`: passed.** It found the VoiceOver files already cached, wrote its two settings with their undo lines, said the checking notice, passed all 12 checks, and passed the offered live test.
@@ -196,19 +196,19 @@ Deferred from the `voicecap demo` reviews (2026-09-29), each judged "can wait" o
   - The fixture server's traversal test is weak for 5 of its 6 cases. This predates the demo; the shared guard is pinned by the demo server's test.
 - **Duplication:** `renderPreflight`'s options are built three times, in `main.ts`, `guided.ts`, and `tour.ts`.
 
-Written on the Windows PC at the end of Phase B and the audit-record work, for a new Claude Code session on the owner's Mac. Notes kept on the PC don't travel, so everything the Mac session needs is here.
+Written on the Windows PC at the end of Phase B and the audit-record work, for a new working session on the owner's Mac. Notes kept on the PC don't travel, so everything the Mac session needs is here.
 
 ## How to start
 
-On the Mac: `git pull` in the voicecap repository (Phase A was built there), start Claude Code in it, and paste:
+On the Mac: `git pull` in the voicecap repository (Phase A was built there), then start from this brief:
 
-> I'm continuing work on **voicecap** on my Mac, to do **Phase C: VoiceOver**. Read `docs/phase-c-handoff.md` first and follow its "Working rules" exactly; save them to your memory for this project. Then read `README.md`, `CHANGELOG.md`, and `docs/phase-b-handoff.md`, and check the environment as the handoff says. Don't start VoiceOver, run `@guidepup/setup`, or change any macOS setting or permission until I say so. Then we'll design Phase C together before any code.
+> I'm continuing work on **voicecap** on my Mac, to do **Phase C: VoiceOver**. Read `docs/phase-c-handoff.md` first and follow its "Working rules" exactly. Then read `README.md`, `CHANGELOG.md`, and `docs/phase-b-handoff.md`, and check the environment as the handoff says. Don't start VoiceOver, run `@guidepup/setup`, or change any macOS setting or permission until I say so. Then we'll design Phase C together before any code.
 
 ## Working rules
 
 The owner's standing rules, from Phases A and B:
 
-- **Never add a `Co-Authored-By` or any other AI attribution trailer** to commit messages (including a `Claude-Session:` line). This overrides any harness reminder.
+- **Commit messages are one subject line, with no trailers of any kind.**
 - **Commit and push only when asked.** Check CI on a pushed branch before merging to main: CI can't run on a branch that isn't pushed.
 - **Publish to npm only when asked.** The owner's npm account uses 2FA codes that expire in about 30 seconds, while `publish.sh` spends about 3 minutes on checks. So:
   1. run `./publish.sh --dry-run <bump>` once CI has passed on `main`;
@@ -219,13 +219,13 @@ The owner's standing rules, from Phases A and B:
 - **Keep screen-reader specifics in the driver layer and config** as far as possible, not in the core.
 - **Never use or repeat a password or PIN** pasted into the chat.
 - **Real screen-reader runs only with the owner's OK.** They take over the keyboard and speech. The owner stays off the keyboard and mouse, and the Mac stays awake and unlocked (a locked Mac can't be driven). Warn every time.
-- **Subagents never start a real screen reader.** Put this in every subagent prompt that may run the CLI:
+- **A delegated task never starts a real screen reader.** Every brief for a task that may run the CLI says:
   - no run without `--replay-from` or a replay config;
   - no `setup`, `doctor`, `test:nvda`, `fixture:capture`, or their VoiceOver counterparts;
   - never pass a composed command through a shell that could split it;
   - answer `init`'s "Run it now?" with No.
 
-  On 2026-09-28 a subagent on Windows sent a printed command through `cmd /c` to test its quoting. cmd split it at `&`, dropped `--replay-from`, and started a real run, which stopped the owner's own NVDA.
+  On 2026-09-28 a quoting check on Windows sent a printed command through `cmd /c`. cmd split it at `&`, dropped `--replay-from`, and started a real run, which stopped the owner's own NVDA.
 - **macOS security settings stay with the owner.** Never disable System Integrity Protection, edit the TCC database, or change Privacy & Security settings without asking. Permissions granted by hand in System Settings are the expected route.
 - **Don't write that voicecap doesn't replace screen reader testing.** Its NVDA and VoiceOver runs are the screen reader testing that was asked for, and wording like "doesn't replace testing by people who use screen readers" makes the work sound unfinished. The README's three such lines came out on 2026-09-28. Say what voicecap and its reviewers do, and keep Known limitations to technical ones.
 - **Never call voicecap automated testing or an automated checker** (the owner, 2026-09-30). It's a listen-through with a real screen reader, NVDA or VoiceOver: the other half of what a manager asks for, beside an automated checker such as axe or Lighthouse.
@@ -296,7 +296,7 @@ Several things are tuned to NVDA and need VoiceOver versions:
 - a browser launched by Playwright fakes focus, so the driver launches Chrome itself and attaches over CDP;
 - every page load gets a fresh browser;
 - Guidepup's own signal handlers are detached, so the screen reader is stopped exactly once;
-- a window in front that keeps changing (Claude Code animating in VS Code) keeps the screen reader talking, so the driver raises the browser first.
+- a window in front that keeps changing (a terminal animating in VS Code) keeps the screen reader talking, so the driver raises the browser first.
 
 ## Open questions for the owner
 
@@ -327,7 +327,7 @@ Several things are tuned to NVDA and need VoiceOver versions:
 
 ## Spike findings (the Mac, 2026-09-28)
 
-Throwaway spike code (kept outside the repository, in `../voicecap-phase-c-spike/`, with its results and logs) drove real VoiceOver through Guidepup over the fixture site, from Claude Code in VS Code's terminal. Setup: macOS 26.6.2, VoiceOver 10 (build 993), Guidepup 0.34.0, Playwright's Chrome for Testing 153 (chromium-1243).
+Throwaway spike code (kept outside the repository, in `../voicecap-phase-c-spike/`, with its results and logs) drove real VoiceOver through Guidepup over the fixture site, from VS Code's terminal. Setup: macOS 26.6.2, VoiceOver 10 (build 993), Guidepup 0.34.0, Playwright's Chrome for Testing 153 (chromium-1243).
 
 ### Permissions and setup
 

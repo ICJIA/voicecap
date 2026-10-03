@@ -1,7 +1,5 @@
 # voicecap readiness Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** before voicecap drives NVDA or VoiceOver, it shows what the computer is and whether it's ready. Every problem gets a plain-language diagnosis and numbered fix, and voicecap stops cleanly.
 
 - **Commands:** `init` starts with this preflight. `doctor` works on both platforms. `setup` guides a Mac through its permissions. Real NVDA runs check first.
@@ -20,7 +18,7 @@
 
 ## Global Constraints
 
-- **Safety, for every implementer and subagent.** Never start NVDA, VoiceOver, or a browser. Never run the CLI's `setup`, `doctor`, `init`, `test:nvda`, `fixture:capture`, or a run without `--replay-from`. Never run `osascript`, `open`, `defaults write`, `killall`, `tccutil`, or VoiceOver's starter on the owner's Mac. Never pass a composed command through a shell that could split it. `pnpm test`, `pnpm lint`, `pnpm typecheck`, and `pnpm build` are safe. Every macOS and Windows command goes through an injected runner that the tests fake.
+- **Safety, for everyone who works on a task.** Never start NVDA, VoiceOver, or a browser. Never run the CLI's `setup`, `doctor`, `init`, `test:nvda`, `fixture:capture`, or a run without `--replay-from`. Never run `osascript`, `open`, `defaults write`, `killall`, `tccutil`, or VoiceOver's starter on the owner's Mac. Never pass a composed command through a shell that could split it. `pnpm test`, `pnpm lint`, `pnpm typecheck`, and `pnpm build` are safe. Every macOS and Windows command goes through an injected runner that the tests fake.
 - **Privacy settings.** voicecap never changes them: no writes to the privacy (TCC) database, no `tccutil`, no System Integrity Protection changes, no `@guidepup/setup setup`. The only settings voicecap writes are the two VoiceOver defaults in Mac setup (Task 8).
 - **Architecture.** Nothing outside `src/drivers/` imports `@guidepup/*` or Playwright (`test/drivers.test.ts`, "architecture").
 - **Exit codes.** Unchanged: 0 ready or completed, 2 not ready (`ExitCode.environment`), 130 Ctrl+C.
@@ -29,7 +27,7 @@
 - **Waits.**
   - The two permission probes (System Events, and control of VoiceOver) wait 60 seconds: `with timeout of 60 seconds` in the script, and the process is killed at 65 seconds.
   - Other `osascript` calls wait 10 seconds.
-- **Commits.** The owner commits and pushes only when they say so, so tasks end with a full test run, not a commit. No AI attribution trailer in any commit message.
+- **Commits.** The owner commits and pushes only when they say so, so tasks end with a full test run, not a commit. Commit messages have one subject line and no trailers.
 - **Platform-only code** (Windows helpers, macOS helpers) is tested with fakes and runs in CI on Ubuntu, macOS, and Windows.
 
 ## Review Focus
@@ -329,7 +327,7 @@
     - exit 0 with `"x\n"` gives `{ ok: true, value: "x" }`;
     - the script is wrapped in `with timeout of 60 seconds`, and `timeoutMs` passed to `run` is 65000.
   - `terminalAppBundle` for four chains:
-    - `zsh` → `claude` → `zsh` → `/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper` → `/Applications/Visual Studio Code.app/Contents/MacOS/Code` gives `/Applications/Visual Studio Code.app`;
+    - `zsh` → `node` → `zsh` → `/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper` → `/Applications/Visual Studio Code.app/Contents/MacOS/Code` gives `/Applications/Visual Studio Code.app`;
     - `/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal` gives `Terminal.app`;
     - `/Applications/iTerm.app/Contents/MacOS/iTerm2` gives `iTerm.app`;
     - `sshd-session` → `zsh` gives null.

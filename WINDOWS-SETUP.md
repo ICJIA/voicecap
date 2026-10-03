@@ -1,12 +1,12 @@
 # Setting up voicecap on Windows
 
-This is the checklist for developing voicecap on a new Windows machine. (It was written to start Phase B, the real NVDA driver, which is now done; the prompt in step 6 is kept for reference.)
+This is the checklist for developing voicecap on a new Windows machine. (It was written to start Phase B, the real NVDA driver, which is now done; the brief in step 6 is kept for reference.)
 
 ## Which window do I use?
 
 **PowerShell only for step 1.** You're installing Git, and Git Bash doesn't exist until Git is installed.
 
-**Git Bash for everything after that**: installing pnpm and Claude Code, cloning the repository, running Claude Code, and running voicecap. Git Bash is the same bash you use on macOS and Ubuntu, voicecap's development scripts assume it, and Claude Code on Windows runs its commands through Git Bash anyway. (To run voicecap, not develop it, the README's Windows setup uses PowerShell.)
+**Git Bash for everything after that**: installing pnpm, cloning the repository, and running voicecap and its development scripts. Git Bash is the same bash you use on macOS and Ubuntu, and voicecap's development scripts assume it. (To run voicecap, not develop it, the README's Windows setup uses PowerShell.)
 
 Both run inside **Windows Terminal**. New tabs of either kind open from the **`˅`** next to the **`+`** at the top.
 
@@ -33,13 +33,13 @@ node --version    # v22.19 or later (24 recommended)
 git --version
 ```
 
-## 3. Install pnpm and Claude Code (Git Bash)
+## 3. Install pnpm (Git Bash)
 
 ```bash
-npm install -g pnpm@10 @anthropic-ai/claude-code
+npm install -g pnpm@10
 ```
 
-npm installs these for your user only, so no administrator rights are needed. (Claude Code also has a native installer: https://docs.claude.com/en/docs/claude-code/setup.)
+npm installs it for your user only, so no administrator rights are needed.
 
 ## 4. Get the code (Git Bash)
 
@@ -64,13 +64,9 @@ node dist/cli.js doctor    # starts NVDA and Chrome for about 20 seconds; hands 
 pnpm test:nvda             # optional: the real-NVDA checks on the fixture site (about 5 minutes)
 ```
 
-## 6. Start Claude Code and paste the prompt (Git Bash)
+## 6. Phase B's brief (for reference)
 
-```bash
-claude
-```
-
-Sign in when it asks (the first time only). Then paste this as your first message:
+Phase B started from this brief:
 
 > I'm continuing work on **voicecap** (this repo; Phase A is on `main`, tagged `v0.1.0`). Phase A is done: everything except the real NVDA driver, built on macOS with the replay driver. I'm now on my Windows machine, in Git Bash inside Windows Terminal, as a normal (non-admin) user, to do **Phase B**.
 >
@@ -84,7 +80,7 @@ Sign in when it asks (the first time only). Then paste this as your first messag
 >
 >    Keep code changes inside the driver layer as far as possible.
 >
-> My preferences: never add a `Co-Authored-By` or any other AI attribution trailer to commit messages. Commit and push only when I ask. Don't publish to npm: the first release will be 0.2.0, after Phase B, and I'll say when. Ask me before building rather than silently working around something that conflicts with how Guidepup or NVDA actually work.
+> My preferences: commit messages have one subject line and no trailers. Commit and push only when I ask. Don't publish to npm: the first release will be 0.2.0, after Phase B, and I'll say when. Ask me before building rather than silently working around something that conflicts with how Guidepup or NVDA actually work.
 
 ## If something goes wrong
 

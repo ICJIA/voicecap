@@ -386,7 +386,7 @@ describe("terminalAppBundle", () => {
   it("names the outer app when a nested helper is the first bundle found, walking up from VS Code's terminal", () => {
     const rows: ProcessRow[] = [
       { pid: 1, ppid: 2, command: "zsh" },
-      { pid: 2, ppid: 3, command: "claude" },
+      { pid: 2, ppid: 3, command: "node" },
       { pid: 3, ppid: 4, command: "zsh" },
       {
         pid: 4,
