@@ -20,7 +20,7 @@ import {
   WHEN_TO_RUN,
   WORD_TEXT,
 } from "../src/share/text.js";
-import { heardTitle, shareOf, topLead } from "../src/share/words.js";
+import { generatedLine, generatedStamp, heardTitle, shareOf, topLead } from "../src/share/words.js";
 import {
   PAGE_BREAK,
   heading,
@@ -67,45 +67,70 @@ function topThree(model: ShareModel): Block[] {
 }
 
 describe("wordTop", () => {
-  it("leads with the site's name, and what the page is", async () => {
+  // A reader who isn't technical meets a title and a date first, never an address such as
+  // 127.0.0.1:4848: the site comes after, named in words where its records give it a name.
+  it("leads with what it is, and when it was made", async () => {
     const model = await demoModel();
     const top = wordTop(model);
 
-    expect(top[0]).toEqual({ kind: "title", text: model.header.siteName });
+    expect(top[0]).toEqual({ kind: "title", text: TOP_TEXT.eyebrow });
+    expect(top[1]).toEqual(para({ text: "30 September 2026 at 09:00 (UTC−05:00)", bold: true }));
     expect(wordsOf(top)).toContain(lineText(topLead(model.header)));
   });
 
-  it("has four lines: the site, what the page is, how it came to be, and who made it and where", async () => {
+  it("dates itself as its footer does, from the moment it was made", async () => {
+    const model = await demoModel();
+    const [, stamp] = wordTop(model);
+    const stamped = generatedStamp(model.footer);
+
+    expect(stamp).toEqual(para({ text: stamped, bold: true }));
+    expect(generatedLine(model.footer).startsWith(`Generated on ${stamped}.`)).toBe(true);
+  });
+
+  it("has five lines: what it is, when, the site, how its pages were read, and who made it", async () => {
     const model = await demoModel();
     const top = wordTop(model);
-    const [, , , about] = top;
 
-    expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para"]);
+    expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para", "para"]);
     expect(wordsOf(top)).toEqual([
-      "127.0.0.1:4848",
       "Screen reader test results",
+      "30 September 2026 at 09:00 (UTC−05:00)",
+      "Site address http://127.0.0.1:4848.",
       "How its pages read aloud with NVDA, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.",
-      "As of 30 September 2026. Made with voicecap. Site address http://127.0.0.1:4848.",
+      "Made with voicecap.",
     ]);
-    // What the page is, in bold; and the date, in bold, in the last line.
-    expect(top[1]).toEqual(para({ text: TOP_TEXT.eyebrow, bold: true }));
-    expect(about?.kind === "para" ? boldIn(about.line) : []).toEqual(["30 September 2026"]);
+  });
+
+  it("names the site in bold before its address, when its name is more than its host", () => {
+    const named = patsModel();
+    const grants = wordTop({ ...named, header: { ...named.header, siteName: "Grants" } });
+    const [, , site] = grants;
+
+    expect(wordsOf(grants)[2]).toBe(`Grants. Site address ${SITE}.`);
+    expect(site?.kind === "para" ? boldIn(site.line) : []).toEqual(["Grants"]);
+    // A site known only by its host isn't named twice.
+    expect(wordsOf(wordTop(named))[2]).toBe(`Site address ${SITE}.`);
+    expect(named.header.siteName).toBe(new URL(SITE).host);
+  });
+
+  it("never makes the site's address or host the title", async () => {
+    for (const model of [await demoModel(), patsModel(), noRunModel()]) {
+      const [first] = wordTop(model);
+
+      expect(first).toEqual({ kind: "title", text: "Screen reader test results" });
+      expect(wordsOf([first!]).join("")).not.toContain(new URL(model.header.site).host);
+    }
   });
 
   it("names who prepared it, in bold, only when the records name someone", async () => {
     // The demo runs are from before voicecap recorded who ran a session.
     const demo = wordTop(await demoModel());
     const pats = wordTop(patsModel());
-    const [, , , about] = pats;
+    const about = pats.at(-1);
 
     expect(wordsOf(demo).join("\n")).not.toContain("Prepared by");
-    expect(wordsOf(pats).at(-1)).toBe(
-      `As of 30 September 2026. Prepared by Pat Lee. Made with voicecap. Site address ${SITE}.`,
-    );
-    expect(about?.kind === "para" ? boldIn(about.line) : []).toEqual([
-      "30 September 2026",
-      "Pat Lee",
-    ]);
+    expect(wordsOf(pats).at(-1)).toBe("Prepared by Pat Lee. Made with voicecap.");
+    expect(about?.kind === "para" ? boldIn(about.line) : []).toEqual(["Pat Lee"]);
   });
 
   it("links voicecap to its page on GitHub, and NVDA to its makers", async () => {
@@ -124,17 +149,19 @@ describe("wordTop", () => {
     );
     // A screen reader other than NVDA is named, and isn't linked to NVDA's makers.
     const other = wordTop({ ...model, header: { ...model.header, screenReader: "VoiceOver" } });
-    expect(wordsOf(other)[2]).toContain("How its pages read aloud with VoiceOver, a free");
+    expect(wordsOf(other)[3]).toContain("How its pages read aloud with VoiceOver, a free");
     expect(hrefsOf(other)).toEqual([TOP_TEXT.github]);
   });
 
-  it("says plainly that no run counts, and still says who made it and where", () => {
+  it("says plainly that no run counts, and still says when, where, and who made it", () => {
     const none = noRunModel();
     const words = wordsOf(wordTop(none));
 
     expect(none.header.tested).toBeNull();
-    expect(words[2]).toContain("No live run counts yet, so there's no test date.");
-    expect(words[3]).toBe(`As of 30 September 2026. Made with voicecap. Site address ${SITE}.`);
+    expect(words[1]).toBe("30 September 2026 at 09:00 (UTC−05:00)");
+    expect(words[2]).toBe(`Site address ${SITE}.`);
+    expect(words[3]).toContain("No live run counts yet, so there's no test date.");
+    expect(words[4]).toBe("Made with voicecap.");
   });
 });
 

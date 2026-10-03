@@ -19,6 +19,7 @@ import {
   HOW_STEPS,
   STORY,
   TIMELINE,
+  TOP_TEXT,
   WHEN_TO_RUN,
   WORD_TEXT,
   WORTH_KNOWING,
@@ -35,6 +36,7 @@ import {
   tablesOf,
   unzipDocx,
 } from "./helpers/docx.js";
+import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { decode, textOf } from "./helpers/share-html.js";
 import { demoModel, inputOf } from "./helpers/share-model.js";
@@ -100,11 +102,11 @@ describe("wordOutline", () => {
     expect(sections.at(-1)).toBe("About this report");
   });
 
-  it("starts with the site's name, as the one title, and ends with the footer, heading and all", async () => {
+  it("starts with what it is, as the one title, and ends with the footer, heading and all", async () => {
     const model = await demoModel();
     const blocks = wordOutline(model);
 
-    expect(blocks[0]).toEqual({ kind: "title", text: model.header.siteName });
+    expect(blocks[0]).toEqual({ kind: "title", text: TOP_TEXT.eyebrow });
     expect(blocks.filter((block) => block.kind === "title")).toHaveLength(1);
     expect(blocks.slice(-4)).toEqual(wordFooter(model));
     expect(blocks.slice(-4).map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para"]);
@@ -219,10 +221,11 @@ describe("renderWordCopy", () => {
     const parts = await unzipDocx(await renderWordCopy(model));
 
     expect(XMLValidator.validate(parts.document)).toBe(true);
-    expect(paragraphsOf(parts.document)[0]).toEqual({
-      style: "Title",
-      text: model.header.siteName,
-    });
+    expect(paragraphsOf(parts.document).slice(0, 3)).toEqual([
+      { style: "Title", text: "Screen reader test results" },
+      { style: "", text: "30 September 2026 at 09:00 (UTC−05:00)" },
+      { style: "", text: "Site address http://127.0.0.1:4848." },
+    ]);
     expect(propertyOf(parts.core, "dc:title")).toBe(
       `${model.header.siteName}: how its pages read aloud with NVDA`,
     );
@@ -296,7 +299,10 @@ describe("renderWordCopy", () => {
     expect(XMLValidator.validate(parts.document)).toBe(true);
     expect(parts.core).toContain("Smith &amp; Sons&apos; &quot;Grants&quot; &lt;portal&gt;");
     expect(propertyOf(parts.core, "dc:title")).toBe(`${name}: how its pages read aloud with NVDA`);
-    expect(paragraphsOf(parts.document)[0]).toEqual({ style: "Title", text: name });
+    expect(paragraphsOf(parts.document)[2]).toEqual({
+      style: "",
+      text: `${name}. Site address ${SITE}.`,
+    });
     expect(footerWords(parts.footer)[0]).toBe(`${name}, as of 30 September 2026. Page `);
   });
 

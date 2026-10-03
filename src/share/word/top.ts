@@ -1,7 +1,8 @@
 /**
  * The first three parts of the Word copy, as blocks (./blocks.ts): the top, the Summary, and "How
  * voicecap works". Each takes the model, and says the words of the page's renderer (../html/top.ts)
- * in the same order: the fixed ones come from ../text.ts, the ones worked out from the model from
+ * in the same order, but for the top, which puts its title and date first (see wordTop): the fixed
+ * ones come from ../text.ts, the ones worked out from the model from
  * ../words.ts, and the heads and row labels of the tables that stand in for the page's tiles and
  * bars from `WORD_TEXT`. So the two copies can't say different things.
  *
@@ -15,6 +16,7 @@ import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import { HOW_STEPS, HOW_TEXT, SUMMARY_TEXT, TOP_TEXT, WHEN_TO_RUN, WORD_TEXT } from "../text.js";
 import {
+  generatedStamp,
   heardTitle,
   howLead,
   numbersOf,
@@ -38,38 +40,50 @@ import {
 
 // The top.
 
+/** A site's host, with its port ("127.0.0.1:4848"); null for an address that isn't a URL. */
+function hostOf(site: string): string | null {
+  return URL.canParse(site) ? new URL(site).host : null;
+}
+
 /**
- * The line under the lead: when the report was made, who prepared it (when the records name
- * someone), what made it, and the site's address. "As of 30 September 2026. Prepared by Pat Lee.
- * Made with voicecap. Site address http://127.0.0.1:4848." The date and the name are in bold, and
- * "voicecap" links to its page.
+ * The site, where a reader who isn't technical can place it: its name in bold, when its records
+ * give it one beyond its host, then its address. "Grants. Site address https://grants.illinois.gov/."
+ * A site known only by its host is said once, as its address: "Site address http://127.0.0.1:4848."
  */
-function metaLine({ asOf, preparedBy, site }: ShareModel["header"]): Line {
+function siteLine({ siteName, site }: ShareModel["header"]): Line {
+  const address = `${TOP_TEXT.siteAddress} ${site}.`;
+  return siteName === hostOf(site) ? [address] : [{ text: siteName, bold: true }, `. ${address}`];
+}
+
+/**
+ * Who prepared it, when the records name someone, in bold, and what made it, with "voicecap"
+ * linked to its page: "Prepared by Pat Lee. Made with voicecap."
+ */
+function madeByLine({ preparedBy }: ShareModel["header"]): Line {
   const prepared: Line =
-    preparedBy === null ? [] : [` ${TOP_TEXT.preparedBy} `, { text: preparedBy, bold: true }, "."];
+    preparedBy === null ? [] : [`${TOP_TEXT.preparedBy} `, { text: preparedBy, bold: true }, ". "];
   return [
-    `${TOP_TEXT.asOf} `,
-    { text: asOf, bold: true },
-    ".",
     ...prepared,
-    ` ${TOP_TEXT.madeWith} `,
+    `${TOP_TEXT.madeWith} `,
     { text: TOP_TEXT.madeWithLink, href: TOP_TEXT.github },
-    `. ${TOP_TEXT.siteAddress} ${site}.`,
+    ".",
   ];
 }
 
 /**
- * The top: the site's name as the title, then what the page is in bold, how its pages were read
- * (the lead), and who made it, when, and where. The page's header has the same, and two buttons
- * that a document has no use for.
+ * The top: what the copy is, as its title, and when it was made, in bold, so a reader meets those
+ * first rather than an address such as 127.0.0.1:4848; then the site, how its pages were read (the
+ * lead), and who made it. The page's header says the same words, in its own order: the site's name
+ * as its heading, and two buttons that a document has no use for.
  */
 export function wordTop(model: ShareModel): Block[] {
-  const { header } = model;
+  const { header, footer } = model;
   return [
-    title(header.siteName),
-    para({ text: TOP_TEXT.eyebrow, bold: true }),
+    title(TOP_TEXT.eyebrow),
+    para({ text: generatedStamp(footer), bold: true }),
+    para(...siteLine(header)),
     para(...topLead(header)),
-    para(...metaLine(header)),
+    para(...madeByLine(header)),
   ];
 }
 

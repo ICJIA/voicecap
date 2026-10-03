@@ -737,14 +737,22 @@ export function timelineDay(date: string, lastYear: string | null): string {
 // The footer.
 
 /**
+ * The moment the copies were made, with its offset from UTC: "30 September 2026 at 09:00
+ * (UTC−05:00)". The footer's line says it, and the Word copy says it under its title.
+ */
+export function generatedStamp({ generatedAt }: ShareModel["footer"]): string {
+  return `${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)})`;
+}
+
+/**
  * When the page was made, with its offset from UTC, and the offsets the runs recorded their times
  * in, since each time is shown as its run recorded it (a run recorded elsewhere keeps its own):
  * "Generated on 30 September 2026 at 09:00 (UTC−05:00). Times are as each run recorded them
  * (UTC−05:00)." With no run that counts there are no offsets, and the second sentence is left out.
  */
-export function generatedLine({ generatedAt, offsets }: ShareModel["footer"]): string {
-  const generated = `Generated on ${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)}).`;
+export function generatedLine(footer: ShareModel["footer"]): string {
+  const { offsets } = footer;
   const times =
     offsets.length === 0 ? "" : ` Times are as each run recorded them (${names(offsets)}).`;
-  return `${generated}${times}`;
+  return `Generated on ${generatedStamp(footer)}.${times}`;
 }

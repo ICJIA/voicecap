@@ -1168,6 +1168,7 @@ Its sections, in order:
 
 `share/current.docx`, beside the page, is the page's Word copy. voicecap writes it with the page, from the same records, so it has the same sections and the same numbers. It's made for paper and for Word's navigation pane.
 
+- **A title and a date first.** It opens with "Screen reader test results" and the date and time it was made, such as "30 September 2026 at 09:00 (UTC−05:00)". Then comes the site: its name, when it has one beyond its address, and its address. A reader meets what the document is and when it was made before any web address.
 - **The same sections, in the same order.** The page's ten sections, then a last heading, "About this report", over the footer's lines: what voicecap is, when the report was made, and the names of the file and of its web page. The page's footer names its Word copy the same way, so each copy tells its reader where the other is.
 - **Nothing is folded.** What the page keeps behind a fold is open in the Word copy, written out in full.
 - **Tables where the page has charts.** The page's tiles and bars are tables, and its cards for every page are one table, with the same numbers in them.

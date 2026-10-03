@@ -63,6 +63,7 @@ import {
   flagsLine,
   fromRun,
   generatedLine,
+  generatedStamp,
   heardTitle,
   howLead,
   inRun,
@@ -1511,6 +1512,24 @@ describe("the lines of the evidence, the story, and the footer", () => {
     const model = await demoModel();
 
     expect(textOf(renderFooter(model))).toContain(generatedLine(model.footer));
+  });
+
+  it("stamps the moment the copies were made: its day, its time, and its offset from UTC", () => {
+    const footer = {
+      generatedAt: "2026-09-30T09:00:00-05:00",
+      fileName: "current.html",
+      wordName: "current.docx",
+      offsets: ["UTC−05:00"],
+    };
+
+    expect(generatedStamp(footer)).toBe("30 September 2026 at 09:00 (UTC\u{2212}05:00)");
+    expect(generatedStamp({ ...footer, generatedAt: "2026-12-01T17:45:00+01:00" })).toBe(
+      "1 December 2026 at 17:45 (UTC+01:00)",
+    );
+    // The footer's line says the same moment in the same words.
+    expect(generatedLine(footer)).toBe(
+      `Generated on ${generatedStamp(footer)}. Times are as each run recorded them (UTC\u{2212}05:00).`,
+    );
   });
 
   it("writes the year on a timeline's first date, and again only when it changes", () => {
