@@ -1045,7 +1045,7 @@ describe("voicecap verify", () => {
     expect(clean.err).toBe("");
     expect(clean.code).toBe(0);
     expect(clean.out).toBe(
-      "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: everything matches.\n",
+      "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.\n",
     );
 
     const site = path.join(run.cwd, "records", "127.0.0.1_4747");
@@ -1056,7 +1056,7 @@ describe("voicecap verify", () => {
     expect(changed.code).toBe(3);
     expect(changed.out).toBe(
       `127.0.0.1_4747/${runId.slice(0, 10)}/${runId.slice(11)}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)\n` +
-        "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: 1 problem.\n",
+        "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.\n",
     );
   });
 });
@@ -1596,7 +1596,7 @@ describe.skipIf(process.platform !== "win32")("paths written Git Bash's way", ()
     expect((await cli(["report", "--out", home])).code).toBe(0);
     const verify = await cli(["verify"], undefined, { VOICECAP_TRANSCRIPTS: home });
     expect(verify.code).toBe(0);
-    expect(verify.out).toContain("1 review checked: everything matches.");
+    expect(verify.out).toContain("1 review, 0 shares checked: everything matches.");
   });
 
   it("imports a manual session from a file written Git Bash's way", async () => {

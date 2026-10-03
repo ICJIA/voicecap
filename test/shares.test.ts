@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
-import { appendShare, readShares, recordedNames } from "../src/share/shares.js";
+import { appendShare, isSeq, readShares, recordedNames } from "../src/share/shares.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 
@@ -162,6 +162,32 @@ describe("appendShare", () => {
     expect(await appendShare(siteDir, entry)).toMatchObject({ seq: 6, prev: "f".repeat(64) });
   });
 
+  // The rule `voicecap verify` chains by: a whole number, 1 or more. JSON can say 1e999 only as
+  // that, and it reads as Infinity, which writes back as null.
+  it("counts only a seq that is a whole number of 1 or more", async () => {
+    const sealed = (seq: string, seal: string) =>
+      `{ "seq": ${seq}, "prev": null, "at": "x", "by": "x", "runs": [], "files": [], "seal": "${seal.repeat(64)}" }`;
+    const odd = [
+      sealed("2.5", "a"),
+      sealed("1e999", "b"),
+      sealed("0", "c"),
+      sealed("-1", "d"),
+      sealed('"7"', "e"),
+      sealed("null", "f"),
+    ];
+    // Of these, none is a place in the chain.
+    await plant(`{ "schemaVersion": 1, "shares": [${odd.join(", ")}] }`);
+    expect(await appendShare(siteDir, entry)).toMatchObject({ seq: 1, prev: null });
+
+    // And none is the one that the next entry follows, when a numbered entry is beside them.
+    await plant(`{ "schemaVersion": 1, "shares": [${[...odd, sealed("3", "3")].join(", ")}] }`);
+    expect(await appendShare(siteDir, entry)).toMatchObject({ seq: 4, prev: "3".repeat(64) });
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+      shares: { seq: unknown }[];
+    };
+    expect(written.shares.at(-1)?.seq).toBe(4);
+  });
+
   it("gives back the entry it recorded, not the file, with its keys in the order a reader sees", async () => {
     const recorded = await appendShare(siteDir, entry);
     expect(Object.keys(recorded)).toEqual(KEYS);
@@ -234,6 +260,14 @@ describe("appendShare", () => {
     expect(await readFile(sharesPath(siteDir))).toEqual(before);
     // And nothing else is left beside it.
     expect(await readdir(shareDir(siteDir))).toEqual(["shares.json"]);
+  });
+});
+
+describe("isSeq", () => {
+  it("takes a whole number of 1 or more, and nothing else", () => {
+    for (const seq of [1, 2, 41]) expect(isSeq(seq)).toBe(true);
+    const not = [0, -1, 2.5, Infinity, -Infinity, NaN, "1", null, undefined, true, [1], {}];
+    for (const seq of not) expect(isSeq(seq)).toBe(false);
   });
 });
 

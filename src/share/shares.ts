@@ -85,14 +85,24 @@ export function recordedNames(shares: readonly unknown[]): Set<string> {
 }
 
 /**
- * The seq and prev for the next entry: one past the highest numeric seq in the file (1, when there
- * is none), and the seal of the entry that has it (null, when there is none). Reading checks only
- * that each entry is an object, so one may have no numeric seq, and takes no part in the chain.
+ * Whether `value` can be an entry's seq: a whole number, 1 or more. It's the one rule for a place in
+ * the chain: the next entry is numbered by it (see nextInChain), and `voicecap verify` checks the
+ * chain by it.
+ */
+export function isSeq(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * The seq and prev for the next entry: one past the highest seq in the file (1, when there is
+ * none), and the seal of the entry that has it (null, when there is none). Only a seq that isSeq
+ * counts. Reading checks only that each entry is an object, so one may have no usable seq (none,
+ * text, 2.5, 0, or 1e999, which reads as Infinity), and takes no part in the chain.
  */
 function nextInChain(file: SharesFile): { seq: number; prev: string | null } {
   let latest: ShareEntry | undefined;
   for (const candidate of file.shares) {
-    if (typeof candidate.seq === "number" && candidate.seq > (latest?.seq ?? 0)) {
+    if (isSeq(candidate.seq) && candidate.seq > (latest?.seq ?? 0)) {
       latest = candidate;
     }
   }

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { FileHash, ReviewsFile } from "./model.js";
+import type { FileHash, ReviewsFile, SharedFile } from "./model.js";
 import { canonicalKey, parseSiteUrl } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import {
@@ -11,10 +11,15 @@ import {
   manualSessionDir,
   reviewsPath,
   runDir,
+  shareDir,
+  sharePath,
+  sharesPath,
+  shareWordPath,
   siteDirFor,
   siteFolder,
 } from "./run/paths.js";
 import { siteFolders } from "./run/site-dir.js";
+import { isSeq, readShares, recordedNames } from "./share/shares.js";
 import { UsageError } from "./util/errors.js";
 import { assertNotRewritten } from "./util/git-bash.js";
 import { sealOf, sha256 } from "./util/hash.js";
@@ -39,6 +44,8 @@ export interface VerifySiteResult {
   manualSessions: number;
   /** Entries in reviews.json. */
   reviews: number;
+  /** Entries in share/shares.json: none when it's missing or can't be read. */
+  shares: number;
   /** One line per problem, each starting with a path relative to the home (forward slashes). */
   problems: string[];
 }
@@ -66,10 +73,11 @@ const OS_LITTER: ReadonlySet<string> = new Set([".DS_Store", "Thumbs.db", "deskt
  * Check that the records voicecap wrote in the home still match their hashes and seals (the design
  * doc's "Checking the record"), in every site folder or just --site's: each completed run's seal,
  * where it's filed, and the files in its pages/ folder; each manual session's seal, where it's
- * filed, session.txt, and raw copy; and reviews.json's seals and chain. Incomplete runs are listed,
- * not checked. Deleting the newest review entries, or a whole run or manual session, leaves nothing
- * here to find: only Git history shows it. Prints one line per problem, then one per incomplete
- * run, then a summary for each site.
+ * filed, session.txt, and raw copy; reviews.json's seals and chain; and share/shares.json's seals
+ * and chain, each copy it records, and any copy it doesn't. Incomplete runs are listed, not
+ * checked. Deleting the newest review entries, the newest share with its copies, or a whole run or
+ * manual session, leaves nothing here to find: only Git history shows it. Prints one line per
+ * problem, then one per incomplete run, then a summary for each site.
  */
 export async function verifyHome(options: VerifyHomeOptions): Promise<VerifyResult> {
   const { home, logger } = options;
@@ -107,6 +115,7 @@ async function verifySite(home: string, folder: string): Promise<SiteTally> {
     incomplete: 0,
     manualSessions: 0,
     reviews: 0,
+    shares: 0,
     problems: [],
     listed: [],
   };
@@ -116,15 +125,16 @@ async function verifySite(home: string, folder: string): Promise<SiteTally> {
     if (DATE_FOLDER.test(name)) {
       await checkDateFolder(home, dir, site);
     } else if (name !== "compare" && name !== "share" && !name.startsWith(".")) {
-      // compare/ and share/ are voicecap's own, and hold what it writes again from the records: the
-      // diffs, and the shareable page. Records in any other folder (a renamed date folder, say)
-      // would go unchecked.
+      // compare/ and share/ are voicecap's own: compare/ holds the diffs it writes again from the
+      // records, and share/ is checked below. Records in any other folder (a renamed date folder,
+      // say) would go unchecked.
       site.problems.push(
         `${linkPath(home, dir)}: an unexpected folder; runs and manual sessions live in date folders`,
       );
     }
   }
   await checkReviews(home, siteDir, site);
+  await checkShares(home, siteDir, site);
   return site;
 }
 
@@ -315,14 +325,18 @@ function sessionBelongsAt(home: string, session: Record<string, unknown>): strin
     : null;
 }
 
-/** One entry of reviews.json's chain: an entry with a seq. */
-interface Link {
-  /** The page key it's filed under. */
-  key: string;
+/** One entry of a chain (reviews.json's, or shares.json's): an entry with a seq. */
+interface ChainLink {
   entry: Record<string, unknown>;
   seq: number;
   /** Whether it still matches its own seal. */
   intact: boolean;
+}
+
+/** One entry of reviews.json's chain. */
+interface Link extends ChainLink {
+  /** The page key it's filed under. */
+  key: string;
 }
 
 /** reviews.json: each entry's seal, the chain (seq and prev), and where each entry is filed. */
@@ -380,11 +394,12 @@ function filedEntries(reviews: ReviewsFile): Map<string, Record<string, unknown>
 /**
  * seq running 1, 2, ... with no gaps or repeats, and each intact entry's prev the seal of the
  * intact entry before it (null for the first). A missing or changed entry is reported once, not
- * again as a broken link from the entry after it.
+ * again as a broken link from the entry after it. It's the same for any chain of entries: the
+ * reviews', or the shares'.
  */
-function chainProblems(chain: Link[]): string[] {
+function chainProblems(chain: readonly ChainLink[]): string[] {
   const problems: string[] = [];
-  const bySeq = new Map<number, Link[]>();
+  const bySeq = new Map<number, ChainLink[]>();
   for (const link of chain) bySeq.set(link.seq, [...(bySeq.get(link.seq) ?? []), link]);
   let next = 1;
   for (const seq of [...bySeq.keys()].sort((a, b) => a - b)) {
@@ -454,11 +469,152 @@ function keyOf(url: unknown): string | null {
   return isUrl(url) ? canonicalKey(url) : null;
 }
 
-/** "<folder>: 3 runs (1 incomplete), 2 manual sessions, 4 reviews checked: everything matches." */
+/**
+ * share/: shares.json's entries (each one's seal, then the chain), each file of each entry that
+ * still matches its seal, and each file or folder no entry names. The problems come in that order,
+ * the files in the entries' order and the rest by name. A site with no share/ folder has nothing to
+ * check. voicecap writes current.html and current.docx again from the records, so they're never
+ * checked.
+ */
+async function checkShares(home: string, siteDir: string, site: VerifySiteResult): Promise<void> {
+  const dir = shareDir(siteDir);
+  if (!(await isDirectory(dir))) return;
+  const where = linkPath(home, sharesPath(siteDir));
+
+  const problems: string[] = [];
+  let entries: Record<string, unknown>[] = [];
+  try {
+    // Reading checks only that each entry is an object: every field of one is read as unknown.
+    entries = ((await readShares(siteDir)).shares as unknown[]).filter(isRecord);
+  } catch {
+    // A record voicecap can't use vouches for no copy, so each is one nothing records, below.
+    problems.push(`${where}: not a readable record of what was shared`);
+  }
+  site.shares = entries.length;
+
+  const sealed = entries.map((entry) => ({ entry, intact: entry.seal === sealOf(entry) }));
+  const chain: ChainLink[] = [];
+  for (const { entry, intact } of sealed) {
+    // An entry that lost its seal was changed, just like one that no longer matches it.
+    if (!intact) problems.push(`${where}: ${describeShare(entry)} changed since it was recorded`);
+    if (isSeq(entry.seq)) {
+      chain.push({ entry, seq: entry.seq, intact });
+    } else if (intact) {
+      // Sealed, but in no place in the chain, so no check of seq or prev would reach it.
+      problems.push(`${where}: ${describeShare(entry)} is outside the chain (no seq)`);
+    }
+  }
+  problems.push(...chainProblems(chain).map((problem) => `${where}: ${problem}`));
+
+  // An entry that changed can't vouch for its files, so only an intact entry's are checked.
+  for (const { entry, intact } of sealed) {
+    if (intact) problems.push(...(await copyProblems(home, dir, where, entry)));
+  }
+  problems.push(...(await unrecordedProblems(home, siteDir, entries)));
+  site.problems.push(...problems);
+}
+
+/**
+ * The problems with the files an entry records, in the order it lists them: one that's missing or
+ * changed, or a name that can't be a file in share/ (which is never read: it could lead anywhere),
+ * or, when the entry doesn't list its files in a form voicecap can read, one line for the entry.
+ */
+async function copyProblems(
+  home: string,
+  dir: string,
+  where: string,
+  entry: Record<string, unknown>,
+): Promise<string[]> {
+  const files = sharedFiles(entry.files);
+  if (files === null) {
+    return [`${where}: ${describeShare(entry)} lists its files in a form voicecap can't read`];
+  }
+  const problems: string[] = [];
+  for (const file of files) {
+    if (!isPlainName(file.name)) {
+      problems.push(
+        `${where}: ${describeShare(entry)} names "${file.name}", which isn't a file in share/`,
+      );
+      continue;
+    }
+    const copy = path.join(dir, file.name);
+    const problem = await difference(copy, file);
+    if (problem !== null) problems.push(`${linkPath(home, copy)}: ${problem}`);
+  }
+  return problems;
+}
+
+/**
+ * What share/ holds that no entry of the record names, by name: a file is "not recorded", and a
+ * folder is unexpected (voicecap makes none). Not these: the files voicecap writes again from the
+ * records, a name that starts with a dot, and the files an operating system leaves.
+ */
+async function unrecordedProblems(
+  home: string,
+  siteDir: string,
+  entries: readonly unknown[],
+): Promise<string[]> {
+  const dir = shareDir(siteDir);
+  const written = [sharePath(siteDir), shareWordPath(siteDir), sharesPath(siteDir)].map((file) =>
+    path.basename(file),
+  );
+  const named = recordedNames(entries);
+  const problems: string[] = [];
+  const found = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+    a.name < b.name ? -1 : 1,
+  );
+  for (const item of found) {
+    const name = item.name;
+    if (name.startsWith(".") || OS_LITTER.has(name) || written.includes(name)) continue;
+    const shown = linkPath(home, path.join(dir, name));
+    if (item.isDirectory()) problems.push(`${shown}: an unexpected folder`);
+    else if (!named.has(name)) problems.push(`${shown}: not recorded in shares.json`);
+  }
+  return problems;
+}
+
+/** The files an entry records, as { name, bytes, sha256 }; null unless it lists only such files. */
+function sharedFiles(files: unknown): SharedFile[] | null {
+  if (!Array.isArray(files)) return null;
+  const listed: SharedFile[] = [];
+  for (const file of files as unknown[]) {
+    if (!isRecord(file) || typeof file.name !== "string" || !isFileHash(file)) return null;
+    listed.push({ name: file.name, bytes: file.bytes, sha256: file.sha256 });
+  }
+  return listed;
+}
+
+/**
+ * Whether `name` is a file in share/ itself: not empty, ".", or "..", and with no separator in it
+ * (nor a null character, which no file name has and which makes a read throw).
+ */
+function isPlainName(name: string): boolean {
+  return (
+    name !== "" &&
+    name !== "." &&
+    name !== ".." &&
+    !name.includes("/") &&
+    !name.includes("\\") &&
+    !name.includes("\0")
+  );
+}
+
+/** "share 2 (<time>)", or "a share at <time>" for one without a seq. */
+function describeShare(entry: Record<string, unknown>): string {
+  return isSeq(entry.seq)
+    ? `share ${entry.seq} (${String(entry.at)})`
+    : `a share at ${String(entry.at)}`;
+}
+
+/**
+ * "<folder>: 3 runs (1 incomplete), 2 manual sessions, 4 reviews, 1 share checked: everything
+ * matches."
+ */
 function summary(site: VerifySiteResult): string {
   const checked =
     `${count(site.runs, "run")} (${site.incomplete} incomplete), ` +
-    `${count(site.manualSessions, "manual session")}, ${count(site.reviews, "review")} checked`;
+    `${count(site.manualSessions, "manual session")}, ${count(site.reviews, "review")}, ` +
+    `${count(site.shares, "share")} checked`;
   const verdict =
     site.problems.length === 0 ? "everything matches" : count(site.problems.length, "problem");
   return `${site.folder}: ${checked}: ${verdict}.`;
@@ -526,10 +682,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFileHash(value: unknown): value is FileHash {
   return isRecord(value) && typeof value.sha256 === "string" && typeof value.bytes === "number";
-}
-
-function isSeq(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
 function isUrl(value: unknown): value is string {
