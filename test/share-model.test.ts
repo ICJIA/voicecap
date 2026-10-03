@@ -966,7 +966,7 @@ describe("buildShareModel", () => {
     expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(`2 pages from ${from}.`);
   });
 
-  it("names a walkthrough run's pages as from the walkthrough of its run", () => {
+  it("names a walkthrough run's pages as from the walkthrough, by its file and its run", () => {
     const run = shareRun({
       id: "2026-09-30_0900",
       source: {
@@ -979,7 +979,7 @@ describe("buildShareModel", () => {
     });
 
     expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(
-      "1 page from the walkthrough of run 2026-09-29_1402 (w.json).",
+      "1 page from the walkthrough w.json from run 2026-09-29_1402.",
     );
   });
 
@@ -995,7 +995,7 @@ describe("buildShareModel", () => {
     const covered = buildShareModel(inputOf([run])).coverage.covered[0];
 
     expect(covered).toBe(
-      `1 page from the walkthrough of run 2026-09-29_1402 (${redactHome(file, home, process.platform)}).`,
+      `1 page from the walkthrough ${redactHome(file, home, process.platform)} from run 2026-09-29_1402.`,
     );
     expect(mentionsHome(covered ?? "")).toBe(false);
   });

@@ -503,7 +503,7 @@ describe("describeSource", () => {
     expect(describeSource(source)).toBe(words);
   });
 
-  it("names a walkthrough by its run and its file", () => {
+  it("names a walkthrough by its file, then its run", () => {
     const source: PageSource = {
       kind: "walkthrough",
       file: "w.json",
@@ -511,6 +511,6 @@ describe("describeSource", () => {
       run: "2026-09-29_1402",
     };
 
-    expect(describeSource(source)).toBe("the walkthrough of run 2026-09-29_1402 (w.json)");
+    expect(describeSource(source)).toBe("the walkthrough w.json from run 2026-09-29_1402");
   });
 });

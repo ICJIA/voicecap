@@ -164,7 +164,7 @@ describe("environmentLines", () => {
     expect(lines).toContain("Page source: sitemap https://example.illinois.gov/sitemap.xml");
   });
 
-  it("describes a walkthrough source by its run, its file, and its SHA-256", () => {
+  it("describes a walkthrough source by its file, its run, and its SHA-256", () => {
     const lines = environmentLines({
       ...environment,
       pageSource: {
@@ -175,7 +175,7 @@ describe("environmentLines", () => {
       },
     });
     expect(lines).toContain(
-      `Page source: walkthrough of run 2026-09-29_1402 (w.json) (sha256 ${"a".repeat(64)})`,
+      `Page source: walkthrough w.json from run 2026-09-29_1402 (sha256 ${"a".repeat(64)})`,
     );
   });
 });

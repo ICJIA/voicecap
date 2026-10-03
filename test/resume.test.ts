@@ -127,7 +127,7 @@ describe("chooseRun", () => {
     );
   });
 
-  it("names a changed walkthrough by its run, file, and hash, as it names a page list", () => {
+  it("names a changed walkthrough by its file, run, and hash, as it names a page list", () => {
     const walkthrough = (sha256: string) => ({
       ...settings,
       source: {
@@ -141,10 +141,10 @@ describe("chooseRun", () => {
     const repeat = walkthrough("a".repeat(64));
 
     expect(describeDifferences(edited, repeat)[0]).toBe(
-      "source: walkthrough of run 2026-09-29_1402 (w.json) (sha256 bbbbbbbbbbbb…) → walkthrough of run 2026-09-29_1402 (w.json) (sha256 aaaaaaaaaaaa…)",
+      "source: walkthrough w.json from run 2026-09-29_1402 (sha256 bbbbbbbbbbbb…) → walkthrough w.json from run 2026-09-29_1402 (sha256 aaaaaaaaaaaa…)",
     );
     expect(describeDifferences(settings, repeat)[0]).toBe(
-      "source: page list pages.csv (sha256 aaaaaaaaaaaa…) → walkthrough of run 2026-09-29_1402 (w.json) (sha256 aaaaaaaaaaaa…)",
+      "source: page list pages.csv (sha256 aaaaaaaaaaaa…) → walkthrough w.json from run 2026-09-29_1402 (sha256 aaaaaaaaaaaa…)",
     );
   });
 

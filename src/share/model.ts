@@ -421,7 +421,7 @@ function listOf(source: PageSource, redact: (text: string) => string): string {
     case "pages":
       return `the page list ${redact(source.file)}`;
     case "walkthrough":
-      return `the walkthrough of run ${source.run} (${redact(source.file)})`;
+      return `the walkthrough ${redact(source.file)} from run ${source.run}`;
     case "urls":
       return "the pages given";
     default: {

@@ -215,7 +215,7 @@ function describeSource(run: RunJson): string {
     case "pages":
       return `page list ${source.file}`;
     case "walkthrough":
-      return `walkthrough of run ${source.run} (${source.file})`;
+      return `walkthrough ${source.file} from run ${source.run}`;
     case "urls":
       return describePageUrls(source.urls);
     default: {

@@ -325,7 +325,7 @@ describe("resolveCompareBase", () => {
       pages: [{ path: "/" }],
     });
     await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
-      "No earlier completed run with the same page source (walkthrough of run 2026-09-29_1402 (w.json)) to compare with run 2026-09-26_1405.",
+      "No earlier completed run with the same page source (walkthrough w.json from run 2026-09-29_1402) to compare with run 2026-09-26_1405.",
     );
   });
 

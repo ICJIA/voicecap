@@ -151,7 +151,7 @@ describe("generateReport", () => {
     expect(html).not.toContain("<dt>Walkthrough file</dt>");
   });
 
-  it("describes a walkthrough run by its run, its file, and its SHA-256", async () => {
+  it("describes a walkthrough run by its file, its run, and its SHA-256", async () => {
     const html = await reportOfRunFrom({
       kind: "walkthrough",
       file: "w.json",
@@ -160,11 +160,11 @@ describe("generateReport", () => {
     });
 
     expect(summary(html).get("Page source")).toBe(
-      "Walkthrough of run 2026-09-29_1402 (w.json) SHA-256 aaaaaaaaaaaa…",
+      "Walkthrough w.json from run 2026-09-29_1402 SHA-256 aaaaaaaaaaaa…",
     );
     expect(html).toContain('<dt>Walkthrough file</dt><dd class="mono">w.json</dd>');
     expect(html).toContain(`<dt>Walkthrough SHA-256</dt><dd class="mono">${"a".repeat(64)}</dd>`);
-    expect(html).toContain('<dt>Walkthrough of run</dt><dd class="mono">2026-09-29_1402</dd>');
+    expect(html).toContain('<dt>Walkthrough from run</dt><dd class="mono">2026-09-29_1402</dd>');
     expect(html).not.toContain("<dt>Page list file</dt>");
   });
 

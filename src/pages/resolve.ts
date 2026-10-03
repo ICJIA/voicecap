@@ -330,7 +330,7 @@ export function describeSource(source: PageSource): string {
     case "pages":
       return `the page list ${source.file}`;
     case "walkthrough":
-      return `the walkthrough of run ${source.run} (${source.file})`;
+      return `the walkthrough ${source.file} from run ${source.run}`;
     case "urls":
       return "the pages given with --page";
     default: {

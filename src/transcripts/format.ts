@@ -107,7 +107,7 @@ function describePageSource(source: PageSource): string {
     case "pages":
       return `page list ${source.file} (sha256 ${source.sha256})`;
     case "walkthrough":
-      return `walkthrough of run ${source.run} (${source.file}) (sha256 ${source.sha256})`;
+      return `walkthrough ${source.file} from run ${source.run} (sha256 ${source.sha256})`;
     case "urls":
       return describePageUrls(source.urls);
     default: {

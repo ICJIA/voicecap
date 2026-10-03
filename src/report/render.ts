@@ -160,7 +160,7 @@ function pageSourceText(source: PageSource): string {
     case "pages":
       return `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
     case "walkthrough":
-      return `Walkthrough of run <span class="mono">${esc(source.run)}</span> (<span class="mono">${esc(source.file)}</span>) <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
+      return `Walkthrough <span class="mono">${esc(source.file)}</span> from run <span class="mono">${esc(source.run)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
     case "urls":
       return esc(describePageUrls(source.urls));
     default: {
@@ -185,7 +185,7 @@ function pageSourceRows(source: PageSource): string[] {
       return [
         `<dt>Walkthrough file</dt><dd class="mono">${esc(source.file)}</dd>`,
         `<dt>Walkthrough SHA-256</dt><dd class="mono">${esc(source.sha256)}</dd>`,
-        `<dt>Walkthrough of run</dt><dd class="mono">${esc(source.run)}</dd>`,
+        `<dt>Walkthrough from run</dt><dd class="mono">${esc(source.run)}</dd>`,
       ];
     case "urls":
       return [
