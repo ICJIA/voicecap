@@ -24,11 +24,13 @@ import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
+import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { demoRun } from "./helpers/share-fixture.js";
 import { DEMO_SITE } from "./helpers/share-model.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -371,6 +373,10 @@ describe("axe, in Chromium", () => {
       // Open, with the check's list of every file checked, and a mismatch in it, in red.
       await page.locator("#open-all").click();
       expect(openFolds(await foldStates(page)).length).toBeGreaterThan(5);
+      // Each run's walkthrough file is among what axe checks: its download is in view, open.
+      const downloads = page.locator("a[download]");
+      expect(await downloads.count()).toBe(2);
+      for (const download of await downloads.all()) expect(await download.isVisible()).toBe(true);
       await page.locator("#fp-demo").click();
       await waitForResult(/^Demonstration, on a copy/);
       expect(await axeFindings(page), "dark, folds open, a change caught").toEqual([]);
@@ -462,6 +468,9 @@ describe("a page in a narrow window", () => {
     ["what a term means", "main dd"],
     ["a caption", "main figcaption"],
     ["the command that verifies the records", ".verify pre"],
+    // The command that verifies the records has words of its own in a span; this one has none.
+    ["the command that repeats a run", ".run-inside .verify:not(:has(span)) pre"],
+    ["the words of a walkthrough file's download", ".run-inside a[download]"],
     ["the site's name", ".mast h1"],
     ["the site's address", ".mast-meta .addr"],
     ["a file name in the footer", "footer .mono"],
@@ -477,6 +486,28 @@ describe("a page in a narrow window", () => {
     }, selector);
 
     expect(await overflowOf(page)).toEqual(FITS);
+  });
+});
+
+describe("a run's walkthrough file", () => {
+  it("downloads as the file voicecap writes of the run, under its own name", async () => {
+    const page = await open(pages.demo);
+    await page.locator("#open-all").click();
+
+    for (const time of ["1402", "1315"] as const) {
+      const run = demoRun(time);
+      const name = `127.0.0.1_4848_${run.id}_walkthrough.json`;
+
+      const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.locator(`a[download="${name}"]`).click(),
+      ]);
+
+      expect(download.suggestedFilename()).toBe(name);
+      const saved = await download.path();
+      if (saved === null) throw new Error(`The browser kept no file for ${name}.`);
+      expect((await readFile(saved)).toString("utf8")).toBe(walkthroughJson(walkthroughOf(run)));
+    }
   });
 });
 

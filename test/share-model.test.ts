@@ -26,7 +26,13 @@ import { redactHome } from "../src/run/failure.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { buildShareModel, type RunEvidence, type ShareModel } from "../src/share/model.js";
+import {
+  parseWalkthrough,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "../src/share/walkthrough.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { sealOf } from "../src/util/hash.js";
 import { isoLocal } from "../src/util/time.js";
@@ -41,7 +47,16 @@ import {
 } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
-import { DEMO_SITE, demoModel, inputOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  DEMO_SITE,
+  demoModel,
+  downloadOf,
+  fileBytes,
+  inputOf,
+  STEP_LIMIT_PROBLEM,
+  TRANSCRIPTS,
+  withStepLimit,
+} from "./helpers/share-model.js";
 
 const CHRIS = "Christopher Schweda";
 const PAT = "Pat Lee";
@@ -150,15 +165,30 @@ function stringsIn(value: unknown): string[] {
 
 /**
  * What the page shows of a model: everything but the records it carries as they are, for the
- * fingerprint check and for the renderers to read fingerprints from.
+ * fingerprint check and for the renderers to read fingerprints from. A walkthrough file the page
+ * carries for download is shown as the words in it: its base64 would hide a folder's name.
  */
 function shown(model: ShareModel): unknown {
   return {
     ...model,
     check: null,
-    evidence: model.evidence.map((each) => ({ ...each, run: null })),
+    evidence: model.evidence.map((each) => ({
+      ...each,
+      run: null,
+      walkthrough:
+        "problem" in each.walkthrough
+          ? each.walkthrough
+          : { ...each.walkthrough, base64: fileBytes(each.walkthrough).toString("utf8") },
+    })),
     changes: model.changes && { ...model.changes, before: null, after: null },
   };
+}
+
+/** The evidence of the first run a model draws on, the latest. */
+function latestEvidence(model: ShareModel): RunEvidence {
+  const [first] = model.evidence;
+  if (first === undefined) throw new Error("The model has no run that counts.");
+  return first;
 }
 
 /** Whether text holds the home folder, however its separators are written. */
@@ -796,6 +826,14 @@ describe("buildShareModel", () => {
     // Nothing the page shows holds the home folder. The records, review entries, and transcripts it
     // carries for the fingerprint check are exactly as recorded, since a seal covers every field.
     expect(stringsIn(shown(model)).filter(mentionsHome)).toEqual([]);
+    // That includes the walkthrough file it offers, which keeps the page list by its name alone.
+    const offered = fileBytes(downloadOf(latestEvidence(model))).toString("utf8");
+    expect(parseWalkthrough(offered, "w.json").original.source).toEqual({
+      kind: "pages",
+      file: "pages.csv",
+      sha256: "a".repeat(64),
+    });
+    expect(mentionsHome(offered)).toBe(false);
     expect(model.check.runs[0]?.settings.source).toEqual({
       kind: "pages",
       file: list,
@@ -1304,5 +1342,110 @@ describe("buildShareModel", () => {
         value: `Part of the time. Asked as the session ended, and answered at 16:20 by ${PAT}.`,
       },
     ]);
+  });
+});
+
+describe("the walkthrough file each run's evidence offers", () => {
+  it("is the file voicecap writes of the run, named for the site's folder and the run, with the commands that get it and repeat it", async () => {
+    const model = await demoModel();
+
+    expect(model.evidence.map((each) => each.run.id)).toEqual([
+      "2026-09-29_1402",
+      "2026-09-29_1315",
+    ]);
+    for (const each of model.evidence) {
+      const time = each.run.id.endsWith("1402") ? "1402" : "1315";
+      const text = walkthroughJson(walkthroughOf(demoRun(time)));
+      const fileName = `127.0.0.1_4848_${each.run.id}_walkthrough.json`;
+
+      expect(each.walkthrough, each.run.id).toEqual({
+        fileName,
+        base64: Buffer.from(text, "utf8").toString("base64"),
+        bytes: Buffer.byteLength(text, "utf8"),
+        get: `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${each.run.id} ${fileName}`,
+        repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+      });
+    }
+  });
+
+  it("is a file voicecap reads back, a walkthrough of that run", async () => {
+    for (const each of (await demoModel()).evidence) {
+      const file = downloadOf(each);
+      const read = parseWalkthrough(fileBytes(file).toString("utf8"), file.fileName);
+
+      expect(read.original.run).toBe(each.run.id);
+      expect(read.site).toBe("http://127.0.0.1:4848");
+      expect(read.pages).toHaveLength(each.run.pages.length);
+    }
+  });
+
+  it("is made from the run's record as its run.json holds it, so it is the file the get command writes", () => {
+    const shownRun = shareRun({ id: "r1", pages: [{ path: "/", label: "As shown" }] });
+    const recorded = shareRun({ id: "r1", pages: [{ path: "/", label: "As recorded" }] });
+    const evidence = latestEvidence(buildShareModel(inputOf([shownRun], { records: [recorded] })));
+    const text = fileBytes(downloadOf(evidence)).toString("utf8");
+
+    expect(text).toBe(walkthroughJson(walkthroughOf(recorded)));
+    expect(text).toContain("As recorded");
+    expect(text).not.toContain("As shown");
+  });
+
+  it("holds the file as UTF-8 in base64, and says its size in bytes, which is more than its characters", () => {
+    const run = shareRun({ id: "r1", pages: [{ path: "/", label: "Café – accueil ☕" }] });
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run]))));
+    const text = walkthroughJson(walkthroughOf(run));
+    const bytes = fileBytes(file);
+
+    expect(text).toContain("Café – accueil ☕");
+    expect(bytes.equals(Buffer.from(text, "utf8"))).toBe(true);
+    expect(bytes.toString("utf8")).toBe(text);
+    expect(file.bytes).toBe(bytes.length);
+    expect(file.bytes).toBeGreaterThan(text.length);
+  });
+
+  it.each([
+    ["https://example.illinois.gov/", "example.illinois.gov"],
+    ["http://127.0.0.1:4848", "127.0.0.1_4848"],
+    ["http://Localhost:3000/some/path", "localhost_3000"],
+  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder) => {
+    // A run of that site, whose page is on it, as a walkthrough file needs.
+    const home = new URL("/", site).href;
+    const run = { ...shareRun({ id: "2026-09-26_1405", pages: [{ path: home }] }), site };
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { site }))));
+    const name = `${folder}_2026-09-26_1405_walkthrough.json`;
+
+    expect(file.fileName).toBe(name);
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site ${site} --run 2026-09-26_1405 ${name}`,
+    );
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+  });
+
+  it("says why there is no file for a run beyond what a walkthrough file can hold, a step limit of 100,001", () => {
+    const run = withStepLimit(shareRun({ id: "r1", pages: [{ path: "/" }] }), 100_001);
+
+    // The reason is the one voicecap gives of the same run, and a sentence that ends with its period.
+    expect(walkthroughProblem(walkthroughOf(run))).toBe(STEP_LIMIT_PROBLEM);
+    const { walkthrough } = latestEvidence(buildShareModel(inputOf([run])));
+
+    expect(walkthrough).toEqual({ problem: STEP_LIMIT_PROBLEM });
+    expect(Object.keys(walkthrough)).toEqual(["problem"]);
+  });
+
+  it("says it of the run that has the problem only: the other run's file is still offered", () => {
+    const fine = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [{ path: "/" }],
+    });
+    const over = withStepLimit(shareRun({ id: "r2", pages: [{ path: "/" }] }), 100_001);
+    const { evidence } = buildShareModel(inputOf([fine, over]));
+    const [latest, earlier] = evidence;
+
+    expect(evidence.map((each) => each.run.id)).toEqual(["r2", "r1"]);
+    expect(latest?.walkthrough).toEqual({ problem: STEP_LIMIT_PROBLEM });
+    expect(earlier === undefined ? null : downloadOf(earlier).fileName).toBe(
+      "example.illinois.gov_r1_walkthrough.json",
+    );
   });
 });

@@ -29,7 +29,14 @@ import { STORY } from "../src/share/text.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode } from "./helpers/share-html.js";
-import { demoModel, inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  demoModel,
+  downloadOf,
+  inputOf,
+  LINES,
+  storeOf,
+  TRANSCRIPTS,
+} from "./helpers/share-model.js";
 
 /** The only places the page links to outside itself. */
 const LINKS_OUT = [
@@ -123,6 +130,30 @@ function richModel(): ShareModel {
   return buildShareModel(inputOf(runs, { transcripts }));
 }
 
+/**
+ * A large site: three runs of 400 pages with their transcripts. The first run reads every page; in
+ * the two after it the first page fails, so the page draws on all three runs. Each run's walkthrough
+ * file lists all 400 pages, so this is where the downloads weigh most.
+ */
+function largeModel(): ShareModel {
+  const pages = (failing: boolean): SharePageSpec[] =>
+    Array.from({ length: 400 }, (_, index): SharePageSpec => ({
+      path: `/section-${Math.floor(index / 20)}/page-${index}/`,
+      label: `Page ${index}`,
+      ...(failing && index === 0
+        ? { status: "failed" as const }
+        : { files: TRANSCRIPTS, passes: LINES }),
+    }));
+  const runs = [1, 2, 3].map((day) =>
+    shareRun({
+      id: `2026-09-2${day}_0900`,
+      createdAt: `2026-09-2${day}T09:00:00-05:00`,
+      pages: pages(day > 1),
+    }),
+  );
+  return buildShareModel(inputOf(runs, { transcripts: storeOf() }));
+}
+
 /** A site whose only run was a replay, so no run counts yet. */
 function noRunModel(): ShareModel {
   return buildShareModel(
@@ -137,9 +168,34 @@ function markupOf(html: string): string {
     .replace(/(<script\b[^>]*>)[\s\S]*?(<\/script>)/g, "$1$2");
 }
 
-/** The page with its fonts' data left out: base64 is letters, and could spell anything. */
-function withoutFontData(html: string): string {
-  return html.replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,");
+/**
+ * The page with its fonts' data and its walkthrough files' left out: base64 is letters, and could
+ * spell anything.
+ */
+function withoutBase64Data(html: string): string {
+  return html
+    .replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,")
+    .replace(/data:application\/json;base64,[A-Za-z0-9+/=]+/g, "data:application/json;base64,");
+}
+
+/** A walkthrough file's download, as its link's address gives it: JSON, in base64, and nothing else. */
+const DOWNLOAD_ADDRESS = /^data:application\/json;base64,[A-Za-z0-9+/]*={0,2}$/;
+
+/**
+ * The addresses a page links to that it shouldn't: every link's address, as a reader gets it, but
+ * for the page's own parts (`#…`), the four places it names (LINKS_OUT), and a walkthrough file's
+ * download. That is one kind of link only: a link with a `download` attribute that ends
+ * `_walkthrough.json`, to a data address that holds JSON in base64. A data address without that
+ * name, or of another type, is one the page shouldn't link to.
+ */
+function unlistedLinks(markup: string): string[] {
+  return (markup.match(/<a\b[^>]*>/g) ?? []).flatMap((tag) => {
+    const [href = ""] = attributes(tag, "href").map(decode);
+    if (href.startsWith("#") || LINKS_OUT.includes(href)) return [];
+    const [name = ""] = attributes(tag, "download").map(decode);
+    const download = DOWNLOAD_ADDRESS.test(href) && name.endsWith("_walkthrough.json");
+    return download ? [] : [href.slice(0, 80)];
+  });
 }
 
 /** How many folds are around each section heading, in page order. */
@@ -196,8 +252,11 @@ const library = vm.runInNewContext(CHECK_LIBRARY + ";({ sha256Hex, checkAll })",
 
 describe("renderSharePage", () => {
   let fontCss: string;
-  /** The page of each model: the demo's, one built in memory, and one where no run counts. */
-  let pages: { name: string; html: string }[];
+  /**
+   * The page of each model: the demo's, one built in memory, and one where no run counts, with how
+   * many runs each draws on.
+   */
+  let pages: { name: string; html: string; runs: number }[];
   let demoPage: string;
 
   beforeAll(async () => {
@@ -207,18 +266,22 @@ describe("renderSharePage", () => {
       ["runs built in memory", richModel()],
       ["no run that counts", noRunModel()],
     ];
-    pages = models.map(([name, model]) => ({ name, html: renderSharePage(model, { fontCss }) }));
+    pages = models.map(([name, model]) => ({
+      name,
+      html: renderSharePage(model, { fontCss }),
+      runs: model.evidence.length,
+    }));
     demoPage = pages[0]?.html ?? "";
   });
 
   it("is one self-contained file", () => {
     const linked = new Set<string>();
-    for (const { name, html } of pages) {
+    for (const { name, html, runs } of pages) {
       const markup = markupOf(html);
       const scripts = html.match(/<script\b[^>]*>/g) ?? [];
 
       expect(html.match(/<style\b/g), name).toHaveLength(1);
-      expect(withoutFontData(html), name).not.toMatch(/style\s*=/i);
+      expect(withoutBase64Data(html), name).not.toMatch(/style\s*=/i);
       // One script that runs, and the check's data: a block of JSON, which never runs.
       expect(
         scripts.filter((tag) => tag === "<script>"),
@@ -231,18 +294,18 @@ describe("renderSharePage", () => {
         name === "no run that counts" ? [] : ['<script type="application/json" id="fp-data">'],
       );
       // Nothing loaded: no source, no linked file, no import, and every url() the page's own data.
-      expect(withoutFontData(html), name).not.toMatch(/\ssrc\s*=/i);
+      expect(withoutBase64Data(html), name).not.toMatch(/\ssrc\s*=/i);
       expect(markup, name).not.toMatch(/<link\b/i);
       expect(html, name).not.toMatch(/@import/i);
       for (const [, address = ""] of html.matchAll(/url\(\s*["']?([^"')]*)/g)) {
         expect(address, name).toMatch(/^data:/);
       }
-      // Links go to the page's own parts, or to the four places it names.
+      // Links go to the page's own parts, to the four places it names, or (one for each run that
+      // counts) to a walkthrough file the page carries, which the reader downloads.
+      expect(unlistedLinks(markup), name).toEqual([]);
+      expect(attributes(markup, "download"), name).toHaveLength(runs);
       for (const href of attributes(markup, "href").map(decode)) {
-        if (!href.startsWith("#")) {
-          expect(LINKS_OUT, `${name}: ${href}`).toContain(href);
-          linked.add(href);
-        }
+        if (LINKS_OUT.includes(href)) linked.add(href);
       }
       const faces = html.match(/@font-face\s*\{[^}]*\}/g) ?? [];
       expect(html.match(/@font-face/g), name).toHaveLength(9);
@@ -251,6 +314,70 @@ describe("renderSharePage", () => {
     }
     // Each of the four is linked from some page, so the list above is the page's own.
     expect([...linked].sort()).toEqual([...LINKS_OUT].sort());
+  });
+
+  it("allows a link to a data address for a walkthrough file's download, and no other", () => {
+    const address = "data:application/json;base64,e30K";
+    const download = `<a download="127.0.0.1_4848_r1_walkthrough.json" href="${address}">Download</a>`;
+
+    expect(unlistedLinks(download)).toEqual([]);
+    // The page's own parts and the four places it names stay allowed.
+    expect(
+      unlistedLinks(
+        `<a href="#prob-h">x</a><a href="${LINKS_OUT[0] ?? ""}">y</a><a href="${LINKS_OUT[3] ?? ""}">z</a>`,
+      ),
+    ).toEqual([]);
+
+    const refused: [why: string, link: string][] = [
+      ["a data address with no download name", `<a href="${address}">x</a>`],
+      ["a download that has no value", `<a download href="${address}">x</a>`],
+      [
+        "a download that isn't a walkthrough file's name",
+        `<a download="notes.json" href="${address}">x</a>`,
+      ],
+      [
+        "a data address of another type",
+        '<a download="r1_walkthrough.json" href="data:text/html;base64,e30K">x</a>',
+      ],
+      [
+        "a data address that isn't base64",
+        '<a download="r1_walkthrough.json" href="data:application/json,%7B%7D">x</a>',
+      ],
+      [
+        "a data address with more than base64 in it",
+        `<a download="r1_walkthrough.json" href="${address}#more">x</a>`,
+      ],
+      ["a script", '<a download="r1_walkthrough.json" href="javascript:alert(1)">x</a>'],
+      [
+        "another site",
+        '<a download="r1_walkthrough.json" href="https://example.com/r1_walkthrough.json">x</a>',
+      ],
+      ["another page of a site it does name", `<a href="${LINKS_OUT[0] ?? ""}/other">x</a>`],
+      ["a link with no address", '<a download="r1_walkthrough.json">x</a>'],
+    ];
+    for (const [why, link] of refused) expect(unlistedLinks(link), why).toHaveLength(1);
+  });
+
+  it("adds a measured amount for a large site: three runs of 400 pages add exactly the downloads' own size", () => {
+    const model = largeModel();
+    const withoutDownloads: ShareModel = {
+      ...model,
+      evidence: model.evidence.map((each) => ({
+        ...each,
+        walkthrough: { ...downloadOf(each), base64: "" },
+      })),
+    };
+    const added = model.evidence.reduce((total, each) => total + downloadOf(each).base64.length, 0);
+    const page = renderSharePage(model, { fontCss: "" });
+    const bare = renderSharePage(withoutDownloads, { fontCss: "" });
+
+    // The page draws on all three runs, each with a file that lists all 400 pages.
+    expect(model.evidence.map((each) => each.run.id)).toHaveLength(3);
+    expect(model.pages).toHaveLength(400);
+    expect(model.evidence.every((each) => downloadOf(each).bytes > 100_000)).toBe(true);
+    // Nothing but the files themselves: the page is as long as it was without them, plus them.
+    expect(page.length - bare.length).toBe(added);
+    expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBe(added);
   });
 
   it("puts the sections in the spec's order, each h2 outside every fold", () => {

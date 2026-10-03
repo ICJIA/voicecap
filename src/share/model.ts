@@ -43,7 +43,12 @@ import { runBefore, standingOf, type PageStanding, type Standing } from "./stand
 import { summaryOf, type Summary } from "./summary.js";
 
 export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
-export type { EvidenceRow, RunEvidence } from "./run-evidence.js";
+export type {
+  EvidenceRow,
+  RunEvidence,
+  RunWalkthrough,
+  WalkthroughDownload,
+} from "./run-evidence.js";
 
 /** A transcript file the appendix shows: what NVDA said in a pass, with the file's fingerprint. */
 export interface AppendixFile {

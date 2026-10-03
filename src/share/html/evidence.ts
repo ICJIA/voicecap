@@ -8,23 +8,28 @@
  * it, and is fixed). Each line worked out from the model (../words.ts) goes through `esc` or
  * `lineHtml`. The page's own words about its check (its buttons, and what it does without scripts)
  * are written as they are. No `style` attribute is set. The only links are to the page's own
- * sections, voicecap's GitHub page, and the Deque study the story cites.
+ * sections, voicecap's GitHub page, and the Deque study the story cites, and, for each run, to its
+ * walkthrough file: a data address that carries the file, which the reader downloads. Nothing is
+ * loaded from it.
  *
  * Of a run's record (`RunEvidence.run`, which the model keeps exactly as recorded, home folder and
  * all, since its seal covers every field) only its id and its dates are used. Everything else shown
- * of a run comes from the model's own rows, which are redacted.
+ * of a run comes from the model's own rows, which are redacted, and its own walkthrough file.
  *
- * The mockup showed the evidence with two sample runs, a timeline drawn from a watcher's log, and a
- * walkthrough file, none of which a record has yet: where a run didn't record something, the model
- * says "Not recorded: this run used voicecap <version>", and so does the page.
+ * The mockup showed the evidence with two sample runs and a timeline drawn from a watcher's log,
+ * which no record has yet: where a run didn't record something, the model says "Not recorded: this
+ * run used voicecap <version>", and so does the page. The walkthrough file the mockup showed is
+ * made of each run's record (../run-evidence.ts).
  *
  * Where the mockup set a style attribute, the page's style block gives the same look instead: the
  * box of the two panels (`.limits`), the story's first two paragraphs (`#story-h + .gist`, and the
- * one after it), the headings of a run's parts (`.run-inside h3`), the command under a table
- * (`.verify`), and the paragraphs in the story's fold each need a rule.
+ * one after it), the headings of a run's parts (`.run-inside h3`), the command under a table, and
+ * the command that repeats a run (both `.verify`), and the paragraphs in the story's fold each need
+ * a rule.
  */
 import { esc, idFragment, plural } from "../../report/html.js";
 import { checkDataJson } from "../check.js";
+import { sizeWords } from "../format.js";
 import { firstSentenceBold, type Line } from "../line.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
 import {
@@ -184,9 +189,35 @@ const verifyBox = (verify: string): string =>
   `<div class="verify"><span>${esc(EVIDENCE_TEXT.verify)}</span><pre>${esc(verify)}</pre></div>`;
 
 /**
+ * The command that repeats a run, in the same fixed-width box, with no words of its own: the lead
+ * above it, which ends "then run:", says what it does.
+ */
+const repeatBox = (repeat: string): string => `<div class="verify"><pre>${esc(repeat)}</pre></div>`;
+
+/**
+ * A run's walkthrough file: the lead, a link whose address carries the file itself (a data address
+ * of JSON in base64, which a browser saves under the `download` name), the command that repeats the
+ * run from it, and what a repeat can't promise. A run that can't have a file says why in place of
+ * all of that, as the model words it.
+ */
+function walkthroughBody({ walkthrough }: RunEvidence): string {
+  const words = EVIDENCE_TEXT.walkthrough;
+  if ("problem" in walkthrough) return `<p>${esc(words.problem(walkthrough.problem))}</p>`;
+  const address = esc(`data:application/json;base64,${walkthrough.base64}`);
+  const size = sizeWords(walkthrough.bytes);
+  return [
+    `<p>${esc(words.lead)}</p>`,
+    `<p><a download="${esc(walkthrough.fileName)}" href="${address}">${esc(words.download(size))}</a></p>`,
+    repeatBox(walkthrough.repeat),
+    `<p>${esc(words.promise)}</p>`,
+  ].join("");
+}
+
+/**
  * A run's fold, behind its id, when it ran, and chips that say it completed and was sealed. Inside:
- * its facts, then four parts: the event log and NVDA's own log, which no version of voicecap records
- * yet (each says so, as the model words it), the test environment, and the fingerprints.
+ * its facts, then five parts: the event log and NVDA's own log, which no version of voicecap records
+ * yet (each says so, as the model words it), the test environment, the fingerprints, and the
+ * walkthrough file that repeats the run.
  */
 function runFold(each: RunEvidence): string {
   const { run } = each;
@@ -203,6 +234,7 @@ function runFold(each: RunEvidence): string {
       run.id,
       `${fingerprintTable(each.fingerprints, run.id)}${verifyBox(each.verify)}`,
     ),
+    runPart(parts.walkthrough, run.id, walkthroughBody(each)),
   ];
   return fold(summary, body.join(""), {
     id: `run-${idFragment(run.id)}`,
