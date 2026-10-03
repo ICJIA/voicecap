@@ -432,6 +432,34 @@ export interface ReviewsFile {
   pages: Record<string, ReviewEntry[]>;
 }
 
+/** A file `voicecap share` wrote: its name in the site's share/ folder, its size, and its SHA-256. */
+export interface SharedFile extends FileHash {
+  name: string;
+}
+
+/** One share, in <site>/share/shares.json: never rewritten once it's recorded. */
+export interface ShareEntry {
+  /** Its 1-based place in the file's chain. */
+  seq: number;
+  /** The seal of the entry before it; null for the first. */
+  prev: string | null;
+  /** When the copies were made: a local ISO date and time. */
+  at: string;
+  /** Who made them. */
+  by: string;
+  /** The ids of the runs the copies drew on, oldest first. */
+  runs: string[];
+  /** The page, then its Word copy. */
+  files: SharedFile[];
+  /** sealOf this entry. */
+  seal: string;
+}
+
+export interface SharesFile {
+  schemaVersion: 1;
+  shares: ShareEntry[];
+}
+
 export type ManualInputFormat = "nvda-log" | "speech-viewer";
 
 export interface ManualEntry {
