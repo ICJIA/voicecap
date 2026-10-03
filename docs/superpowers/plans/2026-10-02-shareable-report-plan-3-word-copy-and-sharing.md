@@ -1262,3 +1262,83 @@ No screen reader is needed for any of this:
 - **A table of contents in the Word copy.** Word asks to update one's page numbers on opening, which worries a reader; the navigation pane does the job.
 - **One standing per screen reader** (Phase C).
 - **Carried from plan 2 and still open:** the items under "Later" in its "After execution".
+
+## After execution
+
+The plan was built as written, with the rulings below: one fix outside its tasks (Ruling 24), and a final wave of fixes after the whole-branch review. The ledger (`.superpowers/sdd/2026-10-02-shareable-report-plan-3-word-copy-and-sharing/progress.md`, on the Windows PC) has each ruling's full text.
+
+**Where the plan's text is wrong, as built:**
+
+- Task 5's "in brackets" means parentheses: a sample line's time reads "(1.3 s)" (Ruling 8).
+- Task 6's "without a last empty line" is wrong. A transcript's block is its text split at its line breaks, with nothing dropped (Ruling 14).
+- In Task 8:
+  - `EVIDENCE_TEXT.word` became `WORD_TEXT.evidence`.
+  - The ten level-1 headings are eleven, with the footer's "About this report" last (Ruling 16).
+  - The timeline's track labels are the page's own heads (Ruling 17).
+- Task 9's warning, in its snippet and the Review Focus, is the first version. As built, it reads: "The Word copy wasn't updated: current.docx couldn't be replaced (EPERM). That happens while it's open in Word. If it is, close it, then run: npx @icjia/voicecap report --site <site> --out <home>". The final review found the first version's command failed in a home with more than one site.
+- In Task 11:
+  - The paste line ends "PowerShell shows the same letters in capitals." (Ruling 23).
+  - A size switches to MB on the rounded KB (Ruling 22).
+
+**The rulings that changed the plan:**
+
+- **Ruling 1, `WORD_TEXT`:** every word only the Word copy says lives in one object in `text.ts`.
+- **Ruling 2, the footer's names:** a `Line`, which the footer renders with `span.mono`.
+- **Ruling 3, fold instructions:** the page's alone, passed as an `open` argument.
+- **Ruling 4, the page's own check:** none of its words in the Word copy, `unreadableNote` included.
+- **Ruling 5, one escaping rule:** an apostrophe is `&#39;` everywhere.
+- **Ruling 6, shared words:** the ones the brief's table missed moved in Task 2.
+- **Ruling 7, the footer:** it wraps at 320 px.
+- **Ruling 8, a sample line's time:** in parentheses.
+- **Ruling 9, the rules and review notes:** the Word copy says them between each heading and its table.
+- **Ruling 10, rule names:** fixed-width in the Word copy wherever the page sets them so.
+- **Ruling 11, say everything the page says:** a walk of each renderer's phrases.
+- **Ruling 12, a page with no label:** named by its path in the pages table.
+- **Ruling 13, screenshot lines:** every page's screenshot line is said once.
+- **Ruling 14, a transcript's last line:** kept.
+- **Ruling 15, the changes tables:** what NVDA said is in the fixed-width font.
+- **Ruling 16, the Word copy's footer:** under the heading "About this report".
+- **Ruling 17, the timeline's tracks:** labelled with the page's own heads.
+- **Ruling 18, "Runs left out":** the Word copy says "in this report".
+- **Ruling 19, the Word-held warning:** a full stop before the hint, part of the final wave's new warning.
+- **Ruling 20, a share's append:** no lock, as for reviews.
+- **Ruling 21, what `share` refuses:** only an unreadable or wrong-shaped record.
+- **Ruling 22, sizes:** a size switches to MB on the rounded KB.
+- **Ruling 23, the email line:** it says PowerShell shows capitals.
+- **Ruling 24, a CLI run's platform:** the CLI's own (a CI fix outside the tasks).
+- **Ruling 25, Word's lock files:** `verify` passes over them, and a new home's `.gitignore` keeps them out.
+- **Ruling 27, the CHANGELOG:** its Credits line names Guidepup.
+- **Ruling 28, the final review's declined items:** they stand.
+- **Ruling 29, two wording points from the last re-review:** left for the owner's read.
+
+The final review also asked for:
+- an upgrade note for homes made with 0.6.0 (a copy kept in `share/` by hand, and `~$*` for an older `.gitignore`);
+- "On Windows," wherever Word's hold on `current.docx` is described.
+
+Both are in the README and the CHANGELOG.
+
+**Items carried to later plans:**
+
+- **Its own change (Ruling 26):** canonical JSON drops a `"__proto__"` key from a seal's input. That covers `src/util/hash.ts`, and the page's check in `src/share/check.ts`. It predates this plan (0.3.0), and no record voicecap writes has the key.
+- **Plan 5:** `readShares`'s exported type promises more than it checks. Validate the entries, or export a looser type.
+- **Later:**
+  - a test of a copy whose write fails mid-file, before plan 5;
+  - the logic both renderers derive (the timeline's days, the appendix's pass list, problem numbering, the rule list), moved into shared helpers in `words.ts`;
+  - a test that `words.ts`, `text.ts`, and `line.ts` never import `html/`;
+  - `verify`'s `String(entry.at)` for an odd `at`, and `ENAMETOOLONG` on a Mac;
+  - the reviews' looser seq rule;
+  - `HELD_CODES` shared with `atomic-write.ts`;
+  - `verify.ts` split by record kind;
+  - two problems on one page in one run, with the same heading 2 in Word's navigation pane;
+  - the timeline's year on a repeated first date of a year (unreachable today);
+  - "20.0 MB, over 20 MB" at the edge;
+  - the test files' sizes, and their duplicated helpers and model builders;
+  - `CliContext.platform`'s doc comment;
+  - the flaky `test/chrome-session.test.ts` "doesn't count focus moving into a frame from another site", which has now failed twice on macOS with Node 24: wait for focus to settle;
+  - `quoteArg`, which is wrong in PowerShell for a path with a single quote (a home under `C:\Users\O'Brien`), which the Word-held warning's command now reaches.
+- **For the owner's eyes:**
+  - the Word copy's column widths;
+  - the kinds line "9 kinds of problem, and whose each is";
+  - the README's 45-word sentence on the sender's fingerprint, which the page shares;
+  - the two timeline rows on 2 October, the second merged but not released;
+  - Ruling 29's two sentences: README.md's "a manager, say, or an auditor", and the 44-word warning sentence.
