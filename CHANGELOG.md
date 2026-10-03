@@ -12,6 +12,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
     - it isn't JSON, or has a format version it doesn't read, a key it doesn't know, or no pages;
     - it lists more than 10,000 pages;
     - a page isn't on the file's own site, or its address has a space or a control character in it, or is over 8,192 characters;
+    - a page's label, template, or notes has a control character in it other than a tab or a line break;
+    - the ready selector (`readySelector`) has a control character in it, or is over 1,024 characters;
     - its NVDA settings are nested more than 32 levels deep;
     - a run id has characters a run id doesn't have;
     - a step limit is over 100,000, or a readiness time is over ten minutes (600,000 milliseconds);

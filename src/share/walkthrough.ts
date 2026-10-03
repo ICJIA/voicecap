@@ -5,11 +5,13 @@
  *
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A text over
  * 8 MB, a key the type doesn't have, a page address that isn't on the file's own site (or is too
- * long, or is written with a space or a control character), a run id made of anything but a run
- * id's characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness time
- * over ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and where,
- * before anything runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so
- * a writer can say why a file of it couldn't be read back before it writes one.
+ * long, or is written with a space or a control character), a page's label, template, or notes with
+ * a control character in it (other than a tab or a line break), a ready selector over 1,024
+ * characters or with a control or format character in it, a run id made of anything but a run id's
+ * characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness time over
+ * ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and where, before
+ * anything runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer
+ * can say why a file of it couldn't be read back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -106,6 +108,15 @@ export const MAX_WALKTHROUGH_BYTES = 8 * 1024 * 1024;
  * versions of Node, and no run's address is anywhere near this long.
  */
 export const MAX_ADDRESS_LENGTH = 8_192;
+
+/**
+ * The longest the ready selector (`settings.readiness.readySelector`) may be, in characters. A
+ * longer one is refused before it's searched. A repeat copies the selector into the message of every
+ * attempt that doesn't find it, and prints that message, so a selector of megabytes would fill the
+ * terminal and the run's record; no real selector is anywhere near this long. A run whose selector
+ * is longer can't be written as a file (`walkthroughProblem` says why).
+ */
+export const MAX_SELECTOR_LENGTH = 1_024;
 
 /**
  * The most levels the recorded NVDA settings may be nested, the settings themselves being the
@@ -665,6 +676,20 @@ const pagesSchema = z
   })
   .pipe(z.array(pageSchema));
 
+/**
+ * The selector a repeat waits for before it reads a page: some text, no longer than
+ * MAX_SELECTOR_LENGTH, and with no control or format character in it. A repeat prints it, as it is,
+ * in the message of each attempt that doesn't find it. The reason is a custom one that names the
+ * selector's own place, as `reasonOf` passes it on as it is.
+ */
+const readySelectorSchema = z
+  .string()
+  .min(1, "must be some text, or null")
+  .superRefine((selector, ctx) => {
+    const problem = selectorProblem(selector);
+    if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
+  });
+
 const settingsSchema = z.strictObject({
   passes: z
     .array(z.enum(PASS_NAMES))
@@ -676,7 +701,7 @@ const settingsSchema = z.strictObject({
   capture: z.enum(CAPTURE_MODES),
   readiness: z
     .strictObject({
-      readySelector: z.string().min(1, "must be some text, or null").nullable(),
+      readySelector: readySelectorSchema.nullable(),
       settleMs: wholeNumber(0, MAX_READINESS_MS),
       networkIdleTimeoutMs: wholeNumber(1, MAX_READINESS_MS),
     })
@@ -721,9 +746,13 @@ const walkthroughSchema = z
       // The site is a web address by now: a file whose site isn't one has been refused already.
       if (origin === null) return;
       for (const [index, page] of walkthrough.pages.entries()) {
-        const problem = pageAddressProblem(index + 1, page.url, origin);
+        const problem = pageProblem(index + 1, page, origin);
         if (problem === null) continue;
-        ctx.addIssue({ code: "custom", message: problem, path: ["pages", index, "url"] });
+        ctx.addIssue({
+          code: "custom",
+          message: problem.reason,
+          path: ["pages", index, problem.field],
+        });
         // One reason is all a refusal gives.
         return;
       }
@@ -758,6 +787,22 @@ function siteOrigin(site: string): string | null {
 const UNSAFE_IN_AN_ADDRESS = /[\p{Cc}\p{Cf}\p{Z}]/u;
 
 /**
+ * What a page's label, template, and notes may not hold: a control character other than a tab, a
+ * carriage return, or a line feed. They're the file's own words, and a repeat copies them, as they
+ * are, into the header of every transcript it writes, where an escape sequence could clear or
+ * rewrite the screen of whoever reads the transcript with `type` or `cat`. A carriage return or a
+ * line feed is a legitimate part of a note from a CSV, and the header folds both into a space.
+ */
+const UNSAFE_IN_PAGE_TEXT = /(?![\t\n\r])\p{Cc}/u;
+
+/**
+ * What the ready selector may not hold: a control character (an escape, a bell, a tab, a line
+ * break) or a format character (a zero-width space, a right-to-left override). A repeat prints the
+ * selector, as it is, in the message of each attempt that doesn't find it.
+ */
+const UNSAFE_IN_A_SELECTOR = /[\p{Cc}\p{Cf}]/u;
+
+/**
  * What's wrong with how an address is written, before it's parsed, as a reason that names it
  * (`subject` is "its site", or "page 3's address"); null when nothing is. The length comes first,
  * so a very long address is never searched or parsed.
@@ -769,6 +814,41 @@ function writtenProblem(subject: string, address: string): string | null {
   return UNSAFE_IN_AN_ADDRESS.test(address)
     ? `${subject} has a space or a control character in it`
     : null;
+}
+
+/**
+ * What's wrong with the ready selector, as a reason that names its place in the file; null when
+ * nothing is. The length comes first, so a very long selector is never searched.
+ */
+function selectorProblem(selector: string): string | null {
+  const subject = "its settings.readiness.readySelector";
+  if (selector.length > MAX_SELECTOR_LENGTH) {
+    return `${subject} is longer than ${MAX_SELECTOR_LENGTH.toLocaleString("en-US")} characters`;
+  }
+  return UNSAFE_IN_A_SELECTOR.test(selector) ? `${subject} has a control character in it` : null;
+}
+
+/** The fields of a page that hold the file's own words, which are checked for what's in them. */
+const PAGE_TEXT_FIELDS = ["label", "template", "notes"] as const;
+
+/**
+ * What's wrong with page number `place` (counted from 1) and the field it's in, as a reason that
+ * names the page: its address first, then its words; null when nothing is wrong with it.
+ */
+function pageProblem(
+  place: number,
+  page: z.output<typeof pageSchema>,
+  origin: string,
+): { field: "url" | (typeof PAGE_TEXT_FIELDS)[number]; reason: string } | null {
+  const address = pageAddressProblem(place, page.url, origin);
+  if (address !== null) return { field: "url", reason: address };
+  for (const field of PAGE_TEXT_FIELDS) {
+    const text = page[field];
+    if (text !== undefined && UNSAFE_IN_PAGE_TEXT.test(text)) {
+      return { field, reason: `page ${place}'s ${field} has a control character in it` };
+    }
+  }
+  return null;
 }
 
 /**

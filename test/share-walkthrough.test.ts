@@ -8,6 +8,7 @@ import type { PageSource, PassName, RunJson } from "../src/model.js";
 import {
   MAX_ADDRESS_LENGTH,
   MAX_NVDA_SETTINGS_DEPTH,
+  MAX_SELECTOR_LENGTH,
   MAX_WALKTHROUGH_BYTES,
   MAX_WALKTHROUGH_PAGES,
   parseWalkthrough,
@@ -725,6 +726,32 @@ function withPageUrl(walkthrough: Walkthrough, index: number, url: string): Walk
   };
 }
 
+/** The walkthrough with one of page `index`'s own words, its label, template, or notes, changed. */
+function withPageText(
+  walkthrough: Walkthrough,
+  index: number,
+  field: "label" | "template" | "notes",
+  text: string,
+): Walkthrough {
+  return {
+    ...walkthrough,
+    pages: walkthrough.pages.map((page, place) =>
+      place === index ? { ...page, [field]: text } : page,
+    ),
+  };
+}
+
+/** The walkthrough with readiness settings whose ready selector is `readySelector`. */
+function withReadySelector(walkthrough: Walkthrough, readySelector: string): Walkthrough {
+  return {
+    ...walkthrough,
+    settings: {
+      ...walkthrough.settings,
+      readiness: { readySelector, settleMs: 500, networkIdleTimeoutMs: 15_000 },
+    },
+  };
+}
+
 /** The walkthrough with page 1's fingerprint for its read pass changed. */
 function withPassFingerprint(walkthrough: Walkthrough, fingerprint: string): unknown {
   return withPageOriginal(walkthrough, {
@@ -746,9 +773,10 @@ function textOf(file: unknown): string {
   return typeof file === "string" ? file : JSON.stringify(file, null, 2);
 }
 
-// The limits Rulings P15 and P14 set, written out here so a change to either shows in a test.
+// The limits Rulings P15, P14, and P22 set, written out here so a change to any shows in a test.
 const ADDRESS_LIMIT = 8_192;
 const SETTINGS_LEVELS = 32;
+const SELECTOR_LIMIT = 1_024;
 
 /** An address on the site (the sample's) that is exactly `length` characters long. */
 function addressOfLength(length: number): string {
@@ -1031,6 +1059,44 @@ describe("parseWalkthrough", () => {
       (w) => withNvdaSettings(w, settingsNested(SETTINGS_LEVELS + 1)),
       "w.json isn't a voicecap walkthrough file: its original.nvdaSettings is nested more than 32 levels deep.",
     ],
+    // The file's own words reach a transcript's header and the terminal as they are, so a control
+    // character in them is refused (Ruling P22).
+    [
+      "a label with an escape sequence in it",
+      (w) => withPageText(w, 0, "label", "Home\u{1b}]52;c;ZWNobyBwd25lZA==\u{7}\u{1b}[2J"),
+      "w.json isn't a voicecap walkthrough file: page 1's label has a control character in it.",
+    ],
+    [
+      "a template with a bell in it",
+      (w) => withPageText(w, 1, "template", "grants\u{7}"),
+      "w.json isn't a voicecap walkthrough file: page 2's template has a control character in it.",
+    ],
+    [
+      "notes with a C1 control character in them, a single-character CSI",
+      (w) => withPageText(w, 2, "notes", "Check\u{9b}2J the table."),
+      "w.json isn't a voicecap walkthrough file: page 3's notes has a control character in it.",
+    ],
+    [
+      "a ready selector with an escape sequence in it",
+      (w) => withReadySelector(w, '[data-x="\u{1b}[2J"]'),
+      "w.json isn't a voicecap walkthrough file: its settings.readiness.readySelector has a control character in it.",
+    ],
+    [
+      "a ready selector with a zero-width space in it",
+      (w) => withReadySelector(w, "#app\u{200b}"),
+      "w.json isn't a voicecap walkthrough file: its settings.readiness.readySelector has a control character in it.",
+    ],
+    [
+      "a ready selector of 1,025 characters",
+      (w) => withReadySelector(w, "a".repeat(SELECTOR_LIMIT + 1)),
+      "w.json isn't a voicecap walkthrough file: its settings.readiness.readySelector is longer than 1,024 characters.",
+    ],
+    [
+      // The length comes first, so a selector that is too long is never searched.
+      "a ready selector over 1,024 characters that also has an escape sequence at its end",
+      (w) => withReadySelector(w, `${"a".repeat(SELECTOR_LIMIT)}\u{1b}[2J`),
+      "w.json isn't a voicecap walkthrough file: its settings.readiness.readySelector is longer than 1,024 characters.",
+    ],
   ])("says it in plain words: %s", (_name, file, message) => {
     expect(refusal(textOf(file(valid())))).toBe(message);
   });
@@ -1275,6 +1341,159 @@ describe("parseWalkthrough", () => {
     expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
   });
 
+  // A page's label, template, and notes are the file's own words, and a repeat copies them into the
+  // header of every transcript it writes, as they are. A control character in them (U+0000 to
+  // U+001F, and U+007F to U+009F) could clear or rewrite the screen of whoever reads a transcript
+  // with `type` or `cat`, so it's refused: all but a tab, a carriage return, and a line feed. A note
+  // from a CSV may run over several lines, and the header folds those (Ruling P22).
+  describe.each(["label", "template", "notes"] as const)("a page's %s", (field) => {
+    it.each<[name: string, character: string]>([
+      ["a null character", "\u{0}"],
+      ["a backspace", "\u{8}"],
+      ["a vertical tab", "\u{b}"],
+      ["a form feed", "\u{c}"],
+      ["a shift-out", "\u{e}"],
+      ["an escape", "\u{1b}"],
+      ["the last control character of the first block", "\u{1f}"],
+      ["a delete character", "\u{7f}"],
+      ["the first of the C1 block", "\u{80}"],
+      ["a next-line character", "\u{85}"],
+      ["a single-character CSI", "\u{9b}"],
+      ["the last of the C1 block", "\u{9f}"],
+    ])("refuses %s, naming the page", (_name, character) => {
+      const walkthrough = withPageText(valid(), 1, field, `a${character}b`);
+      const reason = `page 2's ${field} has a control character in it.`;
+
+      expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+      expect(walkthroughProblem(walkthrough)).toBe(reason);
+    });
+
+    it.each<[name: string, text: string]>([
+      ["a tab", "one\ttwo"],
+      ["a line feed", "one\ntwo"],
+      ["a carriage return", "one\rtwo"],
+      ["a carriage return and a line feed, as a CSV writes a line break", "one\r\ntwo"],
+      ["a tab, a carriage return, and a line feed together", "\tone\r\ntwo\n\tthree\r"],
+      ["a space and a tilde, either side of the control characters", " ~"],
+      ["a non-breaking space", "a\u{a0}b"],
+      ["letters with accents, and from another script", "Caf\u{e9} \u{43f}\u{440}\u{438}"],
+      [
+        "an emoji joined with a zero-width joiner, a format character",
+        "\u{1f469}\u{200d}\u{1f4bb}",
+      ],
+      ["nothing at all", ""],
+    ])("accepts %s", (_name, text) => {
+      const walkthrough = withPageText(valid(), 1, field, text);
+
+      expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+      expect(walkthroughProblem(walkthrough)).toBeNull();
+    });
+  });
+
+  it("gives the first page's reason when several pages have a control character in their words", () => {
+    const walkthrough = withPageText(
+      withPageText(valid(), 3, "label", "Broken\u{1b}[2J"),
+      1,
+      "notes",
+      "Check\u{7}",
+    );
+
+    expect(refusal(textOf(walkthrough))).toBe(
+      `${NOT_A_WALKTHROUGH}page 2's notes has a control character in it.`,
+    );
+  });
+
+  it("names the page's address before its words, and says one reason only", () => {
+    const walkthrough = withPageText(
+      withPageUrl(valid(), 1, "https://elsewhere.example/"),
+      1,
+      "label",
+      "Broken\u{1b}[2J",
+    );
+
+    expect(refusal(textOf(walkthrough))).toBe(
+      `${NOT_A_WALKTHROUGH}page 2's address, https://elsewhere.example/, isn't on its site.`,
+    );
+  });
+
+  // The ready selector goes into the message of every attempt that doesn't find it, which is printed
+  // to the terminal and kept in run.json: so it has a length, and no control or format character.
+  it("takes a ready selector of exactly 1,024 characters", () => {
+    const walkthrough = withReadySelector(valid(), `#${"a".repeat(SELECTOR_LIMIT - 1)}`);
+    expect(walkthrough.settings.readiness?.readySelector).toHaveLength(SELECTOR_LIMIT);
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  it.each<[name: string, selector: string]>([
+    ["quotes, brackets, and spaces", 'main [data-ready="yes please"] > .done:not(.x)'],
+    ["letters with accents", '[data-name="Caf\u{e9}"]'],
+    ["a non-breaking space", "#a\u{a0}b"],
+    ["one character", "a"],
+  ])("takes a ready selector with %s", (_name, selector) => {
+    const walkthrough = withReadySelector(valid(), selector);
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  // Unlike a page's words, a selector may not hold a format character either: the zero-width ones
+  // and the ones that turn text around change what a person reads in the message that names it.
+  it.each<[name: string, character: string]>([
+    ["a null character", "\u{0}"],
+    ["a tab", "\t"],
+    ["a line feed", "\n"],
+    ["a carriage return", "\r"],
+    ["an escape", "\u{1b}"],
+    ["a delete character", "\u{7f}"],
+    ["a single-character CSI", "\u{9b}"],
+    ["a zero-width space", "\u{200b}"],
+    ["a zero-width joiner", "\u{200d}"],
+    ["a right-to-left override", "\u{202e}"],
+    ["a byte-order mark", "\u{feff}"],
+    ["a soft hyphen", "\u{ad}"],
+  ])("refuses a ready selector with %s in it", (_name, character) => {
+    const walkthrough = withReadySelector(valid(), `#a${character}b`);
+    const reason = "its settings.readiness.readySelector has a control character in it.";
+
+    expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${reason}`);
+    expect(walkthroughProblem(walkthrough)).toBe(reason);
+  });
+
+  it("turns away a ready selector of megabytes for its length, whatever it holds", () => {
+    const walkthrough = withReadySelector(valid(), `${"a".repeat(5_000_000)}\u{1b}[2J`);
+
+    const started = performance.now();
+    const message = refusal(textOf(walkthrough));
+    const elapsed = performance.now() - started;
+
+    expect(message).toBe(
+      `${NOT_A_WALKTHROUGH}its settings.readiness.readySelector is longer than 1,024 characters.`,
+    );
+    expect(elapsed).toBeLessThan(2_000);
+  });
+
+  it("still refuses an empty ready selector, as before", () => {
+    const walkthrough = withReadySelector(valid(), "");
+
+    expect(refusal(textOf(walkthrough))).toBe(
+      `${NOT_A_WALKTHROUGH}its settings.readiness.readySelector: must be some text, or null.`,
+    );
+  });
+
+  it("takes no ready selector at all, which is null", () => {
+    const walkthrough: Walkthrough = {
+      ...valid(),
+      settings: {
+        ...valid().settings,
+        readiness: { readySelector: null, settleMs: 500, networkIdleTimeoutMs: 15_000 },
+      },
+    };
+
+    expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+  });
+
   it.each<
     [name: string, put: (walkthrough: Walkthrough, address: string) => unknown, reason: string]
   >([
@@ -1330,9 +1549,10 @@ describe("parseWalkthrough", () => {
     expect(handed).not.toContain(withControl);
   });
 
-  it("names the limits it holds a file's addresses and NVDA settings to", () => {
+  it("names the limits it holds a file's addresses, NVDA settings, and ready selector to", () => {
     expect(MAX_ADDRESS_LENGTH).toBe(ADDRESS_LIMIT);
     expect(MAX_NVDA_SETTINGS_DEPTH).toBe(SETTINGS_LEVELS);
+    expect(MAX_SELECTOR_LENGTH).toBe(SELECTOR_LIMIT);
   });
 
   it("accepts NVDA settings nested 32 levels deep, and writes them back", () => {
@@ -2072,12 +2292,97 @@ describe("walkthroughProblem", () => {
       "NVDA settings with lists nested to 33 levels deep",
       (w) => withNvdaSettings(w, settingsWithLists(SETTINGS_LEVELS)),
     ],
+    ["a label with an escape sequence in it", (w) => withPageText(w, 0, "label", "Home\u{1b}[2J")],
+    ["a template with a bell in it", (w) => withPageText(w, 1, "template", "grants\u{7}")],
+    ["notes with a C1 control character", (w) => withPageText(w, 1, "notes", "Check\u{9b}2J")],
+    ["a ready selector with an escape sequence in it", (w) => withReadySelector(w, "#a\u{1b}[2J")],
+    ["a ready selector with a zero-width space", (w) => withReadySelector(w, "#a\u{200b}")],
+    [
+      "a ready selector of 1,025 characters",
+      (w) => withReadySelector(w, "a".repeat(SELECTOR_LIMIT + 1)),
+    ],
   ])("says what parseWalkthrough says of a file with %s, after the file's name", (_name, file) => {
     const broken = file(valid());
 
     expect(refusal(textOf(broken))).toBe(
       `${NOT_A_WALKTHROUGH}${walkthroughProblem(broken as Walkthrough)}`,
     );
+  });
+
+  // Ruling P12: voicecap never writes a file its own reader would refuse, so a run whose page list
+  // or config holds words the reader turns away gets its reason here, and no file (Ruling P22).
+  it("gives the reason a page's label with an escape sequence is refused for, as voicecap writes no such file", () => {
+    const run = shareRun({
+      id: "2026-09-26_1405",
+      pages: [{ path: "/", label: "Home\u{1b}]0;pwned\u{7}" }, { path: "/about" }],
+    });
+    const walkthrough = walkthroughOf(run);
+    expect(walkthrough.pages[0]?.label).toBe("Home\u{1b}]0;pwned\u{7}");
+
+    expect(walkthroughProblem(walkthrough)).toBe("page 1's label has a control character in it.");
+    // Its file, which no writer makes, is refused in the same words.
+    expect(refusal(walkthroughJson(walkthrough))).toBe(
+      `${NOT_A_WALKTHROUGH}page 1's label has a control character in it.`,
+    );
+  });
+
+  it.each<[name: string, change: (run: RunJson) => void, reason: string]>([
+    [
+      "a template with an escape sequence",
+      (run) => {
+        run.pages[0]!.template = "home\u{1b}[2J";
+      },
+      "page 1's template has a control character in it.",
+    ],
+    [
+      "notes with a C1 control character",
+      (run) => {
+        run.pages[1]!.notes = "Check\u{9b}2J";
+      },
+      "page 2's notes has a control character in it.",
+    ],
+    [
+      "a ready selector with an escape sequence",
+      (run) => {
+        run.settings.readiness = {
+          readySelector: "[data-x=\u{1b}[2J]",
+          settleMs: 500,
+          networkIdleTimeoutMs: 15_000,
+        };
+      },
+      "its settings.readiness.readySelector has a control character in it.",
+    ],
+    [
+      "a ready selector of 1,025 characters",
+      (run) => {
+        run.settings.readiness = {
+          readySelector: "a".repeat(SELECTOR_LIMIT + 1),
+          settleMs: 500,
+          networkIdleTimeoutMs: 15_000,
+        };
+      },
+      "its settings.readiness.readySelector is longer than 1,024 characters.",
+    ],
+  ])("gives the reason for a run with %s, which the reader refuses", (_name, change, reason) => {
+    const run = shareRun({ id: "2026-09-26_1405", pages: [{ path: "/" }, { path: "/about" }] });
+    change(run);
+
+    expect(walkthroughProblem(walkthroughOf(run))).toBe(reason);
+  });
+
+  it("gives null for a run whose words and ready selector the reader takes", () => {
+    const run = shareRun({
+      id: "2026-09-26_1405",
+      pages: [{ path: "/", label: "Home \u{1f469}\u{200d}\u{1f4bb}" }, { path: "/about" }],
+    });
+    run.pages[1]!.notes = "Line one.\r\nLine two.\n\tIndented.";
+    run.settings.readiness = {
+      readySelector: "#".padEnd(SELECTOR_LIMIT, "a"),
+      settleMs: 500,
+      networkIdleTimeoutMs: 15_000,
+    };
+
+    expect(walkthroughProblem(walkthroughOf(run))).toBeNull();
   });
 
   it("doesn't change the walkthrough it's given", () => {
