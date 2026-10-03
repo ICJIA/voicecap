@@ -23,7 +23,7 @@ import type {
 } from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
 import { redactHome } from "../src/run/failure.js";
-import { pageDir, runJsonPath } from "../src/run/paths.js";
+import { pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type RunEvidence, type ShareModel } from "../src/share/model.js";
@@ -1421,6 +1421,29 @@ describe("the walkthrough file each run's evidence offers", () => {
     expect(file.get).toBe(
       `npx @icjia/voicecap walkthrough --site ${site} --run 2026-09-26_1405 ${name}`,
     );
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+  });
+
+  // The commands are for pasting into a shell, so a value that a shell would read is quoted, as the
+  // other commands voicecap prints are (formatCommand). An IPv6 address's brackets are the one such
+  // thing a site's address can hold: zsh, a Mac's shell, reads them as a pattern, and stops with
+  // "no matches found". The file's name and the run's id are made of characters a shell leaves be.
+  it("quotes an IPv6 site's address in the commands that name it, and nothing else", () => {
+    const site = "http://[::1]:4848";
+    const run = {
+      ...shareRun({ id: "2026-09-26_1405", pages: [{ path: new URL("/", site).href }] }),
+      site,
+    };
+    const evidence = latestEvidence(buildShareModel(inputOf([run], { site })));
+    const file = downloadOf(evidence);
+    const name = `${siteFolder(site)}_2026-09-26_1405_walkthrough.json`;
+
+    expect(name).toBe("___1__4848_2026-09-26_1405_walkthrough.json");
+    expect(file.fileName).toBe(name);
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site 'http://[::1]:4848' --run 2026-09-26_1405 ${name}`,
+    );
+    expect(evidence.verify).toBe("npx @icjia/voicecap verify --site 'http://[::1]:4848'");
     expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
   });
 

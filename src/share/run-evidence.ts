@@ -15,6 +15,7 @@ import type {
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
+import { formatCommand } from "../util/command-line.js";
 import { clock, longDate, names, pagePath } from "./format.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT } from "./text.js";
@@ -142,7 +143,7 @@ export function evidenceOf(input: {
           sha256: hash.sha256,
         })),
       ),
-      verify: `npx @icjia/voicecap verify --site ${site}`,
+      verify: formatCommand(["verify", "--site", site]),
       walkthrough: walkthroughFor(record, site),
     };
   });
@@ -170,8 +171,8 @@ function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
       fileName,
       base64: file.toString("base64"),
       bytes: file.length,
-      get: `npx @icjia/voicecap walkthrough --site ${site} --run ${record.id} ${fileName}`,
-      repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+      get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
+      repeat: formatCommand(["--walkthrough", fileName]),
     };
   } catch {
     return { problem: EVIDENCE_TEXT.walkthrough.unreadable };
