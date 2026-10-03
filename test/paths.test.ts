@@ -7,7 +7,9 @@ import {
   manualSessionDir,
   resolveHome,
   runDir,
+  shareDir,
   sharePath,
+  shareWordPath,
   siteFolder,
 } from "../src/run/paths.js";
 
@@ -69,6 +71,15 @@ describe("sharePath", () => {
   it("puts the shareable page in the site folder's share folder", () => {
     const site = path.join("home", "dvfr.illinois.gov");
     expect(sharePath(site)).toBe(path.join(site, "share", "current.html"));
+  });
+});
+
+describe("shareDir and shareWordPath", () => {
+  it("put the Word copy beside the shareable page, in the site folder's share folder", () => {
+    const site = path.join("home", "dvfr.illinois.gov");
+    expect(shareDir(site)).toBe(path.join(site, "share"));
+    expect(shareWordPath(site)).toBe(path.join(site, "share", "current.docx"));
+    expect(path.dirname(shareWordPath(site))).toBe(path.dirname(sharePath(site)));
   });
 });
 

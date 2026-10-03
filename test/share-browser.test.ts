@@ -1,5 +1,5 @@
 /**
- * The shareable page as a reader gets it: written to a folder by writeSharePage from a site's
+ * The shareable page as a reader gets it: written to a folder by writeShareFiles from a site's
  * records, then opened from a file in headless Chromium. It's checked for accessibility (axe, in
  * both themes, with its folds closed and open), for loading nothing from outside the file, for what
  * its scripts do with its folds, and for its fingerprint check, run on the page's own data.
@@ -24,7 +24,7 @@ import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
-import { writeSharePage } from "../src/share/write.js";
+import { writeShareFiles } from "../src/share/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
@@ -82,14 +82,16 @@ const folders: string[] = [];
 /** The page voicecap writes for a site folder, or what stopped it. */
 async function pageOf(siteDir: string, now?: Date): Promise<string> {
   const logger = createMemoryLogger();
-  const file = await writeSharePage({
+  const files = await writeShareFiles({
     siteDir,
     config: DEFAULT_CONFIG,
     logger,
     ...(now === undefined ? {} : { now }),
   });
-  if (file === null) throw new Error(`The page wasn't written: ${logger.text("warn")}`);
-  return file;
+  if (files === null || files.page === null) {
+    throw new Error(`The page wasn't written: ${logger.text("warn")}`);
+  }
+  return files.page;
 }
 
 /** The demo runs, in a copy, with the page written in the copy. */
@@ -162,6 +164,7 @@ async function richPage(): Promise<string> {
     reviewer: "Sam Tester",
   });
   expect(logger.text("warn")).not.toContain("shareable page");
+  expect(logger.text("warn")).not.toContain("Word copy");
   // It shows what the demo's page can't: a review, a manual session, a page that sounds different,
   // and the error that stopped the second run reading the page with the long address.
   const page = await readFile(sharePath(outDir(dir)), "utf8");

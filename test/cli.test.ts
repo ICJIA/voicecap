@@ -5,6 +5,7 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
@@ -14,6 +15,7 @@ import type { PlatformReadiness } from "../src/readiness/model.js";
 import type { RunAuditOptions } from "../src/run/audit.js";
 import { manualSessionDir, runDir } from "../src/run/paths.js";
 import type { OutputStream } from "../src/util/log.js";
+import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 
@@ -627,7 +629,7 @@ describe("a full session through the CLI", () => {
     expect((await cli(["report", "--run", "no-such-run"], run.cwd)).code).toBe(1);
   });
 
-  it("prints where the report is, then where the shareable page is", async () => {
+  it("prints where the report is, then where the shareable page and its Word copy are", async () => {
     const run = await cli([
       "--site",
       SITE,
@@ -639,7 +641,8 @@ describe("a full session through the CLI", () => {
     expect(run.code).toBe(0);
     const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
     const page = path.join(site, "share", "current.html");
-    // Gone, so it's `voicecap report` that writes it.
+    const word = path.join(site, "share", "current.docx");
+    // Gone, so it's `voicecap report` that writes them.
     await rm(path.dirname(page), { recursive: true, force: true });
 
     const report = await cli(["report"], run.cwd);
@@ -647,12 +650,13 @@ describe("a full session through the CLI", () => {
     expect(report.code).toBe(0);
     expect(report.err).toBe("");
     expect(report.out).toContain(
-      `Report: ${path.join(site, "report.html")}\nShareable page: ${page}\n`,
+      `Report: ${path.join(site, "report.html")}\nShareable page: ${page}\nWord copy: ${word}\n`,
     );
     expect(await readFile(page, "utf8")).toMatch(/^<!doctype html>/);
+    expect(XMLValidator.validate((await unzipDocx(await readFile(word))).document)).toBe(true);
   });
 
-  it("still reports, with a warning and no path, when the shareable page can't be written", async () => {
+  it("still reports, with a warning for each file and no path, when neither can be written", async () => {
     const run = await cli([
       "--site",
       SITE,
@@ -663,17 +667,88 @@ describe("a full session through the CLI", () => {
     ]);
     expect(run.code).toBe(0);
     const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
-    // A file where the page's folder would go.
+    // A file where their folder would go.
     await rm(path.join(site, "share"), { recursive: true, force: true });
     await writeFile(path.join(site, "share"), "In the way.\n");
 
     const report = await cli(["report"], run.cwd);
 
     expect(report.code).toBe(0);
-    expect(report.err).toMatch(/^Warning: The shareable page wasn't updated: .+/);
+    // The page's warning, then the Word copy's, with one reason, and nothing about closing Word.
+    expect(report.err).toMatch(
+      /^Warning: The shareable page wasn't updated: (.+)\nWarning: The Word copy wasn't updated: \1\n$/,
+    );
     expect(report.out).toContain(`Report: ${path.join(site, "report.html")}\n`);
     expect(report.out).not.toContain("Shareable page:");
+    expect(report.out).not.toContain("Word copy:");
   });
+
+  // A warning has said why the other file wasn't written, so the command names only the file that
+  // was.
+  it.each([
+    {
+      broken: "the Word copy",
+      module: "../src/share/docx.js",
+      replacement: { renderWordCopy: () => Promise.reject(new Error("It couldn't be made.")) },
+      warning: "Warning: The Word copy wasn't updated: It couldn't be made.\n",
+      printed: (site: string) =>
+        `Report: ${path.join(site, "report.html")}\nShareable page: ${path.join(site, "share", "current.html")}\n`,
+    },
+    {
+      broken: "the page",
+      module: "../src/share/html/document.js",
+      replacement: {
+        renderSharePage: () => {
+          throw new Error("It couldn't be made.");
+        },
+      },
+      warning: "Warning: The shareable page wasn't updated: It couldn't be made.\n",
+      printed: (site: string) =>
+        `Report: ${path.join(site, "report.html")}\nWord copy: ${path.join(site, "share", "current.docx")}\n`,
+    },
+  ])(
+    "still reports where the other file is, and warns of $broken, when only it can't be made",
+    async ({ module, replacement, warning, printed }) => {
+      const run = await cli([
+        "--site",
+        SITE,
+        "--pages",
+        fixture("pages.json"),
+        "--replay-from",
+        fixture("replay-run"),
+      ]);
+      expect(run.code).toBe(0);
+      const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+      await rm(path.join(site, "share"), { recursive: true, force: true });
+      vi.resetModules();
+      vi.doMock(module, async (importOriginal) => ({
+        ...(await importOriginal<object>()),
+        ...replacement,
+      }));
+      try {
+        const { main: mainWithOneBroken } = await import("../src/cli/main.js");
+        const stdout = capture();
+        const stderr = capture();
+
+        const code = await mainWithOneBroken(["report"], {
+          stdout: stdout.stream,
+          stderr: stderr.stream,
+          cwd: run.cwd,
+          env: {},
+          signal: new AbortController().signal,
+          interactive: false,
+          platform: "linux",
+        });
+
+        expect(code).toBe(0);
+        expect(stderr.text()).toBe(warning);
+        expect(stdout.text()).toBe(printed(site));
+      } finally {
+        vi.doUnmock(module);
+        vi.resetModules();
+      }
+    },
+  );
 
   it("asks which site when the home has several, and takes --site", async () => {
     const run = await cli([

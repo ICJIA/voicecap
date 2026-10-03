@@ -57,6 +57,7 @@ jobs:
           test -f "$out/127.0.0.1_4747/latest.txt"
           test -f "$out/127.0.0.1_4747/share/current.html"
           grep -q "data:font/woff2" "$out/127.0.0.1_4747/share/current.html"
+          test -f "$out/127.0.0.1_4747/share/current.docx"
           node dist/cli.js verify --out "$out"
 
       # Git Bash turns "/about" into "C:/Program Files/Git/about"; voicecap must explain that.

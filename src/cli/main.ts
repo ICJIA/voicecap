@@ -445,7 +445,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("report")
     .description(
-      "regenerate a site's live report (<out>/<site>/report.html) and shareable page (share/current.html)",
+      "regenerate a site's live report (<out>/<site>/report.html), shareable page (share/current.html), and its Word copy (share/current.docx)",
     )
     .option(
       "--run <run-id>",
@@ -467,8 +467,9 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         requireRun: true,
       });
       logger.info(`Report: ${files?.report ?? "(none)"}`);
-      // Said only when the page was written: a warning has already said when it wasn't.
+      // Each said only when its file was written: a warning has already said why when it wasn't.
       if (files?.share) logger.info(`Shareable page: ${files.share}`);
+      if (files?.word) logger.info(`Word copy: ${files.word}`);
       setExit(ExitCode.ok);
     });
 
