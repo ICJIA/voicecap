@@ -212,6 +212,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
       : { ...config.stepCaps },
     nvdaSettings: config.nvdaSettings,
     browser: config.browser,
+    readiness: { ...config.readiness },
   };
   // Quick checks before anything real happens: not ready throws before any folder or lock is
   // touched; ready logs a one-line summary and any warnings, then the run proceeds as usual.

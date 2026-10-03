@@ -140,6 +140,11 @@ export interface RunSettings {
   stepCaps: Record<PassName, number>;
   nvdaSettings: Record<string, unknown>;
   browser: { channel: string; fallbackToChromium: boolean };
+  /**
+   * How long the run waited for each page to be ready, as the config gave it. Absent in runs from
+   * before voicecap recorded it.
+   */
+  readiness?: { readySelector: string | null; settleMs: number; networkIdleTimeoutMs: number };
 }
 
 export interface InvalidEntry {
