@@ -547,7 +547,8 @@ async function copyProblems(
 /**
  * What share/ holds that no entry of the record names, by name: a file is "not recorded", and a
  * folder is unexpected (voicecap makes none). Not these: the files voicecap writes again from the
- * records, a name that starts with a dot, and the files an operating system leaves.
+ * records, a name that starts with a dot, the files an operating system leaves, and the owner file
+ * Word keeps beside a copy that's open.
  */
 async function unrecordedProblems(
   home: string,
@@ -566,6 +567,11 @@ async function unrecordedProblems(
   for (const item of found) {
     const name = item.name;
     if (name.startsWith(".") || OS_LITTER.has(name) || written.includes(name)) continue;
+    // Word keeps an owner file beside a document while it's open, named with ~$ first (here,
+    // ~$ample.illinois.gov_2027-01-15.docx). It's no copy that was missed, and someone reading a
+    // sent copy in Word has one when they run verify, so it's skipped, as the files an operating
+    // system leaves are.
+    if (name.startsWith("~$")) continue;
     const shown = linkPath(home, path.join(dir, name));
     if (item.isDirectory()) problems.push(`${shown}: an unexpected folder`);
     else if (!named.has(name)) problems.push(`${shown}: not recorded in shares.json`);

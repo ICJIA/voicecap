@@ -1140,6 +1140,30 @@ describe("verifyHome, and what was shared", () => {
       expect(await problemsIn(home)).toEqual([]);
     });
 
+    // Someone reading a copy that was sent, in Word, has it open when they run verify.
+    it("doesn't mind the owner file Word keeps beside a copy that's open", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      // What Word writes beside example.illinois.gov_2027-01-15.docx, which is recorded.
+      await writeFile(
+        inShare(siteDir, "~$ample.illinois.gov_2027-01-15.docx"),
+        "Word's owner file",
+      );
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    it("still names a file Word didn't write, whatever its name has in it", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      // The name has to start with ~$ to be Word's: ~$ inside it, or a ~ alone, is just a name.
+      for (const name of ["ordinary.docx", "x~$y.docx", "~notes.docx"]) {
+        await writeFile(inShare(siteDir, name), "<p>");
+      }
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/ordinary.docx: not recorded in shares.json`,
+        `${SHARE}/x~$y.docx: not recorded in shares.json`,
+        `${SHARE}/~notes.docx: not recorded in shares.json`,
+      ]);
+    });
+
     it("names each folder, with the copies nothing records, by name", async () => {
       const { home, siteDir } = await copyOf(twice);
       await mkdir(inShare(siteDir, "b-folder"));
