@@ -14,7 +14,8 @@ import {
   resolvePages,
   type WalkthroughFile,
 } from "../src/pages/resolve.js";
-import { parseSiteUrl } from "../src/pages/url.js";
+import { pageSlug } from "../src/pages/slug.js";
+import { canonicalKey, parseSiteUrl } from "../src/pages/url.js";
 import type { Walkthrough, WalkthroughPage } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
@@ -657,6 +658,82 @@ describe("a walkthrough file as the page source", () => {
     await expect(pageSourceFor({ walkthrough, pageUrls: ["/a"], site })).rejects.toThrow(
       /^Use one kind of page source: --walkthrough, --sitemap, --pages, or --page/,
     );
+  });
+
+  // A page's folder is named for its path and ten hex digits (40 bits) of a fingerprint of its whole
+  // address, so a search of a few seconds finds two addresses that differ in their query and share
+  // one name. A walkthrough file is made to travel, so one can be made to hold such a pair. The
+  // pair can't be read in one run, and that is a refusal like any other, not a crash.
+  describe("holding two addresses that would be saved under one name", () => {
+    const COLLIDING_SITE = "https://example.com";
+    const FIRST = `${COLLIDING_SITE}/page?x=1778912`;
+    const SECOND = `${COLLIDING_SITE}/page?x=2659347`;
+    const NAME = "page-c18143e304";
+    const REFUSAL = (first: string, second: string): string =>
+      `${first} and ${second} would be saved under the same name ("${NAME}"), so voicecap can't read both in one run.`;
+
+    /** A walkthrough file of `COLLIDING_SITE` listing `pages`. */
+    function collidingFile(pages: string[]): WalkthroughFile {
+      const file = walkthroughFile(pages);
+      return { ...file, parsed: { ...file.parsed, site: COLLIDING_SITE } };
+    }
+
+    /** What reading the pages with `resolve` is refused with, once it's checked it's a UsageError. */
+    async function refusedWith(resolve: () => Promise<unknown>): Promise<string> {
+      const error = await resolve().then(
+        () => {
+          throw new Error("It wasn't refused.");
+        },
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      return (error as UsageError).message;
+    }
+
+    it("really are two addresses with one name, which the tests below rely on", () => {
+      expect(FIRST).not.toBe(SECOND);
+      expect(pageSlug(canonicalKey(FIRST))).toBe(NAME);
+      expect(pageSlug(canonicalKey(SECOND))).toBe(NAME);
+    });
+
+    it("is refused, naming both addresses and the name, when the pages are in a walkthrough file", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({
+          site: parseSiteUrl(COLLIDING_SITE),
+          walkthrough: collidingFile([FIRST, SECOND]),
+        }),
+      );
+
+      expect(message).toBe(REFUSAL(FIRST, SECOND));
+    });
+
+    it("is refused the same way when the pages are given with --page", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({ site: parseSiteUrl(COLLIDING_SITE), pageUrls: [FIRST, SECOND] }),
+      );
+
+      expect(message).toBe(REFUSAL(FIRST, SECOND));
+    });
+
+    it("names the address listed first first, whatever the order", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({
+          site: parseSiteUrl(COLLIDING_SITE),
+          walkthrough: collidingFile([`${COLLIDING_SITE}/about`, SECOND, FIRST]),
+        }),
+      );
+
+      expect(message).toBe(REFUSAL(SECOND, FIRST));
+    });
+
+    it("isn't a refusal for one address listed twice, which is one page", async () => {
+      const result = await resolvePages({
+        site: parseSiteUrl(COLLIDING_SITE),
+        walkthrough: collidingFile([FIRST, `${FIRST}#top`]),
+      });
+
+      expect(result.pages.map((page) => page.slug)).toEqual([NAME]);
+    });
   });
 });
 

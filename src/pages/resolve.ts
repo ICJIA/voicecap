@@ -288,7 +288,12 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     const slug = pageSlug(page.key);
     const owner = slugOwners.get(slug);
     if (owner !== undefined && owner !== page.key) {
-      throw new Error(`Page slug collision: ${owner} and ${page.key} both map to "${slug}".`);
+      // A page's name is its path and ten hex digits of a fingerprint of its address, so two
+      // addresses can share one: a person who makes a page list or a walkthrough file can make a
+      // pair on purpose. The name is never changed, since a run's folders are found by it.
+      throw new UsageError(
+        `${owner} and ${page.key} would be saved under the same name ("${slug}"), so voicecap can't read both in one run.`,
+      );
     }
     slugOwners.set(slug, page.key);
     return { ...page, slug };
