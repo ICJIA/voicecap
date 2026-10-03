@@ -16,8 +16,22 @@ export interface ResumeDecision {
 }
 
 /**
+ * Whether `run` was made before voicecap recorded the readiness settings, with the settings
+ * `other` has in everything else: its hash is the one voicecap gave such settings then, which
+ * leaves readiness out (hashJson drops an undefined value).
+ */
+function sameBeforeReadiness(run: RunJson, other: RunJson): boolean {
+  return (
+    run.settings.readiness === undefined &&
+    run.settingsHash === settingsHash({ ...other.settings, readiness: undefined })
+  );
+}
+
+/**
  * Choose whether to resume. Candidates are incomplete runs whose settings hash matches and that
- * no later completed run with the same settings has superseded; the most recent one wins.
+ * no later completed run with the same settings has superseded; the most recent one wins. A run
+ * from before the readiness settings were recorded can't match, as every run since records them:
+ * a later completed run that differs from it in nothing but them supersedes it instead.
  * Otherwise a new run starts, and the message says why the latest incomplete run wasn't resumed.
  */
 export function chooseRun(
@@ -31,8 +45,8 @@ export function chooseRun(
     runs.some(
       (other) =>
         other.status === "completed" &&
-        other.settingsHash === run.settingsHash &&
-        created(other) > created(run),
+        created(other) > created(run) &&
+        (other.settingsHash === run.settingsHash || sameBeforeReadiness(run, other)),
     );
   const incomplete = runs
     .filter((run) => run.status !== "completed" && !superseded(run))
@@ -79,7 +93,8 @@ export function describeDifferences(before: RunSettings, after: RunSettings): st
 }
 
 function show(value: unknown): string {
-  if (value === null || value === undefined) return "none";
+  if (value === undefined) return "not recorded";
+  if (value === null) return "none";
   if (Array.isArray(value)) return value.length === 0 ? "none" : value.join(",");
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;

@@ -166,3 +166,52 @@ describe("chooseRun", () => {
     ).toBe("r1");
   });
 });
+
+// `settings` above has no readiness: it's what voicecap 0.7.0 and earlier recorded. `recorded` is
+// the same settings as the versions after record them. Their hashes differ, so a later version
+// never resumes a run of 0.7.0's: a newer completed run is what supersedes it.
+const readiness = { readySelector: null, settleMs: 500, networkIdleTimeoutMs: 15_000 };
+const recorded: RunSettings = { ...settings, readiness };
+
+describe("a run from before voicecap recorded the readiness settings", () => {
+  const NOT_RESUMED =
+    'Starting a new run. Not resuming old because its settings differ: readiness: not recorded → {"readySelector":null,"settleMs":500,"networkIdleTimeoutMs":15000}.';
+
+  it("is superseded by a newer completed run whose settings are the same, with readiness", () => {
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete"),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", recorded),
+    ];
+    // Nothing to resume, and no note about the old run: the newer run has taken its place.
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: null });
+  });
+
+  it("has its readiness described as not recorded, while no newer completed run supersedes it", () => {
+    const runs = [run("old", "2026-09-20T09:00:00-05:00", "incomplete")];
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: NOT_RESUMED });
+  });
+
+  it("isn't superseded by a newer completed run that differs in another setting too", () => {
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete"),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", { ...recorded, passes: ["read"] }),
+    ];
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: NOT_RESUMED });
+  });
+});
+
+describe("a run that recorded the readiness settings", () => {
+  it("isn't superseded by a newer completed run with other readiness settings", () => {
+    const slower = { ...settings, readiness: { ...readiness, settleMs: 2000 } };
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete", recorded),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", slower),
+    ];
+    // Compared exactly as before: the readiness settings are among those that must be the same.
+    expect(chooseRun(runs, slower, false)).toEqual({
+      resume: null,
+      message:
+        'Starting a new run. Not resuming old because its settings differ: readiness: {"readySelector":null,"settleMs":500,"networkIdleTimeoutMs":15000} → {"readySelector":null,"settleMs":2000,"networkIdleTimeoutMs":15000}.',
+    });
+  });
+});
