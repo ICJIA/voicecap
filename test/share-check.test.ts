@@ -14,7 +14,7 @@ import vm from "node:vm";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import type { ReviewEntry, ReviewsFile, ReviewStatus } from "../src/model.js";
+import type { ReviewEntry, ReviewsFile, ReviewStatus, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { extractBody } from "../src/transcripts/format.js";
@@ -212,6 +212,20 @@ describe("the check's JSON and seals", () => {
     expect(library.sealOf(entry)).toBe(sealOf(entry));
     expect(library.sealOf(entry)).toBe(entry.seal);
     expect(library.sealOf({ ...entry, seal: "not the seal" })).toBe(entry.seal);
+  });
+
+  it("counts a key named __proto__ as any other key, as voicecap's seals do", () => {
+    const run = demoRun("1402");
+    // Added to the record's text, as an edit would be: JSON.parse makes it an ordinary key.
+    const tampered = JSON.parse(
+      JSON.stringify(run).replace(/^\{/, '{"__proto__":{"status":"incomplete"},'),
+    ) as RunJson;
+    const nested = JSON.parse('{"a":{"b":1,"__proto__":2}}') as object;
+
+    expect(library.canonicalJson(tampered)).toBe(canonicalJson(tampered));
+    expect(library.canonicalJson(nested)).toBe(canonicalJson(nested));
+    expect(library.sealOf(tampered)).toBe(sealOf(tampered));
+    expect(library.sealOf(tampered)).not.toBe(run.seal);
   });
 });
 

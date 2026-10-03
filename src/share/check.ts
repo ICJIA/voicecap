@@ -131,11 +131,14 @@ function utf8(text) {
   return new TextEncoder().encode(text);
 }
 
+// Objects with no prototype, here and in sealedBytes: on them a key named "__proto__" is a key like
+// any other. Set on a plain object, it would replace the object's prototype instead, and drop out
+// of the JSON a seal hashes.
 function canonicalJson(value) {
   function sorted(item) {
     if (Array.isArray(item)) return item.map(sorted);
     if (item !== null && typeof item === "object") {
-      var copy = {};
+      var copy = Object.create(null);
       Object.keys(item).sort().forEach(function (key) {
         if (item[key] !== undefined) copy[key] = sorted(item[key]);
       });
@@ -147,8 +150,10 @@ function canonicalJson(value) {
 }
 
 function sealedBytes(record) {
-  var rest = Object.assign({}, record);
-  delete rest.seal;
+  var rest = Object.create(null);
+  Object.keys(record).forEach(function (key) {
+    if (key !== "seal") rest[key] = record[key];
+  });
   return utf8(canonicalJson(rest));
 }
 

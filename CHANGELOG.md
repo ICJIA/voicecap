@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **A key named `__proto__` added to a sealed record now changes its seal**, as any other added key does, so `voicecap verify` and the shareable page's own check both catch it. Every seal voicecap has already written stays the same.
+
 ## [0.7.0] - 2026-10-03
 
 The Word copy of the shareable page, and `voicecap share`: dated copies to send, each recorded with its fingerprint, and what `voicecap verify` checks of them.
