@@ -238,7 +238,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.6.0 on npm, released 2026-10-02 (tag `v0.6.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.7.0 on npm, released 2026-10-03 (tag `v0.7.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -250,11 +250,15 @@ The owner's standing rules, from Phases A and B:
     - `voicecap preflight`, the checks on their own, with a Ready or Not ready verdict (on a Mac it says the checks passed, and that VoiceOver audits wait for the driver);
     - a README that starts with a three-step Quick start, folds its long sections, puts PowerShell first on a PC, and ends with Credits.
   - A real run on the Windows PC, the last check before 0.6.0, found that voicecap didn't exit after the end-of-run question in Windows Terminal (fixed: the keyboard's raw mode is left only once stdin has stopped reading), and that NVDA's speech in a run is too fast to follow (kept, and said plainly: see "The key is the transcripts" above).
+  - 0.7.0 (2026-10-03) added plan 3 of the shareable report:
+    - the Word copy, `share/current.docx`, written wherever the page is; it opens with its title and the date and time it was made, then the site, so a reader never meets a bare address first (the owner asked for this after opening it in Word);
+    - `voicecap share`, which makes the dated pair to send, records it in `share/shares.json` with its fingerprints, and prints a line to paste into the email;
+    - `voicecap verify`'s checks of that record and of every copy it names;
+    - a fix for CI: a CLI run in the tests now uses the test's platform, so it no longer starts the real PowerShell probe on Windows (about 20 s on CI's Windows machines).
 - **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
-  - plan 3, the Word copy and sharing, is merged to `main` and isn't released yet. It's `share/current.docx`, the page's Word copy, written wherever the page is; `voicecap share`, which makes the dated pair to send and records it in `share/shares.json`; and `verify`'s checks of the record and of every copy it names. The README describes all three, under "The shareable page" and "The audit record".
   - plan 4, the walkthrough file; plan 5, the website; plan 6, the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`.
-- **Tests:** 2,839 Vitest tests, with plan 3. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
+- **Tests:** 2,844 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share` and the Word copy need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
