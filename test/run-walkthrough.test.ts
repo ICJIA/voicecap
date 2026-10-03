@@ -996,3 +996,168 @@ describe("after a repeat completes", () => {
     expect(first.text()).not.toContain("Compared with");
   });
 });
+
+/** What a run said, as messages, in the order it said them (a warning or an alert isn't one). */
+function informed(logger: MemoryLogger): string[] {
+  return logger.entries.filter((entry) => entry.level === "info").map((entry) => entry.message);
+}
+
+// A repeat takes its site from its file, so nothing in the command names the site. Before it reads a
+// page, it says which run it's repeating, of which site, from which file, and how many pages.
+describe("the line that says what a repeat is repeating", () => {
+  it("names the original run, the site, the file, and its pages, before the run starts", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }),
+    );
+
+    const said = informed(logger);
+    const line = `Repeating run ${run.runId} of ${SITE} from ${NAME}: 3 pages.`;
+    expect(said.filter((message) => message.startsWith("Repeating run "))).toEqual([line]);
+    const started = said.findIndex((message) => message.startsWith(`Run ${repeat.runId} started.`));
+    expect(started).toBeGreaterThan(0);
+    expect(said.indexOf(line)).toBeLessThan(started);
+  });
+
+  it("comes before the readiness check, so it's said before anything real begins", async () => {
+    const { dir } = await original();
+    const logger = createMemoryLogger();
+    let saidBefore = "";
+    const readiness = vi.fn<() => Promise<PlatformReadiness>>(() => {
+      saidBefore = logger.text();
+      return Promise.resolve({
+        screenReader: "NVDA",
+        cannotRunYet: null,
+        readyTip: null,
+        liveTestNotice: [],
+        checkingNotice: [],
+        liveTest: null,
+        machineInfo: () =>
+          Promise.resolve({ lines: [], screenReader: "NVDA 2026.2", system: "Windows 11" }),
+        quickChecks: () => [],
+      });
+    });
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger, readiness }),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(readiness).toHaveBeenCalledTimes(1);
+    expect(saidBefore).toMatch(/^Repeating run \S+ of https:\/\/example\.illinois\.gov from /);
+  });
+
+  it("says the file as the person gave it, folders and all", async () => {
+    const { dir, file } = await original();
+    await mkdir(path.join(dir, "kept"));
+    await copyFile(file, path.join(dir, "kept", NAME));
+    const given = path.join("kept", NAME);
+    const logger = createMemoryLogger();
+
+    await runAudit(repeating(dir, new ScriptedDriver(sitePages()), given, { logger }));
+
+    const lines = informed(logger).filter((message) => message.startsWith("Repeating run "));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(` of ${SITE} from ${given}: 3 pages.`);
+    expect(lines[0]!.endsWith(` from ${given}: 3 pages.`)).toBe(true);
+  });
+
+  it("says one page as '1 page.'", async () => {
+    const { dir, file, run } = await original();
+    await edit(file, (walkthrough) => {
+      walkthrough.pages = walkthrough.pages.slice(0, 1);
+    });
+    const logger = createMemoryLogger();
+
+    await runAudit(repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }));
+
+    expect(informed(logger)).toContain(
+      `Repeating run ${run.runId} of ${SITE} from ${NAME}: 1 page.`,
+    );
+  });
+
+  it("counts the pages as the file lists them, a page listed twice included", async () => {
+    const { dir, file, run } = await original();
+    await edit(file, (walkthrough) => {
+      const [home, about, resources] = walkthrough.pages;
+      walkthrough.pages = [
+        home!,
+        about!,
+        { ...about!, url: `${SITE}/about/` },
+        resources!,
+        { ...home!, url: `${SITE}/#top` },
+      ];
+    });
+    const logger = createMemoryLogger();
+
+    await runAudit(repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }));
+
+    expect(informed(logger)).toContain(
+      `Repeating run ${run.runId} of ${SITE} from ${NAME}: 5 pages.`,
+    );
+  });
+
+  it("says it again when an interrupted repeat is resumed, before it says it's resuming", async () => {
+    const { dir, run } = await original();
+    const controller = new AbortController();
+    const first = createMemoryLogger();
+    const interrupted = await runAudit(
+      repeating(dir, interruptingAt("/about", controller), NAME, {
+        signal: controller.signal,
+        logger: first,
+      }),
+    );
+    const second = createMemoryLogger();
+
+    const resumed = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger: second }),
+    );
+
+    expect(resumed.runId).toBe(interrupted.runId);
+    const line = `Repeating run ${run.runId} of ${SITE} from ${NAME}: 3 pages.`;
+    for (const logger of [first, second]) {
+      expect(informed(logger).filter((message) => message.startsWith("Repeating run "))).toEqual([
+        line,
+      ]);
+    }
+    const said = informed(second);
+    const resuming = said.findIndex((message) => message.startsWith(`Resuming ${resumed.runId}`));
+    expect(resuming).toBeGreaterThan(0);
+    expect(said.indexOf(line)).toBeLessThan(resuming);
+  });
+
+  it("says it of a repeat that starts a new run too, under --fresh", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+
+    await runAudit(repeating(dir, new ScriptedDriver(sitePages()), NAME, { fresh: true, logger }));
+
+    expect(informed(logger)).toContain(
+      `Repeating run ${run.runId} of ${SITE} from ${NAME}: 3 pages.`,
+    );
+  });
+
+  it("says nothing of the kind for a run that repeats no walkthrough", async () => {
+    const dir = await newFolder();
+    const logger = createMemoryLogger();
+
+    const result = await runAudit(runOptions(dir, new ScriptedDriver(sitePages()), { logger }));
+
+    expect(result.outcome).toBe("completed");
+    expect(logger.text()).not.toContain("Repeating run");
+  });
+
+  it("says nothing of the kind when the file is refused, since it can't say what it's repeating", async () => {
+    const dir = await newFolder();
+    await writeFile(path.join(dir, NAME), "This is not JSON.");
+    const logger = createMemoryLogger();
+
+    await expect(
+      runAudit(repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger })),
+    ).rejects.toThrow(UsageError);
+
+    expect(logger.text()).toBe("");
+  });
+});

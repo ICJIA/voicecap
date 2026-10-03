@@ -32,6 +32,7 @@ import { InterruptedError, throwIfAborted } from "../passes/steps.js";
 import type { PlatformReadiness, PreflightResult } from "../readiness/model.js";
 import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
+import { plural } from "../report/html.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
 import {
@@ -204,6 +205,16 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   // loaded, the readiness is checked, or a folder is touched.
   const walkthrough = await readRepeat(options, cwd);
   const site = parseSiteUrl(walkthrough ? walkthrough.parsed.site : requireSite(options));
+  // A repeat takes its site from its file, so nothing in the command says which site it is about to
+  // read: say which run it repeats, of which site, from which file (as the person gave it), and how
+  // many pages. A resumed repeat says it too. (When a file was read, `options.walkthrough` is its
+  // name; the second test is for its type.)
+  if (walkthrough && options.walkthrough) {
+    const { original, pages } = walkthrough.parsed;
+    logger.info(
+      `Repeating run ${original.run} of ${site.origin} from ${options.walkthrough}: ${plural(pages.length, "page")}.`,
+    );
+  }
   const loaded = options.config ?? (await loadConfig({ cwd }));
   // A repeat reads what its file says, so the driver and the page runner get the config with that
   // replaced; everything else, the NVDA settings and the browser too, is this computer's.

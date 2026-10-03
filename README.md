@@ -1292,7 +1292,7 @@ A page list's file is kept by its name only, never its folders, since a path can
 npx @icjia/voicecap --walkthrough <file> [--reviewer <name>] [--out <dir>] [--compare <run-id>]
 ```
 
-A repeat is a run like any other, with its own folder, its own record, and its own seal. It reads the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file. It needs no `--site`: the site is the file's.
+A repeat is a run like any other, with its own folder, its own record, and its own seal. It reads the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file. It needs no `--site`: the site is the file's. voicecap first says which run, of which site, it's repeating, as in `Repeating run 2026-09-26_1405 of https://dvfr.illinois.gov from walkthrough.json: 12 pages.`
 
 - **NVDA's settings and the browser are this computer's.** A file can come from anyone, so it never changes this computer's NVDA settings or its browser. The file records the original's, and voicecap says afterwards which versions and which NVDA settings differ.
 - **Refused beside it,** before anything runs, because they would change what's read: `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, and `--max-steps`, and a `--site` that isn't the file's own. voicecap stops with exit code 1 and says which, such as `--walkthrough repeats the pages and passes its file lists, so it can't be used with --limit.` Allowed: `--out`, `--reviewer`, `--compare`, `--run-name`, `--fresh`, and `--replay-from`.
