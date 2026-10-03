@@ -10,6 +10,7 @@ import {
   parseWalkthrough,
   walkthroughJson,
   walkthroughOf,
+  walkthroughProblem,
   type Walkthrough,
 } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
@@ -281,6 +282,61 @@ describe("walkthroughOf", () => {
 
     expect(original.source).toStrictEqual({ kind: "urls", urls });
     expect(original.sourceFingerprints).toStrictEqual([]);
+  });
+
+  it.each<[name: string, recorded: string, folders: string]>([
+    ["a Windows path with its drive and user name", "C:\\Users\\Pat\\sites\\grants.csv", "Pat"],
+    ["a path relative to the working folder", "lists/grants.csv", "lists"],
+    ["a path on a network share", "\\\\server\\share\\lists\\grants.csv", "server"],
+    ["a path with both kinds of separator", "C:/Users/Pat\\sites/grants.csv", "Pat"],
+    ["a path on a Mac", "/Users/pat/sites/grants.csv", "pat"],
+  ])("keeps a page list's file by its name alone: %s", (_name, recorded, folders) => {
+    const sha256 = "b".repeat(64);
+    const run = shareRun({
+      id: "2026-09-26_1405",
+      source: { kind: "pages", file: recorded, sha256 },
+      pages: [{ path: "/" }],
+    });
+    run.source.file = recorded;
+    run.source.sha256 = sha256;
+
+    const walkthrough = walkthroughOf(run);
+
+    expect(walkthrough.original.source).toStrictEqual({
+      kind: "pages",
+      file: "grants.csv",
+      sha256,
+    });
+    expect(walkthrough.original.sourceFingerprints).toStrictEqual([{ name: "grants.csv", sha256 }]);
+    // None of the folders is anywhere in the file, which goes to auditors and into the page.
+    expect(walkthroughJson(walkthrough)).not.toContain(folders);
+    // The record keeps what it recorded: only the file leaves its folders out.
+    expect(run.settings.source).toStrictEqual({ kind: "pages", file: recorded, sha256 });
+    expect(run.source.file).toBe(recorded);
+  });
+
+  it("keeps a sitemap's address and the --page addresses whole, folders and all", () => {
+    const sitemap = "https://example.illinois.gov/sitemaps/pages/sitemap.xml";
+    const bySitemap = shareRun({
+      id: "2026-09-26_1405",
+      source: { kind: "sitemap", url: sitemap },
+      pages: [{ path: "/" }],
+    });
+    bySitemap.source.sitemaps = [{ url: sitemap, urls: 1, sha256: "1".repeat(64) }];
+    const urls = ["https://example.illinois.gov/a/b/", "https://example.illinois.gov/c/d/e/"];
+    const byPage = shareRun({
+      id: "2026-09-26_1405",
+      source: { kind: "urls", urls },
+      pages: [{ path: "/a/b/" }, { path: "/c/d/e/" }],
+    });
+
+    const sitemapOrigin = walkthroughOf(bySitemap).original;
+
+    expect(sitemapOrigin.source).toStrictEqual({ kind: "sitemap", url: sitemap });
+    expect(sitemapOrigin.sourceFingerprints).toStrictEqual([
+      { name: sitemap, sha256: "1".repeat(64) },
+    ]);
+    expect(walkthroughOf(byPage).original.source).toStrictEqual({ kind: "urls", urls });
   });
 
   it("writes nulls where an older run recorded nothing", () => {
@@ -1226,6 +1282,155 @@ describe("parseWalkthrough", () => {
     );
 
     expect(refusal(text)).toContain('it has a key voicecap doesn\'t know: "__proto__"');
+  });
+});
+
+describe("walkthroughProblem", () => {
+  const valid = (): Walkthrough => walkthroughOf(sampleRun());
+
+  /** The walkthrough of a run with `changes` to its settings: walkthroughOf builds it, whatever they are. */
+  const withSettings = (changes: Partial<RunJson["settings"]>): Walkthrough => {
+    const base = sampleRun();
+    return walkthroughOf({ ...base, settings: { ...base.settings, ...changes } });
+  };
+
+  /**
+   * Runs the config allows but a walkthrough file can't hold, and why. walkthroughOf still builds
+   * a walkthrough of each; this is how a writer, or the page, finds out it couldn't be read back.
+   */
+  const beyond: [name: string, build: () => Walkthrough, reason: string][] = [
+    [
+      "10,001 pages",
+      () =>
+        walkthroughOf(
+          shareRun({
+            id: "2026-09-26_1405",
+            pages: Array.from({ length: MAX_WALKTHROUGH_PAGES + 1 }, (_, index) => ({
+              path: `/page-${index}/`,
+            })),
+          }),
+        ),
+      "it lists more than 10,000 pages.",
+    ],
+    [
+      "a step limit of 100,001",
+      () => withSettings({ stepCaps: { read: 100_001, headings: 200, tab: 300 } }),
+      "its settings.stepCaps.read: must be a whole number from 1 to 100,000.",
+    ],
+    [
+      "a settleMs of 600,001",
+      () =>
+        withSettings({
+          readiness: { readySelector: null, settleMs: 600_001, networkIdleTimeoutMs: 15_000 },
+        }),
+      "its settings.readiness.settleMs: must be a whole number from 0 to 600,000.",
+    ],
+  ];
+
+  it.each<[name: string, run: () => RunJson]>([
+    ["a sample run", sampleRun],
+    ["demo run 1402, recorded by 0.4.1", () => demoRun("1402")],
+    ["a run whose pages came from a sitemap", () => completeRun("sitemap")],
+    ["a run whose pages came from a page list", () => completeRun("pages")],
+    ["a run whose pages came from --page", () => completeRun("urls")],
+  ])("gives null for the walkthrough of %s, which parseWalkthrough would read", (_name, run) => {
+    const walkthrough = walkthroughOf(run());
+
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+    expect(parseWalkthrough(walkthroughJson(walkthrough), "w.json")).toStrictEqual(walkthrough);
+  });
+
+  it.each(beyond)(
+    "says why a walkthrough of a run with %s couldn't be read back",
+    (_name, build, reason) => {
+      // walkthroughOf builds it; only the check says it couldn't be read back.
+      expect(walkthroughProblem(build())).toBe(reason);
+    },
+  );
+
+  it.each(beyond)(
+    "says what parseWalkthrough says of a file of a run with %s, after the file's name",
+    (_name, build) => {
+      const walkthrough = build();
+
+      expect(refusal(walkthroughJson(walkthrough))).toBe(
+        `${NOT_A_WALKTHROUGH}${walkthroughProblem(walkthrough)}`,
+      );
+    },
+  );
+
+  // One checker reads a walkthrough for both, so what they say of the same one can't differ. This
+  // is the check on that, over each kind of fault: the object here, and its text there.
+  it.each<[name: string, file: (walkthrough: Walkthrough) => unknown]>([
+    ["JSON that is a list", () => []],
+    ["a run's record, which has no format version", () => ({ schemaVersion: 1, id: "x" })],
+    ["a format version of 2", (w) => ({ ...w, voicecapWalkthrough: 2 })],
+    ["no pages", (w) => ({ ...w, pages: [] })],
+    [
+      "more items than a file may list, none of them pages",
+      (w) => ({ ...w, pages: Array.from({ length: MAX_WALKTHROUGH_PAGES + 1 }, () => 5) }),
+    ],
+    ["a page on the local disk", (w) => withPageUrl(w, 2, "file:///C:/x")],
+    [
+      "a blob: address with the site's origin",
+      (w) =>
+        withPageUrl(w, 0, "blob:https://example.illinois.gov/6f1c2f7e-0000-4000-8000-000000000000"),
+    ],
+    ["an address that isn't a full one", (w) => withPageUrl(w, 3, "/about")],
+    [
+      "an address with a control character",
+      (w) => withPageUrl(w, 0, "https://x.example/\u{1b}[2J"),
+    ],
+    ["a site that isn't a web address", (w) => ({ ...w, site: "file:///C:/" })],
+    [
+      "a pass listed twice",
+      (w) => ({ ...w, settings: { ...w.settings, passes: ["read", "read"] } }),
+    ],
+    [
+      "a step limit of 0",
+      (w) => ({ ...w, settings: { ...w.settings, stepCaps: { ...w.settings.stepCaps, read: 0 } } }),
+    ],
+    [
+      "a wait of less than nothing",
+      (w) => ({
+        ...w,
+        settings: {
+          ...w.settings,
+          readiness: { readySelector: null, settleMs: -1, networkIdleTimeoutMs: 15_000 },
+        },
+      }),
+    ],
+    ["a fingerprint in capital letters", (w) => withPassFingerprint(w, "A".repeat(64))],
+    [
+      "a source of a kind it doesn't know",
+      (w) => ({ ...w, original: { ...w.original, source: { kind: "ftp" } } }),
+    ],
+    [
+      "NVDA settings that aren't an object",
+      (w) => ({ ...w, original: { ...w.original, nvdaSettings: ["speech"] } }),
+    ],
+    [
+      "a label that isn't text",
+      (w) => ({ ...w, pages: w.pages.map((page, i) => (i === 0 ? { ...page, label: 5 } : page)) }),
+    ],
+    ["two keys it doesn't have", (w) => ({ ...w, run: 1, seal: 2 })],
+    ["several things wrong at once", (w) => ({ ...w, site: "file:///C:/", run: 1 })],
+  ])("says what parseWalkthrough says of a file with %s, after the file's name", (_name, file) => {
+    const broken = file(valid());
+
+    expect(refusal(textOf(broken))).toBe(
+      `${NOT_A_WALKTHROUGH}${walkthroughProblem(broken as Walkthrough)}`,
+    );
+  });
+
+  it("doesn't change the walkthrough it's given", () => {
+    const walkthrough = valid();
+    const before = structuredClone(walkthrough);
+
+    walkthroughProblem(walkthrough);
+    walkthroughProblem({ ...walkthrough, site: "file:///C:/" });
+
+    expect(walkthrough).toStrictEqual(before);
   });
 });
 

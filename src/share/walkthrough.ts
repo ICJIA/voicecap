@@ -6,6 +6,11 @@
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A key the
  * type doesn't have, a page address that isn't on the file's own site, or a number beyond what the
  * config allows refuses the whole file, saying what's wrong and where, before anything runs.
+ * `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say why a
+ * file of it couldn't be read back before it writes one.
+ *
+ * The file goes to auditors, and into the shareable page, so it holds no folders: a page list's file
+ * is kept by its name alone, since a path can carry the person's user name.
  */
 import { z } from "zod";
 
@@ -50,7 +55,10 @@ export interface WalkthroughOrigin {
   createdAt: string;
   completedAt: string;
   replayed: boolean;
-  /** The page source as the run recorded it, and the fingerprints of what it read from it. */
+  /**
+   * The page source as the run recorded it, and the fingerprints of what it read from it. A page
+   * list's file is kept by its name alone, in both: its folders could carry the person's user name.
+   */
   source: PageSource;
   sourceFingerprints: { name: string; sha256: string }[];
   /** From the run's last session; null where it recorded none. */
@@ -133,35 +141,62 @@ export function walkthroughJson(walkthrough: Walkthrough): string {
   return `${JSON.stringify(walkthrough, null, 2)}\n`;
 }
 
+/**
+ * Why parseWalkthrough would refuse this walkthrough, in the same words without the file's name, as
+ * a sentence; null when it wouldn't. walkthroughOf builds the walkthrough of any completed run, and
+ * the config allows runs that a file can't hold (more than 10,000 pages, a step limit above
+ * 100,000), so a writer asks here before it writes one.
+ */
+export function walkthroughProblem(walkthrough: Walkthrough): string | null {
+  const reading = read(walkthrough);
+  return "problem" in reading ? reading.problem : null;
+}
+
 /** Read a walkthrough file strictly; a UsageError that names the file and the problem otherwise. */
 export function parseWalkthrough(text: string, file: string): Walkthrough {
   let json: unknown;
   try {
     json = JSON.parse(text.charCodeAt(0) === BYTE_ORDER_MARK ? text.slice(1) : text);
   } catch {
-    throw notAWalkthrough(file, "it isn't JSON");
+    throw notAWalkthrough(file, sentence("it isn't JSON"));
   }
-  if (!isRecord(json)) throw notAWalkthrough(file, "it isn't a JSON object");
+  const reading = read(json);
+  if ("problem" in reading) throw notAWalkthrough(file, reading.problem);
+  return reading.walkthrough;
+}
+
+/** What reading a value as a walkthrough comes to: the walkthrough, or why it can't be read. */
+type Reading = { walkthrough: Walkthrough } | { problem: string };
+
+/**
+ * The one place a value is read as a walkthrough, strictly: parseWalkthrough reads a file's JSON
+ * here, and walkthroughProblem a walkthrough, so what they say of the same one can't differ. A
+ * problem is a sentence.
+ */
+function read(value: unknown): Reading {
+  if (!isRecord(value)) return { problem: sentence("it isn't a JSON object") };
 
   // Before the rest, which another version may lay out differently.
-  const version = json["voicecapWalkthrough"];
+  const version = value["voicecapWalkthrough"];
   if (version === undefined) {
-    throw notAWalkthrough(file, 'it has no "voicecapWalkthrough" format version');
+    return { problem: sentence('it has no "voicecapWalkthrough" format version') };
   }
   if (version !== FORMAT_VERSION) {
-    throw notAWalkthrough(
-      file,
-      `its format version is ${describeValue(version)}, and this voicecap reads version ${FORMAT_VERSION}`,
-    );
+    const found = describeValue(version);
+    return {
+      problem: sentence(
+        `its format version is ${found}, and this voicecap reads version ${FORMAT_VERSION}`,
+      ),
+    };
   }
 
-  const result = walkthroughSchema.safeParse(json);
-  if (!result.success) {
-    const [issue] = result.error.issues;
-    throw notAWalkthrough(file, issue === undefined ? "it is laid out wrongly" : reasonOf(issue));
+  const result = walkthroughSchema.safeParse(value);
+  if (result.success) {
+    // The schema's output has to fit the type, or this doesn't compile.
+    return { walkthrough: result.data };
   }
-  // The schema's output has to fit the type, or this doesn't compile.
-  return result.data;
+  const [issue] = result.error.issues;
+  return { problem: sentence(issue === undefined ? "it is laid out wrongly" : reasonOf(issue)) };
 }
 
 // What a run's record gives:
@@ -202,13 +237,26 @@ function readinessOf(readiness: RunSettings["readiness"]): WalkthroughSettings["
   };
 }
 
-/** The page source as the run recorded it, with its keys in the type's order. */
+/**
+ * A file's name without its folders: the last part of its path, cut at / or \. A walkthrough keeps
+ * a page list's file by this alone (and a walkthrough's, once a run's pages can come from one),
+ * with its SHA-256 as it is. The file goes to auditors and into the shareable page, and a full path
+ * could carry the person's user name. A sitemap's address and --page addresses stay whole.
+ */
+function fileNameOf(file: string): string {
+  return file.slice(Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")) + 1);
+}
+
+/**
+ * The page source as the run recorded it, with its keys in the type's order, and a page list's file
+ * by its name alone.
+ */
 function sourceOf(source: PageSource): PageSource {
   switch (source.kind) {
     case "sitemap":
       return { kind: "sitemap", url: source.url };
     case "pages":
-      return { kind: "pages", file: source.file, sha256: source.sha256 };
+      return { kind: "pages", file: fileNameOf(source.file), sha256: source.sha256 };
     case "urls":
       return { kind: "urls", urls: [...source.urls] };
     default: {
@@ -220,7 +268,7 @@ function sourceOf(source: PageSource): PageSource {
 
 /**
  * The fingerprints of what the run read its pages from: each sitemap it fetched (named by its
- * address), a page list (named by its file), and nothing for pages given with --page.
+ * address), a page list (named by its file's name alone), and nothing for pages given with --page.
  */
 function sourceFingerprintsOf(details: SourceDetails): { name: string; sha256: string }[] {
   switch (details.kind) {
@@ -230,7 +278,7 @@ function sourceFingerprintsOf(details: SourceDetails): { name: string; sha256: s
       );
     case "pages":
       return details.file !== undefined && details.sha256 !== undefined
-        ? [{ name: details.file, sha256: details.sha256 }]
+        ? [{ name: fileNameOf(details.file), sha256: details.sha256 }]
         : [];
     case "urls":
       return [];
@@ -418,8 +466,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 // How a refusal says what's wrong:
 
-function notAWalkthrough(file: string, reason: string): UsageError {
-  return new UsageError(`${file} isn't a voicecap walkthrough file: ${reason}.`);
+/** A reason, said as a sentence: what parseWalkthrough and walkthroughProblem both give. */
+function sentence(reason: string): string {
+  return `${reason}.`;
+}
+
+function notAWalkthrough(file: string, problem: string): UsageError {
+  return new UsageError(`${file} isn't a voicecap walkthrough file: ${problem}`);
 }
 
 /** The reason for a problem the schema found, in the words a person fixing the file needs. */
