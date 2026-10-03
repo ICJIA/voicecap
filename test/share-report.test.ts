@@ -197,7 +197,7 @@ describe("shareReport", () => {
     });
     expect((await readShares(siteDir)).shares).toEqual([entry]);
     expect(pasteLine).toBe(
-      `Fingerprints (SHA-256): ${files[0]!.name} ${files[0]!.sha256}; ${files[1]!.name} ${files[1]!.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac.`,
+      `Fingerprints (SHA-256): ${files[0]!.name} ${files[0]!.sha256}; ${files[1]!.name} ${files[1]!.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
     );
   });
 
@@ -409,8 +409,8 @@ describe("shareReport", () => {
       `  ${pasteLine}`,
     ]);
     // Each size is in KB or MB, with its bytes.
-    expect(sizeLine(page.bytes)).toMatch(/^(\d+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
-    expect(sizeLine(word.bytes)).toMatch(/^(\d+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
+    expect(sizeLine(page.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
+    expect(sizeLine(word.bytes)).toMatch(/^([\d,]+ KB|\d+\.\d MB) \([\d,]+ bytes\)$/);
   });
 
   describe("the line for the email", () => {
@@ -422,7 +422,7 @@ describe("shareReport", () => {
 
       const { files, pasteLine } = await shareReport(options);
 
-      expect(pasteLine.endsWith(`To check a file you received: ${check}.`)).toBe(true);
+      expect(pasteLine).toContain(`To check a file you received: ${check}.`);
       // The words of both copies, from the same two commands...
       expect(lineText(EVIDENCE_TEXT.proves("voicecap verify"))).toContain(check);
       expect(lineText(WORD_TEXT.evidence.compare())).toContain(check);
@@ -434,6 +434,24 @@ describe("shareReport", () => {
       expect(paragraphsOf(document).map(({ text }) => text)).toContainEqual(
         expect.stringContaining(check),
       );
+    });
+
+    // PowerShell's Get-FileHash prints a fingerprint in capitals, and every other place has it in
+    // lower case: the copies, the record, and this line. So the line says the letters are the same.
+    it("ends by saying PowerShell shows the same letters in capitals, with its own in lower case", async () => {
+      const { options } = await homeWithRun();
+
+      const { files, pasteLine } = await shareReport(options);
+
+      const check = `${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac`;
+      expect(pasteLine.endsWith(`${check}. PowerShell shows the same letters in capitals.`)).toBe(
+        true,
+      );
+      for (const { sha256: fingerprint } of files) {
+        expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
+        expect(pasteLine).toContain(fingerprint);
+        expect(pasteLine).not.toContain(fingerprint.toUpperCase());
+      }
     });
   });
 
@@ -749,17 +767,34 @@ describe("sizeWarning", () => {
 
 describe("sizeLine", () => {
   it.each([
-    // Under 1 MB: whole KB, rounded, and never under 1.
+    // Whole KB, rounded, and never under 1, with thousands separators, for as long as the rounded
+    // KB is under 1,024.
     [0, "1 KB (0 bytes)"],
     [1, "1 KB (1 byte)"],
     [512, "1 KB (512 bytes)"],
     [317_440, "310 KB (317,440 bytes)"],
-    [1_048_575, "1024 KB (1,048,575 bytes)"],
-    // From 1 MB: MB with one decimal.
+    [1_047_551, "1,023 KB (1,047,551 bytes)"],
+    [1_048_063, "1,023 KB (1,048,063 bytes)"],
+    // From there MB with one decimal: the switch is where the rounded KB reaches 1,024 (1,048,064
+    // bytes, which is 1,023.5 KB), not at 1,048,576 bytes, so no size ever reads "1,024 KB".
+    [1_048_064, "1.0 MB (1,048,064 bytes)"],
+    [1_048_575, "1.0 MB (1,048,575 bytes)"],
     [1_048_576, "1.0 MB (1,048,576 bytes)"],
     [1_234_567, "1.2 MB (1,234,567 bytes)"],
     [24_536_679, "23.4 MB (24,536,679 bytes)"],
   ])("gives %i bytes as %s", (bytes, said) => {
     expect(sizeLine(bytes)).toBe(said);
+  });
+
+  it("never says 1,024 KB, and goes from KB to MB once, at 1,048,064 bytes", () => {
+    // Every size from a way under the switch to a way over it.
+    const lines: string[] = [];
+    for (let bytes = 1_000_000; bytes <= 1_100_000; bytes++) lines.push(sizeLine(bytes));
+    const unit = (line: string) => (line.includes(" KB (") ? "KB" : "MB");
+    const first = lines.findIndex((line) => unit(line) === "MB");
+    expect(1_000_000 + first).toBe(1_048_064);
+    expect(lines.slice(0, first).every((line) => unit(line) === "KB")).toBe(true);
+    expect(lines.slice(first).every((line) => unit(line) === "MB")).toBe(true);
+    expect(lines.some((line) => /^1,?024 KB/.test(line))).toBe(false);
   });
 });

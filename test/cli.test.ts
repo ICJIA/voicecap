@@ -1086,7 +1086,7 @@ describe("voicecap share", () => {
         `  ${path.join(shareDir(siteDir), word.name)}`,
         `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
         "To paste into the email that sends them:",
-        `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac.`,
+        `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
         "",
       ].join("\n"),
     );

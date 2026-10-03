@@ -33,6 +33,7 @@ import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, localDate } from "../util/time.js";
 import { renderWordCopy } from "./docx.js";
 import { fontFaceCss } from "./fonts.js";
+import { count } from "./format.js";
 import { renderSharePage } from "./html/document.js";
 import { loadShareInput } from "./load.js";
 import { buildShareModel } from "./model.js";
@@ -72,10 +73,16 @@ export const EMAIL_LIMIT_BYTES = 20 * 1024 * 1024;
 const KILOBYTE = 1024;
 const MEGABYTE = 1024 * 1024;
 
-/** A size in words: whole KB under 1 MB (never under 1), and from there MB with one decimal. */
+/**
+ * A size in words: whole KB, rounded, never under 1, and with thousands separators, for as long as
+ * the rounded KB is under 1,024; from there MB with one decimal. The switch is on the rounded KB, so
+ * it falls at 1,048,064 bytes (1,023.5 KB) and not at 1,048,576: a size never reads "1,024 KB" a
+ * few bytes before "1.0 MB".
+ */
 function sizeWords(bytes: number): string {
-  return bytes < MEGABYTE
-    ? `${Math.max(1, Math.round(bytes / KILOBYTE))} KB`
+  const kilobytes = Math.round(bytes / KILOBYTE);
+  return kilobytes < KILOBYTE
+    ? `${count(Math.max(1, kilobytes))} KB`
     : `${(bytes / MEGABYTE).toFixed(1)} MB`;
 }
 
@@ -199,11 +206,13 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 
 /**
  * The line for the email that sends the copies: each one's name and fingerprint, and how a receiver
- * checks the file they were sent, with the commands the copies' own check names (./text.ts).
+ * checks the file they were sent, with the commands the copies' own check names (./text.ts). The
+ * fingerprints are in lower case, as the copies and the record have them, and PowerShell prints a
+ * fingerprint in capitals, so the line ends by saying it's the same letters.
  */
 function pasteLineOf(files: SharedFile[]): string {
   const fingerprints = files.map(({ name, sha256: fingerprint }) => `${name} ${fingerprint}`);
-  return `Fingerprints (SHA-256): ${fingerprints.join("; ")}. To check a file you received: ${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac.`;
+  return `Fingerprints (SHA-256): ${fingerprints.join("; ")}. To check a file you received: ${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac. PowerShell shows the same letters in capitals.`;
 }
 
 /** Whether a value is an object: not null, and not a list. */
