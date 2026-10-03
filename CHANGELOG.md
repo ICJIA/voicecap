@@ -24,6 +24,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
   - **Write the file outside the transcripts home:** `voicecap verify` names a new folder inside a site's folder, and a file inside a run's `pages/` folder, as problems.
 - **`--walkthrough <file>` on a run** repeats it: the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file (this computer's readiness settings, when the file has none).
   - **It needs no `--site`:** the site is the file's.
+  - **It first says what it repeats,** before the readiness check: `Repeating run <id> of <site> from <file>: <n> pages.`
   - **NVDA's settings and the browser are this computer's,** whatever the file recorded of them. A file can come from anyone, so it never changes this computer's NVDA settings or its browser.
   - **Refused beside it,** before anything runs, since they would change what's read: `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, `--max-steps`, and a `--site` that isn't the file's own. Allowed: `--out`, `--reviewer`, `--compare`, `--run-name`, `--fresh`, and `--replay-from`.
   - **An interrupted repeat resumes** with the same file, and an edited file starts a new run.
@@ -43,6 +44,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Fixed
 
 - **A key named `__proto__` added to a sealed record now changes its seal**, as any other added key does, so `voicecap verify` and the shareable page's own check both catch it. Every seal voicecap has already written stays the same.
+- **Two pages that would be saved under the same name are refused with a plain message** that names both addresses, instead of an error with its stack trace.
+- **The shareable page's and the Word copy's commands quote a site address that needs it,** such as `http://[::1]:4848`, whose brackets a Mac's shell would otherwise read as a pattern.
 
 ## [0.7.0] - 2026-10-03
 
