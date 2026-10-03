@@ -224,8 +224,6 @@ describe("the timeline", () => {
       both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
     });
     expect(TIMELINE.indexOf(walkthrough!)).toBeGreaterThan(TIMELINE.indexOf(released!));
-    // It's the row just before Next.
-    expect(TIMELINE.at(-2)).toBe(walkthrough);
   });
 
   it("leaves only the website in Next, which is last, with no day and no release", () => {

@@ -1276,10 +1276,10 @@ To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\cschw\walkthrough
 
 - `voicecapWalkthrough`, the format's version (`1`), and the `site`;
 - `pages`: every page of the run's list, with its address, its label, template, and notes where it has them, what the original run did with it (`status`), and the fingerprint of each pass it read, which is what a repeat compares itself with;
-- `settings`, which a repeat applies: the passes, each pass's step limit, the capture mode, and the readiness settings (`null` when the run didn't record them, as runs made with voicecap 0.7.0 or earlier didn't);
+- `settings`, which a repeat applies: the passes, each pass's step limit, the capture mode, and the readiness settings (`null` when the run didn't record them, as runs made with voicecap 0.7.0 or earlier didn't, and a repeat then uses this computer's);
 - `original`, where the file came from, which is recorded and never applied: the run's id and seal, when it began and finished, whether it was a replay, its page source and the fingerprints of what it read from, the versions of voicecap, the screen reader, and the browser, and the NVDA settings and browser channel it used.
 
-A page list's file is kept by its name only, never its folders, since a path can carry a person's user name. A repeat reads what the file says, so you can change it by hand: take pages out to repeat fewer of them, say. voicecap reads it strictly, though, and refuses a change that breaks the format (see [Repeating the run from the file](#repeating-the-run-from-the-file)).
+A page list's file is kept by its name only, never its folders, since a path can carry a person's user name. voicecap repeats what the file says. It reads the file strictly and refuses one that breaks the format (see [Repeating the run from the file](#repeating-the-run-from-the-file)).
 
 </details>
 
@@ -1299,7 +1299,7 @@ A repeat is a run like any other, with its own folder, its own record, and its o
 - **An interrupted repeat resumes** when you run the same command again with the same file, as any run does (see [Long runs, interruptions, and resuming](#long-runs-interruptions-and-resuming)). A file that was edited since starts a new run, since the file is identified by its contents.
 - **Its page source is the file.** The run's record names the file, its SHA-256, the id of the run it was made from, and what that run's pages came from.
 - **To compare it with the original line by line,** give the original's id: `--compare <run-id>`. `--compare previous` finds an earlier repeat of the same file, not the original, since a repeat's page source is the file.
-- **On a Mac,** a repeat waits for voicecap's VoiceOver driver, as every run does: it runs with NVDA today, and with VoiceOver once the driver exists. With `--replay-from`, a repeat plays back a recorded run on any computer, with no screen reader, which is how voicecap's own tests and CI try it.
+- **On a Mac,** a repeat waits for voicecap's VoiceOver driver, as every run does. Until then, repeat on a Windows computer, with NVDA. With `--replay-from`, a repeat plays back a recorded run on any computer, with no screen reader, which is how voicecap's own tests and CI try it.
 
 **How the file is read.** The file may come from anyone, so voicecap takes nothing on trust. It refuses a file, before anything runs, and says what's wrong and where, when:
 
@@ -1308,7 +1308,7 @@ A repeat is a run like any other, with its own folder, its own record, and its o
 - a page isn't on the file's own site, or its address has a space or a control character in it, or is over 8,192 characters;
 - its NVDA settings are nested more than 32 levels deep;
 - a run id has characters that a run id doesn't have (it can be 1 to 100 letters, digits, `.`, `_`, and `-`);
-- a step limit or a readiness time is beyond what the config allows;
+- a step limit is over 100,000, or a readiness time is over ten minutes (600,000 milliseconds);
 - it's over 8 MB, which voicecap refuses without reading it.
 
 A page the file lists twice is read once, as with a page list.
@@ -1340,7 +1340,7 @@ Different from the original: NVDA 2026.3 (was 2026.2), Chrome 154.0.8037.58 (was
 - **The count** is the pages that sound the same, out of the pages in the file.
 - **What else differs,** when something does: the versions of NVDA, the browser, and voicecap, each named only when both runs recorded it, and then the names of the NVDA settings whose values differ from the original's.
 
-A pass that only one of the two read counts as a difference, so a file edited by hand to fewer passes shows every page as different in the passes it leaves out.
+A pass that only one of the two read counts as a difference.
 
 voicecap prints this when the repeat completes, and doesn't keep it. The comparison needs only the file, which holds the original's fingerprints. A repeat that's interrupted, or stops, says nothing until a later session completes it. For the words that changed, line by line, give `--compare` the original's id: the report then marks the changed pages and links to the diffs (see [Reading the report](#reading-the-report)).
 
@@ -1419,7 +1419,7 @@ export default defineConfig({
 | `report.title`, `report.agency`, `report.logo` | `"NVDA transcript report"`, `null`, `null` | Report branding; the logo must be a `data:image/…` URI. |
 | `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
 
-Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run. A repeat from a walkthrough file takes `passes`, `capture`, `stepCaps`, and `readiness` from the file instead of the config (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
+Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run. A repeat from a walkthrough file takes `passes`, `capture`, `stepCaps`, and `readiness` from the file instead of the config, except that a file with no readiness settings leaves the config's (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
 
 </details>
 

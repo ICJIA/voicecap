@@ -6,10 +6,10 @@
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A text over
  * 8 MB, a key the type doesn't have, a page address that isn't on the file's own site (or is too
  * long, or is written with a space or a control character), a run id made of anything but a run
- * id's characters, NVDA settings nested too deep, or a number beyond what the config allows refuses
- * the whole file, saying what's wrong and where, before anything runs. `walkthroughProblem` gives
- * that same reason for a walkthrough in hand, so a writer can say why a file of it couldn't be read
- * back before it writes one.
+ * id's characters, NVDA settings nested too deep, a step limit over 100,000, or a readiness time
+ * over ten minutes (600,000 milliseconds) refuses the whole file, saying what's wrong and where,
+ * before anything runs. `walkthroughProblem` gives that same reason for a walkthrough in hand, so
+ * a writer can say why a file of it couldn't be read back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
