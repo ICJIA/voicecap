@@ -3,8 +3,9 @@
  * to be", and its footer, as blocks (./blocks.ts). Each takes the model, and says the words of the
  * page's renderer (../html/evidence.ts) in the same order: the fixed ones come from ../text.ts, the
  * ones worked out from the model from ../words.ts, and what only the Word copy says (what stands in
- * for the page's fingerprint check, the heads of the timeline's table, the footer's heading, the
- * document's own words) from `WORD_TEXT`. So the two copies can't say different things.
+ * for the page's fingerprint check, the first sentence of the runs left out, the heads of the
+ * timeline's table, the footer's heading, the document's own words) from `WORD_TEXT`. So the two
+ * copies can't say different things.
  *
  * The Word copy folds nothing: each run is a heading 2 with what its fold holds under it, and the
  * rest of the story and the six cards are in the open. It has no fingerprint check of its own, so it
@@ -155,12 +156,17 @@ function runBlocks(each: RunEvidence): Block[] {
   ];
 }
 
-/** The runs left out: a heading, why a run is left out, and a line for each. None when none were. */
+/**
+ * The runs left out: a heading, why a run is left out, and a line for each. None when none were. The
+ * lead's first sentence is the Word copy's own, "in this report", since "this page" would read as
+ * the printed page; the sentence after it is the page's.
+ */
 function leftOutBlocks(leftOut: ShareModel["leftOut"]): Block[] {
   if (leftOut.length === 0) return [];
+  const { title, why } = EVIDENCE_TEXT.leftOut;
   return [
-    heading(2, EVIDENCE_TEXT.leftOut.title),
-    para(EVIDENCE_TEXT.leftOut.lead),
+    heading(2, title),
+    para(`${WORD_TEXT.evidence.leftOutLead} ${why}`),
     list(leftOut.map(({ text }) => text)),
   ];
 }

@@ -1,5 +1,14 @@
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename as fsRename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -9,15 +18,17 @@ import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import type { RunAuditOptions } from "../src/run/audit.js";
-import { manualSessionDir, runDir, shareDir, sharesPath } from "../src/run/paths.js";
+import { manualSessionDir, runDir, shareDir, sharesPath, shareWordPath } from "../src/run/paths.js";
 import { longDate } from "../src/share/format.js";
 import { sizeLine } from "../src/share/share.js";
+import { writeShareFiles } from "../src/share/write.js";
 import { sha256 } from "../src/util/hash.js";
-import type { OutputStream } from "../src/util/log.js";
+import { createMemoryLogger, type OutputStream } from "../src/util/log.js";
 import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
@@ -157,6 +168,42 @@ async function oneSiteHome(): Promise<string> {
 /** Every file and folder under `dir`, relative to it, sorted. */
 async function contents(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true })).sort();
+}
+
+/**
+ * A command line split into its arguments, as Git Bash splits what `formatCommand` writes (and
+ * PowerShell too, unless a value has a single quote in it): words apart at spaces, a value in
+ * single quotes whole, a backslash in it just a backslash, and `'\''` for a single quote inside one.
+ */
+function splitCommand(line: string): string[] {
+  const args: string[] = [];
+  let word = "";
+  // An empty value, '', is still an argument.
+  let started = false;
+  let quoted = false;
+  for (let at = 0; at < line.length; at++) {
+    const char = line.charAt(at);
+    if (quoted) {
+      if (char === "'") quoted = false;
+      else word += char;
+    } else if (char === "'") {
+      quoted = true;
+      started = true;
+    } else if (char === "\\" && line.charAt(at + 1) === "'") {
+      word += "'";
+      started = true;
+      at++;
+    } else if (char === " ") {
+      if (started) args.push(word);
+      word = "";
+      started = false;
+    } else {
+      word += char;
+      started = true;
+    }
+  }
+  if (started) args.push(word);
+  return args;
 }
 
 /** A computer that isn't ready: one quick check FAILs, with its problem. */
@@ -792,6 +839,61 @@ describe("a full session through the CLI", () => {
       }
     },
   );
+
+  // A home of many sites needs --site, and a home that --out gave needs --out, so the warning for a
+  // Word copy that Word holds gives the command with both: a person who copies it runs it as it is.
+  it("runs the command a held Word copy's warning gives, in a home with two sites, and writes the Word copy", async () => {
+    // A folder with a space in its name, so that the home's path is quoted wherever this runs.
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap cli "));
+    const run = await cli(
+      ["--site", SITE, "--pages", fixture("pages.json"), "--replay-from", fixture("replay-run")],
+      cwd,
+    );
+    expect(run.code).toBe(0);
+    const home = path.join(cwd, "transcripts");
+    const site = path.join(home, "127.0.0.1_4747");
+    // A second site, so that `report` alone can't tell which one is meant.
+    await mkdir(path.join(home, "dvfr.illinois.gov", "2026-09-27"), { recursive: true });
+    const bare = await cli(["report"], cwd);
+    expect(bare.code).toBe(1);
+    expect(bare.err).toContain("add --site.");
+
+    // Word holds current.docx: the page is written, and the Word copy isn't.
+    await rm(shareDir(site), { recursive: true, force: true });
+    const logger = createMemoryLogger();
+    await writeShareFiles({
+      siteDir: site,
+      config: DEFAULT_CONFIG,
+      logger,
+      rename: async (from, to) => {
+        if (to.endsWith("current.docx")) {
+          const message = `EPERM: operation not permitted, rename '${from}' -> '${to}'`;
+          throw Object.assign(new Error(message), { code: "EPERM" });
+        }
+        await fsRename(from, to);
+      },
+    });
+    expect(await readdir(shareDir(site))).toEqual(["current.html"]);
+
+    // The command the warning printed, split into its arguments as a shell does: `report`, the site,
+    // and the home, whole.
+    const [, command = ""] = /then run: (npx @icjia\/voicecap .+)$/.exec(logger.text("warn")) ?? [];
+    const [npx, voicecap, ...args] = splitCommand(command);
+    expect([npx, voicecap]).toEqual(["npx", "@icjia/voicecap"]);
+    expect(args).toEqual(["report", "--site", SITE, "--out", home]);
+
+    // Word has let go. Run from another folder, as a person may, the command works.
+    const elsewhere = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const report = await cli(args, elsewhere);
+
+    expect(report.err).toBe("");
+    expect(report.code).toBe(0);
+    expect(report.out).toContain(`Word copy: ${shareWordPath(site)}\n`);
+    expect((await readdir(shareDir(site))).sort()).toEqual(["current.docx", "current.html"]);
+    expect(
+      XMLValidator.validate((await unzipDocx(await readFile(shareWordPath(site)))).document),
+    ).toBe(true);
+  });
 
   it("asks which site when the home has several, and takes --site", async () => {
     const run = await cli([

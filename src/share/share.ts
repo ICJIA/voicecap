@@ -9,10 +9,11 @@
  * on, and each file's size and SHA-256. Its output ends with a line to paste into the email that
  * sends them, so a receiver can check a file against the sender's own fingerprint.
  *
- * Two things hold whatever happens. A copy is never written over a file: each is opened with the
- * `wx` flag, which refuses a name that's taken, and a name that's taken meanwhile means the next
- * number. And a copy is never left that nothing records: a share that can't be finished takes away
- * what it wrote, so `voicecap verify` never finds a copy the record doesn't name.
+ * A copy is never written over a file: each is opened with the `wx` flag, which refuses a name
+ * that's taken, and a name that's taken meanwhile means the next number. And a share that fails with
+ * an error leaves no copy that nothing records: it takes away what it wrote, so `voicecap verify`
+ * finds none the record doesn't name. Two things can still leave one: a kill between writing and
+ * recording, and a copy that can't be removed, which warns of it. `verify` names such a copy.
  *
  * No lock is taken, as `voicecap review` takes none: appendShare reads the record again just before
  * it writes it.

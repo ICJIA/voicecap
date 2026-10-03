@@ -396,10 +396,16 @@ export const EVIDENCE_TEXT = {
   noFiles: "This run's record lists no files.",
   /** Before the command that checks a run's files against its record. */
   verify: "To check these against the recorded files, anyone with the transcripts folder runs:",
-  /** The runs left out: their title, and why a run is left out. */
+  /**
+   * The runs left out: their title, and the lead that says why a run is left out, in two parts. The
+   * page says `lead`, a space, and `why`. The Word copy says its own first sentence in place of
+   * `lead` (`WORD_TEXT.evidence.leftOutLead`), since "this page", in a Word document, reads as the
+   * printed page, and then the same `why`.
+   */
   leftOut: {
     title: "Runs left out",
-    lead: "These runs aren't counted in any result on this page. A run counts only when it completed, was sealed, and wasn't a replay.",
+    lead: "These runs aren't counted in any result on this page.",
+    why: "A run counts only when it completed, was sealed, and wasn't a replay.",
   },
 };
 
@@ -655,8 +661,8 @@ export const FOOTER_TEXT = {
  * The Word copy's own words, in a group for each section: where the page draws tiles and bars, the
  * Word copy has tables, and these are the heads of their columns and the labels of their rows. A
  * few say a word of the page's in the Word copy's form ("Without flags", for the page's "without
- * flags"); the rest are the Word copy's alone, such as what it says in place of the page's
- * fingerprint check, which a Word document has none of.
+ * flags"; "in this report", for "on this page"); the rest are the Word copy's alone, such as what it
+ * says in place of the page's fingerprint check, which a Word document has none of.
  */
 export const WORD_TEXT = {
   /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
@@ -737,6 +743,11 @@ export const WORD_TEXT = {
       { text: fileName, mono: true },
       ", can also check the transcripts it shows against their fingerprints, in any browser, offline.",
     ],
+    /**
+     * The first sentence of the runs left out, in the Word copy's form: "in this report" for the
+     * page's "on this page" (`EVIDENCE_TEXT.leftOut.lead`). The sentence that follows is the page's.
+     */
+    leftOutLead: "These runs aren't counted in any result in this report.",
   },
   /**
    * "How voicecap came to be": the heads of the timeline's table, which has two columns where the

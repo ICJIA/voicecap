@@ -68,6 +68,17 @@ const DEMO_RUNS = ["2026-09-29_1402", "2026-09-29_1315"];
 /** What the demo runs, from voicecap 0.4.1, say of what they didn't record. */
 const NOT_RECORDED = "Not recorded: this run used voicecap 0.4.1.";
 
+/** Why a run is left out, as the page says it. */
+const PAGE_LEFT_OUT_LEAD =
+  "These runs aren't counted in any result on this page. A run counts only when it completed, was sealed, and wasn't a replay.";
+
+/**
+ * The same, as the Word copy says it: "in this report" where the page says "on this page", since in
+ * a Word document "this page" reads as the printed page.
+ */
+const LEFT_OUT_LEAD =
+  "These runs aren't counted in any result in this report. A run counts only when it completed, was sealed, and wasn't a replay.";
+
 /** The computer a session recorded, as voicecap 0.6.0 and later record it. */
 const MACHINE: MachineRecord = {
   os: { name: "Windows 11 Pro 25H2", build: "10.0.26200.9550", arch: "x64" },
@@ -561,7 +572,7 @@ describe("wordEvidence", () => {
       expect(part.map(({ kind }) => kind)).toEqual(["heading", "para", "list"]);
       expect(wordsOf(part)).toEqual([
         "Runs left out",
-        "These runs aren't counted in any result on this page. A run counts only when it completed, was sealed, and wasn't a replay.",
+        LEFT_OUT_LEAD,
         "2026-09-29_1415: interrupted after 1 of 7 pages",
         "2026-09-29_1419: interrupted after 2 of 7 pages",
       ]);
@@ -652,7 +663,7 @@ describe("wordEvidence", () => {
         "The evidence behind these results",
         "No live run counts yet. There is no evidence to show.",
         "Runs left out",
-        EVIDENCE_TEXT.leftOut.lead,
+        LEFT_OUT_LEAD,
         "2026-09-26_1405: replayed, so it never counts as a live result",
       ]);
       expect(blocks.map(({ kind }) => kind)).toEqual([
@@ -791,9 +802,11 @@ describe("wordEvidence", () => {
         const own = [
           "This page carries the sealed records exactly as voicecap wrote them, so the check can recompute their seals.",
         ];
+        // Each line as the Word copy says it: the same, but for the lead of the runs left out.
+        const inWord = (line: string) => (line === PAGE_LEFT_OUT_LEAD ? LEFT_OUT_LEAD : line);
 
         for (const line of said.filter((piece) => !own.includes(piece))) {
-          expect(words, line).toContain(line);
+          expect(words, line).toContain(inWord(line));
         }
         seen += said.length;
       }

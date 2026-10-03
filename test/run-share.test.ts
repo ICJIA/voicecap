@@ -39,9 +39,10 @@ import { buildShareModel } from "../src/share/model.js";
 import type * as ModelModule from "../src/share/model.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { writeFileAtomic, type AtomicWriteOptions } from "../src/util/atomic-write.js";
+import { formatCommand } from "../src/util/command-line.js";
 import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/log.js";
 import { footerWords, paragraphsOf, propertyOf, unzipDocx } from "./helpers/docx.js";
-import { config, options, outDir, setup, sitePages } from "./helpers/run-site.js";
+import { config, options, outDir, SITE, setup, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 // Every write goes through as it did, and is kept, so a test can see what was written how.
@@ -89,9 +90,15 @@ const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
 const PAGE_NOT_UPDATED = "The shareable page wasn't updated: ";
 const WORD_NOT_UPDATED = "The Word copy wasn't updated: ";
 
-/** What the Word copy's warning ends with when the OS says another program holds the file. */
-const CLOSE_WORD =
-  " If current.docx is open in Word, close it, then run: npx @icjia/voicecap report";
+/**
+ * The Word copy's warning when the OS says another program holds the file, with the code it gave:
+ * what couldn't be done, when that happens, and what to do, which ends with the exact command. The
+ * command names the site and the home, so that it runs as it is in a home of many sites, where
+ * `report` refuses without `--site`, and in a home that `--out` gave. None of the OS's own words
+ * are in it.
+ */
+const heldWarning = (code: string, siteDir: string): string =>
+  `${WORD_NOT_UPDATED}current.docx couldn't be replaced (${code}). That happens while it's open in Word. If it is, close it, then run: ${formatCommand(["report", "--site", SITE, "--out", path.dirname(siteDir)])}`;
 
 /** The Word copy's parts, read back by unzipping the file as it is on disk. */
 async function wordCopy(siteDir: string) {
@@ -563,9 +570,13 @@ describe("writeShareFiles", () => {
   it("writes the page, and says so plainly, when Word holds current.docx", async () => {
     const { site } = await siteWithRun();
     const wordBefore = await readFile(shareWordPath(site));
-    const held = Object.assign(new Error("EPERM: operation not permitted, rename"), {
-      code: "EPERM",
-    });
+    // As Node says it: its code, its words, and the temporary file's name.
+    const held = Object.assign(
+      new Error(
+        `EPERM: operation not permitted, rename '${path.join(site, "share", ".current.docx.700.83820691.tmp")}' -> '${shareWordPath(site)}'`,
+      ),
+      { code: "EPERM" },
+    );
     const rename = refusingTheWordCopy(held);
     const logger = createMemoryLogger();
     const started = Date.now();
@@ -580,9 +591,9 @@ describe("writeShareFiles", () => {
 
     expect(files).toEqual({ page: path.join(site, "share", "current.html"), word: null });
     expect(Date.now() - started).toBeLessThan(5000);
-    expect(logger.text("warn")).toMatch(
-      /^The Word copy wasn't updated: EPERM.* If current\.docx is open in Word, close it, then run: npx @icjia\/voicecap report$/,
-    );
+    // In plain words, the code in parentheses, none of Node's, and the exact command to run.
+    expect(logger.text("warn")).toBe(heldWarning("EPERM", site));
+    expect(logger.text("warn")).not.toContain("operation not permitted");
     // The page is the new one. The Word copy is as it was, with no half-written file beside it.
     expect(await readFile(sharePath(site), "utf8")).toContain("As of <b>5 January 2027</b>");
     expect((await readFile(shareWordPath(site))).equals(wordBefore)).toBe(true);
@@ -606,9 +617,7 @@ describe("writeShareFiles", () => {
       });
 
       expect(files).toEqual({ page: sharePath(site), word: null });
-      expect(logger.entries).toEqual([
-        { level: "warn", message: `${WORD_NOT_UPDATED}${held.message}${CLOSE_WORD}` },
-      ]);
+      expect(logger.entries).toEqual([{ level: "warn", message: heldWarning(code, site) }]);
     },
   );
 

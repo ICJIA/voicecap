@@ -214,7 +214,8 @@ function runFold(each: RunEvidence): string {
 function leftOutPanel(leftOut: ShareModel["leftOut"]): string {
   if (leftOut.length === 0) return "";
   const items = leftOut.map(({ text }) => `<li>${esc(text)}</li>`);
-  return `<div class="panel"><h3>${esc(EVIDENCE_TEXT.leftOut.title)}</h3><p>${esc(EVIDENCE_TEXT.leftOut.lead)}</p><ul>${items.join("")}</ul></div>`;
+  const { title, lead, why } = EVIDENCE_TEXT.leftOut;
+  return `<div class="panel"><h3>${esc(title)}</h3><p>${esc(`${lead} ${why}`)}</p><ul>${items.join("")}</ul></div>`;
 }
 
 /**
