@@ -165,8 +165,15 @@ function flatten(value: unknown, prefix = ""): string[] {
   return [prefix ? `${prefix}=${rendered}` : rendered];
 }
 
+/**
+ * A field on one line: each run of spaces that holds a line break becomes one space, then the ends
+ * are trimmed; "-" for nothing. Each run is found once, so the time is linear in the text's length.
+ * A single pattern for a line break with the spaces around it searches again from each space of a
+ * run that has no line break: a label of 150,000 spaces took seconds that way, and a walkthrough
+ * file, which can come from anyone, can hold millions.
+ */
 function oneLine(value: string | undefined): string {
-  const text = (value ?? "").replace(/\s*[\r\n]+\s*/g, " ").trim();
+  const text = (value ?? "").replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? " " : run)).trim();
   return text === "" ? "-" : text;
 }
 

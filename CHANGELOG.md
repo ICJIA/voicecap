@@ -44,6 +44,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Fixed
 
 - **A key named `__proto__` added to a sealed record now changes its seal**, as any other added key does, so `voicecap verify` and the shareable page's own check both catch it. Every seal voicecap has already written stays the same.
+- **A transcript's header is written at once when a page's label, template, or notes holds a long run of spaces.** Putting each on one line took seconds for 150,000 spaces, and far longer for more, which a page list or a walkthrough file can hold.
 - **Two pages that would be saved under the same name are refused with a plain message** that names both addresses, instead of an error with its stack trace.
 - **The shareable page's and the Word copy's commands quote a site address that needs it,** such as `http://[::1]:4848`, whose brackets a Mac's shell would otherwise read as a pattern.
 
