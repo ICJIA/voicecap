@@ -247,6 +247,18 @@ describe("verifyHome", () => {
     ]);
   });
 
+  it("catches a key named __proto__ added to run.json, as any other added key", async () => {
+    const home = await copyOfHome();
+    const file = at(home, `${RUN}/run.json`);
+    // Into the file's text: in an object literal, __proto__ would set the prototype instead.
+    const text = await readFile(file, "utf8");
+    await writeFile(file, text.replace(/^\{/, '{\n  "__proto__": { "status": "incomplete" },'));
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/run.json: changed since it was sealed`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
   it("catches a completed run's run.json replaced by a bare incomplete one", async () => {
     const home = await copyOfHome();
     await writeFile(at(home, `${RUN}/run.json`), `${JSON.stringify({ status: "incomplete" })}\n`);

@@ -22,7 +22,9 @@ export function sealOf(record: object): string {
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (value !== null && typeof value === "object") {
-    const sorted: Record<string, unknown> = {};
+    // With no prototype, a key named "__proto__" is a key like any other. Set on a plain object,
+    // it would replace the object's prototype instead, and drop out of the JSON a seal hashes.
+    const sorted = Object.create(null) as Record<string, unknown>;
     for (const key of Object.keys(value).sort()) {
       const item = (value as Record<string, unknown>)[key];
       if (item !== undefined) sorted[key] = sortKeys(item);
