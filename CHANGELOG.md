@@ -20,9 +20,9 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
     - it's over 8 MB.
   - **voicecap never writes a file its own reader would refuse.**
 - **`voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>`**: writes a completed run's walkthrough file, from the site's latest completed run unless `--run` names one (a replayed run counts), and says where it is and how to repeat the run. It never overwrites a file, and it needs no screen reader.
-  - **It stops, with exit code 1 and nothing written,** when the site has no completed run, when the run named isn't there or didn't complete, when something is at `<file>` already, and when the run can't be written as a file its own reader would accept (more than 10,000 pages, a step limit above 100,000, or a file over 8 MB).
+  - **It stops, with exit code 1 and nothing written,** when the site has no completed run, when the run named isn't there or didn't complete, when something is at `<file>` already, and when the run can't be written as a file its own reader would accept (such as more than 10,000 pages, a step limit above 100,000, or a file over 8 MB).
   - **Write the file outside the transcripts home:** `voicecap verify` names a new folder inside a site's folder, and a file inside a run's `pages/` folder, as problems.
-- **`--walkthrough <file>` on a run** repeats it: the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file.
+- **`--walkthrough <file>` on a run** repeats it: the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file (this computer's readiness settings, when the file has none).
   - **It needs no `--site`:** the site is the file's.
   - **NVDA's settings and the browser are this computer's,** whatever the file recorded of them. A file can come from anyone, so it never changes this computer's NVDA settings or its browser.
   - **Refused beside it,** before anything runs, since they would change what's read: `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, `--max-steps`, and a `--site` that isn't the file's own. Allowed: `--out`, `--reviewer`, `--compare`, `--run-name`, `--fresh`, and `--replay-from`.

@@ -127,8 +127,9 @@ export const MAX_SELECTOR_LENGTH = 1_024;
 export const MAX_NVDA_SETTINGS_DEPTH = 32;
 
 /**
- * The most a step limit may be. The config allows any whole number above 0; this only refuses an
- * absurd one, so a file written from any run the config allows reads back.
+ * The most a step limit may be. The config allows any whole number above 0, and this refuses an
+ * absurd one from a file. A run with a step limit above it can't be written as a file
+ * (`walkthroughProblem` says why), so voicecap never writes a file it would refuse to read.
  */
 const MAX_STEP_LIMIT = 100_000;
 /** The most a readiness time may be, in milliseconds (ten minutes), for the same reason. */

@@ -61,7 +61,7 @@ jobs:
           node dist/cli.js verify --out "$out"
           node dist/cli.js walkthrough --out "$out" --site http://127.0.0.1:4747 "$RUNNER_TEMP/walkthrough.json"
           node dist/cli.js --walkthrough "$RUNNER_TEMP/walkthrough.json" --replay-from fixture/replay-run --out "$out" | tee repeat.txt
-          grep -q "pages sound the same." repeat.txt
+          grep -q "^3 of 3 pages sound the same\." repeat.txt
 
       # Git Bash turns "/about" into "C:/Program Files/Git/about"; voicecap must explain that.
       - name: Git Bash path rewriting is detected and explained
