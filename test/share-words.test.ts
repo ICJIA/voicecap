@@ -1840,6 +1840,11 @@ describe("the section words in text.ts", () => {
     expect(walkthrough.problem("its site isn't a web address.")).toBe(
       "This run's walkthrough file can't be made: its site isn't a web address.",
     );
+    // The reason for a record voicecap couldn't make a file of at all, in the same form.
+    expect(walkthrough.unreadable).toBe("voicecap couldn't read its record.");
+    expect(walkthrough.problem(walkthrough.unreadable)).toBe(
+      "This run's walkthrough file can't be made: voicecap couldn't read its record.",
+    );
     // The Word copy can't carry the file, so it says how to get it instead; the rest is the page's.
     expect(inWord.lead).toBe(
       "To repeat this run exactly, with the same pages in the same order and the same passes and limits, get its walkthrough file from the web page, or with:",

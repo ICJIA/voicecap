@@ -40,3 +40,22 @@ export async function violations(page: Page): Promise<string[]> {
         .join(" | ")}`,
   );
 }
+
+/**
+ * What axe says of links that read alike: links with one name that go to different places, which a
+ * person going by the links alone (Tab, or a list of links) can't tell apart (WCAG 2.4.9). axe can't
+ * say whether such links serve one purpose, so it leaves them for a person to review: here they
+ * count, as a page with none has nothing to review. One line for each rule.
+ */
+export async function identicalLinks(page: Page): Promise<string[]> {
+  const results = await new AxeBuilder({ page })
+    .withRules(["identical-links-same-purpose"])
+    .analyze();
+  return [...results.violations, ...results.incomplete].map(
+    (result) =>
+      `${result.id}: ${result.help} — ${result.nodes
+        .slice(0, 3)
+        .map((node) => node.html.slice(0, 120))
+        .join(" | ")}`,
+  );
+}

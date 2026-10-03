@@ -173,10 +173,21 @@ export function walkthroughOf(run: RunJson): Walkthrough {
       browser: environment?.browser
         ? { name: environment.browser.name, version: environment.browser.version }
         : null,
-      nvdaSettings: structuredClone(run.settings.nvdaSettings),
+      nvdaSettings: copyOfSettings(run.settings.nvdaSettings),
       browserChannel: run.settings.browser.channel,
     },
   };
+}
+
+/**
+ * A copy of the NVDA settings a run recorded, so the walkthrough shares nothing with the record.
+ * Settings nested too deep for a file (see MAX_NVDA_SETTINGS_DEPTH) are kept as they are instead:
+ * copying a structure thousands of levels deep overflows the stack (structuredClone does, from
+ * about 1,300 levels), and walkthroughProblem refuses such a walkthrough for its depth, so no file
+ * is ever made of it. A record that deep still gets its reason, and not a RangeError.
+ */
+function copyOfSettings(settings: Record<string, unknown>): Record<string, unknown> {
+  return isNestedTooDeep(settings) ? settings : structuredClone(settings);
 }
 
 /** As the file holds it: two-space indents and a final newline. */

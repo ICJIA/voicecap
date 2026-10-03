@@ -18,6 +18,7 @@ import {
 } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { SITE } from "./report-data.js";
+import { settingsNested } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
 
 /** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
@@ -100,6 +101,12 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
 export function withStepLimit(run: RunJson, limit: number): RunJson {
   const { settings } = run;
   return { ...run, settings: { ...settings, stepCaps: { ...settings.stepCaps, read: limit } } };
+}
+
+/** The run with the NVDA settings it recorded nested `levels` deep (see settingsNested). */
+export function withNestedSettings(run: RunJson, levels: number): RunJson {
+  const { settings } = run;
+  return { ...run, settings: { ...settings, nvdaSettings: settingsNested(levels) } };
 }
 
 /**

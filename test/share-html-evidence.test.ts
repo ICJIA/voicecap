@@ -23,10 +23,12 @@ import type { ShareInput, TranscriptStore } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
+import { inRun } from "../src/share/words.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
   attributes,
+  decode,
   foldsIn,
   listsOf,
   rowsOf,
@@ -570,7 +572,7 @@ describe("renderEvidence", () => {
       expect(scrollBoxes(html)).toHaveLength(5);
       for (const box of scrollBoxes(html)) expect(box).toContain('tabindex="0" role="region"');
       // No two have the same name, so a screen reader can tell them apart.
-      expect(attributes(html, "aria-label")).toEqual([
+      expect(scrollBoxes(html).flatMap((box) => attributes(box, "aria-label"))).toEqual([
         "Files checked, table",
         "Test environment, run 2026-09-29_1402, table",
         "Fingerprints, run 2026-09-29_1402, table",
@@ -633,10 +635,35 @@ describe("renderEvidence", () => {
           expect(bare, each.run.id).toBe(
             `<div><h3>Walkthrough file <span class="sr">in run ${each.run.id}</span></h3>` +
               "<p>To repeat this run exactly, with the same pages in the same order and the same passes and limits, download its walkthrough file, then run:</p>" +
-              `<p><a download="${file.fileName}" href="data:application/json;base64,…">Download the walkthrough file (4 KB)</a></p>` +
+              `<p><a download="${file.fileName}" href="data:application/json;base64,…" aria-label="Download the walkthrough file (4 KB) in run ${each.run.id}">Download the walkthrough file (4 KB)</a></p>` +
               `<div class="verify"><pre>${file.repeat}</pre></div>` +
               "<p>A repeat reads the same pages the same way, but can&#39;t promise the same words: a changed site, or a newer screen reader or browser, changes what&#39;s said. After a repeat, voicecap says page by page whether each sounds the same.</p></div>",
           );
+        }
+      });
+
+      it("names each run's download by its run, so the two links that read alike are told apart", async () => {
+        const model = await demoModel();
+        const links = runFolds(renderEvidence(model)).map(
+          (fold) => /<a\b[^>]*\bdownload=[^>]*>.*?<\/a>/s.exec(fold)?.[0] ?? "",
+        );
+        const named = links.map((link) => ({
+          words: textOf(link),
+          name: decode(attributes(link, "aria-label")[0] ?? ""),
+        }));
+
+        // The two links say the same words, and are named for the two runs.
+        expect(named.map(({ words }) => words)).toEqual([
+          "Download the walkthrough file (4 KB)",
+          "Download the walkthrough file (4 KB)",
+        ]);
+        expect(new Set(named.map(({ name }) => name)).size).toBe(2);
+        for (const [index, each] of model.evidence.entries()) {
+          const { words = "", name = "" } = named[index] ?? {};
+          // The words first, then the run, as the page's other named links are (a person who says
+          // a link's words to a voice control finds it), and the run as a heading of the part says it.
+          expect(name.startsWith(words), each.run.id).toBe(true);
+          expect(name, each.run.id).toBe(`${words} ${inRun(each.run.id)}`);
         }
       });
 
@@ -710,7 +737,7 @@ describe("renderEvidence", () => {
         expect(attributes(fine, "download")).toEqual([downloadOf(second).fileName]);
       });
 
-      it("escapes what the model supplies of it: the file's name, the commands, and the reason", async () => {
+      it("escapes what the model supplies of it: the file's name, the commands, the run, and the reason", async () => {
         const model = await demoModel();
         const [first, second, ...rest] = model.evidence;
         if (first === undefined || second === undefined) throw new Error("The demo has two runs.");
@@ -720,6 +747,7 @@ describe("renderEvidence", () => {
           evidence: [
             {
               ...first,
+              run: { ...first.run, id: '7" onfocus="alert(1)' },
               walkthrough: {
                 ...downloadOf(first),
                 fileName: 'x" onclick="alert(1)',
@@ -734,14 +762,15 @@ describe("renderEvidence", () => {
 
         expect(html).not.toContain("<img");
         expect(html).toContain(
-          '<a download="x&quot; onclick=&quot;alert(1)" href="data:application/json;base64,AAAA&quot; onmouseover=&quot;alert(1)">',
+          '<a download="x&quot; onclick=&quot;alert(1)" href="data:application/json;base64,AAAA&quot; onmouseover=&quot;alert(1)" aria-label="Download the walkthrough file (4 KB) in run 7&quot; onfocus=&quot;alert(1)">',
         );
-        // The link has the two attributes it was given, and none made of the hostile words: every
+        // The link has the three attributes it was given, and none made of the hostile words: every
         // quote in its tag is one of those attributes' own.
         const [tag = ""] = html.match(/<a\b[^>]*\bdownload=[^>]*>/g) ?? [];
         expect([...tag.matchAll(/\s([a-z-]+)="/g)].map(([, name]) => name)).toEqual([
           "download",
           "href",
+          "aria-label",
         ]);
         expect(html).toContain(`<div class="verify"><pre>${esc(hostile)}</pre></div>`);
         expect(html).toContain(

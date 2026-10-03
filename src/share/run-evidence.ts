@@ -17,6 +17,7 @@ import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { clock, longDate, names, pagePath } from "./format.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
+import { EVIDENCE_TEXT } from "./text.js";
 import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
@@ -152,20 +153,29 @@ export function evidenceOf(input: {
  * `voicecap walkthrough` writes, and named for the site's folder and the run. voicecap never
  * offers a file it would refuse to read back, so a run beyond what the format holds (see
  * `walkthroughProblem`) gets its reason instead, which is a sentence already.
+ *
+ * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
+ * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
+ * copy, which were made of such a record before there were walkthrough files. That run says
+ * voicecap couldn't read its record.
  */
 function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
-  const walkthrough = walkthroughOf(record);
-  const problem = walkthroughProblem(walkthrough);
-  if (problem !== null) return { problem };
-  const file = Buffer.from(walkthroughJson(walkthrough), "utf8");
-  const fileName = `${siteFolder(site)}_${record.id}_walkthrough.json`;
-  return {
-    fileName,
-    base64: file.toString("base64"),
-    bytes: file.length,
-    get: `npx @icjia/voicecap walkthrough --site ${site} --run ${record.id} ${fileName}`,
-    repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
-  };
+  try {
+    const walkthrough = walkthroughOf(record);
+    const problem = walkthroughProblem(walkthrough);
+    if (problem !== null) return { problem };
+    const file = Buffer.from(walkthroughJson(walkthrough), "utf8");
+    const fileName = `${siteFolder(site)}_${record.id}_walkthrough.json`;
+    return {
+      fileName,
+      base64: file.toString("base64"),
+      bytes: file.length,
+      get: `npx @icjia/voicecap walkthrough --site ${site} --run ${record.id} ${fileName}`,
+      repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+    };
+  } catch {
+    return { problem: EVIDENCE_TEXT.walkthrough.unreadable };
+  }
 }
 
 /** A page's status in a run, in words that follow its count. */

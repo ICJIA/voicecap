@@ -199,15 +199,21 @@ const repeatBox = (repeat: string): string => `<div class="verify"><pre>${esc(re
  * of JSON in base64, which a browser saves under the `download` name), the command that repeats the
  * run from it, and what a repeat can't promise. A run that can't have a file says why in place of
  * all of that, as the model words it.
+ *
+ * Every run's link says the same words, so each is named for its run too, as a page card's link is
+ * named for its page: its `aria-label` is the link's own words, then the run ("Download the
+ * walkthrough file (4 KB) in run 2026-09-29_1402"). A person who goes by the links alone can tell
+ * them apart, and the words come first, so one who says them to a voice control finds the link.
  */
-function walkthroughBody({ walkthrough }: RunEvidence): string {
+function walkthroughBody({ run, walkthrough }: RunEvidence): string {
   const words = EVIDENCE_TEXT.walkthrough;
   if ("problem" in walkthrough) return `<p>${esc(words.problem(walkthrough.problem))}</p>`;
   const address = esc(`data:application/json;base64,${walkthrough.base64}`);
-  const size = sizeWords(walkthrough.bytes);
+  const download = words.download(sizeWords(walkthrough.bytes));
+  const name = esc(`${download} ${inRun(run.id)}`);
   return [
     `<p>${esc(words.lead)}</p>`,
-    `<p><a download="${esc(walkthrough.fileName)}" href="${address}">${esc(words.download(size))}</a></p>`,
+    `<p><a download="${esc(walkthrough.fileName)}" href="${address}" aria-label="${name}">${esc(download)}</a></p>`,
     repeatBox(walkthrough.repeat),
     `<p>${esc(words.promise)}</p>`,
   ].join("");

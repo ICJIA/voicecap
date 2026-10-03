@@ -411,7 +411,8 @@ export const EVIDENCE_TEXT = {
    * words) and the command that repeats the run; `promise` says what a repeat can't. The Word copy
    * says the same `promise`, and its own lead (`WORD_TEXT.evidence.walkthrough`). `problem` is said
    * in place of all of it for a run that can't have a file, after the reason it gives, which is a
-   * sentence that ends with its period already.
+   * sentence that ends with its period already. `unreadable` is that reason for a record voicecap
+   * couldn't make a file of at all, rather than one beyond what a file holds.
    */
   walkthrough: {
     lead: `${REPEAT_EXACTLY}download its walkthrough file, then run:`,
@@ -419,6 +420,7 @@ export const EVIDENCE_TEXT = {
     promise:
       "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
     problem: (reason: string): string => `This run's walkthrough file can't be made: ${reason}`,
+    unreadable: "voicecap couldn't read its record.",
   },
   /**
    * The runs left out: their title, and the lead that says why a run is left out, in two parts. The

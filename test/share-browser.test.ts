@@ -27,7 +27,7 @@ import { runDir, sharePath } from "../src/run/paths.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
-import { launchBrowser, violations } from "./helpers/axe.js";
+import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
@@ -377,6 +377,8 @@ describe("axe, in Chromium", () => {
       const downloads = page.locator("a[download]");
       expect(await downloads.count()).toBe(2);
       for (const download of await downloads.all()) expect(await download.isVisible()).toBe(true);
+      // The two downloads read alike, so each is named by its run: axe has no links to review.
+      expect(await identicalLinks(page), "links that read alike").toEqual([]);
       await page.locator("#fp-demo").click();
       await waitForResult(/^Demonstration, on a copy/);
       expect(await axeFindings(page), "dark, folds open, a change caught").toEqual([]);
@@ -497,11 +499,15 @@ describe("a run's walkthrough file", () => {
     for (const time of ["1402", "1315"] as const) {
       const run = demoRun(time);
       const name = `127.0.0.1_4848_${run.id}_walkthrough.json`;
+      // Found by what a screen reader says of it: the link's words, then its run.
+      const link = page.getByRole("link", {
+        name: `Download the walkthrough file (4 KB) in run ${run.id}`,
+        exact: true,
+      });
 
-      const [download] = await Promise.all([
-        page.waitForEvent("download"),
-        page.locator(`a[download="${name}"]`).click(),
-      ]);
+      expect(await link.count()).toBe(1);
+      expect(await link.getAttribute("download")).toBe(name);
+      const [download] = await Promise.all([page.waitForEvent("download"), link.click()]);
 
       expect(download.suggestedFilename()).toBe(name);
       const saved = await download.path();

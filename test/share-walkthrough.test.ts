@@ -17,7 +17,7 @@ import {
   type Walkthrough,
 } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
-import { shareRun } from "./helpers/share-data.js";
+import { settingsNested, shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 
 const READ = [
@@ -499,6 +499,38 @@ describe("walkthroughOf", () => {
       "Run 2026-09-26_1405 didn't complete, so it can't be repeated. Run it to the end first.",
     );
   });
+
+  it("copies NVDA settings nested as deep as a file holds, and still shares nothing with the record", () => {
+    const settings = settingsNested(MAX_NVDA_SETTINGS_DEPTH);
+    const base = sampleRun();
+    const run: RunJson = { ...base, settings: { ...base.settings, nvdaSettings: settings } };
+
+    const walkthrough = walkthroughOf(run);
+
+    expect(walkthrough.original.nvdaSettings).toStrictEqual(settings);
+    expect(walkthrough.original.nvdaSettings).not.toBe(settings);
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+  });
+
+  it.each([
+    ["one level too deep", MAX_NVDA_SETTINGS_DEPTH + 1],
+    // structuredClone overflows the stack at about 1,300 levels here, so a copy of these would throw.
+    ["1,500 levels deep", 1_500],
+    ["100,000 levels deep", 100_000],
+  ])(
+    "makes a walkthrough of NVDA settings nested %s, and gives their depth as its problem, never a RangeError",
+    (_name, levels) => {
+      const base = sampleRun();
+      const run: RunJson = {
+        ...base,
+        settings: { ...base.settings, nvdaSettings: settingsNested(levels) },
+      };
+
+      expect(walkthroughProblem(walkthroughOf(run))).toBe(
+        "its original.nvdaSettings is nested more than 32 levels deep.",
+      );
+    },
+  );
 });
 
 describe("walkthroughJson", () => {
@@ -722,16 +754,6 @@ const SETTINGS_LEVELS = 32;
 function addressOfLength(length: number): string {
   const start = "https://example.illinois.gov/";
   return start + "a".repeat(length - start.length);
-}
-
-/**
- * NVDA settings nested `levels` deep: the settings are the first level, and each next level is an
- * object inside the one before.
- */
-function settingsNested(levels: number): Record<string, unknown> {
-  let settings: Record<string, unknown> = {};
-  for (let level = 1; level < levels; level += 1) settings = { inner: settings };
-  return settings;
 }
 
 /**

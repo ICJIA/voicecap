@@ -4,7 +4,7 @@
  * case; site folders written as voicecap writes them, and runs built in memory, cover the rest.
  */
 import { readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
@@ -33,8 +33,10 @@ import {
   walkthroughOf,
   walkthroughProblem,
 } from "../src/share/walkthrough.js";
+import { writeWalkthrough } from "../src/share/write-walkthrough.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { sealOf } from "../src/util/hash.js";
+import { createMemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 import {
   addManualSession,
@@ -55,6 +57,7 @@ import {
   inputOf,
   STEP_LIMIT_PROBLEM,
   TRANSCRIPTS,
+  withNestedSettings,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -1447,5 +1450,89 @@ describe("the walkthrough file each run's evidence offers", () => {
     expect(earlier === undefined ? null : downloadOf(earlier).fileName).toBe(
       "example.illinois.gov_r1_walkthrough.json",
     );
+  });
+
+  it("is the very file `voicecap walkthrough` writes of the run", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-walkthrough-file-"));
+    try {
+      for (const each of (await demoModel()).evidence) {
+        const file = path.join(dir, `${each.run.id}.json`);
+
+        await writeWalkthrough({
+          file,
+          out: path.dirname(DEMO_SITE),
+          site: "http://127.0.0.1:4848",
+          run: each.run.id,
+          cwd: dir,
+          env: {},
+          logger: createMemoryLogger(),
+        });
+
+        // Byte for byte what the page carries for download, so either way a person gets one file.
+        const written = await readFile(file);
+        expect(written.length, each.run.id).toBeGreaterThan(0);
+        expect(written.equals(fileBytes(downloadOf(each))), each.run.id).toBe(true);
+        expect(written.length, each.run.id).toBe(downloadOf(each).bytes);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  describe("for a run whose record it can't make a file of", () => {
+    // The page is never stopped by one: it says why there is no file, as it does of a run beyond what
+    // the format holds.
+    it("says it couldn't read the record of a counted run that has no time it completed, its seal kept", () => {
+      const run = { ...shareRun({ id: "r1", pages: [{ path: "/" }] }), completedAt: null };
+      expect(run.seal).toMatch(/^[0-9a-f]{64}$/);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.evidence.map((each) => each.run.id)).toEqual(["r1"]);
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "voicecap couldn't read its record.",
+      });
+    });
+
+    it("gives the depth of NVDA settings nested 1,500 levels as the problem, and builds the model", () => {
+      const run = withNestedSettings(shareRun({ id: "r1", pages: [{ path: "/" }] }), 1_500);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "its original.nvdaSettings is nested more than 32 levels deep.",
+      });
+    });
+
+    it("says it couldn't read the record when the file can't be written out, a value JSON can't hold", () => {
+      const base = shareRun({ id: "r1", pages: [{ path: "/" }] });
+      // A BigInt: a record read from run.json never holds one, but this one makes the file's own
+      // serializing throw, after the file has been built and passed.
+      const nvdaSettings = { speech: { rate: 40n } };
+      const run = { ...base, settings: { ...base.settings, nvdaSettings } };
+      expect(() => walkthroughJson(walkthroughOf(run))).toThrow(TypeError);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "voicecap couldn't read its record.",
+      });
+    });
+
+    it("leaves the other runs' files alone", () => {
+      const fine = shareRun({
+        id: "r1",
+        createdAt: "2026-09-25T10:00:00-05:00",
+        pages: [{ path: "/" }],
+      });
+      const unreadable = { ...shareRun({ id: "r2", pages: [{ path: "/" }] }), completedAt: null };
+      const { evidence } = buildShareModel(inputOf([fine, unreadable]));
+      const [latest, earlier] = evidence;
+
+      expect(latest?.walkthrough).toEqual({ problem: "voicecap couldn't read its record." });
+      expect(earlier === undefined ? null : downloadOf(earlier).fileName).toBe(
+        "example.illinois.gov_r1_walkthrough.json",
+      );
+    });
   });
 });
