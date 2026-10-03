@@ -22,6 +22,7 @@ import { regenerateLiveFiles } from "../run/live-report.js";
 import { resolveHome } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
+import { shareReport } from "../share/share.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
@@ -470,6 +471,27 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       // Each said only when its file was written: a warning has already said why when it wasn't.
       if (files?.share) logger.info(`Shareable page: ${files.share}`);
       if (files?.word) logger.info(`Word copy: ${files.word}`);
+      setExit(ExitCode.ok);
+    });
+
+  program
+    .command("share")
+    .description("make a dated copy of the shareable page and its Word copy to send, and record it")
+    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option("--out <dir>", OUT_HELP)
+    .option(
+      "--reviewer <name>",
+      "who is sharing (default: VOICECAP_REVIEWER, git config user.name, or the config's reviewer)",
+    )
+    .action(async (options: { site?: string; out?: string; reviewer?: string }) => {
+      await shareReport({
+        site: options.site ?? null,
+        reviewer: options.reviewer ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+        logger,
+      });
       setExit(ExitCode.ok);
     });
 

@@ -10,14 +10,25 @@ import { describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
 import { listManualSessions } from "../src/manual/list.js";
-import type { ReviewsFile, RunJson } from "../src/model.js";
+import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
-import type { RunAuditOptions } from "../src/run/audit.js";
-import { manualSessionDir, runDir } from "../src/run/paths.js";
+import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
+import { manualSessionDir, runDir, shareDir, sharesPath } from "../src/run/paths.js";
+import { longDate } from "../src/share/format.js";
+import { sizeLine } from "../src/share/share.js";
+import { sha256 } from "../src/util/hash.js";
 import type { OutputStream } from "../src/util/log.js";
 import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
+import {
+  options as runOptions,
+  outDir,
+  SITE as EXAMPLE_SITE,
+  setup,
+  sitePages,
+} from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -1014,6 +1025,122 @@ describe("voicecap verify", () => {
     expect(changed.out).toBe(
       `127.0.0.1_4747/${runId.slice(0, 10)}/${runId.slice(11)}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)\n` +
         "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: 1 problem.\n",
+    );
+  });
+});
+
+describe("voicecap share", () => {
+  /** A home with one completed, sealed, live run of the scripted site: the kind of run that counts. */
+  async function homeWithCountedRun(): Promise<{ dir: string; siteDir: string }> {
+    const dir = await setup();
+    const run = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
+    expect(run.outcome).toBe("completed");
+    return { dir, siteDir: outDir(dir) };
+  }
+
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  it("makes the dated pair, records it, and prints the line to paste into the email, last", async () => {
+    const { dir, siteDir } = await homeWithCountedRun();
+
+    const share = await cli(
+      [
+        "share",
+        "--out",
+        path.join(dir, "transcripts"),
+        "--site",
+        EXAMPLE_SITE,
+        "--reviewer",
+        "Pat Lee",
+      ],
+      dir,
+    );
+
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    expect(shares).toHaveLength(1);
+    const entry = shares[0]!;
+    expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
+    const page = entry.files[0]!;
+    const word = entry.files[1]!;
+    // Named for the site's folder and the day, as the page, then its Word copy, whole on disk.
+    const day = entry.at.slice(0, 10);
+    expect([page.name, word.name]).toEqual([
+      `example.illinois.gov_${day}.html`,
+      `example.illinois.gov_${day}.docx`,
+    ]);
+    for (const file of [page, word]) {
+      const bytes = await readFile(path.join(shareDir(siteDir), file.name));
+      expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
+        bytes: file.bytes,
+        sha256: file.sha256,
+      });
+    }
+    expect(share.out).toBe(
+      [
+        `Shared example.illinois.gov, as of ${longDate(entry.at)}: entry 1 in ${sharesPath(siteDir)}.`,
+        `  ${path.join(shareDir(siteDir), page.name)}`,
+        `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
+        `  ${path.join(shareDir(siteDir), word.name)}`,
+        `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
+        "To paste into the email that sends them:",
+        `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac.`,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("takes the home's only site, and the home from the folder it's run in, when it's given neither", async () => {
+    const { dir, siteDir } = await homeWithCountedRun();
+
+    const share = await cli(["share", "--reviewer", "Pat Lee"], dir);
+
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    expect(shares).toHaveLength(1);
+    expect(share.out).toMatch(/^Shared example\.illinois\.gov, as of /);
+  });
+
+  it("exits 1, and says why, when no run counts", async () => {
+    const home = await oneSiteHome();
+    const site = path.join(home, "transcripts", "127.0.0.1_4747");
+
+    const share = await cli(["share", "--reviewer", "Pat Lee"], home);
+
+    expect(share.code).toBe(1);
+    expect(share.out).toBe("");
+    expect(share.err).toBe(
+      `Error: No completed, sealed, live run in ${site} yet, so there's nothing to share. Replayed, interrupted, and unsealed runs don't count.\n`,
+    );
+    expect(existsSync(sharesPath(site))).toBe(false);
+  });
+
+  it("is listed in the help, with what it does", async () => {
+    const help = await cli(["--help"]);
+
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "share [options] make a dated copy of the shareable page and its Word copy to send, and record it",
+    );
+  });
+
+  it("has --site, --out, and --reviewer, each with its own words", async () => {
+    const help = await cli(["share", "--help"]);
+
+    expect(help.code).toBe(0);
+    const said = squeezed(help.out);
+    expect(said).toContain(
+      "make a dated copy of the shareable page and its Word copy to send, and record it",
+    );
+    expect(said).toContain("--site <url> the site's URL (default: the home's only site)");
+    expect(said).toContain(
+      "--out <dir> transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
+    );
+    expect(said).toContain(
+      "--reviewer <name> who is sharing (default: VOICECAP_REVIEWER, git config user.name, or the config's reviewer)",
     );
   });
 });

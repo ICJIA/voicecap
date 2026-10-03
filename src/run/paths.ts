@@ -9,6 +9,8 @@ import { resolveUserPath } from "../util/git-bash.js";
  *   report.html  latest.txt  reviews.json  .voicecap.lock (only while a run writes here)
  *   share/current.html                  (the shareable page, rewritten wherever report.html is)
  *   share/current.docx                  (its Word copy, written with it)
+ *   share/<site>_<date>.html            (the pair `voicecap share` made to send, named for this folder
+ *   share/<site>_<date>.docx             and the day, with -2, -3 for more the same day: never rewritten)
  *   share/shares.json                   (what `voicecap share` sent: sealed, chained, never rewritten)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)

@@ -342,11 +342,14 @@ export const COVERAGE_TEXT = {
 
 /**
  * The commands that show a file's own fingerprint, which both copies name: the sender's `voicecap
- * share` prints it, and whoever receives the file computes it with PowerShell's or the Mac's.
+ * share` prints it, and whoever receives the file computes it with PowerShell's or the Mac's. The
+ * two that a receiver runs are exported because `voicecap share` names them too, in the line it
+ * prints for the email that sends the copies: the email and the copies' own check must tell a
+ * reader to run the same commands.
  */
 const SHARE_COMMAND = "voicecap share";
-const POWERSHELL_HASH = "Get-FileHash <file>";
-const MAC_HASH = "shasum -a 256 <file>";
+export const POWERSHELL_HASH = "Get-FileHash <file>";
+export const MAC_HASH = "shasum -a 256 <file>";
 
 /**
  * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
