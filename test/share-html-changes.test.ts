@@ -1300,7 +1300,7 @@ describe("renderProblems", () => {
       const [fold = ""] = foldsIn(renderProblems(failedModel([UNEXPECTED])));
 
       expect(fold).toContain(
-        '<h3 class="logh">Where in voicecap\'s code it happened <span class="sr">on /grants/ in run r1, attempt 1</span></h3>',
+        '<h3 class="logh">Where in voicecap&#39;s code it happened <span class="sr">on /grants/ in run r1, attempt 1</span></h3>',
       );
       expect(scrollBoxes(fold)).toEqual([
         '<div class="scroll" tabindex="0" role="region" aria-label="The record of the problem on /grants/ in run r1, attempt 1, table">',

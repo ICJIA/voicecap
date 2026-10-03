@@ -4,35 +4,38 @@
  * different, the pages read in only one of the two runs, and each page that sounds different folded
  * behind one line, which opens to what changed, line by line.
  *
- * What the model or a record supplies goes through `esc`; the page's own static words are written
- * as they are. No `style` attribute is set, and nothing here links anywhere. Of the two runs'
+ * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
+ * is plain words, and so does each line worked out from the model (../words.ts), through
+ * `lineHtml`. No `style` attribute is set, and nothing here links anywhere. Of the two runs'
  * records the model carries, only their ids are shown.
  *
  * The mockup showed this with one sample page; where it had nothing to say (the tools, the passes,
  * a pass that can't be read, the flags of a page that sounds different), the words are new, and use
  * the mockup's own classes.
  */
-import { PASS_NAMES, type FlagResult, type PassName } from "../../model.js";
-import { esc, plural } from "../../report/html.js";
-import { attentionClauses } from "../attention.js";
+import { esc } from "../../report/html.js";
 import type { Changes, DiffLine, OnlyInOnePage, PageChange, PassChange } from "../changes.js";
 import { pagePath, pageTitle } from "../format.js";
 import type { ShareModel } from "../model.js";
-import { chip, count, fold, scroll, verdictLine } from "./parts.js";
-
-/** What a pass is called in a sentence. */
-const PASS_WORDS: Record<PassName, string> = { read: "read", headings: "headings", tab: "Tab" };
+import { CHANGES_TEXT, PASS_WORDS } from "../text.js";
+import {
+  changedRules,
+  changesGist,
+  countsOf,
+  flagsLine,
+  onlyInOneLead,
+  onPage,
+  passHeading,
+  sameLines,
+  sizesOf,
+} from "../words.js";
+import { chip, fold, lineHtml, scroll, verdictLine } from "./parts.js";
 
 /**
- * What a pass lost and gained, as a reader says it: "3 lines removed and 2 added", and, for a pass
- * that only lost or only gained lines, "1 line removed" or "2 lines added", not "and 0 added".
+ * What the line on the two runs says of its folds. The page's alone: a copy that folds nothing, as
+ * the Word copy doesn't, has nothing to open (`changesGist`).
  */
-function sizesOf(removed: number, added: number): string {
-  if (removed === 0 && added === 0) return "no lines removed or added";
-  if (added === 0) return `${plural(removed, "line")} removed`;
-  if (removed === 0) return `${plural(added, "line")} added`;
-  return `${plural(removed, "line")} removed and ${count(added)} added`;
-}
+const OPEN_A_CHANGE = "A page that sounds different opens to show what changed.";
 
 // Before the line: what could make the runs sound different besides the site.
 
@@ -40,7 +43,7 @@ function sizesOf(removed: number, added: number): string {
 function toolsNote(tools: string[]): string {
   if (tools.length === 0) return "";
   const items = tools.map((line) => `<li>${esc(line)}</li>`);
-  return `<p class="gist"><b>The tools differ between the two runs,</b> so anything that sounds different may come from the tools rather than the site:</p><ul>${items.join("")}</ul>`;
+  return `<p class="gist">${lineHtml(CHANGES_TEXT.tools())}</p><ul>${items.join("")}</ul>`;
 }
 
 /** What each run read, when it wasn't the same, and which passes are compared. */
@@ -54,102 +57,39 @@ function passesNote(note: string | null): string {
  * The two runs compared, how many pages sound the same (counted, not shown), and what opens. When
  * no page could be compared (the line says so), nothing was compared, so there is none.
  */
-function gistOf({ before, after, same, changed }: Changes): string {
-  if (same === 0 && changed.length === 0) return "";
-  const sentences = [
-    `Compared: run <code>${esc(before.id)}</code> (before) and run <code>${esc(after.id)}</code> (latest).`,
-    ...(same === 0
-      ? []
-      : [
-          `${plural(same, "page")} ${same === 1 ? "sounds" : "sound"} the same, and ${same === 1 ? "is" : "are"} counted, not shown.`,
-        ]),
-    ...(changed.length === 0 ? [] : ["A page that sounds different opens to show what changed."]),
-  ];
-  return `<p class="gist">${sentences.join(" ")}</p>`;
+function gistOf(changes: Changes): string {
+  const gist = changesGist(changes, OPEN_A_CHANGE);
+  return gist === null ? "" : `<p class="gist">${lineHtml(gist)}</p>`;
 }
-
-/** Why a page is in only one of the two runs, in words that follow the model's reason. */
-const REASONS: Record<OnlyInOnePage["reason"], string> = {
-  new: "new, not in the run before",
-  "no longer listed": "no longer listed, not in the latest run",
-  "failed in one run": "failed in one run, read in full in the other",
-  "skipped in one run": "skipped in one run, read in full in the other",
-};
 
 /** The pages that can't be compared, since only one of the two runs read them in full. */
 function onlyInOneNote(pages: OnlyInOnePage[]): string {
   if (pages.length === 0) return "";
-  const one = pages.length === 1;
   const items = pages.map(
-    (page) => `<li><b>${esc(pageTitle(page))}</b>: ${REASONS[page.reason]}.</li>`,
+    (page) => `<li><b>${esc(pageTitle(page))}</b>: ${esc(CHANGES_TEXT.reasons[page.reason])}.</li>`,
   );
-  return `<p class="gist"><b>${plural(pages.length, "page")} ${one ? "was" : "were"} read in full in only one of the two runs,</b> so ${one ? "it wasn't" : "they weren't"} compared:</p><ul>${items.join("")}</ul>`;
+  return `<p class="gist">${lineHtml(onlyInOneLead(pages))}</p><ul>${items.join("")}</ul>`;
 }
 
 // A page that sounds different.
-
-/**
- * How much a page changed, for its fold's line: each pass that sounds different, in pass order,
- * with the lines it lost and gained, or that its transcript couldn't be read here, so no count is
- * known. "read: 3 lines removed and 2 added; headings: couldn't be read here; Tab: 1 line removed".
- * ("Here", since a pass named "read" that couldn't be read would say "read" twice over.)
- */
-function countsOf({ passes, unreadable }: PageChange): string {
-  const clauses = PASS_NAMES.flatMap((pass) => {
-    const change = passes.find((each) => each.pass === pass);
-    if (change !== undefined) {
-      return [`${PASS_WORDS[pass]}: ${sizesOf(change.removed, change.added)}`];
-    }
-    return unreadable.includes(pass) ? [`${PASS_WORDS[pass]}: couldn't be read here`] : [];
-  });
-  return clauses.join("; ");
-}
 
 /**
  * A chip for each rule whose flag went or came, in words. A rule that another pass still raises
  * (one both runs read, or one only the later run read) isn't resolved for the page, and one it
  * already raised in another pass isn't new: the paragraph inside says each flag, pass by pass.
  */
-function flagChips({ resolved, added, unchanged, changed, uncompared }: PageChange["flags"]) {
-  const rulesOf = (flags: FlagResult[]) => new Set(flags.map(({ rule }) => rule));
-  const gone = rulesOf(resolved);
-  const came = rulesOf(added);
-  const kept = rulesOf([...unchanged, ...changed.map(({ after }) => after)]);
-  const stillRaised = rulesOf(uncompared);
+function flagChips(flags: PageChange["flags"]): string[] {
+  const { resolved, fresh } = changedRules(flags);
   return [
-    ...[...gone]
-      .filter((rule) => !kept.has(rule) && !came.has(rule) && !stillRaised.has(rule))
-      .map((rule) => chip("ok", `${rule} resolved`)),
-    ...[...came]
-      .filter((rule) => !kept.has(rule) && !gone.has(rule))
-      .map((rule) => chip("warn", `${rule} new`)),
+    ...resolved.map((rule) => chip("ok", `${rule} ${CHANGES_TEXT.rules.resolved}`)),
+    ...fresh.map((rule) => chip("warn", `${rule} ${CHANGES_TEXT.rules.fresh}`)),
   ];
 }
 
-/**
- * Each flag in the passes both runs read: resolved, then new, then changed, then unchanged. A flag
- * whose count changed gives both counts; one with no count, what it finds now, in plain words.
- */
-function flagsParagraph({ resolved, added, changed, unchanged }: PageChange["flags"]): string {
-  const which = (flag: FlagResult) =>
-    `<b>${esc(flag.rule)}</b>${flag.pass === undefined ? "" : ` (${PASS_WORDS[flag.pass]} pass)`}`;
-  const clauses = [
-    ...resolved.map(
-      (flag) =>
-        `${which(flag)}, ${flag.count === undefined ? "" : `${count(flag.count)} before, `}none now (resolved).`,
-    ),
-    ...added.map(
-      (flag) =>
-        `${which(flag)}, none before, ${flag.count === undefined ? "new" : `${count(flag.count)} now (new)`}.`,
-    ),
-    ...changed.map(({ before, after }) =>
-      before.count !== undefined && after.count !== undefined
-        ? `${which(after)}, ${count(before.count)} before, ${count(after.count)} now (changed).`
-        : `${which(after)}, changed: now ${esc(attentionClauses([after], null, null))}.`,
-    ),
-    ...unchanged.map((flag) => `${which(flag)}, unchanged.`),
-  ];
-  return clauses.length === 0 ? "" : `<p>Flags: ${clauses.join(" ")}</p>`;
+/** Each flag in the passes both runs read, in a paragraph; none when no flag is in them. */
+function flagsParagraph(flags: PageChange["flags"]): string {
+  const line = flagsLine(flags);
+  return line === null ? "" : `<p>${lineHtml(line)}</p>`;
 }
 
 /** A line's words, those that differ from the line it's paired with in `<mark>`. */
@@ -166,15 +106,16 @@ function wordsOf(words: { text: string; changed: boolean }[]): string {
  * without the column beside it. A run of lines the same is counted.
  */
 function rowOf(line: DiffLine): string {
+  const { rows } = CHANGES_TEXT;
   switch (line.kind) {
     case "collapsed":
-      return `<tr class="same"><td><span aria-hidden="true">…</span></td><td>${plural(line.count, "line")} the same</td></tr>`;
+      return `<tr class="same"><td><span aria-hidden="true">${esc(rows.collapsed)}</span></td><td>${esc(sameLines(line.count))}</td></tr>`;
     case "same":
-      return `<tr class="same"><td>Same</td><td>${esc(line.text)}</td></tr>`;
+      return `<tr class="same"><td>${esc(rows.same)}</td><td>${esc(line.text)}</td></tr>`;
     case "removed":
-      return `<tr class="del"><td><span aria-hidden="true">− Removed</span></td><td><span class="sr">Removed: </span>${wordsOf(line.words)}</td></tr>`;
+      return `<tr class="del"><td><span aria-hidden="true">− ${esc(rows.removed)}</span></td><td><span class="sr">${esc(rows.removed)}: </span>${wordsOf(line.words)}</td></tr>`;
     case "added":
-      return `<tr class="add"><td><span aria-hidden="true">+ Added</span></td><td><span class="sr">Added: </span>${wordsOf(line.words)}</td></tr>`;
+      return `<tr class="add"><td><span aria-hidden="true">+ ${esc(rows.added)}</span></td><td><span class="sr">${esc(rows.added)}: </span>${wordsOf(line.words)}</td></tr>`;
   }
 }
 
@@ -186,8 +127,8 @@ function rowOf(line: DiffLine): string {
 function passBlock({ pass, removed, added, lines }: PassChange, address: string): string {
   const word = PASS_WORDS[pass];
   const caption = `Changes in the ${word} pass on ${address}`;
-  const head = `<h3 class="logh">The ${word} pass <span class="sr">on ${esc(address)}</span> <span class="sub">${sizesOf(removed, added)}</span></h3>`;
-  const columns = ["Change", "What NVDA said"].map((words) => `<th scope="col">${words}</th>`);
+  const head = `<h3 class="logh">${esc(passHeading(pass))} <span class="sr">${esc(onPage(address))}</span> <span class="sub">${esc(sizesOf(removed, added))}</span></h3>`;
+  const columns = CHANGES_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`);
   const table = `<table class="difftable"><caption class="sr">${esc(caption)}</caption><thead><tr>${columns.join("")}</tr></thead><tbody>${lines.map(rowOf).join("")}</tbody></table>`;
   return `<div>${head}${scroll(`${caption}, table`, table)}</div>`;
 }
@@ -210,10 +151,7 @@ function changeFold(page: PageChange): string {
   ];
   const body = [
     ...page.passes.map((change) => passBlock(change, pagePath(page.url))),
-    ...page.unreadable.map(
-      (pass) =>
-        `<p>The ${PASS_WORDS[pass]} pass sounds different, but its transcript couldn't be read here.</p>`,
-    ),
+    ...page.unreadable.map((pass) => `<p>${esc(CHANGES_TEXT.unreadable(pass))}</p>`),
     flagsParagraph(page.flags),
   ];
   return fold(summary.join(" "), body.join(""));
@@ -227,7 +165,7 @@ export function renderChanges(model: ShareModel): string {
   const { changes } = model;
   const parts =
     changes === null
-      ? [`<p class="gist"><b>No earlier run with the same pages to compare with.</b></p>`]
+      ? [`<p class="gist">${lineHtml([{ text: CHANGES_TEXT.none, bold: true }])}</p>`]
       : [
           toolsNote(changes.tools),
           passesNote(changes.passesNote),
@@ -238,6 +176,6 @@ export function renderChanges(model: ShareModel): string {
             ? ""
             : `<div class="folds">${changes.changed.map(changeFold).join("")}</div>`,
         ];
-  const all = [`<h2 id="chg-h">What changed since the last run</h2>`, ...parts];
+  const all = [`<h2 id="chg-h">${esc(CHANGES_TEXT.title)}</h2>`, ...parts];
   return `<section aria-labelledby="chg-h">\n  ${all.filter((part) => part !== "").join("\n  ")}\n</section>`;
 }

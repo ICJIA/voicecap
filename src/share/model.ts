@@ -113,10 +113,11 @@ export interface ShareModel {
   /** The flag rules the page's flags were computed with: their fingerprint, part of the evidence. */
   flagRulesSha256: string;
   /**
-   * When the page was made, its file's name, and each UTC offset the runs it draws on recorded
-   * their times in ("UTC−05:00"), in the order met: the page shows each time as its run recorded it.
+   * When the page was made, its file's name and its Word copy's, and each UTC offset the runs it
+   * draws on recorded their times in ("UTC−05:00"), in the order met: the page shows each time as
+   * its run recorded it.
    */
-  footer: { generatedAt: string; fileName: string; offsets: string[] };
+  footer: { generatedAt: string; fileName: string; wordName: string; offsets: string[] };
 }
 
 /** Build the page's model from what loadShareInput read. Pure. */
@@ -185,6 +186,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     footer: {
       generatedAt: input.generatedAt,
       fileName: input.fileName,
+      wordName: input.wordName,
       offsets: offsetsOf(standing.drawnOn),
     },
   };

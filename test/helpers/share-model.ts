@@ -86,6 +86,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     home: os.homedir(),
     platform: process.platform,
     fileName: "current.html",
+    wordName: "current.docx",
     ...overrides,
   };
 }

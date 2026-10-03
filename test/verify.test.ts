@@ -1,19 +1,38 @@
 import { existsSync } from "node:fs";
-import { appendFile, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { addManualSession } from "../src/manual-add.js";
-import type { ManualSessionJson, ReviewEntry, ReviewsFile, RunJson } from "../src/model.js";
+import type {
+  ManualSessionJson,
+  ReviewEntry,
+  ReviewsFile,
+  RunJson,
+  SharesFile,
+} from "../src/model.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
+import { shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
+import { shareReport, type ShareReportResult } from "../src/share/share.js";
 import { UsageError } from "../src/util/errors.js";
-import { sealOf } from "../src/util/hash.js";
+import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
+import { homeWithCountedRun, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -27,7 +46,7 @@ const FOLDER = "127.0.0.1_4747";
 const RUN = `${FOLDER}/2026-09-27/1102`;
 const SESSION = `${FOLDER}/2026-09-25/2357_manual_home`;
 const REVIEWS = `${FOLDER}/reviews.json`;
-const MATCHES = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: everything matches.`;
+const MATCHES = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: everything matches.`;
 
 /** A home made by voicecap's own commands; tests change copies of it, never the home itself. */
 let untouched: string;
@@ -108,7 +127,15 @@ describe("verifyHome", () => {
     const { result, lines } = await verify(untouched);
     expect(result).toEqual({
       sites: [
-        { folder: FOLDER, runs: 1, incomplete: 0, manualSessions: 1, reviews: 2, problems: [] },
+        {
+          folder: FOLDER,
+          runs: 1,
+          incomplete: 0,
+          manualSessions: 1,
+          reviews: 2,
+          shares: 0,
+          problems: [],
+        },
       ],
       problems: 0,
     });
@@ -121,7 +148,7 @@ describe("verifyHome", () => {
     const { result, lines } = await verify(home);
     expect(lines).toEqual([
       `${RUN}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
     expect(result.problems).toBe(1);
     expect(result.sites[0]?.problems).toEqual([
@@ -136,7 +163,7 @@ describe("verifyHome", () => {
     await writeFile(headings, `%${text.slice(1)}`);
     expect((await verify(sameSize)).lines).toEqual([
       `${RUN}/pages/home/headings.txt: changed since it was recorded (SHA-256 differs)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -151,7 +178,7 @@ describe("verifyHome", () => {
       `${RUN}/pages/extra-page/read.txt: not recorded by the run`,
       `${RUN}/pages/home/extra.txt: not recorded by the run`,
       `${RUN}/pages/home/tab.txt: missing`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 3 problems.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
     ]);
     expect(result.problems).toBe(3);
   });
@@ -174,7 +201,7 @@ describe("verifyHome", () => {
     await cp(at(home, RUN), at(home, `${FOLDER}/2026-09-28/1102`), { recursive: true });
     expect((await verify(home)).lines).toEqual([
       `${FOLDER}/2026-09-28/1102: this run belongs at ${RUN}`,
-      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -185,7 +212,7 @@ describe("verifyHome", () => {
     expect((await verify(home)).lines).toEqual([
       MATCHES,
       `dvfr.illinois.gov/2026-09-27/1102: this run belongs at ${RUN}`,
-      "dvfr.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: 1 problem.",
+      "dvfr.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.",
     ]);
   });
 
@@ -194,7 +221,7 @@ describe("verifyHome", () => {
     await rename(at(home, SESSION), at(home, `${FOLDER}/2026-09-25/2358_manual_home`));
     expect((await verify(home)).lines).toEqual([
       `${FOLDER}/2026-09-25/2358_manual_home: this manual session belongs at ${SESSION}`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -206,7 +233,7 @@ describe("verifyHome", () => {
     // Just the one problem: the files aren't checked against hashes from a changed record.
     expect((await verify(home)).lines).toEqual([
       `${RUN}/run.json: changed since it was sealed`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
 
     // A completed run relabeled incomplete, which would spare its files from being checked.
@@ -216,7 +243,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(relabeled)).lines).toEqual([
       `${RUN}/run.json: changed since it was sealed`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -226,7 +253,7 @@ describe("verifyHome", () => {
     await appendFile(at(home, `${RUN}/pages/home/read.txt`), "An added line.\n");
     expect((await verify(home)).lines).toEqual([
       `${RUN}: not a readable run or manual session`,
-      `${FOLDER}: 0 runs (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 0 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -239,7 +266,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(home)).lines).toEqual([
       `${REVIEWS}: entry 2 (${FLAWED}) changed since it was recorded`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
 
     // An earlier entry, changed: reported once, not also as a gap in the chain.
@@ -249,7 +276,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(earlier)).lines).toEqual([
       `${REVIEWS}: entry 1 (${FLAWED}) changed since it was recorded`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -261,7 +288,7 @@ describe("verifyHome", () => {
     // Once, as changed: not also as missing from the chain, or as a broken link to entry 2.
     expect((await verify(home)).lines).toEqual([
       `${REVIEWS}: entry 1 (${FLAWED}) changed since it was recorded`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -284,7 +311,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(home)).lines).toEqual([
       `${REVIEWS}: an entry for ${FLAWED} at 2026-09-27T18:00:00-05:00 is outside the chain (no seq)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 3 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 3 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -295,7 +322,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(home)).lines).toEqual([
       `${REVIEWS}: entry 1 is missing`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -306,7 +333,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(moved)).lines).toEqual([
       `${REVIEWS}: entry 2 (${FLAWED}) is filed under another page (${SITE}/)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
 
     const swapped = await copyOfHome();
@@ -315,7 +342,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(swapped)).lines).toEqual([
       `${REVIEWS}: the entries for ${FLAWED} are out of order (entry 2 comes before entry 1)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -332,7 +359,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(gap)).lines).toEqual([
       `${REVIEWS}: entries 1 to 2 are missing`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review, 0 shares checked: 1 problem.`,
     ]);
 
     // Two entries with one number: a copied entry, or a merge of two histories.
@@ -343,7 +370,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(repeat)).lines).toEqual([
       `${REVIEWS}: more than one entry is numbered 2`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 3 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 3 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -356,7 +383,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(resealed)).lines).toEqual([
       `${REVIEWS}: entry 2 doesn't follow entry 1`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
 
     // The first entry deleted, and the second renumbered and resealed to take its place.
@@ -369,7 +396,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(renumbered)).lines).toEqual([
       `${REVIEWS}: entry 1 follows an entry that isn't there`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 1 review, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -378,14 +405,14 @@ describe("verifyHome", () => {
     await appendFile(at(home, `${SESSION}/session.txt`), "23:59:59      An added line\n");
     expect((await verify(home)).lines).toEqual([
       `${SESSION}/session.txt: changed since it was recorded (SHA-256 differs)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
 
     const deleted = await copyOfHome();
     await rm(at(deleted, `${SESSION}/session.txt`));
     expect((await verify(deleted)).lines).toEqual([
       `${SESSION}/session.txt: missing`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -394,7 +421,7 @@ describe("verifyHome", () => {
     await appendFile(at(home, `${SESSION}/raw/nvda-log.txt`), "An added line\r\n");
     expect((await verify(home)).lines).toEqual([
       `${SESSION}/raw/nvda-log.txt: changed since it was recorded (SHA-256 differs)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -410,7 +437,7 @@ describe("verifyHome", () => {
       `${SESSION}: holds both a run and a manual session`,
       `${SESSION}: not a readable run or manual session`,
       `${SESSION}/session.txt: changed since it was recorded (SHA-256 differs)`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews checked: 3 problems.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
     ]);
   });
 
@@ -431,7 +458,7 @@ describe("verifyHome", () => {
       `${RUN}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)`,
       `${RUN}: this manual session belongs at ${FOLDER}/2026-09-27/1102_manual_decoy`,
       `${RUN}/session.txt: missing`,
-      `${FOLDER}: 1 run (0 incomplete), 2 manual sessions, 2 reviews checked: 4 problems.`,
+      `${FOLDER}: 1 run (0 incomplete), 2 manual sessions, 2 reviews, 0 shares checked: 4 problems.`,
     ]);
   });
 
@@ -471,7 +498,7 @@ describe("verifyHome", () => {
       `${RUN}/run.json: not sealed (written before voicecap 0.3.0), so it can't be checked`,
       `${REVIEWS}: an entry for ${FLAWED} at 2026-09-20T10:00:00-05:00 is not sealed (written before voicecap 0.3.0), so it can't be checked`,
       `${FOLDER}/2026-09-27/1200: incomplete run, not sealed yet`,
-      `${FOLDER}: 2 runs (1 incomplete), 1 manual session, 3 reviews checked: 3 problems.`,
+      `${FOLDER}: 2 runs (1 incomplete), 1 manual session, 3 reviews, 0 shares checked: 3 problems.`,
     ]);
     expect(result.sites[0]).toMatchObject({ runs: 2, incomplete: 1, manualSessions: 1 });
     expect(result.problems).toBe(3);
@@ -483,7 +510,7 @@ describe("verifyHome", () => {
     const { result, lines } = await verify(home);
     expect(lines).toEqual([
       `${FOLDER}/2026-09-27/1200: incomplete run, not sealed yet`,
-      `${FOLDER}: 2 runs (1 incomplete), 1 manual session, 2 reviews checked: everything matches.`,
+      `${FOLDER}: 2 runs (1 incomplete), 1 manual session, 2 reviews, 0 shares checked: everything matches.`,
     ]);
     expect(result.problems).toBe(0);
   });
@@ -498,7 +525,7 @@ describe("verifyHome", () => {
     expect((await verify(home)).lines).toEqual([
       `${FOLDER}/2026-09-28/1200: this run belongs at ${FOLDER}/2026-09-27/1200`,
       `${FOLDER}/2026-09-27/1200: incomplete run, not sealed yet`,
-      `${FOLDER}: 3 runs (1 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 3 runs (1 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -517,7 +544,7 @@ describe("verifyHome", () => {
       `${FOLDER}/2026-09-27/1300: not a readable run or manual session`,
       `${FOLDER}/2026-09-27/stray: not a readable run or manual session`,
       `${REVIEWS}: not a readable review history`,
-      `${FOLDER}: 0 runs (0 incomplete), 0 manual sessions, 0 reviews checked: 5 problems.`,
+      `${FOLDER}: 0 runs (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 5 problems.`,
     ]);
 
     const nullEntry = await copyOfHome();
@@ -526,7 +553,7 @@ describe("verifyHome", () => {
     });
     expect((await verify(nullEntry)).lines).toEqual([
       `${REVIEWS}: not a readable review history`,
-      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 0 reviews checked: 1 problem.`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 0 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -540,7 +567,7 @@ describe("verifyHome", () => {
     });
     expect(named.runDir).toBe(at(home, `${FOLDER}/2026-09-27/1200_manual_check`));
     expect((await verify(home)).lines).toEqual([
-      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews checked: everything matches.`,
+      `${FOLDER}: 2 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: everything matches.`,
     ]);
   });
 
@@ -554,7 +581,7 @@ describe("verifyHome", () => {
     await mkdir(at(home, `${FOLDER}/.cache`));
     expect((await verify(home)).lines).toEqual([
       `${FOLDER}/2026-09-27.old: an unexpected folder; runs and manual sessions live in date folders`,
-      `${FOLDER}: 0 runs (0 incomplete), 1 manual session, 2 reviews checked: 1 problem.`,
+      `${FOLDER}: 0 runs (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
     ]);
   });
 
@@ -574,7 +601,7 @@ describe("verifyHome", () => {
     await writeFile(path.join(home, "runs", "2026-09-26_1405", "run.json"), "{}\n");
 
     const dvfr =
-      "dvfr.illinois.gov: 0 runs (0 incomplete), 1 manual session, 0 reviews checked: everything matches.";
+      "dvfr.illinois.gov: 0 runs (0 incomplete), 1 manual session, 0 reviews, 0 shares checked: everything matches.";
     expect((await verify(home)).lines).toEqual([MATCHES, dvfr]);
     expect((await verify(home, "https://dvfr.illinois.gov")).lines).toEqual([dvfr]);
     expect((await verify(home, `${SITE}/flawed/`)).lines).toEqual([MATCHES]);
@@ -615,5 +642,584 @@ describe("verifyHome", () => {
       `${empty} has no site folders yet, so there's nothing to check.`,
     );
     expect(logger.entries).toEqual([]);
+  });
+});
+
+/** shares.json as a person might leave it: each entry holds whatever they put there. */
+interface LooseShares {
+  schemaVersion: 1;
+  shares: Record<string, unknown>[];
+}
+
+describe("verifyHome, and what was shared", () => {
+  // The scripted site's folder, and the names of the two pairs of copies, shared on the same day.
+  const EXAMPLE = "example.illinois.gov";
+  const SHARE = `${EXAMPLE}/share`;
+  const SHARES_JSON = `${SHARE}/shares.json`;
+  const FIRST = `${EXAMPLE}_2027-01-15`;
+  const SECOND = `${FIRST}-2`;
+  const PAGE_1 = `${FIRST}.html`;
+  const WORD_1 = `${FIRST}.docx`;
+  const PAGE_2 = `${SECOND}.html`;
+  const WORD_2 = `${SECOND}.docx`;
+  /** When an entry made by hand says it was made. */
+  const LATER = "2027-01-16T09:00:00-06:00";
+
+  /** Homes these tests copy, and what shared them: the site shared nothing, once, and twice. */
+  let nothing: string;
+  let once: string;
+  let twice: string;
+  let first: ShareReportResult;
+  let second: ShareReportResult;
+  /** Every folder made here, taken away at the end. */
+  const folders: string[] = [];
+
+  /** A copy of a home, to change: the home, and the site's folder in it. */
+  async function copyOf(source: string) {
+    const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-verify-shares-"));
+    folders.push(root);
+    const home = path.join(root, "transcripts");
+    await cp(source, home, { recursive: true });
+    return { home, siteDir: path.join(home, EXAMPLE) };
+  }
+
+  beforeAll(async () => {
+    const { dir } = await homeWithCountedRun();
+    folders.push(dir);
+    twice = path.join(dir, "transcripts");
+    const options = {
+      out: twice,
+      site: EXAMPLE_SITE,
+      reviewer: "Pat Lee",
+      now: new Date(2027, 0, 15, 10, 0),
+      logger: createMemoryLogger(),
+      cwd: dir,
+      env: {},
+    };
+    nothing = (await copyOf(twice)).home;
+    first = await shareReport(options);
+    once = (await copyOf(twice)).home;
+    second = await shareReport(options);
+    expect([...first.files, ...second.files].map(({ name }) => name)).toEqual([
+      PAGE_1,
+      WORD_1,
+      PAGE_2,
+      WORD_2,
+    ]);
+  });
+
+  afterAll(async () => {
+    // A folder that can't be taken away (a scanner has a file open, say) is left, not a failure.
+    await Promise.all(
+      folders.map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})),
+    );
+  });
+
+  /** A file in a site's share/ folder. */
+  const inShare = (siteDir: string, name: string) => path.join(shareDir(siteDir), name);
+
+  /** Every problem found in the home's only site. */
+  async function problemsIn(home: string): Promise<string[]> {
+    return (await verifyHome({ home, logger: createMemoryLogger() })).sites[0]!.problems;
+  }
+
+  /** Change shares.json's entries as a person could, with anything in them. */
+  const editEntries = (siteDir: string, edit: (entries: Record<string, unknown>[]) => void) =>
+    editJson<LooseShares>(sharesPath(siteDir), (record) => edit(record.shares));
+
+  /** An entry's seal made right for what it holds now, as one who changed it and sealed it again. */
+  const reseal = (entry: Record<string, unknown>) => {
+    entry.seal = sealOf(entry);
+  };
+
+  it("counts the shares, and finds nothing wrong with copies as they were sent", async () => {
+    const { home } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    const { sites, problems } = await verifyHome({ home, logger });
+    expect(problems).toBe(0);
+    expect(sites[0]).toMatchObject({ shares: 2 });
+    expect(logger.entries.at(-1)?.message).toBe(
+      "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 2 shares checked: everything matches.",
+    );
+  });
+
+  // Review Focus 5.
+  it("names a sent copy that was edited, and one that's gone", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await appendFile(inShare(siteDir, PAGE_1), " ");
+    await rm(inShare(siteDir, WORD_2));
+    expect((await verifyHome({ home, logger })).sites[0]!.problems).toEqual([
+      `${SHARE}/${PAGE_1}: changed since it was recorded (SHA-256 differs)`,
+      `${SHARE}/${WORD_2}: missing`,
+    ]);
+  });
+
+  it("names an entry that was edited, and doesn't go by what it says of its files", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await editJson<SharesFile>(sharesPath(siteDir), (record) => {
+      record.shares[0]!.by = "Someone Else";
+    });
+    await rm(inShare(siteDir, PAGE_1));
+    expect((await verifyHome({ home, logger })).sites[0]!.problems).toEqual([
+      `${SHARES_JSON}: share 1 (${first.entry.at}) changed since it was recorded`,
+    ]);
+  });
+
+  it("names an entry that was removed, and the copies nothing records any more", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await editJson<SharesFile>(sharesPath(siteDir), (record) => {
+      record.shares.shift();
+    });
+    expect((await verifyHome({ home, logger })).sites[0]!.problems).toEqual([
+      `${SHARES_JSON}: entry 1 is missing`,
+      `${SHARE}/${WORD_1}: not recorded in shares.json`,
+      `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+    ]);
+  });
+
+  it("names a copy that nothing records", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await writeFile(path.join(shareDir(siteDir), "example.illinois.gov_2027-02-01.html"), "<p>");
+    expect((await verifyHome({ home, logger })).sites[0]!.problems).toEqual([
+      `${SHARE}/example.illinois.gov_2027-02-01.html: not recorded in shares.json`,
+    ]);
+  });
+
+  it("says when the record can't be read, and names the copies it can no longer vouch for", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await writeFile(sharesPath(siteDir), "{");
+    expect((await verifyHome({ home, logger })).sites[0]!.problems[0]).toBe(
+      `${SHARES_JSON}: not a readable record of what was shared`,
+    );
+  });
+
+  it("leaves current.html and current.docx alone", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    const logger = createMemoryLogger();
+    await appendFile(sharePath(siteDir), " ");
+    await appendFile(shareWordPath(siteDir), " ");
+    expect((await verifyHome({ home, logger })).problems).toBe(0);
+    // They're written again from the records, so they needn't be there either.
+    await rm(sharePath(siteDir));
+    await rm(shareWordPath(siteDir));
+    expect((await verifyHome({ home, logger })).problems).toBe(0);
+  });
+
+  describe("the count of shares", () => {
+    it("says '1 share' for one", async () => {
+      const { home } = await copyOf(once);
+      const logger = createMemoryLogger();
+      const { sites, problems } = await verifyHome({ home, logger });
+      expect(problems).toBe(0);
+      expect(sites[0]).toMatchObject({ shares: 1 });
+      expect(logger.entries.at(-1)?.message).toBe(
+        "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 1 share checked: everything matches.",
+      );
+    });
+
+    it("has no shares and no problem when share/ holds only the shareable page and its Word copy", async () => {
+      const { home, siteDir } = await copyOf(nothing);
+      expect((await readdir(shareDir(siteDir))).sort()).toEqual(["current.docx", "current.html"]);
+      const logger = createMemoryLogger();
+      const { sites } = await verifyHome({ home, logger });
+      expect(sites[0]).toMatchObject({ shares: 0, problems: [] });
+      expect(logger.entries.map((entry) => entry.message)).toEqual([
+        "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
+      ]);
+    });
+
+    it("has no shares and no problem when the site has no share/ folder, or a file where it would be", async () => {
+      const { home, siteDir } = await copyOf(nothing);
+      await rm(shareDir(siteDir), { recursive: true });
+      expect((await verifyHome({ home, logger: createMemoryLogger() })).sites[0]).toMatchObject({
+        shares: 0,
+        problems: [],
+      });
+
+      await writeFile(shareDir(siteDir), "not a folder");
+      expect((await verifyHome({ home, logger: createMemoryLogger() })).sites[0]).toMatchObject({
+        shares: 0,
+        problems: [],
+      });
+    });
+  });
+
+  describe("the record", () => {
+    it.each([
+      ["text that isn't JSON", "{"],
+      ["an entry that isn't an object", JSON.stringify({ schemaVersion: 1, shares: [null] })],
+      ["a schemaVersion that isn't 1", JSON.stringify({ schemaVersion: 2, shares: [] })],
+    ])(
+      "says it can't be read, and names every copy as one nothing records, when it's %s",
+      async (_what, text) => {
+        const { home, siteDir } = await copyOf(twice);
+        const logger = createMemoryLogger();
+        await writeFile(sharesPath(siteDir), text);
+        const { sites } = await verifyHome({ home, logger });
+        expect(sites[0]).toMatchObject({ shares: 0 });
+        // Its own line first, then each copy, by name.
+        expect(sites[0]!.problems).toEqual([
+          `${SHARES_JSON}: not a readable record of what was shared`,
+          `${SHARE}/${WORD_2}: not recorded in shares.json`,
+          `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+          `${SHARE}/${WORD_1}: not recorded in shares.json`,
+          `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+        ]);
+        expect(logger.entries.at(-1)?.message).toBe(
+          "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 5 problems.",
+        );
+      },
+    );
+
+    it("takes a record that isn't there as one with no entries, so every copy is one nothing records", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await rm(sharesPath(siteDir));
+      const { sites } = await verifyHome({ home, logger: createMemoryLogger() });
+      expect(sites[0]).toMatchObject({ shares: 0 });
+      expect(sites[0]!.problems).toEqual([
+        `${SHARE}/${WORD_2}: not recorded in shares.json`,
+        `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        `${SHARE}/${WORD_1}: not recorded in shares.json`,
+        `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      ]);
+    });
+
+    it("names the entry after one that was changed and sealed again, which no longer follows it", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[0]!.by = "Someone Else";
+        reseal(entries[0]!);
+      });
+      expect(await problemsIn(home)).toEqual([`${SHARES_JSON}: entry 2 doesn't follow entry 1`]);
+    });
+
+    it("names the entries that are missing from the chain, and any numbered twice", async () => {
+      const gap = await copyOf(twice);
+      await editEntries(gap.siteDir, (entries) => {
+        entries[1]!.seq = 4;
+        reseal(entries[1]!);
+      });
+      expect(await problemsIn(gap.home)).toEqual([`${SHARES_JSON}: entries 2 to 3 are missing`]);
+
+      // A copied entry, or a merge of two histories.
+      const repeat = await copyOf(twice);
+      await editEntries(repeat.siteDir, (entries) => {
+        entries.push(structuredClone(entries[1]!));
+      });
+      const { sites } = await verifyHome({ home: repeat.home, logger: createMemoryLogger() });
+      expect(sites[0]).toMatchObject({ shares: 3 });
+      expect(sites[0]!.problems).toEqual([`${SHARES_JSON}: more than one entry is numbered 2`]);
+    });
+
+    it("names an entry renumbered to take the place of one that was removed", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries.shift();
+        entries[0]!.seq = 1;
+        reseal(entries[0]!);
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: entry 1 follows an entry that isn't there`,
+        `${SHARE}/${WORD_1}: not recorded in shares.json`,
+        `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+      ]);
+    });
+
+    it("names an entry that lost its seal as changed, once, and goes by none of its files", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        delete entries[0]!.seal;
+      });
+      await appendFile(inShare(siteDir, PAGE_1), " ");
+      // Not also as missing from the chain, as an entry that entry 2 doesn't follow, or as changed
+      // copies: the files it names are still copies the record has.
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 1 (${first.entry.at}) changed since it was recorded`,
+      ]);
+    });
+
+    it("names an entry that is sealed but has no seq: it's outside the chain, and its files are checked", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      const extra = "example.illinois.gov_2027-02-01.html";
+      const bytes = Buffer.from("<p>");
+      await writeFile(inShare(siteDir, extra), bytes);
+      // Sealed by whoever made it, with no seq or prev: no check of either would reach it.
+      const forged = {
+        at: LATER,
+        by: "Pat Lee",
+        runs: [],
+        files: [{ name: extra, bytes: bytes.length, sha256: sha256(bytes) }],
+      };
+      await editEntries(siteDir, (entries) => {
+        entries.push({ ...forged, seal: sealOf(forged) });
+      });
+      const { sites } = await verifyHome({ home, logger: createMemoryLogger() });
+      expect(sites[0]).toMatchObject({ shares: 3 });
+      expect(sites[0]!.problems).toEqual([
+        `${SHARES_JSON}: a share at ${LATER} is outside the chain (no seq)`,
+      ]);
+
+      await appendFile(inShare(siteDir, extra), " ");
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: a share at ${LATER} is outside the chain (no seq)`,
+        `${SHARE}/${extra}: changed since it was recorded (SHA-256 differs)`,
+      ]);
+    });
+
+    it.each<[string, unknown]>([
+      ["0", 0],
+      ["-1", -1],
+      ["a fraction", 2.5],
+      ["text", "2"],
+      ["null", null],
+    ])(
+      "names an entry that matches its seal as outside the chain when its seq is %s",
+      async (_what, seq) => {
+        const { home, siteDir } = await copyOf(twice);
+        await editEntries(siteDir, (entries) => {
+          entries[1]!.seq = seq;
+          reseal(entries[1]!);
+        });
+        expect(await problemsIn(home)).toEqual([
+          `${SHARES_JSON}: a share at ${second.entry.at} is outside the chain (no seq)`,
+        ]);
+      },
+    );
+
+    it("names an entry with no seq and no seal by its time, as changed", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries.push({ at: LATER, by: "Pat Lee", runs: [], files: [] });
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: a share at ${LATER} changed since it was recorded`,
+      ]);
+    });
+  });
+
+  describe("the copies an entry records", () => {
+    it("names a copy whose recorded size is wrong, as well as one whose fingerprint is", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        const [page] = entries[1]!.files as { bytes: number }[];
+        page!.bytes += 1;
+        reseal(entries[1]!);
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
+      ]);
+    });
+
+    it.each<[string, unknown]>([
+      ["text", "x"],
+      ["an object", { name: PAGE_2 }],
+      ["null", null],
+      ["left out", undefined],
+      ["items that aren't objects", [null, 7, "x"]],
+      ["items with no size or fingerprint", [{ name: "a.html" }]],
+      ["a size that is text", [{ name: "a.html", bytes: "5", sha256: "a" }]],
+      ["a name that isn't text", [{ name: 5, bytes: 1, sha256: "a" }]],
+    ])(
+      "says one line for an entry that matches its seal when its files are %s",
+      async (_what, files) => {
+        const { home, siteDir } = await copyOf(twice);
+        await editEntries(siteDir, (entries) => {
+          entries[1]!.files = files;
+          reseal(entries[1]!);
+        });
+        expect(await problemsIn(home)).toEqual([
+          `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
+          // It names none of the copies it was made with, so nothing records them.
+          `${SHARE}/${WORD_2}: not recorded in shares.json`,
+          `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+        ]);
+      },
+    );
+
+    it("goes by none of an entry's files when one is in a form it can't read, but its good names are recorded", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        const [page] = entries[1]!.files as unknown[];
+        entries[1]!.files = [page, null];
+        reseal(entries[1]!);
+      });
+      // The page it names is changed, and isn't read.
+      await appendFile(inShare(siteDir, PAGE_2), " ");
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
+        `${SHARE}/${WORD_2}: not recorded in shares.json`,
+      ]);
+    });
+
+    it.each([
+      ["an empty name", ""],
+      ["the folder itself", "."],
+      ["the folder above", ".."],
+      ["a file in the folder above", "../x.html"],
+      ["a file in the folder above, with a backslash", "..\\x.html"],
+      ["a file in a folder", "sub/x.html"],
+      ["a file in a folder, with a backslash", "sub\\x.html"],
+      ["a path from the top", "/x.html"],
+      ["a path on a drive", "C:\\x.html"],
+      ["a name with a null character in it", "x\0y.html"],
+    ])("never reads what an entry that matches its seal names as %s", async (_what, name) => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        (entries[1]!.files as unknown[]).push({ name, bytes: 3, sha256: sha256("<p>") });
+        reseal(entries[1]!);
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names "${name}", which isn't a file in share/`,
+      ]);
+    });
+
+    it("doesn't read a file outside share/, though it's there and an entry records it", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      const outside = path.join(siteDir, "x.html");
+      await writeFile(outside, "<p>");
+      await editEntries(siteDir, (entries) => {
+        (entries[1]!.files as unknown[]).push({
+          name: "../x.html",
+          bytes: 3,
+          sha256: sha256("<p>"),
+        });
+        reseal(entries[1]!);
+      });
+      // Changed since it was recorded: it would be named for that, if it were read.
+      await writeFile(outside, "<p>, changed");
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names "../x.html", which isn't a file in share/`,
+      ]);
+    });
+
+    it("puts the lines for an entry's files where the entry has them, among the lines for the others'", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        const [page, word] = entries[1]!.files as unknown[];
+        const outside = { name: "../x.html", bytes: 3, sha256: sha256("<p>") };
+        entries[1]!.files = [page, outside, word];
+        reseal(entries[1]!);
+      });
+      await appendFile(inShare(siteDir, PAGE_1), " ");
+      await appendFile(inShare(siteDir, PAGE_2), " ");
+      await rm(inShare(siteDir, WORD_2));
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/${PAGE_1}: changed since it was recorded (SHA-256 differs)`,
+        `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names "../x.html", which isn't a file in share/`,
+        `${SHARE}/${WORD_2}: missing`,
+      ]);
+
+      const unreadable = await copyOf(twice);
+      await editEntries(unreadable.siteDir, (entries) => {
+        entries[1]!.files = "x";
+        reseal(entries[1]!);
+      });
+      await appendFile(inShare(unreadable.siteDir, PAGE_1), " ");
+      expect(await problemsIn(unreadable.home)).toEqual([
+        `${SHARE}/${PAGE_1}: changed since it was recorded (SHA-256 differs)`,
+        `${SHARES_JSON}: share 2 (${second.entry.at}) lists its files in a form voicecap can't read`,
+        `${SHARE}/${WORD_2}: not recorded in shares.json`,
+        `${SHARE}/${PAGE_2}: not recorded in shares.json`,
+      ]);
+    });
+  });
+
+  describe("what share/ holds that no entry names", () => {
+    it("doesn't mind the files an operating system leaves, or a name that starts with a dot", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      for (const name of [".DS_Store", "Thumbs.db", "desktop.ini", ".hidden.html"]) {
+        await writeFile(inShare(siteDir, name), "left by a program");
+      }
+      await mkdir(inShare(siteDir, ".cache"));
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    // Someone reading a copy that was sent, in Word, has it open when they run verify.
+    it("doesn't mind the owner file Word keeps beside a copy that's open", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      // What Word writes beside example.illinois.gov_2027-01-15.docx, which is recorded.
+      await writeFile(
+        inShare(siteDir, "~$ample.illinois.gov_2027-01-15.docx"),
+        "Word's owner file",
+      );
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    it("still names a file Word didn't write, whatever its name has in it", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      // The name has to start with ~$ to be Word's: ~$ inside it, or a ~ alone, is just a name.
+      for (const name of ["ordinary.docx", "x~$y.docx", "~notes.docx"]) {
+        await writeFile(inShare(siteDir, name), "<p>");
+      }
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/ordinary.docx: not recorded in shares.json`,
+        `${SHARE}/x~$y.docx: not recorded in shares.json`,
+        `${SHARE}/~notes.docx: not recorded in shares.json`,
+      ]);
+    });
+
+    it("names each folder, with the copies nothing records, by name", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await mkdir(inShare(siteDir, "b-folder"));
+      await writeFile(inShare(siteDir, "c.html"), "<p>");
+      await writeFile(inShare(siteDir, "a.html"), "<p>");
+      await writeFile(inShare(siteDir, "Z.html"), "<p>");
+      // By name as every list in verify is: as the letters are ordered in code, capitals first,
+      // whatever order the folder lists them in.
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/Z.html: not recorded in shares.json`,
+        `${SHARE}/a.html: not recorded in shares.json`,
+        `${SHARE}/b-folder: an unexpected folder`,
+        `${SHARE}/c.html: not recorded in shares.json`,
+      ]);
+    });
+
+    it("names a folder in the place of a copy an entry records, as a folder and as a copy that's gone", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await rm(inShare(siteDir, PAGE_2));
+      await mkdir(inShare(siteDir, PAGE_2));
+      expect(await problemsIn(home)).toEqual([
+        `${SHARE}/${PAGE_2}: missing`,
+        `${SHARE}/${PAGE_2}: an unexpected folder`,
+      ]);
+    });
+
+    it("doesn't take a copy as not recorded when any entry names it, however the entry is changed", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.by = "Someone Else";
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) changed since it was recorded`,
+      ]);
+    });
+  });
+
+  it("gives the record's lines first, then each recorded file, then what nothing records", async () => {
+    const { home, siteDir } = await copyOf(twice);
+    await editEntries(siteDir, (entries) => {
+      // Entry 1 removed, and an entry with no seq or seal added...
+      entries.shift();
+      entries.push({ at: LATER, by: "Pat Lee", runs: [], files: [] });
+    });
+    // ...a copy of the one that's left gone, and copies nothing records, a folder among them.
+    await rm(inShare(siteDir, WORD_2));
+    await mkdir(inShare(siteDir, "b-folder"));
+    await writeFile(inShare(siteDir, "a.html"), "<p>");
+    expect(await problemsIn(home)).toEqual([
+      `${SHARES_JSON}: a share at ${LATER} changed since it was recorded`,
+      `${SHARES_JSON}: entry 1 is missing`,
+      `${SHARE}/${WORD_2}: missing`,
+      `${SHARE}/a.html: not recorded in shares.json`,
+      `${SHARE}/b-folder: an unexpected folder`,
+      `${SHARE}/${WORD_1}: not recorded in shares.json`,
+      `${SHARE}/${PAGE_1}: not recorded in shares.json`,
+    ]);
   });
 });

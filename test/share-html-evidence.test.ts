@@ -253,7 +253,7 @@ describe("renderEvidence", () => {
       const html = renderEvidence(await demoModel());
 
       expect(html).toContain(
-        `<p class="fp-what"><b>What's a fingerprint?</b> A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.</p>`,
+        `<p class="fp-what"><b>What&#39;s a fingerprint?</b> A fingerprint (SHA-256) is a code computed from a file&#39;s exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn&#39;t changed since.</p>`,
       );
     });
 
@@ -351,6 +351,17 @@ describe("renderEvidence", () => {
       );
     });
 
+    it("says where the sender's own fingerprint comes from: voicecap share prints it, for the email that sends the file", async () => {
+      const model = await demoModel();
+      const verify = model.evidence[0]?.verify;
+
+      expect(verify).toBe("npx @icjia/voicecap verify --site http://127.0.0.1:4848");
+      // The whole paragraph, as the page writes it: what the check proves, then what's stronger.
+      expect(renderEvidence(model)).toContain(
+        `<p class="sub fp-limit"><b>What the check proves:</b> this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can&#39;t prove the page itself wasn&#39;t changed, since whoever changed it could change the fingerprints too. For that, compare this file&#39;s own fingerprint with the one its sender recorded: <code>voicecap share</code> prints it, ready for the email that sends the file, and <code>Get-FileHash &lt;file&gt;</code> in PowerShell, or <code>shasum -a 256 &lt;file&gt;</code> on a Mac, shows it for the file you received. Or run <code>${verify}</code> on the transcripts folder.</p>`,
+      );
+    });
+
     it("says how to check without scripts, in a line the script hides and nothing else does", async () => {
       const html = renderEvidence(await demoModel());
 
@@ -364,7 +375,7 @@ describe("renderEvidence", () => {
     it("puts the parts of the check in the order a reader goes through them", async () => {
       const html = renderEvidence(await demoModel());
       const order = [
-        "What's a fingerprint?",
+        "What&#39;s a fingerprint?",
         'id="fp-run"',
         'id="fp-result"',
         'id="fp-list"',
@@ -413,11 +424,11 @@ describe("renderEvidence", () => {
       // Six transcripts are listed, and the check has the three that could be read.
       expect(model.check.files).toHaveLength(3);
       expect(html).toContain(
-        "<b>3 transcripts couldn't be read, so the check leaves them out:</b> Home (read.txt and tab.txt); About (headings.txt).",
+        "<b>3 transcripts couldn&#39;t be read, so the check leaves them out:</b> Home (read.txt and tab.txt); About (headings.txt).",
       );
       // After the result it sits beside, and before the list that appears with it.
-      expect(html.indexOf('id="fp-result"')).toBeLessThan(html.indexOf("transcripts couldn't"));
-      expect(html.indexOf("transcripts couldn't")).toBeLessThan(html.indexOf('id="fp-list"'));
+      expect(html.indexOf('id="fp-result"')).toBeLessThan(html.indexOf("transcripts couldn&#39;t"));
+      expect(html.indexOf("transcripts couldn&#39;t")).toBeLessThan(html.indexOf('id="fp-list"'));
     });
 
     it("says it of one transcript in the singular", () => {
@@ -477,7 +488,7 @@ describe("renderEvidence", () => {
           /<h3>Minute by minute <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
         );
         expect(fold).toMatch(
-          /<h3>NVDA's own log, checked against the transcripts <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
+          /<h3>NVDA&#39;s own log, checked against the transcripts <span class="sr">in run [^<]*<\/span><\/h3><p class="not-recorded">Not recorded: this run used voicecap 0\.4\.1\.<\/p>/,
         );
       }
     });
@@ -712,13 +723,28 @@ describe("renderEvidence", () => {
 });
 
 describe("renderStory", () => {
-  it("opens with why voicecap exists, with the Deque study's title linked where the text quotes it", async () => {
+  it("opens with how voicecap began, in the open, before the paragraph that cites the study", async () => {
+    const story = renderStory(await demoModel());
+
+    expect(story.indexOf(esc(STORY.began))).toBeGreaterThan(story.indexOf('id="story-h"'));
+    expect(story.indexOf(esc(STORY.began))).toBeLessThan(story.indexOf(esc(STORY.deque.title)));
+    // A paragraph of its own, ahead of the first fold, so no one has to open anything to read it.
+    expect(story).toContain(`<p class="gist">${esc(STORY.began)}</p>`);
+    expect(story.indexOf(esc(STORY.began))).toBeLessThan(story.indexOf("<details"));
+  });
+
+  it("then says why voicecap exists, with the Deque study's title linked where the text quotes it", async () => {
     const html = renderStory(await demoModel());
-    const [, why = ""] = /<p class="gist">(.*?)<\/p>/s.exec(html) ?? [];
+    const [began = "", why = ""] = [...html.matchAll(/<p class="gist">(.*?)<\/p>/gs)].map(
+      (found) => found[1] ?? "",
+    );
 
     expect(html).toMatch(
       /^<section aria-labelledby="story-h">\s*<h2 id="story-h">How voicecap came to be<\/h2>\s*<p class="gist">/,
     );
+    // How it began is the first paragraph, with no link in it.
+    expect(textOf(began, "")).toBe(STORY.began);
+    expect(attributes(began, "href")).toEqual([]);
     // The words are the fixed text's own, and the link is in them, not after them.
     expect(textOf(why, "")).toBe(STORY.why);
     expect(why).toContain(`“<a href="${STORY.deque.url}">${STORY.deque.title}</a>”`);
@@ -876,20 +902,27 @@ describe("renderFooter", () => {
     expect(textOf(html)).toContain(
       "Generated on 30 September 2026 at 09:00 (UTC−05:00). Times are as each run recorded them (UTC−05:00).",
     );
-    expect(textOf(html)).toContain("This file: current.html");
+    // Both files by name, the page first, each in the fixed-width font.
+    expect(textOf(html, "")).toContain("This file: current.html. Its Word copy: current.docx.");
+    expect(html).toContain(
+      '<span>This file: <span class="mono">current.html</span>. Its Word copy: <span class="mono">current.docx</span>.</span>',
+    );
   });
 
-  it("names the file as the model has it, the day and time the page was made, and each offset its runs used", async () => {
+  it("names the file and its Word copy as the model has them, the day and time the page was made, and each offset its runs used", async () => {
     const html = renderFooter({
       ...(await demoModel()),
       footer: {
         generatedAt: "2026-12-01T17:45:00-06:00",
         fileName: "127.0.0.1_4848_2026-12-01.html",
+        wordName: "127.0.0.1_4848_2026-12-01.docx",
         offsets: ["UTC−05:00", "UTC−06:00"],
       },
     });
 
-    expect(html).toContain('This file: <span class="mono">127.0.0.1_4848_2026-12-01.html</span>');
+    expect(html).toContain(
+      'This file: <span class="mono">127.0.0.1_4848_2026-12-01.html</span>. Its Word copy: <span class="mono">127.0.0.1_4848_2026-12-01.docx</span>.',
+    );
     expect(textOf(html)).toContain(
       "Generated on 1 December 2026 at 17:45 (UTC−06:00). Times are as each run recorded them (UTC−05:00 and UTC−06:00).",
     );
@@ -898,27 +931,37 @@ describe("renderFooter", () => {
   it("says nothing of the runs' times when no run counts", async () => {
     const html = renderFooter({
       ...(await demoModel()),
-      footer: { generatedAt: "2026-12-01T17:45:00+01:00", fileName: "x.html", offsets: [] },
+      footer: {
+        generatedAt: "2026-12-01T17:45:00+01:00",
+        fileName: "x.html",
+        wordName: "x.docx",
+        offsets: [],
+      },
     });
 
     expect(textOf(html)).toContain("Generated on 1 December 2026 at 17:45 (UTC+01:00).");
     expect(textOf(html)).not.toContain("Times are");
   });
 
-  it("escapes the file's name and the offsets, and sets no style attribute", async () => {
+  it("escapes both files' names and the offsets, and sets no style attribute", async () => {
     const html = renderFooter({
       ...(await demoModel()),
       footer: {
         generatedAt: "2026-12-01T17:45:00-06:00",
         fileName: "<b>x</b>.html",
+        wordName: "<u>w</u>.docx",
         offsets: ["<i>Zone</i>"],
       },
     });
 
     expect(html).not.toContain("<b>x</b>");
+    expect(html).not.toContain("<u>w</u>");
     expect(html).not.toContain("<i>Zone</i>");
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;.html");
     expect(html).toContain("&lt;i&gt;Zone&lt;/i&gt;");
+    // Both names stay in the fixed-width font, escaped inside it.
+    expect(html).toContain('<span class="mono">&lt;b&gt;x&lt;/b&gt;.html</span>');
+    expect(html).toContain('<span class="mono">&lt;u&gt;w&lt;/u&gt;.docx</span>');
     expect(html).not.toMatch(/\sstyle=/);
   });
 });

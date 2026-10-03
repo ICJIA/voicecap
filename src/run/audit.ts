@@ -29,7 +29,7 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
-import { writeSharePage } from "../share/write.js";
+import { writeShareFiles } from "../share/write.js";
 import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
@@ -617,9 +617,9 @@ async function complete(ctx: ExecuteContext): Promise<void> {
     config,
     compare: base ? { base, diffDir: liveCompareDir(outDir, base.id, run.id) } : null,
   });
-  // The shareable page too, now the sealed run is on disk. One that can't be written is a warning,
-  // never a failed run.
-  await writeSharePage({ siteDir: outDir, config, logger, now: now() });
+  // The shareable page and its Word copy too, now the sealed run is on disk. One that can't be
+  // written is a warning, never a failed run.
+  await writeShareFiles({ siteDir: outDir, config, logger, now: now() });
   logger.info(`Run ${run.id} complete. Report: ${live.file}`);
 }
 

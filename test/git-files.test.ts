@@ -73,4 +73,22 @@ describe("ensureGitFiles", () => {
       expect(ignored("dvfr.illinois.gov/share/shares.json")).toBe(1);
     },
   );
+
+  it.skipIf(!gitAvailable)(
+    "keeps the owner file Word writes beside a sent copy that's open out of Git, and not the copy",
+    async () => {
+      const home = await tmp();
+      expect(git(["init"], home)).toBe(0);
+      await ensureGitFiles(home);
+
+      const ignored = (relativePath: string) => git(["check-ignore", "-q", relativePath], home);
+
+      // What Word keeps beside dvfr.illinois.gov_2026-09-30.docx while someone reads it.
+      expect(ignored("dvfr.illinois.gov/share/~$fr.illinois.gov_2026-09-30.docx")).toBe(0);
+      expect(ignored("dvfr.illinois.gov/share/dvfr.illinois.gov_2026-09-30.docx")).toBe(1);
+      // Only a name that starts with ~$ is Word's.
+      expect(ignored("dvfr.illinois.gov/share/~notes.docx")).toBe(1);
+      expect(ignored("dvfr.illinois.gov/share/x~$y.docx")).toBe(1);
+    },
+  );
 });

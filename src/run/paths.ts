@@ -8,6 +8,10 @@ import { resolveUserPath } from "../util/git-bash.js";
  *
  *   report.html  latest.txt  reviews.json  .voicecap.lock (only while a run writes here)
  *   share/current.html                  (the shareable page, rewritten wherever report.html is)
+ *   share/current.docx                  (its Word copy, written with it)
+ *   share/<site>_<date>.html            (the pair `voicecap share` made to send, named for this folder
+ *   share/<site>_<date>.docx             and the day, with -2, -3 for more the same day: never rewritten)
+ *   share/shares.json                   (what `voicecap share` sent: sealed, chained, only added to)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
@@ -52,9 +56,24 @@ export function liveReportPath(outDir: string): string {
   return path.join(outDir, "report.html");
 }
 
+/** The folder of the shareable page and its Word copy. */
+export function shareDir(siteDir: string): string {
+  return path.join(siteDir, "share");
+}
+
 /** The shareable page: one self-contained file, always the site's latest standing. */
 export function sharePath(siteDir: string): string {
-  return path.join(siteDir, "share", "current.html");
+  return path.join(shareDir(siteDir), "current.html");
+}
+
+/** The page's Word copy, beside it: the same standing, as a .docx. */
+export function shareWordPath(siteDir: string): string {
+  return path.join(shareDir(siteDir), "current.docx");
+}
+
+/** The record of what `voicecap share` sent, beside the page: sealed, chained, only added to. */
+export function sharesPath(siteDir: string): string {
+  return path.join(shareDir(siteDir), "shares.json");
 }
 
 export function latestPath(outDir: string): string {

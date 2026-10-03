@@ -1932,7 +1932,7 @@ describe("--compare", () => {
     const logger = createMemoryLogger();
     const result = await verifyHome({ home: path.join(dir, "transcripts"), logger });
     expect(logger.entries.map((entry) => entry.message)).toEqual([
-      "example.illinois.gov: 2 runs (0 incomplete), 0 manual sessions, 0 reviews checked: everything matches.",
+      "example.illinois.gov: 2 runs (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.",
     ]);
     expect(result.problems).toBe(0);
   });

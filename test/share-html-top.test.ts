@@ -589,7 +589,7 @@ describe("renderTop", () => {
 
     expect(model.header.tested).toBeNull();
     expect(html).toContain(
-      `How its pages read aloud with <a href="${NV_ACCESS}">NVDA</a>, a free screen reader. No live run counts yet, so there's no test date.`,
+      `How its pages read aloud with <a href="${NV_ACCESS}">NVDA</a>, a free screen reader. No live run counts yet, so there&#39;s no test date.`,
     );
     expect(html).not.toContain("tested on");
     expect(html).not.toContain("tested from");
@@ -879,7 +879,7 @@ describe("renderSummary", () => {
     const html = renderSummary(await demoModel());
 
     expect(html).toContain(
-      "<h3>What's still to do</h3><ul>" +
+      "<h3>What&#39;s still to do</h3><ul>" +
         "<li>http://127.0.0.1:4848/how-a-run-works/ couldn&#39;t be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.</li>" +
         "<li>Take a closer listen to http://127.0.0.1:4848/common-mistakes/, where flags were raised, and record what you decide.</li></ul>",
     );

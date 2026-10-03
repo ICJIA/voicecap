@@ -54,6 +54,7 @@
     "fixture:reviews": "tsx scripts/fixture-reviews.ts",
     "fixture:capture": "tsx scripts/capture-fixture.ts --write",
     "test:nvda": "tsx scripts/capture-fixture.ts",
+    "share:fixture": "tsx scripts/share-fixture.ts",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
@@ -62,6 +63,7 @@
     "commander": "^15.0.0",
     "csv-parse": "^7.0.3",
     "diff": "^9.0.0",
+    "docx": "9.8.1",
     "fast-xml-parser": "^5.11.1",
     "jiti": "^2.7.0",
     "jsonc-parser": "^3.3.1",
@@ -76,6 +78,7 @@
     "@types/picomatch": "^4.0.3",
     "axe-core": "^4.13.0",
     "eslint": "^10.11.0",
+    "jszip": "3.10.1",
     "prettier": "^3.9.9",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { lineText, type Line } from "../src/share/line.js";
 import * as text from "../src/share/text.js";
 
 const { HOW_LEAD, HOW_STEPS, STORY, TIMELINE, WHEN_TO_RUN, WORTH_KNOWING } = text;
@@ -36,16 +37,39 @@ function boldVersions(row: text.TimelineRow): string[] {
   );
 }
 
-/** Every string the module exports, however deep: all of the page's fixed text. */
+/** What a function the module exports is called with, to hear what it says: a pass, and a name. */
+const SAMPLE = ["read", "current.docx"];
+
+/** Every string the module stores and every function it exports, however deep. */
+function leavesOf(value: unknown): unknown[] {
+  if (typeof value === "string" || typeof value === "function") return [value];
+  if (Array.isArray(value)) return value.flatMap(leavesOf);
+  if (typeof value === "object" && value !== null) return Object.values(value).flatMap(leavesOf);
+  return [];
+}
+
+/** Every string the module stores, however deep: the page's fixed text as it is written. */
+function storedStrings(): string[] {
+  return leavesOf(text).filter((leaf): leaf is string => typeof leaf === "string");
+}
+
+/**
+ * What the module's functions say, each called with sample arguments: the sentence it gives, or the
+ * words of the line it gives (its pieces joined, so a check reads across a piece in bold or in
+ * code). `storedStrings` can't see these, since it reads no function.
+ */
+function spokenStrings(): string[] {
+  return leavesOf(text)
+    .filter((leaf): leaf is (...args: string[]) => string | Line => typeof leaf === "function")
+    .map((say) => {
+      const said = say(...SAMPLE);
+      return typeof said === "string" ? said : lineText(said);
+    });
+}
+
+/** Every string the module exports or says, however deep: all of the page's fixed text. */
 function everyString(): string[] {
-  const found: string[] = [];
-  const collect = (value: unknown): void => {
-    if (typeof value === "string") found.push(value);
-    else if (Array.isArray(value)) value.forEach(collect);
-    else if (typeof value === "object" && value !== null) Object.values(value).forEach(collect);
-  };
-  collect(text);
-  return found;
+  return [...storedStrings(), ...spokenStrings()];
 }
 
 describe("the timeline", () => {
@@ -134,7 +158,9 @@ describe("the timeline", () => {
   });
 
   it("tells 0.6.0 in two rows: the shareable page and preflight, then the day it was published", () => {
-    const rows = TIMELINE.filter((row) => row.date === "2026-10-01" || row.date === "2026-10-02");
+    // The day before the release, and the release itself: not the row after them, which is dated
+    // 2 October too (the Word copy and voicecap share).
+    const rows = TIMELINE.filter((row) => row.date === "2026-10-01" || row.release === "0.6.0");
 
     expect(rows).toEqual([
       {
@@ -156,6 +182,27 @@ describe("the timeline", () => {
     expect(TIMELINE.find((row) => row.release === "0.5.0")?.pc).toBe(
       "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person heard NVDA speaking.",
     );
+  });
+
+  it("tells the Word copy and voicecap share on the day they were made, and puts the walkthrough file and the website in Next", () => {
+    const next = TIMELINE.at(-1);
+    const made = TIMELINE.at(-2);
+
+    // Next is last, with no day, and its Windows PC cell is what still comes: the walkthrough file
+    // and the website.
+    expect(next?.date).toBeNull();
+    expect(next?.pc).toBe(
+      "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+    );
+    // The row before it is the day the Word copy and voicecap share were made: across both tracks,
+    // and it announces no release.
+    expect(made).toEqual({
+      date: "2026-10-02",
+      release: null,
+      pc: null,
+      mac: null,
+      both: "The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+    });
   });
 
   it("writes each cell as bold and code only, or leaves it null, so the renderer can insert it as given", () => {
@@ -180,12 +227,50 @@ describe("the fixed text", () => {
     expect(strings.filter((string) => /voicecap[^.:;]*\bautomated\b/i.test(string))).toEqual([]);
   });
 
-  it("says what axe checks: the page's design, in voicecap's own tests", () => {
-    // The page a run writes isn't itself checked as it's written, so the card says what is.
+  it("says what axe checks: the design of the report's web page, in voicecap's own tests", () => {
+    // The page a run writes isn't itself checked as it's written, so the card says what is. It
+    // names the web page, so it's as true in the Word copy as on the page.
     expect(WORTH_KNOWING[4]).toEqual({
       title: "Both kinds of testing",
-      text: "voicecap checks this page's design with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
+      text: "voicecap checks the design of this report's web page with axe in its own tests, with no violations: the automated checker and the listen-through, side by side.",
     });
+  });
+
+  it("tells how voicecap began, word for word, as the owner approved it", () => {
+    expect(STORY.began).toBe(
+      "voicecap began at the Illinois Criminal Justice Information Authority (ICJIA) with a practical need: more than a dozen websites to review before the April 2027 ADA Title II deadline for accessible digital content. Automated checkers such as axe, Lighthouse, and Pa11y were one half of that review. The other half was to go through every site methodically with a real screen reader, NVDA or VoiceOver, and keep a transcript of what it said.",
+    );
+  });
+
+  it("opens the story with why voicecap was needed, naming the deadline as the owner does", () => {
+    expect(STORY.began).toContain("more than a dozen websites");
+    expect(STORY.began).toContain(
+      "the April 2027 ADA Title II deadline for accessible digital content",
+    );
+  });
+
+  it("never names a library as how voicecap began", () => {
+    expect(everyString().join("\n")).not.toMatch(/guidepup/i);
+  });
+
+  it("reads the sentences its functions say, as well as the text it stores", () => {
+    const spoken = spokenStrings();
+
+    // One of each: a line with bold and code, a line with a link, a sentence with a pass in it,
+    // and the footer's two lines. A walk that called no function can't pass for the checks above.
+    for (const start of [
+      "The tools differ between the two runs,",
+      "This could be a problem in voicecap itself.",
+      "The read pass sounds different,",
+      "What the check proves:",
+      "This file: read. Its Word copy: current.docx.",
+      "This file: current.docx. Its web page: read.",
+    ]) {
+      expect(
+        spoken.some((sentence) => sentence.startsWith(start)),
+        start,
+      ).toBe(true);
+    }
   });
 
   it("says the person hears NVDA speaking and reads the transcripts, and that NVDA speaks very fast in a run", () => {
@@ -229,8 +314,12 @@ describe("the fixed text", () => {
     expect(WORTH_KNOWING).toHaveLength(6);
   });
 
-  it("leaves no text blank, or padded with spaces", () => {
-    expect(everyString().filter((string) => string === "" || string !== string.trim())).toEqual([]);
+  it("leaves no stored text blank, or padded with spaces", () => {
+    // The pieces of a line, which a function gives, end in a space where a word in bold or code
+    // follows, so only what the module stores is read.
+    expect(storedStrings().filter((string) => string === "" || string !== string.trim())).toEqual(
+      [],
+    );
   });
 
   it("quotes the study by its article's own headline, once in the story, for the renderer to link to Deque", () => {

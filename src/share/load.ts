@@ -92,6 +92,8 @@ export interface ShareInput {
   platform: NodeJS.Platform;
   /** The page's own file name, for the footer: "current.html" here; plan 3 passes the dated names. */
   fileName: string;
+  /** The Word copy's file name, which the footer names too: "current.docx" here, dated likewise. */
+  wordName: string;
 }
 
 /**
@@ -104,6 +106,7 @@ export async function loadShareInput(options: {
   config: VoicecapConfig;
   now?: Date;
   fileName?: string;
+  wordName?: string;
 }): Promise<ShareInput> {
   const { siteDir, config } = options;
   const records = await listRuns(siteDir);
@@ -142,6 +145,7 @@ export async function loadShareInput(options: {
     home: homeFolder() ?? "",
     platform: process.platform,
     fileName: options.fileName ?? "current.html",
+    wordName: options.wordName ?? "current.docx",
   };
 }
 

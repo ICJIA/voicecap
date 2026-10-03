@@ -1,21 +1,38 @@
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename as fsRename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { listManualSessions } from "../src/manual/list.js";
-import type { ReviewsFile, RunJson } from "../src/model.js";
+import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import type { RunAuditOptions } from "../src/run/audit.js";
-import { manualSessionDir, runDir } from "../src/run/paths.js";
-import type { OutputStream } from "../src/util/log.js";
+import { manualSessionDir, runDir, shareDir, sharesPath, shareWordPath } from "../src/run/paths.js";
+import { longDate } from "../src/share/format.js";
+import { sizeLine } from "../src/share/share.js";
+import { writeShareFiles } from "../src/share/write.js";
+import { sha256 } from "../src/util/hash.js";
+import { createMemoryLogger, type OutputStream } from "../src/util/log.js";
+import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
+import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -151,6 +168,42 @@ async function oneSiteHome(): Promise<string> {
 /** Every file and folder under `dir`, relative to it, sorted. */
 async function contents(dir: string): Promise<string[]> {
   return (await readdir(dir, { recursive: true })).sort();
+}
+
+/**
+ * A command line split into its arguments, as Git Bash splits what `formatCommand` writes (and
+ * PowerShell too, unless a value has a single quote in it): words apart at spaces, a value in
+ * single quotes whole, a backslash in it just a backslash, and `'\''` for a single quote inside one.
+ */
+function splitCommand(line: string): string[] {
+  const args: string[] = [];
+  let word = "";
+  // An empty value, '', is still an argument.
+  let started = false;
+  let quoted = false;
+  for (let at = 0; at < line.length; at++) {
+    const char = line.charAt(at);
+    if (quoted) {
+      if (char === "'") quoted = false;
+      else word += char;
+    } else if (char === "'") {
+      quoted = true;
+      started = true;
+    } else if (char === "\\" && line.charAt(at + 1) === "'") {
+      word += "'";
+      started = true;
+      at++;
+    } else if (char === " ") {
+      if (started) args.push(word);
+      word = "";
+      started = false;
+    } else {
+      word += char;
+      started = true;
+    }
+  }
+  if (started) args.push(word);
+  return args;
 }
 
 /** A computer that isn't ready: one quick check FAILs, with its problem. */
@@ -553,6 +606,45 @@ describe("a full session through the CLI", () => {
     }
   });
 
+  // A run reads the computer's details with the probe for the platform the CLI says it's on, as
+  // every other command honors it, not the host's. On Windows the host's probe starts PowerShell,
+  // which takes seconds, in a test that says it's on Linux (on a Linux host the two are the same,
+  // so this can't fail there). The probe is replaced here by an instant one, so nothing starts.
+  it("reads a run's computer details with the probe for the CLI's own platform", async () => {
+    const asked: NodeJS.Platform[] = [];
+    vi.resetModules();
+    vi.doMock("../src/run/machine-record.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      machineProbeFor: (platform: NodeJS.Platform) => {
+        asked.push(platform);
+        return MACHINE_PROBE;
+      },
+    }));
+    try {
+      const { main: mainWithProbeSpy } = await import("../src/cli/main.js");
+      const stderr = capture();
+      const code = await mainWithProbeSpy(
+        ["--site", SITE, "--pages", fixture("pages.json"), "--replay-from", fixture("replay-run")],
+        {
+          stdout: capture().stream,
+          stderr: stderr.stream,
+          cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+          env: {},
+          signal: new AbortController().signal,
+          interactive: false,
+          platform: "linux",
+        },
+      );
+
+      expect(stderr.text()).not.toContain("Error:");
+      expect(code).toBe(0);
+      expect(asked).toEqual(["linux"]);
+    } finally {
+      vi.doUnmock("../src/run/machine-record.js");
+      vi.resetModules();
+    }
+  });
+
   it("runs with the replay driver, then records a review and a manual session", async () => {
     const run = await cli([
       "--site",
@@ -627,7 +719,7 @@ describe("a full session through the CLI", () => {
     expect((await cli(["report", "--run", "no-such-run"], run.cwd)).code).toBe(1);
   });
 
-  it("prints where the report is, then where the shareable page is", async () => {
+  it("prints where the report is, then where the shareable page and its Word copy are", async () => {
     const run = await cli([
       "--site",
       SITE,
@@ -639,7 +731,8 @@ describe("a full session through the CLI", () => {
     expect(run.code).toBe(0);
     const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
     const page = path.join(site, "share", "current.html");
-    // Gone, so it's `voicecap report` that writes it.
+    const word = path.join(site, "share", "current.docx");
+    // Gone, so it's `voicecap report` that writes them.
     await rm(path.dirname(page), { recursive: true, force: true });
 
     const report = await cli(["report"], run.cwd);
@@ -647,12 +740,13 @@ describe("a full session through the CLI", () => {
     expect(report.code).toBe(0);
     expect(report.err).toBe("");
     expect(report.out).toContain(
-      `Report: ${path.join(site, "report.html")}\nShareable page: ${page}\n`,
+      `Report: ${path.join(site, "report.html")}\nShareable page: ${page}\nWord copy: ${word}\n`,
     );
     expect(await readFile(page, "utf8")).toMatch(/^<!doctype html>/);
+    expect(XMLValidator.validate((await unzipDocx(await readFile(word))).document)).toBe(true);
   });
 
-  it("still reports, with a warning and no path, when the shareable page can't be written", async () => {
+  it("still reports, with a warning for each file and no path, when neither can be written", async () => {
     const run = await cli([
       "--site",
       SITE,
@@ -663,16 +757,142 @@ describe("a full session through the CLI", () => {
     ]);
     expect(run.code).toBe(0);
     const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
-    // A file where the page's folder would go.
+    // A file where their folder would go.
     await rm(path.join(site, "share"), { recursive: true, force: true });
     await writeFile(path.join(site, "share"), "In the way.\n");
 
     const report = await cli(["report"], run.cwd);
 
     expect(report.code).toBe(0);
-    expect(report.err).toMatch(/^Warning: The shareable page wasn't updated: .+/);
+    // The page's warning, then the Word copy's, with one reason, and nothing about closing Word.
+    expect(report.err).toMatch(
+      /^Warning: The shareable page wasn't updated: (.+)\nWarning: The Word copy wasn't updated: \1\n$/,
+    );
     expect(report.out).toContain(`Report: ${path.join(site, "report.html")}\n`);
     expect(report.out).not.toContain("Shareable page:");
+    expect(report.out).not.toContain("Word copy:");
+  });
+
+  // A warning has said why the other file wasn't written, so the command names only the file that
+  // was.
+  it.each([
+    {
+      broken: "the Word copy",
+      module: "../src/share/docx.js",
+      replacement: { renderWordCopy: () => Promise.reject(new Error("It couldn't be made.")) },
+      warning: "Warning: The Word copy wasn't updated: It couldn't be made.\n",
+      printed: (site: string) =>
+        `Report: ${path.join(site, "report.html")}\nShareable page: ${path.join(site, "share", "current.html")}\n`,
+    },
+    {
+      broken: "the page",
+      module: "../src/share/html/document.js",
+      replacement: {
+        renderSharePage: () => {
+          throw new Error("It couldn't be made.");
+        },
+      },
+      warning: "Warning: The shareable page wasn't updated: It couldn't be made.\n",
+      printed: (site: string) =>
+        `Report: ${path.join(site, "report.html")}\nWord copy: ${path.join(site, "share", "current.docx")}\n`,
+    },
+  ])(
+    "still reports where the other file is, and warns of $broken, when only it can't be made",
+    async ({ module, replacement, warning, printed }) => {
+      const run = await cli([
+        "--site",
+        SITE,
+        "--pages",
+        fixture("pages.json"),
+        "--replay-from",
+        fixture("replay-run"),
+      ]);
+      expect(run.code).toBe(0);
+      const site = path.join(run.cwd, "transcripts", "127.0.0.1_4747");
+      await rm(path.join(site, "share"), { recursive: true, force: true });
+      vi.resetModules();
+      vi.doMock(module, async (importOriginal) => ({
+        ...(await importOriginal<object>()),
+        ...replacement,
+      }));
+      try {
+        const { main: mainWithOneBroken } = await import("../src/cli/main.js");
+        const stdout = capture();
+        const stderr = capture();
+
+        const code = await mainWithOneBroken(["report"], {
+          stdout: stdout.stream,
+          stderr: stderr.stream,
+          cwd: run.cwd,
+          env: {},
+          signal: new AbortController().signal,
+          interactive: false,
+          platform: "linux",
+        });
+
+        expect(code).toBe(0);
+        expect(stderr.text()).toBe(warning);
+        expect(stdout.text()).toBe(printed(site));
+      } finally {
+        vi.doUnmock(module);
+        vi.resetModules();
+      }
+    },
+  );
+
+  // A home of many sites needs --site, and a home that --out gave needs --out, so the warning for a
+  // Word copy that Word holds gives the command with both: a person who copies it runs it as it is.
+  it("runs the command a held Word copy's warning gives, in a home with two sites, and writes the Word copy", async () => {
+    // A folder with a space in its name, so that the home's path is quoted wherever this runs.
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap cli "));
+    const run = await cli(
+      ["--site", SITE, "--pages", fixture("pages.json"), "--replay-from", fixture("replay-run")],
+      cwd,
+    );
+    expect(run.code).toBe(0);
+    const home = path.join(cwd, "transcripts");
+    const site = path.join(home, "127.0.0.1_4747");
+    // A second site, so that `report` alone can't tell which one is meant.
+    await mkdir(path.join(home, "dvfr.illinois.gov", "2026-09-27"), { recursive: true });
+    const bare = await cli(["report"], cwd);
+    expect(bare.code).toBe(1);
+    expect(bare.err).toContain("add --site.");
+
+    // Word holds current.docx: the page is written, and the Word copy isn't.
+    await rm(shareDir(site), { recursive: true, force: true });
+    const logger = createMemoryLogger();
+    await writeShareFiles({
+      siteDir: site,
+      config: DEFAULT_CONFIG,
+      logger,
+      rename: async (from, to) => {
+        if (to.endsWith("current.docx")) {
+          const message = `EPERM: operation not permitted, rename '${from}' -> '${to}'`;
+          throw Object.assign(new Error(message), { code: "EPERM" });
+        }
+        await fsRename(from, to);
+      },
+    });
+    expect(await readdir(shareDir(site))).toEqual(["current.html"]);
+
+    // The command the warning printed, split into its arguments as a shell does: `report`, the site,
+    // and the home, whole.
+    const [, command = ""] = /then run: (npx @icjia\/voicecap .+)$/.exec(logger.text("warn")) ?? [];
+    const [npx, voicecap, ...args] = splitCommand(command);
+    expect([npx, voicecap]).toEqual(["npx", "@icjia/voicecap"]);
+    expect(args).toEqual(["report", "--site", SITE, "--out", home]);
+
+    // Word has let go. Run from another folder, as a person may, the command works.
+    const elsewhere = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const report = await cli(args, elsewhere);
+
+    expect(report.err).toBe("");
+    expect(report.code).toBe(0);
+    expect(report.out).toContain(`Word copy: ${shareWordPath(site)}\n`);
+    expect((await readdir(shareDir(site))).sort()).toEqual(["current.docx", "current.html"]);
+    expect(
+      XMLValidator.validate((await unzipDocx(await readFile(shareWordPath(site)))).document),
+    ).toBe(true);
   });
 
   it("asks which site when the home has several, and takes --site", async () => {
@@ -927,7 +1147,7 @@ describe("voicecap verify", () => {
     expect(clean.err).toBe("");
     expect(clean.code).toBe(0);
     expect(clean.out).toBe(
-      "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: everything matches.\n",
+      "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.\n",
     );
 
     const site = path.join(run.cwd, "records", "127.0.0.1_4747");
@@ -938,7 +1158,115 @@ describe("voicecap verify", () => {
     expect(changed.code).toBe(3);
     expect(changed.out).toBe(
       `127.0.0.1_4747/${runId.slice(0, 10)}/${runId.slice(11)}/pages/home/read.txt: changed since it was recorded (SHA-256 differs)\n` +
-        "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews checked: 1 problem.\n",
+        "127.0.0.1_4747: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: 1 problem.\n",
+    );
+  });
+});
+
+describe("voicecap share", () => {
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  it("makes the dated pair, records it, and prints the line to paste into the email, last", async () => {
+    const { dir, siteDir } = await homeWithCountedRun();
+
+    const share = await cli(
+      [
+        "share",
+        "--out",
+        path.join(dir, "transcripts"),
+        "--site",
+        EXAMPLE_SITE,
+        "--reviewer",
+        "Pat Lee",
+      ],
+      dir,
+    );
+
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    expect(shares).toHaveLength(1);
+    const entry = shares[0]!;
+    expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
+    const page = entry.files[0]!;
+    const word = entry.files[1]!;
+    // Named for the site's folder and the day, as the page, then its Word copy, whole on disk.
+    const day = entry.at.slice(0, 10);
+    expect([page.name, word.name]).toEqual([
+      `example.illinois.gov_${day}.html`,
+      `example.illinois.gov_${day}.docx`,
+    ]);
+    for (const file of [page, word]) {
+      const bytes = await readFile(path.join(shareDir(siteDir), file.name));
+      expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
+        bytes: file.bytes,
+        sha256: file.sha256,
+      });
+    }
+    expect(share.out).toBe(
+      [
+        `Shared example.illinois.gov, as of ${longDate(entry.at)}: entry 1 in ${sharesPath(siteDir)}.`,
+        `  ${path.join(shareDir(siteDir), page.name)}`,
+        `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
+        `  ${path.join(shareDir(siteDir), word.name)}`,
+        `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
+        "To paste into the email that sends them:",
+        `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("takes the home's only site, and the home from the folder it's run in, when it's given neither", async () => {
+    const { dir, siteDir } = await homeWithCountedRun();
+
+    const share = await cli(["share", "--reviewer", "Pat Lee"], dir);
+
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    expect(shares).toHaveLength(1);
+    expect(share.out).toMatch(/^Shared example\.illinois\.gov, as of /);
+  });
+
+  it("exits 1, and says why, when no run counts", async () => {
+    const home = await oneSiteHome();
+    const site = path.join(home, "transcripts", "127.0.0.1_4747");
+
+    const share = await cli(["share", "--reviewer", "Pat Lee"], home);
+
+    expect(share.code).toBe(1);
+    expect(share.out).toBe("");
+    expect(share.err).toBe(
+      `Error: No completed, sealed, live run in ${site} yet, so there's nothing to share. Replayed, interrupted, and unsealed runs don't count.\n`,
+    );
+    expect(existsSync(sharesPath(site))).toBe(false);
+  });
+
+  it("is listed in the help, with what it does", async () => {
+    const help = await cli(["--help"]);
+
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "share [options] make a dated copy of the shareable page and its Word copy to send, and record it",
+    );
+  });
+
+  it("has --site, --out, and --reviewer, each with its own words", async () => {
+    const help = await cli(["share", "--help"]);
+
+    expect(help.code).toBe(0);
+    const said = squeezed(help.out);
+    expect(said).toContain(
+      "make a dated copy of the shareable page and its Word copy to send, and record it",
+    );
+    expect(said).toContain("--site <url> the site's URL (default: the home's only site)");
+    expect(said).toContain(
+      "--out <dir> transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
+    );
+    expect(said).toContain(
+      "--reviewer <name> who is sharing (default: VOICECAP_REVIEWER, git config user.name, or the config's reviewer)",
     );
   });
 });
@@ -1370,7 +1698,7 @@ describe.skipIf(process.platform !== "win32")("paths written Git Bash's way", ()
     expect((await cli(["report", "--out", home])).code).toBe(0);
     const verify = await cli(["verify"], undefined, { VOICECAP_TRANSCRIPTS: home });
     expect(verify.code).toBe(0);
-    expect(verify.out).toContain("1 review checked: everything matches.");
+    expect(verify.out).toContain("1 review, 0 shares checked: everything matches.");
   });
 
   it("imports a manual session from a file written Git Bash's way", async () => {

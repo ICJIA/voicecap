@@ -5,9 +5,10 @@
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, except a timeline cell, which is inserted as written (it has `<b>` and `<code>` in
- * it, and is fixed). The page's own static words are written as they are. No `style` attribute is
- * set. The only links are to the page's own sections, voicecap's GitHub page, and the Deque study
- * the story cites.
+ * it, and is fixed). Each line worked out from the model (../words.ts) goes through `esc` or
+ * `lineHtml`. The page's own words about its check (its buttons, and what it does without scripts)
+ * are written as they are. No `style` attribute is set. The only links are to the page's own
+ * sections, voicecap's GitHub page, and the Deque study the story cites.
  *
  * Of a run's record (`RunEvidence.run`, which the model keeps exactly as recorded, home folder and
  * all, since its seal covers every field) only its id and its dates are used. Everything else shown
@@ -18,24 +19,42 @@
  * says "Not recorded: this run used voicecap <version>", and so does the page.
  *
  * Where the mockup set a style attribute, the page's style block gives the same look instead: the
- * box of the two panels (`.limits`), the story's first paragraph (`#story-h + .gist`), the headings
- * of a run's parts (`.run-inside h3`), the command under a table (`.verify`), and the paragraphs in
- * the story's fold each need a rule.
+ * box of the two panels (`.limits`), the story's first two paragraphs (`#story-h + .gist`, and the
+ * one after it), the headings of a run's parts (`.run-inside h3`), the command under a table
+ * (`.verify`), and the paragraphs in the story's fold each need a rule.
  */
-import type { RunJson } from "../../model.js";
 import { esc, idFragment, plural } from "../../report/html.js";
 import { checkDataJson } from "../check.js";
-import { clock, dayMonth, longDate, names, utcOffset } from "../format.js";
+import { firstSentenceBold, type Line } from "../line.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
-import { runEnd, runStart } from "../run-evidence.js";
-import { ABOUT, STORY, TIMELINE, WORTH_KNOWING, type TimelineRow } from "../text.js";
-import { chip, fold, notRecorded, scroll } from "./parts.js";
-
-const GITHUB = "https://github.com/ICJIA/voicecap";
+import {
+  ABOUT,
+  COVERAGE_TEXT,
+  EVIDENCE_TEXT,
+  FOOTER_TEXT,
+  STORY,
+  STORY_TEXT,
+  TIMELINE,
+  TOP_TEXT,
+  WORTH_KNOWING,
+  type TimelineRow,
+} from "../text.js";
+import {
+  byteCount,
+  evidenceGist,
+  generatedLine,
+  inRun,
+  runTitle,
+  timelineDay,
+  unreadableNote,
+  whenOf,
+  whyLine,
+} from "../words.js";
+import { chip, fold, lineHtml, notRecorded, scroll } from "./parts.js";
 
 /** The header cells of a table, from the words of each column. */
 const columns = (words: string[]): string =>
-  `<thead><tr>${words.map((each) => `<th scope="col">${each}</th>`).join("")}</tr></thead>`;
+  `<thead><tr>${words.map((each) => `<th scope="col">${esc(each)}</th>`).join("")}</tr></thead>`;
 
 // What these results cover.
 
@@ -54,7 +73,7 @@ function coverageItem(line: string): string {
 function coveragePanel(title: string, lines: string[]): string {
   return lines.length === 0
     ? ""
-    : `<div><h3>${title}</h3><ul>${lines.map(coverageItem).join("")}</ul></div>`;
+    : `<div><h3>${esc(title)}</h3><ul>${lines.map(coverageItem).join("")}</ul></div>`;
 }
 
 /**
@@ -65,16 +84,13 @@ export function renderCoverage(model: ShareModel): string {
   const { covered, limits } = model.coverage;
   return [
     `<section aria-labelledby="lim-h">`,
-    `  <h2 id="lim-h">What these results cover</h2>`,
-    `  <div class="limits">${coveragePanel("Covered", covered)}${coveragePanel("Technical limits", limits)}</div>`,
+    `  <h2 id="lim-h">${esc(COVERAGE_TEXT.title)}</h2>`,
+    `  <div class="limits">${coveragePanel(COVERAGE_TEXT.covered, covered)}${coveragePanel(COVERAGE_TEXT.limits, limits)}</div>`,
     `</section>`,
   ].join("\n");
 }
 
 // The evidence.
-
-/** What a fingerprint is, in the design's own words. */
-const FINGERPRINT = `<p class="fp-what"><b>What's a fingerprint?</b> A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.</p>`;
 
 /** Why the check can recompute a seal: the page carries the records as they were written. */
 const EXACT_COPIES = `<p class="fp-what">This page carries the sealed records exactly as voicecap wrote them, so the check can recompute their seals.</p>`;
@@ -104,31 +120,26 @@ function checkedList(): string {
  * fingerprint, and the command that checks the originals.
  */
 function checkProves(verify: string): string {
-  return `<p class="sub fp-limit"><b>What the check proves:</b> this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one the sender recorded (<code>Get-FileHash &lt;file&gt;</code> in PowerShell, or <code>shasum -a 256 &lt;file&gt;</code> on a Mac, shows it), or run <code>${esc(verify)}</code> on the transcripts folder.</p>`;
+  return `<p class="sub fp-limit">${lineHtml(EVIDENCE_TEXT.proves(verify))}</p>`;
 }
 
 /**
  * The transcripts the check leaves out because they couldn't be read here, by page, so its "21 of
  * 21" never reads as complete when a file is missing from it.
  */
-function unreadableNote({ appendix }: ShareModel): string {
-  const pages = appendix.filter(({ unreadable }) => unreadable.length > 0);
-  const total = pages.reduce((sum, { unreadable }) => sum + unreadable.length, 0);
-  if (total === 0) return "";
-  const where = pages.map(
-    ({ name, unreadable }) => `${name} (${names(unreadable.map((pass) => `${pass}.txt`))})`,
-  );
-  return `<p class="fp-what"><b>${plural(total, "transcript")} couldn't be read, so the check leaves ${total === 1 ? "it" : "them"} out:</b> ${esc(where.join("; "))}.</p>`;
+function unreadableParagraph(model: ShareModel): string {
+  const note = unreadableNote(model);
+  return note === null ? "" : `<p class="fp-what">${lineHtml(note)}</p>`;
 }
 
 /** The check: what a fingerprint is, the two buttons, where the result and every file checked show. */
 function checkBox(model: ShareModel, verify: string): string {
   const parts = [
-    FINGERPRINT,
+    `<p class="fp-what">${lineHtml(firstSentenceBold(EVIDENCE_TEXT.fingerprint))}</p>`,
     EXACT_COPIES,
     CHECK_BUTTONS,
     CHECK_RESULT,
-    unreadableNote(model),
+    unreadableParagraph(model),
     checkedList(),
     checkProves(verify),
     NO_SCRIPT,
@@ -136,33 +147,9 @@ function checkBox(model: ShareModel, verify: string): string {
   return `<div class="fp-check">\n    ${parts.filter((part) => part !== "").join("\n    ")}\n  </div>`;
 }
 
-/**
- * The line that opens the evidence. The standing draws only on runs that completed and were sealed
- * (and weren't replays), so each run here is both.
- */
-function evidenceGist(model: ShareModel): string {
-  const runs = model.evidence.length;
-  const each = runs === 1 ? "" : runs === 2 ? " both" : " all";
-  const recorded = model.pages.filter((card) => card.flagsAsRecorded).length;
-  const except =
-    recorded === 0
-      ? ""
-      : `, except on ${plural(recorded, "page")} marked “Flags as recorded”, whose transcripts couldn&#39;t all be read here: ${recorded === 1 ? "its flags are as its run" : "their flags are as their runs"} recorded them`;
-  return `<p class="gist"><b>${plural(runs, "run")},${each} completed and sealed.</b> The flags were computed with the current flag rules, fingerprint <code>${esc(model.flagRulesSha256)}</code>${except}.</p>`;
-}
-
-/** When a run ran: "29 September 2026, 14:02 to 14:09", with the day again for a run that crossed one. */
-function whenOf(run: RunJson): string {
-  const [start, end] = [runStart(run), runEnd(run)];
-  const first = `${longDate(start)}, ${clock(start)}`;
-  return longDate(end) === longDate(start)
-    ? `${first} to ${clock(end)}`
-    : `${first} to ${longDate(end)}, ${clock(end)}`;
-}
-
 /** A part of a run's fold: its heading names the run, so a reader going by headings can tell them apart. */
 const runPart = (title: string, run: string, inside: string): string =>
-  `<div><h3>${title} <span class="sr">in run ${esc(run)}</span></h3>${inside}</div>`;
+  `<div><h3>${esc(title)} <span class="sr">${esc(inRun(run))}</span></h3>${inside}</div>`;
 
 /** The run's facts, as the model has them: a tile for each. */
 function factsOf(rows: EvidenceRow[]): string {
@@ -177,24 +164,24 @@ function environmentTable(rows: EvidenceRow[], run: string): string {
   const body = rows.map(
     ({ label, value }) => `<tr><th scope="row">${esc(label)}</th><td>${esc(value)}</td></tr>`,
   );
-  const table = `<table class="plain"><caption class="sr">Test environment of run ${esc(run)}</caption>${columns(["What", "What the run recorded"])}<tbody>${body.join("")}</tbody></table>`;
+  const table = `<table class="plain"><caption class="sr">Test environment of run ${esc(run)}</caption>${columns(EVIDENCE_TEXT.rowsHead)}<tbody>${body.join("")}</tbody></table>`;
   return scroll(`Test environment, run ${run}, table`, table);
 }
 
 /** Every file the run's record lists: its page, its name, its size, and its fingerprint. */
 function fingerprintTable(files: RunEvidence["fingerprints"], run: string): string {
-  if (files.length === 0) return `<p>This run's record lists no files.</p>`;
+  if (files.length === 0) return `<p>${esc(EVIDENCE_TEXT.noFiles)}</p>`;
   const body = files.map(
     ({ page, file, bytes, sha256 }) =>
-      `<tr><td>${esc(page)}</td><td>${esc(file)}</td><td>${plural(bytes, "byte")}</td><td><code>${esc(sha256)}</code></td></tr>`,
+      `<tr><td>${esc(page)}</td><td>${esc(file)}</td><td>${byteCount(bytes)}</td><td><code>${esc(sha256)}</code></td></tr>`,
   );
-  const table = `<table class="plain"><caption class="sr">Fingerprints of run ${esc(run)}</caption>${columns(["Page", "File", "Size", "SHA-256"])}<tbody>${body.join("")}</tbody></table>`;
+  const table = `<table class="plain"><caption class="sr">Fingerprints of run ${esc(run)}</caption>${columns(EVIDENCE_TEXT.filesHead)}<tbody>${body.join("")}</tbody></table>`;
   return scroll(`Fingerprints, run ${run}, table`, table);
 }
 
 /** The command that checks the originals against the run's record. */
 const verifyBox = (verify: string): string =>
-  `<div class="verify"><span>To check these against the recorded files, anyone with the transcripts folder runs:</span><pre>${esc(verify)}</pre></div>`;
+  `<div class="verify"><span>${esc(EVIDENCE_TEXT.verify)}</span><pre>${esc(verify)}</pre></div>`;
 
 /**
  * A run's fold, behind its id, when it ran, and chips that say it completed and was sealed. Inside:
@@ -203,19 +190,16 @@ const verifyBox = (verify: string): string =>
  */
 function runFold(each: RunEvidence): string {
   const { run } = each;
-  const chips = [chip("ok", "completed"), chip("ok", "sealed")].join(" ");
-  const summary = `<span class="what">Run ${esc(run.id)}</span> <span class="sub">${esc(whenOf(run))}</span> <span class="chips">${chips}</span>`;
+  const { parts } = EVIDENCE_TEXT;
+  const chips = [chip("ok", EVIDENCE_TEXT.completed), chip("ok", EVIDENCE_TEXT.sealed)].join(" ");
+  const summary = `<span class="what">${esc(runTitle(run.id))}</span> <span class="sub">${esc(whenOf(run))}</span> <span class="chips">${chips}</span>`;
   const body = [
     factsOf(each.facts),
-    runPart("Minute by minute", run.id, notRecorded(each.timeline.notRecorded)),
+    runPart(parts.timeline, run.id, notRecorded(each.timeline.notRecorded)),
+    runPart(parts.nvdaLog, run.id, notRecorded(each.nvdaLog.notRecorded)),
+    runPart(parts.environment, run.id, environmentTable(each.environment, run.id)),
     runPart(
-      "NVDA's own log, checked against the transcripts",
-      run.id,
-      notRecorded(each.nvdaLog.notRecorded),
-    ),
-    runPart("Test environment", run.id, environmentTable(each.environment, run.id)),
-    runPart(
-      "Fingerprints (SHA-256)",
+      parts.fingerprints,
       run.id,
       `${fingerprintTable(each.fingerprints, run.id)}${verifyBox(each.verify)}`,
     ),
@@ -230,7 +214,8 @@ function runFold(each: RunEvidence): string {
 function leftOutPanel(leftOut: ShareModel["leftOut"]): string {
   if (leftOut.length === 0) return "";
   const items = leftOut.map(({ text }) => `<li>${esc(text)}</li>`);
-  return `<div class="panel"><h3>Runs left out</h3><p>These runs aren't counted in any result on this page. A run counts only when it completed, was sealed, and wasn't a replay.</p><ul>${items.join("")}</ul></div>`;
+  const { title, lead, why } = EVIDENCE_TEXT.leftOut;
+  return `<div class="panel"><h3>${esc(title)}</h3><p>${esc(`${lead} ${why}`)}</p><ul>${items.join("")}</ul></div>`;
 }
 
 /**
@@ -244,17 +229,14 @@ function leftOutPanel(leftOut: ShareModel["leftOut"]): string {
 export function renderEvidence(model: ShareModel): string {
   const { evidence, leftOut } = model;
   const [latest] = evidence;
-  const heading = `<h2 id="ev-h">The evidence behind these results</h2>`;
+  const heading = `<h2 id="ev-h">${esc(EVIDENCE_TEXT.title)}</h2>`;
+  const gist = `<p class="gist">${lineHtml(evidenceGist(model))}</p>`;
   const parts =
     latest === undefined
-      ? [
-          heading,
-          `<p class="gist"><b>No live run counts yet.</b> There is no evidence to show.</p>`,
-          leftOutPanel(leftOut),
-        ]
+      ? [heading, gist, leftOutPanel(leftOut)]
       : [
           heading,
-          evidenceGist(model),
+          gist,
           checkBox(model, latest.verify),
           `<script type="application/json" id="fp-data">${checkDataJson(model.check)}</script>`,
           `<div class="folds">${evidence.map(runFold).join("")}</div>`,
@@ -264,20 +246,6 @@ export function renderEvidence(model: ShareModel): string {
 }
 
 // How voicecap came to be.
-
-/**
- * Why voicecap exists. The study it rests on is quoted by its headline, once, and the headline is
- * the link, in place, to the article.
- */
-function whyParagraph(): string {
-  const { title, url } = STORY.deque;
-  const pieces = STORY.why.split(title);
-  const [before, after] = pieces;
-  if (pieces.length !== 2 || before === undefined || after === undefined) {
-    throw new Error("STORY.why must quote STORY.deque.title once, for the page to link it there.");
-  }
-  return `<p class="gist">${esc(before)}<a href="${esc(url)}">${esc(title)}</a>${esc(after)}</p>`;
-}
 
 /**
  * A timeline entry's cells: one across both tracks, or one for each, an empty cell for a track
@@ -293,15 +261,13 @@ function timelineCells({ date, pc, mac, both }: TimelineRow): string {
 
 /**
  * A timeline entry's row header: its day (a date is read as the day it begins), with the year when
- * it's the first date or the year changes. The entries of one day share a header, which spans them
- * (`entries`). What isn't done yet has no date, and is headed "Next".
+ * it's the first date or the year changes (`timelineDay`). The entries of one day share a header,
+ * which spans them (`entries`). What isn't done yet has no date, and is headed "Next".
  */
 function timelineHeader(date: string | null, entries: number, lastYear: string | null): string {
-  if (date === null) return `<th scope="row">Next</th>`;
-  const day = `${date}T00:00`;
-  const words = date.slice(0, 4) === lastYear ? dayMonth(day) : longDate(day);
+  if (date === null) return `<th scope="row">${esc(STORY_TEXT.timeline.next)}</th>`;
   const span = entries > 1 ? ` rowspan="${entries}"` : "";
-  return `<th scope="row"${span}><time datetime="${esc(date)}">${words}</time></th>`;
+  return `<th scope="row"${span}><time datetime="${esc(date)}">${esc(timelineDay(date, lastYear))}</time></th>`;
 }
 
 /**
@@ -309,6 +275,7 @@ function timelineHeader(date: string | null, entries: number, lastYear: string |
  * before has no header of its own: the day's header spans them both.
  */
 function timelineTable(): string {
+  const { timeline } = STORY_TEXT;
   const rows: string[] = [];
   let lastYear: string | null = null;
   for (const [index, row] of TIMELINE.entries()) {
@@ -324,35 +291,36 @@ function timelineTable(): string {
     if (date !== null) lastYear = date.slice(0, 4);
   }
   const tracks = [
-    `<th scope="col">When</th>`,
-    `<th scope="col"><span class="plat pc">Windows PC</span>, with NVDA</th>`,
-    `<th scope="col"><span class="plat mac">Mac</span>, with VoiceOver</th>`,
+    `<th scope="col">${esc(timeline.when)}</th>`,
+    `<th scope="col"><span class="plat pc">${esc(timeline.pc.name)}</span>, ${esc(timeline.pc.reader)}</th>`,
+    `<th scope="col"><span class="plat mac">${esc(timeline.mac.name)}</span>, ${esc(timeline.mac.reader)}</th>`,
   ];
-  const caption = `<caption>From the first line of code to today, on a Windows PC and on a Mac</caption>`;
+  const caption = `<caption>${esc(timeline.caption)}</caption>`;
   const table = `<table class="tracks">${caption}<thead><tr>${tracks.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
   return scroll("voicecap's timeline, table", table);
 }
 
 /**
- * "How voicecap came to be": why it exists, with the Deque study linked; the rest of the story in a
- * fold; the timeline on a Windows PC and on a Mac; and a few things worth knowing, folded. All of it
- * is fixed text, so it takes nothing from the model.
+ * "How voicecap came to be": how it began, then why it exists, with the Deque study linked, both in
+ * the open; the rest of the story in a fold; the timeline on a Windows PC and on a Mac; and a few
+ * things worth knowing, folded. All of it is fixed text, so it takes nothing from the model.
  */
 export function renderStory(_model: ShareModel): string {
   const rest = fold(
-    `<span class="what">The rest of the story</span> <span class="sub">the usual answer, and voicecap's</span>`,
+    `<span class="what">${esc(STORY_TEXT.rest.title)}</span> <span class="sub">${esc(STORY_TEXT.rest.inside)}</span>`,
     `<p>${esc(STORY.usual)}</p><p>${esc(STORY.answer)}</p>`,
   );
   const cards = WORTH_KNOWING.map(
     ({ title, text }) => `<div><h3>${esc(title)}</h3><p>${esc(text)}</p></div>`,
   );
   const worth = fold(
-    `<span class="what">A few things worth knowing</span> <span class="sub">${plural(WORTH_KNOWING.length, "point")}</span>`,
+    `<span class="what">${esc(STORY_TEXT.worth)}</span> <span class="sub">${plural(WORTH_KNOWING.length, "point")}</span>`,
     `<div class="worth">${cards.join("")}</div>`,
   );
   const parts = [
-    `<h2 id="story-h">How voicecap came to be</h2>`,
-    whyParagraph(),
+    `<h2 id="story-h">${esc(STORY_TEXT.title)}</h2>`,
+    `<p class="gist">${esc(STORY.began)}</p>`,
+    `<p class="gist">${lineHtml(whyLine())}</p>`,
     `<div class="folds">${rest}</div>`,
     timelineTable(),
     `<div class="folds">${worth}</div>`,
@@ -363,20 +331,31 @@ export function renderStory(_model: ShareModel): string {
 // The footer.
 
 /**
+ * The footer's line on the file and its Word copy (`FOOTER_TEXT.page`), every word escaped. The
+ * footer sets a name in the fixed-width font as a `<span class="mono">`, where `lineHtml` writes a
+ * `<code>`, so this one line is drawn here. Its pieces are plain words and names, nothing else.
+ */
+function fileLine(line: Line): string {
+  return line
+    .map((piece) => {
+      if (typeof piece === "string") return esc(piece);
+      return piece.mono ? `<span class="mono">${esc(piece.text)}</span>` : esc(piece.text);
+    })
+    .join("");
+}
+
+/**
  * What voicecap is, with the link again; when the page was made, with its offset from UTC, and the
  * offsets the runs recorded their times in, since each time is shown as its run recorded it (a run
- * recorded elsewhere keeps its own); and the file's own name.
+ * recorded elsewhere keeps its own); and the file's own name, with its Word copy's.
  */
 export function renderFooter(model: ShareModel): string {
-  const { generatedAt, fileName, offsets } = model.footer;
-  const generated = `Generated on ${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)}).`;
-  const times =
-    offsets.length === 0 ? "" : ` Times are as each run recorded them (${names(offsets)}).`;
+  const { fileName, wordName } = model.footer;
   return [
     `<footer>`,
-    `  <span>${esc(ABOUT)} <a href="${GITHUB}">github.com/ICJIA/voicecap</a></span>`,
-    `  <span>${esc(`${generated}${times}`)}</span>`,
-    `  <span>This file: <span class="mono">${esc(fileName)}</span></span>`,
+    `  <span>${lineHtml([`${ABOUT} `, { text: FOOTER_TEXT.address, href: TOP_TEXT.github }])}</span>`,
+    `  <span>${esc(generatedLine(model.footer))}</span>`,
+    `  <span>${fileLine(FOOTER_TEXT.page(fileName, wordName))}</span>`,
     `</footer>`,
   ].join("\n");
 }

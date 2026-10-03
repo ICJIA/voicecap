@@ -1,5 +1,5 @@
 /**
- * The shareable page as a reader gets it: written to a folder by writeSharePage from a site's
+ * The shareable page as a reader gets it: written to a folder by writeShareFiles from a site's
  * records, then opened from a file in headless Chromium. It's checked for accessibility (axe, in
  * both themes, with its folds closed and open), for loading nothing from outside the file, for what
  * its scripts do with its folds, and for its fingerprint check, run on the page's own data.
@@ -24,7 +24,7 @@ import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
-import { writeSharePage } from "../src/share/write.js";
+import { writeShareFiles } from "../src/share/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
@@ -82,14 +82,16 @@ const folders: string[] = [];
 /** The page voicecap writes for a site folder, or what stopped it. */
 async function pageOf(siteDir: string, now?: Date): Promise<string> {
   const logger = createMemoryLogger();
-  const file = await writeSharePage({
+  const files = await writeShareFiles({
     siteDir,
     config: DEFAULT_CONFIG,
     logger,
     ...(now === undefined ? {} : { now }),
   });
-  if (file === null) throw new Error(`The page wasn't written: ${logger.text("warn")}`);
-  return file;
+  if (files === null || files.page === null) {
+    throw new Error(`The page wasn't written: ${logger.text("warn")}`);
+  }
+  return files.page;
 }
 
 /** The demo runs, in a copy, with the page written in the copy. */
@@ -162,6 +164,7 @@ async function richPage(): Promise<string> {
     reviewer: "Sam Tester",
   });
   expect(logger.text("warn")).not.toContain("shareable page");
+  expect(logger.text("warn")).not.toContain("Word copy");
   // It shows what the demo's page can't: a review, a manual session, a page that sounds different,
   // and the error that stopped the second run reading the page with the long address.
   const page = await readFile(sharePath(outDir(dir)), "utf8");
@@ -461,6 +464,7 @@ describe("a page in a narrow window", () => {
     ["the command that verifies the records", ".verify pre"],
     ["the site's name", ".mast h1"],
     ["the site's address", ".mast-meta .addr"],
+    ["a file name in the footer", "footer .mono"],
   ])("breaks a word longer than the window in %s", async (_, selector) => {
     const page = await open(pages.demo);
     await page.setViewportSize({ width: 320, height: 900 });
@@ -473,6 +477,27 @@ describe("a page in a narrow window", () => {
     }, selector);
 
     expect(await overflowOf(page)).toEqual(FITS);
+  });
+});
+
+describe("the story's opening", () => {
+  it("sets how voicecap began, and why it exists, in the text color, and every other gist in the muted one", async () => {
+    const page = await open(pages.demo);
+
+    const colors = await page.evaluate(() => {
+      const color = (element: Element): string => getComputedStyle(element).color;
+      const opening = [...document.querySelectorAll("#story-h ~ p.gist")];
+      const others = [...document.querySelectorAll("p.gist")].filter(
+        (paragraph) => !opening.includes(paragraph),
+      );
+      return { text: color(document.body), opening: opening.map(color), others: others.map(color) };
+    });
+
+    // The two paragraphs the story opens with, as its one paragraph always was.
+    expect(colors.opening).toEqual([colors.text, colors.text]);
+    // The line under every other section's heading is set back, in the muted color.
+    expect(colors.others.length).toBeGreaterThan(0);
+    expect(colors.others.filter((color) => color === colors.text)).toEqual([]);
   });
 });
 
