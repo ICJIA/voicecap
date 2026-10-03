@@ -334,6 +334,17 @@ describe("standingOf: the pages in scope", () => {
     kind: "urls",
     urls: paths.map((path) => new URL(path, SITE).href),
   });
+  /**
+   * What a run that repeats a walkthrough records as its source: the walkthrough, and what the
+   * pages of the run it was made from came from.
+   */
+  const repeatOf = (from: "sitemap" | "pages" | "urls"): PageSource => ({
+    kind: "walkthrough",
+    file: "w.json",
+    sha256: "a".repeat(64),
+    run: "2026-09-29_1402",
+    from,
+  });
 
   it("keeps the sitemap's pages in scope after a spot check of one of them with --page", () => {
     const full = shareRun({
@@ -382,12 +393,7 @@ describe("standingOf: the pages in scope", () => {
     const repeat = shareRun({
       id: "r1",
       createdAt: "2026-09-20T09:30:00-05:00",
-      source: {
-        kind: "walkthrough",
-        file: "w.json",
-        sha256: "a".repeat(64),
-        run: "2026-09-29_1402",
-      },
+      source: repeatOf("sitemap"),
       pages: [{ path: "/" }, { path: "/a" }],
     });
     const spotCheck = shareRun({
@@ -403,6 +409,95 @@ describe("standingOf: the pages in scope", () => {
     expect(standing.pages.map((page) => page.url)).toEqual(repeat.pages.map((page) => page.url));
     expect(standing.pages.map((page) => page.shown?.run.id)).toEqual(["r2", "r1"]);
     expect(standing.noLongerListed).toEqual([]);
+  });
+
+  it.each(["sitemap", "pages"] as const)(
+    "takes the pages in scope from a repeat of a %s run, as from the list it repeats",
+    (from) => {
+      const full = shareRun({
+        id: "r1",
+        createdAt: "2026-09-20T09:30:00-05:00",
+        source: SITEMAP,
+        pages: [{ path: "/" }, { path: "/a" }, { path: "/gone" }],
+      });
+      const repeat = shareRun({
+        id: "r2",
+        createdAt: "2026-09-26T14:05:00-05:00",
+        source: repeatOf(from),
+        pages: [{ path: "/" }, { path: "/a" }],
+      });
+      const standing = standingOf([full, repeat]);
+
+      // The repeat of a list is the list now: a page it doesn't have is no longer listed.
+      expect(standing.latest?.id).toBe("r2");
+      expect(standing.pages.map((page) => page.url)).toEqual(repeat.pages.map((page) => page.url));
+      expect(standing.noLongerListed.map((gone) => [gone.page.url, gone.run.id])).toEqual([
+        [new URL("/gone", SITE).href, "r1"],
+      ]);
+    },
+  );
+
+  it("keeps the sitemap's pages in scope after a repeat of a --page spot check", () => {
+    const full = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: SITEMAP,
+      pages: [{ path: "/" }, { path: "/a" }, { path: "/b" }],
+    });
+    const repeat = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: repeatOf("urls"),
+      pages: [{ path: "/a" }],
+    });
+    const standing = standingOf([full, repeat]);
+
+    // A repeat of a spot check is a spot check: it says nothing of which pages are on the list.
+    expect(standing.latest?.id).toBe("r1");
+    expect(standing.pages.map((page) => page.url)).toEqual(full.pages.map((page) => page.url));
+    expect(standing.pages.map((page) => page.shown?.run.id)).toEqual(["r1", "r2", "r1"]);
+    expect(standing.noLongerListed).toEqual([]);
+    expect(ids(standing.drawnOn)).toEqual(["r1", "r2"]);
+  });
+
+  it("takes the pages from the newest run when every run was a spot check or a repeat of one", () => {
+    const repeat = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: repeatOf("urls"),
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const second = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/a"),
+      pages: [{ path: "/a" }],
+    });
+    const standing = standingOf([repeat, second]);
+
+    expect(standing.latest?.id).toBe("r2");
+    expect(standing.pages.map((page) => page.url)).toEqual([new URL("/a", SITE).href]);
+    expect(standing.noLongerListed.map((gone) => [gone.page.url, gone.run.id])).toEqual([
+      [new URL("/", SITE).href, "r1"],
+    ]);
+  });
+
+  it("keeps counting a run of a kind it doesn't know as a list, as it always has", () => {
+    // A run.json from a later voicecap may record a kind this one can't read.
+    const later = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: { kind: "ftp", host: "example.test" } as unknown as PageSource,
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/"),
+      pages: [{ path: "/" }],
+    });
+
+    expect(standingOf([later, spotCheck]).latest?.id).toBe("r1");
   });
 
   it("says a page a later spot check couldn't read failed there, beside its last good transcripts", () => {

@@ -11,9 +11,12 @@ import { UsageError } from "../src/util/errors.js";
 import { environment, findPage, tempOutDir, writeSyntheticRun } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 
-/** A page source that is a walkthrough file, made from run 2026-09-29_1402 unless it says. */
+/**
+ * A page source that is a walkthrough file, made from run 2026-09-29_1402 unless it says, a run of
+ * the pages of a sitemap.
+ */
 function walkthrough(file: string, sha256: string, run = "2026-09-29_1402"): PageSource {
-  return { kind: "walkthrough", file, sha256, run };
+  return { kind: "walkthrough", file, sha256, run, from: "sitemap" };
 }
 
 async function twoRuns(outDir: string) {
@@ -384,6 +387,24 @@ describe("samePageSource", () => {
     for (const other of others) {
       expect(samePageSource(repeat, other)).toBe(false);
       expect(samePageSource(other, repeat)).toBe(false);
+    }
+  });
+
+  it("takes a source of a kind this version doesn't know as different from every source", () => {
+    // A run.json from a later voicecap may record a kind this one can't read. It matches nothing,
+    // itself included: this version can't say what such a run's pages were.
+    const unknown = runFrom({ kind: "ftp", host: "example.test" } as unknown as PageSource);
+    const known = [
+      runFrom(walkthrough("w.json", "a".repeat(64))),
+      runFrom({ kind: "pages", file: "pages.csv", sha256: "a".repeat(64) }),
+      runFrom({ kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" }),
+      runFrom({ kind: "urls", urls: ["https://example.illinois.gov/"] }),
+    ];
+
+    expect(samePageSource(unknown, unknown)).toBe(false);
+    for (const other of known) {
+      expect(samePageSource(unknown, other)).toBe(false);
+      expect(samePageSource(other, unknown)).toBe(false);
     }
   });
 });

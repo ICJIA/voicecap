@@ -201,8 +201,9 @@ export function samePageSource(a: RunJson, b: RunJson): boolean {
         x.urls.every((url, i) => url === y.urls[i])
       );
     default: {
+      // A kind this version doesn't know, from a later voicecap: it matches nothing.
       const _exhaustive: never = x;
-      return _exhaustive;
+      return false;
     }
   }
 }

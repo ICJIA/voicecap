@@ -135,6 +135,7 @@ describe("chooseRun", () => {
         file: "w.json",
         sha256,
         run: "2026-09-29_1402",
+        from: "sitemap" as const,
       },
     });
     const edited = walkthrough("b".repeat(64));

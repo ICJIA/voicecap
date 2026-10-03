@@ -5,10 +5,11 @@
  *
  * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A key the
  * type doesn't have, a page address that isn't on the file's own site (or is too long, or is written
- * with a space or a control character), NVDA settings nested too deep, or a number beyond what the
- * config allows refuses the whole file, saying what's wrong and where, before anything runs.
- * `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say why a
- * file of it couldn't be read back before it writes one.
+ * with a space or a control character), a run id made of anything but a run id's characters, NVDA
+ * settings nested too deep, or a number beyond what the config allows refuses the whole file,
+ * saying what's wrong and where, before anything runs. `walkthroughProblem` gives that same reason
+ * for a walkthrough in hand, so a writer can say why a file of it couldn't be read back before it
+ * writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
@@ -105,6 +106,16 @@ export const MAX_NVDA_SETTINGS_DEPTH = 32;
 const MAX_STEP_LIMIT = 100_000;
 /** The most a readiness time may be, in milliseconds (ten minutes), for the same reason. */
 const MAX_READINESS_MS = 600_000;
+
+/**
+ * The longest a run id may be, in characters. run-id.ts makes ids of fewer than 50 (a date and
+ * time, a name of up to 24, and a number for a run begun in the same minute), so this refuses only
+ * an absurd one.
+ */
+const MAX_RUN_ID_LENGTH = 100;
+
+/** What a run id is made of, as run-id.ts makes one: letters, digits, ".", "_", and "-". */
+const RUN_ID_CHARACTERS = /^[A-Za-z0-9._-]+$/;
 
 /** The number of the format `walkthroughOf` writes, and the only one `parseWalkthrough` reads. */
 const FORMAT_VERSION = 1;
@@ -280,6 +291,7 @@ function sourceOf(source: PageSource): PageSource {
         file: fileNameOf(source.file),
         sha256: source.sha256,
         run: source.run,
+        from: source.from,
       };
     case "urls":
       return { kind: "urls", urls: [...source.urls] };
@@ -353,6 +365,22 @@ const siteSchema = z.string().superRefine((site, ctx) => {
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
 
+/**
+ * A run id, as run-id.ts makes one: no more than MAX_RUN_ID_LENGTH letters, digits, ".", "_", and
+ * "-". An id is printed in a transcript's header, in messages, and in warnings, so a file can't give
+ * one that breaks a header's lines or reaches the terminal. `place` is where in the file this id
+ * is: the reason is a custom one that names it, whatever is wrong (even a number, or no id at all).
+ */
+function runId(place: string): z.ZodCustom<string, string> {
+  return z.custom<string>(
+    (value) =>
+      typeof value === "string" &&
+      value.length <= MAX_RUN_ID_LENGTH &&
+      RUN_ID_CHARACTERS.test(value),
+    { error: `${place} isn't a run id` },
+  );
+}
+
 /** Every kind of page source a run records. A fifth kind is one more entry here. */
 const sourceSchema = z.discriminatedUnion(
   "kind",
@@ -364,7 +392,12 @@ const sourceSchema = z.discriminatedUnion(
       kind: z.literal("walkthrough"),
       file: z.string().min(1, "must be a file's name"),
       sha256: fingerprint,
-      run: z.string().min(1, "must be a run's id"),
+      run: runId("its original.source.run"),
+      // What the pages of the run it was made from came from: never another walkthrough, since a
+      // repeat's walkthrough says what the pages it repeated came from.
+      from: z.enum(["sitemap", "pages", "urls"], {
+        error: 'must be "sitemap", "pages", or "urls"',
+      }),
     }),
   ],
   { error: "isn't a kind of page source voicecap knows" },
@@ -414,7 +447,7 @@ const settingsSchema = z.strictObject({
 const versionSchema = z.strictObject({ name: z.string(), version: z.string() });
 
 const originSchema = z.strictObject({
-  run: z.string(),
+  run: runId("its original.run"),
   seal: fingerprint.nullable(),
   createdAt: z.string(),
   completedAt: z.string(),

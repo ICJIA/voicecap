@@ -509,6 +509,7 @@ describe("describeSource", () => {
       file: "w.json",
       sha256: "a".repeat(64),
       run: "2026-09-29_1402",
+      from: "sitemap",
     };
 
     expect(describeSource(source)).toBe("the walkthrough w.json from run 2026-09-29_1402");

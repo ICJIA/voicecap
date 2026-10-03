@@ -974,6 +974,7 @@ describe("buildShareModel", () => {
         file: "w.json",
         sha256: "a".repeat(64),
         run: "2026-09-29_1402",
+        from: "sitemap",
       },
       pages: [{ path: "/" }],
     });
@@ -988,7 +989,13 @@ describe("buildShareModel", () => {
     const file = path.join(home, "walks", "w.json");
     const run = shareRun({
       id: "2026-09-30_0900",
-      source: { kind: "walkthrough", file, sha256: "a".repeat(64), run: "2026-09-29_1402" },
+      source: {
+        kind: "walkthrough",
+        file,
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
       pages: [{ path: "/" }],
     });
 

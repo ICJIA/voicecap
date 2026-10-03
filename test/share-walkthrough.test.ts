@@ -332,7 +332,13 @@ describe("walkthroughOf", () => {
     const sha256 = "c".repeat(64);
     const run = shareRun({
       id: "2026-09-30_0900",
-      source: { kind: "walkthrough", file: "w.json", sha256, run: "2026-09-29_1402" },
+      source: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256,
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
       pages: [{ path: "/" }],
     });
     run.source.file = "w.json";
@@ -345,6 +351,7 @@ describe("walkthroughOf", () => {
       file: "w.json",
       sha256,
       run: "2026-09-29_1402",
+      from: "sitemap",
     });
     expect(original.sourceFingerprints).toStrictEqual([{ name: "w.json", sha256 }]);
   });
@@ -356,7 +363,13 @@ describe("walkthroughOf", () => {
       const sha256 = "b".repeat(64);
       const run = shareRun({
         id: "2026-09-30_0900",
-        source: { kind: "walkthrough", file: recorded, sha256, run: "2026-09-29_1402" },
+        source: {
+          kind: "walkthrough",
+          file: recorded,
+          sha256,
+          run: "2026-09-29_1402",
+          from: "sitemap",
+        },
         pages: [{ path: "/" }],
       });
       run.source.file = recorded;
@@ -369,16 +382,21 @@ describe("walkthroughOf", () => {
         file: "w.json",
         sha256,
         run: "2026-09-29_1402",
+        from: "sitemap",
       });
       expect(walkthrough.original.sourceFingerprints).toStrictEqual([{ name: "w.json", sha256 }]);
       // None of the folders is anywhere in the file, which goes to auditors and into the page.
       expect(walkthroughJson(walkthrough)).not.toContain(folders);
+      // What was kept of the file reads back, and a writer that asks first lets it through.
+      expect(parseWalkthrough(walkthroughJson(walkthrough), "w.json")).toStrictEqual(walkthrough);
+      expect(walkthroughProblem(walkthrough)).toBeNull();
       // The record keeps what it recorded: only the file leaves its folders out.
       expect(run.settings.source).toStrictEqual({
         kind: "walkthrough",
         file: recorded,
         sha256,
         run: "2026-09-29_1402",
+        from: "sitemap",
       });
       expect(run.source.file).toBe(recorded);
     },
@@ -565,6 +583,7 @@ describe("walkthroughJson", () => {
     run.settings = {
       ...run.settings,
       source: {
+        from: "pages",
         run: "2026-09-29_1402",
         sha256: "a".repeat(64),
         file: "w.json",
@@ -574,7 +593,8 @@ describe("walkthroughJson", () => {
 
     const file = JSON.parse(walkthroughJson(walkthroughOf(run))) as unknown;
 
-    expect(keysAt(file, "original", "source")).toEqual(["kind", "file", "sha256", "run"]);
+    expect(keysAt(file, "original", "source")).toEqual(["kind", "file", "sha256", "run", "from"]);
+    expect(at(file, "original", "source", "from")).toBe("pages");
   });
 
   it.each<[name: string, settings: Partial<RunJson["settings"]>]>([
@@ -602,9 +622,36 @@ describe("walkthroughJson", () => {
   it.each<[name: string, source: PageSource]>([
     ["a sitemap", { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" }],
     ["a page list", { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) }],
+    // A walkthrough of a repeat says what the pages it repeats came from: always one of these three.
     [
-      "a walkthrough",
-      { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64), run: "2026-09-29_1402" },
+      "a walkthrough of a sitemap run",
+      {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
+    ],
+    [
+      "a walkthrough of a page list run",
+      {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "pages",
+      },
+    ],
+    [
+      "a walkthrough of a --page run",
+      {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "urls",
+      },
     ],
     [
       "--page",
@@ -712,7 +759,14 @@ const WALKTHROUGH_SOURCE = {
   file: "w.json",
   sha256: "a".repeat(64),
   run: "2026-09-29_1402",
+  from: "sitemap",
 };
+
+/** The walkthrough with a walkthrough source that has every key but `key`. */
+function withoutKey(walkthrough: Walkthrough, key: keyof typeof WALKTHROUGH_SOURCE): unknown {
+  const { [key]: _left, ...rest } = WALKTHROUGH_SOURCE;
+  return withSource(walkthrough, rest);
+}
 
 /**
  * A run whose walkthrough has a value in every place the format has one, with its pages from
@@ -727,7 +781,13 @@ function completeRun(source: "sitemap" | "pages" | "walkthrough" | "urls"): RunJ
       : source === "pages"
         ? { kind: "pages", file: "pages.csv", sha256: "b".repeat(64) }
         : source === "walkthrough"
-          ? { kind: "walkthrough", file: "w.json", sha256: "b".repeat(64), run: "2026-09-29_1402" }
+          ? {
+              kind: "walkthrough",
+              file: "w.json",
+              sha256: "b".repeat(64),
+              run: "2026-09-29_1402",
+              from: "sitemap",
+            }
           : {
               kind: "urls",
               urls: ["https://example.illinois.gov/", "https://example.illinois.gov/faq/"],
@@ -916,7 +976,12 @@ describe("parseWalkthrough", () => {
     [
       "a walkthrough source with an empty run",
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: "" }),
-      "w.json isn't a voicecap walkthrough file: its original.source.run: must be a run's id.",
+      "w.json isn't a voicecap walkthrough file: its original.source.run isn't a run id.",
+    ],
+    [
+      "a walkthrough source of a kind of pages it doesn't know",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, from: "ftp" }),
+      'w.json isn\'t a voicecap walkthrough file: its original.source.from: must be "sitemap", "pages", or "urls".',
     ],
     [
       "an address with an escape sequence in it",
@@ -1503,7 +1568,7 @@ describe("parseWalkthrough", () => {
     ],
     [
       "a walkthrough source with no fingerprint",
-      (w) => withSource(w, { kind: "walkthrough", file: "w.json", run: "2026-09-29_1402" }),
+      (w) => withoutKey(w, "sha256"),
       "its original.source.sha256",
     ],
     [
@@ -1511,11 +1576,7 @@ describe("parseWalkthrough", () => {
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, sha256: "A".repeat(64) }),
       "its original.source.sha256: must be a SHA-256 fingerprint: 64 lower-case hex digits",
     ],
-    [
-      "a walkthrough source with no file",
-      (w) => withSource(w, { kind: "walkthrough", sha256: "a".repeat(64), run: "2026-09-29_1402" }),
-      "its original.source.file",
-    ],
+    ["a walkthrough source with no file", (w) => withoutKey(w, "file"), "its original.source.file"],
     [
       "a walkthrough source with an empty file name",
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, file: "" }),
@@ -1523,18 +1584,40 @@ describe("parseWalkthrough", () => {
     ],
     [
       "a walkthrough source with no run",
-      (w) => withSource(w, { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64) }),
-      "its original.source.run",
+      (w) => withoutKey(w, "run"),
+      "its original.source.run isn't a run id",
     ],
     [
       "a walkthrough source with an empty run",
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: "" }),
-      "its original.source.run: must be a run's id",
+      "its original.source.run isn't a run id",
     ],
     [
       "a walkthrough source with a run that isn't text",
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: 5 }),
-      "its original.source.run",
+      "its original.source.run isn't a run id",
+    ],
+    // What a repeat's pages came from: the one thing a walkthrough of a --page run must keep, so the
+    // site's scope isn't taken over by a repeat of a spot check.
+    [
+      "a walkthrough source with no word on what its pages came from",
+      (w) => withoutKey(w, "from"),
+      'its original.source.from: must be "sitemap", "pages", or "urls"',
+    ],
+    [
+      "a walkthrough source whose pages came from another walkthrough",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, from: "walkthrough" }),
+      'its original.source.from: must be "sitemap", "pages", or "urls"',
+    ],
+    [
+      "a walkthrough source whose pages came from something voicecap doesn't know",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, from: "ftp" }),
+      'its original.source.from: must be "sitemap", "pages", or "urls"',
+    ],
+    [
+      "a walkthrough source whose pages came from nothing",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, from: null }),
+      'its original.source.from: must be "sitemap", "pages", or "urls"',
     ],
     [
       "a walkthrough source with a key it doesn't have",
@@ -1627,6 +1710,7 @@ describe("parseWalkthrough", () => {
                 "original.source.file",
                 "original.source.sha256",
                 "original.source.run",
+                "original.source.from",
                 "original.sourceFingerprints.0.name",
               ]
             : []),
@@ -1678,6 +1762,45 @@ describe("parseWalkthrough", () => {
       });
 
       expect(accepted.map((place) => place.join("."))).toEqual([]);
+    });
+  });
+
+  // A run id is printed in a transcript's header, in messages, and in warnings, so it's checked
+  // where a file is read: only the characters voicecap makes a run id of, and no more than 100 of
+  // them. Otherwise a file's own text could break a header's lines, or reach the terminal.
+  describe.each<[place: string, put: (walkthrough: Walkthrough, run: unknown) => unknown]>([
+    ["its original.run", (w, run) => ({ ...w, original: { ...w.original, run } })],
+    ["its original.source.run", (w, run) => withSource(w, { ...WALKTHROUGH_SOURCE, run })],
+  ])("%s", (place, put) => {
+    it.each<[name: string, run: unknown]>([
+      ["a newline", "x\n\nfake line"],
+      ["an escape sequence", "x\u{1b}[2J\u{1b}]0;pwned\u{7}"],
+      ["a space", "2026-09-26 1405"],
+      ["a slash", "../2026-09-26_1405"],
+      ["a backslash", "..\\2026-09-26_1405"],
+      ["a letter from another script", "2026-09-26_14\u{43e}5"],
+      ["101 characters", "a".repeat(101)],
+      ["nothing in it", ""],
+      ["a number", 5],
+      ["nothing at all", null],
+    ])("refuses a run id with %s, saying so", (_name, run) => {
+      const walkthrough = put(valid(), run);
+
+      expect(refusal(textOf(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${place} isn't a run id.`);
+      // The same reason, for a walkthrough in hand.
+      expect(walkthroughProblem(walkthrough as Walkthrough)).toBe(`${place} isn't a run id.`);
+    });
+
+    it.each<[name: string, run: string]>([
+      ["a run id as voicecap makes it", "2026-09-26_1405"],
+      ["a run id with a name and a number", "2026-09-26_1405_exhaustive-2"],
+      ["every character a run id may have", "AZaz09._-"],
+      ["exactly 100 characters", "a".repeat(100)],
+    ])("accepts %s", (_name, run) => {
+      const walkthrough = put(valid(), run) as Walkthrough;
+
+      expect(parseWalkthrough(textOf(walkthrough), "w.json")).toStrictEqual(walkthrough);
+      expect(walkthroughProblem(walkthrough)).toBeNull();
     });
   });
 
@@ -1864,9 +1987,15 @@ describe("walkthroughProblem", () => {
       "a walkthrough source with an empty file name",
       (w) => withSource(w, { ...WALKTHROUGH_SOURCE, file: "" }),
     ],
+    ["a walkthrough source with no run", (w) => withoutKey(w, "run")],
+    ["a walkthrough source with no word on its pages", (w) => withoutKey(w, "from")],
     [
-      "a walkthrough source with no run",
-      (w) => withSource(w, { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64) }),
+      "a run id with a newline in it, in the source",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: "x\n\nfake line" }),
+    ],
+    [
+      "a run id with an escape sequence in it",
+      (w) => ({ ...w, original: { ...w.original, run: "\u{1b}[2J" } }),
     ],
     [
       "NVDA settings that aren't an object",

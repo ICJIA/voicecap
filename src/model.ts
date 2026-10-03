@@ -45,9 +45,18 @@ export type PageSource =
   | { kind: "urls"; urls: string[] }
   /**
    * --walkthrough: the walkthrough file, recorded as a page list's is (relative to the working
-   * folder when inside it), its SHA-256 as read, and the id of the run it was made from.
+   * folder when inside it), its SHA-256 as read, the id of the run it was made from, and what that
+   * run's pages came from. For a walkthrough of a repeat that is the repeat's own `from`, so it
+   * always names a sitemap, a page list, or --page, never another walkthrough: a repeat of a
+   * --page spot check is a spot check too, and doesn't say which pages are on the site's list.
    */
-  | { kind: "walkthrough"; file: string; sha256: string; run: string };
+  | {
+      kind: "walkthrough";
+      file: string;
+      sha256: string;
+      run: string;
+      from: "sitemap" | "pages" | "urls";
+    };
 
 /**
  * The computer a session ran on, as the report's "Test environment" shows it. Never its maker,

@@ -157,6 +157,7 @@ describe("generateReport", () => {
       file: "w.json",
       sha256: "a".repeat(64),
       run: "2026-09-29_1402",
+      from: "sitemap",
     });
 
     expect(summary(html).get("Page source")).toBe(
