@@ -1450,6 +1450,142 @@ describe("voicecap walkthrough", () => {
   });
 });
 
+describe("voicecap --walkthrough", () => {
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  /** The one site's folder of a home made by oneSiteHome(): a replay of fixture/replay-run. */
+  const siteDir = (home: string) => path.join(home, "transcripts", "127.0.0.1_4747");
+
+  /** The latest completed run of the home's site, as its run.json holds it. */
+  async function latestRun(home: string): Promise<RunJson> {
+    const id = (await readFile(path.join(siteDir(home), "latest.txt"), "utf8")).trim();
+    const file = path.join(runDir(siteDir(home), id), "run.json");
+    return JSON.parse(await readFile(file, "utf8")) as RunJson;
+  }
+
+  /** A home with a replayed run in it, and that run's walkthrough, as walkthrough.json in it. */
+  async function homeWithWalkthrough(): Promise<{ home: string; original: RunJson }> {
+    const home = await oneSiteHome();
+    const original = await latestRun(home);
+    const written = await cli(["walkthrough", "walkthrough.json"], home);
+    expect(written.code).toBe(0);
+    return { home, original };
+  }
+
+  /** The runs the home's site has: how many run.json files its folder holds. */
+  async function runCount(home: string): Promise<number> {
+    return (await contents(siteDir(home))).filter((name) => name.endsWith("run.json")).length;
+  }
+
+  it("repeats a run from its walkthrough file, with the replay driver", async () => {
+    const { home, original } = await homeWithWalkthrough();
+    const file = path.join(home, "walkthrough.json");
+
+    const repeat = await cli(["--walkthrough", file, "--replay-from", fixture("replay-run")], home);
+
+    expect(repeat.code).toBe(0);
+    const run = await latestRun(home);
+    expect(run.id).not.toBe(original.id);
+    expect(run.status).toBe("completed");
+    expect(run.settings.source).toEqual({
+      kind: "walkthrough",
+      file: "walkthrough.json",
+      sha256: sha256(await readFile(file)),
+      run: original.id,
+      from: "pages",
+    });
+    expect(run.pages.map((page) => page.url)).toEqual(original.pages.map((page) => page.url));
+    expect(repeat.out).toContain(`${run.pages.length} pages to transcribe.`);
+  });
+
+  it("takes the site from the file, and allows --site when it's the file's own", async () => {
+    const { home } = await homeWithWalkthrough();
+    const file = path.join(home, "walkthrough.json");
+    const replay = ["--replay-from", fixture("replay-run")];
+
+    const without = await cli(["--walkthrough", file, ...replay], home);
+    const same = await cli(["--walkthrough", file, "--site", SITE, ...replay], home);
+
+    expect([without.code, same.code]).toEqual([0, 0]);
+    expect(await runCount(home)).toBe(3);
+  });
+
+  it("still needs --site when there's no --walkthrough", async () => {
+    const run = await cli(["--pages", "pages.json"]);
+
+    expect(run.code).toBe(1);
+    expect(run.err).toContain("Missing --site <url>");
+  });
+
+  it.each<[string, string[]]>([
+    ["--site", ["--site", "https://other.example"]],
+    ["--sitemap", ["--sitemap", "sitemap.xml"]],
+    ["--pages", ["--pages", "pages.json"]],
+    ["--page", ["--page", "/about/"]],
+    ["--limit", ["--limit", "2"]],
+    ["--include", ["--include", "/a*"]],
+    ["--exclude", ["--exclude", "/a*"]],
+    ["--passes", ["--passes", "read"]],
+    ["--max-steps", ["--max-steps", "5"]],
+  ])("exits 1, and says why, when it's given with %s", async (flag, given) => {
+    const { home } = await homeWithWalkthrough();
+    const before = await runCount(home);
+
+    const repeat = await cli(
+      ["--walkthrough", "walkthrough.json", ...given, "--replay-from", fixture("replay-run")],
+      home,
+    );
+
+    expect(repeat.code).toBe(1);
+    expect(repeat.out).toBe("");
+    expect(repeat.err).toBe(
+      `Error: --walkthrough repeats the pages and passes its file lists, so it can't be used with ${flag}.\n`,
+    );
+    expect(await runCount(home)).toBe(before);
+  });
+
+  it("exits 1, and says why, when the file isn't there", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+
+    const repeat = await cli(
+      ["--walkthrough", "nope.json", "--replay-from", fixture("replay-run")],
+      dir,
+    );
+
+    expect(repeat.code).toBe(1);
+    expect(repeat.out).toBe("");
+    expect(repeat.err).toMatch(/^Error: Can't read the walkthrough file nope\.json: /);
+    expect(existsSync(path.join(dir, "transcripts"))).toBe(false);
+  });
+
+  it("exits 1, and says why, when the file isn't a walkthrough", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    await writeFile(path.join(dir, "walkthrough.json"), "[]");
+
+    const repeat = await cli(
+      ["--walkthrough", "walkthrough.json", "--replay-from", fixture("replay-run")],
+      dir,
+    );
+
+    expect(repeat.code).toBe(1);
+    expect(repeat.out).toBe("");
+    expect(repeat.err).toBe(
+      "Error: walkthrough.json isn't a voicecap walkthrough file: it isn't a JSON object.\n",
+    );
+    expect(existsSync(path.join(dir, "transcripts"))).toBe(false);
+  });
+
+  it("is listed in the help, with what it does", async () => {
+    const help = await cli(["--help"]);
+
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "--walkthrough <file> repeat a run from its walkthrough file: the same pages, in the same order, with the same passes and limits",
+    );
+  });
+});
+
 describe("voicecap init", () => {
   it("init asks the questions and prints the command", async () => {
     const run = await cli(

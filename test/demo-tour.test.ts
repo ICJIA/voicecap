@@ -182,7 +182,7 @@ async function finishedRun(
   options: RunAuditOptions,
   pages: SyntheticPage[] = demoPages(),
 ): Promise<RunAuditResult> {
-  const siteDir = path.join(options.cwd!, options.out!, siteFolder(options.site));
+  const siteDir = path.join(options.cwd!, options.out!, siteFolder(options.site!));
   const run = await writeSyntheticRun(siteDir, { id: RUN_ID, pages });
   const failedPages = run.pages.filter((page) => page.status === "failed").length;
   return {
@@ -266,7 +266,7 @@ function realRun(
   } = {},
 ) {
   return (runOptions: RunAuditOptions): Promise<RunAuditResult> => {
-    const driver = new ScriptedDriver(spokenDemo(runOptions.site, options.changes));
+    const driver = new ScriptedDriver(spokenDemo(runOptions.site!, options.changes));
     const openPage = driver.openPage.bind(driver);
     driver.openPage = (url) => {
       options.opening?.(url);
@@ -965,7 +965,7 @@ describe("the tour with a real run of the real demo site", () => {
     });
     expect(result.error).toBeNull();
     expect(result.code).toBe(0);
-    const folder = siteFolder(result.runs[0]!.site);
+    const folder = siteFolder(result.runs[0]!.site!);
     const siteDir = path.join(result.cwd, "voicecap-demo", folder);
     const run = await readRunJson(siteDir, RUN_ID);
     // The run took its pages from the demo site's own sitemap: all seven, in the tour's order.
@@ -1003,7 +1003,7 @@ describe("the tour with a real run of the real demo site", () => {
       });
       expect(result.error).toBeNull();
       expect(result.code).toBe(0);
-      const siteDir = path.join(result.cwd, "voicecap-demo", siteFolder(result.runs[0]!.site));
+      const siteDir = path.join(result.cwd, "voicecap-demo", siteFolder(result.runs[0]!.site!));
       const run = await readRunJson(siteDir, RUN_ID);
       expect(run.settings).toMatchObject({
         driver: "guidepup",

@@ -20,7 +20,12 @@ import {
   type SessionRecord,
 } from "../model.js";
 import { compilePattern } from "../pages/filter.js";
-import { pageSourceFor, resolvePages } from "../pages/resolve.js";
+import {
+  pageSourceFor,
+  readWalkthroughFile,
+  resolvePages,
+  type WalkthroughFile,
+} from "../pages/resolve.js";
 import { displayPath, parseSiteUrl } from "../pages/url.js";
 import type { PassSettings } from "../passes/index.js";
 import { InterruptedError, throwIfAborted } from "../passes/steps.js";
@@ -29,6 +34,7 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
+import type { Walkthrough, WalkthroughSettings } from "../share/walkthrough.js";
 import { writeShareFiles } from "../share/write.js";
 import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
@@ -53,20 +59,33 @@ import { allocateRunId, sanitizeRunName } from "./run-id.js";
 import { listRuns, writeLatestRunId, writeRunJson } from "./store.js";
 
 export interface RunAuditOptions {
-  /** The site's URL; pages must be on its origin. */
-  site: string;
   /**
-   * Exactly one page source: a sitemap, a page list file (.csv or .json), or --page URLs. The
-   * sitemap is its full URL, or a name or path on the site (from its root), as --page paths are:
-   * "sitemap.xml" and "/sitemap.xml" are both https://dvfr.illinois.gov/sitemap.xml for a site on
-   * https://dvfr.illinois.gov, and a subsite's sitemap is given as its path ("/blog/sitemap.xml").
-   * A name that starts with a host ("dvfr.illinois.gov/sitemap.xml") is refused: give it with
-   * https://. A run knows its sitemap by the full URL, so either form resumes a run the other
-   * started.
+   * The site's URL; pages must be on its origin. Required, unless `walkthrough` is given: the site
+   * is then the file's, and a `site` that's another is refused.
+   */
+  site?: string;
+  /**
+   * Exactly one page source: a sitemap, a page list file (.csv or .json), --page URLs, or a
+   * walkthrough file (`walkthrough`, below). The sitemap is its full URL, or a name or path on the
+   * site (from its root), as --page paths are: "sitemap.xml" and "/sitemap.xml" are both
+   * https://dvfr.illinois.gov/sitemap.xml for a site on https://dvfr.illinois.gov, and a subsite's
+   * sitemap is given as its path ("/blog/sitemap.xml"). A name that starts with a host
+   * ("dvfr.illinois.gov/sitemap.xml") is refused: give it with https://. A run knows its sitemap by
+   * the full URL, so either form resumes a run the other started.
    */
   sitemap?: string | null;
   pages?: string | null;
   pageUrls?: string[] | null;
+  /**
+   * Repeat a run from its walkthrough file (`voicecap walkthrough` writes one): the same pages, in
+   * the same order, with the same passes, step limits, capture mode, and readiness settings. The
+   * NVDA settings and the browser are this computer's, whatever the file recorded. The file
+   * decides all of that, so it's refused beside `site` (unless it's the file's own), `sitemap`,
+   * `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps`, before anything
+   * runs. Needs no `site`. `compare`, `fresh`, `out`, `runName`, `reviewer`, and `replayFrom` go
+   * with it as with any run.
+   */
+  walkthrough?: string | null;
   limit?: number | null;
   include?: string[];
   exclude?: string[];
@@ -175,10 +194,19 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const now = options.now ?? (() => new Date());
   const signal = options.signal ?? new AbortController().signal;
 
-  const site = parseSiteUrl(options.site);
+  // A repeat is read first: everything it's refused for is refused here, before the config is
+  // loaded, the readiness is checked, or a folder is touched.
+  const walkthrough = await readRepeat(options, cwd);
+  const site = parseSiteUrl(walkthrough ? walkthrough.parsed.site : requireSite(options));
   const loaded = options.config ?? (await loadConfig({ cwd }));
-  const { config } = loaded;
-  const passes = checkPasses(options.passes ?? config.passes);
+  // A repeat reads what its file says, so the driver and the page runner get the config with that
+  // replaced; everything else, the NVDA settings and the browser too, is this computer's.
+  const config = walkthrough
+    ? configOfRepeat(loaded.config, walkthrough.parsed.settings)
+    : loaded.config;
+  const passes = walkthrough
+    ? [...walkthrough.parsed.settings.passes]
+    : checkPasses(options.passes ?? config.passes);
   const limit = checkCount("--limit", options.limit);
   const maxSteps = checkCount("--max-steps", options.maxSteps);
   const include = options.include ?? [];
@@ -194,6 +222,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     sitemap: options.sitemap ?? undefined,
     pagesFile: options.pages ?? undefined,
     pageUrls: options.pageUrls ?? undefined,
+    walkthrough: walkthrough ?? undefined,
     site,
     cwd,
   });
@@ -215,8 +244,9 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     readiness: { ...config.readiness },
   };
   // Quick checks before anything real happens: not ready throws before any folder or lock is
-  // touched; ready logs a one-line summary and any warnings, then the run proceeds as usual.
-  await checkReadiness({ selection, config, options, logger, cwd });
+  // touched; ready logs a one-line summary and any warnings, then the run proceeds as usual. They
+  // check this computer, with its own config, whatever a repeat's file says.
+  await checkReadiness({ selection, config: loaded.config, options, logger, cwd });
   // Creating the driver first means a wrong platform fails before any folder is touched.
   const driver = options.driver ?? (await createDriver(selection, { config, logger }));
 
@@ -239,6 +269,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
         sitemap: options.sitemap ?? undefined,
         pagesFile: options.pages ?? undefined,
         pageUrls: options.pageUrls ?? undefined,
+        walkthrough: walkthrough ?? undefined,
         include,
         exclude,
         limit,
@@ -294,10 +325,75 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
       signal,
       now,
       options,
+      walkthrough: walkthrough?.parsed ?? null,
     });
   } finally {
     await release();
   }
+}
+
+/**
+ * The walkthrough file a run repeats, read and parsed, or null when it repeats none. The file
+ * decides which pages are read, in what order, and with which passes and limits, so an option that
+ * would change any of them is refused beside it, naming the option: `site` too, unless it's the
+ * file's own. An option is refused before the file is read, so it's what's said whether or not the
+ * file can be read. All of this comes first, before the config is loaded, the readiness is checked,
+ * or a folder is touched.
+ */
+async function readRepeat(options: RunAuditOptions, cwd: string): Promise<WalkthroughFile | null> {
+  if (options.walkthrough === undefined || options.walkthrough === null) return null;
+  const refused = (option: string) =>
+    new UsageError(
+      `--walkthrough repeats the pages and passes its file lists, so it can't be used with ${option}.`,
+    );
+  const given = (value: unknown) => value !== undefined && value !== null;
+  const conflicts: [option: string, isGiven: boolean][] = [
+    ["--sitemap", given(options.sitemap)],
+    ["--pages", given(options.pages)],
+    ["--page", (options.pageUrls ?? []).length > 0],
+    ["--limit", given(options.limit)],
+    ["--include", (options.include ?? []).length > 0],
+    ["--exclude", (options.exclude ?? []).length > 0],
+    ["--passes", given(options.passes)],
+    ["--max-steps", given(options.maxSteps)],
+  ];
+  const conflict = conflicts.find(([, isGiven]) => isGiven);
+  if (conflict) throw refused(conflict[0]);
+
+  const walkthrough = await readWalkthroughFile(options.walkthrough, cwd);
+  // The site is the file's: the same one is no conflict, another is.
+  if (
+    options.site !== undefined &&
+    parseSiteUrl(options.site).origin !== parseSiteUrl(walkthrough.parsed.site).origin
+  ) {
+    throw refused("--site");
+  }
+  return walkthrough;
+}
+
+/** The site's address a run that repeats no walkthrough must be given. */
+function requireSite(options: RunAuditOptions): string {
+  if (options.site === undefined) {
+    throw new UsageError(
+      "Missing --site <url>. Give the site's URL, or --walkthrough <file> to repeat a run.",
+    );
+  }
+  return options.site;
+}
+
+/**
+ * This computer's config with what a walkthrough file decides put in: its capture mode and step
+ * limits, and its readiness settings, or this computer's where the file has none. The driver and
+ * the page runner read them from the config. The NVDA settings and the browser aren't replaced:
+ * a file may come from anyone, and what it records of them isn't applied to this computer.
+ */
+function configOfRepeat(config: VoicecapConfig, settings: WalkthroughSettings): VoicecapConfig {
+  return {
+    ...config,
+    capture: settings.capture,
+    stepCaps: { ...settings.stepCaps },
+    readiness: { ...(settings.readiness ?? config.readiness) },
+  };
 }
 
 /** Where the reviewer's name came from, as the run says it. */
@@ -319,6 +415,11 @@ interface ExecuteContext {
   signal: AbortSignal;
   now: () => Date;
   options: RunAuditOptions;
+  /**
+   * The walkthrough file a repeat was made from, parsed; null for a run that repeats none. Kept
+   * until the run ends, so the finished repeat can be compared with it.
+   */
+  walkthrough: Walkthrough | null;
 }
 
 async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {

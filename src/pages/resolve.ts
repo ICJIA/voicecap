@@ -1,7 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { InvalidEntry, PageRef, PageSource, SkippedRecord, SourceDetails } from "../model.js";
+import { parseWalkthrough, type Walkthrough } from "../share/walkthrough.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten, resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
@@ -20,17 +21,31 @@ import {
   startsWithHost,
 } from "./url.js";
 
+/** A walkthrough file as a repeat reads it: read once, as bytes, then parsed. */
+export interface WalkthroughFile {
+  /** The file's path as recorded, as a page list's is: relative to cwd when inside it. */
+  file: string;
+  /** The SHA-256 of the file's bytes as read. */
+  sha256: string;
+  parsed: Walkthrough;
+}
+
 export interface ResolvePagesOptions {
   /** The site's origin (see parseSiteUrl). */
   site: URL;
   /**
-   * Exactly one of sitemap, pagesFile, and pageUrls. The sitemap is its full URL, or a name or
-   * path on the site, from its root (see resolveSitemapUrl).
+   * Exactly one of sitemap, pagesFile, pageUrls, and walkthrough. The sitemap is its full URL, or a
+   * name or path on the site, from its root (see resolveSitemapUrl).
    */
   sitemap?: string;
   pagesFile?: string;
   /** --page, one or more times: full URLs or paths, resolved against site. */
   pageUrls?: readonly string[];
+  /**
+   * --walkthrough: the file, already read and parsed (see readWalkthroughFile). The pages are the
+   * file's, in its order, with their labels, templates, and notes.
+   */
+  walkthrough?: WalkthroughFile;
   include?: readonly string[];
   exclude?: readonly string[];
   limit?: number | null;
@@ -54,20 +69,79 @@ export interface ResolvedPages {
 const EXAMPLES = 3;
 
 /**
+ * The largest a walkthrough file may be, in bytes: 8 MB. A file at the most pages one may list
+ * (10,000) is about 4.5 MB, so no file voicecap writes comes near this. A walkthrough file may come
+ * from anyone, and parsing a hostile one takes seconds, so a larger one is refused before it's
+ * read.
+ */
+const MAX_WALKTHROUGH_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Read a walkthrough file for a repeat. A UsageError refuses a file that's over
+ * MAX_WALKTHROUGH_BYTES (without reading it), one that can't be read, and one that isn't a
+ * walkthrough file (see parseWalkthrough). The file is read once, as bytes: their SHA-256 is what
+ * the repeat's page source keeps, and then they're parsed. `file` is as the person gave it,
+ * resolved against `cwd`; it's named that way in a refusal, and recorded as a page list's file is.
+ */
+export async function readWalkthroughFile(file: string, cwd: string): Promise<WalkthroughFile> {
+  const absolute = resolveUserPath(cwd, file);
+  const { size } = await readable(file, () => stat(absolute));
+  if (size > MAX_WALKTHROUGH_BYTES) {
+    throw new UsageError(
+      `${file} is larger than 8 MB, larger than any walkthrough file voicecap writes.`,
+    );
+  }
+  const bytes = await readable(file, () => readFile(absolute));
+  // A byte order mark stays in the text: parseWalkthrough is the one place that reads past it.
+  const parsed = parseWalkthrough(bytes.toString("utf8"), file);
+  return { file: recordedPath(cwd, absolute), sha256: sha256(bytes), parsed };
+}
+
+/** What `read` gives, or a UsageError that says the walkthrough file `file` couldn't be read. */
+async function readable<T>(file: string, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    throw new UsageError(`Can't read the walkthrough file ${file}: ${(error as Error).message}`, {
+      cause: error,
+    });
+  }
+}
+
+/**
+ * The page source of a repeat: the walkthrough file, the run it was made from, and what that run's
+ * pages came from. A walkthrough of a repeat says what the pages it repeated came from, so `from`
+ * never names a walkthrough, and a repeat of a --page spot check is a spot check too.
+ */
+function walkthroughSource(walkthrough: WalkthroughFile): PageSource {
+  const { run, source } = walkthrough.parsed.original;
+  return {
+    kind: "walkthrough",
+    file: walkthrough.file,
+    sha256: walkthrough.sha256,
+    run,
+    from: source.kind === "walkthrough" ? source.from : source.kind,
+  };
+}
+
+/**
  * Identify a page source without fetching anything, for the resume check. A sitemap is its full
  * URL, however it was given (a name or path is read on site, from its root, as resolvePages reads
  * it); a page list is its path (relative to cwd, with forward slashes, when inside cwd) plus the
- * SHA-256 of its contents; --page values are their resolved URLs. site is required for --page
- * values and for a sitemap given as a name or path.
+ * SHA-256 of its contents; --page values are their resolved URLs; a walkthrough is its file,
+ * SHA-256, and run, from the file as already read. site is required for --page values and for a
+ * sitemap given as a name or path.
  */
 export async function pageSourceFor(options: {
   sitemap?: string;
   pagesFile?: string;
   pageUrls?: readonly string[];
+  walkthrough?: WalkthroughFile;
   site?: URL;
   cwd?: string;
 }): Promise<PageSource> {
-  const { sitemap, pagesFile, pageUrls } = requireOneSource(options);
+  const { sitemap, pagesFile, pageUrls, walkthrough } = requireOneSource(options);
+  if (walkthrough !== undefined) return walkthroughSource(walkthrough);
   if (sitemap !== undefined) {
     return { kind: "sitemap", url: parseSitemapUrl(sitemap, options.site) };
   }
@@ -90,10 +164,11 @@ export async function pageSourceFor(options: {
 /**
  * Build a run's page list: read the source, resolve each entry against the site, drop fragments
  * and duplicates (keeping the form listed first), skip other origins and non-HTML extensions,
- * then apply --include, --exclude, and --limit, in that order.
+ * then apply --include, --exclude, and --limit, in that order. A walkthrough's pages are its
+ * file's, in its order, and go through the same steps.
  */
 export async function resolvePages(options: ResolvePagesOptions): Promise<ResolvedPages> {
-  const { sitemap, pagesFile, pageUrls } = requireOneSource(options);
+  const { sitemap, pagesFile, pageUrls, walkthrough } = requireOneSource(options);
   const cwd = options.cwd ?? process.cwd();
   const logger = options.logger;
   const site = options.site;
@@ -132,6 +207,18 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
     source.format = list.format;
     source.encoding = list.encoding;
     for (const warning of list.warnings) logger?.warn(warning);
+  } else if (walkthrough !== undefined) {
+    pageSource = walkthroughSource(walkthrough);
+    entries = walkthrough.parsed.pages.map((page) => ({
+      value: page.url,
+      line: null,
+      label: page.label,
+      template: page.template,
+      notes: page.notes,
+    }));
+    source = baseDetails("walkthrough", entries.length, []);
+    source.file = walkthrough.file;
+    source.sha256 = walkthrough.sha256;
   } else {
     const urls = resolvePageUrlOption(pageUrls!, site);
     pageSource = { kind: "urls", urls };
@@ -166,7 +253,8 @@ export async function resolvePages(options: ResolvePagesOptions): Promise<Resolv
   }
   source.invalid = invalid;
   source.duplicates = duplicateLines.length;
-  if (duplicateLines.length > 0 && source.kind === "pages") {
+  // A list that may be made or edited by hand says it, with its lines where it has them.
+  if (duplicateLines.length > 0 && (source.kind === "pages" || source.kind === "walkthrough")) {
     const lines = duplicateLines.filter((line): line is number => line !== null);
     const message =
       `Ignored ${duplicateLines.length} duplicate entr${duplicateLines.length === 1 ? "y" : "ies"}` +
@@ -236,21 +324,29 @@ function requireOneSource(options: {
   sitemap?: string | undefined;
   pagesFile?: string | undefined;
   pageUrls?: readonly string[] | undefined;
+  walkthrough?: WalkthroughFile | undefined;
 }): {
   sitemap?: string;
   pagesFile?: string;
   pageUrls?: readonly string[];
+  walkthrough?: WalkthroughFile;
 } {
   const hasSitemap = options.sitemap !== undefined && options.sitemap !== "";
   const hasPages = options.pagesFile !== undefined && options.pagesFile !== "";
   const hasPageUrls = options.pageUrls !== undefined && options.pageUrls.length > 0;
-  const count = [hasSitemap, hasPages, hasPageUrls].filter(Boolean).length;
+  const hasWalkthrough = options.walkthrough !== undefined;
+  const count = [hasSitemap, hasPages, hasPageUrls, hasWalkthrough].filter(Boolean).length;
   if (count === 0) {
     throw new UsageError("Give a page source: --sitemap <url>, --pages <file>, or --page <url>.");
   }
   if (count > 1) {
-    throw new UsageError("Use one kind of page source: --sitemap, --pages, or --page, not a mix.");
+    throw new UsageError(
+      hasWalkthrough
+        ? "Use one kind of page source: --walkthrough, --sitemap, --pages, or --page, not a mix."
+        : "Use one kind of page source: --sitemap, --pages, or --page, not a mix.",
+    );
   }
+  if (hasWalkthrough) return { walkthrough: options.walkthrough! };
   if (hasSitemap) return { sitemap: options.sitemap! };
   if (hasPages) return { pagesFile: options.pagesFile! };
   return { pageUrls: options.pageUrls! };

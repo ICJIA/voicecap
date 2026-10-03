@@ -73,6 +73,7 @@ interface RunOptions {
   runName?: string;
   reviewer?: string;
   replayFrom?: string;
+  walkthrough?: string;
 }
 
 const OUT_HELP = "transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)";
@@ -137,6 +138,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
       "take this page: a full URL, or a path like /faq/ (repeatable)",
       collect,
       [],
+    )
+    .option(
+      "--walkthrough <file>",
+      "repeat a run from its walkthrough file: the same pages, in the same order, with the same passes and limits",
     )
     .option("--limit <n>", "transcribe at most n pages", positiveInt("--limit"))
     .option(
@@ -654,7 +659,8 @@ async function loadPlatform(
 }
 
 async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger): Promise<number> {
-  if (!options.site) {
+  // A repeat takes its site from its walkthrough file.
+  if (!options.site && !options.walkthrough) {
     throw new UsageError(
       "Missing --site <url>. Run voicecap init to answer a few questions instead, or voicecap --help for usage.",
     );
@@ -668,6 +674,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       sitemap: options.sitemap ?? null,
       pages: options.pages ?? null,
       ...(options.page.length > 0 ? { pageUrls: options.page } : {}),
+      walkthrough: options.walkthrough ?? null,
       limit: options.limit ?? null,
       include: options.include,
       exclude: options.exclude,

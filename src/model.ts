@@ -155,8 +155,9 @@ export interface RunSettings {
   nvdaSettings: Record<string, unknown>;
   browser: { channel: string; fallbackToChromium: boolean };
   /**
-   * How long the run waited for each page to be ready, as the config gave it. Absent in runs from
-   * before voicecap recorded it.
+   * How long the run waited for each page to be ready, as the config gave it; for a repeat of a
+   * walkthrough file, as the file gave it, or the config where the file had none. Absent in runs
+   * from before voicecap recorded it.
    */
   readiness?: { readySelector: string | null; settleMs: number; networkIdleTimeoutMs: number };
 }
