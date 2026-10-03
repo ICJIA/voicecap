@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { pageSourceFor, resolvePages } from "../src/pages/resolve.js";
+import type { PageSource } from "../src/model.js";
+import { describeSource, pageSourceFor, resolvePages } from "../src/pages/resolve.js";
 import { parseSiteUrl } from "../src/pages/url.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
@@ -481,5 +482,35 @@ describe("pageSourceFor", () => {
       pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, pageUrls: ["/a"], site }),
     ).rejects.toThrow(/Use one kind of page source/);
     await expect(pageSourceFor({ site })).rejects.toThrow(/--page <url>/);
+  });
+});
+
+describe("describeSource", () => {
+  // The words the warning about URLs on other sites uses for where the pages came from.
+  it.each<[name: string, source: PageSource, words: string]>([
+    [
+      "a sitemap",
+      { kind: "sitemap", url: `${ORIGIN}/sitemap.xml` },
+      `the sitemap ${ORIGIN}/sitemap.xml`,
+    ],
+    [
+      "a page list",
+      { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) },
+      "the page list pages.csv",
+    ],
+    ["--page", { kind: "urls", urls: [`${ORIGIN}/faq/`] }, "the pages given with --page"],
+  ])("names %s", (_name, source, words) => {
+    expect(describeSource(source)).toBe(words);
+  });
+
+  it("names a walkthrough by its run and its file", () => {
+    const source: PageSource = {
+      kind: "walkthrough",
+      file: "w.json",
+      sha256: "a".repeat(64),
+      run: "2026-09-29_1402",
+    };
+
+    expect(describeSource(source)).toBe("the walkthrough of run 2026-09-29_1402 (w.json)");
   });
 });

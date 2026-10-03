@@ -145,7 +145,7 @@ export function environmentDifferences(base: RunJson, run: RunJson): string[] {
 
 /**
  * Resolve --compare: a run id, or "previous" for the most recent completed run created before
- * `run` with the same page source (the same sitemap URL, or the same page list file).
+ * `run` with the same page source (see samePageSource).
  */
 export async function resolveCompareBase(
   outDir: string,
@@ -178,22 +178,51 @@ export async function resolveCompareBase(
   return base;
 }
 
+/**
+ * Whether two runs' pages came from the same source: the same sitemap URL, the same page list file
+ * (whatever it held then), the same --page URLs in the same order, or the same walkthrough, told by
+ * its SHA-256: a copy under another name is the same walkthrough, and an edited one isn't. Sources
+ * of different kinds never match.
+ */
 export function samePageSource(a: RunJson, b: RunJson): boolean {
   const x = a.settings.source;
   const y = b.settings.source;
-  if (x.kind === "sitemap" && y.kind === "sitemap") return x.url === y.url;
-  if (x.kind === "pages" && y.kind === "pages") return x.file === y.file;
-  if (x.kind === "urls" && y.kind === "urls") {
-    return x.urls.length === y.urls.length && x.urls.every((url, i) => url === y.urls[i]);
+  switch (x.kind) {
+    case "sitemap":
+      return y.kind === "sitemap" && x.url === y.url;
+    case "pages":
+      return y.kind === "pages" && x.file === y.file;
+    case "walkthrough":
+      return y.kind === "walkthrough" && x.sha256 === y.sha256;
+    case "urls":
+      return (
+        y.kind === "urls" &&
+        x.urls.length === y.urls.length &&
+        x.urls.every((url, i) => url === y.urls[i])
+      );
+    default: {
+      const _exhaustive: never = x;
+      return _exhaustive;
+    }
   }
-  return false;
 }
 
 function describeSource(run: RunJson): string {
   const source = run.settings.source;
-  if (source.kind === "sitemap") return `sitemap ${source.url}`;
-  if (source.kind === "pages") return `page list ${source.file}`;
-  return describePageUrls(source.urls);
+  switch (source.kind) {
+    case "sitemap":
+      return `sitemap ${source.url}`;
+    case "pages":
+      return `page list ${source.file}`;
+    case "walkthrough":
+      return `walkthrough of run ${source.run} (${source.file})`;
+    case "urls":
+      return describePageUrls(source.urls);
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
 }
 
 async function passDiff(

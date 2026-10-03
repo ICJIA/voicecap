@@ -155,6 +155,29 @@ describe("environmentLines", () => {
     });
     expect(lines).toContain("Page source: page https://dvfr.illinois.gov/faq/");
   });
+
+  it("describes a sitemap source by its address", () => {
+    const lines = environmentLines({
+      ...environment,
+      pageSource: { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" },
+    });
+    expect(lines).toContain("Page source: sitemap https://example.illinois.gov/sitemap.xml");
+  });
+
+  it("describes a walkthrough source by its run, its file, and its SHA-256", () => {
+    const lines = environmentLines({
+      ...environment,
+      pageSource: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+      },
+    });
+    expect(lines).toContain(
+      `Page source: walkthrough of run 2026-09-29_1402 (w.json) (sha256 ${"a".repeat(64)})`,
+    );
+  });
 });
 
 describe("writeTranscript", () => {

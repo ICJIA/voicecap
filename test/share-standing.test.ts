@@ -378,6 +378,33 @@ describe("standingOf: the pages in scope", () => {
     expect(standing.noLongerListed).toEqual([]);
   });
 
+  it("counts a walkthrough run as a list, in scope, like a page list", () => {
+    const repeat = shareRun({
+      id: "r1",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+      },
+      pages: [{ path: "/" }, { path: "/a" }],
+    });
+    const spotCheck = shareRun({
+      id: "r2",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: given("/"),
+      pages: [{ path: "/" }],
+    });
+    const standing = standingOf([repeat, spotCheck]);
+
+    // The walkthrough run decides the pages in scope; the --page run after it only checks one.
+    expect(standing.latest?.id).toBe("r1");
+    expect(standing.pages.map((page) => page.url)).toEqual(repeat.pages.map((page) => page.url));
+    expect(standing.pages.map((page) => page.shown?.run.id)).toEqual(["r2", "r1"]);
+    expect(standing.noLongerListed).toEqual([]);
+  });
+
   it("says a page a later spot check couldn't read failed there, beside its last good transcripts", () => {
     const full = shareRun({
       id: "r1",

@@ -67,6 +67,18 @@ function keysAt(value: unknown, ...path: (string | number)[]): string[] {
   return Object.keys(at(value, ...path) as object);
 }
 
+/**
+ * Ways a file's path may have been recorded, each with a folder in it that must not travel. Each
+ * path ends in "grants.csv": a test of a walkthrough's file says "w.json" in its place.
+ */
+const RECORDED_PATHS: [name: string, recorded: string, folders: string][] = [
+  ["a Windows path with its drive and user name", "C:\\Users\\Pat\\sites\\grants.csv", "Pat"],
+  ["a path relative to the working folder", "lists/grants.csv", "lists"],
+  ["a path on a network share", "\\\\server\\share\\lists\\grants.csv", "server"],
+  ["a path with both kinds of separator", "C:/Users/Pat\\sites/grants.csv", "Pat"],
+  ["a path on a Mac", "/Users/pat/sites/grants.csv", "pat"],
+];
+
 describe("walkthroughOf", () => {
   it("holds every page of the run, in its order, with what it said", () => {
     const run = sampleRun();
@@ -286,36 +298,91 @@ describe("walkthroughOf", () => {
     expect(original.sourceFingerprints).toStrictEqual([]);
   });
 
-  it.each<[name: string, recorded: string, folders: string]>([
-    ["a Windows path with its drive and user name", "C:\\Users\\Pat\\sites\\grants.csv", "Pat"],
-    ["a path relative to the working folder", "lists/grants.csv", "lists"],
-    ["a path on a network share", "\\\\server\\share\\lists\\grants.csv", "server"],
-    ["a path with both kinds of separator", "C:/Users/Pat\\sites/grants.csv", "Pat"],
-    ["a path on a Mac", "/Users/pat/sites/grants.csv", "pat"],
-  ])("keeps a page list's file by its name alone: %s", (_name, recorded, folders) => {
-    const sha256 = "b".repeat(64);
+  it.each(RECORDED_PATHS)(
+    "keeps a page list's file by its name alone: %s",
+    (_name, recorded, folders) => {
+      const sha256 = "b".repeat(64);
+      const run = shareRun({
+        id: "2026-09-26_1405",
+        source: { kind: "pages", file: recorded, sha256 },
+        pages: [{ path: "/" }],
+      });
+      run.source.file = recorded;
+      run.source.sha256 = sha256;
+
+      const walkthrough = walkthroughOf(run);
+
+      expect(walkthrough.original.source).toStrictEqual({
+        kind: "pages",
+        file: "grants.csv",
+        sha256,
+      });
+      expect(walkthrough.original.sourceFingerprints).toStrictEqual([
+        { name: "grants.csv", sha256 },
+      ]);
+      // None of the folders is anywhere in the file, which goes to auditors and into the page.
+      expect(walkthroughJson(walkthrough)).not.toContain(folders);
+      // The record keeps what it recorded: only the file leaves its folders out.
+      expect(run.settings.source).toStrictEqual({ kind: "pages", file: recorded, sha256 });
+      expect(run.source.file).toBe(recorded);
+    },
+  );
+
+  it("says where a repeat came from: the walkthrough it read its pages from", () => {
+    const sha256 = "c".repeat(64);
     const run = shareRun({
-      id: "2026-09-26_1405",
-      source: { kind: "pages", file: recorded, sha256 },
+      id: "2026-09-30_0900",
+      source: { kind: "walkthrough", file: "w.json", sha256, run: "2026-09-29_1402" },
       pages: [{ path: "/" }],
     });
-    run.source.file = recorded;
+    run.source.file = "w.json";
     run.source.sha256 = sha256;
 
-    const walkthrough = walkthroughOf(run);
+    const { original } = walkthroughOf(run);
 
-    expect(walkthrough.original.source).toStrictEqual({
-      kind: "pages",
-      file: "grants.csv",
+    expect(original.source).toStrictEqual({
+      kind: "walkthrough",
+      file: "w.json",
       sha256,
+      run: "2026-09-29_1402",
     });
-    expect(walkthrough.original.sourceFingerprints).toStrictEqual([{ name: "grants.csv", sha256 }]);
-    // None of the folders is anywhere in the file, which goes to auditors and into the page.
-    expect(walkthroughJson(walkthrough)).not.toContain(folders);
-    // The record keeps what it recorded: only the file leaves its folders out.
-    expect(run.settings.source).toStrictEqual({ kind: "pages", file: recorded, sha256 });
-    expect(run.source.file).toBe(recorded);
+    expect(original.sourceFingerprints).toStrictEqual([{ name: "w.json", sha256 }]);
   });
+
+  it.each(RECORDED_PATHS)(
+    "keeps a walkthrough's file by its name alone, as a page list's: %s",
+    (_name, listed, folders) => {
+      const recorded = listed.replace("grants.csv", "w.json");
+      const sha256 = "b".repeat(64);
+      const run = shareRun({
+        id: "2026-09-30_0900",
+        source: { kind: "walkthrough", file: recorded, sha256, run: "2026-09-29_1402" },
+        pages: [{ path: "/" }],
+      });
+      run.source.file = recorded;
+      run.source.sha256 = sha256;
+
+      const walkthrough = walkthroughOf(run);
+
+      expect(walkthrough.original.source).toStrictEqual({
+        kind: "walkthrough",
+        file: "w.json",
+        sha256,
+        run: "2026-09-29_1402",
+      });
+      expect(walkthrough.original.sourceFingerprints).toStrictEqual([{ name: "w.json", sha256 }]);
+      // None of the folders is anywhere in the file, which goes to auditors and into the page.
+      expect(walkthroughJson(walkthrough)).not.toContain(folders);
+      // The record keeps what it recorded: only the file leaves its folders out.
+      expect(run.settings.source).toStrictEqual({
+        kind: "walkthrough",
+        file: recorded,
+        sha256,
+        run: "2026-09-29_1402",
+      });
+      expect(run.source.file).toBe(recorded);
+    },
+  );
 
   it("keeps a sitemap's address and the --page addresses whole, folders and all", () => {
     const sitemap = "https://example.illinois.gov/sitemaps/pages/sitemap.xml";
@@ -493,6 +560,23 @@ describe("walkthroughJson", () => {
     expect(keysAt(file, "original", "browser")).toEqual(["name", "version"]);
   });
 
+  it("keeps a walkthrough source's keys in the type's order, whatever order the record kept", () => {
+    const run = sampleRun();
+    run.settings = {
+      ...run.settings,
+      source: {
+        run: "2026-09-29_1402",
+        sha256: "a".repeat(64),
+        file: "w.json",
+        kind: "walkthrough",
+      },
+    };
+
+    const file = JSON.parse(walkthroughJson(walkthroughOf(run))) as unknown;
+
+    expect(keysAt(file, "original", "source")).toEqual(["kind", "file", "sha256", "run"]);
+  });
+
   it.each<[name: string, settings: Partial<RunJson["settings"]>]>([
     [
       "the least",
@@ -518,6 +602,10 @@ describe("walkthroughJson", () => {
   it.each<[name: string, source: PageSource]>([
     ["a sitemap", { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" }],
     ["a page list", { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) }],
+    [
+      "a walkthrough",
+      { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64), run: "2026-09-29_1402" },
+    ],
     [
       "--page",
       {
@@ -613,22 +701,37 @@ function withNvdaSettings(walkthrough: Walkthrough, nvdaSettings: unknown): unkn
   return { ...walkthrough, original: { ...walkthrough.original, nvdaSettings } };
 }
 
+/** The walkthrough with the page source its original recorded replaced by anything. */
+function withSource(walkthrough: Walkthrough, source: unknown): unknown {
+  return { ...walkthrough, original: { ...walkthrough.original, source } };
+}
+
+/** What a walkthrough's source is when it's right: a walkthrough, here, for a test to break. */
+const WALKTHROUGH_SOURCE = {
+  kind: "walkthrough",
+  file: "w.json",
+  sha256: "a".repeat(64),
+  run: "2026-09-29_1402",
+};
+
 /**
  * A run whose walkthrough has a value in every place the format has one, with its pages from
  * `source`: every optional page field on one page, every pass on another, and the settings,
  * versions, seal, and fingerprints a run can record.
  */
-function completeRun(source: "sitemap" | "pages" | "urls"): RunJson {
+function completeRun(source: "sitemap" | "pages" | "walkthrough" | "urls"): RunJson {
   const sitemap = "https://example.illinois.gov/sitemap.xml";
   const pageSource: PageSource =
     source === "sitemap"
       ? { kind: "sitemap", url: sitemap }
       : source === "pages"
         ? { kind: "pages", file: "pages.csv", sha256: "b".repeat(64) }
-        : {
-            kind: "urls",
-            urls: ["https://example.illinois.gov/", "https://example.illinois.gov/faq/"],
-          };
+        : source === "walkthrough"
+          ? { kind: "walkthrough", file: "w.json", sha256: "b".repeat(64), run: "2026-09-29_1402" }
+          : {
+              kind: "urls",
+              urls: ["https://example.illinois.gov/", "https://example.illinois.gov/faq/"],
+            };
   const run = shareRun({
     id: "2026-09-26_1405",
     source: pageSource,
@@ -647,9 +750,9 @@ function completeRun(source: "sitemap" | "pages" | "urls"): RunJson {
   if (source === "sitemap") {
     run.source.sitemaps = [{ url: sitemap, urls: 2, sha256: "1".repeat(64) }];
   }
-  if (source === "pages") {
-    run.source.file = "pages.csv";
-    run.source.sha256 = "b".repeat(64);
+  if (pageSource.kind === "pages" || pageSource.kind === "walkthrough") {
+    run.source.file = pageSource.file;
+    run.source.sha256 = pageSource.sha256;
   }
   return run;
 }
@@ -804,6 +907,16 @@ describe("parseWalkthrough", () => {
       "a key it doesn't have",
       (w) => ({ ...w, run: "2026-09-26_1405" }),
       "w.json isn't a voicecap walkthrough file: it has a key voicecap doesn't know: \"run\".",
+    ],
+    [
+      "a walkthrough source with an empty file name",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, file: "" }),
+      "w.json isn't a voicecap walkthrough file: its original.source.file: must be a file's name.",
+    ],
+    [
+      "a walkthrough source with an empty run",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: "" }),
+      "w.json isn't a voicecap walkthrough file: its original.source.run: must be a run's id.",
     ],
     [
       "an address with an escape sequence in it",
@@ -1389,6 +1502,51 @@ describe("parseWalkthrough", () => {
       'its original.source has a key voicecap doesn\'t know: "extra"',
     ],
     [
+      "a walkthrough source with no fingerprint",
+      (w) => withSource(w, { kind: "walkthrough", file: "w.json", run: "2026-09-29_1402" }),
+      "its original.source.sha256",
+    ],
+    [
+      "a walkthrough source whose fingerprint is in capital letters",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, sha256: "A".repeat(64) }),
+      "its original.source.sha256: must be a SHA-256 fingerprint: 64 lower-case hex digits",
+    ],
+    [
+      "a walkthrough source with no file",
+      (w) => withSource(w, { kind: "walkthrough", sha256: "a".repeat(64), run: "2026-09-29_1402" }),
+      "its original.source.file",
+    ],
+    [
+      "a walkthrough source with an empty file name",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, file: "" }),
+      "its original.source.file: must be a file's name",
+    ],
+    [
+      "a walkthrough source with no run",
+      (w) => withSource(w, { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64) }),
+      "its original.source.run",
+    ],
+    [
+      "a walkthrough source with an empty run",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: "" }),
+      "its original.source.run: must be a run's id",
+    ],
+    [
+      "a walkthrough source with a run that isn't text",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, run: 5 }),
+      "its original.source.run",
+    ],
+    [
+      "a walkthrough source with a key it doesn't have",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, extra: 1 }),
+      'its original.source has a key voicecap doesn\'t know: "extra"',
+    ],
+    [
+      "a page list source with a run, which only a walkthrough has",
+      (w) => withSource(w, { kind: "pages", file: "pages.csv", sha256: "a".repeat(64), run: "x" }),
+      'its original.source has a key voicecap doesn\'t know: "run"',
+    ],
+    [
       "a source fingerprint that isn't one",
       (w) => ({
         ...w,
@@ -1428,9 +1586,10 @@ describe("parseWalkthrough", () => {
 
   // Every place in a file that holds a value, whichever kind of page source its run had: a value
   // of the wrong kind, a key left out, and a key added are each refused, wherever they are.
-  describe.each<[name: string, source: "sitemap" | "pages" | "urls"]>([
+  describe.each<[name: string, source: "sitemap" | "pages" | "walkthrough" | "urls"]>([
     ["a sitemap", "sitemap"],
     ["a page list", "pages"],
+    ["a walkthrough", "walkthrough"],
     ["--page", "urls"],
   ])("a file of a run whose pages came from %s", (_name, source) => {
     /** The file's JSON, with a value in every place the format has one. */
@@ -1462,6 +1621,14 @@ describe("parseWalkthrough", () => {
           "original.nvdaSettings",
           ...(source === "pages"
             ? ["original.source.sha256", "original.sourceFingerprints.0.name"]
+            : []),
+          ...(source === "walkthrough"
+            ? [
+                "original.source.file",
+                "original.source.sha256",
+                "original.source.run",
+                "original.sourceFingerprints.0.name",
+              ]
             : []),
           ...(source === "sitemap"
             ? ["original.source.url", "original.sourceFingerprints.0.sha256"]
@@ -1619,6 +1786,7 @@ describe("walkthroughProblem", () => {
     ["demo run 1402, recorded by 0.4.1", () => demoRun("1402")],
     ["a run whose pages came from a sitemap", () => completeRun("sitemap")],
     ["a run whose pages came from a page list", () => completeRun("pages")],
+    ["a run whose pages came from a walkthrough", () => completeRun("walkthrough")],
     ["a run whose pages came from --page", () => completeRun("urls")],
   ])("gives null for the walkthrough of %s, which parseWalkthrough would read", (_name, run) => {
     const walkthrough = walkthroughOf(run());
@@ -1691,6 +1859,14 @@ describe("walkthroughProblem", () => {
     [
       "a source of a kind it doesn't know",
       (w) => ({ ...w, original: { ...w.original, source: { kind: "ftp" } } }),
+    ],
+    [
+      "a walkthrough source with an empty file name",
+      (w) => withSource(w, { ...WALKTHROUGH_SOURCE, file: "" }),
+    ],
+    [
+      "a walkthrough source with no run",
+      (w) => withSource(w, { kind: "walkthrough", file: "w.json", sha256: "a".repeat(64) }),
     ],
     [
       "NVDA settings that aren't an object",

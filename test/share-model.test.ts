@@ -14,7 +14,13 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { flagRulesSha256 } from "../src/flags/evaluate.js";
-import type { EnvironmentRecord, FlagResult, MachineRecord, RunJson } from "../src/model.js";
+import type {
+  EnvironmentRecord,
+  FlagResult,
+  MachineRecord,
+  PageSource,
+  RunJson,
+} from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
 import { redactHome } from "../src/run/failure.js";
 import { pageDir, runJsonPath } from "../src/run/paths.js";
@@ -940,6 +946,58 @@ describe("buildShareModel", () => {
       "3 passes on each page, except 1 page shown from an earlier run, which had fewer: line by line (Down Arrow), heading by heading (H), and control by control (Tab).",
     );
     expect(pages[0]?.counts).toEqual({ read: 1, headings: null, tab: null });
+  });
+
+  it.each<[name: string, source: PageSource, from: string]>([
+    [
+      "a sitemap",
+      { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" },
+      "the sitemap https://example.illinois.gov/sitemap.xml",
+    ],
+    [
+      "a page list",
+      { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) },
+      "the page list pages.csv",
+    ],
+    ["--page", { kind: "urls", urls: ["https://example.illinois.gov/a"] }, "the pages given"],
+  ])("names the list the pages in scope came from: %s", (_name, source, from) => {
+    const run = shareRun({ id: "r1", source, pages: [{ path: "/a" }, { path: "/b" }] });
+
+    expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(`2 pages from ${from}.`);
+  });
+
+  it("names a walkthrough run's pages as from the walkthrough of its run", () => {
+    const run = shareRun({
+      id: "2026-09-30_0900",
+      source: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+      },
+      pages: [{ path: "/" }],
+    });
+
+    expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(
+      "1 page from the walkthrough of run 2026-09-29_1402 (w.json).",
+    );
+  });
+
+  it("replaces the home folder in a walkthrough's file, as in a page list's", () => {
+    const home = os.homedir();
+    const file = path.join(home, "walks", "w.json");
+    const run = shareRun({
+      id: "2026-09-30_0900",
+      source: { kind: "walkthrough", file, sha256: "a".repeat(64), run: "2026-09-29_1402" },
+      pages: [{ path: "/" }],
+    });
+
+    const covered = buildShareModel(inputOf([run])).coverage.covered[0];
+
+    expect(covered).toBe(
+      `1 page from the walkthrough of run 2026-09-29_1402 (${redactHome(file, home, process.platform)}).`,
+    );
+    expect(mentionsHome(covered ?? "")).toBe(false);
   });
 
   it("compares the latest run with the run before", async () => {

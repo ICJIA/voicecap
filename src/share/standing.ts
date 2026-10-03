@@ -35,10 +35,10 @@ export interface Standing {
   leftOut: LeftOutRun[];
   /**
    * The run that decides the pages in scope: the most recent counted run whose pages came from a
-   * sitemap or a page list. A later run given its pages with --page is a spot check: its records
-   * are each page's newest (its transcripts are shown, its failures said), but its pages aren't the
-   * list. When every counted run was given its pages with --page, the most recent of them. Null when
-   * no run counts.
+   * sitemap, a page list, or a walkthrough. A later run given its pages with --page is a spot
+   * check: its records are each page's newest (its transcripts are shown, its failures said), but
+   * its pages aren't the list. When every counted run was given its pages with --page, the most
+   * recent of them. Null when no run counts.
    */
   latest: RunJson | null;
   /** In the latest run's page order. */
@@ -58,9 +58,9 @@ export interface Standing {
 
 /**
  * What a site's runs add up to. A run counts only when it completed, was sealed (so `verify` can
- * check it), and wasn't a replay. The most recent counted run from a sitemap or a page list decides
- * which pages are in scope (a later --page run spot-checks some of them), and a page's result is
- * its newest transcription in any counted run.
+ * check it), and wasn't a replay. The most recent counted run from a sitemap, a page list, or a
+ * walkthrough decides which pages are in scope (a later --page run spot-checks some of them), and a
+ * page's result is its newest transcription in any counted run.
  */
 export function standingOf(runs: RunJson[]): Standing {
   const counted: RunJson[] = [];
@@ -158,8 +158,8 @@ export function runBefore(counted: RunJson[], latest: RunJson): RunJson | null {
 
 /**
  * The run that decides the pages in scope: the most recent of the counted runs (oldest first) whose
- * pages came from a sitemap or a page list, else the most recent. A run given its pages with
- * --page checks only those, so it doesn't say which pages are on the list.
+ * pages came from a sitemap, a page list, or a walkthrough, else the most recent. A run given its
+ * pages with --page checks only those, so it doesn't say which pages are on the list.
  */
 function scopeRun(counted: RunJson[]): RunJson | undefined {
   return counted.findLast((run) => run.settings.source.kind !== "urls") ?? counted.at(-1);

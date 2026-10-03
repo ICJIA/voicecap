@@ -10,8 +10,9 @@
  * `walkthroughProblem` gives that same reason for a walkthrough in hand, so a writer can say why a
  * file of it couldn't be read back before it writes one.
  *
- * The file goes to auditors, and into the shareable page, so it holds no folders: a page list's file
- * is kept by its name alone, since a path can carry the person's user name.
+ * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
+ * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
+ * user name.
  */
 import { z } from "zod";
 
@@ -57,8 +58,9 @@ export interface WalkthroughOrigin {
   completedAt: string;
   replayed: boolean;
   /**
-   * The page source as the run recorded it, and the fingerprints of what it read from it. A page
-   * list's file is kept by its name alone, in both: its folders could carry the person's user name.
+   * The page source as the run recorded it, and the fingerprints of what it read from it. The file
+   * of a page list or of a walkthrough is kept by its name alone, in both: its folders could carry
+   * the person's user name.
    */
   source: PageSource;
   sourceFingerprints: { name: string; sha256: string }[];
@@ -254,17 +256,17 @@ function readinessOf(readiness: RunSettings["readiness"]): WalkthroughSettings["
 
 /**
  * A file's name without its folders: the last part of its path, cut at / or \. A walkthrough keeps
- * a page list's file by this alone (and a walkthrough's, once a run's pages can come from one),
- * with its SHA-256 as it is. The file goes to auditors and into the shareable page, and a full path
- * could carry the person's user name. A sitemap's address and --page addresses stay whole.
+ * the file of a page list or of a walkthrough by this alone, with its SHA-256 as it is. The file
+ * goes to auditors and into the shareable page, and a full path could carry the person's user name.
+ * A sitemap's address and --page addresses stay whole.
  */
 function fileNameOf(file: string): string {
   return file.slice(Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")) + 1);
 }
 
 /**
- * The page source as the run recorded it, with its keys in the type's order, and a page list's file
- * by its name alone.
+ * The page source as the run recorded it, with its keys in the type's order, and the file of a page
+ * list or of a walkthrough by its name alone.
  */
 function sourceOf(source: PageSource): PageSource {
   switch (source.kind) {
@@ -272,6 +274,13 @@ function sourceOf(source: PageSource): PageSource {
       return { kind: "sitemap", url: source.url };
     case "pages":
       return { kind: "pages", file: fileNameOf(source.file), sha256: source.sha256 };
+    case "walkthrough":
+      return {
+        kind: "walkthrough",
+        file: fileNameOf(source.file),
+        sha256: source.sha256,
+        run: source.run,
+      };
     case "urls":
       return { kind: "urls", urls: [...source.urls] };
     default: {
@@ -283,7 +292,8 @@ function sourceOf(source: PageSource): PageSource {
 
 /**
  * The fingerprints of what the run read its pages from: each sitemap it fetched (named by its
- * address), a page list (named by its file's name alone), and nothing for pages given with --page.
+ * address), a page list or a walkthrough (named by its file's name alone), and nothing for pages
+ * given with --page.
  */
 function sourceFingerprintsOf(details: SourceDetails): { name: string; sha256: string }[] {
   switch (details.kind) {
@@ -292,6 +302,7 @@ function sourceFingerprintsOf(details: SourceDetails): { name: string; sha256: s
         sitemap.sha256 === undefined ? [] : [{ name: sitemap.url, sha256: sitemap.sha256 }],
       );
     case "pages":
+    case "walkthrough":
       return details.file !== undefined && details.sha256 !== undefined
         ? [{ name: fileNameOf(details.file), sha256: details.sha256 }]
         : [];
@@ -342,13 +353,19 @@ const siteSchema = z.string().superRefine((site, ctx) => {
   if (problem !== null) ctx.addIssue({ code: "custom", message: problem });
 });
 
-/** Every kind of page source a run records. A fourth kind is one more entry here. */
+/** Every kind of page source a run records. A fifth kind is one more entry here. */
 const sourceSchema = z.discriminatedUnion(
   "kind",
   [
     z.strictObject({ kind: z.literal("sitemap"), url: z.string() }),
     z.strictObject({ kind: z.literal("pages"), file: z.string(), sha256: fingerprint }),
     z.strictObject({ kind: z.literal("urls"), urls: z.array(z.string()) }),
+    z.strictObject({
+      kind: z.literal("walkthrough"),
+      file: z.string().min(1, "must be a file's name"),
+      sha256: fingerprint,
+      run: z.string().min(1, "must be a run's id"),
+    }),
   ],
   { error: "isn't a kind of page source voicecap knows" },
 );

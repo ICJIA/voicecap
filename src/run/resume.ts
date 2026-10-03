@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { RunJson, RunSettings } from "../model.js";
+import type { PageSource, RunJson, RunSettings } from "../model.js";
 import { describePageUrls } from "../pages/describe.js";
 import { hashJson } from "../util/hash.js";
 
@@ -87,23 +87,35 @@ export function describeDifferences(before: RunSettings, after: RunSettings): st
   const differences: string[] = [];
   for (const key of keys) {
     if (isDeepStrictEqual(before[key], after[key])) continue;
-    differences.push(`${key}: ${show(before[key])} → ${show(after[key])}`);
+    differences.push(`${key}: ${show(key, before[key])} → ${show(key, after[key])}`);
   }
   return differences;
 }
 
-function show(value: unknown): string {
+/** One setting's value, in words; `key` is the setting it belongs to. */
+function show(key: keyof RunSettings, value: unknown): string {
   if (value === undefined) return "not recorded";
   if (value === null) return "none";
   if (Array.isArray(value)) return value.length === 0 ? "none" : value.join(",");
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    if (record.kind === "sitemap") return `sitemap ${String(record.url)}`;
-    if (record.kind === "pages") {
-      return `page list ${String(record.file)} (sha256 ${String(record.sha256).slice(0, 12)}…)`;
-    }
-    if (record.kind === "urls") return describePageUrls(record.urls as string[]);
-    return JSON.stringify(value);
-  }
+  if (key === "source") return showSource(value as PageSource);
+  if (typeof value === "object") return JSON.stringify(value);
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** A page source, in words: a page list or a walkthrough with the start of its SHA-256. */
+function showSource(source: PageSource): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `sitemap ${source.url}`;
+    case "pages":
+      return `page list ${source.file} (sha256 ${source.sha256.slice(0, 12)}…)`;
+    case "walkthrough":
+      return `walkthrough of run ${source.run} (${source.file}) (sha256 ${source.sha256.slice(0, 12)}…)`;
+    case "urls":
+      return describePageUrls(source.urls);
+    default: {
+      const _exhaustive: never = source;
+      return JSON.stringify(_exhaustive);
+    }
+  }
 }

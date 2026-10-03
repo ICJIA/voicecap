@@ -127,6 +127,38 @@ describe("chooseRun", () => {
     );
   });
 
+  it("names a changed walkthrough by its run, file, and hash, as it names a page list", () => {
+    const walkthrough = (sha256: string) => ({
+      ...settings,
+      source: {
+        kind: "walkthrough" as const,
+        file: "w.json",
+        sha256,
+        run: "2026-09-29_1402",
+      },
+    });
+    const edited = walkthrough("b".repeat(64));
+    const repeat = walkthrough("a".repeat(64));
+
+    expect(describeDifferences(edited, repeat)[0]).toBe(
+      "source: walkthrough of run 2026-09-29_1402 (w.json) (sha256 bbbbbbbbbbbb…) → walkthrough of run 2026-09-29_1402 (w.json) (sha256 aaaaaaaaaaaa…)",
+    );
+    expect(describeDifferences(settings, repeat)[0]).toBe(
+      "source: page list pages.csv (sha256 aaaaaaaaaaaa…) → walkthrough of run 2026-09-29_1402 (w.json) (sha256 aaaaaaaaaaaa…)",
+    );
+  });
+
+  it("names a changed sitemap by its address", () => {
+    const sitemap = {
+      ...settings,
+      source: { kind: "sitemap" as const, url: "https://example.illinois.gov/sitemap.xml" },
+    };
+
+    expect(describeDifferences(sitemap, settings)[0]).toBe(
+      "source: sitemap https://example.illinois.gov/sitemap.xml → page list pages.csv (sha256 aaaaaaaaaaaa…)",
+    );
+  });
+
   it("with --fresh, starts a new run and says the incomplete one is left alone", () => {
     const decision = chooseRun(
       [run("r1", "2026-09-20T09:00:00-05:00", "incomplete")],

@@ -42,7 +42,12 @@ export type PageSource =
   | { kind: "sitemap"; url: string }
   | { kind: "pages"; file: string; sha256: string }
   /** --page, one or more times: resolved absolute URLs, fragment dropped, in the order given. */
-  | { kind: "urls"; urls: string[] };
+  | { kind: "urls"; urls: string[] }
+  /**
+   * --walkthrough: the walkthrough file, recorded as a page list's is (relative to the working
+   * folder when inside it), its SHA-256 as read, and the id of the run it was made from.
+   */
+  | { kind: "walkthrough"; file: string; sha256: string; run: string };
 
 /**
  * The computer a session ran on, as the report's "Test environment" shows it. Never its maker,
@@ -155,10 +160,13 @@ export interface InvalidEntry {
 }
 
 export interface SourceDetails {
-  kind: "sitemap" | "pages" | "urls";
+  kind: "sitemap" | "pages" | "urls" | "walkthrough";
   /** Sitemap runs: every sitemap document fetched (index and children). */
   sitemaps?: { url: string; urls: number; sha256?: string; error?: string }[];
-  /** Page list runs: the file as given, its SHA-256, format, and the encoding it was decoded with. */
+  /**
+   * Page list and walkthrough runs: the file as given and its SHA-256. A page list run also has its
+   * format and the encoding it was decoded with.
+   */
   file?: string;
   sha256?: string;
   format?: "csv" | "json";

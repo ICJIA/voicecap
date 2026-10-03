@@ -1,6 +1,7 @@
 import type {
   DriverCommand,
   EnvironmentRecord,
+  PageSource,
   PassName,
   StepRecord,
   StopReason,
@@ -98,14 +99,27 @@ export function headerLines(transcript: TranscriptJson): string[] {
   return lines;
 }
 
+/** Where the run's pages came from, as the header's "Page source" line says it. */
+function describePageSource(source: PageSource): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `sitemap ${source.url}`;
+    case "pages":
+      return `page list ${source.file} (sha256 ${source.sha256})`;
+    case "walkthrough":
+      return `walkthrough of run ${source.run} (${source.file}) (sha256 ${source.sha256})`;
+    case "urls":
+      return describePageUrls(source.urls);
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
 /** The environment record as header lines; also used by the report. */
 export function environmentLines(env: EnvironmentRecord): string[] {
-  const source =
-    env.pageSource.kind === "sitemap"
-      ? `sitemap ${env.pageSource.url}`
-      : env.pageSource.kind === "pages"
-        ? `page list ${env.pageSource.file} (sha256 ${env.pageSource.sha256})`
-        : describePageUrls(env.pageSource.urls);
+  const source = describePageSource(env.pageSource);
   const reader = env.screenReader
     ? `${env.screenReader.name} ${env.screenReader.version} (build ${env.screenReader.build ?? "unknown"}, language ${env.screenReader.language ?? "unknown"})`
     : "none";

@@ -307,7 +307,7 @@ function recordedPath(cwd: string, absolute: string): string {
 }
 
 function baseDetails(
-  kind: "sitemap" | "pages" | "urls",
+  kind: SourceDetails["kind"],
   listed: number,
   warnings: string[],
 ): SourceDetails {
@@ -322,10 +322,22 @@ function baseDetails(
   };
 }
 
-function describeSource(source: PageSource): string {
-  if (source.kind === "sitemap") return `the sitemap ${source.url}`;
-  if (source.kind === "pages") return `the page list ${source.file}`;
-  return "the pages given with --page";
+/** Where the pages came from, in a sentence: "the page list pages.csv". */
+export function describeSource(source: PageSource): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `the sitemap ${source.url}`;
+    case "pages":
+      return `the page list ${source.file}`;
+    case "walkthrough":
+      return `the walkthrough of run ${source.run} (${source.file})`;
+    case "urls":
+      return "the pages given with --page";
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
 }
 
 function logSummary(

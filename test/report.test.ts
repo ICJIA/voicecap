@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
-import type { RunJson } from "../src/model.js";
+import type { PageSource, RunJson } from "../src/model.js";
 import { buildReportModel, generateReport, renderReport } from "../src/report/index.js";
 import { linkPath, liveCompareDir, runDir, runJsonPath, runReportPath } from "../src/run/paths.js";
 import { writeRunJson } from "../src/run/store.js";
@@ -54,6 +54,18 @@ function brokenLinks(html: string, file: string): string[] {
     const target = path.resolve(path.dirname(file), ...href.split("/").map(decodeURIComponent));
     return !existsSync(target);
   });
+}
+
+/** The live report of a run of one page, whose pages came from `source`. */
+async function reportOfRunFrom(source: PageSource): Promise<string> {
+  const outDir = await tempOutDir();
+  const run = await writeSyntheticRun(outDir, {
+    id: "2026-09-26_1405",
+    source,
+    pages: [{ path: "/" }],
+  });
+  const { file } = await generateReport({ outDir, run, target: "live", config });
+  return readFile(file, "utf8");
 }
 
 function row(html: string, pageName: string): string {
@@ -109,6 +121,51 @@ describe("generateReport", () => {
     const detailRow = html.match(/<dt>Pages given with --page<\/dt><dd>([\s\S]*?)<\/dd>/);
     expect(detailRow).not.toBeNull();
     for (const url of urls) expect(detailRow![1]).toContain(url);
+  });
+
+  it("describes a sitemap run by its address, with no file in the page source details", async () => {
+    const html = await reportOfRunFrom({
+      kind: "sitemap",
+      url: "https://example.illinois.gov/sitemap.xml",
+    });
+
+    expect(summary(html).get("Page source")).toBe(
+      "Full sitemap: https://example.illinois.gov/sitemap.xml",
+    );
+    expect(html).not.toContain("<dt>Page list file</dt>");
+    expect(html).not.toContain("<dt>Walkthrough file</dt>");
+  });
+
+  it("describes a page list run by its file and SHA-256", async () => {
+    const html = await reportOfRunFrom({
+      kind: "pages",
+      file: "pages.csv",
+      sha256: "a".repeat(64),
+    });
+
+    expect(summary(html).get("Page source")).toBe(
+      "Curated page list: pages.csv SHA-256 aaaaaaaaaaaa…",
+    );
+    expect(html).toContain('<dt>Page list file</dt><dd class="mono">pages.csv</dd>');
+    expect(html).toContain(`<dt>Page list SHA-256</dt><dd class="mono">${"a".repeat(64)}</dd>`);
+    expect(html).not.toContain("<dt>Walkthrough file</dt>");
+  });
+
+  it("describes a walkthrough run by its run, its file, and its SHA-256", async () => {
+    const html = await reportOfRunFrom({
+      kind: "walkthrough",
+      file: "w.json",
+      sha256: "a".repeat(64),
+      run: "2026-09-29_1402",
+    });
+
+    expect(summary(html).get("Page source")).toBe(
+      "Walkthrough of run 2026-09-29_1402 (w.json) SHA-256 aaaaaaaaaaaa…",
+    );
+    expect(html).toContain('<dt>Walkthrough file</dt><dd class="mono">w.json</dd>');
+    expect(html).toContain(`<dt>Walkthrough SHA-256</dt><dd class="mono">${"a".repeat(64)}</dd>`);
+    expect(html).toContain('<dt>Walkthrough of run</dt><dd class="mono">2026-09-29_1402</dd>');
+    expect(html).not.toContain("<dt>Page list file</dt>");
   });
 
   it("has every column, and rows carry their filter data", async () => {
