@@ -4,6 +4,40 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+The Word copy of the shareable page, and `voicecap share`: dated copies to send, each recorded with its fingerprint, and what `voicecap verify` checks of them.
+
+### Added
+
+- **The Word copy, `share/current.docx`**, beside the shareable page in every site's folder: the same sections and numbers, nothing folded, with tables where the page has charts, made for paper and for Word's navigation pane. The README's "The Word copy" describes it.
+  - **What's in it:** the page's ten sections in its order, then a last heading, "About this report", over the footer's lines. It has no fingerprint check, which a Word document can't do; where the page has its check, it says what a reader can do instead: compare the file's own fingerprint with the one its sender recorded, or run `voicecap verify`.
+  - **When it's written:** wherever the page is, so when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`. `voicecap report` now also prints `Word copy: <path>` after `Shareable page: <path>`, each only when its file was written. In the programmatic API, `generateReport`, `addReview`, and `addManualSession` write it too, unless `regenerateReport` is `false`.
+  - **A file that can't be written is a warning,** and neither file stops the other being written. When Word holds `current.docx` open, a run, review, or report still finishes in about a second, with the page written, and a warning says the Word copy wasn't updated: close it in Word, then run `npx @icjia/voicecap report`.
+- **`voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]`**: makes a dated pair of copies of the shareable page and its Word copy, to send, in the site's `share/` folder, and records them in `share/shares.json`.
+  - **The copies are dated:** named for the site's folder and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `.docx`. A second share the same day takes `-2`, then `-3`. A copy is never overwritten, and a name `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
+  - **It prints what it made:** each copy's path, size, and SHA-256, then a line to paste into the email that sends them: `Fingerprints (SHA-256): <page's name> <its fingerprint>; <Word copy's name> <its fingerprint>. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`
+  - **Sizes** are in KB, with thousands separators, while the rounded size is under 1,024 KB, and in MB with one decimal from there. Each comes with its exact bytes, as in "310 KB (317,440 bytes)". A copy over 20 MB gets a warning that it's too big for most email.
+  - **It stops, with exit code 1 and nothing written,** when there's no name for who is sharing (taken as `voicecap review` takes it: `--reviewer`, then `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config), when no completed, sealed, live run counts, and when it can't read `shares.json`.
+- **`share/shares.json`**, the record of what was sent: an entry for each share, with its `seq` and `prev`, when (`at`) and who (`by`), the runs the copies drew on (`runs`, oldest first), and each copy's `name`, `bytes`, and `sha256` (`files`). Entries are sealed (`seal`) and chained as `reviews.json`'s are, and never edited or deleted. The dated copies and `shares.json` go into Git with the rest of the record, and `current.*` stays out.
+- **`voicecap verify` checks what was shared:**
+  - `share/shares.json`'s seals and chain;
+  - each copy it records, which is a problem when it's missing, or has changed since it was recorded;
+  - any other file or folder in `share/` that nothing records, such as a dated copy that `shares.json` doesn't name.
+
+  It passes over `current.html`, `current.docx`, names that start with a dot, the files an operating system adds, and Word's lock files (`~$…`).
+- **Programmatic API**: `shareReport`, which makes the dated pair as `voicecap share` does (it takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and gives back `siteDir`, the `entry` it recorded, each copy's `path`, `name`, `bytes`, and `sha256` in `files`, and `pasteLine`, the line for the email); `readShares`, which reads a site's `share/shares.json`; and the types `ShareReportOptions`, `ShareReportResult`, `ShareEntry`, `SharedFile`, and `SharesFile`.
+- **`pnpm share:fixture <folder>`**, for development: writes the demo's shareable page and its Word copy into a folder, to look at a change to either. It needs no screen reader.
+
+### Changed
+
+- **The page's story, "How voicecap came to be", opens with why voicecap was needed:** more than a dozen websites to review before the April 2027 ADA Title II deadline for accessible digital content. Its timeline has a row for the Word copy and `voicecap share`, and "Next" now lists the walkthrough file and the website.
+- **The README's Credits tells that story,** with Guidepup as the starting point of voicecap.
+- **The page's footer names its Word copy:** "This file: current.html. Its Word copy: current.docx." The Word copy's footer names the page the same way.
+- **"What the check proves," in the page's evidence, says where the sender's fingerprint comes from:** `voicecap share` prints it, ready for the email that sends the file.
+- **`voicecap verify`'s summary line counts shares:** "dvfr.illinois.gov: 3 runs (1 incomplete), 2 manual sessions, 4 reviews, 1 share checked: everything matches."
+- **`docx` is a new dependency,** pinned at 9.8.1. It makes the Word copy, and it's loaded only when a Word copy is made.
+- **The `.gitignore` a new home gets keeps Word's lock files out of Git** (`~$*`), as it keeps `share/current.*` out. voicecap never rewrites a `.gitignore` it wrote before, so add `~$*` to an older home's by hand.
+- **`voicecap verify` passes over Word's lock files** (`~$…`) in `share/`. Word keeps one beside a document it has open, such as a sent copy someone is reading.
+
 ## [0.6.0] - 2026-10-02
 
 The shareable page, and a way to check a computer first: `share/current.html` in every site's folder, what each run now records for it (every failed attempt, the computer, and whether the person heard NVDA speaking), and `voicecap preflight`.

@@ -158,7 +158,9 @@ describe("the timeline", () => {
   });
 
   it("tells 0.6.0 in two rows: the shareable page and preflight, then the day it was published", () => {
-    const rows = TIMELINE.filter((row) => row.date === "2026-10-01" || row.date === "2026-10-02");
+    // The day before the release, and the release itself: not the row after them, which is dated
+    // 2 October too (the Word copy and voicecap share).
+    const rows = TIMELINE.filter((row) => row.date === "2026-10-01" || row.release === "0.6.0");
 
     expect(rows).toEqual([
       {
@@ -180,6 +182,27 @@ describe("the timeline", () => {
     expect(TIMELINE.find((row) => row.release === "0.5.0")?.pc).toBe(
       "<b>0.5.0</b>: a guided demo, each failed page tried up to 5 times, and the reviewer's name on every run. The final checks on a real Windows PC passed. Then, for 0.6.0, runs began recording every failed attempt and whose problem it was, the computer they ran on, and whether the person heard NVDA speaking.",
     );
+  });
+
+  it("tells the Word copy and voicecap share on the day they were made, and puts the walkthrough file and the website in Next", () => {
+    const next = TIMELINE.at(-1);
+    const made = TIMELINE.at(-2);
+
+    // Next is last, with no day, and its Windows PC cell is what still comes: the walkthrough file
+    // and the website.
+    expect(next?.date).toBeNull();
+    expect(next?.pc).toBe(
+      "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+    );
+    // The row before it is the day the Word copy and voicecap share were made: across both tracks,
+    // and it announces no release.
+    expect(made).toEqual({
+      date: "2026-10-02",
+      release: null,
+      pc: null,
+      mac: null,
+      both: "The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+    });
   });
 
   it("writes each cell as bold and code only, or leaves it null, so the renderer can insert it as given", () => {

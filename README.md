@@ -30,7 +30,7 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 >
 > - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
-> - **Any computer, Linux included:** reviews, reports, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
+> - **Any computer, Linux included:** reviews, reports, `share`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
 
 ## How voicecap works
 
@@ -90,6 +90,9 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
 - [The shareable page](#the-shareable-page)
+  - [The Word copy](#the-word-copy)
+  - [Sending it: voicecap share](#sending-it-voicecap-share)
+  - [What was sent: shares.json](#what-was-sent-sharesjson)
 - [Heuristic flags](#heuristic-flags)
 - [Configuration](#configuration)
 - [Programmatic API](#programmatic-api)
@@ -556,13 +559,14 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 ### Other commands
 
 <details>
-<summary>One line for each of the other commands, how they pick a site's folder, and what <code>doctor</code> prints</summary>
+<summary>One line for each of the other commands, how they pick a site's folder, what <code>share</code> takes, and what <code>doctor</code> prints</summary>
 
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
 voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note "..."] [--reviewer <name>] [--run <run-id>] [--site <url>] [--out <dir>]
 voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--site <url>] [--out <dir>]
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
+voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
 voicecap preflight # check this computer is ready for a run, without starting the screen reader
@@ -570,7 +574,9 @@ voicecap doctor    # check this computer and print a summary to paste into a bug
 voicecap demo      # a guided first run against a demo site that comes with voicecap
 ```
 
-Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, and `report` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
+Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, `report`, and `share` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
+
+**`share` takes three options:** `--site <url>`, the site (default: the home's only site); `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--reviewer <name>`, who is sharing (default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config). With no name it stops, as `review` does: a share is recorded with who made it. What it makes and prints is under [Sending it: `voicecap share`](#sending-it-voicecap-share).
 
 **`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
 
@@ -807,6 +813,9 @@ voicecap-transcripts/                  ← the transcripts home
     reviews.json                       ← append-only review history, by page; persists across runs
     report.html  latest.txt            ← live report, and the id of the most recently completed run
     share/current.html                 ← the shareable page, written again with report.html
+    share/current.docx                 ← its Word copy, written with it
+    share/<site>_<date>.html  .docx    ← the pair `voicecap share` made to send: never written again
+    share/shares.json                  ← what `voicecap share` sent: sealed, chained, only added to
     compare/<base>__<run>/             ← diffs made by `voicecap report --compare`
     .voicecap.lock                     ← only while a run writes here
   i2i.illinois.gov/
@@ -829,9 +838,9 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 
 ### Layout
 
-The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, and `report` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
+The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, and `share` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
-The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, and `verify` never take it for a site.
+The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, and `verify` never take it for a site.
 
 ### What each run records
 
@@ -873,6 +882,7 @@ Once the run completes, its seal covers all of this.
 
 - **A completed run is never modified again.** `run.json` records every transcript file's SHA-256 as it's written, and once the run completes, the whole record is sealed (see "Checking the record," below).
 - **Reviews are append-only.** A correction is a new entry in `reviews.json`, never an edit to an earlier one.
+- **Shares are append-only too.** A share is a new entry in `share/shares.json`, and `voicecap share` never overwrites a copy: a name that's taken means the next number (see [Sending it: `voicecap share`](#sending-it-voicecap-share)).
 - **A retried or resumed page keeps its earlier attempt**, moved to `attempts/<slug>/<n>/` instead of being overwritten. Reports and comparisons ignore it.
 - **voicecap 0.2.0's layout is left alone.** If a home still has its `runs/` or `manual/` folders, they're never read or moved; a run just says once that it saw them.
 
@@ -885,13 +895,17 @@ Once the run completes, its seal covers all of this.
 voicecap verify [--site <url>] [--out <dir>]
 ```
 
-Every record voicecap finishes writing is sealed: a completed run's `run.json`, each manual session's `session.json`, and each review entry carry a `seal`, a SHA-256 of the record itself. Review entries also chain to the one before them (`seq`, `prev`). A reordered entry, or a deleted one that a later entry follows, breaks the chain; an edited one no longer matches its own seal, including the newest entry, which no later entry points to yet.
+Every record voicecap finishes writing is sealed: a completed run's `run.json`, each manual session's `session.json`, each review entry, and each entry in `share/shares.json` carry a `seal`, a SHA-256 of the record itself. Review entries, and share entries, also chain to the one before them (`seq`, `prev`). A reordered review entry, or a deleted entry that a later entry follows, breaks the chain; an edited one no longer matches its own seal, including the newest entry, which no later entry points to yet.
 
-`verify` checks every site folder in the home, or one with `--site`: each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; and the whole review chain. It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
+`verify` checks every site folder in the home, or one with `--site`: each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; the whole review chain; and what was shared (see below). It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
 
-`verify` doesn't check the regenerated views (a site's `report.html`, `latest.txt`, `share/current.html`, and `compare/`), a run's own `report.html` and `compare/` diffs, or kept earlier attempts.
+**What it checks of the shares:** `share/shares.json`'s seals and chain; each copy the record names, which is a problem when it's missing, or has changed since it was recorded; and any other file or folder in `share/` that nothing records, such as a dated copy that `shares.json` doesn't name. It passes over `current.html` and `current.docx` (voicecap writes them again from the records, so `verify` checks the records), names that start with a dot, the files an operating system adds, and Word's lock files (`~$…`, which Word keeps beside a document it has open: a sent copy that someone is reading has one).
 
-**What it can't catch on its own:** someone who edits a record and recomputes its seal, and every later seal and `prev`; and someone who deletes the newest review entries, or a whole run or manual session, which leaves nothing for `verify` to find: only Git history shows it. Git history pushed to a protected branch catches both, since rewriting commits that are already pushed takes a force-push, and a branch protected against force-pushes refuses it — which is why the setup below has you protect the branch and push often.
+The summary line says what it checked: `dvfr.illinois.gov: 3 runs (1 incomplete), 2 manual sessions, 4 reviews, 1 share checked: everything matches.` When something doesn't match, the line ends with the number of problems in place of "everything matches".
+
+`verify` doesn't check the regenerated views (a site's `report.html`, `latest.txt`, `share/current.html`, `share/current.docx`, and `compare/`), a run's own `report.html` and `compare/` diffs, or kept earlier attempts.
+
+**What it can't catch on its own:** someone who edits a record and recomputes its seal, and every later seal and `prev`; and someone who deletes the newest review entries, the newest share with its copies, or a whole run or manual session, which leaves nothing for `verify` to find: only Git history shows it. Git history pushed to a protected branch catches both, since rewriting commits that are already pushed takes a force-push, and a branch protected against force-pushes refuses it — which is why the setup below has you protect the branch and push often.
 
 </details>
 
@@ -904,8 +918,9 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 
 - **`.voicecap.lock`**, the marker a run holds while it's writing.
 - **Manual sessions' raw NVDA logs** (`**/*_manual_*/raw/`). At Input/output level, NVDA's log records every keystroke, including passwords typed into forms — not something to put in Git. The raw copy's SHA-256 stays in `session.json` either way, so a home missing a raw copy isn't something `verify` will flag.
-- **The shareable page** (`**/share/current.*`). voicecap writes it again after every run and review, so a copy in Git each time would only make the record bigger; it's made from the records, which are in Git. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
+- **The shareable page and its Word copy** (`**/share/current.*`). voicecap writes them again after every run and review, so a copy in Git each time would only make the record bigger; they're made from the records, which are in Git. The dated copies that `voicecap share` makes, and `shares.json`, go into Git with the rest of the record: they're what was sent. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
 - **Temporary files a crash can leave behind** (`.*.tmp`). voicecap writes each file under a temporary name first, then renames it into place.
+- **Word's lock files** (`~$*`). Word keeps one beside a document it has open (a sent copy someone is reading, say), named with `~$` first, and a commit made then would take it. voicecap never changes a `.gitignore` it wrote before, so the owner of a home set up before this line was added can add `~$*` by hand.
 - **Files the operating system adds** to folders you open: `.DS_Store` (macOS), `Thumbs.db` and `desktop.ini` (Windows).
 
 > **Never commit an unredacted raw NVDA log.** See [Manual NVDA sessions](#manual-nvda-sessions).
@@ -1113,9 +1128,9 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 <details>
 <summary>What the page is, how voicecap writes it, which runs count, its sections, the fingerprint check, and what to know before you send it</summary>
 
-`share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they heard, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network.
+`share/current.html`, in a site's folder, is the page to send to people who will never open the transcripts home: a manager, say, or an auditor. It's one file, and it opens in any browser, offline. It shows where the site stands, from its sealed runs, and the person's review: what they heard, found, and fixed. It explains every problem that came up during the runs, with its record, word for word, and it can check its own fingerprints, in the browser, with no network. Beside it is `share/current.docx`, its Word copy (see [The Word copy](#the-word-copy)).
 
-voicecap writes it whenever it rewrites the site's `report.html`: when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`, which also prints `Shareable page: <path>`. (The programmatic API's `generateReport`, `addReview`, and `addManualSession` write it too.) It's rewritten each time, so keep a copy of the file you send. A page that can't be written is a warning, never a failed run, review, or report.
+voicecap writes it whenever it rewrites the site's `report.html`: when a run completes, and after `voicecap review`, `voicecap manual add`, and `voicecap report`, which also prints `Shareable page: <path>` and then `Word copy: <path>`, each only when its file was written. (The programmatic API's `generateReport`, `addReview`, and `addManualSession` write the page and its Word copy too.) It's rewritten each time, so `current.html` isn't the file to send: `voicecap share` makes a dated copy of the page, and of its Word copy, to send (see [Sending it: `voicecap share`](#sending-it-voicecap-share)). A page that can't be written is a warning, never a failed run, review, or report.
 
 - **One self-contained file.** Its styles, fonts, and data are inside it, and nothing is loaded from outside. It's dark at first, with a button for a light version, and it prints light. Its detail is folded under lines that say what's inside. Each fold opens with a click, scripts or not; "Open every section", at the top, opens them all; and so does printing. Like the report, it's itself accessible: voicecap's tests run axe on it, in both themes, with every fold shut and every fold open.
 - **Only completed, sealed, live runs count.** Its pages are those of the latest run that counts whose pages came from a sitemap or a page list. A later run given its pages with `--page` is a spot check: its transcripts are shown for the pages it read, and its failures are said, but it doesn't change which pages are in scope. Each page shows its newest transcripts from any run that counts.
@@ -1135,16 +1150,81 @@ Its sections, in order:
 - **Problems during the runs**: every failed attempt in the runs the page draws on, including those a later attempt made good. Each has its kind: another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself. Each says what voicecap did, whether it happened again (by what came after it: a run before it that read the page shows only that the page could be read), and what it means for the results. Then comes the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`).
 - **What these results cover**: the pages and passes, and the technical limits.
 - **The evidence behind these results**: the fingerprint check, then each run the page draws on, with its facts, its test environment, and the fingerprint of every file.
-- **How voicecap came to be**: why it exists, its timeline, and a few things worth knowing.
+- **How voicecap came to be**: it opens with why voicecap was needed, then why it exists, then its timeline and a few things worth knowing.
 - **Appendix: every transcript**: each page's read, headings, and Tab transcripts, word for word.
 
-**The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows in the appendix is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint (`Get-FileHash <file>` in PowerShell, `shasum -a 256 <file>` on a Mac) with one its sender noted down, or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `share/` alone: the page is made again from the records each time, and `verify` checks the records.
+**The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows in the appendix is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint with the one its sender recorded: `voicecap share` prints it, ready for the email that sends the file, and `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, shows it for the file you received. Or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `current.html` and `current.docx` alone, since voicecap makes them again from the records each time, and `verify` checks the records. It does check the dated copies that `voicecap share` made, against what `shares.json` recorded of them (see [Checking the record](#checking-the-record-voicecap-verify)).
 
 **Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows.
 
 **The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
 
 </details>
+
+### The Word copy
+
+<details>
+<summary>What the Word copy holds, how it differs from the page, and what happens when Word has it open</summary>
+
+`share/current.docx`, beside the page, is the page's Word copy. voicecap writes it with the page, from the same records, so it has the same sections and the same numbers. It's made for paper and for Word's navigation pane.
+
+- **The same sections, in the same order.** The page's ten sections, then a last heading, "About this report", over the footer's lines: what voicecap is, when the report was made, and the names of the file and of its web page. The page's footer names its Word copy the same way, so each copy tells its reader where the other is.
+- **Nothing is folded.** What the page keeps behind a fold is open in the Word copy, written out in full.
+- **Tables where the page has charts.** The page's tiles and bars are tables, and its cards for every page are one table, with the same numbers in them.
+- **Made for paper and for Word's navigation pane.** Every section is a heading in one of Word's own heading styles, so View → Navigation Pane lists each one. Every page of paper ends with the site's name, the date, and its page number, and a table's header row repeats at the top of each page the table runs onto. It uses Calibri and Consolas, which Word has, in place of the page's IBM Plex.
+- **No fingerprint check of its own.** A Word document can't check itself. Where the page has its check, the Word copy says what a reader can do instead: compare the file's own fingerprint with the one its sender recorded (`voicecap share` prints it), or run `voicecap verify` on the transcripts folder. It also says that the page can check the transcripts it shows.
+
+When Word has `current.docx` open, voicecap can't replace it. A run, review, or report still finishes, in about a second, with the page written, and a warning says the Word copy wasn't updated: close it in Word, then run `npx @icjia/voicecap report`. Like the page, a Word copy that can't be made or written is a warning, never a failed run, review, or report, and neither file stops the other being written.
+
+</details>
+
+### Sending it: `voicecap share`
+
+<details>
+<summary>The dated copies, what <code>share</code> prints, the line for the email, and when it stops</summary>
+
+`current.html` and `current.docx` change with every run, review, and report, so they aren't what to send. `voicecap share` makes a pair of copies of its own, to send, and records them in `shares.json` (see [What was sent](#what-was-sent-sharesjson)). The page it sends is the one described above, so read "Before you send it" there first.
+
+```bash
+npx @icjia/voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
+```
+
+**The copies are dated.** They're named for the site's folder and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `dvfr.illinois.gov_2026-10-02.docx`, and they go in the site's `share/` folder. A second share the same day takes `-2` (`dvfr.illinois.gov_2026-10-02-2.html`), then `-3`, and so on. A copy is never overwritten, and a name that `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
+
+**It prints what it made:** each copy's path, size, and SHA-256, then the line to paste into the email that sends them (the fingerprints are shortened here: a real one is 64 characters):
+
+```
+PS> npx @icjia/voicecap share
+Shared dvfr.illinois.gov, as of 2 October 2026: entry 1 in C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\shares.json.
+  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.html
+    1.2 MB (1,234,567 bytes), SHA-256 9f2c…e41a
+  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.docx
+    310 KB (317,440 bytes), SHA-256 61b7…03d5
+To paste into the email that sends them:
+  Fingerprints (SHA-256): dvfr.illinois.gov_2026-10-02.html 9f2c…e41a; dvfr.illinois.gov_2026-10-02.docx 61b7…03d5. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.
+```
+
+**The line for the email** names each copy and its fingerprint, and says how to check a file you received. The fingerprints are in lower case, as the copies and `shares.json` have them, and PowerShell shows the same letters in capitals, so the line ends by saying so. The copies' own fingerprint checks tell a reader to run the same two commands.
+
+**Sizes** are in KB, with thousands separators, while the rounded size is under 1,024 KB, and in MB with one decimal from there. Each comes with its exact bytes. A copy over 20 MB gets a warning after the line for the email, such as `dvfr.illinois.gov_2026-10-02.docx is 23.4 MB, over 20 MB: too big for most email.`
+
+**It needs a name, and a run that counts.** It takes the name of who is sharing as `review` does: `--reviewer`, then `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config. With none, it stops. It also stops when no completed, sealed, live run is there to show (a replayed, interrupted, or unsealed run doesn't count: see [The shareable page](#the-shareable-page)), and when it can't read `shares.json`. In each case it writes nothing and exits with code 1, and it never overwrites a `shares.json` it can't use.
+
+</details>
+
+### What was sent: `shares.json`
+
+`share/shares.json`, beside the copies, records each share. An entry holds:
+
+- `seq` and `prev`: its number in the chain, and the seal of the entry before it (`null` for the first);
+- `at`, when the copies were made, in local time, and `by`, who shared;
+- `runs`: the ids of the runs the copies drew on, oldest first;
+- `files`: the page, then its Word copy, each with its `name`, `bytes`, and `sha256`;
+- `seal`: a SHA-256 of the entry itself.
+
+Entries are sealed and chained as `reviews.json`'s are, and they're never edited or deleted: a new share is a new entry (see [Checking the record](#checking-the-record-voicecap-verify)). voicecap refuses to overwrite a `shares.json` it can't read.
+
+The dated copies and `shares.json` go into Git with the rest of the record: they're what was sent, and the record of it. `current.html` and `current.docx` stay out, since every run writes them again (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)). `voicecap verify` checks `shares.json` and each copy it records, and names a copy that nothing records.
 
 ## Heuristic flags
 
@@ -1234,6 +1314,7 @@ import {
   generateReport,
   loadConfig,
   runAudit,
+  shareReport,
 } from "@icjia/voicecap";
 
 const result = await runAudit({ site: "https://dvfr.illinois.gov", pages: "pages.csv" });
@@ -1244,9 +1325,14 @@ await addManualSession({ file: "nvda.log", page: "/about", redactTyping: true })
 
 const { config } = await loadConfig();
 await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogger() });
+
+const shared = await shareReport({ site: "https://dvfr.illinois.gov", reviewer: "Pat Reviewer" });
+console.log(shared.pasteLine);
 ```
 
-`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`) are exported as TypeScript types.
+`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`, `SharesFile`) are exported as TypeScript types.
+
+`generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated pair to send, as `voicecap share` does. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page then its Word copy, each with its `path`, `name`, `bytes`, and `sha256`; and `pasteLine`, the line for the email. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read. `readShares(siteDir)` reads a site's `share/shares.json`.
 
 </details>
 
@@ -1325,6 +1411,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 | `pnpm test:nvda` | Windows: runs voicecap with real NVDA on the fixture and checks the results. |
 | `pnpm fixture:capture` | Windows: the same, then replaces the fixture's recorded run with it. |
 | `pnpm fixture:reviews` | Rebuilds `fixture/reviews.json` from the recorded run. |
+| `pnpm share:fixture <folder>` | Writes the demo's shareable page and its Word copy into a folder, to look at a change to either. Needs no screen reader. |
 
 `fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, and a run recorded with real NVDA that the replay driver plays back; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
 
@@ -1359,7 +1446,7 @@ It restores `package.json` if anything fails before publishing. After publishing
 
 ## Credits
 
-**A hat tip to [Guidepup](https://www.guidepup.dev/), where voicecap began.** Guidepup is Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap is built on it. voicecap starts the screen reader, presses its keys, and reads back what it said, all through Guidepup. The NVDA it runs is Guidepup's portable build.
+**A hat tip to [Guidepup](https://www.guidepup.dev/), the starting point for voicecap.** voicecap came from a need at ICJIA: more than a dozen websites to go through methodically with a real screen reader, NVDA or VoiceOver, keeping a transcript of each, to round out an accessibility review beside axe, Lighthouse, and Pa11y before the April 2027 ADA Title II deadline for accessible digital content. Guidepup is what made that possible, and where the work started. It's Craig Morten's open-source library ([guidepup/guidepup](https://github.com/guidepup/guidepup), MIT license) for driving real screen readers from code: NVDA on Windows and VoiceOver on a Mac. voicecap has grown a long way from that start, with its page lists, sealed audit record, reviews, reports, and shareable page. It still starts the screen reader, presses its keys, and reads back what it said, all through Guidepup, and the NVDA it runs is Guidepup's portable build.
 
 voicecap also stands on:
 

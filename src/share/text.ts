@@ -577,9 +577,16 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.6.0</b>: the shareable page, what each run records for it, and <code>voicecap preflight</code>. A last check on a real Windows PC found that a run didn't end after its closing question, and that NVDA speaks too fast in a run to follow; the first was fixed that day, and the page now says the person heard NVDA speaking, and read the transcripts.",
   },
   {
+    date: "2026-10-02",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "The Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
+  },
+  {
     date: null,
     release: null,
-    pc: "A Word copy of the shareable report, for managers and auditors.",
+    pc: "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },
