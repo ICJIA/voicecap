@@ -474,3 +474,91 @@ No screen reader is needed for any of this:
 - **The evidence recorded at the PC** (plan 6).
 - **Storing the comparison** in the repeat's record, or showing it on the page (decision 7).
 - **VoiceOver repeats** (Phase C). A walkthrough already records the original's screen reader.
+
+## After execution
+
+The plan was built as written, with the rulings below, and a final wave of fixes after the whole-branch review. The ledger (`.superpowers/sdd/2026-10-03-shareable-report-plan-4-walkthrough-file/progress.md`, on the Windows PC) has each ruling's full text.
+
+**Where the plan's text is wrong, as built:**
+
+- **Task 2:**
+  - Step limits and readiness times are read by the config's own rules, with ceilings of 100,000 steps and 600,000 ms, not 1 to 5,000 (Ruling P10).
+  - The 400-page timing test allows 2,000 ms, not 500 (Ruling P3).
+- **Task 4:**
+  - A walkthrough source is named "the walkthrough <file> from run <run>", not "walkthrough of run <run> (<file>)" (Ruling P17).
+  - It has a fifth field, `from`, which says what the original run's pages came from (Ruling P18).
+- **Task 6:**
+  - The scripted site's count is "3 of 3 pages sound the same.", not 7 of 7 (Ruling P4).
+  - Its tests are in test/walkthrough-compare.test.ts (Ruling P20).
+  - CI's grep is anchored: `^3 of 3 pages sound the same\.`.
+  - A pass that only one side ran is named, as in "the tab pass wasn't run in this repeat", and is never counted as the same (Rulings P21 and P23).
+- **Task 7:**
+  - The demo gains two new parts, one per run, not five (Ruling P6).
+  - The size test compares the page with its downloads emptied (Ruling P5).
+  - `sizeWords` and `sizeLine` moved to `src/share/format.ts` (Ruling P7).
+- **Task 8:** the timeline test finds 0.7.0's rows by date, not by position (Ruling P8).
+
+**The rulings that changed the plan:**
+
+- **P1, an incomplete run:** one refusal, in one wording, in `walkthroughOf`.
+- **P2, a repeat's own file:** the reader takes the `walkthrough` kind, so a repeat's file reads back.
+- **P3, the timing test:** 2,000 ms.
+- **P4, the count:** the walkthrough's own pages.
+- **P5, the page's size:** measured with the downloads emptied.
+- **P6, the demo:** two new parts.
+- **P7, `sizeWords`:** moved to `format.ts`.
+- **P8, 0.7.0's timeline rows:** found by date.
+- **P9, the Word copy's days list:** updated with the row.
+- **P10, the limits:** the config's rules, with ceilings of 100,000 steps and 600,000 ms.
+- **P11, a run left incomplete by 0.7.0:** a later completed run that matches it except for readiness takes its place, and a setting the old run never recorded reads "not recorded".
+- **P12, `walkthroughProblem`:** voicecap never writes, or offers, a file it would refuse.
+- **P13, a list's file:** kept by its name alone, never its folders.
+- **P14, NVDA settings:** at most 32 levels deep.
+- **P15, addresses:** at most 8,192 characters.
+- **P16, a file over 8 MB:** refused before it's read.
+- **P17, how a walkthrough source is named:** as above.
+- **P18, `from`:** a repeat of a `--page` run stays a spot check.
+- **P19, the 8 MB limit:** applies when a file is written too.
+- **P20, the comparison's tests:** in their own file.
+- **P21, a pass that only one side ran:** never counted as "same".
+- **P22, the final review's I-1:** the reader refuses a control character in a page's label, template, or notes (other than a tab or a line break), and in the ready selector, which may be at most 1,024 characters. Escaping wherever text is printed is left to the security audit.
+- **P23, a pass that only one side ran:** named as "not run".
+- **P24, the timeline row:** dated the day of the merge.
+- **P25, a header's one-line fields:** a label, template, or notes is put on one line in linear time, with the same output as before. The last re-review found a long run of spaces took seconds, and a hostile file could hold millions.
+
+The final review also asked for:
+- a page-name clash refused with a plain message, not a stack trace;
+- the page's commands built with `formatCommand`, so an IPv6 site is quoted;
+- a repeat that first says which run, of which site, it repeats;
+- the README's notes that the downloads carry the page list's labels, templates, and notes, that the config's fingerprint is this computer's for a repeat, and what the page's "What changed" compares a repeat with.
+
+All of these are in.
+
+**Items carried to later plans:**
+
+- **The full security audit,** once every phase is done:
+  - escaping control characters wherever voicecap prints text or writes a transcript;
+  - the same linear fold for a step's speech in a transcript (`stepLine`), which still uses the old pattern;
+  - a walkthrough's site can be a local address;
+  - Playwright's selector engines in a file's ready selector;
+  - addresses with a user name and password;
+  - format characters in a page's label, template, or notes;
+  - a hostile file's ceilings, which can make a repeat take hours.
+- **Later:**
+  - caps of "…and N more" on a refusal's unknown keys and on the comparison's names;
+  - `writtenOut` saying "too large" for a RangeError;
+  - plain messages from `voicecap walkthrough` for a damaged run.json, a destination it can't write, and an empty `--run` or file;
+  - an empty `--walkthrough`;
+  - the `--site` refusal's words;
+  - Default_Ignorable code points in addresses;
+  - `isNestedTooDeep` pushing scalars;
+  - a file saved as UTF-16 or with a BOM, named as such;
+  - an unknown source kind in the report (`report/render.ts`);
+  - the depth overflows on hand-forged records (`flags.ts:27`, `check.ts:40`);
+  - moving the reader out of `resolve.ts` and the repeat out of `audit.ts`;
+  - test tidies (copied setup, the home-folder assertion, the file read once, the "é" test).
+- **For the owner:**
+  - the steps in "For the owner, once it's built";
+  - the download in Firefox, Safari, and managed Edge;
+  - NVDA or JAWS on a page with a large download link;
+  - a mail gateway's view of the page as an attachment.
