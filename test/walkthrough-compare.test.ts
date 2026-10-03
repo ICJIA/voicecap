@@ -14,6 +14,7 @@ import {
   parseWalkthrough,
   walkthroughJson,
   walkthroughOf,
+  type PageComparison,
   type Walkthrough,
   type WalkthroughComparison,
 } from "../src/share/walkthrough.js";
@@ -47,6 +48,17 @@ function compared(pages: SharePageSpec[], repeat: SharePageSpec[]): WalkthroughC
     walkthroughOf(shareRun({ id: ORIGINAL, pages })),
     shareRun({ id: REPEAT, pages: repeat }),
   );
+}
+
+/**
+ * A page that doesn't sound the same: the passes both ran that differ, the passes only the original
+ * ran, and the passes only the repeat ran, each empty unless the test says it.
+ */
+function different(
+  url: string,
+  passes: { differing?: PassName[]; onlyOriginal?: PassName[]; onlyRepeat?: PassName[] },
+): PageComparison {
+  return { url, result: "different", differing: [], onlyOriginal: [], onlyRepeat: [], ...passes };
 }
 
 /** A run of a spec, with `change` made to its record afterwards (what a spec can't say). */
@@ -148,9 +160,7 @@ describe("compareWithOriginal", () => {
     const comparison = compared([{ path: "/", passes: SAID }], [{ path: "/", passes: repeat }]);
 
     // Only those that were changed, in the passes' order.
-    expect(comparison.pages).toStrictEqual([
-      { url: `${SITE}/`, result: "different", passes: changed },
-    ]);
+    expect(comparison.pages).toStrictEqual([different(`${SITE}/`, { differing: changed })]);
   });
 
   it("says a page that sounds different in one pass sounds the same in the others", () => {
@@ -166,7 +176,7 @@ describe("compareWithOriginal", () => {
     );
 
     expect(comparison.pages).toStrictEqual([
-      { url: `${SITE}/`, result: "different", passes: ["headings"] },
+      different(`${SITE}/`, { differing: ["headings"] }),
       { url: `${SITE}/about`, result: "same" },
     ]);
   });
@@ -238,7 +248,7 @@ describe("compareWithOriginal", () => {
     expect(comparison.pages).toStrictEqual([
       { url: `${SITE}/`, result: "same" },
       { url: `${SITE}/about`, result: "same" },
-      { url: `${SITE}/resources`, result: "different", passes: ["read", "headings", "tab"] },
+      different(`${SITE}/resources`, { differing: ["read", "headings", "tab"] }),
     ]);
   });
 
@@ -292,26 +302,122 @@ describe("compareWithOriginal", () => {
     ]);
   });
 
-  it("counts a pass that only one side has as a difference, and one that neither has as none", () => {
-    const comparison = compared(
-      [
-        { path: "/", passes: SAID },
-        { path: "/about", passes: { read: READ } },
-        { path: "/resources", passes: { read: READ } },
-      ],
-      [
-        // The repeat didn't read the tab pass, and the original didn't read the headings pass.
-        { path: "/", passes: { read: READ, headings: HEADINGS } },
-        { path: "/about", passes: { read: READ, headings: HEADINGS } },
-        { path: "/resources", passes: { read: READ } },
-      ],
-    );
+  // A pass that only one of the two ran was never compared, so it isn't one that "sounds different":
+  // it's named as not run, in this repeat or in the original (Ruling P23). The page still isn't one
+  // that sounds the same, since nothing says that it does. Only a walkthrough changed by hand
+  // reaches this: voicecap marks a page done only after every pass of its run was read.
+  describe("a pass only one side ran", () => {
+    it("names a pass only the original ran, and no pass that differs", () => {
+      const comparison = compared(
+        [{ path: "/", passes: SAID }],
+        // The repeat didn't run the tab pass.
+        [{ path: "/", passes: { read: READ, headings: HEADINGS } }],
+      );
 
-    expect(comparison.pages).toStrictEqual([
-      { url: `${SITE}/`, result: "different", passes: ["tab"] },
-      { url: `${SITE}/about`, result: "different", passes: ["headings"] },
-      { url: `${SITE}/resources`, result: "same" },
-    ]);
+      expect(comparison.pages).toStrictEqual([different(`${SITE}/`, { onlyOriginal: ["tab"] })]);
+    });
+
+    it("names two such passes, in the passes' order", () => {
+      const comparison = compared(
+        [{ path: "/", passes: SAID }],
+        [{ path: "/", passes: { read: READ } }],
+      );
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, { onlyOriginal: ["headings", "tab"] }),
+      ]);
+    });
+
+    it("names all three passes of a page the repeat read in none of them", () => {
+      const comparison = compared([{ path: "/", passes: SAID }], [{ path: "/", passes: {} }]);
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, { onlyOriginal: ["read", "headings", "tab"] }),
+      ]);
+    });
+
+    it("names a pass only the repeat ran", () => {
+      const comparison = compared(
+        // The original didn't run the headings pass.
+        [{ path: "/", passes: { read: READ, tab: TAB } }],
+        [{ path: "/", passes: SAID }],
+      );
+
+      expect(comparison.pages).toStrictEqual([different(`${SITE}/`, { onlyRepeat: ["headings"] })]);
+    });
+
+    it("names two passes only the repeat ran, in the passes' order", () => {
+      const comparison = compared(
+        [{ path: "/", passes: { headings: HEADINGS } }],
+        [{ path: "/", passes: SAID }],
+      );
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, { onlyRepeat: ["read", "tab"] }),
+      ]);
+    });
+
+    it("names a pass that differs and a pass only the original ran, apart", () => {
+      const comparison = compared(
+        [{ path: "/", passes: SAID }],
+        // The read pass says something else, and the tab pass wasn't run.
+        [{ path: "/", passes: { read: CHANGED.read, headings: HEADINGS } }],
+      );
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, { differing: ["read"], onlyOriginal: ["tab"] }),
+      ]);
+    });
+
+    it("names each kind apart when a page has all three", () => {
+      const comparison = compared(
+        [{ path: "/", passes: { read: READ, headings: HEADINGS } }],
+        // The read pass says something else; the headings pass wasn't run; the tab pass is new.
+        [{ path: "/", passes: { read: CHANGED.read, tab: TAB } }],
+      );
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, {
+          differing: ["read"],
+          onlyOriginal: ["headings"],
+          onlyRepeat: ["tab"],
+        }),
+      ]);
+    });
+
+    it("leaves a pass both ran with the same words out of every kind", () => {
+      const comparison = compared(
+        [{ path: "/", passes: SAID }],
+        [{ path: "/", passes: { read: READ, headings: CHANGED.headings } }],
+      );
+
+      expect(comparison.pages).toStrictEqual([
+        different(`${SITE}/`, { differing: ["headings"], onlyOriginal: ["tab"] }),
+      ]);
+    });
+
+    it("counts a pass that neither ran as none, and a page whose passes both sides ran the same as the same", () => {
+      const comparison = compared(
+        [{ path: "/", passes: { read: READ } }],
+        [{ path: "/", passes: { read: READ } }],
+      );
+
+      expect(comparison.pages).toStrictEqual([{ url: `${SITE}/`, result: "same" }]);
+    });
+
+    it("reads a fingerprint taken out of the file by hand as a pass the original didn't run", () => {
+      const walkthrough = walkthroughOf(
+        shareRun({ id: ORIGINAL, pages: [{ path: "/", passes: SAID }] }),
+      );
+      delete walkthrough.pages[0]!.original.passes.headings;
+
+      const comparison = compareWithOriginal(
+        walkthrough,
+        shareRun({ id: REPEAT, pages: [{ path: "/", passes: SAID }] }),
+      );
+
+      expect(comparison.pages).toStrictEqual([different(`${SITE}/`, { onlyRepeat: ["headings"] })]);
+    });
   });
 
   describe("versions", () => {
@@ -642,7 +748,7 @@ describe("comparisonLines", () => {
       original: ORIGINAL,
       pages: [
         { url: `${SITE}/`, result: "same" },
-        { url: `${SITE}/about`, result: "different", passes: ["headings", "tab"] },
+        different(`${SITE}/about`, { differing: ["headings", "tab"] }),
         { url: `${SITE}/resources`, result: "not-read-originally" },
         { url: `${SITE}/contact`, result: "not-read-now" },
       ],
@@ -709,7 +815,7 @@ describe("comparisonLines", () => {
         original: ORIGINAL,
         pages: [
           { url: `${SITE}/`, result: "not-read-now" },
-          { url: `${SITE}/about`, result: "different", passes: ["read"] },
+          different(`${SITE}/about`, { differing: ["read"] }),
         ],
         versions: [],
         nvdaSettings: [],
@@ -726,6 +832,170 @@ describe("comparisonLines", () => {
         nvdaSettings: [],
       }),
     ).toStrictEqual([FIRST, `  ${SITE}/: sounds the same`, "1 of 1 pages sound the same."]);
+  });
+
+  // Ruling P23. A pass only one of the two ran was never compared, so a page's line names it as
+  // not run, in this repeat or in the original, and keeps "sounds different" for the passes both
+  // ran. The parts that apply are joined with "; ": what differs, then this repeat, then the original.
+  describe("a pass only one side ran", () => {
+    type Passes = Parameters<typeof different>[1];
+
+    /** The one line `/about` gets, after its address, when it sounds as `passes` say. */
+    const lineFor = (passes: Passes): string =>
+      comparisonLines({
+        original: ORIGINAL,
+        pages: [different(`${SITE}/about`, passes)],
+        versions: [],
+        nvdaSettings: [],
+      })[1]!;
+
+    it.each<[name: string, passes: Passes, words: string]>([
+      [
+        "passes both ran that differ, as before",
+        { differing: ["headings", "tab"] },
+        "sounds different (headings, tab)",
+      ],
+      [
+        "one pass only the original ran",
+        { onlyOriginal: ["tab"] },
+        "the tab pass wasn't run in this repeat",
+      ],
+      [
+        "two such passes",
+        { onlyOriginal: ["headings", "tab"] },
+        "the headings and tab passes weren't run in this repeat",
+      ],
+      [
+        "all three such passes",
+        { onlyOriginal: ["read", "headings", "tab"] },
+        "the read, headings, and tab passes weren't run in this repeat",
+      ],
+      [
+        "one pass only the repeat ran",
+        { onlyRepeat: ["headings"] },
+        "the headings pass wasn't run in the original",
+      ],
+      [
+        "two passes only the repeat ran",
+        { onlyRepeat: ["read", "tab"] },
+        "the read and tab passes weren't run in the original",
+      ],
+      [
+        "all three passes only the repeat ran",
+        { onlyRepeat: ["read", "headings", "tab"] },
+        "the read, headings, and tab passes weren't run in the original",
+      ],
+      [
+        "a pass that differs and one only the original ran",
+        { differing: ["read"], onlyOriginal: ["tab"] },
+        "sounds different (read); the tab pass wasn't run in this repeat",
+      ],
+      [
+        "passes that differ and one only the repeat ran",
+        { differing: ["read", "headings"], onlyRepeat: ["tab"] },
+        "sounds different (read, headings); the tab pass wasn't run in the original",
+      ],
+      [
+        "a pass only each side ran, this repeat's first",
+        { onlyOriginal: ["tab"], onlyRepeat: ["headings"] },
+        "the tab pass wasn't run in this repeat; the headings pass wasn't run in the original",
+      ],
+      [
+        "all three kinds, in the order what differs, this repeat, the original",
+        { differing: ["read"], onlyOriginal: ["headings"], onlyRepeat: ["tab"] },
+        "sounds different (read); the headings pass wasn't run in this repeat; the tab pass wasn't run in the original",
+      ],
+    ])("says, for %s: %s", (_name, passes, words) => {
+      expect(lineFor(passes)).toBe(`  ${SITE}/about: ${words}`);
+    });
+
+    it("says the lines a person is given, address and all", () => {
+      const lines = comparisonLines({
+        original: ORIGINAL,
+        pages: [
+          different("https://dvfr.illinois.gov/about/", { onlyOriginal: ["headings", "tab"] }),
+          different("https://dvfr.illinois.gov/faq/", {
+            differing: ["read"],
+            onlyOriginal: ["tab"],
+          }),
+        ],
+        versions: [],
+        nvdaSettings: [],
+      });
+
+      expect(lines.slice(1, 3)).toStrictEqual([
+        "  https://dvfr.illinois.gov/about/: the headings and tab passes weren't run in this repeat",
+        "  https://dvfr.illinois.gov/faq/: sounds different (read); the tab pass wasn't run in this repeat",
+      ]);
+    });
+
+    it("names each pass by its own name, whichever side didn't run it", () => {
+      for (const pass of PASS_NAMES) {
+        expect(lineFor({ onlyOriginal: [pass] })).toBe(
+          `  ${SITE}/about: the ${pass} pass wasn't run in this repeat`,
+        );
+        expect(lineFor({ onlyRepeat: [pass] })).toBe(
+          `  ${SITE}/about: the ${pass} pass wasn't run in the original`,
+        );
+      }
+    });
+
+    it("never calls such a page one that sounds the same, or one that sounds different when no pass differs", () => {
+      const lines = comparisonLines({
+        original: ORIGINAL,
+        pages: [
+          different(`${SITE}/about`, { onlyOriginal: ["tab"] }),
+          different(`${SITE}/faq`, { onlyRepeat: ["headings"] }),
+        ],
+        versions: [],
+        nvdaSettings: [],
+      });
+
+      expect(lines.slice(1, 3).join("\n")).not.toMatch(/sounds the same|sounds different/);
+    });
+
+    it("counts such a page among those that don't sound the same, as before", () => {
+      const lines = comparisonLines({
+        original: ORIGINAL,
+        pages: [
+          { url: `${SITE}/`, result: "same" },
+          different(`${SITE}/about`, { onlyOriginal: ["tab"] }),
+          different(`${SITE}/resources`, { onlyRepeat: ["headings"] }),
+          different(`${SITE}/contact`, { differing: ["read"], onlyOriginal: ["tab"] }),
+        ],
+        versions: [],
+        nvdaSettings: [],
+      });
+
+      expect(lines.at(-1)).toBe("1 of 4 pages sound the same.");
+    });
+
+    it("says it of a repeat that ran fewer passes than the original, from the two runs", () => {
+      const original = shareRun({
+        id: ORIGINAL,
+        pages: [
+          { path: "/", passes: SAID },
+          { path: "/about", passes: SAID },
+        ],
+      });
+      // The repeat of a file with its passes cut to read and headings: the tab pass was never run,
+      // and the read pass of /about says something else.
+      const repeat = shareRun({
+        id: REPEAT,
+        passes: ["read", "headings"],
+        pages: [
+          { path: "/", passes: { read: READ, headings: HEADINGS } },
+          { path: "/about", passes: { read: CHANGED.read, headings: HEADINGS } },
+        ],
+      });
+
+      expect(comparisonLines(compareWithOriginal(walkthroughOf(original), repeat))).toStrictEqual([
+        FIRST,
+        `  ${SITE}/: the tab pass wasn't run in this repeat`,
+        `  ${SITE}/about: sounds different (read); the tab pass wasn't run in this repeat`,
+        "0 of 2 pages sound the same.",
+      ]);
+    });
   });
 
   it("says the same lines of a comparison made from two runs", () => {

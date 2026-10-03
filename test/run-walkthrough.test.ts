@@ -830,6 +830,28 @@ describe("after a repeat completes", () => {
     expect(said).toContain("1 of 3 pages sound the same.");
   });
 
+  it("names the passes a repeat didn't run when the file was cut to fewer passes, and doesn't count those pages as the same", async () => {
+    const { dir, file, run } = await original();
+    // Cut to the read pass by hand: each page still carries the original's three fingerprints.
+    await edit(file, (walkthrough) => {
+      walkthrough.settings.passes = ["read"];
+    });
+    const logger = createMemoryLogger();
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual([
+      `Compared with run ${run.runId}, from its walkthrough file:`,
+      `  ${SITE}/: the headings and tab passes weren't run in this repeat`,
+      `  ${SITE}/about: the headings and tab passes weren't run in this repeat`,
+      `  ${SITE}/resources: the headings and tab passes weren't run in this repeat`,
+      "0 of 3 pages sound the same.",
+    ]);
+  });
+
   it("says a page the repeat couldn't read couldn't be read now", async () => {
     const { dir, run } = await original();
     const logger = createMemoryLogger();

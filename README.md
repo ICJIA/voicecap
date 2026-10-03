@@ -1336,13 +1336,13 @@ Different from the original: NVDA 2026.3 (was 2026.2), Chrome 154.0.8037.58 (was
 ```
 
 - **`sounds the same`:** every pass matches the original's. A pass matches when its fingerprint is the same: the words NVDA said, line by line, without the transcript's header, whose timestamps would differ.
-- **`sounds different`:** one or more passes don't match. They're named, in the order `read`, `headings`, `tab`.
+- **`sounds different`:** one or more passes that both ran don't match. They're named, in the order `read`, `headings`, `tab`.
 - **`wasn't read in the original`:** the repeat read the page, and the original didn't: it failed, or was skipped.
 - **`couldn't be read now`:** the repeat didn't read the page, whatever the original did with it.
 - **The count** is the pages that sound the same, out of the pages in the file.
 - **What else differs,** when something does: the versions of NVDA, the browser, and voicecap, each named only when both runs recorded it, and then the names of the NVDA settings whose values differ from the original's.
 
-A pass that only one of the two read counts as a difference.
+A pass that only one of the two ran is named, such as `the tab pass wasn't run in this repeat` or `the headings pass wasn't run in the original`, and the page isn't counted as sounding the same.
 
 voicecap prints this when the repeat completes, and doesn't keep it. The comparison needs only the file, which holds the original's fingerprints. A repeat that's interrupted, or stops, says nothing until a later session completes it. For the words that changed, line by line, give `--compare` the original's id: the report then marks the changed pages and links to the diffs (see [Reading the report](#reading-the-report)).
 

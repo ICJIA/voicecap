@@ -37,6 +37,7 @@ import {
 import { canonicalKey } from "../pages/url.js";
 import { UsageError } from "../util/errors.js";
 import { canonicalJson } from "../util/hash.js";
+import { names } from "./format.js";
 
 export interface WalkthroughPage {
   url: string;
@@ -403,10 +404,23 @@ function perPass<T>(entry: (pass: PassName) => T): Record<PassName, T> {
 
 // A repeat, against the original:
 
-/** How one page of the file sounds in a repeat, against what the file says the original did. */
+/**
+ * How one page of the file sounds in a repeat, against what the file says the original did. A page
+ * that isn't the same has its passes in three groups, each in the passes' order and each possibly
+ * empty, though not all three at once.
+ */
 export type PageComparison =
   | { url: string; result: "same" }
-  | { url: string; result: "different"; passes: PassName[] }
+  | {
+      url: string;
+      result: "different";
+      /** The passes both ran, whose fingerprints differ: these sound different. */
+      differing: PassName[];
+      /** The passes only the original ran: the repeat didn't run them. */
+      onlyOriginal: PassName[];
+      /** The passes only the repeat ran: the original didn't run them. */
+      onlyRepeat: PassName[];
+    }
   | { url: string; result: "not-read-originally" }
   | { url: string; result: "not-read-now" };
 
@@ -426,8 +440,10 @@ export interface WalkthroughComparison {
  * The repeat, page by page, against the original's fingerprints. Pure.
  *
  * - A page sounds the same only when the original and the repeat both read it (their status is
- *   "done") and every pass has the same fingerprint in both. A pass that only one of them has
- *   differs.
+ *   "done") and every pass either of them ran has the same fingerprint in both. A pass that only one
+ *   of them ran was never compared: it isn't one that sounds different, but it's named apart, as not
+ *   run in the repeat or not run in the original, and the page isn't one that sounds the same. Only
+ *   the passes both ran, with different fingerprints, sound different.
  * - A page the repeat didn't read (it failed, was skipped, or has no record) couldn't be read now,
  *   whatever the original did with it. A page the repeat read, and the original didn't, wasn't read
  *   in the original.
@@ -477,7 +493,15 @@ function soundsLike(page: PageComparison): string {
     case "same":
       return "sounds the same";
     case "different":
-      return `sounds different (${page.passes.join(", ")})`;
+      // What differs, then what this repeat didn't run, then what the original didn't: only the
+      // parts that apply.
+      return [
+        page.differing.length > 0 ? `sounds different (${page.differing.join(", ")})` : null,
+        notRun(page.onlyOriginal, "in this repeat"),
+        notRun(page.onlyRepeat, "in the original"),
+      ]
+        .filter((part) => part !== null)
+        .join("; ");
     case "not-read-originally":
       return "wasn't read in the original";
     case "not-read-now":
@@ -487,6 +511,21 @@ function soundsLike(page: PageComparison): string {
       return _exhaustive;
     }
   }
+}
+
+/**
+ * "the tab pass wasn't run in this repeat", "the headings and tab passes weren't run in the
+ * original": the passes only one of the two ran, said as not run, where `where` says which of them
+ * didn't run them. Null for none.
+ */
+function notRun(
+  passes: readonly PassName[],
+  where: "in this repeat" | "in the original",
+): string | null {
+  if (passes.length === 0) return null;
+  return passes.length === 1
+    ? `the ${passes[0]} pass wasn't run ${where}`
+    : `the ${names(passes)} passes weren't run ${where}`;
 }
 
 /** Each page of the file once, in its order, against the repeat's record of it. */
@@ -512,10 +551,21 @@ function comparePage(page: WalkthroughPage, now: PageRecord | undefined): PageCo
   // The repeat first: a page it couldn't read is said so, whether or not the original could.
   if (now?.status !== "done") return { url, result: "not-read-now" };
   if (original.status !== "done") return { url, result: "not-read-originally" };
-  const passes = PASS_NAMES.filter(
-    (pass) => original.passes[pass] !== now.passes[pass]?.contentSha256,
-  );
-  return passes.length === 0 ? { url, result: "same" } : { url, result: "different", passes };
+  const differing: PassName[] = [];
+  const onlyOriginal: PassName[] = [];
+  const onlyRepeat: PassName[] = [];
+  for (const pass of PASS_NAMES) {
+    const was = original.passes[pass];
+    const is = now.passes[pass]?.contentSha256;
+    if (was === undefined && is === undefined) continue;
+    if (is === undefined) onlyOriginal.push(pass);
+    else if (was === undefined) onlyRepeat.push(pass);
+    else if (was !== is) differing.push(pass);
+  }
+  // Never the same on less evidence: a pass only one side ran is a reason it isn't.
+  return differing.length + onlyOriginal.length + onlyRepeat.length === 0
+    ? { url, result: "same" }
+    : { url, result: "different", differing, onlyOriginal, onlyRepeat };
 }
 
 /** A screen reader, a browser, or voicecap, and the version of it that ran. */
