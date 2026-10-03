@@ -623,9 +623,16 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.7.0</b>: the Word copy of the shareable report, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks of what was sent.",
   },
   {
+    date: "2026-10-03",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
+  },
+  {
     date: null,
     release: null,
-    pc: "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+    pc: "A website of the shared reports.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },

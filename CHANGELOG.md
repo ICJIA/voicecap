@@ -4,6 +4,40 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The walkthrough file**: a run's recipe in one JSON file, so anyone can repeat the run exactly: the same pages, in the same order, with the same passes and limits. The README's "Repeating a run: the walkthrough file" describes it.
+  - **What it holds:** the site; every page of the run's list, in its order, with its label, template, and notes, what the original run did with it, and the fingerprint of each pass it read; the passes, each pass's step limit, the capture mode, and the readiness settings, which a repeat applies; and where it came from, which is recorded and never applied (the original run's id and seal, its dates, whether it was a replay, its page source with the fingerprints of what it read from, the versions of voicecap, the screen reader, and the browser, and its NVDA settings and browser channel). A page list's file is kept by its name only, never its folders.
+  - **It's read strictly,** since it may come from anyone. voicecap refuses a file, before anything runs, and says what's wrong and where, when:
+    - it isn't JSON, or has a format version it doesn't read, a key it doesn't know, or no pages;
+    - it lists more than 10,000 pages;
+    - a page isn't on the file's own site, or its address has a space or a control character in it, or is over 8,192 characters;
+    - its NVDA settings are nested more than 32 levels deep;
+    - a run id has characters a run id doesn't have;
+    - a step limit or a readiness time is beyond what the config allows;
+    - it's over 8 MB.
+  - **voicecap never writes a file its own reader would refuse.**
+- **`voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>`**: writes a completed run's walkthrough file, from the site's latest completed run unless `--run` names one (a replayed run counts), and says where it is and how to repeat the run. It never overwrites a file, and it needs no screen reader.
+  - **It stops, with exit code 1 and nothing written,** when the site has no completed run, when the run named isn't there or didn't complete, when something is at `<file>` already, and when the run can't be written as a file its own reader would accept (more than 10,000 pages, a step limit above 100,000, or a file over 8 MB).
+  - **Write the file outside the transcripts home:** `voicecap verify` names a new folder inside a site's folder, and a file inside a run's `pages/` folder, as problems.
+- **`--walkthrough <file>` on a run** repeats it: the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file.
+  - **It needs no `--site`:** the site is the file's.
+  - **NVDA's settings and the browser are this computer's,** whatever the file recorded of them. A file can come from anyone, so it never changes this computer's NVDA settings or its browser.
+  - **Refused beside it,** before anything runs, since they would change what's read: `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, `--max-steps`, and a `--site` that isn't the file's own. Allowed: `--out`, `--reviewer`, `--compare`, `--run-name`, `--fresh`, and `--replay-from`.
+  - **An interrupted repeat resumes** with the same file, and an edited file starts a new run.
+  - **The site's scope:** a repeat of a sitemap or page-list run is a list run, in scope like a page list, and a repeat of a `--page` run is a spot check, like `--page`. The file says what its original's pages came from, so a walkthrough file trimmed by hand, from a sitemap run, becomes the scope, with its subset.
+- **After a repeat that completes, voicecap says how each page sounds against the original,** page by page: `sounds the same`, `sounds different (headings, tab)` with the passes that differ, `wasn't read in the original`, or `couldn't be read now`. Then it says `<n> of <m> pages sound the same.`, and then any versions (NVDA, the browser, voicecap) and NVDA settings that differ from the original's. A page sounds the same only when every pass matches. A pass that only one of the two read counts as a difference, which only a file edited by hand reaches. The comparison is printed, and isn't stored.
+- **The shareable page offers each run's walkthrough file** to download, as a new, fifth part of each run's evidence, with the command that repeats the run. Each link names its run for a screen reader. The file is carried inside the page. The Word copy can't carry a file, so it says how to get it (`voicecap walkthrough --site <site> --run <id> <file>`) and how to repeat the run. A run whose file can't be made says why.
+- **Programmatic API**: `writeWalkthrough`, which writes a run's walkthrough file as `voicecap walkthrough` does (it takes `file`, `site`, `run`, and `out`, plus `logger`, and gives back the `file` it wrote, the `runId`, and the `walkthrough`); `parseWalkthrough`, which reads a walkthrough file's text strictly; `walkthroughOf`, which builds the walkthrough of a completed run's record; `walkthroughJson`, the text a file holds; `walkthroughProblem`, why `parseWalkthrough` would refuse a walkthrough, or `null`; `runAudit`'s `walkthrough` option, the path of a file to repeat (`site` is then optional); and the types `WriteWalkthroughOptions`, `WriteWalkthroughResult`, `Walkthrough`, `WalkthroughPage`, `WalkthroughSettings`, and `WalkthroughOrigin`.
+
+### Changed
+
+- **Runs record their readiness settings** (`settings.readiness` in `run.json`): `readySelector`, `settleMs`, and `networkIdleTimeoutMs`, as the config gave them, or as the walkthrough file did for a repeat. A run resumes only with the same settings, and these are now among them, so a change to the config's `readiness` starts a new run. A walkthrough file written from a run made before this has no readiness settings (`null`), and a repeat of it uses this computer's.
+- **A run left incomplete by 0.7.0 or earlier isn't resumed.** It has no readiness settings, so its settings differ from every new run's. voicecap starts a new run instead, and says why (`Starting a new run. Not resuming <id> because its settings differ: readiness: not recorded → …`). That's said when the new run starts, and not again once a new run with the same other settings has completed: that run takes the old one's place, as a completed run with the same settings always has.
+- **`PageSource` has a fourth kind, `walkthrough`, and `SourceDetails.kind` a fourth value.** It's a compile-time change for code that switches on `kind` exhaustively: it needs a case for `"walkthrough"`. The new kind holds the file (recorded as a page list's is, relative to the working folder when inside it), its `sha256`, the `run` it was made from, and `from`, what that run's pages came from: `"sitemap"`, `"pages"`, or `"urls"`, never `"walkthrough"`, since a repeat of a repeat carries its original's own. Wherever a run's page source is named (the report, a transcript's header, `--compare`, and the message about resuming), a walkthrough is named by its file, then its run.
+- **A run id in a walkthrough file is read as voicecap makes one:** 1 to 100 letters, digits, `.`, `_`, and `-`. The reader refuses any other, in `original.run` and in `original.source.run`, so an id can't break a transcript's header or reach a terminal.
+- **The story's timeline has a row for the walkthrough file,** and "Next" now lists the website.
+
 ### Fixed
 
 - **A key named `__proto__` added to a sealed record now changes its seal**, as any other added key does, so `voicecap verify` and the shareable page's own check both catch it. Every seal voicecap has already written stays the same.

@@ -184,19 +184,14 @@ describe("the timeline", () => {
     );
   });
 
-  it("tells 0.7.0 in two rows: the day the Word copy and voicecap share were made, then the day they were published, and puts the walkthrough file and the website in Next", () => {
-    const next = TIMELINE.at(-1);
-    const released = TIMELINE.at(-2);
-    const made = TIMELINE.at(-3);
+  it("tells 0.7.0 in two rows: the day the Word copy and voicecap share were made, then the day they were published", () => {
+    // Found by their day and release, never by their place: each later feature adds a row after
+    // them, which moves them.
+    const released = TIMELINE.find((row) => row.release === "0.7.0");
+    const made = TIMELINE.find((row) => row.date === "2026-10-02" && row.release === null);
 
-    // Next is last, with no day, and its Windows PC cell is what still comes: the walkthrough file
-    // and the website.
-    expect(next?.date).toBeNull();
-    expect(next?.pc).toBe(
-      "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
-    );
-    // The row before it is the release, across both tracks; the one before that, the day the Word
-    // copy and voicecap share were made, which announces no release.
+    // The release, across both tracks; and the day the Word copy and voicecap share were made,
+    // which announces no release.
     expect(released).toEqual({
       date: "2026-10-03",
       release: "0.7.0",
@@ -211,6 +206,37 @@ describe("the timeline", () => {
       mac: null,
       both: "For 0.7.0, the Word copy of the shareable report, and <code>voicecap share</code>: dated copies to send, each recorded with its fingerprint.",
     });
+    // The day before the release comes first.
+    expect(TIMELINE.indexOf(made!)).toBeLessThan(TIMELINE.indexOf(released!));
+  });
+
+  it("tells the walkthrough file in a row of its own, across both tracks, the day it merged and after 0.7.0's", () => {
+    const released = TIMELINE.find((row) => row.release === "0.7.0");
+    // The day it merged is no release's day yet: found by its day, with no release.
+    const walkthrough = TIMELINE.find((row) => row.date === "2026-10-03" && row.release === null);
+
+    // What the file is, and the two ways to use it.
+    expect(walkthrough).toEqual({
+      date: "2026-10-03",
+      release: null,
+      pc: null,
+      mac: null,
+      both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
+    });
+    expect(TIMELINE.indexOf(walkthrough!)).toBeGreaterThan(TIMELINE.indexOf(released!));
+    // It's the row just before Next.
+    expect(TIMELINE.at(-2)).toBe(walkthrough);
+  });
+
+  it("leaves only the website in Next, which is last, with no day and no release", () => {
+    const next = TIMELINE.at(-1);
+
+    expect(next?.date).toBeNull();
+    expect(next?.release).toBeNull();
+    // The walkthrough file has its own row now: what still comes on the Windows PC is the website.
+    expect(next?.pc).toBe("A website of the shared reports.");
+    expect(next?.mac).toBe("Full runs with VoiceOver, with voicecap's VoiceOver driver.");
+    expect(next?.both).toBeNull();
   });
 
   it("writes each cell as bold and code only, or leaves it null, so the renderer can insert it as given", () => {

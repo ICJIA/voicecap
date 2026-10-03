@@ -1056,6 +1056,7 @@ describe("wordStory", () => {
         ["2 October"],
         ["2 October"],
         ["3 October"],
+        ["3 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1145,7 +1146,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+        "Windows PC, with NVDA: A website of the shared reports.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

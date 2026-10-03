@@ -30,7 +30,7 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 >
 > - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
-> - **Any computer, Linux included:** reviews, reports, `share`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
+> - **Any computer, Linux included:** reviews, reports, `share`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
 
 ## How voicecap works
 
@@ -93,6 +93,10 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
   - [The Word copy](#the-word-copy)
   - [Sending it: voicecap share](#sending-it-voicecap-share)
   - [What was sent: shares.json](#what-was-sent-sharesjson)
+- [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)
+  - [Writing the file: voicecap walkthrough](#writing-the-file-voicecap-walkthrough)
+  - [Repeating the run from the file](#repeating-the-run-from-the-file)
+  - [What a repeat says afterwards](#what-a-repeat-says-afterwards)
 - [Heuristic flags](#heuristic-flags)
 - [Configuration](#configuration)
 - [Programmatic API](#programmatic-api)
@@ -371,7 +375,7 @@ PowerShell doesn't rewrite arguments, so this note is only for people who use Gi
 - give a sitemap by its name, without the slash: `--sitemap sitemap.xml` is the same file as `/sitemap.xml`;
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
-With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--replay-from`, and the files `manual add` and `list-urls` take all accept it.
+With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--walkthrough`, `--replay-from`, and the files `manual add`, `list-urls`, and `walkthrough` take all accept it.
 
 ## Mac setup
 
@@ -519,16 +523,18 @@ You type these commands the same way in PowerShell, in Git Bash, and in a Mac's 
 
 ```bash
 npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url>...) [options]
+npx @icjia/voicecap --walkthrough <file> [options]
 ```
 
-`--site` is required, plus exactly one kind of page source: `--sitemap`, `--pages`, or one or more `--page`; giving none of them, or a mix, is an error.
+`--site` is required, plus exactly one kind of page source: `--sitemap`, `--pages`, or one or more `--page`; giving none of them, or a mix, is an error. The second line is the other way to give the pages: a walkthrough file repeats a run, and needs no `--site`, since the site is the file's (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
 
 | Option | Meaning |
 | --- | --- |
-| `--site <url>` | The site. Pages must be on its origin. |
+| `--site <url>` | The site. Pages must be on its origin. Required, except with `--walkthrough`, which takes the site from its file. |
 | `--sitemap <url>` | Take pages from a sitemap: a `<urlset>` or a `<sitemapindex>` (child sitemaps are read too; gzip is fine). Give its full URL, or its name or path on the site, from its root (`sitemap.xml`, `/sitemaps/pages.xml`). |
 | `--pages <file>` | Take pages from a page list: `.csv` or `.json` (see [Page sources](#page-sources)). |
 | `--page <url>` | Take this page: a full URL, or a path like `/faq/`, resolved against `--site` (repeatable). |
+| `--walkthrough <file>` | Repeat a run from its walkthrough file (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)): the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings. Refused beside `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, `--max-steps`, and a `--site` that isn't the file's. |
 | `--limit <n>` | Transcribe at most n pages (after include and exclude). |
 | `--include <pattern>` | Only URL paths matching. Glob by default; `re:` for a regular expression. Repeatable. |
 | `--exclude <pattern>` | Skip URL paths matching. Same syntax. Repeatable. |
@@ -559,7 +565,7 @@ npx @icjia/voicecap --site <url> (--sitemap <url> | --pages <file> | --page <url
 ### Other commands
 
 <details>
-<summary>One line for each of the other commands, how they pick a site's folder, what <code>share</code> takes, and what <code>doctor</code> prints</summary>
+<summary>One line for each of the other commands, how they pick a site's folder, what <code>share</code> and <code>walkthrough</code> take, and what <code>doctor</code> prints</summary>
 
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
@@ -567,6 +573,7 @@ voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note 
 voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--site <url>] [--out <dir>]
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
+voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
 voicecap preflight # check this computer is ready for a run, without starting the screen reader
@@ -574,9 +581,11 @@ voicecap doctor    # check this computer and print a summary to paste into a bug
 voicecap demo      # a guided first run against a demo site that comes with voicecap
 ```
 
-Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, `report`, and `share` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
+Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
 
 **`share` takes three options:** `--site <url>`, the site (default: the home's only site); `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--reviewer <name>`, who is sharing (default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config). With no name it stops, as `review` does: a share is recorded with who made it. What it makes and prints is under [Sending it: `voicecap share`](#sending-it-voicecap-share).
+
+**`walkthrough` takes the file to write, and three options:** `--site <url>`, the site (default: the home's only site); `--run <id>`, the run to write it from (default: the site's latest completed run); and `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). It never overwrites a file, and it needs no screen reader. What it writes is under [Writing the file: `voicecap walkthrough`](#writing-the-file-voicecap-walkthrough).
 
 **`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
 
@@ -720,7 +729,7 @@ Each value is a full URL or a root-relative path (`/faq/`), resolved against `--
 
 ### How the list is cleaned up
 
-For all three sources:
+For all three sources, and for the pages of a walkthrough file (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)):
 
 - **Duplicates.** Fragments (`#section`) are dropped, and `/about` and `/about/` count as the same page (the form listed first is the one loaded). Different query strings are different pages.
 - **Other origins are skipped** and logged. If most URLs are on another origin, voicecap says so prominently: sitemaps that list `http://` or `www.` variants of the site are a common misconfiguration.
@@ -827,7 +836,7 @@ voicecap-transcripts/                  ← the transcripts home
 - **Page slugs** are a readable part of the path plus a short hash of the URL (`grants-fy27-jag-1a2b3c4d5e`), safe on Windows and short enough to avoid path-length problems. The home page is `home`. The full URL is inside every JSON file.
 - **TXT transcripts** start with a header block (every line begins `# `): the page, the run, the stop reason, and the environment (see "Environment record," below), so each file stands alone as evidence. After one blank line comes **one line per step**, everything NVDA said in response to one keystroke. Setup steps are labeled (`[to bottom] …`, `[to top] …`), and a step where NVDA said nothing is written `[no speech]`, so line N of the body is always step N.
 - **JSON transcripts** hold one record per step (number, command, spoken text, duration, time since the pass started, and for the tab pass the focus state and focused element) plus the page, pass, step count, stop reason, duration, timestamp, errors, warnings, and the environment record.
-- **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, or page list file with its SHA-256), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings. It also holds the computer's details (see [What each run records](#what-each-run-records)), which `run.json` and the JSON transcripts keep, and the TXT header leaves out.
+- **Environment record.** `run.json` records, and every transcript repeats: page source (sitemap URL, page list file with its SHA-256, or walkthrough file with its SHA-256 and the run it was made from), driver and version, NVDA version (and Guidepup's build id), NVDA language, capture mode, browser and version, OS, voicecap version, a hash of the effective config, run timestamp, and NVDA's speech, document formatting, browse mode, and keyboard settings. It also holds the computer's details (see [What each run records](#what-each-run-records)), which `run.json` and the JSON transcripts keep, and the TXT header leaves out.
 - **Hashes.** `run.json` records the SHA-256 of every transcript file (integrity) and of each pass's TXT body without the header (content). "Changed since review" and `--compare` use the content hashes, because headers include timestamps and run ids.
 
 </details>
@@ -838,9 +847,9 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 
 ### Layout
 
-The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, and `share` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
+The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
-The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, and `verify` never take it for a site.
+The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, `walkthrough`, and `verify` never take it for a site.
 
 ### What each run records
 
@@ -987,12 +996,12 @@ Keep the repository private: manual sessions can carry reviewer names, notes, an
 
 Count a page's steps as its lines in browse mode, plus its headings, plus its focusable elements. Interruptions are normal: reboots, Windows Update, power cuts.
 
-- **Resuming.** At the start of a run voicecap stores the page list and a hash of the settings that matter (site, page source, passes, filters, limit, driver, capture mode, step caps, NVDA settings, browser). `run.json` is rewritten after every page (atomically: a temporary file is flushed to disk and renamed, with retries while Windows holds the file). Running the same command again resumes the most recent incomplete run with the same settings, skipping pages already done (failed pages are retried). Otherwise voicecap starts a new run and says why. `--fresh` always starts a new run.
-- **Sitemap runs resume with the page list stored when they started**, so a sitemap that changed in the meantime (a new news item, say) doesn't block resuming. A page list file is identified by its contents, so editing it starts a new run.
+- **Resuming.** At the start of a run voicecap stores the page list and a hash of the settings that matter (site, page source, passes, filters, limit, driver, capture mode, step caps, NVDA settings, browser, readiness). `run.json` is rewritten after every page (atomically: a temporary file is flushed to disk and renamed, with retries while Windows holds the file). Running the same command again resumes the most recent incomplete run with the same settings, skipping pages already done (failed pages are retried). Otherwise voicecap starts a new run and says why. `--fresh` always starts a new run. A run that voicecap 0.7.0 or earlier left incomplete isn't resumed, since those versions didn't record the readiness settings: voicecap starts a new run and says so, until a new run with the same other settings completes.
+- **Sitemap runs resume with the page list stored when they started**, so a sitemap that changed in the meantime (a new news item, say) doesn't block resuming. A page list file, and a walkthrough file, is identified by its contents, so editing it starts a new run.
 - **A failing page never stops the run**: it's recorded, reported, and the run moves on.
   - **Up to 5 tries** (`pageAttempts`). voicecap tries the page again after a timeout (steps and whole pages have timeouts), when NVDA or the browser stops responding, or when another window takes the foreground. Each retry starts NVDA and the browser fresh.
   - **Every attempt is kept** under `attempts/`, and the page's record names each failed attempt's reason, so a page that needed three tries says so.
-  - **Too many failures in a row:** after `maxConsecutiveFailures` pages in a row (default 5) fail every try, voicecap stops with exit code 2 instead of marking every remaining page failed. Fix the problem and rerun to resume.
+  - **Too many failures in a row:** after `maxConsecutiveFailures` pages in a row (default 5) fail every try, voicecap stops with exit code 2 instead of marking every remaining page failed. Fix the problem and rerun to resume. If the fix is a change to the readiness settings (`readiness` in the config, see [Configuration](#configuration)), the rerun starts a new run instead: a run resumes only with the same settings, and those are among them.
 - **Restarts.** NVDA and the browser are restarted every `restartEvery` pages (default 50).
 - **If NVDA dies** (it crashes, or someone closes it), or Guidepup loses its connection to it, the step in progress fails rather than being recorded as silence, and voicecap restarts NVDA and the browser and tries the page again, up to `pageAttempts` times in all.
 - **If the browser updates itself** during a run (Chrome does, in the background), the page being opened when the new version starts fails, and voicecap stops with exit code 2 when it restarts the browser for the next page, so the version recorded with the transcripts stays true. Run the same command again to resume with the new version recorded; the failed page is retried. (On the last page, the run completes instead, with that page failed: exit code 3.)
@@ -1112,7 +1121,7 @@ This is a different question from `voicecap verify` (see [The audit record](#the
 
 Open a site's `report.html` in a browser: `transcripts/dvfr.illinois.gov/report.html`, say, or the path a run prints when it completes. It's a single self-contained file (no external assets) and is itself accessible.
 
-- **Summary**: the page source (curated list or full sitemap), driver and capture mode, and counts: pages, transcribed, reviewed, changed since review, manually tested, open issues, errors, skipped URLs. Banners mark replayed output ("not a live NVDA session"), incomplete runs, and environment changes.
+- **Summary**: the page source (curated list, full sitemap, or walkthrough file), driver and capture mode, and counts: pages, transcribed, reviewed, changed since review, manually tested, open issues, errors, skipped URLs. Banners mark replayed output ("not a live NVDA session"), incomplete runs, and environment changes.
 - **Pages table**: one row per page with its template, run status, step counts and stop reasons per pass, heuristic flags, current review status (with reviewer and date), number of review entries, a "changed since review" marker, manual sessions, and links to every transcript. With `--compare`, a column marks changed pages and links to the text diffs.
 - **Filters** (flagged, review status, template, changed since review, manually tested) are ordinary form controls; the number of pages shown is announced. Without JavaScript the full table is still there.
 - **Skipped URLs**, **Review history** (every entry for every page), **Manual NVDA sessions**, and the **Environment** record follow.
@@ -1134,6 +1143,7 @@ voicecap writes it whenever it rewrites the site's `report.html`: when a run com
 
 - **One self-contained file.** Its styles, fonts, and data are inside it, and nothing is loaded from outside. It's dark at first, with a button for a light version, and it prints light. Its detail is folded under lines that say what's inside. Each fold opens with a click, scripts or not; "Open every section", at the top, opens them all; and so does printing. Like the report, it's itself accessible: voicecap's tests run axe on it, in both themes, with every fold shut and every fold open.
 - **Only completed, sealed, live runs count.** Its pages are those of the latest run that counts whose pages came from a sitemap or a page list. A later run given its pages with `--page` is a spot check: its transcripts are shown for the pages it read, and its failures are said, but it doesn't change which pages are in scope. Each page shows its newest transcripts from any run that counts.
+  - A run repeated from a walkthrough file counts as what its original was. A repeat of a sitemap or page-list run is a list run, in scope like a page list, and a repeat of a `--page` run is a spot check, like `--page`. The file says what its original's pages came from (`from`). So a walkthrough file trimmed by hand, from a sitemap run, still counts as a list: its pages, the subset, are the scope, and the pages taken out go in "No longer listed" (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
   - A page whose latest attempt failed shows the failure beside its last good transcripts, and is a task under "What's still to do".
   - A page the latest run's list no longer has goes in a small table, "No longer listed".
   - A replayed run (`--replay-from`), a run that was interrupted or never finished, a completed run with no seal, and a run whose `run.json` can't be read never count toward a result. The page lists each one it left out, with why, and with no run that counts, it says so.
@@ -1149,13 +1159,13 @@ Its sections, in order:
 - **What changed since the last run**: the pages that sound different from the run before (the latest earlier run that counts, with the same page source), line by line, with the changed words marked. Pages that sound the same are counted, not listed.
 - **Problems during the runs**: every failed attempt in the runs the page draws on, including those a later attempt made good. Each has its kind: another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself. Each says what voicecap did, whether it happened again (by what came after it: a run before it that read the page shows only that the page could be read), and what it means for the results. Then comes the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`).
 - **What these results cover**: the pages and passes, and the technical limits.
-- **The evidence behind these results**: the fingerprint check, then each run the page draws on, with its facts, its test environment, and the fingerprint of every file.
+- **The evidence behind these results**: the fingerprint check, then each run the page draws on, with its facts and five parts. The first two, the event log minute by minute and NVDA's own log, are ones no version of voicecap records yet, so each says "Not recorded". The others are its test environment, the fingerprint of every file, and, last, its walkthrough file to download, with the command that repeats the run (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
 - **How voicecap came to be**: it opens with why voicecap was needed, then why it exists, then its timeline and a few things worth knowing.
 - **Appendix: every transcript**: each page's read, headings, and Tab transcripts, word for word.
 
 **The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows in the appendix is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint with the one its sender recorded: `voicecap share` prints it, ready for the email that sends the file, and `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, shows it for the file you received. Or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `current.html` and `current.docx` alone, since voicecap makes them again from the records each time, and `verify` checks the records. It does check the dated copies that `voicecap share` made, against what `shares.json` recorded of them (see [Checking the record](#checking-the-record-voicecap-verify)).
 
-**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows.
+**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only.
 
 **The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
 
@@ -1174,6 +1184,7 @@ Its sections, in order:
 - **Tables where the page has charts.** The page's tiles and bars are tables, and its cards for every page are one table, with the same numbers in them.
 - **Made for paper and for Word's navigation pane.** Every section is a heading in one of Word's own heading styles, so View → Navigation Pane lists each one. Every page of paper ends with the site's name, the date, and its page number, and a table's header row repeats at the top of each page the table runs onto. It uses Calibri and Consolas, which Word has, in place of the page's IBM Plex.
 - **No fingerprint check of its own.** A Word document can't check itself. Where the page has its check, the Word copy says what a reader can do instead: compare the file's own fingerprint with the one its sender recorded (`voicecap share` prints it), or run `voicecap verify` on the transcripts folder. It also says that the page can check the transcripts it shows.
+- **No download, but how to get each run's walkthrough file.** A Word document can't carry the file, as the page does. Where the page has its download, the Word copy says to get the file from the web page, or with `voicecap walkthrough --site <site> --run <id> <file>`, and then gives the command that repeats the run. A run whose file can't be made says why.
 
 On Windows, voicecap can't replace `current.docx` while Word has it open. A run, review, or report still finishes, in about a second, with the page written, and a warning says the Word copy wasn't updated: `current.docx` couldn't be replaced (with the error's code in parentheses, such as `EPERM`), as happens while it's open in Word. The warning says to close it, then gives the exact command to run. The command names the site and the transcripts home, so it works in a home of several sites, and in a home you gave with `--out`: `npx @icjia/voicecap report --site https://dvfr.illinois.gov --out 'C:\Users\cschw\code\voicecap-transcripts'`. Like the page, a Word copy that can't be made or written is a warning, never a failed run, review, or report, and neither file stops the other being written.
 
@@ -1226,6 +1237,116 @@ To paste into the email that sends them:
 Entries are sealed and chained as `reviews.json`'s are, and they're never edited or deleted: a new share is a new entry (see [Checking the record](#checking-the-record-voicecap-verify)). voicecap refuses to overwrite a `shares.json` it can't read.
 
 The dated copies and `shares.json` go into Git with the rest of the record: they're what was sent, and the record of it. `current.html` and `current.docx` stay out, since every run writes them again (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)). `voicecap verify` checks `shares.json` and each copy it records, and names a copy that nothing records.
+
+## Repeating a run: the walkthrough file
+
+A walkthrough file is a run's recipe, so anyone can repeat the run exactly: the same pages, in the same order, with the same passes and limits. It's for an auditor who wants to check the results, and for you, after a major update to the site. `voicecap walkthrough` writes one from a completed run, `--walkthrough` repeats the run from it, and the shareable page offers each run's file to download.
+
+After a repeat, voicecap says page by page how each page sounds against the original run. A repeat reads the same pages the same way, but it can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said.
+
+### Writing the file: `voicecap walkthrough`
+
+<details>
+<summary>The command, which run it writes from, where to write the file, what it holds, and where else to get one</summary>
+
+```bash
+voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>
+```
+
+It writes the walkthrough of a completed run to `<file>`, then says where it is and how to repeat the run:
+
+```
+PS> npx @icjia/voicecap walkthrough C:\Users\cschw\walkthrough.json
+Wrote the walkthrough of run 2026-09-26_1405 (12 pages) to C:\Users\cschw\walkthrough.json.
+To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\cschw\walkthrough.json'
+```
+
+- **Which run.** `--run <id>` names it. Without it, voicecap takes the site's latest completed run, a replayed one included (the file says it was a replay). A run that didn't complete can't be written: run it to the end first. `--site` and `--out` pick the site and the transcripts home as `share` does (see [Other commands](#other-commands)).
+- **It never overwrites a file.** A name that's taken is refused: give another, or move that file first. It makes the file's folder when that's missing.
+- **Write it outside the transcripts home,** which is the audit record. `voicecap verify` names a new folder inside a site's folder, and a file inside a run's `pages/` folder, as problems.
+- **It needs no screen reader,** so it works on any computer, a Mac included.
+- **It never writes a file that voicecap would refuse to read.** For example, a run with more than 10,000 pages, a step limit above 100,000, or a file that would be over 8 MB can't be written. voicecap says why, writes nothing, and exits with code 1.
+- **The shareable page offers each run's file too.** In the evidence behind its results, each run the page draws on has a link that downloads its walkthrough file, with the command that repeats the run.
+  - The link says "Download the walkthrough file" and the file's size, and names its run for a screen reader.
+  - The file is the one `voicecap walkthrough` writes for that run, saved as `<site folder>_<run id>_walkthrough.json`, such as `dvfr.illinois.gov_2026-09-26_1405_walkthrough.json`. It's carried inside the page as text, so each file adds about a third more than its size to the page.
+  - The Word copy can't carry a file, so it says to get it from the web page, or with `voicecap walkthrough --site <site> --run <id> <file>`, and gives the command that repeats the run.
+  - A run whose file can't be made says why, in the page and in the Word copy.
+
+**What the file holds.** It's plain JSON, with the pages in the run's order:
+
+- `voicecapWalkthrough`, the format's version (`1`), and the `site`;
+- `pages`: every page of the run's list, with its address, its label, template, and notes where it has them, what the original run did with it (`status`), and the fingerprint of each pass it read, which is what a repeat compares itself with;
+- `settings`, which a repeat applies: the passes, each pass's step limit, the capture mode, and the readiness settings (`null` when the run didn't record them, as runs made with voicecap 0.7.0 or earlier didn't);
+- `original`, where the file came from, which is recorded and never applied: the run's id and seal, when it began and finished, whether it was a replay, its page source and the fingerprints of what it read from, the versions of voicecap, the screen reader, and the browser, and the NVDA settings and browser channel it used.
+
+A page list's file is kept by its name only, never its folders, since a path can carry a person's user name. A repeat reads what the file says, so you can change it by hand: take pages out to repeat fewer of them, say. voicecap reads it strictly, though, and refuses a change that breaks the format (see [Repeating the run from the file](#repeating-the-run-from-the-file)).
+
+</details>
+
+### Repeating the run from the file
+
+<details>
+<summary>The command, what a repeat takes from the file and from this computer, what it refuses, and how the file is read</summary>
+
+```bash
+npx @icjia/voicecap --walkthrough <file> [--reviewer <name>] [--out <dir>] [--compare <run-id>]
+```
+
+A repeat is a run like any other, with its own folder, its own record, and its own seal. It reads the same pages in the same order, with the same passes, step limits, capture mode, and readiness settings, all from the file. It needs no `--site`: the site is the file's.
+
+- **NVDA's settings and the browser are this computer's.** A file can come from anyone, so it never changes this computer's NVDA settings or its browser. The file records the original's, and voicecap says afterwards which versions and which NVDA settings differ.
+- **Refused beside it,** before anything runs, because they would change what's read: `--sitemap`, `--pages`, `--page`, `--limit`, `--include`, `--exclude`, `--passes`, and `--max-steps`, and a `--site` that isn't the file's own. voicecap stops with exit code 1 and says which, such as `--walkthrough repeats the pages and passes its file lists, so it can't be used with --limit.` Allowed: `--out`, `--reviewer`, `--compare`, `--run-name`, `--fresh`, and `--replay-from`.
+- **An interrupted repeat resumes** when you run the same command again with the same file, as any run does (see [Long runs, interruptions, and resuming](#long-runs-interruptions-and-resuming)). A file that was edited since starts a new run, since the file is identified by its contents.
+- **Its page source is the file.** The run's record names the file, its SHA-256, the id of the run it was made from, and what that run's pages came from.
+- **To compare it with the original line by line,** give the original's id: `--compare <run-id>`. `--compare previous` finds an earlier repeat of the same file, not the original, since a repeat's page source is the file.
+- **On a Mac,** a repeat waits for voicecap's VoiceOver driver, as every run does: it runs with NVDA today, and with VoiceOver once the driver exists. With `--replay-from`, a repeat plays back a recorded run on any computer, with no screen reader, which is how voicecap's own tests and CI try it.
+
+**How the file is read.** The file may come from anyone, so voicecap takes nothing on trust. It refuses a file, before anything runs, and says what's wrong and where, when:
+
+- it isn't JSON, or has a format version this voicecap doesn't read, a key it doesn't know, or no pages;
+- it lists more than 10,000 pages;
+- a page isn't on the file's own site, or its address has a space or a control character in it, or is over 8,192 characters;
+- its NVDA settings are nested more than 32 levels deep;
+- a run id has characters that a run id doesn't have (it can be 1 to 100 letters, digits, `.`, `_`, and `-`);
+- a step limit or a readiness time is beyond what the config allows;
+- it's over 8 MB, which voicecap refuses without reading it.
+
+A page the file lists twice is read once, as with a page list.
+
+</details>
+
+### What a repeat says afterwards
+
+<details>
+<summary>The comparison with the original, page by page, what "sounds the same" means, and what a repeat can't promise</summary>
+
+When a repeat completes, voicecap prints each page of the file against the original, after the line that says where the report is:
+
+```
+Run 2026-10-02_0930 complete. Report: C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\report.html
+Compared with run 2026-09-26_1405, from its walkthrough file:
+  https://dvfr.illinois.gov/: sounds the same
+  https://dvfr.illinois.gov/about/: sounds different (headings, tab)
+  https://dvfr.illinois.gov/grants/fy27-jag: wasn't read in the original
+  https://dvfr.illinois.gov/faq/: couldn't be read now
+1 of 4 pages sound the same.
+Different from the original: NVDA 2026.3 (was 2026.2), Chrome 154.0.8037.58 (was 153.0.8010.53).
+```
+
+- **`sounds the same`:** every pass matches the original's. A pass matches when its fingerprint is the same: the words NVDA said, line by line, without the transcript's header, whose timestamps would differ.
+- **`sounds different`:** one or more passes don't match. They're named, in the order `read`, `headings`, `tab`.
+- **`wasn't read in the original`:** the repeat read the page, and the original didn't: it failed, or was skipped.
+- **`couldn't be read now`:** the repeat didn't read the page, whatever the original did with it.
+- **The count** is the pages that sound the same, out of the pages in the file.
+- **What else differs,** when something does: the versions of NVDA, the browser, and voicecap, each named only when both runs recorded it, and then the names of the NVDA settings whose values differ from the original's.
+
+A pass that only one of the two read counts as a difference, so a file edited by hand to fewer passes shows every page as different in the passes it leaves out.
+
+voicecap prints this when the repeat completes, and doesn't keep it. The comparison needs only the file, which holds the original's fingerprints. A repeat that's interrupted, or stops, says nothing until a later session completes it. For the words that changed, line by line, give `--compare` the original's id: the report then marks the changed pages and links to the diffs (see [Reading the report](#reading-the-report)).
+
+**What a repeat can't promise.** It reads the same pages the same way, with the same keys in the same order, but it can't promise the same words. A changed site, or a newer screen reader or browser, changes what's said, and so can timing (see [Known limitations](#known-limitations)). So "sounds different" points to where to look, and the person running voicecap reads the transcripts, as in any run.
+
+</details>
 
 ## Heuristic flags
 
@@ -1298,7 +1419,7 @@ export default defineConfig({
 | `report.title`, `report.agency`, `report.logo` | `"NVDA transcript report"`, `null`, `null` | Report branding; the logo must be a `data:image/…` URI. |
 | `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
 
-Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run.
+Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run. A repeat from a walkthrough file takes `passes`, `capture`, `stepCaps`, and `readiness` from the file instead of the config (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
 
 </details>
 
@@ -1316,6 +1437,7 @@ import {
   loadConfig,
   runAudit,
   shareReport,
+  writeWalkthrough,
 } from "@icjia/voicecap";
 
 const result = await runAudit({ site: "https://dvfr.illinois.gov", pages: "pages.csv" });
@@ -1329,11 +1451,23 @@ await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogg
 
 const shared = await shareReport({ site: "https://dvfr.illinois.gov", reviewer: "Pat Reviewer" });
 console.log(shared.pasteLine);
+
+const written = await writeWalkthrough({
+  file: "walkthrough.json",
+  site: "https://dvfr.illinois.gov",
+});
+console.log(written.file, written.runId);
+
+const repeat = await runAudit({ walkthrough: written.file });
 ```
 
 `runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`, `SharesFile`) are exported as TypeScript types.
 
 `generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated pair to send, as `voicecap share` does. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page then its Word copy, each with its `path`, `name`, `bytes`, and `sha256`; and `pasteLine`, the line for the email. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read. `readShares(siteDir)` reads a site's `share/shares.json`.
+
+`writeWalkthrough` writes a run's walkthrough file as `voicecap walkthrough` does (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)), and never overwrites one. It takes `file`, plus `site`, `run`, and `out`, and `logger`, and says what it wrote to its `logger` as the command does. It gives back `file`, the full path it wrote; `runId`; and `walkthrough`, what the file holds. It throws a `UsageError`, with nothing written, when the site has no completed run, when the run named isn't there or didn't complete, when voicecap's own reader would refuse the file, and when something is at `file` already. `runAudit`'s `walkthrough` is the path of a walkthrough file to repeat: the pages, passes, step limits, capture mode, and readiness settings come from it, `site` becomes optional, and `sitemap`, `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps` are refused with it. `parseWalkthrough(text, file)` reads a walkthrough file's text as a repeat does, strictly, and gives back a `Walkthrough`, or throws a `UsageError` that names the file (`file` is its name, for that message) and says what's wrong. `walkthroughOf(run)` builds the `Walkthrough` of a completed run's record, `walkthroughJson(walkthrough)` is the text a file holds, and `walkthroughProblem(walkthrough)` is why `parseWalkthrough` would refuse a `Walkthrough`, or `null`. The types `Walkthrough`, `WalkthroughPage`, `WalkthroughSettings`, `WalkthroughOrigin`, `WriteWalkthroughOptions`, and `WriteWalkthroughResult` are exported.
+
+A run's page source (`PageSource`) has four kinds now, `sitemap`, `pages`, `urls`, and `walkthrough`, and so does `SourceDetails`'s `kind`, so code that switches on `kind` needs a case for `"walkthrough"`. A `walkthrough` source holds the file, its `sha256`, the `run` it was made from, and `from`, what that run's pages came from: `"sitemap"`, `"pages"`, or `"urls"`.
 
 </details>
 
