@@ -22,6 +22,7 @@ import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 import {
+  MACHINE_PROBE,
   options as runOptions,
   outDir,
   SITE as EXAMPLE_SITE,
@@ -562,6 +563,45 @@ describe("a full session through the CLI", () => {
       expect(file.text()).not.toContain("Did you hear");
     } finally {
       vi.doUnmock("../src/run/audit.js");
+      vi.resetModules();
+    }
+  });
+
+  // A run reads the computer's details with the probe for the platform the CLI says it's on, as
+  // every other command honors it, not the host's. On Windows the host's probe starts PowerShell,
+  // which takes seconds, in a test that says it's on Linux (on a Linux host the two are the same,
+  // so this can't fail there). The probe is replaced here by an instant one, so nothing starts.
+  it("reads a run's computer details with the probe for the CLI's own platform", async () => {
+    const asked: NodeJS.Platform[] = [];
+    vi.resetModules();
+    vi.doMock("../src/run/machine-record.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      machineProbeFor: (platform: NodeJS.Platform) => {
+        asked.push(platform);
+        return MACHINE_PROBE;
+      },
+    }));
+    try {
+      const { main: mainWithProbeSpy } = await import("../src/cli/main.js");
+      const stderr = capture();
+      const code = await mainWithProbeSpy(
+        ["--site", SITE, "--pages", fixture("pages.json"), "--replay-from", fixture("replay-run")],
+        {
+          stdout: capture().stream,
+          stderr: stderr.stream,
+          cwd: await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-")),
+          env: {},
+          signal: new AbortController().signal,
+          interactive: false,
+          platform: "linux",
+        },
+      );
+
+      expect(stderr.text()).not.toContain("Error:");
+      expect(code).toBe(0);
+      expect(asked).toEqual(["linux"]);
+    } finally {
+      vi.doUnmock("../src/run/machine-record.js");
       vi.resetModules();
     }
   });

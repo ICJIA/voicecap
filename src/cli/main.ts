@@ -658,6 +658,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       replayFrom: options.replayFrom ?? null,
       cwd: ctx.cwd,
       env: ctx.env,
+      platform: ctx.platform,
       logger,
       signal: ctx.signal ?? controller.signal,
       ...(ctx.fetch ? { fetch: ctx.fetch } : {}),
