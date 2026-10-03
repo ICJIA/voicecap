@@ -294,6 +294,23 @@ describe("writeWalkthrough", () => {
     expect(logger.entries).toEqual([]);
   });
 
+  it("refuses a run whose walkthrough file would be over 8 MB, and writes nothing", async () => {
+    const { dir, siteDir, run } = await homeWithRun();
+    // A page's notes may be of any length: nine megabytes of them make the run's file too large.
+    const record = JSON.parse(await readFile(runJsonPath(siteDir, run.runId), "utf8")) as RunJson;
+    record.pages[0]!.notes = "x".repeat(9 * 1024 * 1024);
+    await writeFile(runJsonPath(siteDir, run.runId), JSON.stringify(record));
+    const file = path.join(dir, "out", "walkthrough.json");
+    const { logger, options } = writing(dir, file);
+
+    expect(await refusal(writeWalkthrough(options))).toBe(
+      `Run ${run.runId}'s walkthrough file can't be written: it's larger than 8 MB.`,
+    );
+
+    expect(existsSync(path.dirname(file))).toBe(false);
+    expect(logger.entries).toEqual([]);
+  });
+
   it("never overwrites a file", async () => {
     const { dir } = await homeWithRun();
     const file = path.join(dir, "walkthrough.json");

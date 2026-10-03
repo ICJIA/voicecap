@@ -3,17 +3,20 @@
  * from a run's record, writes it as the file holds it, and reads one back. It's pure: it reads no
  * file and no clock.
  *
- * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A key the
- * type doesn't have, a page address that isn't on the file's own site (or is too long, or is written
- * with a space or a control character), a run id made of anything but a run id's characters, NVDA
- * settings nested too deep, or a number beyond what the config allows refuses the whole file,
- * saying what's wrong and where, before anything runs. `walkthroughProblem` gives that same reason
- * for a walkthrough in hand, so a writer can say why a file of it couldn't be read back before it
- * writes one.
+ * A walkthrough file may come from anyone, so `parseWalkthrough` takes nothing on trust. A text over
+ * 8 MB, a key the type doesn't have, a page address that isn't on the file's own site (or is too
+ * long, or is written with a space or a control character), a run id made of anything but a run
+ * id's characters, NVDA settings nested too deep, or a number beyond what the config allows refuses
+ * the whole file, saying what's wrong and where, before anything runs. `walkthroughProblem` gives
+ * that same reason for a walkthrough in hand, so a writer can say why a file of it couldn't be read
+ * back before it writes one.
  *
  * The file goes to auditors, and into the shareable page, so it holds no folders: the file of a
  * page list, or of a walkthrough, is kept by its name alone, since a path can carry the person's
  * user name.
+ *
+ * After a repeat, `compareWithOriginal` sets what the repeat read against what the file says the
+ * original did, page by page, and `comparisonLines` says the result as the terminal shows it.
  */
 import { z } from "zod";
 
@@ -29,7 +32,9 @@ import {
   type RunSettings,
   type SourceDetails,
 } from "../model.js";
+import { canonicalKey } from "../pages/url.js";
 import { UsageError } from "../util/errors.js";
+import { canonicalJson } from "../util/hash.js";
 
 export interface WalkthroughPage {
   url: string;
@@ -84,6 +89,16 @@ export interface Walkthrough {
 
 /** The most pages a walkthrough file may list: a file with more is refused, not run. */
 export const MAX_WALKTHROUGH_PAGES = 10_000;
+
+/**
+ * The most a walkthrough file may be, in bytes: 8 MB. The limits on pages and on addresses each
+ * hold on their own, and together allow a file many times this (10,000 pages at 8,192 characters
+ * each is about 80 MB), and a hostile file of that size takes seconds to parse. So a larger one is
+ * refused before it's read (see readWalkthroughFile) and, as a text, before any of it is parsed,
+ * and `walkthroughProblem` refuses a walkthrough whose file would be larger: voicecap never writes
+ * a file that it would refuse to read.
+ */
+export const MAX_WALKTHROUGH_BYTES = 8 * 1024 * 1024;
 
 /**
  * The longest a page's address, or the site's, may be, in characters. A longer one is refused
@@ -173,15 +188,23 @@ export function walkthroughJson(walkthrough: Walkthrough): string {
  * Why parseWalkthrough would refuse this walkthrough, in the same words without the file's name, as
  * a sentence; null when it wouldn't. walkthroughOf builds the walkthrough of any completed run, and
  * the config allows runs that a file can't hold (more than 10,000 pages, a step limit above
- * 100,000), so a writer asks here before it writes one.
+ * 100,000, or pages whose addresses make the file larger than 8 MB), so a writer asks here before it
+ * writes one.
  */
 export function walkthroughProblem(walkthrough: Walkthrough): string | null {
+  // The size first, as parseWalkthrough checks it: that of the file this would be written as.
+  const text = writtenOut(walkthrough);
+  if (text !== null && isTooLarge(text)) return TOO_LARGE;
   const reading = read(walkthrough);
   return "problem" in reading ? reading.problem : null;
 }
 
-/** Read a walkthrough file strictly; a UsageError that names the file and the problem otherwise. */
+/**
+ * Read a walkthrough file strictly; a UsageError that names the file and the problem otherwise. A
+ * text over MAX_WALKTHROUGH_BYTES is refused first, before any of it is parsed.
+ */
 export function parseWalkthrough(text: string, file: string): Walkthrough {
+  if (isTooLarge(text)) throw notAWalkthrough(file, TOO_LARGE);
   let json: unknown;
   try {
     json = JSON.parse(text.charCodeAt(0) === BYTE_ORDER_MARK ? text.slice(1) : text);
@@ -225,6 +248,30 @@ function read(value: unknown): Reading {
   }
   const [issue] = result.error.issues;
   return { problem: sentence(issue === undefined ? "it is laid out wrongly" : reasonOf(issue)) };
+}
+
+// The size of a file, which parseWalkthrough and walkthroughProblem both check before `read`:
+
+/** Why a file over MAX_WALKTHROUGH_BYTES is refused: what both of them say of it. */
+const TOO_LARGE = sentence("it's larger than 8 MB");
+
+/** Whether the text of a file is over MAX_WALKTHROUGH_BYTES, counted in bytes as its size is. */
+function isTooLarge(text: string): boolean {
+  return Buffer.byteLength(text, "utf8") > MAX_WALKTHROUGH_BYTES;
+}
+
+/**
+ * The file a walkthrough would be written as, or null for one that JSON can't write out: NVDA
+ * settings that hold themselves, or are nested more deeply than the stack can follow, in a
+ * walkthrough that's in memory and was never read from a file. It has no file to be too large, and
+ * `read` refuses it for its depth.
+ */
+function writtenOut(walkthrough: Walkthrough): string | null {
+  try {
+    return walkthroughJson(walkthrough);
+  } catch {
+    return null;
+  }
 }
 
 // What a run's record gives:
@@ -330,6 +377,187 @@ function sourceFingerprintsOf(details: SourceDetails): { name: string; sha256: s
 /** One entry for each pass, in pass order: a shape for the schema, or the values of a record. */
 function perPass<T>(entry: (pass: PassName) => T): Record<PassName, T> {
   return Object.fromEntries(PASS_NAMES.map((pass) => [pass, entry(pass)])) as Record<PassName, T>;
+}
+
+// A repeat, against the original:
+
+/** How one page of the file sounds in a repeat, against what the file says the original did. */
+export type PageComparison =
+  | { url: string; result: "same" }
+  | { url: string; result: "different"; passes: PassName[] }
+  | { url: string; result: "not-read-originally" }
+  | { url: string; result: "not-read-now" };
+
+/** A repeat against the original, page by page: what `compareWithOriginal` finds. */
+export interface WalkthroughComparison {
+  /** The id of the run the file was made from. */
+  original: string;
+  /** Each page of the file once, in the file's order. */
+  pages: PageComparison[];
+  /** "NVDA 2026.3 (was 2026.2)", each version that differs; empty when none does. */
+  versions: string[];
+  /** The NVDA settings whose values differ from the original's, by name. */
+  nvdaSettings: string[];
+}
+
+/**
+ * The repeat, page by page, against the original's fingerprints. Pure.
+ *
+ * - A page sounds the same only when the original and the repeat both read it (their status is
+ *   "done") and every pass has the same fingerprint in both. A pass that only one of them has
+ *   differs.
+ * - A page the repeat didn't read (it failed, was skipped, or has no record) couldn't be read now,
+ *   whatever the original did with it. A page the repeat read, and the original didn't, wasn't read
+ *   in the original.
+ * - A page is found by its address (see canonicalKey), as the repeat's record keeps it. One the file
+ *   lists more than once is compared once, by its first listing, as the repeat read it once.
+ * - The versions are the repeat's last session's against the original's, each named only when both
+ *   recorded it and they differ; the NVDA settings are the repeat's own against the original's.
+ *
+ * What the file says that a comparison holds (a version, a setting's name) is held as `shown` gives
+ * it, so the file can't put a control character in what's said to a terminal.
+ */
+export function compareWithOriginal(
+  walkthrough: Walkthrough,
+  repeat: RunJson,
+): WalkthroughComparison {
+  const { original } = walkthrough;
+  return {
+    original: original.run,
+    pages: comparePages(walkthrough.pages, repeat.pages),
+    versions: differingVersions(original, lastEnvironment(repeat)),
+    nvdaSettings: differingSettings(original.nvdaSettings, repeat.settings.nvdaSettings),
+  };
+}
+
+/** What a repeat says of itself against the original, as lines for the terminal. */
+export function comparisonLines(comparison: WalkthroughComparison): string[] {
+  const same = comparison.pages.filter((page) => page.result === "same").length;
+  const lines = [
+    `Compared with run ${comparison.original}, from its walkthrough file:`,
+    ...comparison.pages.map((page) => `  ${page.url}: ${soundsLike(page)}`),
+    `${same} of ${comparison.pages.length} pages sound the same.`,
+  ];
+  if (comparison.versions.length > 0) {
+    lines.push(`Different from the original: ${comparison.versions.join(", ")}.`);
+  }
+  if (comparison.nvdaSettings.length > 0) {
+    lines.push(
+      `NVDA's settings here differ from the original's in: ${comparison.nvdaSettings.join(", ")}.`,
+    );
+  }
+  return lines;
+}
+
+/** What a page's line says of it, after its address. */
+function soundsLike(page: PageComparison): string {
+  switch (page.result) {
+    case "same":
+      return "sounds the same";
+    case "different":
+      return `sounds different (${page.passes.join(", ")})`;
+    case "not-read-originally":
+      return "wasn't read in the original";
+    case "not-read-now":
+      return "couldn't be read now";
+    default: {
+      const _exhaustive: never = page;
+      return _exhaustive;
+    }
+  }
+}
+
+/** Each page of the file once, in its order, against the repeat's record of it. */
+function comparePages(
+  listed: readonly WalkthroughPage[],
+  repeated: readonly PageRecord[],
+): PageComparison[] {
+  const recorded = new Map(repeated.map((page) => [page.key, page]));
+  const seen = new Set<string>();
+  const comparisons: PageComparison[] = [];
+  for (const page of listed) {
+    const key = canonicalKey(page.url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    comparisons.push(comparePage(page, recorded.get(key)));
+  }
+  return comparisons;
+}
+
+/** One page of the file against the repeat's record of it, which is undefined when it has none. */
+function comparePage(page: WalkthroughPage, now: PageRecord | undefined): PageComparison {
+  const { url, original } = page;
+  // The repeat first: a page it couldn't read is said so, whether or not the original could.
+  if (now?.status !== "done") return { url, result: "not-read-now" };
+  if (original.status !== "done") return { url, result: "not-read-originally" };
+  const passes = PASS_NAMES.filter(
+    (pass) => original.passes[pass] !== now.passes[pass]?.contentSha256,
+  );
+  return passes.length === 0 ? { url, result: "same" } : { url, result: "different", passes };
+}
+
+/** A screen reader, a browser, or voicecap, and the version of it that ran. */
+interface Versioned {
+  name: string;
+  version: string;
+}
+
+/**
+ * The versions the repeat ran with that differ from the ones the original recorded, each as
+ * `changedVersion` says it: NVDA, then the browser, then voicecap. A version is named only when both
+ * runs recorded it, and none is when the repeat recorded no environment.
+ */
+function differingVersions(
+  original: WalkthroughOrigin,
+  environment: EnvironmentRecord | null,
+): string[] {
+  if (environment === null) return [];
+  const was = original.voicecap === null ? null : { name: "voicecap", version: original.voicecap };
+  const now = { name: "voicecap", version: environment.voicecap.version };
+  return [
+    changedVersion(original.screenReader, environment.screenReader),
+    changedVersion(original.browser, environment.browser),
+    changedVersion(was, now),
+  ].filter((version) => version !== null);
+}
+
+/**
+ * "NVDA 2026.3 (was 2026.2)": what ran now and what ran in the original, where both are known and
+ * they differ, null otherwise. When the original's was another program ("VoiceOver 14.4 (was NVDA
+ * 2026.2)"), its name is said too.
+ */
+function changedVersion(was: Versioned | null, now: Versioned | null): string | null {
+  if (was === null || now === null) return null;
+  if (was.name === now.name && was.version === now.version) return null;
+  const before =
+    was.name === now.name ? shown(was.version) : `${shown(was.name)} ${shown(was.version)}`;
+  return `${shown(now.name)} ${shown(now.version)} (was ${before})`;
+}
+
+/**
+ * The names of the NVDA settings whose values differ between the original's and the repeat's,
+ * sorted: top-level settings only, one that only one has included. Values are compared as canonical
+ * JSON, so a value is the same however its keys were ordered, and a setting with no value
+ * (undefined) is one that isn't there, as a run's seal reads it. Serializing them is safe: a file's
+ * settings are nested no more than MAX_NVDA_SETTINGS_DEPTH levels deep (a deeper file is refused),
+ * and a completed run's were serialized already, to seal it.
+ */
+function differingSettings(
+  original: Record<string, unknown>,
+  now: Record<string, unknown>,
+): string[] {
+  const names = new Set([...Object.keys(original), ...Object.keys(now)]);
+  return [...names]
+    .filter((name) => settingValue(original, name) !== settingValue(now, name))
+    .sort()
+    .map(shown);
+}
+
+/** A setting's value as canonical JSON; undefined when the settings don't have it. */
+function settingValue(settings: Record<string, unknown>, name: string): string | undefined {
+  // Own keys only: a file's settings may have a key named __proto__, and settings that don't would
+  // answer to that name with Object.prototype.
+  return Object.hasOwn(settings, name) ? canonicalJson(settings[name]) : undefined;
 }
 
 // What a file must be to be read:

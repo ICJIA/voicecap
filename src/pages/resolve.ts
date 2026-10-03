@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { InvalidEntry, PageRef, PageSource, SkippedRecord, SourceDetails } from "../model.js";
-import { parseWalkthrough, type Walkthrough } from "../share/walkthrough.js";
+import { MAX_WALKTHROUGH_BYTES, parseWalkthrough, type Walkthrough } from "../share/walkthrough.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten, resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
@@ -69,19 +69,12 @@ export interface ResolvedPages {
 const EXAMPLES = 3;
 
 /**
- * The largest a walkthrough file may be, in bytes: 8 MB. A file at the most pages one may list
- * (10,000) is about 4.5 MB, so no file voicecap writes comes near this. A walkthrough file may come
- * from anyone, and parsing a hostile one takes seconds, so a larger one is refused before it's
- * read.
- */
-const MAX_WALKTHROUGH_BYTES = 8 * 1024 * 1024;
-
-/**
  * Read a walkthrough file for a repeat. A UsageError refuses a file that's over
- * MAX_WALKTHROUGH_BYTES (without reading it), one that can't be read, and one that isn't a
- * walkthrough file (see parseWalkthrough). The file is read once, as bytes: their SHA-256 is what
- * the repeat's page source keeps, and then they're parsed. `file` is as the person gave it,
- * resolved against `cwd`; it's named that way in a refusal, and recorded as a page list's file is.
+ * MAX_WALKTHROUGH_BYTES (without reading it: a walkthrough file may come from anyone, and parsing a
+ * hostile one takes seconds), one that can't be read, and one that isn't a walkthrough file (see
+ * parseWalkthrough). The file is read once, as bytes: their SHA-256 is what the repeat's page source
+ * keeps, and then they're parsed. `file` is as the person gave it, resolved against `cwd`; it's
+ * named that way in a refusal, and recorded as a page list's file is.
  */
 export async function readWalkthroughFile(file: string, cwd: string): Promise<WalkthroughFile> {
   const absolute = resolveUserPath(cwd, file);

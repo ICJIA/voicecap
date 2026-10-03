@@ -34,7 +34,12 @@ import { runPreflight } from "../readiness/preflight.js";
 import { renderProblems, renderRunSummary } from "../readiness/render.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { findReviewer } from "../reviews/reviewer.js";
-import type { Walkthrough, WalkthroughSettings } from "../share/walkthrough.js";
+import {
+  compareWithOriginal,
+  comparisonLines,
+  type Walkthrough,
+  type WalkthroughSettings,
+} from "../share/walkthrough.js";
 import { writeShareFiles } from "../share/write.js";
 import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
@@ -83,7 +88,8 @@ export interface RunAuditOptions {
    * decides all of that, so it's refused beside `site` (unless it's the file's own), `sitemap`,
    * `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps`, before anything
    * runs. Needs no `site`. `compare`, `fresh`, `out`, `runName`, `reviewer`, and `replayFrom` go
-   * with it as with any run.
+   * with it as with any run. A repeat that completes says, page by page, how it sounds against the
+   * original.
    */
   walkthrough?: string | null;
   limit?: number | null;
@@ -417,7 +423,9 @@ interface ExecuteContext {
   options: RunAuditOptions;
   /**
    * The walkthrough file a repeat was made from, parsed; null for a run that repeats none. Kept
-   * until the run ends, so the finished repeat can be compared with it.
+   * until the run ends, so the finished repeat can be compared with it, and says so when it
+   * completes (a repeat that is interrupted or stopped says nothing until a later session
+   * completes it).
    */
   walkthrough: Walkthrough | null;
 }
@@ -723,6 +731,12 @@ async function complete(ctx: ExecuteContext): Promise<void> {
   // written is a warning, never a failed run.
   await writeShareFiles({ siteDir: outDir, config, logger, now: now() });
   logger.info(`Run ${run.id} complete. Report: ${live.file}`);
+  // A repeat says how it sounds against the original, from its own finished record.
+  if (ctx.walkthrough) {
+    for (const line of comparisonLines(compareWithOriginal(ctx.walkthrough, run))) {
+      logger.info(line);
+    }
+  }
 }
 
 /**

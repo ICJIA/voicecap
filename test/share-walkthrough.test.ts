@@ -8,6 +8,7 @@ import type { PageSource, PassName, RunJson } from "../src/model.js";
 import {
   MAX_ADDRESS_LENGTH,
   MAX_NVDA_SETTINGS_DEPTH,
+  MAX_WALKTHROUGH_BYTES,
   MAX_WALKTHROUGH_PAGES,
   parseWalkthrough,
   walkthroughJson,
@@ -2065,6 +2066,175 @@ describe("walkthroughProblem", () => {
     walkthroughProblem({ ...walkthrough, site: "file:///C:/" });
 
     expect(walkthrough).toStrictEqual(before);
+  });
+});
+
+describe("the largest a walkthrough file may be", () => {
+  /** 8 MB, written out here so a change to the limit shows in a test. */
+  const LIMIT = 8 * 1024 * 1024;
+  const TOO_LARGE = "it's larger than 8 MB.";
+
+  const bytesOf = (walkthrough: Walkthrough): number =>
+    Buffer.byteLength(walkthroughJson(walkthrough), "utf8");
+
+  /** The sample walkthrough, with notes on its first page that are `length` of `character`. */
+  function withNotes(length: number, character = "x"): Walkthrough {
+    const walkthrough = walkthroughOf(sampleRun());
+    walkthrough.pages[0]!.notes = character.repeat(length);
+    return walkthrough;
+  }
+
+  /** How many bytes the sample's file is with its notes empty: each "x" of notes adds one. */
+  const BASE = bytesOf(withNotes(0));
+
+  /**
+   * The walkthrough of a run of `count` pages, each at an address of `length` letters on the site.
+   * The number in each address has the same width, so every page is the same size in the file.
+   */
+  function ofLongAddresses(count: number, length: number): Walkthrough {
+    return walkthroughOf(
+      shareRun({
+        id: "2026-09-26_1405",
+        pages: Array.from({ length: count }, (_, index) => ({
+          path: `/${String(index).padStart(5, "0")}-${"a".repeat(length)}`,
+        })),
+      }),
+    );
+  }
+
+  /** Made when first asked for, and kept: a walkthrough of a thousand long addresses takes a moment. */
+  function once<T>(make: () => T): () => T {
+    let made: { value: T } | undefined;
+    return () => (made ??= { value: make() }).value;
+  }
+
+  const ADDRESS_LETTERS = 8_000;
+  /** What each long address adds to the file, and how many fit under the limit. */
+  const PER_PAGE =
+    bytesOf(ofLongAddresses(2, ADDRESS_LETTERS)) - bytesOf(ofLongAddresses(1, ADDRESS_LETTERS));
+  const FITTING = Math.floor(
+    (LIMIT - (bytesOf(ofLongAddresses(1, ADDRESS_LETTERS)) - PER_PAGE)) / PER_PAGE,
+  );
+  /** The most of those pages that fit under the limit, and the one more page that doesn't. */
+  const justUnder = once(() => ofLongAddresses(FITTING, ADDRESS_LETTERS));
+  const justOver = once(() => ofLongAddresses(FITTING + 1, ADDRESS_LETTERS));
+
+  /**
+   * That this walkthrough is refused for its size, and that parseWalkthrough says of its file what
+   * walkthroughProblem says of it, after the file's name.
+   */
+  function expectRefusedAsTooLarge(walkthrough: Walkthrough): void {
+    const problem = walkthroughProblem(walkthrough);
+    expect(problem).toBe(TOO_LARGE);
+
+    expect(refusal(walkthroughJson(walkthrough))).toBe(`${NOT_A_WALKTHROUGH}${problem}`);
+  }
+
+  it("is 8 MB", () => {
+    expect(MAX_WALKTHROUGH_BYTES).toBe(LIMIT);
+  });
+
+  it("takes a file of exactly 8 MB, and refuses one a byte larger", () => {
+    const at = withNotes(LIMIT - BASE);
+    const over = withNotes(LIMIT - BASE + 1);
+    expect(bytesOf(at)).toBe(LIMIT);
+    expect(bytesOf(over)).toBe(LIMIT + 1);
+
+    expect(walkthroughProblem(at)).toBeNull();
+    expect(parseWalkthrough(walkthroughJson(at), "w.json")).toStrictEqual(at);
+    expectRefusedAsTooLarge(over);
+  });
+
+  it("counts bytes, not characters", () => {
+    // Each é is two bytes: this file's characters come to less than the limit, and its bytes to more.
+    const walkthrough = withNotes(Math.floor((LIMIT - BASE) / 2) + 1, "é");
+    expect(walkthroughJson(walkthrough).length).toBeLessThan(LIMIT);
+    expect(bytesOf(walkthrough)).toBeGreaterThan(LIMIT);
+
+    expectRefusedAsTooLarge(walkthrough);
+  });
+
+  it("counts a byte order mark, as the file's own size does", () => {
+    // A mark is three bytes: with it, a file of exactly 8 MB is read, and a byte more isn't.
+    const at = withNotes(LIMIT - BASE - 3);
+    expect(parseWalkthrough(`\u{feff}${walkthroughJson(at)}`, "w.json")).toStrictEqual(at);
+
+    const over = withNotes(LIMIT - BASE - 2);
+    expect(refusal(`\u{feff}${walkthroughJson(over)}`)).toBe(`${NOT_A_WALKTHROUGH}${TOO_LARGE}`);
+  });
+
+  it("refuses a text that's over the limit before any of it is parsed", () => {
+    // Not JSON, and over the limit: what's said is its size, and no parse was tried.
+    const parse = vi.spyOn(JSON, "parse");
+    let error: unknown;
+    try {
+      parseWalkthrough("{".repeat(LIMIT + 1), "w.json");
+    } catch (caught) {
+      error = caught;
+    }
+    const parses = parse.mock.calls.length;
+    parse.mockRestore();
+
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as UsageError).message).toBe(`${NOT_A_WALKTHROUGH}${TOO_LARGE}`);
+    expect(parses).toBe(0);
+  });
+
+  it("refuses the walkthrough of a run whose long addresses make its file just over 8 MB", () => {
+    const walkthrough = justOver();
+    // Within every other limit: about a thousand pages, each at an address of 8,000 letters or so.
+    expect(walkthrough.pages.length).toBeLessThan(MAX_WALKTHROUGH_PAGES);
+    expect(walkthrough.pages[0]!.url.length).toBeGreaterThan(ADDRESS_LETTERS);
+    expect(walkthrough.pages[0]!.url.length).toBeLessThanOrEqual(MAX_ADDRESS_LENGTH);
+    // Just over: no more than one page's worth.
+    expect(bytesOf(walkthrough)).toBeGreaterThan(LIMIT);
+    expect(bytesOf(walkthrough) - LIMIT).toBeLessThanOrEqual(PER_PAGE);
+
+    expectRefusedAsTooLarge(walkthrough);
+  });
+
+  it("takes the walkthrough of a run whose file is just under 8 MB, and reads it back", () => {
+    const walkthrough = justUnder();
+    // Just under: less than one page's worth.
+    expect(bytesOf(walkthrough)).toBeLessThanOrEqual(LIMIT);
+    expect(LIMIT - bytesOf(walkthrough)).toBeLessThan(PER_PAGE);
+
+    expect(walkthroughProblem(walkthrough)).toBeNull();
+    expect(parseWalkthrough(walkthroughJson(walkthrough), "w.json")).toStrictEqual(walkthrough);
+  });
+
+  it("refuses 10,000 pages of 800-letter addresses, the most pages a file may list", () => {
+    // Within the limit on pages and on addresses, and over 8 MB. voicecap used to write this file,
+    // and then to refuse to read it.
+    const walkthrough = ofLongAddresses(MAX_WALKTHROUGH_PAGES, 800);
+    expect(walkthrough.pages).toHaveLength(MAX_WALKTHROUGH_PAGES);
+    expect(bytesOf(walkthrough)).toBeGreaterThan(LIMIT);
+
+    expectRefusedAsTooLarge(walkthrough);
+  });
+
+  it("says the size, as a text of it does, when something else is wrong with it too", () => {
+    const withStepLimit = (walkthrough: Walkthrough): Walkthrough => ({
+      ...walkthrough,
+      settings: {
+        ...walkthrough.settings,
+        stepCaps: { ...walkthrough.settings.stepCaps, read: 100_001 },
+      },
+    });
+
+    // Under the limit, the step limit is what's wrong with it...
+    expect(walkthroughProblem(withStepLimit(justUnder()))).toBe(
+      "its settings.stepCaps.read: must be a whole number from 1 to 100,000.",
+    );
+    // ...and over it, the size is said first, as parseWalkthrough says it of the file.
+    expectRefusedAsTooLarge(withStepLimit(justOver()));
+  });
+
+  it("says the size of a file of 10,001 pages, over the limit on pages too", () => {
+    const walkthrough = ofLongAddresses(MAX_WALKTHROUGH_PAGES + 1, 800);
+    expect(bytesOf(walkthrough)).toBeGreaterThan(LIMIT);
+
+    expectRefusedAsTooLarge(walkthrough);
   });
 });
 

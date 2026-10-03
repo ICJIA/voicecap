@@ -7,23 +7,25 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type * as FsPromises from "node:fs/promises";
-import { copyFile, mkdir, readFile, rm, truncate, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, truncate, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as Drivers from "../src/drivers/index.js";
 import { createDriver } from "../src/drivers/index.js";
+import { readWalkthroughFile } from "../src/pages/resolve.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
 import { runAudit, type RunAuditOptions, type RunAuditResult } from "../src/run/audit.js";
 import type * as PageRunner from "../src/run/page-runner.js";
 import { processPage } from "../src/run/page-runner.js";
 import { siteFolder } from "../src/run/paths.js";
 import { listRuns } from "../src/run/store.js";
-import { parseWalkthrough, type Walkthrough } from "../src/share/walkthrough.js";
+import { parseWalkthrough, walkthroughJson, type Walkthrough } from "../src/share/walkthrough.js";
 import { writeWalkthrough } from "../src/share/write-walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
-import { createMemoryLogger } from "../src/util/log.js";
+import { createMemoryLogger, type MemoryLogger } from "../src/util/log.js";
+import { voicecapVersion } from "../src/util/version.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import {
   config,
@@ -33,7 +35,7 @@ import {
   SITE,
   sitePages,
 } from "./helpers/run-site.js";
-import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 
 // Every call goes through as it did, and is kept: the config each driver is made with, what the page
 // runner is given, and which files are read.
@@ -728,5 +730,247 @@ describe("a run repeated from its walkthrough file", () => {
     expect(await refusedWith("big.json", {}, dir)).toBe(
       "big.json isn't a voicecap walkthrough file: it isn't JSON.",
     );
+  });
+
+  it("reads a walkthrough file of exactly 8 MB, as the format allows, and refuses one a byte larger for its size", async () => {
+    const { dir, file } = await original();
+    const walkthrough = await walkthroughIn(file);
+    // Notes on the first page make the file exactly the most a walkthrough file may be.
+    walkthrough.pages[0]!.notes = "";
+    const empty = Buffer.byteLength(walkthroughJson(walkthrough), "utf8");
+    walkthrough.pages[0]!.notes = "x".repeat(MAX_BYTES - empty);
+    await writeFile(path.join(dir, "at.json"), walkthroughJson(walkthrough));
+    walkthrough.pages[0]!.notes += "x";
+    await writeFile(path.join(dir, "over.json"), walkthroughJson(walkthrough));
+    expect((await stat(path.join(dir, "at.json"))).size).toBe(MAX_BYTES);
+    expect((await stat(path.join(dir, "over.json"))).size).toBe(MAX_BYTES + 1);
+
+    // The check before the file is read and the format's own agree on where the limit is.
+    const read = await readWalkthroughFile("at.json", dir);
+    expect(read.parsed.pages[0]!.notes).toHaveLength(MAX_BYTES - empty);
+    await expect(readWalkthroughFile("over.json", dir)).rejects.toThrow(
+      "over.json is larger than 8 MB, larger than any walkthrough file voicecap writes.",
+    );
+  });
+});
+
+/**
+ * What a run said after it said it was complete, as a person reads it: every message (a warning
+ * isn't one) after the one that names run `id`'s report.
+ */
+function saidAfterComplete(logger: MemoryLogger, id: string): string[] {
+  const said = logger.entries
+    .filter((entry) => entry.level === "info")
+    .map((entry) => entry.message);
+  const at = said.findIndex((message) => message.startsWith(`Run ${id} complete. Report: `));
+  expect(at).toBeGreaterThanOrEqual(0);
+  return said.slice(at + 1);
+}
+
+/** What a repeat says of the original run `run`, when every page of the site sounds the same. */
+const ALL_THE_SAME = (run: string) => [
+  `Compared with run ${run}, from its walkthrough file:`,
+  `  ${SITE}/: sounds the same`,
+  `  ${SITE}/about: sounds the same`,
+  `  ${SITE}/resources: sounds the same`,
+  "3 of 3 pages sound the same.",
+];
+
+describe("after a repeat completes", () => {
+  it("says, page by page, how the repeat sounds against the original", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }),
+    );
+
+    expect(repeat.outcome).toBe("completed");
+    // With the script unchanged every page sounds the same. These lines come last, after the one
+    // that says the run is complete, and say nothing of versions or settings that don't differ.
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual(ALL_THE_SAME(run.runId));
+  });
+
+  it("says a page whose script changed sounds different, naming the pass", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+    const changed = sitePages({
+      about: { lines: ["heading, level 1, About us", "We have moved."] },
+    });
+
+    const repeat = await runAudit(repeating(dir, new ScriptedDriver(changed), NAME, { logger }));
+
+    expect(repeat.outcome).toBe("completed");
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual([
+      `Compared with run ${run.runId}, from its walkthrough file:`,
+      `  ${SITE}/: sounds the same`,
+      `  ${SITE}/about: sounds different (read)`,
+      `  ${SITE}/resources: sounds the same`,
+      "2 of 3 pages sound the same.",
+    ]);
+  });
+
+  it("names each pass that sounds different, in the passes' order", async () => {
+    const { dir } = await original();
+    const logger = createMemoryLogger();
+    const changed = sitePages({
+      home: { headings: ["heading, level 1, Welcome", "heading, level 2, Latest"] },
+      resources: {
+        lines: ["heading, level 2, Resources", "End"],
+        stops: [{ spoken: "Home, link", focused: element("Home") }],
+      },
+    });
+
+    await runAudit(repeating(dir, new ScriptedDriver(changed), NAME, { logger }));
+
+    const said = logger.text();
+    expect(said).toContain(`  ${SITE}/: sounds different (headings)`);
+    expect(said).toContain(`  ${SITE}/about: sounds the same`);
+    expect(said).toContain(`  ${SITE}/resources: sounds different (read, tab)`);
+    expect(said).toContain("1 of 3 pages sound the same.");
+  });
+
+  it("says a page the repeat couldn't read couldn't be read now", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+    const failing = sitePages({ resources: { status: 404 } });
+
+    const repeat = await runAudit(repeating(dir, new ScriptedDriver(failing), NAME, { logger }));
+
+    // The run completes, with a page that failed: its exit code says so.
+    expect(repeat).toMatchObject({ outcome: "completed", exitCode: 3, failedPages: 1 });
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual([
+      `Compared with run ${run.runId}, from its walkthrough file:`,
+      `  ${SITE}/: sounds the same`,
+      `  ${SITE}/about: sounds the same`,
+      `  ${SITE}/resources: couldn't be read now`,
+      "2 of 3 pages sound the same.",
+    ]);
+  });
+
+  it("says a page the original couldn't read, and the repeat did, wasn't read in the original", async () => {
+    const { dir, run } = await original({
+      driver: new ScriptedDriver(sitePages({ resources: { status: 404 } })),
+    });
+    const logger = createMemoryLogger();
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger }),
+    );
+
+    expect(repeat).toMatchObject({ outcome: "completed", exitCode: 0 });
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual([
+      `Compared with run ${run.runId}, from its walkthrough file:`,
+      `  ${SITE}/: sounds the same`,
+      `  ${SITE}/about: sounds the same`,
+      `  ${SITE}/resources: wasn't read in the original`,
+      "2 of 3 pages sound the same.",
+    ]);
+  });
+
+  it("says every page sounds the same for a repeat replayed from the original's own transcripts", async () => {
+    const { dir, run } = await original();
+    const logger = createMemoryLogger();
+
+    const repeat = await runAudit(
+      repeating(dir, undefined, NAME, { replayFrom: run.runDir, logger }),
+    );
+
+    expect(repeat.run.replayed).toBe(true);
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual(ALL_THE_SAME(run.runId));
+  });
+
+  it("says the versions and the NVDA settings that differ from the original's, from the repeat's own record", async () => {
+    const { dir, file, run } = await original();
+    await edit(file, (walkthrough) => {
+      walkthrough.original.screenReader = { name: "NVDA", version: "2026.1" };
+      walkthrough.original.browser = { name: "Chrome", version: "140.0.0.0" };
+      walkthrough.original.voicecap = "0.0.1";
+      walkthrough.original.nvdaSettings = { "speech.rate": 50, "speech.pitch": 40, gone: 1 };
+    });
+    const logger = createMemoryLogger();
+    // This computer's settings, which the repeat runs with and records, are what's compared.
+    const computer = config({
+      nvdaSettings: { "speech.rate": 55, "speech.pitch": 40, "keyboard.typed": true },
+    });
+
+    const repeat = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { config: computer, logger }),
+    );
+
+    expect(repeat.run.settings.nvdaSettings).toEqual(computer.config.nvdaSettings);
+    expect(saidAfterComplete(logger, repeat.runId)).toEqual([
+      ...ALL_THE_SAME(run.runId),
+      `Different from the original: NVDA 2026.2 (was 2026.1), Chrome 141.0.0.0 (was 140.0.0.0), voicecap ${voicecapVersion()} (was 0.0.1).`,
+      "NVDA's settings here differ from the original's in: gone, keyboard.typed, speech.rate.",
+    ]);
+  });
+
+  it("says nothing of the kind for a run that repeats no walkthrough", async () => {
+    const dir = await newFolder();
+    const logger = createMemoryLogger();
+
+    const result = await runAudit(runOptions(dir, new ScriptedDriver(sitePages()), { logger }));
+
+    expect(result.outcome).toBe("completed");
+    expect(logger.text()).not.toMatch(/Compared with|sound the same|sounds /);
+  });
+
+  it("says nothing more for a repeat that didn't complete", async () => {
+    const { dir } = await original();
+    const controller = new AbortController();
+    const logger = createMemoryLogger();
+
+    const interrupted = await runAudit(
+      repeating(dir, interruptingAt("/about", controller), NAME, {
+        signal: controller.signal,
+        logger,
+      }),
+    );
+
+    expect(interrupted.outcome).toBe("interrupted");
+    expect(logger.text()).toContain("Interrupted.");
+    expect(logger.text()).not.toMatch(/complete\.|Compared with|sound the same|sounds /);
+  });
+
+  it("says nothing more for a repeat that stopped", async () => {
+    const { dir } = await original();
+    const logger = createMemoryLogger();
+    const broken = new Error("NVDA is not responding");
+    const failing = new ScriptedDriver(
+      sitePages({ home: { openError: broken }, about: { openError: broken } }),
+    );
+
+    const stopped = await runAudit(
+      repeating(dir, failing, NAME, { config: config({ maxConsecutiveFailures: 2 }), logger }),
+    );
+
+    expect(stopped.outcome).toBe("stopped");
+    expect(logger.text()).toContain("Stopped after 2 failed pages in a row");
+    expect(logger.text()).not.toMatch(/complete\.|Compared with|sound the same|sounds /);
+  });
+
+  it("says them once, for every page, when a later session completes an interrupted repeat", async () => {
+    const { dir, run } = await original();
+    const controller = new AbortController();
+    const first = createMemoryLogger();
+    const interrupted = await runAudit(
+      repeating(dir, interruptingAt("/about", controller), NAME, {
+        signal: controller.signal,
+        logger: first,
+      }),
+    );
+    const second = createMemoryLogger();
+
+    const resumed = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { logger: second }),
+    );
+
+    expect(resumed.runId).toBe(interrupted.runId);
+    expect(resumed.outcome).toBe("completed");
+    // The page the first session read is compared with the others: it's one run's pages.
+    expect(saidAfterComplete(second, resumed.runId)).toEqual(ALL_THE_SAME(run.runId));
+    expect(second.text().match(/Compared with run/g)).toHaveLength(1);
+    expect(first.text()).not.toContain("Compared with");
   });
 });
