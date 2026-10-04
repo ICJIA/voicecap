@@ -5,6 +5,7 @@
  * taken away after: no test deletes anything outside a folder it made. Nothing here starts a screen
  * reader, a browser, or Word.
  */
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import type * as FsPromises from "node:fs/promises";
@@ -16,6 +17,8 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  readlink,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -40,7 +43,7 @@ import {
   ROBOTS_TXT,
 } from "../src/site/headers.js";
 import { netlifyToml, NVMRC } from "../src/site/netlify.js";
-import { readSiteRecords } from "../src/site/records.js";
+import { DEMO_SITE, readSiteRecords } from "../src/site/records.js";
 import type * as RecordsModule from "../src/site/records.js";
 import { renderSiteIndex } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
@@ -104,8 +107,10 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  // Back to going through, with nothing waiting to fail or to answer.
+  // Back to going through, with nothing waiting to fail or to answer, and no call kept.
   vi.mocked(lstat).mockReset();
+  vi.mocked(readFile).mockReset();
+  vi.mocked(rm).mockReset();
   vi.mocked(readSiteRecords).mockReset();
   vi.mocked(renderSiteIndex).mockReset();
   await Promise.all(
@@ -198,13 +203,20 @@ async function filesUnder(dir: string): Promise<string[]> {
     .sort();
 }
 
-/** Every file and folder under `dir`, by its path from `dir`, with a fingerprint for each file. */
+/**
+ * Every file, folder, and link under `dir`, by its path from `dir`, with a fingerprint for each file
+ * and where each link leads. A link is never followed.
+ */
 async function treeOf(dir: string): Promise<Record<string, string>> {
   const tree: Record<string, string> = {};
   for (const entry of await readdir(dir, { recursive: true, withFileTypes: true })) {
     const full = path.join(entry.parentPath, entry.name);
     const key = path.relative(dir, full).split(path.sep).join("/");
-    tree[key] = entry.isDirectory() ? "a folder" : sha256(await readFile(full));
+    if (entry.isSymbolicLink()) {
+      tree[key] = `a link to ${await readlink(full)}`;
+    } else {
+      tree[key] = entry.isDirectory() ? "a folder" : sha256(await readFile(full));
+    }
   }
   return tree;
 }
@@ -249,6 +261,38 @@ async function changeAByte(file: string): Promise<void> {
   const bytes = await readFile(file);
   bytes.writeUInt8(bytes.readUInt8(10) ^ 0xff, 10);
   await writeFile(file, bytes);
+}
+
+/** Runs git, never throwing: a missing status means git isn't on PATH. */
+function git(args: string[], cwd: string): number | null {
+  try {
+    return spawnSync("git", args, { cwd, encoding: "utf8", windowsHide: true }).status;
+  } catch {
+    return null;
+  }
+}
+
+const gitAvailable = git(["--version"], os.tmpdir()) === 0;
+
+/**
+ * A folder made to look as a build left it (its _headers starts with a build's first line, and it has
+ * a page), with more in it: each path of `more`, from the folder, is a file with the text given, or a
+ * folder where the text is null.
+ */
+async function builtWith(dir: string, more: Record<string, string | null>): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, "_headers"), `${HEADERS_FIRST_LINE}\n`);
+  await writeFile(path.join(dir, "index.html"), "a page");
+  for (const [relative, contents] of Object.entries(more)) {
+    const target = path.join(dir, relative);
+    if (contents === null) {
+      await mkdir(target, { recursive: true });
+    } else {
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, contents);
+    }
+  }
+  return dir;
 }
 
 /**
@@ -389,9 +433,10 @@ describe("buildSite", () => {
         },
       ],
     });
-    // The demo is published under demo/, in a report of its own.
+    // The demo is published under demo/, in a report of its own: in the folder records.ts keeps for it.
+    expect(DEMO_SITE).toBe("demo");
     expect(content.demo).toMatchObject({
-      folder: "demo",
+      folder: DEMO_SITE,
       id: "report-demo",
       at: isoLocal(DEMO_SHARED_ON),
       by: "Demo Reviewer",
@@ -527,9 +572,11 @@ describe("buildSite", () => {
       expect(paths).not.toContain(`/${FIXTURE_FOLDER}/${FIRST_WORD}`);
     });
 
-    it("leaves out a copy that is longer or shorter than it was shared, which is a change too", async () => {
+    it("leaves out a copy that is longer or shorter than it was shared, without reading it", async () => {
       const home = await newHome();
-      await writeFile(path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD), "a copy cut short");
+      const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+      await writeFile(copy, "a copy cut short");
+      vi.mocked(readFile).mockClear();
 
       const { out, leftOut } = await build(home);
 
@@ -537,9 +584,11 @@ describe("buildSite", () => {
         `${FIRST_WORD_PATH}: not published: it no longer matches its fingerprint`,
       ]);
       expect(existsSync(path.join(out, FIXTURE_FOLDER, FIRST_WORD))).toBe(false);
+      // lstat says how long it is, which isn't the recorded size: it's a change, and it's left unread.
+      expect(pathsRead()).not.toContain(copy);
     });
 
-    it("leaves out a copy whose recorded size isn't its size, though its SHA-256 is the recorded one", async () => {
+    it("leaves out a copy whose recorded size isn't its size, though its SHA-256 is the recorded one, without reading it", async () => {
       const home = await newHome();
       const page = Buffer.from(EXAMPLE_PAGE);
       // A record that says the page is a byte longer than it is, and gives the fingerprint it has.
@@ -549,6 +598,7 @@ describe("buildSite", () => {
           recordOf(`${EXAMPLE_STEM}.docx`, EXAMPLE_WORD),
         ]),
       ]);
+      vi.mocked(readFile).mockClear();
 
       const { out, leftOut } = await build(home);
 
@@ -557,6 +607,104 @@ describe("buildSite", () => {
       ]);
       expect(existsSync(path.join(out, EXAMPLE_FOLDER, `${EXAMPLE_STEM}.html`))).toBe(false);
       expect(existsSync(path.join(out, EXAMPLE_FOLDER, `${EXAMPLE_STEM}.docx`))).toBe(true);
+      expect(pathsRead()).not.toContain(
+        path.join(home, EXAMPLE_FOLDER, "share", `${EXAMPLE_STEM}.html`),
+      );
+    });
+
+    it("reads a copy of the recorded size once, and leaves it out when its bytes aren't the recorded ones", async () => {
+      const home = await newHome();
+      const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+      await changeAByte(copy);
+      vi.mocked(readFile).mockClear();
+
+      const { leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${FIRST_WORD_PATH}: not published: it no longer matches its fingerprint`,
+      ]);
+      expect(pathsRead().filter((read) => read === copy)).toHaveLength(1);
+    });
+
+    // A file another program holds (EBUSY), a name the system won't take (ENAMETOOLONG), or one this
+    // account may not read (EACCES) is a file that can't be published, and no reason to stop the
+    // build: every report that needs no such file is still the site's.
+    it.each([["EBUSY"], ["ENAMETOOLONG"], ["EACCES"]])(
+      "leaves out a copy that can't be read (%s), names it, and builds the rest",
+      async (code) => {
+        const home = await newHome();
+        const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+        const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+        vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+          file === copy
+            ? Promise.reject(Object.assign(new Error(`${code}: can't be read`), { code }))
+            : real.readFile(file, options)) as typeof readFile);
+
+        const { out, content, leftOut, logger } = await build(home);
+
+        const line = `${FIRST_WORD_PATH}: not published: it couldn't be read (${code})`;
+        expect(leftOut).toEqual([line]);
+        expect(warned(logger)).toEqual([line]);
+        expect(existsSync(path.join(out, FIXTURE_FOLDER, FIRST_WORD))).toBe(false);
+        // On the site it's missing, and the rest of its report is published, and every other.
+        const report = content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"));
+        expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "missing" }]);
+        expect(report?.files).toHaveLength(3);
+        for (const { name } of report?.files ?? []) {
+          expect(existsSync(path.join(out, FIXTURE_FOLDER, name))).toBe(true);
+        }
+        expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
+          goneLine(FIRST_WORD, "missing"),
+        );
+        expect(content.demo?.files).toHaveLength(4);
+      },
+    );
+
+    it("leaves out a copy that can't be read for a reason with no code, and says so without one", async () => {
+      const home = await newHome();
+      const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+      const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+      vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+        file === copy
+          ? Promise.reject(new Error("something nobody expected"))
+          : real.readFile(file, options)) as typeof readFile);
+
+      const { leftOut } = await build(home);
+
+      expect(leftOut).toEqual([`${FIRST_WORD_PATH}: not published: it couldn't be read`]);
+    });
+
+    it("leaves out a copy that can't even be looked at, as one that can't be read", async () => {
+      const home = await newHome();
+      const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+      const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+      vi.mocked(lstat).mockImplementation(((file: string) =>
+        file === copy
+          ? Promise.reject(
+              Object.assign(new Error("ENAMETOOLONG: name too long"), { code: "ENAMETOOLONG" }),
+            )
+          : real.lstat(file)) as typeof lstat);
+
+      const { out, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${FIRST_WORD_PATH}: not published: it couldn't be read (ENAMETOOLONG)`,
+      ]);
+      expect(existsSync(path.join(out, "index.html"))).toBe(true);
+    });
+
+    it("takes a copy that is gone by the time it's read for a missing one", async () => {
+      const home = await newHome();
+      const copy = path.join(home, FIXTURE_FOLDER, "share", FIRST_WORD);
+      const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+      vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+        file === copy
+          ? Promise.reject(Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" }))
+          : real.readFile(file, options)) as typeof readFile);
+
+      const { leftOut } = await build(home);
+
+      expect(leftOut).toEqual([`${FIRST_WORD_PATH}: not published: the file is missing`]);
     });
 
     it("leaves out a missing copy, and names it", async () => {
@@ -952,10 +1100,36 @@ describe("buildSite", () => {
       await writeFile(path.join(theirs, "page.html"), "their page");
       const aFile = path.join(root, "a-file.txt");
       await writeFile(aFile, "a file, not a folder");
+      // Folders that look as a build left them, with a _headers that starts with a build's first line,
+      // and hold more than a build writes: a repository's .git; a site of its own, with its date
+      // folder and its record; a dot-file in a folder of files; and all of that in one.
+      const withGit = await builtWith(path.join(root, "built-with-git"), {
+        ".git/HEAD": "ref: refs/heads/main\n",
+      });
+      const withSites = await builtWith(path.join(root, "built-with-sites"), {
+        "other.illinois.gov/2027-01-12": null,
+        "other.illinois.gov/share/shares.json": "{ }",
+      });
+      const withDotFile = await builtWith(path.join(root, "built-with-a-dot-file"), {
+        "dvfr.illinois.gov/page.html": "a page",
+        "dvfr.illinois.gov/.env": "SECRET=1",
+      });
+      const withAll = await builtWith(path.join(root, "built-with-all-of-it"), {
+        ".git/HEAD": "ref: refs/heads/main\n",
+        "other.illinois.gov/2027-01-12": null,
+        "other.illinois.gov/share/shares.json": "{ }",
+      });
+      // A build, then `git init` in its folder, as someone keeps a built site in Git.
+      const gitBuilt = path.join(root, "built-then-git");
+      if (gitAvailable) {
+        await build(home, { out: gitBuilt });
+        expect(git(["init"], gitBuilt)).toBe(0);
+      }
 
       const inASite = "it's inside a site's folder, where its records are";
       const inTheDemo = "it's inside voicecap-demo, where the demo's records are";
       const notBuilt = "it isn't empty, and voicecap site didn't build it";
+      const holdsGit = "it holds .git, which a build never writes";
       const cases: [out: string, why: string][] = [
         [home, "it's the transcripts home itself"],
         [root, "it holds the transcripts home"],
@@ -973,6 +1147,15 @@ describe("buildSite", () => {
         [notes, notBuilt],
         [theirs, notBuilt],
         [aFile, "it's a file, not a folder"],
+        // It looks built, and holds more than a build writes.
+        [withGit, holdsGit],
+        [
+          withSites,
+          "it holds other.illinois.gov/2027-01-12, a folder inside a folder, which a build never writes",
+        ],
+        [withDotFile, "it holds dvfr.illinois.gov/.env, which a build never writes"],
+        [withAll, holdsGit],
+        ...(gitAvailable ? ([[gitBuilt, holdsGit]] as [string, string][]) : []),
       ];
       for (const [out, why] of cases) {
         const before = await treeOf(root);
@@ -987,6 +1170,168 @@ describe("buildSite", () => {
         expect(vi.mocked(rm)).not.toHaveBeenCalled();
         expect(await treeOf(root)).toEqual(before);
       }
+    });
+
+    it("refuses a link as the folder it leads to is, a new folder under it too, and deletes nothing", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      // The links are in a folder of their own, so that a link to the folder the home is in leads to
+      // a folder that holds them neither.
+      const links = await newFolder();
+      const inASite = "it's inside a site's folder, where its records are";
+      const inTheDemo = "it's inside voicecap-demo, where the demo's records are";
+      const cases: [leadsTo: string, below: string, why: string][] = [
+        [home, "", "it's the transcripts home itself"],
+        [root, "", "it holds the transcripts home"],
+        [path.join(home, FIXTURE_FOLDER), "", inASite],
+        [path.join(home, FIXTURE_FOLDER, "share"), "", inASite],
+        [path.join(home, DEMO_OUT), "", inTheDemo],
+        // A folder that isn't there yet, under a link to a site's folder.
+        [path.join(home, FIXTURE_FOLDER), "_site", inASite],
+      ];
+      for (const [index, [leadsTo, below, why]] of cases.entries()) {
+        const link = path.join(links, `link-${index}`);
+        await symlink(leadsTo, link, "junction");
+        const out = path.join(link, below);
+        const before = [await treeOf(root), await treeOf(links)];
+        vi.mocked(rm).mockClear();
+
+        const message = await refusalOf(build(home, { out }));
+
+        expect(message).toBe(
+          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        );
+        expect(vi.mocked(rm)).not.toHaveBeenCalled();
+        expect([await treeOf(root), await treeOf(links)]).toEqual(before);
+      }
+    });
+
+    it("refuses a folder in the demo's records when the demo's folder is itself a link", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      // The demo's records are somewhere else, and voicecap-demo in the home leads to them.
+      const elsewhere = path.join(root, "demo-records");
+      await rename(path.join(home, DEMO_OUT), elsewhere);
+      await symlink(elsewhere, path.join(home, DEMO_OUT), "junction");
+      const out = path.join(elsewhere, FIXTURE_FOLDER, "share");
+      const before = await treeOf(root);
+      vi.mocked(rm).mockClear();
+
+      const message = await refusalOf(build(home, { out }));
+
+      expect(message).toBe(
+        `voicecap site won't build into ${out}: it's inside voicecap-demo, where the demo's records are. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+      );
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(root)).toEqual(before);
+    });
+
+    it("refuses a link to the home as the home even when the home has a _headers of a build's", async () => {
+      // The one thing that would take the home for a folder to empty: a _headers that starts with a
+      // build's line. By name the link isn't the home, so only where it leads says what it is.
+      const home = await newHome();
+      await writeFile(path.join(home, "_headers"), `${HEADERS_FIRST_LINE}\n`);
+      const link = path.join(await newFolder(), "link-to-the-home");
+      await symlink(home, link, "junction");
+      const before = await treeOf(path.dirname(home));
+      vi.mocked(rm).mockClear();
+
+      const message = await refusalOf(build(home, { out: link }));
+
+      expect(message).toBe(
+        `voicecap site won't build into ${link}: it's the transcripts home itself. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+      );
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(path.dirname(home))).toEqual(before);
+    });
+
+    it("writes the name of what it refuses a folder for without what a terminal would act on", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      // Names with a line separator in them, which ends a line: braced escapes, so that this file
+      // holds no raw control character. The message writes it as a backslash, "u", and four digits.
+      const written = "\\" + "u2028";
+      const cases: [more: Record<string, string | null>, said: string][] = [
+        // A name with a dot first, in the folder itself.
+        [{ ".\u{2028}x": "a file" }, `.${written}x, which a build never writes`],
+        // The same in a folder of files, whose own name has one too.
+        [
+          { "a\u{2028}site/.\u{2028}x": "a file" },
+          `a${written}site/.${written}x, which a build never writes`,
+        ],
+        // A folder in a folder.
+        [
+          { "a\u{2028}site/in\u{2028}side": null },
+          `a${written}site/in${written}side, a folder inside a folder, which a build never writes`,
+        ],
+      ];
+      for (const [index, [more, said]] of cases.entries()) {
+        const out = await builtWith(path.join(root, `built-with-odd-names-${index}`), more);
+
+        const message = await refusalOf(build(home, { out }));
+
+        expect(message).toBe(
+          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        );
+        expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
+      }
+    });
+
+    it("refuses the home by where it really is when the home is given as a link to it", async () => {
+      // The home is reached through a link, and the folder to build in is the home by its own name:
+      // by name they aren't one folder, and where each really is says they are.
+      const home = await newHome();
+      const link = path.join(await newFolder(), "link-to-the-home");
+      await symlink(home, link, "junction");
+      const before = await treeOf(path.dirname(home));
+      vi.mocked(rm).mockClear();
+
+      const message = await refusalOf(build(link, { out: home }));
+
+      expect(message).toBe(
+        `voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as ${path.join(link, "_site")}.`,
+      );
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(path.dirname(home))).toEqual(before);
+    });
+
+    it("builds in _site of a home that is given as a link to it, and refuses nothing for the link", async () => {
+      const home = await newHome();
+      const link = path.join(await newFolder(), "link-to-the-home");
+      await symlink(home, link, "junction");
+
+      const { out, content } = await build(link);
+
+      expect(out).toBe(path.join(link, "_site"));
+      expect(existsSync(path.join(home, "_site", "index.html"))).toBe(true);
+      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+    });
+
+    it("empties a built folder that holds a link, and leaves what the link leads to as it was", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      const first = await build(home);
+      // Somebody's own folder, which a link in the built folder, and one in a folder of the site's,
+      // lead to. A build never follows a link: the link is removed, and nothing it leads to.
+      const precious = path.join(root, "precious");
+      await mkdir(path.join(precious, "inner"), { recursive: true });
+      await writeFile(path.join(precious, "mine.txt"), "my own file");
+      await writeFile(path.join(precious, "inner", "also-mine.txt"), "my other file");
+      const topLink = path.join(first.out, "a-link");
+      const innerLink = path.join(first.out, FIXTURE_FOLDER, "another-link");
+      await symlink(precious, topLink, "junction");
+      await symlink(precious, innerLink, "junction");
+      const before = await treeOf(precious);
+
+      const second = await build(home);
+
+      expect(second.out).toBe(first.out);
+      expect(existsSync(topLink)).toBe(false);
+      expect(existsSync(innerLink)).toBe(false);
+      expect(await treeOf(precious)).toEqual(before);
+      expect(await readFile(path.join(precious, "inner", "also-mine.txt"), "utf8")).toBe(
+        "my other file",
+      );
     });
 
     it("refuses the folder it builds in by default when a site has that folder", async () => {
@@ -1037,6 +1382,25 @@ describe("buildSite", () => {
           "it's the transcripts home itself.",
         );
 
+        expect(await treeOf(path.dirname(home))).toEqual(before);
+      },
+    );
+
+    it.skipIf(process.platform !== "win32")(
+      "sees a site's folder and the demo's when their letters are written in another case, as Windows does",
+      async () => {
+        const home = await newHome();
+        const before = await treeOf(path.dirname(home));
+        vi.mocked(rm).mockClear();
+
+        expect(
+          await refusalOf(build(home, { out: path.join(home, EXAMPLE_FOLDER.toUpperCase()) })),
+        ).toContain(": it's inside a site's folder, where its records are.");
+        expect(
+          await refusalOf(build(home, { out: path.join(home, DEMO_OUT.toUpperCase()) })),
+        ).toContain(": it's inside voicecap-demo, where the demo's records are.");
+
+        expect(vi.mocked(rm)).not.toHaveBeenCalled();
         expect(await treeOf(path.dirname(home))).toEqual(before);
       },
     );

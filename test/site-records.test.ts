@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { SharedFile } from "../src/model.js";
 import { shareDir, sharesPath } from "../src/run/paths.js";
-import { readSiteRecords, type SiteRecords } from "../src/site/records.js";
+import { DEMO_SITE, readSiteRecords, type SiteRecords } from "../src/site/records.js";
 import { sealOf } from "../src/util/hash.js";
 
 const JAN_14 = "2027-01-14T16:00:00-06:00";
@@ -560,6 +560,60 @@ describe("readSiteRecords", () => {
     );
   });
 
+  it("keeps only the kinds of file voicecap names, .html, .docx, and .json in lower case", async () => {
+    // A site is served from one address, so a name it publishes must be one that voicecap gives its
+    // copies: a page, a Word copy, or a walkthrough file. An .svg or an .htm that holds a script
+    // would be served from the site's own address, with no policy to say what it may do.
+    const dir = await siteFolder("example.illinois.gov");
+    const named = ["x.html", "x.docx", "x.json", "x.walkthrough.json", "x.docx.html"];
+    const refused = [
+      "x.svg",
+      "x.HTML",
+      "x.txt",
+      "x.htm",
+      "x.xhtml",
+      "x.Docx",
+      "x.JSON",
+      "x.html.txt",
+      "x.json.exe",
+      "x",
+      "html",
+    ];
+    const asFiles = (names: string[]) =>
+      names.map((name) => ({ name, bytes: 5, sha256: "c".repeat(64) }));
+    await record(dir, [sealed(1, JAN_15, [...asFiles(named), ...asFiles(refused)])]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    // The kinds it names are kept, in the order the entry lists them.
+    expect(kept(sites).map(({ files }) => files.map(({ name }) => name))).toEqual([named]);
+    expect(leftOut).toEqual(
+      refused.map(
+        (name) =>
+          `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names ${JSON.stringify(name)}, which isn't a file voicecap would publish`,
+      ),
+    );
+  });
+
+  it("leaves out an entry whose files are none of those kinds, after naming each", async () => {
+    const dir = await siteFolder("example.illinois.gov");
+    await record(dir, [
+      sealed(1, JAN_15, [
+        { name: "script.svg", bytes: 5, sha256: "c".repeat(64) },
+        { name: "notes.txt", bytes: 5, sha256: "d".repeat(64) },
+      ]),
+    ]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(sites).toEqual([]);
+    expect(leftOut).toEqual([
+      `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names "script.svg", which isn't a file voicecap would publish`,
+      `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names "notes.txt", which isn't a file voicecap would publish`,
+      `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names no file voicecap would publish`,
+    ]);
+  });
+
   it("publishes a site folder named with a hyphen first, with the files its own share is given", async () => {
     // A host can be written with a hyphen first (new URL("http://-x.example.gov") is valid), and
     // voicecap names a share's files from its folder, so these are the names it gives.
@@ -767,6 +821,22 @@ describe("readSiteRecords, for the demo", () => {
       "voicecap-demo/127.0.0.1_4849/share/shares.json: not a readable record of what was shared",
       `voicecap-demo/127.0.0.1_4850/share/shares.json: share 1 (${JAN_16}) changed since it was recorded`,
       `voicecap-demo/my site: ${BAD_FOLDER_NAME}`,
+    ]);
+  });
+
+  it("names the folder the demo is published in, which a site folder of the home can't be named", async () => {
+    // One name for it, which the build publishes the demo under too (test/site-build.test.ts).
+    expect(DEMO_SITE).toBe("demo");
+    await record(await siteFolder(DEMO_SITE), [
+      sealed(1, JAN_15, copies(`${DEMO_SITE}_2027-01-15`)),
+    ]);
+
+    const { sites, demo, leftOut } = await readSiteRecords(home);
+
+    expect(sites).toEqual([]);
+    expect(demo).toBeNull();
+    expect(leftOut).toEqual([
+      `${DEMO_SITE}: not published: a site folder named demo would take the demo's place on the site`,
     ]);
   });
 

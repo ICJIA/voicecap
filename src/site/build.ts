@@ -1,24 +1,42 @@
 /**
  * `voicecap site`: the website of every report voicecap has shared, built from the transcripts
  * home's records of what was shared (./records.ts) into a folder that Netlify publishes. It
- * publishes only what those records name: each file of an entry whose seal holds, copied byte for
- * byte, and only when it's a regular file (never a link, a device, or a folder) whose size and
- * SHA-256 are the recorded ones. A file is read once, checked, and written from those same bytes. One
- * that changed or is gone is left out and named, in the build's output and under its report on the
- * site, and the build goes on: one changed copy never stops every later update.
+ * publishes only what those records name: each file of an entry whose seal holds, of a kind voicecap
+ * names its copies (./records.ts), copied byte for byte, and only when it's a regular file (never a
+ * link, a device, or a folder) whose size and SHA-256 are the recorded ones. A size that isn't the
+ * recorded one is a change, found before the file is read; any other file is read once, checked, and
+ * written from those same bytes. One that changed, is gone, or can't be read is left out and named,
+ * in the build's output and under its report on the site, and the build goes on: one copy that can't
+ * be published never stops every later update.
  *
- * Each build empties its folder, so a folder given by mistake must never be one with records in it.
- * A folder is built into only when it's new, empty, or one an earlier build made (its _headers starts
- * with HEADERS_FIRST_LINE), and never when it's the home, holds the home, or is inside a site's
- * folder or the demo's. Every refusal comes before anything is touched. The records are read before
- * the folder is emptied, so an earlier build is kept when they can't be.
+ * Each build empties its folder, so a folder given by mistake must never be one with records, or
+ * anyone's work, in it. A folder is built into only when it's new, empty, or one an earlier build
+ * made (its _headers starts with HEADERS_FIRST_LINE) and that holds nothing but what a build writes,
+ * and never when it's the home, holds the home, or is inside a site's folder or the demo's, by its
+ * name and by where it really is: a link, a short name, or another letter case leads to the same
+ * folder. A build writes files, in its folder and in the folders it makes, and no name that starts
+ * with a dot: a folder with such a name (a repository's .git), or with a folder in a folder (a site
+ * folder of someone's own), holds more than a build wrote, and is never emptied. Every refusal comes
+ * before anything is touched. The records are read before the folder is emptied, so an earlier build
+ * is kept when they can't be.
  *
  * Besides each report's files, a build writes the site's page (index.html), robots.txt, and
  * _headers, which gives each page its Content Security Policy, made from the hashes of that page's
  * own bytes, and each download its Content-Disposition. In the home it writes netlify.toml and
  * .nvmrc the first time, and never again.
  */
-import { lstat, mkdir, open, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import {
+  lstat,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
@@ -41,7 +59,7 @@ import {
   type HeaderRule,
 } from "./headers.js";
 import { ensureNetlifyFiles } from "./netlify.js";
-import { leaveOut, readSiteRecords, type SiteEntry } from "./records.js";
+import { DEMO_SITE, leaveOut, printable, readSiteRecords, type SiteEntry } from "./records.js";
 import {
   fileKind,
   renderSiteIndex,
@@ -70,8 +88,6 @@ export interface BuildSiteResult {
 
 /** The folder the site is built in when none is given: in the home, where .gitignore keeps it out. */
 const SITE_DIR = "_site";
-/** The folder the demo's report is published in. records.ts leaves out a site folder of this name. */
-const DEMO_FOLDER = "demo";
 /** The file a build's folder is known by: it starts with HEADERS_FIRST_LINE. */
 const HEADERS_FILE = "_headers";
 /** The site's own files at its top, which a site folder of the same name would take the place of. */
@@ -84,15 +100,27 @@ const SITE_LINES: ReadonlySet<string> = new Set([
   `/${SITE_DIR}/`,
 ]);
 
-/** Why a file a record names isn't published. */
-type Problem = "changed" | "missing" | "not a regular file";
+/**
+ * A file a record names that isn't published: what a build says of it, after the file's path from
+ * the home and "not published: ", and which of the site's two reasons the page gives under its
+ * report.
+ */
+interface Unpublished {
+  why: string;
+  reason: PublishedReport["notPublished"][number]["reason"];
+}
 
-/** What a build says of each, after the file's path from the home and "not published: ". */
-const WHY_NOT_PUBLISHED: Record<Problem, string> = {
-  changed: "it no longer matches its fingerprint",
-  missing: "the file is missing",
-  "not a regular file": "it isn't a regular file",
-};
+const CHANGED: Unpublished = { why: "it no longer matches its fingerprint", reason: "changed" };
+const MISSING: Unpublished = { why: "the file is missing", reason: "missing" };
+/** To a reader of the site, a file that isn't a regular one, or can't be read, is as good as missing. */
+const NOT_REGULAR: Unpublished = { why: "it isn't a regular file", reason: "missing" };
+
+/** A file that couldn't be read, and the error's code (EBUSY, ENAMETOOLONG, ...) when it has one. */
+function unreadable(error: unknown): Unpublished {
+  const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
+  const why = typeof code === "string" ? `it couldn't be read (${code})` : "it couldn't be read";
+  return { why, reason: "missing" };
+}
 
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
@@ -155,7 +183,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const demo =
     records.demo === null
       ? null
-      : await publishReport(publishing, records.demo, DEMO_FOLDER, `report-${DEMO_FOLDER}`);
+      : await publishReport(publishing, records.demo, DEMO_SITE, `report-${DEMO_SITE}`);
   const content: SiteContent = { demo, sites };
 
   const index = renderSiteIndex(content, { fontCss });
@@ -213,35 +241,125 @@ function isSamePath(a: string, b: string): boolean {
   return path.relative(a, b) === "";
 }
 
+/** What the build says of a folder that's, or is in, or holds, the records. */
+const THE_HOME = "it's the transcripts home itself";
+const HOLDS_THE_HOME = "it holds the transcripts home";
+const IN_A_SITE = "it's inside a site's folder, where its records are";
+const IN_THE_DEMO = `it's inside ${DEMO_OUT}, where the demo's records are`;
+
+/** The folders the records are in: the home, each site's folder in it, and the demo's. */
+interface RecordFolders {
+  home: string;
+  sites: string[];
+  demo: string;
+}
+
+/**
+ * Why `out` is, holds, or is inside one of the records' folders, judging by the paths alone; null
+ * when it's none of them.
+ */
+function whyAmongTheRecords(records: RecordFolders, out: string): string | null {
+  if (isWithin(out, records.home)) {
+    return isSamePath(out, records.home) ? THE_HOME : HOLDS_THE_HOME;
+  }
+  if (records.sites.some((site) => isWithin(site, out))) return IN_A_SITE;
+  if (isWithin(records.demo, out)) return IN_THE_DEMO;
+  return null;
+}
+
+/**
+ * Where a path really is: as far as it's there, the operating system's own name for it, with each
+ * link followed and each name in the letters and the length the disk keeps, and the rest of it as
+ * written. A folder that isn't there yet, under a link to a site's folder, is then in that site's
+ * folder. Only a name that isn't there is passed over, to look for the folder it would be in; any
+ * other failure leaves the path as written, which the checks by name have seen.
+ */
+async function realOf(target: string): Promise<string> {
+  const rest: string[] = [];
+  for (let at = target; ; at = path.dirname(at)) {
+    try {
+      return path.join(await realpath(at), ...rest);
+    } catch (error) {
+      if (!isNotThere(error) || path.dirname(at) === at) return target;
+      rest.unshift(path.basename(at));
+    }
+  }
+}
+
 /**
  * Why the site can't be built into `out`, in words that finish "won't build into <out>: ...", or
  * null when it can. Nothing is touched: it's only looked at. The checks, in order:
  *
  * - `out` is a file, not a folder;
- * - it's the home, or holds the home;
- * - it's inside a site's folder (a folder at the home's top that has records in it), or in the demo's;
- * - it's there, isn't empty, and isn't one a build made (see builtBefore).
+ * - it's the home, holds the home, or is inside a site's folder (a folder at the home's top that has
+ *   records in it) or the demo's: by the names of the paths, and then by where they really are, so
+ *   that a link, a short name, or another letter case is the folder it leads to;
+ * - it's there, isn't empty, and isn't one a build made (see builtBefore);
+ * - it's one a build made, and holds more than a build writes (see moreThanABuild).
  *
- * What's left is a folder that isn't there, one with nothing in it, or one an earlier build made.
+ * What's left is a folder that isn't there, one with nothing in it, or one an earlier build made and
+ * nothing else has been put in.
  */
 async function whyNotBuiltInto(home: string, out: string): Promise<string | null> {
   const found = await kindOf(out);
   if (found === "file") return "it's a file, not a folder";
-  if (isWithin(out, home)) {
-    return isSamePath(out, home)
-      ? "it's the transcripts home itself"
-      : "it holds the transcripts home";
+
+  const sites = await siteFolders(home);
+  const demo = path.join(home, DEMO_OUT);
+  const byName = whyAmongTheRecords(
+    { home, sites: sites.map((folder) => path.join(home, folder)), demo },
+    out,
+  );
+  if (byName !== null) return byName;
+  // A site's folder is a folder, not a link, so it's in the home's real place.
+  const realHome = await realOf(home);
+  const byPlace = whyAmongTheRecords(
+    {
+      home: realHome,
+      sites: sites.map((folder) => path.join(realHome, folder)),
+      demo: await realOf(demo),
+    },
+    await realOf(out),
+  );
+  if (byPlace !== null) return byPlace;
+
+  if (found === "folder" && (await readdir(out)).length > 0) {
+    if (!(await builtBefore(out))) return "it isn't empty, and voicecap site didn't build it";
+    return moreThanABuild(out);
   }
-  for (const folder of await siteFolders(home)) {
-    if (isWithin(path.join(home, folder), out)) {
-      return "it's inside a site's folder, where its records are";
+  return null;
+}
+
+/**
+ * What a folder holds, by name. A listing comes in the disk's order, so it's sorted: what's said of
+ * a folder is then the same each time.
+ */
+async function entriesOf(folder: string): Promise<Dirent[]> {
+  const entries = await readdir(folder, { withFileTypes: true });
+  return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/**
+ * Why a folder that a build made is more than that, in words that finish "won't build into <out>:
+ * ...", or null when it holds only what a build writes. A build writes files, in its folder and in
+ * each folder it makes, and no name that starts with a dot. A name with a dot first (a repository's
+ * .git), or a folder in a folder (a site folder of someone's own, with its date folder and its
+ * record), is somebody's, and emptying the folder would lose it. A link isn't looked into: when the
+ * folder is emptied it's removed, and what it leads to isn't.
+ */
+async function moreThanABuild(folder: string): Promise<string | null> {
+  for (const entry of await entriesOf(folder)) {
+    if (entry.name.startsWith(".")) {
+      return `it holds ${printable(entry.name)}, which a build never writes`;
     }
-  }
-  if (isWithin(path.join(home, DEMO_OUT), out)) {
-    return `it's inside ${DEMO_OUT}, where the demo's records are`;
-  }
-  if (found === "folder" && (await readdir(out)).length > 0 && !(await builtBefore(out))) {
-    return "it isn't empty, and voicecap site didn't build it";
+    if (!entry.isDirectory()) continue;
+    for (const inner of await entriesOf(path.join(folder, entry.name))) {
+      const where = printable(`${entry.name}/${inner.name}`);
+      if (inner.name.startsWith(".")) return `it holds ${where}, which a build never writes`;
+      if (inner.isDirectory()) {
+        return `it holds ${where}, a folder inside a folder, which a build never writes`;
+      }
+    }
   }
   return null;
 }
@@ -299,16 +417,12 @@ async function publishReport(
   for (const recorded of entry.files) {
     const source = path.join(entry.dir, recorded.name);
     const copy = await readCopy(source, recorded);
-    if ("problem" in copy) {
+    if ("left" in copy) {
       leaveOut(
         publishing.leftOut,
-        `${linkPath(publishing.home, source)}: not published: ${WHY_NOT_PUBLISHED[copy.problem]}`,
+        `${linkPath(publishing.home, source)}: not published: ${copy.left.why}`,
       );
-      // A file that isn't a regular one is as good as missing, to a reader of the site.
-      notPublished.push({
-        name: recorded.name,
-        reason: copy.problem === "changed" ? "changed" : "missing",
-      });
+      notPublished.push({ name: recorded.name, reason: copy.left.reason });
       continue;
     }
     const target = path.join(publishing.out, folder, recorded.name);
@@ -331,22 +445,26 @@ async function publishReport(
 /**
  * A file a record names, read once: its bytes when it's a regular file whose size and SHA-256 are
  * the recorded ones, and otherwise what's wrong with it. A link, a device, and a folder are never
- * read: a link could lead anywhere, and no rule about a name can know every device.
+ * read: a link could lead anywhere, and no rule about a name can know every device. A size that
+ * isn't the recorded one says the file changed, and it isn't read. Whatever else stops it being
+ * looked at or read (another program holds it, its name is too long, this account may not read it)
+ * leaves out that file alone: it's never a reason to stop the build.
  */
 async function readCopy(
   source: string,
   recorded: SharedFile,
-): Promise<{ bytes: Buffer } | { problem: Problem }> {
+): Promise<{ bytes: Buffer } | { left: Unpublished }> {
   try {
-    if (!(await lstat(source)).isFile()) return { problem: "not a regular file" };
+    const found = await lstat(source);
+    if (!found.isFile()) return { left: NOT_REGULAR };
+    if (found.size !== recorded.bytes) return { left: CHANGED };
     const bytes = await readFile(source);
     if (bytes.length !== recorded.bytes || sha256(bytes) !== recorded.sha256) {
-      return { problem: "changed" };
+      return { left: CHANGED };
     }
     return { bytes };
   } catch (error) {
-    if (isNotThere(error)) return { problem: "missing" };
-    throw error;
+    return { left: isNotThere(error) ? MISSING : unreadable(error) };
   }
 }
 

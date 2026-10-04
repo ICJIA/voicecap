@@ -57,8 +57,18 @@ const FILE_NAME = /^[A-Za-z0-9._-]+$/;
  * share's files from its folder. A site folder's name has only its characters to keep to.
  */
 const DOT_AT_EDGE = /^\.|\.$/;
-/** The demo is published as demo/ on the site, so the home's own site folder of that name isn't. */
-const DEMO_SITE = "demo";
+/**
+ * What a published file's name ends with: .html (a page), .docx (its Word copy), or .json (a
+ * walkthrough file), in lower case, as voicecap names its copies. Any other kind would be served
+ * from the site's own address with no policy of its own, and an .svg or an .htm that holds a script
+ * would run there.
+ */
+const PUBLISHED_KIND = /\.(?:html|docx|json)$/;
+/**
+ * The folder the demo is published in on the site, demo/, which the build (./build.ts) uses too. The
+ * home's own site folder of that name isn't published, since it would take the demo's place.
+ */
+export const DEMO_SITE = "demo";
 
 /**
  * Every entry of the home's records that the site can publish from, and a line for each thing left
@@ -168,19 +178,24 @@ async function readEntries(
 }
 
 /**
- * Add a line to what's left out, written so that it's safe to print: each control character in it,
- * and each of U+2028 and U+2029 (which end a line), is written as a backslash, "u", and four
- * lower-case hex digits. What a record holds, and what a folder is named, is its own, and a line is
- * printed to a terminal and kept in a build's log, so nothing in one may act there. Every line goes
- * through here, the build's own (./build.ts) as well as this module's.
+ * `text` written so that it's safe to print: each control character in it, and each of U+2028 and
+ * U+2029 (which end a line), is written as a backslash, "u", and four lower-case hex digits. What a
+ * record holds, and what a folder or a file is named, is its own, and what the build says is printed
+ * to a terminal and kept in a log, so nothing in it may act there.
+ */
+export function printable(text: string): string {
+  return text.replace(
+    /[\p{Cc}\u{2028}\u{2029}]/gu,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
+
+/**
+ * Add a line to what's left out, written so that it's safe to print (see printable). Every line
+ * goes through here, the build's own (./build.ts) as well as this module's.
  */
 export function leaveOut(leftOut: string[], line: string): void {
-  leftOut.push(
-    line.replace(
-      /[\p{Cc}\u{2028}\u{2029}]/gu,
-      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-    ),
-  );
+  leftOut.push(printable(line));
 }
 
 /**
@@ -228,10 +243,16 @@ function isTime(at: string): boolean {
 
 /**
  * Whether a file with this name is one voicecap would publish: a plain name, made of what
- * voicecap's are, with no dot at either edge (see DOT_AT_EDGE).
+ * voicecap's are, with no dot at either edge (see DOT_AT_EDGE), and of a kind voicecap names its
+ * copies (see PUBLISHED_KIND).
  */
 function isPublishableName(name: string): boolean {
-  return isPlainName(name) && FILE_NAME.test(name) && !DOT_AT_EDGE.test(name);
+  return (
+    isPlainName(name) &&
+    FILE_NAME.test(name) &&
+    !DOT_AT_EDGE.test(name) &&
+    PUBLISHED_KIND.test(name)
+  );
 }
 
 /**
