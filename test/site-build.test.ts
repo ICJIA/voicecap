@@ -55,6 +55,7 @@ import { createMemoryLogger, type MemoryLogger } from "../src/util/log.js";
 import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
 import { voicecapVersion } from "../src/util/version.js";
+import { linkToFolder } from "./helpers/links.js";
 import {
   DEMO_SHARED_ON,
   EXAMPLE_AT,
@@ -876,7 +877,7 @@ describe("buildSite", () => {
       await mkdir(target);
       await writeFile(path.join(target, "inside.txt"), "a file in the folder");
       await rm(link);
-      await symlink(target, link, "junction");
+      await linkToFolder(target, link);
       vi.mocked(readFile).mockClear();
 
       const { out, leftOut } = await build(home);
@@ -1193,7 +1194,7 @@ describe("buildSite", () => {
       ];
       for (const [index, [leadsTo, below, why]] of cases.entries()) {
         const link = path.join(links, `link-${index}`);
-        await symlink(leadsTo, link, "junction");
+        await linkToFolder(leadsTo, link);
         const out = path.join(link, below);
         const before = [await treeOf(root), await treeOf(links)];
         vi.mocked(rm).mockClear();
@@ -1214,7 +1215,7 @@ describe("buildSite", () => {
       // The demo's records are somewhere else, and voicecap-demo in the home leads to them.
       const elsewhere = path.join(root, "demo-records");
       await rename(path.join(home, DEMO_OUT), elsewhere);
-      await symlink(elsewhere, path.join(home, DEMO_OUT), "junction");
+      await linkToFolder(elsewhere, path.join(home, DEMO_OUT));
       const out = path.join(elsewhere, FIXTURE_FOLDER, "share");
       const before = await treeOf(root);
       vi.mocked(rm).mockClear();
@@ -1234,7 +1235,7 @@ describe("buildSite", () => {
       const home = await newHome();
       await writeFile(path.join(home, "_headers"), `${HEADERS_FIRST_LINE}\n`);
       const link = path.join(await newFolder(), "link-to-the-home");
-      await symlink(home, link, "junction");
+      await linkToFolder(home, link);
       const before = await treeOf(path.dirname(home));
       vi.mocked(rm).mockClear();
 
@@ -1284,7 +1285,7 @@ describe("buildSite", () => {
       // by name they aren't one folder, and where each really is says they are.
       const home = await newHome();
       const link = path.join(await newFolder(), "link-to-the-home");
-      await symlink(home, link, "junction");
+      await linkToFolder(home, link);
       const before = await treeOf(path.dirname(home));
       vi.mocked(rm).mockClear();
 
@@ -1300,7 +1301,7 @@ describe("buildSite", () => {
     it("builds in _site of a home that is given as a link to it, and refuses nothing for the link", async () => {
       const home = await newHome();
       const link = path.join(await newFolder(), "link-to-the-home");
-      await symlink(home, link, "junction");
+      await linkToFolder(home, link);
 
       const { out, content } = await build(link);
 
@@ -1321,8 +1322,8 @@ describe("buildSite", () => {
       await writeFile(path.join(precious, "inner", "also-mine.txt"), "my other file");
       const topLink = path.join(first.out, "a-link");
       const innerLink = path.join(first.out, FIXTURE_FOLDER, "another-link");
-      await symlink(precious, topLink, "junction");
-      await symlink(precious, innerLink, "junction");
+      await linkToFolder(precious, topLink);
+      await linkToFolder(precious, innerLink);
       const before = await treeOf(precious);
 
       const second = await build(home);
