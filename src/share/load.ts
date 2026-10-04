@@ -25,7 +25,7 @@ import {
   type StepRecord,
   type TranscriptJson,
 } from "../model.js";
-import { normalizeCanonical } from "../pages/canonical.js";
+import { recordedCanonical } from "../pages/canonical.js";
 import { readReviews } from "../reviews/store.js";
 import { homeFolder } from "../run/failure.js";
 import { pageDir, runJsonPath } from "../run/paths.js";
@@ -111,22 +111,15 @@ export interface ShareInput {
  * The root of the canonical address a site's page names it by: the root `configCanonical` gives
  * (report.canonical, which the config has checked), else the root `latest`, the latest counted run,
  * recorded, else none: the site is then named by the address voicecap read. A recorded root is
- * checked again, since a record is data: one that isn't a site's name (an IP address, say) names
- * nothing.
+ * checked again (`recordedCanonical`), since a record is data: one that isn't a site's name (an IP
+ * address, say) names nothing.
  */
 export function resolveCanonical(input: {
   configCanonical: string | null;
   latest: RunJson | null;
 }): string | null {
   if (input.configCanonical !== null) return input.configCanonical;
-  const recorded: unknown = input.latest?.canonical;
-  if (typeof recorded !== "string") return null;
-  try {
-    return normalizeCanonical(recorded);
-  } catch (error) {
-    if (error instanceof UsageError) return null;
-    throw error;
-  }
+  return recordedCanonical(input.latest?.canonical);
 }
 
 /**

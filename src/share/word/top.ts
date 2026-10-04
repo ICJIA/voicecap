@@ -1,8 +1,8 @@
 /**
  * The first three parts of the Word copy, as blocks (./blocks.ts): the top, the Summary, and "How
  * voicecap works". Each takes the model, and says the words of the page's renderer (../html/top.ts)
- * in the same order, but for the top, which puts its title and date first (see wordTop): the fixed
- * ones come from ../text.ts, the ones worked out from the model from
+ * in the same order, but for the top, which puts its title, the site's name, and when it was tested
+ * first (see wordTop): the fixed ones come from ../text.ts, the ones worked out from the model from
  * ../words.ts, and the heads and row labels of the tables that stand in for the page's tiles and
  * bars from `WORD_TEXT`. So the two copies can't say different things.
  *
@@ -16,13 +16,13 @@ import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import { HOW_STEPS, HOW_TEXT, SUMMARY_TEXT, TOP_TEXT, WHEN_TO_RUN, WORD_TEXT } from "../text.js";
 import {
-  generatedStamp,
   heardTitle,
   howLead,
   numbersOf,
   sentence,
   shareOf,
   spokenDuration,
+  testedLine,
   topLead,
   type NumberTile,
 } from "../words.js";
@@ -41,12 +41,21 @@ import {
 // The top.
 
 /**
- * The site, where a reader who isn't technical can place it: its name in bold, then its address.
- * "dvfr.illinois.gov. Site address https://dvfr.illinois.gov/." Its name is its canonical one when
- * it has one, and then so is its address.
+ * When it was tested and when the copy was made, in one paragraph: "Tested 29 September 2026,
+ * 14:02. This copy was made 30 September 2026." With no run that counts, nothing was tested, and it
+ * says only when the copy was made.
  */
-function siteLine({ name, site }: ShareModel["header"]): Line {
-  return [{ text: name, bold: true }, `. ${TOP_TEXT.siteAddress} ${site}.`];
+function datesLine(header: ShareModel["header"]): Line {
+  const tested = testedLine(header);
+  return [...(tested === null ? [] : [`${tested}. `]), WORD_TEXT.top.made(header.asOf)];
+}
+
+/**
+ * The site's address, in the Word copy's last line of the top, as the page's last small line has
+ * it: "Site address https://dvfr.illinois.gov/."
+ */
+function addressLine({ site }: ShareModel["header"]): Line {
+  return [`${TOP_TEXT.siteAddress} ${site}.`];
 }
 
 /**
@@ -65,19 +74,24 @@ function madeByLine({ preparedBy }: ShareModel["header"]): Line {
 }
 
 /**
- * The top: what the copy is, as its title, and when it was made, in bold, so a reader meets those
- * first rather than an address; then the site, how its pages were read (the lead), and who made it.
- * The page's header says the same words, in its own order: the site's name as its heading, and two
- * buttons that a document has no use for.
+ * The top: what the copy is, as its title; the site's name, in bold, which is its canonical one
+ * when it has one; the name set for the site, when one is; when it was tested and when the copy was
+ * made, so a reader meets those first rather than an address; then how its pages were read (the
+ * lead), who made it, and last the site's address. The page's header says the same words, in its
+ * own order: the site's name as its heading, the date and time under it, and two buttons that a
+ * document has no use for. The moment the copy was made, with its offset from UTC, is in the
+ * footer's line.
  */
 export function wordTop(model: ShareModel): Block[] {
-  const { header, footer } = model;
+  const { header } = model;
   return [
     title(TOP_TEXT.eyebrow),
-    para({ text: generatedStamp(footer), bold: true }),
-    para(...siteLine(header)),
+    para({ text: header.name, bold: true }),
+    ...(header.siteName === null ? [] : [para(header.siteName)]),
+    para(...datesLine(header)),
     para(...topLead(header)),
     para(...madeByLine(header)),
+    para(...addressLine(header)),
   ];
 }
 

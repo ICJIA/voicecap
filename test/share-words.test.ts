@@ -80,6 +80,7 @@ import {
   passHeading,
   problemTime,
   problemTitle,
+  readCopyNote,
   recordTime,
   resultsCaption,
   runTitle,
@@ -88,6 +89,7 @@ import {
   shareOf,
   sizesOf,
   spokenDuration,
+  testedLine,
   timelineDay,
   timeOfDay,
   titleOf,
@@ -102,6 +104,7 @@ import {
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, termsOf, textOf } from "./helpers/share-html.js";
 import {
+  DEMO_ROOT,
   demoModel,
   inputOf as inputWithoutTranscripts,
   LINES,
@@ -238,6 +241,33 @@ describe("the top", () => {
     for (const model of [await demoModel(), noRunModel()]) {
       expect(lineText(topLead(model.header))).toBe(paragraphOf(renderTop(model), "mast-lead"));
     }
+  });
+});
+
+describe("when it was tested", () => {
+  it("is the date and time the latest run began, said under the site's name", async () => {
+    const { header } = await demoModel(DEMO_ROOT);
+
+    expect(header.testedAt).toBe("29 September 2026, 14:02");
+    expect(testedLine(header)).toBe("Tested 29 September 2026, 14:02");
+    expect(TOP_TEXT.tested).toBe("Tested");
+  });
+
+  it("says what it's given as it is, never escaped, and nothing when no run counts", async () => {
+    const { header } = await demoModel();
+
+    expect(testedLine({ ...header, testedAt: `29 <b> & "x" 2026, 09:00` })).toBe(
+      `Tested 29 <b> & "x" 2026, 09:00`,
+    );
+    expect(testedLine({ ...header, testedAt: null })).toBeNull();
+    expect(noRunModel().header.testedAt).toBeNull();
+  });
+
+  it("is what the page's line under the name says", async () => {
+    const demo = await demoModel(DEMO_ROOT);
+
+    expect(paragraphOf(renderTop(demo), "mast-tested")).toBe(testedLine(demo.header));
+    expect(renderTop(noRunModel())).not.toContain("mast-tested");
   });
 });
 
@@ -1461,6 +1491,41 @@ describe("the lines of the evidence, the story, and the footer", () => {
       expect(paragraphsOf(renderEvidence(model))).toContain(lineText(evidenceGist(model)));
     }
     expect(paragraphsOf(renderEvidence(lost))).toContain(lineText(unreadableNote(lost) ?? []));
+  });
+
+  it("says the runs read a copy, and names no address", async () => {
+    // The demo's runs read a copy at http://127.0.0.1:4848, on the tester's computer.
+    const local = await demoModel(DEMO_ROOT);
+    const elsewhere = { ...local, header: { ...local.header, readFrom: "elsewhere" as const } };
+
+    expect(local.header.readFrom).toBe("local");
+    expect(readCopyNote(local)).toBe("These runs read a copy of the site on this computer.");
+    expect(readCopyNote(elsewhere)).toBe("These runs read a copy of the site at another address.");
+    // Neither names an address of any kind.
+    for (const note of [readCopyNote(local), readCopyNote(elsewhere)]) {
+      expect(note).not.toMatch(/\d|:|\/|localhost/i);
+    }
+  });
+
+  it("says nothing of a copy when the runs read the site itself, when no canonical address names the site, or when no run is shown", async () => {
+    const local = await demoModel(DEMO_ROOT);
+    const bare = await demoModel();
+
+    expect(readCopyNote({ ...local, header: { ...local.header, readFrom: "same" } })).toBeNull();
+    // With no canonical address the site is named by the address voicecap read: no copy to speak of.
+    expect(bare.header.readFrom).toBeNull();
+    expect(readCopyNote(bare)).toBeNull();
+    // No run is shown, so there are no "these runs".
+    expect(readCopyNote({ ...local, evidence: [] })).toBeNull();
+  });
+
+  it("is what the page says under the line that opens the evidence", async () => {
+    const local = await demoModel(DEMO_ROOT);
+    const said = paragraphsOf(renderEvidence(local));
+    const note = readCopyNote(local) ?? "";
+
+    expect(said.indexOf(note)).toBe(said.indexOf(lineText(evidenceGist(local))) + 1);
+    expect(paragraphsOf(renderEvidence(await demoModel()))).not.toContain(note);
   });
 
   it("says when a run ran, with the day again for a run that crossed one", async () => {

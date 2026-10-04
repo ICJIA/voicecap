@@ -230,6 +230,25 @@ describe("the header", () => {
     expect(buildShareModel(inputOf([replay])).header.testedAt).toBeNull();
   });
 
+  // A run is created, then its first session starts: the test began with the session, as the
+  // days the page says it was tested on, and the evidence's Started row, say.
+  it("dates the test by when the latest run's first session began, not when the run was created", () => {
+    const run = shareRun({
+      id: "r1",
+      createdAt: "2026-09-29T14:02:31.482+01:00",
+      sessions: [
+        { startedAt: "2026-09-29T14:03:40.120+01:00", endedAt: "2026-09-29T14:09:00.000+01:00" },
+        { startedAt: "2026-09-29T15:30:00.000+01:00", endedAt: "2026-09-29T15:40:00.000+01:00" },
+      ],
+      pages: [{ path: "/" }],
+    });
+    const model = buildShareModel(inputOf([run]));
+
+    expect(model.header.testedAt).toBe("29 September 2026, 14:03");
+    const started = model.evidence[0]?.facts.find(({ label }) => label === "Started");
+    expect(started?.value).toBe("29 September 2026, 14:03");
+  });
+
   it("says where the runs read the site: the same address, a copy on this computer, or a copy elsewhere", () => {
     const readFrom = (readOrigin: string, canonical: string | null) =>
       buildShareModel(
@@ -580,7 +599,11 @@ describe("the page shows no address of a copy on this computer", () => {
     // the root.
     expect(html).toContain(`<title>${NAME}: how its pages read aloud with NVDA</title>`);
     expect(html).toContain(`<h1>${NAME}</h1>`);
-    expect(met).toContain(`Site address ${DEMO_ROOT}`);
+    expect(met).toContain("Tested 29 September 2026, 14:02");
+    // The address of the site comes last, small, and is the root, linked.
+    expect(met).toContain("Site address");
+    expect(attributes(html, "href")).toContain(DEMO_ROOT);
+    expect(html).toContain(`<a href="${DEMO_ROOT}">${DEMO_ROOT}</a></span>`);
     expect(met).toContain(`Heard on this site: ${DEMO_ROOT}, three ways`);
     expect(met).toContain(`${on("common-mistakes/")}:`);
     expect(met).toContain(`7 pages from the sitemap ${on("sitemap.xml")}.`);
@@ -598,7 +621,9 @@ describe("the page shows no address of a copy on this computer", () => {
     const model = await demoModel(DEMO_ROOT);
     const met = await wordMeets(model);
 
-    expect(met).toContain(`${NAME}. Site address ${DEMO_ROOT}.`);
+    expect(met).toContain(NAME);
+    expect(met).toContain("Tested 29 September 2026, 14:02. This copy was made 30 September 2026.");
+    expect(met).toContain(`Site address ${DEMO_ROOT}.`);
     expect(met).toContain(`${NAME}: how its pages read aloud with NVDA`);
     expect(met).toContain(`${NAME}, as of 30 September 2026. Page `);
     expect(met).toContain(`Heard on this site: ${DEMO_ROOT}, three ways`);

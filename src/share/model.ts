@@ -106,8 +106,8 @@ export interface ShareModel {
      */
     tested: string | null;
     /**
-     * When the latest run began, as that run recorded it: "29 September 2026, 14:02". Null when no
-     * run counts.
+     * When the latest run began (its first session's start, as the evidence's "Started" says it), as
+     * that run recorded it: "29 September 2026, 14:02". Null when no run counts.
      */
     testedAt: string | null;
     /** The page's own date: "30 September 2026". */
@@ -325,7 +325,7 @@ function headerOf(input: ShareInput, standing: Standing): ShareModel["header"] {
     site: canonical ?? readOrigin,
     siteName: input.siteName?.trim() || null,
     tested: latest === null ? null : testedOf(resultsFrom(standing, latest)),
-    testedAt: latest === null ? null : dateAndTime(latest.createdAt),
+    testedAt: latest === null ? null : dateAndTime(runStart(latest)),
     asOf: longDate(input.generatedAt),
     preparedBy: latest?.sessions.at(-1)?.reviewer?.name ?? null,
     // Every run voicecap can count today is NVDA's.

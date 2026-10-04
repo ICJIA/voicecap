@@ -21,12 +21,15 @@ import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
 
 /**
- * The top of the page: the line above the site's name, the labels in the line below its lead (each
- * is followed by what it labels), the words of the link that follows "Made with", and the two
- * addresses the top links to.
+ * The top of the page: the line above the site's name, the label of the line under it (which is
+ * followed by when the site was tested), the labels in the line below its lead (each is followed by
+ * what it labels), the words of the link that follows "Made with", and the two addresses the top
+ * links to.
  */
 export const TOP_TEXT = {
   eyebrow: "Screen reader test results",
+  /** Before when the latest run began, under the site's name: "Tested 29 September 2026, 14:02". */
+  tested: "Tested",
   asOf: "As of",
   preparedBy: "Prepared by",
   madeWith: "Made with",
@@ -360,12 +363,21 @@ const REPEAT_EXACTLY =
   "To repeat this run exactly, with the same pages in the same order and the same passes and limits, ";
 
 /**
- * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
- * what a run's line says it is, the titles of a run's parts, the heads of its tables, a run's
- * walkthrough file, and the runs left out.
+ * "The evidence behind these results": its heading, that the runs read a copy of the site, what a
+ * fingerprint is, what the check proves, what a run's line says it is, the titles of a run's parts,
+ * the heads of its tables, a run's walkthrough file, and the runs left out.
  */
 export const EVIDENCE_TEXT = {
   title: "The evidence behind these results",
+  /**
+   * Said under the section's opening line when the runs read a copy of the site rather than the
+   * site itself, by where the copy was (`ShareModel.header.readFrom`): on the computer that ran
+   * them, or at another address. It names no address, since a copy's means nothing to a reader.
+   */
+  readCopy: {
+    local: "These runs read a copy of the site on this computer.",
+    elsewhere: "These runs read a copy of the site at another address.",
+  },
   /** What a fingerprint is: its question, which a copy sets in bold, and the answer. */
   fingerprint:
     "What's a fingerprint? A fingerprint (SHA-256) is a code computed from a file's exact contents: change one character, and it changes completely. voicecap took one of every file as it wrote it, so a matching fingerprint shows the file hasn't changed since.",
@@ -712,6 +724,14 @@ export const FOOTER_TEXT = {
  * says in place of the page's fingerprint check, which a Word document has none of.
  */
 export const WORD_TEXT = {
+  /**
+   * The top: the page says when the site was tested under its name (`TOP_TEXT.tested`) and, further
+   * down, when it is as of; the Word copy says both in one paragraph under the name, the second
+   * sentence being `made`, which takes the date the copy is as of.
+   */
+  top: {
+    made: (asOf: string): string => `This copy was made ${asOf}.`,
+  },
   /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
   summary: {
     /** The heads of the table of the six numbers: the number, and what it counts. */
@@ -819,7 +839,7 @@ export const WORD_TEXT = {
   },
   /**
    * The document itself: its author, when the records name no one who prepared it, and what each
-   * page's footer says before its page number ("Grants, as of 30 September 2026").
+   * page's footer says before its page number ("dvfr.illinois.gov, as of 30 September 2026").
    */
   document: {
     author: "voicecap",

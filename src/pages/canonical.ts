@@ -17,6 +17,22 @@ function originOf(value: string): string | null {
 }
 
 /**
+ * The root a record names as its site's canonical address, checked again, since a record is data
+ * that something other than voicecap may have written: null for one that isn't a site's name (an IP
+ * address, a local address, another kind of address, text that isn't an address, or something that
+ * isn't text at all). A root that fits comes back as `normalizeCanonical` has it.
+ */
+export function recordedCanonical(recorded: unknown): string | null {
+  if (typeof recorded !== "string") return null;
+  try {
+    return normalizeCanonical(recorded);
+  } catch (error) {
+    if (error instanceof UsageError) return null;
+    throw error;
+  }
+}
+
+/**
  * The root of the site at the canonical address `input`: its scheme, host, and path, with a `/` on
  * the end and without any query, hash, or credentials. An address typed the short way gets
  * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.

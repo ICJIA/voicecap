@@ -49,6 +49,7 @@ import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
+  DEMO_ROOT,
   demoModel,
   downloadOf,
   inputOf,
@@ -300,6 +301,40 @@ describe("wordEvidence", () => {
         "2 runs, both completed and sealed.",
       ]);
       expect(what?.kind === "para" ? boldIn(what.line) : []).toEqual(["What's a fingerprint?"]);
+    });
+
+    // The demo's runs read a copy at http://127.0.0.1:4848, on the tester's computer; its canonical
+    // address is the demo's, on the website. The line says it read a copy, and never where.
+    it("says the runs read a copy, and names no address, right under its opening line", async () => {
+      const model = await demoModel(DEMO_ROOT);
+      const blocks = wordEvidence(model);
+
+      expect(model.header.readFrom).toBe("local");
+      expect(blocks.slice(0, 4)).toEqual([
+        heading(1, "The evidence behind these results"),
+        para(...evidenceGist(model)),
+        para("These runs read a copy of the site on this computer."),
+        para(...firstSentenceBold(EVIDENCE_TEXT.fingerprint)),
+      ]);
+      // A copy anywhere else is said so too, with no more of an address.
+      const elsewhere = wordEvidence({
+        ...model,
+        header: { ...model.header, readFrom: "elsewhere" },
+      });
+      expect(wordsOf(elsewhere.slice(2, 3))).toEqual([
+        "These runs read a copy of the site at another address.",
+      ]);
+    });
+
+    it("says nothing of a copy when the runs read the site itself, or no canonical address names it", async () => {
+      const model = await demoModel(DEMO_ROOT);
+      const said = (made: ShareModel) => saysOf(wordEvidence(made));
+
+      expect(said({ ...model, header: { ...model.header, readFrom: "same" } })).not.toContain(
+        "These runs read a copy",
+      );
+      expect(said(await demoModel())).not.toContain("These runs read a copy");
+      expect(said({ ...model, evidence: [] })).not.toContain("These runs read a copy");
     });
 
     it("says what a reader can check in place of the page's check: that a Word document can't check itself, the two checks, and the web page's own", async () => {
@@ -914,7 +949,13 @@ describe("wordEvidence", () => {
     it("says what the page says around its runs: the line that opens it, what a fingerprint is, and the runs left out", async () => {
       let seen = 0;
 
-      for (const model of [await demoModel(), twoEraModel(), noRunModel()]) {
+      // The demo named by its canonical address, whose runs read a copy, says so too.
+      for (const model of [
+        await demoModel(),
+        await demoModel(DEMO_ROOT),
+        twoEraModel(),
+        noRunModel(),
+      ]) {
         const html = renderEvidence(model).replace(/<script.*?<\/script>/s, "");
         const outside = html.replace(/<details.*<\/details>/s, "");
         const words = wordsOf(wordEvidence(model));

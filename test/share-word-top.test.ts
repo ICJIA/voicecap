@@ -20,7 +20,7 @@ import {
   WHEN_TO_RUN,
   WORD_TEXT,
 } from "../src/share/text.js";
-import { generatedLine, generatedStamp, heardTitle, shareOf, topLead } from "../src/share/words.js";
+import { heardTitle, shareOf, testedLine, topLead } from "../src/share/words.js";
 import {
   PAGE_BREAK,
   heading,
@@ -32,8 +32,11 @@ import {
 import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
-import { demoModel, inputOf } from "./helpers/share-model.js";
+import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
 import { boldIn, hrefsOf, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
+
+/** Where a copy of the demo site runs on the tester's computer. */
+const READ = "http://127.0.0.1:4848";
 
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
@@ -49,6 +52,21 @@ function cleanModel(): ShareModel {
 function patsModel(): ShareModel {
   const run = shareRun({ id: "r1", sessions: [{ reviewer: "Pat Lee" }], pages: [{ path: "/" }] });
   return buildShareModel(inputOf([run]));
+}
+
+/**
+ * The demo site as voicecap read it on a copy on the tester's computer, named by its canonical
+ * address, with a name set for it: Pat Lee's run of one page, begun at 14:02 on 29 September 2026.
+ */
+function copyModel(siteName: string | null = "The voicecap demo"): ShareModel {
+  const run = shareRun({
+    id: "2026-09-29_1402",
+    site: READ,
+    createdAt: "2026-09-29T14:02:00-05:00",
+    sessions: [{ reviewer: "Pat Lee" }],
+    pages: [{ path: "/" }],
+  });
+  return buildShareModel(inputOf([run], { readOrigin: READ, canonical: DEMO_ROOT, siteName }));
 }
 
 /** The model with some parts of its summary changed. */
@@ -67,58 +85,85 @@ function topThree(model: ShareModel): Block[] {
 }
 
 describe("wordTop", () => {
-  // A reader who isn't technical meets a title and a date first, never an address such as
-  // 127.0.0.1:4848: the site comes after, named in words where its records give it a name.
-  it("leads with what it is, and when it was made", async () => {
-    const model = await demoModel();
+  // A reader who isn't technical meets a title, the site's name, and when it was tested first,
+  // never an address such as 127.0.0.1:4848: the address comes last.
+  it("leads with the canonical name and the date and time it was tested", async () => {
+    const model = await demoModel(DEMO_ROOT);
     const top = wordTop(model);
 
     expect(top[0]).toEqual({ kind: "title", text: TOP_TEXT.eyebrow });
-    expect(top[1]).toEqual(para({ text: "30 September 2026 at 09:00 (UTC−05:00)", bold: true }));
+    expect(top[1]).toEqual(para({ text: "voicecap.netlify.app", bold: true }));
+    expect(wordsOf(top)[2]).toBe(
+      "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
+    );
     expect(wordsOf(top)).toContain(lineText(topLead(model.header)));
+    // The runs read a copy at http://127.0.0.1:4848, and not a word of the top says so.
+    expect(wordsOf(top).join("\n")).not.toMatch(/127\.0\.0\.1|localhost/);
   });
 
-  it("dates itself as its footer does, from the moment it was made", async () => {
-    const model = await demoModel();
-    const [, stamp] = wordTop(model);
-    const stamped = generatedStamp(model.footer);
+  it("says when it was tested as the page does, and when the copy was made as the page's As of does", async () => {
+    const model = await demoModel(DEMO_ROOT);
+    const [, , dates] = wordTop(model);
+    const page = renderTop(model);
 
-    expect(stamp).toEqual(para({ text: stamped, bold: true }));
-    expect(generatedLine(model.footer).startsWith(`Generated on ${stamped}.`)).toBe(true);
+    expect(model.header.testedAt).toBe("29 September 2026, 14:02");
+    expect(testedLine(model.header)).toBe("Tested 29 September 2026, 14:02");
+    expect(wordsOf([dates!])).toEqual([
+      `${testedLine(model.header)}. This copy was made ${model.header.asOf}.`,
+    ]);
+    expect(page).toContain(`<p class="mast-tested">${testedLine(model.header)}</p>`);
+    expect(page).toContain(`<span>As of <b>${model.header.asOf}</b></span>`);
   });
 
-  it("has five lines: what it is, when, the site, how its pages were read, and who made it", async () => {
-    const model = await demoModel();
-    const top = wordTop(model);
+  it("has six lines: what it is, the site, when, how its pages were read, who made it, and the site's address", async () => {
+    const top = wordTop(await demoModel(DEMO_ROOT));
 
-    expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para", "para"]);
+    expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para", "para", "para"]);
     expect(wordsOf(top)).toEqual([
       "Screen reader test results",
-      "30 September 2026 at 09:00 (UTC−05:00)",
-      "127.0.0.1:4848. Site address http://127.0.0.1:4848.",
+      "voicecap.netlify.app",
+      "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
       "How its pages read aloud with NVDA, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.",
       "Made with voicecap.",
+      `Site address ${DEMO_ROOT}.`,
     ]);
   });
 
-  it("names the site in bold before its address, whether the address is its canonical one or the one voicecap read", () => {
-    const read = patsModel();
-    const [, , site] = wordTop(read);
+  it("says the name set for the site on a line of its own, under the name, when there is one", () => {
+    const named = wordTop(copyModel("The voicecap demo"));
+    const unnamed = wordTop(copyModel(null));
 
-    expect(wordsOf(wordTop(read))[2]).toBe(`example.illinois.gov. Site address ${SITE}.`);
+    expect(wordsOf(named).slice(0, 4)).toEqual([
+      "Screen reader test results",
+      "voicecap.netlify.app",
+      "The voicecap demo",
+      "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
+    ]);
+    expect(named[2]).toEqual(para("The voicecap demo"));
+    expect(named).toHaveLength(7);
+    // Without it, the line isn't there.
+    expect(unnamed).toHaveLength(6);
+    expect(wordsOf(unnamed)[2]).toMatch(/^Tested /);
+  });
+
+  it("names the site in bold on a line of its own, and says its address after everything else", () => {
+    const read = patsModel();
+    const top = wordTop(read);
+    const [, site] = top;
+
+    // No canonical address names this site: the host voicecap read is its name, as before.
+    expect(wordsOf(top)[1]).toBe("example.illinois.gov");
     expect(site?.kind === "para" ? boldIn(site.line) : []).toEqual(["example.illinois.gov"]);
-    // Named by its canonical address, the line is that name and that address.
-    const header = {
-      ...read.header,
-      name: "dvfr.illinois.gov",
-      site: "https://dvfr.illinois.gov/",
-    };
-    const canonical = wordTop({ ...read, header });
-    expect(wordsOf(canonical)[2]).toBe(
-      "dvfr.illinois.gov. Site address https://dvfr.illinois.gov/.",
-    );
-    expect(boldIn(canonical[2]?.kind === "para" ? canonical[2].line : [])).toEqual([
-      "dvfr.illinois.gov",
+    expect(wordsOf(top).at(-1)).toBe(`Site address ${SITE}.`);
+    // The name isn't followed by its address: the lines that come first say none.
+    expect(wordsOf(top).slice(0, 3).join("\n")).not.toContain("Site address");
+
+    // Named by its canonical address, the name is its host, and the address last is its root.
+    const canonical = wordTop(copyModel());
+    expect(wordsOf(canonical)[1]).toBe("voicecap.netlify.app");
+    expect(wordsOf(canonical).at(-1)).toBe(`Site address ${DEMO_ROOT}.`);
+    expect(boldIn(canonical[1]?.kind === "para" ? canonical[1].line : [])).toEqual([
+      "voicecap.netlify.app",
     ]);
   });
 
@@ -135,10 +180,11 @@ describe("wordTop", () => {
     // The demo runs are from before voicecap recorded who ran a session.
     const demo = wordTop(await demoModel());
     const pats = wordTop(patsModel());
-    const about = pats.at(-1);
+    // Who made it comes before the site's address, which is last.
+    const about = pats.at(-2);
 
     expect(wordsOf(demo).join("\n")).not.toContain("Prepared by");
-    expect(wordsOf(pats).at(-1)).toBe("Prepared by Pat Lee. Made with voicecap.");
+    expect(wordsOf(pats).at(-2)).toBe("Prepared by Pat Lee. Made with voicecap.");
     expect(about?.kind === "para" ? boldIn(about.line) : []).toEqual(["Pat Lee"]);
   });
 
@@ -147,7 +193,7 @@ describe("wordTop", () => {
     const top = wordTop(model);
 
     expect(hrefsOf(top)).toEqual([TOP_TEXT.nvAccess, TOP_TEXT.github]);
-    expect(linesIn(top).at(-1)).toContainEqual({
+    expect(linesIn(top).at(-2)).toContainEqual({
       text: "voicecap",
       href: "https://github.com/ICJIA/voicecap",
     });
@@ -162,15 +208,20 @@ describe("wordTop", () => {
     expect(hrefsOf(other)).toEqual([TOP_TEXT.github]);
   });
 
-  it("says plainly that no run counts, and still says when, where, and who made it", () => {
+  it("says plainly that no run counts, and still says which site, when the copy was made, and who made it", () => {
     const none = noRunModel();
     const words = wordsOf(wordTop(none));
 
     expect(none.header.tested).toBeNull();
-    expect(words[1]).toBe("30 September 2026 at 09:00 (UTC−05:00)");
-    expect(words[2]).toBe(`example.illinois.gov. Site address ${SITE}.`);
+    expect(none.header.testedAt).toBeNull();
+    expect(words[0]).toBe("Screen reader test results");
+    expect(words[1]).toBe("example.illinois.gov");
+    // Nothing was tested, so there is no date and time to say, only when the copy was made.
+    expect(words[2]).toBe("This copy was made 30 September 2026.");
     expect(words[3]).toContain("No live run counts yet, so there's no test date.");
     expect(words[4]).toBe("Made with voicecap.");
+    expect(words[5]).toBe(`Site address ${SITE}.`);
+    expect(testedLine(none.header)).toBeNull();
   });
 });
 

@@ -39,6 +39,7 @@ import {
   textOf,
 } from "./helpers/share-html.js";
 import {
+  DEMO_ROOT,
   demoModel,
   downloadOf,
   inputOf,
@@ -250,6 +251,44 @@ describe("renderEvidence", () => {
       expect(html).toContain(
         `<p class="gist"><b>2 runs, both completed and sealed.</b> The flags were computed with the current flag rules, fingerprint <code>${model.flagRulesSha256}</code>.</p>`,
       );
+    });
+
+    // The demo's runs read a copy at http://127.0.0.1:4848, on the tester's computer; its canonical
+    // address is the demo's, on the website. The line says it read a copy, and never where.
+    it("says the runs read a copy, and names no address", async () => {
+      const model = await demoModel(DEMO_ROOT);
+      const html = renderEvidence(model);
+      const at = (text: string) => html.indexOf(text);
+      const note = '<p class="gist">These runs read a copy of the site on this computer.</p>';
+
+      expect(model.header.readFrom).toBe("local");
+      expect(html).toContain(note);
+      // Right under the line that opens the section, before the check.
+      expect(at('<p class="gist"><b>2 runs')).toBeGreaterThan(-1);
+      expect(at(note)).toBeGreaterThan(at('<p class="gist"><b>2 runs'));
+      expect(at(note)).toBeLessThan(at('<div class="fp-check">'));
+      expect(textOf(note)).toBe("These runs read a copy of the site on this computer.");
+
+      // A copy anywhere else is said so too, with no more of an address.
+      const elsewhere = renderEvidence({
+        ...model,
+        header: { ...model.header, readFrom: "elsewhere" },
+      });
+      expect(elsewhere).toContain(
+        '<p class="gist">These runs read a copy of the site at another address.</p>',
+      );
+      expect(elsewhere).not.toContain("These runs read a copy of the site on this computer.");
+    });
+
+    it("says nothing of a copy when the runs read the site itself, or no canonical address names it", async () => {
+      const model = await demoModel(DEMO_ROOT);
+      const same = renderEvidence({ ...model, header: { ...model.header, readFrom: "same" } });
+
+      expect(same).not.toContain("These runs read a copy");
+      // The demo with no canonical address is named by the address its runs read: no copy to say.
+      expect(renderEvidence(await demoModel())).not.toContain("These runs read a copy");
+      // With no run to show, there are no "these runs".
+      expect(renderEvidence({ ...model, evidence: [] })).not.toContain("These runs read a copy");
     });
 
     it("says which pages' flags aren't the current rules', when any are as recorded", async () => {

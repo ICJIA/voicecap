@@ -40,6 +40,7 @@ import {
   generatedLine,
   inRun,
   notRecordedLine,
+  readCopyNote,
   runTitle,
   timelineDay,
   whenOf,
@@ -195,15 +196,20 @@ function leftOutBlocks(leftOut: ShareModel["leftOut"]): Block[] {
 
 /**
  * "The evidence behind these results": how many runs there are, that each completed and was sealed,
- * and the fingerprint of the flag rules; what a fingerprint is; what a reader can check; each run,
- * the latest first; and the runs left out.
+ * and the fingerprint of the flag rules; that the runs read a copy of the site, when they did; what
+ * a fingerprint is; what a reader can check; each run, the latest first; and the runs left out.
  *
  * With no run that counts there is nothing to check, and the section says so, with what it left out.
  */
 export function wordEvidence(model: ShareModel): Block[] {
   const { evidence, leftOut } = model;
   const [latest] = evidence;
-  const opening = [heading(1, EVIDENCE_TEXT.title), para(...evidenceGist(model))];
+  const copy = readCopyNote(model);
+  const opening = [
+    heading(1, EVIDENCE_TEXT.title),
+    para(...evidenceGist(model)),
+    ...(copy === null ? [] : [para(copy)]),
+  ];
   if (latest === undefined) return [...opening, ...leftOutBlocks(leftOut)];
   return [
     ...opening,

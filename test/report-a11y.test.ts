@@ -11,6 +11,8 @@ import { liveCompareDir } from "../src/run/paths.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 import { LOGO, buildRichFixture, tempOutDir } from "./helpers/report-data.js";
 
+const CANONICAL = "https://dvfr.illinois.gov/";
+
 let browser: Browser;
 let reportUrl: string;
 let reportHtml: string;
@@ -57,7 +59,8 @@ beforeAll(async () => {
   totalRows = run.pages.length;
   const { file } = await generateReport({
     outDir,
-    run,
+    // A run that recorded its site's canonical address, which the subtitle then names and links.
+    run: { ...run, canonical: CANONICAL },
     target: "live",
     config: {
       ...DEFAULT_CONFIG,
@@ -79,6 +82,12 @@ afterAll(async () => {
 });
 
 describe("report accessibility (axe-core in Chromium)", () => {
+  it("names the canonical address in its subtitle, which axe checks with the rest", () => {
+    // The link says the site's name, and goes to its root.
+    expect(reportHtml).toContain(`of <a href="${CANONICAL}">dvfr.illinois.gov</a>, with reviews`);
+    expect(reportHtml).not.toContain("https://example.illinois.gov/</a>, with reviews");
+  });
+
   it("has no violations in the light color scheme", async () => {
     const page = await openReport({ colorScheme: "light" });
     await expect(page.locator("#filters").isVisible()).resolves.toBe(true);

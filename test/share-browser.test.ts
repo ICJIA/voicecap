@@ -4,12 +4,13 @@
  * both themes, with its folds closed and open), for loading nothing from outside the file, for what
  * its scripts do with its folds, and for its fingerprint check, run on the page's own data.
  *
- * Five sites make the pages: the demo runs of 29 September 2026 (copied, so the page goes in the
+ * Six sites make the pages: the demo runs of 29 September 2026 (copied, so the page goes in the
  * copy), where each run failed a page the other read, as Review Focus 5 describes; a site made by
  * voicecap's own commands, with reviews, a manual session, a page that sounds different, and a
  * page that failed; a site whose transcripts hold markup and a closing script tag; a site whose
- * host is one long word, with no name set and no title on its home page; and a site whose only run
- * was a replay, as in CI's smoke test.
+ * host is one long word, with no name set and no title on its home page; a site whose config gives
+ * it a canonical address and a long name, which the page leads with; and a site whose only run was
+ * a replay, as in CI's smoke test.
  */
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -68,6 +69,14 @@ const LONG_PATH =
  * name set for the site and no title on its home page, it's the page's name and its address.
  */
 const LONG_HOST = "researchhub.icjia.illinois.gov";
+
+/**
+ * The address people visit a site at, as its config says it, and the name the config gives the
+ * site: long enough to need more than a line of a phone's window, and one of its words as long as a
+ * name can be. The site is read at SITE, which no reader meets.
+ */
+const CANONICAL = "https://dvfr.illinois.gov/";
+const SITE_NAME = `Domestic Violence Fatality Review of the Illinois Criminal Justice Information Authority ${"x".repeat(40)}`;
 
 /** What the check's data holds, as far as these tests look at it. */
 interface Data {
@@ -212,6 +221,24 @@ async function longHostPage(): Promise<string> {
   return sharePath(result.siteDir);
 }
 
+/**
+ * One run of the scripted site, read at SITE, whose config gives it a canonical address and a name:
+ * the page leads with the canonical name and when it was tested, then the name the config gave, and
+ * shows the root last, as a link.
+ */
+async function namedPage(): Promise<string> {
+  const dir = await setup();
+  folders.push(dir);
+  const result = await runAudit({
+    ...options(dir, new ScriptedDriver(sitePages())),
+    config: config({ report: { canonical: CANONICAL, siteName: SITE_NAME } }),
+  });
+  expect(result.outcome).toBe("completed");
+  const written = await readFile(sharePath(result.siteDir), "utf8");
+  expect(written).toContain("<h1>dvfr.illinois.gov</h1>");
+  return sharePath(result.siteDir);
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -228,7 +255,14 @@ async function replayPage(): Promise<{ file: string; runId: string }> {
 
 let browser: Browser;
 /** The page files, by the site they were written for. */
-let pages: { demo: string; rich: string; hostile: string; longHost: string; replay: string };
+let pages: {
+  demo: string;
+  rich: string;
+  hostile: string;
+  longHost: string;
+  named: string;
+  replay: string;
+};
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
 let replayRunId: string;
@@ -244,8 +278,9 @@ beforeAll(async () => {
   const rich = await richPage();
   const hostile = await hostilePage();
   const longHost = await longHostPage();
+  const named = await namedPage();
   const replay = await replayPage();
-  pages = { demo, rich, hostile: hostile.file, longHost, replay: replay.file };
+  pages = { demo, rich, hostile: hostile.file, longHost, named, replay: replay.file };
   hostileRun = hostile;
   replayRunId = replay.runId;
 });
@@ -404,13 +439,31 @@ describe("axe, in Chromium", () => {
     async (_, width) => {
       // What a narrow window holds worst: the page's names are whole addresses, and a site's host
       // is one word. One page has a long address, and the other a long host.
-      for (const which of ["rich", "longHost"] as const) {
+      // A third has a long name set for it, as a line under its canonical name, and the root of its
+      // canonical address as a link, which in a narrow window is as long as its window.
+      for (const which of ["rich", "longHost", "named"] as const) {
         const page = await open(pages[which]);
         expect(await axeFindings(page, width), `${which}, dark, folds closed`).toEqual([]);
         await page.locator("#open-all").click();
         await page.locator("#theme-toggle").click();
         expect(await axeFindings(page, width), `${which}, light, folds open`).toEqual([]);
       }
+    },
+    AXE_TIMEOUT,
+  );
+
+  it(
+    "has no axe violations on the page of a site named by its canonical address, with a name set for it, at 1280 px",
+    async () => {
+      const page = await open(pages.named);
+
+      expect(await axeFindings(page), "dark, folds closed").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page), "light, folds closed").toEqual([]);
     },
     AXE_TIMEOUT,
   );
@@ -431,7 +484,7 @@ describe("a page in a narrow window", () => {
   it.each([1280, 390, 320])(
     "keeps every box's contents, and the page, inside the window at %i px, with folds closed and open",
     async (width) => {
-      for (const which of ["demo", "rich", "longHost"] as const) {
+      for (const which of ["demo", "rich", "longHost", "named"] as const) {
         const page = await open(pages[which]);
         await page.setViewportSize({ width, height: 900 });
         expect(await overflowOf(page), `${which}, folds closed`).toEqual(FITS);
@@ -488,6 +541,62 @@ describe("a page in a narrow window", () => {
     }, selector);
 
     expect(await overflowOf(page)).toEqual(FITS);
+  });
+
+  // The same for what the top says under the name, on a page that has each: the name the config
+  // gives the site, when it was tested, and the address, a link.
+  it.each([
+    ["the name set for the site", ".mast-site"],
+    ["when it was tested", ".mast-tested"],
+    ["the link to the site's address", ".mast-meta .addr a"],
+  ])("breaks a word longer than the window in %s", async (_, selector) => {
+    const page = await open(pages.named);
+    await page.setViewportSize({ width: 320, height: 900 });
+
+    await page.evaluate((selected) => {
+      const text = document.querySelector(selected);
+      if (text === null) throw new Error(`The page has no ${selected}.`);
+      text.textContent = "w".repeat(150);
+    }, selector);
+
+    expect(await overflowOf(page)).toEqual(FITS);
+  });
+});
+
+describe("the top of the page", () => {
+  it("leads with the canonical name, then the name set for the site and when it was tested, and ends with the address as a link", async () => {
+    const page = await open(pages.named);
+
+    // What a reader sees of the header, in order: the buttons are the page's own.
+    const lines = (await page.locator(".mast").innerText())
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    const at = (text: string) => lines.findIndex((line) => line.includes(text));
+
+    expect(await page.locator("h1").allTextContents()).toEqual(["dvfr.illinois.gov"]);
+    expect(await page.locator(".mast-site").textContent()).toBe(SITE_NAME);
+    expect(await page.locator(".mast-tested").textContent()).toMatch(
+      /^Tested \d{1,2} [A-Z][a-z]+ \d{4}, \d{2}:\d{2}$/,
+    );
+    const order = [
+      "SCREEN READER TEST RESULTS",
+      "dvfr.illinois.gov",
+      SITE_NAME.slice(0, 20),
+      "Tested ",
+      "How its pages read aloud",
+      "As of ",
+      "Site address",
+    ].map(at);
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // The address is the canonical root: a link to it, with its words.
+    const link = page.locator(".mast-meta .addr a");
+    expect(await link.getAttribute("href")).toBe(CANONICAL);
+    expect(await link.textContent()).toBe(CANONICAL);
+    // Nothing a reader meets, with every fold open, holds the address voicecap read.
+    await page.locator("#open-all").click();
+    expect(await page.locator("body").innerText()).not.toContain("example.illinois.gov");
   });
 });
 

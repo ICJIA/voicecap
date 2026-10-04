@@ -222,10 +222,14 @@ describe("renderWordCopy", () => {
     const parts = await unzipDocx(await renderWordCopy(model));
 
     expect(XMLValidator.validate(parts.document)).toBe(true);
+    // The title, the site's name, and when it was tested and the copy made, first: no address.
     expect(paragraphsOf(parts.document).slice(0, 3)).toEqual([
       { style: "Title", text: "Screen reader test results" },
-      { style: "", text: "30 September 2026 at 09:00 (UTC−05:00)" },
-      { style: "", text: "127.0.0.1:4848. Site address http://127.0.0.1:4848." },
+      { style: "", text: "127.0.0.1:4848" },
+      {
+        style: "",
+        text: "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
+      },
     ]);
     expect(propertyOf(parts.core, "dc:title")).toBe(
       `${model.header.name}: how its pages read aloud with NVDA`,
@@ -300,10 +304,9 @@ describe("renderWordCopy", () => {
     expect(XMLValidator.validate(parts.document)).toBe(true);
     expect(parts.core).toContain("Smith &amp; Sons&apos; &quot;Grants&quot; &lt;portal&gt;");
     expect(propertyOf(parts.core, "dc:title")).toBe(`${name}: how its pages read aloud with NVDA`);
-    expect(paragraphsOf(parts.document)[2]).toEqual({
-      style: "",
-      text: `${name}. Site address ${SITE}.`,
-    });
+    expect(paragraphsOf(parts.document)[1]).toEqual({ style: "", text: name });
+    // Its address is the last line of the top, after who made it.
+    expect(paragraphsOf(parts.document)[5]).toEqual({ style: "", text: `Site address ${SITE}.` });
     expect(footerWords(parts.footer)[0]).toBe(`${name}, as of 30 September 2026. Page `);
   });
 

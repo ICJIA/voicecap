@@ -7,6 +7,7 @@ import {
   isLocalHost,
   normalizeCanonical,
   readLocation,
+  recordedCanonical,
   toCanonical,
   type TaggedPage,
 } from "../src/pages/canonical.js";
@@ -92,6 +93,35 @@ describe("normalizeCanonical", () => {
       expect(errorMessage(refusal), input).toBe(
         `"${input}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
       );
+    }
+  });
+});
+
+describe("recordedCanonical", () => {
+  it("gives the root a record names, as normalizeCanonical has it", () => {
+    expect(recordedCanonical(demoRoot)).toBe(demoRoot);
+    expect(recordedCanonical("https://dvfr.illinois.gov")).toBe("https://dvfr.illinois.gov/");
+  });
+
+  // A record is data, which something other than voicecap may have written: what isn't a site's
+  // name names nothing, and never throws.
+  it("gives null for a record that isn't a site's name", () => {
+    for (const recorded of [
+      "http://127.0.0.1:4848/",
+      "http://localhost:3000/",
+      "http://[::1]:4848/",
+      "javascript:alert(1)",
+      "ftp://dvfr.illinois.gov/",
+      "not an address",
+      "",
+    ]) {
+      expect(recordedCanonical(recorded), recorded).toBeNull();
+    }
+  });
+
+  it("gives null for a record that isn't text, or isn't there", () => {
+    for (const recorded of [undefined, null, 42, true, {}, ["https://dvfr.illinois.gov/"]]) {
+      expect(recordedCanonical(recorded), JSON.stringify(recorded)).toBeNull();
     }
   });
 });
