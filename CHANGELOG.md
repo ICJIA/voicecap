@@ -4,10 +4,6 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [0.9.2] - 2026-10-04
-
-The footer of the website and of the shareable page keeps to the width of the text above it.
-
 ### Changed
 
 - **The footer of the website and of the shareable page keeps to the width of the text above it,** so a line of it is no longer to read. On a wide window it ran the page's whole width, about 170 characters a line. Its smaller text now stops at 80 characters, as wide as the 72 of the text above. A page already shared is as it was: only pages made from now on change.
