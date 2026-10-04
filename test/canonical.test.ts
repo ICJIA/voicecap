@@ -5,6 +5,7 @@ import {
   canonicalRootFrom,
   chooseCanonicalRoot,
   isLocalHost,
+  isWebRoot,
   normalizeCanonical,
   readLocation,
   recordedCanonical,
@@ -122,6 +123,62 @@ describe("recordedCanonical", () => {
   it("gives null for a record that isn't text, or isn't there", () => {
     for (const recorded of [undefined, null, 42, true, {}, ["https://dvfr.illinois.gov/"]]) {
       expect(recordedCanonical(recorded), JSON.stringify(recorded)).toBeNull();
+    }
+  });
+});
+
+describe("isWebRoot", () => {
+  it("is true for the root of a web site, as a share records it", () => {
+    for (const root of [
+      "https://dvfr.illinois.gov/",
+      demoRoot,
+      "https://staging.dvfr.org:8443/",
+      "http://dvfr.illinois.gov/",
+      "https://xn--bcher-kva.example/",
+    ]) {
+      expect(isWebRoot(root), root).toBe(true);
+    }
+  });
+
+  // A share of a site with no canonical address records the address voicecap read, which is no
+  // name, but is a root all the same.
+  it("is true for the root of an IP address or a local address", () => {
+    for (const root of [
+      `${demoOrigin}/`,
+      "http://localhost:3000/",
+      "http://[::1]:4848/",
+      "http://203.0.113.7/",
+    ]) {
+      expect(isWebRoot(root), root).toBe(true);
+    }
+  });
+
+  it("is false for text that isn't a root as voicecap writes one", () => {
+    for (const value of [
+      "dvfr.illinois.gov",
+      "https://dvfr.illinois.gov",
+      "https://dvfr.illinois.gov/about",
+      "https://dvfr.illinois.gov/?x=1",
+      "https://dvfr.illinois.gov/?",
+      "https://dvfr.illinois.gov/#top",
+      "https://pat:secret@dvfr.illinois.gov/",
+      "HTTPS://Dvfr.Illinois.gov/",
+      "https://dvfr.illinois.gov:443/",
+      " https://dvfr.illinois.gov/",
+      "https://dvfr.illinois.gov/ ",
+      "ftp://dvfr.illinois.gov/",
+      "file:///C:/records/",
+      "javascript:alert(1)",
+      "not an address",
+      "",
+    ]) {
+      expect(isWebRoot(value), JSON.stringify(value)).toBe(false);
+    }
+  });
+
+  it("is false for a record that isn't text, or isn't there", () => {
+    for (const value of [undefined, null, 42, true, {}, ["https://dvfr.illinois.gov/"]]) {
+      expect(isWebRoot(value), JSON.stringify(value)).toBe(false);
     }
   });
 });

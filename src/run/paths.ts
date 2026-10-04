@@ -13,8 +13,9 @@ import { resolveUserPath } from "../util/git-bash.js";
  *   share/current.html                  (the shareable page, rewritten wherever report.html is)
  *   share/current.docx                  (its Word copy, written with it)
  *   share/<site>_<date>.html            (the page and its Word copy that `voicecap share` made to
- *   share/<site>_<date>.docx             send, named for this folder and the day, with -2, -3 for
- *                                        more the same day: never rewritten)
+ *   share/<site>_<date>.docx             send, named for the site (its canonical name, else the
+ *                                        address voicecap read, as this folder is) and the day,
+ *                                        with -2, -3 for more the same day: never rewritten)
  *   share/<site>_<date>_<run>_walkthrough.json
  *                                       (each run's walkthrough file, made with them and named for
  *                                        them and the run: never rewritten)

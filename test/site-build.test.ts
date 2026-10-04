@@ -1088,6 +1088,7 @@ describe("buildSite", () => {
                 seq: 1,
                 at: EXAMPLE_AT,
                 by: "Sam Rivera",
+                site: null,
                 files: [recordOf(name, bytes)],
               },
             ],

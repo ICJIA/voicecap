@@ -1173,6 +1173,139 @@ describe("verifyHome, and what was shared", () => {
     });
   });
 
+  // 0.10.0: an entry records the root of the site its copies are named for. Entries from before
+  // have none, and a record holds both.
+  describe("the site an entry records", () => {
+    /**
+     * Entries as voicecap wrote them before 0.10.0: with no site, sealed again over what they hold,
+     * and each chained to the one before it.
+     */
+    function asBefore(entries: Record<string, unknown>[]): void {
+      let prev: unknown = null;
+      for (const entry of entries) {
+        delete entry.site;
+        entry.prev = prev;
+        reseal(entry);
+        prev = entry.seal;
+      }
+    }
+
+    it("finds nothing wrong with entries from before 0.10.0, which record no site", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        // Made now, each has one: this takes it away, as if it were never there.
+        expect(entries.map((entry) => entry.site)).toEqual(
+          Array(2).fill("https://example.illinois.gov/"),
+        );
+        asBefore(entries);
+        expect(entries.map((entry) => "site" in entry)).toEqual([false, false]);
+      });
+
+      const logger = createMemoryLogger();
+      const { sites, problems } = await verifyHome({ home, logger });
+
+      expect(problems).toBe(0);
+      expect(sites[0]).toMatchObject({ shares: 2, problems: [] });
+      expect(logger.entries.at(-1)?.message).toBe(
+        "example.illinois.gov: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 2 shares checked: everything matches.",
+      );
+    });
+
+    it("finds nothing wrong with a record of an entry from before 0.10.0 and one after it", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        asBefore(entries.slice(0, 1));
+        // The second still follows it, and records its site.
+        entries[1]!.prev = entries[0]!.seal;
+        reseal(entries[1]!);
+        expect("site" in entries[1]!).toBe(true);
+      });
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    it.each<[string, string]>([
+      ["a canonical address", "https://dvfr.illinois.gov/"],
+      ["a root with a path", "https://voicecap.netlify.app/demo-site/"],
+      ["a root with a port", "https://staging.dvfr.org:8443/"],
+      // What a share records when no canonical address is known: the address voicecap read.
+      ["the address of a copy on this computer", "http://127.0.0.1:4848/"],
+      ["an IPv6 address", "http://[::1]:4848/"],
+    ])("finds nothing wrong with a site that is %s", async (_what, site) => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.site = site;
+        reseal(entries[1]!);
+      });
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    it.each<[string, string]>([
+      ["text that isn't an address", "example.illinois.gov"],
+      ["an address with another scheme", "ftp://example.illinois.gov/"],
+      ["an address with no slash on the end", "https://example.illinois.gov"],
+      ["the address of a page", "https://example.illinois.gov/about"],
+      ["an address with a query", "https://example.illinois.gov/?x=1"],
+      ["an address with a login in it", "https://pat:secret@example.illinois.gov/"],
+      ["an address written in capitals", "HTTPS://Example.illinois.gov/"],
+      ["empty", ""],
+    ])("names an entry that matches its seal when its site is %s", async (_what, site) => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.site = site;
+        reseal(entries[1]!);
+      });
+      // The line shows the site as JSON writes it, so that nothing in it is taken for the line's
+      // own words, and says what a site looks like.
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names ${JSON.stringify(site)} as its site, which isn't a site's root address, such as https://dvfr.illinois.gov/`,
+      ]);
+    });
+
+    it.each<[string, unknown]>([
+      ["a number", 7],
+      ["true", true],
+      ["null", null],
+      ["a list", ["https://example.illinois.gov/"]],
+      ["an object", { url: "https://example.illinois.gov/" }],
+    ])(
+      "says one line for an entry that matches its seal when its site is %s, which isn't text",
+      async (_what, site) => {
+        const { home, siteDir } = await copyOf(twice);
+        await editEntries(siteDir, (entries) => {
+          entries[1]!.site = site;
+          reseal(entries[1]!);
+        });
+        expect(await problemsIn(home)).toEqual([
+          `${SHARES_JSON}: share 2 (${second.entry.at}) lists its site in a form voicecap can't read`,
+        ]);
+      },
+    );
+
+    it("names an entry's site before its files, and checks the files all the same", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.site = "not an address";
+        reseal(entries[1]!);
+      });
+      await appendFile(inShare(siteDir, PAGE_2), " ");
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names "not an address" as its site, which isn't a site's root address, such as https://dvfr.illinois.gov/`,
+        `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
+      ]);
+    });
+
+    it("goes by no site of an entry that changed: it's named as changed, once", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        // Not sealed again, so the seal no longer holds, and the site is no part of the verdict.
+        entries[1]!.site = "not an address";
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) changed since it was recorded`,
+      ]);
+    });
+  });
+
   describe("what share/ holds that no entry names", () => {
     it("doesn't mind the files an operating system leaves, or a name that starts with a dot", async () => {
       const { home, siteDir } = await copyOf(twice);

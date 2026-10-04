@@ -33,6 +33,25 @@ export function recordedCanonical(recorded: unknown): string | null {
 }
 
 /**
+ * Whether `value` is the root of a web site as a share's record gives it: text that is an http or
+ * https address written as `URL` writes one, with a path that ends in `/` and no query, hash, or
+ * credentials (`https://dvfr.illinois.gov/`, `https://voicecap.netlify.app/demo-site/`). It is what
+ * `normalizeCanonical` gives, except that its host may be an IP address or a local address: a share
+ * of a site with no canonical address records the address voicecap read (`http://127.0.0.1:4848/`),
+ * which no reader knows the site by, but which is a root all the same.
+ */
+export function isWebRoot(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const url = parseUrl(value);
+  return (
+    url !== null &&
+    isWebAddress(url) &&
+    url.pathname.endsWith("/") &&
+    value === `${url.origin}${url.pathname}`
+  );
+}
+
+/**
  * The root of the site at the canonical address `input`: its scheme, host, and path, with a `/` on
  * the end and without any query, hash, or credentials. An address typed the short way gets
  * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.

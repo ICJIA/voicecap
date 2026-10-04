@@ -213,6 +213,44 @@ describe("appendShare", () => {
     expect(Object.keys(written.shares[0]!)).toEqual(KEYS);
   });
 
+  // 0.10.0: the root of the site the copies are named for, after who made them.
+  it("records the site it's given, sealed with the rest, and with its key after by", async () => {
+    const site = "https://voicecap.netlify.app/demo-site/";
+    const recorded = await appendShare(siteDir, { ...entry, site });
+    expect(recorded.site).toBe(site);
+    expect(Object.keys(recorded)).toEqual([
+      "seq",
+      "prev",
+      "at",
+      "by",
+      "site",
+      "runs",
+      "files",
+      "seal",
+    ]);
+    // The seal holds, and covers the site: an entry that named another site has another seal.
+    expect(recorded.seal).toBe(sealOf(recorded));
+    expect(sealOf({ ...recorded, site: "https://dvfr.illinois.gov/" })).not.toBe(recorded.seal);
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as { shares: object[] };
+    expect(written.shares).toEqual([recorded]);
+    expect(Object.keys(written.shares[0]!)).toEqual(Object.keys(recorded));
+  });
+
+  it("records no site for an entry that has none, as an entry from before 0.10.0 has none", async () => {
+    const recorded = await appendShare(siteDir, entry);
+    expect(recorded).not.toHaveProperty("site");
+    // Not as a key left undefined either: the file has none.
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+      shares: Record<string, unknown>[];
+    };
+    expect(Object.hasOwn(written.shares[0]!, "site")).toBe(false);
+    // And it's chained from entries that have none, and from entries that have one.
+    const second = await appendShare(siteDir, { ...entry, site: "https://dvfr.illinois.gov/" });
+    expect(second).toMatchObject({ seq: 2, prev: recorded.seal });
+    const third = await appendShare(siteDir, entry);
+    expect(third).toMatchObject({ seq: 3, prev: second.seal });
+  });
+
   it("chains the entry itself: a seq, prev, or seal it's handed, or any other field, isn't kept", async () => {
     const handed = { ...entry, seq: 99, prev: "z".repeat(64), seal: "y".repeat(64), extra: "x" };
     const recorded = await appendShare(siteDir, handed);

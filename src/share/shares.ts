@@ -1,9 +1,10 @@
 /**
  * <site>/share/shares.json, the record of what `voicecap share` sent: one entry each time it made
  * copies of the shareable page and its Word copy to send, and of each run's walkthrough file, with
- * when, who by, the runs the copies drew on, and each file's name, size, and SHA-256 (a walkthrough
- * file's also names its run). Entries are chained and sealed as reviews.json's are (see
- * ../reviews/store.ts), and never edited or deleted once they're recorded.
+ * when, who by, the root of the site the copies name (their file names are made from it), the runs
+ * the copies drew on, and each file's name, size, and SHA-256 (a walkthrough file's also names its
+ * run). Entries are chained and sealed as reviews.json's are (see ../reviews/store.ts), and never
+ * edited or deleted once they're recorded. An entry recorded before 0.10.0 has no site.
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -56,11 +57,13 @@ export async function appendShare(
   const before = await readShares(siteDir);
   const { seq, prev } = nextInChain(before);
   // Built key by key, in the order the file reads them, whatever order or extras the entry brings.
+  // An entry with no site has no such key, as the entries recorded before 0.10.0 have none.
   const unsealed: Omit<ShareEntry, "seal"> = {
     seq,
     prev,
     at: entry.at,
     by: entry.by,
+    ...(entry.site === undefined ? {} : { site: entry.site }),
     runs: entry.runs,
     files: entry.files,
   };

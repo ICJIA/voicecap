@@ -1245,12 +1245,19 @@ describe("voicecap share", () => {
     const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
     expect(shares).toHaveLength(1);
     const entry = shares[0]!;
-    expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
+    // The site's scripted pages name no canonical address, so the entry records the address voicecap
+    // read, as a root.
+    expect(entry).toMatchObject({
+      seq: 1,
+      prev: null,
+      by: "Pat Lee",
+      site: "https://example.illinois.gov/",
+    });
     const page = entry.files[0]!;
     const word = entry.files[1]!;
     const walkthrough = entry.files[2]!;
-    // Named for the site's folder and the day, as the page, then its Word copy, then the run's
-    // walkthrough file, whole on disk.
+    // Named for the site (here by the host voicecap read) and the day, as the page, then its Word
+    // copy, then the run's walkthrough file, whole on disk.
     const day = entry.at.slice(0, 10);
     expect([page.name, word.name, walkthrough.name]).toEqual([
       `example.illinois.gov_${day}.html`,

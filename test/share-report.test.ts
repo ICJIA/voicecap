@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import type { RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { runAudit } from "../src/run/audit.js";
@@ -53,6 +54,7 @@ import {
 } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
+import { DEMO_ROOT } from "./helpers/share-model.js";
 
 // Every call goes through as it did, and is kept, so a test can count the calls, make one fail, or
 // have something happen in the middle of it: the site's records are read, the model is built, the
@@ -129,6 +131,14 @@ const RUN_1402 = "2026-09-29_1402";
 /** A walkthrough file's name beside the copies of `stem`: the stem, the run's id, and what it is. */
 function walkthroughName(stem: string, run: string): string {
   return `${stem}_${run}_walkthrough.json`;
+}
+
+/**
+ * The settings of a site whose canonical address `report.canonical` gives: what `voicecap share`
+ * loads from a config file that says so.
+ */
+function configNaming(canonical: string): LoadedConfig {
+  return { config: resolveConfig({ report: { canonical } }), file: null, sha256: "test-config" };
 }
 
 /** A new home folder, taken away after the test. */
@@ -238,11 +248,14 @@ describe("shareReport", () => {
         sha256: file.sha256,
       });
     }
+    // The site the scripted runs read names no canonical address, so the copies are named for the
+    // host voicecap read, as before 0.10.0, and the entry says so, as a root.
     expect(entry).toMatchObject({
       seq: 1,
       prev: null,
       by: "Pat Lee",
       at: isoLocal(NOW),
+      site: "https://example.illinois.gov/",
       runs: [run.runId],
     });
     expect((await readShares(siteDir)).shares).toEqual([entry]);
@@ -654,6 +667,202 @@ describe("shareReport", () => {
 
       // What verify checks includes the walkthrough files, each as recorded.
       expect(entry.files).toHaveLength(4);
+      const result = await verifyHome({ home, logger: createMemoryLogger() });
+      expect(result.problems).toBe(0);
+      expect(result.sites[0]).toMatchObject({ shares: 1, problems: [] });
+    });
+  });
+
+  // Added in 0.10.0. What's sent is named for what readers know the site by, never for the address
+  // voicecap read: the demo's runs read a copy at http://127.0.0.1:4848, and the demo's canonical
+  // address is https://voicecap.netlify.app/demo-site/.
+  describe("the site's canonical address", () => {
+    /** The day the demo is shared on, and the name its copies are given for it. */
+    const ON = new Date(2026, 8, 30, 10, 0);
+    const STEM = "voicecap.netlify.app_2026-09-30";
+
+    it("names the copies after the canonical name, in the site's own folder", async () => {
+      const { siteDir, options } = await demoHome();
+
+      const { files } = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
+
+      expect(files.map(({ name }) => name)).toEqual([
+        `${STEM}.html`,
+        `${STEM}.docx`,
+        walkthroughName(STEM, RUN_1315),
+        walkthroughName(STEM, RUN_1402),
+      ]);
+      // The folder is named for the address voicecap read, as it always is: only the copies' names
+      // change, and none of them leads with that address.
+      expect(files.map(({ path: file }) => path.dirname(file))).toEqual(
+        files.map(() => shareDir(siteDir)),
+      );
+      for (const { name } of files) expect(name).not.toContain("127.0.0.1");
+      expect(await names(shareDir(siteDir))).toEqual(
+        [...files.map(({ name }) => name), "shares.json"].sort(),
+      );
+    });
+
+    // The footer says where each copy is named: it showed the address voicecap read when the copies
+    // were named for the site's folder.
+    it("has the page's footer and the Word copy's name the copies as shared", async () => {
+      const { options } = await demoHome();
+
+      const { files } = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
+
+      const page = await readFile(files[0]!.path, "utf8");
+      expect(page).toContain(
+        `This file: <span class="mono">${STEM}.html</span>. Its Word copy: <span class="mono">${STEM}.docx</span>.`,
+      );
+      const { document } = await unzipDocx(await readFile(files[1]!.path));
+      expect(paragraphsOf(document).at(-1)?.text).toBe(
+        `This file: ${STEM}.docx. Its web page: ${STEM}.html.`,
+      );
+    });
+
+    it("keeps -2 for a second share that day, with every file of it named so", async () => {
+      const { options } = await demoHome();
+      const canonical = { ...options, now: ON, config: configNaming(DEMO_ROOT) };
+      await shareReport(canonical);
+
+      const { files, entry } = await shareReport(canonical);
+
+      const second = `${STEM}-2`;
+      expect(files.map(({ name }) => name)).toEqual([
+        `${second}.html`,
+        `${second}.docx`,
+        walkthroughName(second, RUN_1315),
+        walkthroughName(second, RUN_1402),
+      ]);
+      expect(entry.seq).toBe(2);
+      expect(await readFile(files[0]!.path, "utf8")).toContain(
+        `This file: <span class="mono">${second}.html</span>. Its Word copy: <span class="mono">${second}.docx</span>.`,
+      );
+    });
+
+    it("numbers the copies of each name on its own, so a share made before the name was known isn't one of them", async () => {
+      const { options } = await demoHome();
+      const before = await shareReport({ ...options, now: ON });
+
+      const after = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
+
+      expect(before.files[0]!.name).toBe("127.0.0.1_4848_2026-09-30.html");
+      expect(after.files[0]!.name).toBe(`${STEM}.html`);
+    });
+
+    it("records the canonical address as the entry's site, sealed with the rest of the entry", async () => {
+      const { siteDir, options } = await demoHome();
+
+      const { entry } = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
+
+      expect(entry.site).toBe(DEMO_ROOT);
+      expect(Object.keys(entry)).toEqual([
+        "seq",
+        "prev",
+        "at",
+        "by",
+        "site",
+        "runs",
+        "files",
+        "seal",
+      ]);
+      // The seal holds, and covers the site: an entry that named another site has another seal.
+      expect(entry.seal).toBe(sealOf(entry));
+      expect(sealOf({ ...entry, site: "https://elsewhere.example.org/" })).not.toBe(entry.seal);
+      // The record has it as it was made.
+      const record = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+        shares: object[];
+      };
+      expect(record.shares).toEqual([entry]);
+      expect(Object.keys(record.shares[0]!)).toEqual(Object.keys(entry));
+    });
+
+    it("records the address voicecap read, as a root, for a site with no canonical address", async () => {
+      const { options } = await demoHome();
+
+      const { entry, files } = await shareReport(options);
+
+      // Its copies are named as they were before 0.10.0: by the host voicecap read.
+      expect(entry.site).toBe("http://127.0.0.1:4848/");
+      expect(files[0]!.name).toBe(`${DEMO_FIRST}.html`);
+    });
+
+    it("names the copies after the root the latest run recorded, when the config names none", async () => {
+      const dir = await newHome();
+      const run = await runAudit(
+        runOptions(dir, new ScriptedDriver(sitePages()), {
+          canonical: "https://dvfr.illinois.gov/",
+        }),
+      );
+      expect(run.outcome).toBe("completed");
+
+      const { files, entry } = await shareReport(sharing(dir).options);
+
+      const stem = "dvfr.illinois.gov_2027-01-15";
+      expect(entry.site).toBe("https://dvfr.illinois.gov/");
+      expect(files.map(({ name }) => name)).toEqual([
+        `${stem}.html`,
+        `${stem}.docx`,
+        walkthroughName(stem, run.runId),
+      ]);
+    });
+
+    it.each([
+      ["a path", DEMO_ROOT, DEMO_ROOT, "voicecap.netlify.app"],
+      [
+        "a port",
+        "https://staging.dvfr.org:8443/",
+        "https://staging.dvfr.org:8443/",
+        "staging.dvfr.org_8443",
+      ],
+      [
+        "no scheme, and capitals",
+        "Dvfr.Illinois.gov",
+        "https://dvfr.illinois.gov/",
+        "dvfr.illinois.gov",
+      ],
+    ])(
+      "names the copies after the host of the root the config gives, as a folder is: with %s",
+      async (_what, given, site, prefix) => {
+        const { run, options } = await homeWithRun();
+
+        const { files, entry } = await shareReport({ ...options, config: configNaming(given) });
+
+        // The entry has the whole root, and the copies only its host and port.
+        expect(entry.site).toBe(site);
+        const stem = `${prefix}_2027-01-15`;
+        expect(files.map(({ name }) => name)).toEqual([
+          `${stem}.html`,
+          `${stem}.docx`,
+          walkthroughName(stem, run.runId),
+        ]);
+      },
+    );
+
+    it("keeps the line to paste in the form it had, and what it prints naming the folder", async () => {
+      const { siteDir, logger, options } = await demoHome();
+
+      const { files, pasteLine } = await shareReport({
+        ...options,
+        now: ON,
+        config: configNaming(DEMO_ROOT),
+      });
+
+      const [page, word] = files;
+      expect(pasteLine).toBe(
+        `Fingerprints (SHA-256): ${STEM}.html ${page!.sha256}; ${STEM}.docx ${word!.sha256}. To check a file you received: ${POWERSHELL_HASH} in PowerShell, or ${MAC_HASH} on a Mac. PowerShell shows the same letters in capitals.`,
+      );
+      // Terminal output keeps the address voicecap read: the folder the copies are in.
+      expect(logger.text("info").split("\n")[0]).toBe(
+        `Shared ${DEMO_FOLDER}, as of 30 September 2026: entry 1 in ${sharesPath(siteDir)}.`,
+      );
+    });
+
+    it("leaves a home that verify finds whole", async () => {
+      const { home, options } = await demoHome();
+
+      await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
+
       const result = await verifyHome({ home, logger: createMemoryLogger() });
       expect(result.problems).toBe(0);
       expect(result.sites[0]).toMatchObject({ shares: 1, problems: [] });

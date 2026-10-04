@@ -2,16 +2,18 @@
  * What the website reads of the transcripts home: each site folder's share/shares.json, the record
  * of what `voicecap share` sent, and the demo's (the site folders of voicecap-demo/). The site
  * publishes files from these, and a record is a file a person can edit, so it's read as untrusted:
- * an entry is kept only when its seal holds and its fields are as voicecap records them, and one of
- * its files only when its name is one voicecap would give. What isn't kept is left out and named,
- * and never stops the rest, whatever a record holds. No file an entry lists is read here: the build
- * checks each one against its recorded size and SHA-256.
+ * an entry is kept only when its seal holds and its seq, at, by, and files are as voicecap records
+ * them, and one of its files only when its name is one voicecap would give. Its site, which is no
+ * part of what's published, is read as none when it isn't a root. What isn't kept is left out and
+ * named, and never stops the rest, whatever a record holds. No file an entry lists is read here:
+ * the build checks each one against its recorded size and SHA-256.
  */
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
+import { isWebRoot } from "../pages/canonical.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
 import { longDate } from "../share/format.js";
@@ -29,6 +31,14 @@ export interface SiteEntry {
   /** As recorded: a local ISO date and time. */
   at: string;
   by: string;
+  /**
+   * The root of the site the entry's copies name, as it records it (from 0.10.0): the site's
+   * canonical address, or, for a share made with none known, the address voicecap read
+   * ("http://127.0.0.1:4848/"), which names the site to no reader: a heading takes only a canonical
+   * address (see `recordedCanonical`). Null for an entry from before 0.10.0, and for one whose
+   * `site` isn't an http(s) root (see `isWebRoot`): it's published all the same.
+   */
+  site: string | null;
   /**
    * The files whose names voicecap would give, in the record's order: at least one, and a run on
    * one is a run id.
@@ -211,6 +221,9 @@ async function readEntries(
       seq: fields.seq,
       at: fields.at,
       by: fields.by,
+      // Not one of the fields an entry needs to be published: an entry from before 0.10.0 has none,
+      // and a site that isn't a root names nothing, so the entry is read with none.
+      site: isWebRoot(entry.site) ? entry.site : null,
       files,
     });
   }

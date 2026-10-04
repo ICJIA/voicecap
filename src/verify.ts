@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { FileHash, ReviewsFile } from "./model.js";
+import { isWebRoot } from "./pages/canonical.js";
 import { canonicalKey, parseSiteUrl } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import {
@@ -476,11 +477,11 @@ function keyOf(url: unknown): string | null {
 }
 
 /**
- * share/: shares.json's entries (each one's seal, then the chain), each file of each entry that
- * still matches its seal, and each file or folder no entry names. The problems come in that order,
- * the files in the entries' order and the rest by name. A site with no share/ folder has nothing to
- * check. voicecap writes current.html and current.docx again from the records, so they're never
- * checked.
+ * share/: shares.json's entries (each one's seal, then the chain), the site and each file of each
+ * entry that still matches its seal, and each file or folder no entry names. The problems come in
+ * that order, an entry's site before its files, in the entries' order, and the rest by name. A site
+ * with no share/ folder has nothing to check. voicecap writes current.html and current.docx again
+ * from the records, so they're never checked.
  */
 async function checkShares(home: string, siteDir: string, site: VerifySiteResult): Promise<void> {
   const dir = shareDir(siteDir);
@@ -512,12 +513,31 @@ async function checkShares(home: string, siteDir: string, site: VerifySiteResult
   }
   problems.push(...chainProblems(chain).map((problem) => `${where}: ${problem}`));
 
-  // An entry that changed can't vouch for its files, so only an intact entry's are checked.
+  // An entry that changed can't vouch for its site or its files, so only an intact entry's are
+  // checked.
   for (const { entry, intact } of sealed) {
-    if (intact) problems.push(...(await copyProblems(home, dir, where, entry)));
+    if (!intact) continue;
+    const problem = siteProblem(entry);
+    if (problem !== null) problems.push(`${where}: ${problem}`);
+    problems.push(...(await copyProblems(home, dir, where, entry)));
   }
   problems.push(...(await unrecordedProblems(home, siteDir, entries)));
   site.problems.push(...problems);
+}
+
+/**
+ * The problem with the site an entry records (from 0.10.0): it must be the root of a web address,
+ * as voicecap writes one (see isWebRoot). One line for the entry, or null when it's one, and when
+ * the entry has none, as an entry from before 0.10.0 has none. A site is shown as JSON writes it,
+ * in quotes, with the characters a line can't hold (a line break, say) written out, so that nothing
+ * in it is taken for the line's own words.
+ */
+function siteProblem(entry: Record<string, unknown>): string | null {
+  const { site } = entry;
+  if (site === undefined || isWebRoot(site)) return null;
+  return typeof site === "string"
+    ? `${describeShare(entry)} names ${JSON.stringify(site)} as its site, which isn't a site's root address, such as https://dvfr.illinois.gov/`
+    : `${describeShare(entry)} lists its site in a form voicecap can't read`;
 }
 
 /**

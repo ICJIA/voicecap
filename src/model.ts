@@ -487,6 +487,13 @@ export interface ShareEntry {
   at: string;
   /** Who made them. */
   by: string;
+  /**
+   * The root of the site the copies name it by, which their file names are made from: its canonical
+   * address ("https://dvfr.illinois.gov/"), and with none known, the address voicecap read, with a
+   * "/" on the end ("http://127.0.0.1:4848/"). Sealed with the rest. Absent on entries recorded
+   * before 0.10.0, whose copies are named for the site's folder.
+   */
+  site?: string;
   /** The ids of the runs the copies drew on, oldest first. */
   runs: string[];
   /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */

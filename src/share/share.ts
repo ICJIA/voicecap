@@ -3,17 +3,23 @@
  * run's walkthrough file beside them, and the record of what was sent.
  *
  * share/current.html and share/current.docx change with every run, review, and report, so what's
- * sent can't be those. Each share makes a pair of its own, named for the site's folder and the day
- * (`example.illinois.gov_2027-01-15.html` and `.docx`, then `-2`, `-3` for a later share the same
- * day). Beside the pair it writes the walkthrough file of each run the pair draws on, named for the
- * pair and the run (`example.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`): the very
- * file the page offers to download, so a website of what was shared has one to offer. A run that
- * can't have a walkthrough file (see RunWalkthrough) is warned of, and the share goes on without it.
+ * sent can't be those. Each share makes a pair of its own, named for the site and the day
+ * (`dvfr.illinois.gov_2027-01-15.html` and `.docx`, then `-2`, `-3` for a later share the same
+ * day). The site is named as the page names it: by its canonical address (see resolveCanonical),
+ * and with none known by the address voicecap read, made safe for a file name as a site's folder is
+ * (`siteFolder`). So a copy of a site with a canonical address never leads with the address of a
+ * copy on the tester's computer, though the folder it's kept in, named for the address voicecap
+ * read, does. Beside the pair it writes the walkthrough file of each run the pair draws on, named
+ * for the pair and the run (`dvfr.illinois.gov_2027-01-15_2027-01-14_0900_walkthrough.json`): the
+ * very file the page offers to download, so a website of what was shared has one to offer. A run
+ * that can't have a walkthrough file (see RunWalkthrough) is warned of, and the share goes on
+ * without it.
  *
- * share/shares.json (./shares.ts) records every file: when, who by, the runs the copies drew on,
- * and each file's size and SHA-256, with a walkthrough file's run. The output ends with a line to
- * paste into the email that sends the pair, so a receiver can check a file against the sender's own
- * fingerprint. The line names only the pair: the walkthrough files aren't what's emailed.
+ * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
+ * name, the runs the copies drew on, and each file's size and SHA-256, with a walkthrough file's
+ * run. The output ends with a line to paste into the email that sends the pair, so a receiver can
+ * check a file against the sender's own fingerprint. The line names only the pair: the walkthrough
+ * files aren't what's emailed.
  *
  * A copy is never written over a file: each is opened with the `wx` flag, which refuses a name
  * that's taken, and a name that's taken meanwhile means the next number. And a share that fails with
@@ -31,7 +37,7 @@ import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { ShareEntry, SharedFile } from "../model.js";
 import { resolveReviewer } from "../reviews/reviewer.js";
 import { ensureGitFiles } from "../run/git-files.js";
-import { resolveHome, shareDir, sharesPath } from "../run/paths.js";
+import { resolveHome, shareDir, sharesPath, siteFolder } from "../run/paths.js";
 import { chooseSiteDir } from "../run/site-dir.js";
 import { errorMessage, UsageError } from "../util/errors.js";
 import { sha256 } from "../util/hash.js";
@@ -144,9 +150,14 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 
   const dir = shareDir(siteDir);
   const folder = path.basename(siteDir);
+  // The root of the site the copies name, which the entry records: the canonical address the page
+  // names the site by, else the address voicecap read, as a root. The copies are named for its host
+  // and port, not for the folder, which is the address voicecap read.
+  const site = input.canonical ?? new URL("/", input.readOrigin).href;
+  const prefix = siteFolder(site);
   const day = localDate(now);
   for (let number = 1; ; number++) {
-    const stem = number === 1 ? `${folder}_${day}` : `${folder}_${day}-${number}`;
+    const stem = number === 1 ? `${prefix}_${day}` : `${prefix}_${day}-${number}`;
     const names = { page: `${stem}.html`, word: `${stem}.docx` };
     // Named for the pair and the run, so that every file of a share has the share's stem.
     const walkthroughCopies = walkthroughs.map(({ run, bytes }): Copy => ({
@@ -178,6 +189,7 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
       entry = await appendShare(siteDir, {
         at: isoLocal(now),
         by: reviewer.name,
+        site,
         // The model lists the runs the copies draw on latest first.
         runs: model.evidence.map(({ run }) => run.id).reverse(),
         files: copies.map(recordOf),
