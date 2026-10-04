@@ -345,19 +345,22 @@ describe("the site's page", () => {
   it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
     const page = await open(files.page, { width: 1600 });
 
-    const right = await page.evaluate(() => {
-      const edge = (selector: string): number =>
+    // Both start where the main part's words do, so their widths say where their lines end.
+    const width = await page.evaluate(() => {
+      const widest = (selector: string): number =>
         Math.max(
           ...[...document.querySelectorAll(selector)].map(
-            (element) => element.getBoundingClientRect().right,
+            (element) => element.getBoundingClientRect().width,
           ),
         );
-      return { notes: edge("p.note"), footer: edge("footer > p") };
+      return { notes: widest("p.note"), footer: widest("footer > p") };
     });
 
     // The footer's smaller text keeps the notes' measure, so a line of it is no longer to read: its
-    // 80 characters are as wide as their 72, to within a few pixels.
-    expect(Math.abs(right.footer - right.notes)).toBeLessThan(8);
+    // 80 characters are as wide as their 72. Where a character's width is rounded to a whole pixel,
+    // as in Chromium on Linux, the footer's can come out up to 2% short of theirs, but never wider.
+    expect(width.footer).toBeLessThanOrEqual(width.notes + 1);
+    expect(width.footer).toBeGreaterThanOrEqual(width.notes * 0.98);
   });
 
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {
