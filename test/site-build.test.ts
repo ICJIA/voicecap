@@ -28,12 +28,14 @@ import path from "node:path";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import { DEMO_OUT } from "../src/demo/words.js";
 import type * as Api from "../src/index.js";
 import type { SharedFile } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { ensureGitFiles, GITATTRIBUTES, GITIGNORE } from "../src/run/git-files.js";
 import { fontFaceCss } from "../src/share/fonts.js";
+import { shareReport } from "../src/share/share.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { buildSite, type BuildSiteOptions } from "../src/site/build.js";
@@ -51,7 +53,7 @@ import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { UsageError } from "../src/util/errors.js";
 import { sha256 } from "../src/util/hash.js";
-import { createMemoryLogger, type MemoryLogger } from "../src/util/log.js";
+import { createMemoryLogger, silentLogger, type MemoryLogger } from "../src/util/log.js";
 import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
 import { voicecapVersion } from "../src/util/version.js";
@@ -66,6 +68,7 @@ import {
   EXAMPLE_STYLE,
   EXAMPLE_WORD,
   FIXTURE_FOLDER,
+  FIXTURE_SITE,
   homeWithShares,
   recordOf,
   sealedEntry,
@@ -299,21 +302,37 @@ async function builtWith(dir: string, more: Record<string, string | null>): Prom
 }
 
 /**
- * A small home of the sites given, each by its folder name and the time of each of its reports
- * (numbered from 1): a page for each, in the site's share/ folder, and a record sealed by hand.
+ * A report of a small home (see homeWithSites): the time it was made, and, as a share records them,
+ * the root of its site (none, as before 0.10.0) and the name of its page (by default its folder's,
+ * then its number).
  */
-async function homeWithSites(sites: Record<string, string[]>): Promise<string> {
+interface SmallShare {
+  at: string;
+  /** Anything a record might hold: a root, or something no share would write. */
+  site?: unknown;
+  page?: string;
+}
+
+/**
+ * A small home of the sites given, each by its folder name and each of its reports (numbered from 1),
+ * which is its time, or a SmallShare: a page for each, in the site's share/ folder, and a record
+ * sealed by hand. A page holds its folder's name, so that two folders' pages of one name differ.
+ */
+async function homeWithSites(sites: Record<string, (string | SmallShare)[]>): Promise<string> {
   const home = path.join(await newFolder(), "transcripts");
-  for (const [folder, times] of Object.entries(sites)) {
+  for (const [folder, reports] of Object.entries(sites)) {
     const siteDir = path.join(home, folder);
     await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
     const shares: unknown[] = [];
-    for (const [index, at] of times.entries()) {
-      const name = `${folder}_${index + 1}.html`;
+    for (const [index, report] of reports.entries()) {
+      const share: SmallShare = typeof report === "string" ? { at: report } : report;
+      const { at, site, page = `${folder}_${index + 1}.html` } = share;
       const bytes = Buffer.from(`<!doctype html><title>${folder} ${index + 1}</title>`);
       await mkdir(path.join(siteDir, "share"), { recursive: true });
-      await writeFile(path.join(siteDir, "share", name), bytes);
-      shares.push(sealedEntry(index + 1, at, [recordOf(name, bytes)]));
+      await writeFile(path.join(siteDir, "share", page), bytes);
+      shares.push(
+        sealedEntry(index + 1, at, [recordOf(page, bytes)], site === undefined ? {} : { site }),
+      );
     }
     await writeRecord(siteDir, shares);
   }
@@ -370,7 +389,7 @@ describe("buildSite", () => {
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
     );
-    expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+    expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
   });
 
   it("gives the content the site's page is drawn from: each site's reports newest first, and the demo's", async () => {
@@ -407,7 +426,8 @@ describe("buildSite", () => {
     // A report of a site written by hand, as the record has it, with each file's own fingerprint.
     const page = Buffer.from(EXAMPLE_PAGE);
     expect(content.sites[1]).toEqual({
-      folder: EXAMPLE_FOLDER,
+      name: EXAMPLE_FOLDER,
+      folders: [EXAMPLE_FOLDER],
       reports: [
         {
           folder: EXAMPLE_FOLDER,
@@ -975,7 +995,7 @@ describe("buildSite", () => {
 
       const { content, leftOut, logger } = await build(home);
 
-      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER]);
       expect(leftOut).toEqual([
         `${EXAMPLE_FOLDER}/share/shares.json: not a readable record of what was shared`,
         "my site: not published: its name isn't one voicecap gives a site's folder",
@@ -1030,7 +1050,7 @@ describe("buildSite", () => {
 
       const { out, content, leftOut } = await build(home);
 
-      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
       expect(leftOut).toEqual(
         ["_headers", "index.html", "robots.txt"].map(
           (folder) =>
@@ -1059,7 +1079,7 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([line]);
       expect(warned(logger)).toEqual([line]);
       expect(content.demo).toBeNull();
-      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
       expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_FOLDER}_2027-01-15.html`))).toBe(
         true,
       );
@@ -1364,7 +1384,7 @@ describe("buildSite", () => {
 
       expect(out).toBe(path.join(link, "_site"));
       expect(existsSync(path.join(home, "_site", "index.html"))).toBe(true);
-      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
     });
 
     it("empties a built folder that holds a link, and leaves what the link leads to as it was", async () => {
@@ -2092,7 +2112,7 @@ describe("buildSite", () => {
       );
     });
 
-    it("orders the sites by folder name, and each site's reports newest first by the moment, the higher seq on a tie", async () => {
+    it("orders the sites by name, and each site's reports newest first by the moment, the higher seq on a tie", async () => {
       const home = await homeWithSites({
         "zeta.illinois.gov": [
           // seq 1 and seq 3 are the same moment, written two ways; seq 2 is later, seq 4 earlier.
@@ -2110,7 +2130,7 @@ describe("buildSite", () => {
 
       const { content } = await build(home);
 
-      expect(content.sites.map(({ folder }) => folder)).toEqual([
+      expect(content.sites.map(({ name }) => name)).toEqual([
         "alpha.illinois.gov",
         "zeta.illinois.gov",
       ]);
@@ -2123,6 +2143,369 @@ describe("buildSite", () => {
           "report-zeta.illinois.gov-4",
         ],
       ]);
+    });
+  });
+
+  // Added in 0.10.0. A site is headed by the canonical name its newest share records, and the site
+  // folders that name one site are one site on the page. Where a report's files are published is the
+  // folder's: only what the page shows changes.
+  describe("how it names the sites", () => {
+    /** The times of shares, a day apart. */
+    const JAN_15 = "2027-01-15T10:00:00-06:00";
+    const JAN_16 = "2027-01-16T10:00:00-06:00";
+    const JAN_17 = "2027-01-17T10:00:00-06:00";
+    /** The root a share records for a site with a canonical address, and the name that gives it. */
+    const ROOT = "https://dvfr.illinois.gov/";
+    const NAME = "dvfr.illinois.gov";
+    /** What a share of a site with no canonical address records: the address voicecap read. */
+    const READ = "http://127.0.0.1:4848/";
+    /** The folder a run on a copy of the site on a tester's computer makes. */
+    const COPY_FOLDER = "127.0.0.1_4848";
+
+    /** Build the site of `home`, and read its page. */
+    async function built(home: string) {
+      const result = await build(home);
+      return { ...result, index: await readFile(path.join(result.out, "index.html"), "utf8") };
+    }
+
+    /** The page's sites, in order: each section's id, then its heading. */
+    function sitesOn(index: string): [id: string, heading: string][] {
+      return [...index.matchAll(/<section class="site" id="([^"]*)">\n<h3>([^<]*)<\/h3>/g)].map(
+        ([, id = "", heading = ""]): [string, string] => [id, heading],
+      );
+    }
+
+    /** The ids of the page's reports, in the order the page gives them. */
+    function reportsOn(index: string): string[] {
+      return [...index.matchAll(/<article class="report" id="([^"]*)">/g)].map(([, id = ""]) => id);
+    }
+
+    /**
+     * The page's list by date, in order: when each report was made, its site's name, who prepared it,
+     * and the address of its page.
+     */
+    function listedByDate(index: string) {
+      const items = index.matchAll(
+        /<li><time datetime="([^"]*)">[^<]*<\/time>, ([^,]*), prepared by ([^:]*): <a href="([^"]*)">/g,
+      );
+      return [...items].map(([, at = "", site = "", by = "", href = ""]) => ({
+        at,
+        site,
+        by,
+        href,
+      }));
+    }
+
+    /** Each id the page gives more than once. */
+    function repeatedIds(index: string): string[] {
+      const ids = [...index.matchAll(/\sid="([^"]*)"/g)].map(([, id = ""]) => id);
+      return ids.filter((id, at) => ids.indexOf(id) !== at);
+    }
+
+    it("heads a site by its newest share's canonical name", async () => {
+      const home = await homeWithSites({
+        // Shared once before the site's address was known, and again after.
+        [COPY_FOLDER]: [
+          { at: JAN_15, site: READ },
+          { at: JAN_16, site: ROOT },
+        ],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: NAME, folders: [COPY_FOLDER] },
+      ]);
+      // Both reports are the site's, the newest first: the folder is named by its newest share.
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${COPY_FOLDER}-2`,
+        `report-${COPY_FOLDER}-1`,
+      ]);
+      // The page leads with the name: no heading, section, or line by date is named for the folder.
+      expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
+      expect(listedByDate(index).map(({ site }) => site)).toEqual([NAME, NAME]);
+      expect(index).not.toContain(`site-${COPY_FOLDER}`);
+      expect(index).not.toContain(`<h3>${COPY_FOLDER}</h3>`);
+      expect(index).not.toContain(`, ${COPY_FOLDER}, prepared by`);
+    });
+
+    it("heads a site by its folder when its newest share names no site readers know it by, though an older share did", async () => {
+      const home = await homeWithSites({
+        // Its newest share is of a copy on this computer, with no canonical address known.
+        "a-local.example.gov": [
+          { at: JAN_15, site: ROOT },
+          { at: JAN_16, site: "http://localhost:3000/" },
+        ],
+        "b-ip.example.gov": [{ at: JAN_16, site: READ }],
+        // What no share would record: text that isn't a root, an address of another kind, and a
+        // value that isn't text.
+        "c-not-a-root.example.gov": [{ at: JAN_16, site: "dvfr.illinois.gov" }],
+        "d-another-kind.example.gov": [{ at: JAN_16, site: "ftp://dvfr.illinois.gov/" }],
+        "e-not-text.example.gov": [{ at: JAN_16, site: 42 }],
+      });
+
+      const { content, leftOut, index } = await built(home);
+
+      const names = [
+        "a-local.example.gov",
+        "b-ip.example.gov",
+        "c-not-a-root.example.gov",
+        "d-another-kind.example.gov",
+        "e-not-text.example.gov",
+      ];
+      expect(leftOut).toEqual([]);
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual(
+        names.map((name) => ({ name, folders: [name] })),
+      );
+      expect(sitesOn(index)).toEqual(names.map((name) => [`site-${name}`, name]));
+      // The older share's canonical name names nothing: the folder is the site's name throughout.
+      expect(index).not.toContain(NAME);
+    });
+
+    it("names an older site by its folder", async () => {
+      // Shares from before 0.10.0 record no site.
+      const home = await homeWithSites({
+        [NAME]: [JAN_15, JAN_16],
+        "example.illinois.gov": ["2027-01-15T12:00:00-06:00"],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: NAME, folders: [NAME] },
+        { name: "example.illinois.gov", folders: ["example.illinois.gov"] },
+      ]);
+      expect(sitesOn(index)).toEqual([
+        [`site-${NAME}`, NAME],
+        ["site-example.illinois.gov", "example.illinois.gov"],
+      ]);
+      expect(listedByDate(index).map(({ site }) => site)).toEqual([
+        NAME,
+        "example.illinois.gov",
+        NAME,
+      ]);
+    });
+
+    it("puts two folders that name one site under one heading, their reports newest first", async () => {
+      const home = await homeWithSites({
+        // A copy of the site on a tester's computer, whose shares name the site, and the site's own
+        // folder, from before shares did.
+        [COPY_FOLDER]: [
+          { at: JAN_15, site: ROOT },
+          { at: JAN_17, site: ROOT },
+        ],
+        [NAME]: [JAN_16],
+      });
+
+      const { out, content, index, logger } = await built(home);
+
+      expect(content.sites).toHaveLength(1);
+      const [site] = content.sites;
+      expect(site?.name).toBe(NAME);
+      expect(site?.folders).toEqual([COPY_FOLDER, NAME]);
+      // Each report keeps its own folder, and they are the site's together, the newest first.
+      expect(site?.reports.map(({ id, folder, at }) => ({ id, folder, at }))).toEqual([
+        { id: `report-${COPY_FOLDER}-2`, folder: COPY_FOLDER, at: JAN_17 },
+        { id: `report-${NAME}-1`, folder: NAME, at: JAN_16 },
+        { id: `report-${COPY_FOLDER}-1`, folder: COPY_FOLDER, at: JAN_15 },
+      ]);
+      // One heading, with the three reports under it in that order, and counted together.
+      expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
+      expect(reportsOn(index)).toEqual(site?.reports.map(({ id }) => id));
+      expect(index).toContain('<p class="count">3 reports</p>');
+      expect(listedByDate(index).map(({ at, site: named }) => [at, named])).toEqual([
+        [JAN_17, NAME],
+        [JAN_16, NAME],
+        [JAN_15, NAME],
+      ]);
+      expect(repeatedIds(index)).toEqual([]);
+      expect(logger.entries.at(-1)?.message).toBe(
+        `Built the site in ${out}: 3 reports from 1 site.`,
+      );
+    });
+
+    it("keeps the reports of one moment in the order of their folders, a folder's higher seq first", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_15, site: ROOT }],
+        // The later folder's seq 2 and 3 are of the moment the first folder's seq 1 is: its higher
+        // seq doesn't put it ahead of the earlier folder's.
+        [NAME]: ["2027-01-14T10:00:00-06:00", JAN_15, JAN_15],
+      });
+
+      const { content } = await built(home);
+
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${COPY_FOLDER}-1`,
+        `report-${NAME}-3`,
+        `report-${NAME}-2`,
+        `report-${NAME}-1`,
+      ]);
+    });
+
+    it("publishes each folder's files where they are when two folders that name one site have files of one name, and both links resolve", async () => {
+      // A share of the site from a copy on a tester's computer and one from the site's own folder,
+      // on the same day, are named alike: after the site.
+      const page = `${NAME}_2027-01-15.html`;
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_15, site: ROOT, page }],
+        [NAME]: [{ at: "2027-01-15T14:00:00-06:00", site: ROOT, page }],
+      });
+
+      const { out, content, index, leftOut } = await built(home);
+
+      expect(leftOut).toEqual([]);
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: NAME, folders: [COPY_FOLDER, NAME] },
+      ]);
+      // The later one is first. Each report's file is addressed from its own folder.
+      expect(
+        content.sites[0]?.reports.map(({ folder, files }) => [folder, files[0]?.href]),
+      ).toEqual([
+        [NAME, `${NAME}/${page}`],
+        [COPY_FOLDER, `${COPY_FOLDER}/${page}`],
+      ]);
+      // Each file is published in its own folder, as it was shared: neither took the other's place.
+      const published: Buffer[] = [];
+      for (const folder of [COPY_FOLDER, NAME]) {
+        const copy = await readFile(path.join(out, folder, page));
+        expect(copy.equals(await readFile(path.join(home, folder, "share", page))), folder).toBe(
+          true,
+        );
+        published.push(copy);
+      }
+      expect(published[0]?.equals(published[1] ?? Buffer.alloc(0))).toBe(false);
+      expect(await filesUnder(out)).toEqual(
+        [
+          "_headers",
+          `${COPY_FOLDER}/${page}`,
+          `${NAME}/${page}`,
+          "index.html",
+          "robots.txt",
+        ].sort(),
+      );
+      // The page links to each, twice (with its report, and by date), and each link leads to the
+      // file of the folder it names.
+      const links = [...index.matchAll(/<a href="([^"#]+\.html)"/g)].map(([, href = ""]) => href);
+      expect(links.toSorted()).toEqual(
+        [COPY_FOLDER, NAME].flatMap((folder) => [`${folder}/${page}`, `${folder}/${page}`]).sort(),
+      );
+      for (const href of new Set(links)) {
+        const [folder = "", ...rest] = href.split("/");
+        const shared = await readFile(path.join(home, folder, "share", ...rest));
+        expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
+      }
+      // And each page has its own rules in _headers, at both its addresses.
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
+        ([rulePath]) => rulePath,
+      );
+      expect(rules).toEqual([
+        "/",
+        "/index.html",
+        `/${NAME}/${page}`,
+        `/${NAME}/${page.replace(/\.html$/, "")}`,
+        `/${COPY_FOLDER}/${page}`,
+        `/${COPY_FOLDER}/${page.replace(/\.html$/, "")}`,
+      ]);
+      expect(repeatedIds(index)).toEqual([]);
+    });
+
+    it("orders the sites by their names, not by their folders' names", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_16, site: "https://zeta.illinois.gov/" }],
+        "beta.illinois.gov": [JAN_15],
+        localhost_3000: [{ at: JAN_16, site: "https://alpha.illinois.gov/" }],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: "alpha.illinois.gov", folders: ["localhost_3000"] },
+        { name: "beta.illinois.gov", folders: ["beta.illinois.gov"] },
+        { name: "zeta.illinois.gov", folders: [COPY_FOLDER] },
+      ]);
+      expect(sitesOn(index).map(([, heading]) => heading)).toEqual([
+        "alpha.illinois.gov",
+        "beta.illinois.gov",
+        "zeta.illinois.gov",
+      ]);
+    });
+
+    it("lists reports by date with their canonical names", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_17, site: ROOT }],
+        // A root with a path, as the demo's is, and one with a port.
+        localhost_3000: [{ at: JAN_16, site: "https://voicecap.netlify.app/demo-site/" }],
+        localhost_8443: [{ at: JAN_15, site: "https://staging.illinois.gov:8443/" }],
+        "example.illinois.gov": ["2027-01-14T10:00:00-06:00"],
+      });
+
+      const { index } = await built(home);
+
+      expect(listedByDate(index)).toEqual([
+        { at: JAN_17, site: NAME, by: "Sam Rivera", href: `${COPY_FOLDER}/${COPY_FOLDER}_1.html` },
+        {
+          at: JAN_16,
+          site: "voicecap.netlify.app",
+          by: "Sam Rivera",
+          href: "localhost_3000/localhost_3000_1.html",
+        },
+        {
+          at: JAN_15,
+          site: "staging.illinois.gov:8443",
+          by: "Sam Rivera",
+          href: "localhost_8443/localhost_8443_1.html",
+        },
+        {
+          at: "2027-01-14T10:00:00-06:00",
+          site: "example.illinois.gov",
+          by: "Sam Rivera",
+          href: "example.illinois.gov/example.illinois.gov_1.html",
+        },
+      ]);
+      // A name with a port is a section's id made safe as a folder's name is.
+      expect(sitesOn(index).map(([id]) => id)).toContain("site-staging.illinois.gov_8443");
+      expect(repeatedIds(index)).toEqual([]);
+    });
+
+    it("heads a site by the canonical address a share records, as `voicecap share` writes it", async () => {
+      // The fixture site's folder, with the two shares the home has, which name no canonical address.
+      const home = path.join(await newFolder(), "transcripts");
+      await cp(template, home, { recursive: true });
+      const config: LoadedConfig = {
+        config: resolveConfig({ report: { canonical: ROOT } }),
+        file: null,
+        sha256: "test-config",
+      };
+      const { files } = await shareReport({
+        out: home,
+        site: FIXTURE_SITE,
+        reviewer: "Test Reviewer",
+        now: new Date(2027, 0, 17, 10, 0),
+        config,
+        logger: silentLogger,
+        cwd: path.dirname(home),
+        env: {},
+      });
+      expect(files[0]?.name).toBe(`${NAME}_2027-01-17.html`);
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: NAME, folders: [FIXTURE_FOLDER] },
+        { name: EXAMPLE_FOLDER, folders: [EXAMPLE_FOLDER] },
+      ]);
+      // The fixture folder's three shares are the site's, the newest first, and are still published
+      // under the folder, whatever each is named.
+      const [site] = content.sites;
+      expect(site?.reports.map(({ id }) => id)).toEqual([
+        `report-${FIXTURE_FOLDER}-3`,
+        `report-${FIXTURE_FOLDER}-2`,
+        `report-${FIXTURE_FOLDER}-1`,
+      ]);
+      expect(site?.reports[0]?.files.map(({ href }) => href)[0]).toBe(
+        `${FIXTURE_FOLDER}/${NAME}_2027-01-17.html`,
+      );
+      expect(sitesOn(index).map(([, heading]) => heading)).toEqual([NAME, EXAMPLE_FOLDER]);
     });
   });
 });

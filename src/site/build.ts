@@ -9,6 +9,12 @@
  * in the build's output and under its report on the site, and the build goes on: one copy that can't
  * be published never stops every later update.
  *
+ * The page names a site by its canonical name: the one its newest share records, or else its
+ * folder's own name (see siteName). Site folders that have one name are one site, their reports
+ * listed together, the newest first. Only what the page shows changes: each file is still published
+ * in its own folder, `<folder>/<name>`, so two folders that name one site can have files of one
+ * name, and neither takes the other's place.
+ *
  * Each build empties its folder, so a folder given by mistake must never be one with records, or
  * anyone's work, in it. A folder is built into only when it's new, empty, or one an earlier build
  * made (its _headers starts with HEADERS_FIRST_LINE) and that holds nothing but what a build writes,
@@ -46,6 +52,7 @@ import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
+import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { plural } from "../report/html.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { linkPath, resolveHome } from "../run/paths.js";
@@ -174,8 +181,10 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
 
   const leftOut = [...records.leftOut];
   const publishing: Publishing = { home, out, leftOut, rulesOf: new Map() };
-  const sites: SiteContent["sites"] = [];
-  for (const { folder, entries } of records.sites) {
+  // The site folders and the reports of each site, by the site's name: folders that name one site
+  // are one site. The files are published folder by folder, wherever their reports are listed.
+  const named = new Map<string, { folders: string[]; made: Made[] }>();
+  for (const [order, { folder, entries }] of records.sites.entries()) {
     if (OWN_FILES.has(folder)) {
       leaveOut(
         leftOut,
@@ -183,15 +192,32 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
       );
       continue;
     }
-    const made: { seq: number; report: PublishedReport }[] = [];
+    const made: Made[] = [];
     for (const entry of entries) {
       const id = `report-${folder}-${entry.seq}`;
-      made.push({ seq: entry.seq, report: await publishReport(publishing, entry, folder, id) });
+      made.push({
+        order,
+        seq: entry.seq,
+        site: entry.site,
+        report: await publishReport(publishing, entry, folder, id),
+      });
     }
-    // Newest first, by the moment each time names; the higher seq of two made at the same moment.
-    made.sort((a, b) => Date.parse(b.report.at) - Date.parse(a.report.at) || b.seq - a.seq);
-    sites.push({ folder, reports: made.map(({ report }) => report) });
+    // Newest first, and the folder's newest share names its site.
+    made.sort(newestFirst);
+    const name = siteName(folder, made[0]?.site ?? null);
+    const site = named.get(name) ?? { folders: [], made: [] };
+    site.folders.push(folder);
+    site.made.push(...made);
+    named.set(name, site);
   }
+  const sites: SiteContent["sites"] = [...named]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([name, { folders, made }]) => ({
+      name,
+      folders,
+      // The folders' reports together, newest first.
+      reports: made.sort(newestFirst).map(({ report }) => report),
+    }));
   const demo =
     records.demo === null
       ? null
@@ -226,6 +252,37 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     `Built the site in ${out}: ${plural(reports, "report")} from ${plural(sites.length, "site")}${demo === null ? "" : ", and the demo's"}.`,
   );
   return { out, content, leftOut };
+}
+
+/** A report made from an entry, with what puts it in its site's order and names its site. */
+interface Made {
+  /** Where its folder comes among the home's site folders, which are sorted by name. */
+  order: number;
+  seq: number;
+  /** The root the entry records for its site (see `SiteEntry`). */
+  site: string | null;
+  report: PublishedReport;
+}
+
+/**
+ * Newest first, by the moment each report's time names. Of two made at the same moment, the one in
+ * the earlier folder comes first, and in one folder the one with the higher seq. So a folder's
+ * reports come in the same order alone as among the reports of other folders that name its site.
+ */
+function newestFirst(a: Made, b: Made): number {
+  return Date.parse(b.report.at) - Date.parse(a.report.at) || a.order - b.order || b.seq - a.seq;
+}
+
+/**
+ * The name the site shows a site folder's reports under, given the root its newest share records for
+ * its site: that root's canonical name, and otherwise the folder's own. A share that records no root
+ * (one from before 0.10.0), or one that names the site by no address readers know it by (a share
+ * made with no canonical address records the address voicecap read, which `recordedCanonical`
+ * turns away: an IP address, or a local address), leaves the folder's name.
+ */
+function siteName(folder: string, site: string | null): string {
+  const root = recordedCanonical(site);
+  return root === null ? folder : canonicalName(root);
 }
 
 /** What kind of thing is at a path: nothing, a folder (a link to one too), or anything else. */

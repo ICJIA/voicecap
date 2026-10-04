@@ -22,7 +22,8 @@ const FIXTURE_HOME = path.join(ROOT, "test", "fixtures", "share", "demo-2026-09-
 
 /** The fixture's site folder, which the home shares twice, and which the demo's folder holds a copy of. */
 export const FIXTURE_FOLDER = "127.0.0.1_4848";
-const FIXTURE_SITE = "http://127.0.0.1:4848";
+/** The address the fixture's runs read: the site that `voicecap share` is asked to share. */
+export const FIXTURE_SITE = "http://127.0.0.1:4848";
 /** The site whose one report is written by hand. */
 export const EXAMPLE_FOLDER = "example.illinois.gov";
 /** The name its page and its Word copy have, without the extension. */

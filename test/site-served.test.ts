@@ -255,7 +255,8 @@ describe("the site, served as Netlify serves it", () => {
   it("downloads a Word copy and a walkthrough file as attachments", async () => {
     const page = await newPage();
     await page.goto(server.url);
-    const report = built.content.sites.find((site) => site.folder === FIXTURE_FOLDER)?.reports[0];
+    const site = built.content.sites.find(({ folders }) => folders.includes(FIXTURE_FOLDER));
+    const report = site?.reports[0];
     expect(report?.files.map(({ kind }) => kind)).toEqual([
       "page",
       "word",

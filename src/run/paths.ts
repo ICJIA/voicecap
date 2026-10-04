@@ -98,12 +98,21 @@ export function linkPath(fromDir: string, target: string): string {
 }
 
 /**
- * The folder for a site: its host (already lowercased by URL parsing), with anything outside
- * a-z 0-9 . - replaced by "_".
+ * `name` written as a folder's name: anything outside a-z 0-9 . - replaced by "_". The rule that
+ * names a site's folder after its host (siteFolder), and a site's section on the website after the
+ * site's name (../site/render.ts).
+ */
+export function folderSafe(name: string): string {
+  return name.replace(/[^a-z0-9.-]/g, "_");
+}
+
+/**
+ * The folder for a site: its host (already lowercased by URL parsing), made safe for a folder's name
+ * (see folderSafe).
  */
 export function siteFolder(site: string | URL): string {
   const url = typeof site === "string" ? new URL(site) : site;
-  return url.host.replace(/[^a-z0-9.-]/g, "_");
+  return folderSafe(url.host);
 }
 
 /**

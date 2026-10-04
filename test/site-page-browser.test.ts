@@ -39,7 +39,8 @@ function longContent(): SiteContent {
     demo: null,
     sites: [
       {
-        folder,
+        name: folder,
+        folders: [folder],
         reports: [
           {
             folder,
@@ -72,7 +73,7 @@ function manyContent(): SiteContent {
         files: [published("page", folder, `${folder}_2026-10-${day(index)}.html`, 100)],
         notPublished: [],
       };
-      return { folder, reports: [report] };
+      return { name: folder, folders: [folder], reports: [report] };
     }),
   };
 }

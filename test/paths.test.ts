@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   attemptsDir,
+  folderSafe,
   manualSessionDir,
   resolveHome,
   runDir,
@@ -20,6 +21,26 @@ describe("siteFolder", () => {
     expect(siteFolder("https://WWW.Example.gov/news/")).toBe("www.example.gov");
     expect(siteFolder(new URL("https://www.example.gov/x"))).toBe("www.example.gov");
     expect(siteFolder("http://[::1]:4747/")).toBe("___1__4747");
+  });
+});
+
+describe("folderSafe", () => {
+  it("keeps lower-case letters, digits, dots, and hyphens, and makes anything else an underscore", () => {
+    expect(folderSafe("dvfr.illinois.gov")).toBe("dvfr.illinois.gov");
+    expect(folderSafe("dvfr.illinois.gov:8443")).toBe("dvfr.illinois.gov_8443");
+    expect(folderSafe("my-site.example.gov")).toBe("my-site.example.gov");
+    expect(folderSafe('a"b&c<s>')).toBe("a_b_c_s_");
+    expect(folderSafe("a b/c\\d")).toBe("a_b_c_d");
+  });
+
+  it("is the rule that names a site's folder after its host", () => {
+    for (const site of [
+      "http://127.0.0.1:4747/",
+      "https://dvfr.illinois.gov:8443/",
+      "http://[::1]/",
+    ]) {
+      expect(folderSafe(new URL(site).host)).toBe(siteFolder(site));
+    }
   });
 });
 

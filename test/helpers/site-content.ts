@@ -110,12 +110,12 @@ export const EXAMPLE_REPORT: PublishedReport = {
   notPublished: [{ name: `${EXAMPLE}_2026-10-02.docx`, reason: "missing" }],
 };
 
-/** The demo, then the two sites by folder name, each site's reports the newest first. */
+/** The demo, then the two sites by name, each site's reports the newest first. */
 export const CONTENT: SiteContent = {
   demo: DEMO_REPORT,
   sites: [
-    { folder: DVFR, reports: [DVFR_NEWEST, DVFR_OLDEST] },
-    { folder: EXAMPLE, reports: [EXAMPLE_REPORT] },
+    { name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, DVFR_OLDEST] },
+    { name: EXAMPLE, folders: [EXAMPLE], reports: [EXAMPLE_REPORT] },
   ],
 };
 
