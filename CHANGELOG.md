@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The website's footer keeps to the width of the notes above it,** so a line of it is no longer to read than theirs. On a wide window it ran the main column's whole width, about 170 characters a line. Its smaller text now stops at 80 characters, as wide as the notes' 72.
+
 ## [0.9.1] - 2026-10-04
 
 A fix for a home's first website build: `voicecap site` writes voicecap's own `.gitignore` and `.gitattributes` where the home is missing them, and reads a `.gitignore` as Git does. The README's stories of who voicecap is for now open from one line each.

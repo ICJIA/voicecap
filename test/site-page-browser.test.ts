@@ -342,6 +342,24 @@ describe("the site's page", () => {
     }
   });
 
+  it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
+    const page = await open(files.page, { width: 1600 });
+
+    const right = await page.evaluate(() => {
+      const edge = (selector: string): number =>
+        Math.max(
+          ...[...document.querySelectorAll(selector)].map(
+            (element) => element.getBoundingClientRect().right,
+          ),
+        );
+      return { notes: edge("p.note"), footer: edge("footer > p") };
+    });
+
+    // The footer's smaller text keeps the notes' measure, so a line of it is no longer to read: its
+    // 80 characters are as wide as their 72, to within a few pixels.
+    expect(Math.abs(right.footer - right.notes)).toBeLessThan(8);
+  });
+
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     // The skip link, the bar's three links and its button, each file's link, each report's page by

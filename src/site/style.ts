@@ -79,5 +79,6 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 /* how to check a file */
 .note { color: var(--muted); max-width: 72ch; margin-bottom: 12px; }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-block: 18px 40px; display: grid; gap: 6px; }
-footer > * { min-width: 0; }
+/* A line of the footer is no longer to read than a note's: 80 characters of its smaller text are as wide as the notes' 72. */
+footer > * { min-width: 0; max-width: 80ch; }
 `;
