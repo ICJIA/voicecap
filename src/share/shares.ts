@@ -141,11 +141,19 @@ export function isSeq(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
-/** "share 2 (<time>)", or "a share at <time>" for one without a seq. */
+/**
+ * "share 2 (<time>)", or "a share at <time>" for one without a seq. An entry holds whatever a
+ * person left in it, so one whose time can't be made into text (an object whose toString isn't a
+ * function, or a list nested too deep) is just "a share": naming an entry never stops a caller.
+ */
 export function describeShare(entry: Record<string, unknown>): string {
-  return isSeq(entry.seq)
-    ? `share ${entry.seq} (${String(entry.at)})`
-    : `a share at ${String(entry.at)}`;
+  try {
+    return isSeq(entry.seq)
+      ? `share ${entry.seq} (${String(entry.at)})`
+      : `a share at ${String(entry.at)}`;
+  } catch {
+    return "a share";
+  }
 }
 
 /**

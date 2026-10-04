@@ -4,8 +4,8 @@
  * publishes files from these, and a record is a file a person can edit, so it's read as untrusted:
  * an entry is kept only when its seal holds and its fields are as voicecap records them, and one of
  * its files only when its name is one voicecap would give. What isn't kept is left out and named,
- * and never stops the rest. No file an entry lists is read here: the build checks each one against
- * its recorded size and SHA-256.
+ * and never stops the rest, whatever a record holds. No file an entry lists is read here: the build
+ * checks each one against its recorded size and SHA-256.
  */
 import path from "node:path";
 
@@ -13,7 +13,9 @@ import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
+import { longDate } from "../share/format.js";
 import { describeShare, isPlainName, isSeq, readShares, recordedFiles } from "../share/shares.js";
+import { isRunId } from "../share/walkthrough.js";
 import { sealOf } from "../util/hash.js";
 
 /** An entry of a shares.json the site can publish from: its seal holds, and its fields are readable. */
@@ -26,7 +28,10 @@ export interface SiteEntry {
   /** As recorded: a local ISO date and time. */
   at: string;
   by: string;
-  /** The files whose names voicecap would give, in the record's order. */
+  /**
+   * The files whose names voicecap would give, in the record's order: at least one, and a run on
+   * one is a run id.
+   */
   files: SharedFile[];
 }
 
@@ -46,13 +51,20 @@ const SITE_FOLDER_NAME = /^[a-z0-9._-]+$/;
  * is made of them too, so a name must also be a plain one (see isPlainName).
  */
 const FILE_NAME = /^[A-Za-z0-9._-]+$/;
+/**
+ * What a published file's name may not start or end with: a "." first (a hidden file) or a "-"
+ * first (a command can take it for an option), and a "." last (Windows drops it). A site folder's
+ * name has only its characters to keep to: an IPv6 site's folder starts with "_".
+ */
+const AWKWARD_EDGE = /^[.-]|\.$/;
 /** The demo is published as demo/ on the site, so the home's own site folder of that name isn't. */
 const DEMO_SITE = "demo";
 
 /**
  * Every entry of the home's records that the site can publish from, and a line for each thing left
  * out. A site's folder that can't be published, a record that can't be read, an entry that can't be
- * trusted or read, and a file with a name voicecap wouldn't give, each leave out only themselves.
+ * trusted or read or has no file to publish, and a file with a name voicecap wouldn't give, each
+ * leave out only themselves. Each line is safe to print (see leaveOut).
  */
 export async function readSiteRecords(home: string): Promise<SiteRecords> {
   const leftOut: string[] = [];
@@ -74,11 +86,13 @@ async function readSites(
   for (const folder of await siteFolders(root)) {
     const siteDir = path.join(root, folder);
     if (!SITE_FOLDER_NAME.test(folder)) {
-      leftOut.push(
+      leaveOut(
+        leftOut,
         `${linkPath(home, siteDir)}: not published: its name isn't one voicecap gives a site's folder`,
       );
     } else if (root === home && folder === DEMO_SITE) {
-      leftOut.push(
+      leaveOut(
+        leftOut,
         `${linkPath(home, siteDir)}: not published: a site folder named demo would take the demo's place on the site`,
       );
     } else {
@@ -105,21 +119,21 @@ async function readEntries(
     shares = (await readShares(siteDir)).shares;
   } catch {
     // A record that isn't JSON, isn't a record of shares, or can't be read vouches for nothing.
-    leftOut.push(`${where}: not a readable record of what was shared`);
+    leaveOut(leftOut, `${where}: not a readable record of what was shared`);
     return [];
   }
 
   const entries: SiteEntry[] = [];
   for (const entry of shares) {
-    const name = nameOf(entry);
-    // An entry that lost its seal was changed, just like one that no longer matches it.
-    if (entry.seal !== sealOf(entry)) {
-      leftOut.push(`${where}: ${name} changed since it was recorded`);
+    const name = describeShare(entry);
+    if (!sealHolds(entry)) {
+      leaveOut(leftOut, `${where}: ${name} changed since it was recorded`);
       continue;
     }
     const fields = readFields(entry);
     if ("unreadable" in fields) {
-      leftOut.push(
+      leaveOut(
+        leftOut,
         `${where}: ${name} can't be published: its ${fields.unreadable} isn't what voicecap records`,
       );
       continue;
@@ -128,13 +142,18 @@ async function readEntries(
     // it could lead anywhere. The entry's other files are.
     const files: SharedFile[] = [];
     for (const file of fields.files) {
-      if (isPlainName(file.name) && FILE_NAME.test(file.name)) {
-        files.push(file);
+      if (isPublishableName(file.name)) {
+        files.push(withVettedRun(file));
       } else {
-        leftOut.push(
+        leaveOut(
+          leftOut,
           `${where}: ${name} names ${JSON.stringify(file.name)}, which isn't a file voicecap would publish`,
         );
       }
+    }
+    if (files.length === 0) {
+      leaveOut(leftOut, `${where}: ${name} names no file voicecap would publish`);
+      continue;
     }
     entries.push({
       folder,
@@ -149,15 +168,31 @@ async function readEntries(
 }
 
 /**
- * How a line names an entry: as `voicecap verify` does (see describeShare). An entry whose time
- * can't be made into text (an object whose toString isn't a function) is "a share": a record is
- * untrusted, so naming an entry never stops the read.
+ * Add a line to what's left out, written so that it's safe to print: each control character in it,
+ * and each of U+2028 and U+2029 (which end a line), is written as a backslash, "u", and four
+ * lower-case hex digits. What a record holds, and what a folder is named, is its own, and a line is
+ * printed to a terminal and kept in a build's log, so nothing in one may act there. Every line goes
+ * through here.
  */
-function nameOf(entry: Record<string, unknown>): string {
+function leaveOut(leftOut: string[], line: string): void {
+  leftOut.push(
+    line.replace(
+      /[\p{Cc}\u{2028}\u{2029}]/gu,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    ),
+  );
+}
+
+/**
+ * Whether an entry's seal holds. An entry nested too deep for sealOf, which reads it by recursion,
+ * can't be sealed as voicecap seals one, so its seal doesn't hold: it's one that changed, and the
+ * read goes on. One that lost its seal was changed, just like one that no longer matches it.
+ */
+function sealHolds(entry: Record<string, unknown>): boolean {
   try {
-    return describeShare(entry);
+    return entry.seal === sealOf(entry);
   } catch {
-    return "a share";
+    return false;
   }
 }
 
@@ -169,11 +204,43 @@ function readFields(
   | { unreadable: "seq" | "at" | "by" | "files" } {
   const { seq, at, by } = entry;
   if (!isSeq(seq)) return { unreadable: "seq" };
-  if (typeof at !== "string" || Number.isNaN(Date.parse(at))) return { unreadable: "at" };
+  if (typeof at !== "string" || !isTime(at)) return { unreadable: "at" };
   if (typeof by !== "string") return { unreadable: "by" };
   const files = recordedFiles(entry.files);
   if (files === null) return { unreadable: "files" };
   return { seq, at, by, files };
+}
+
+/**
+ * Whether `at` is a time the site can use: one Date.parse reads, and one that format.ts can write a
+ * date from, as it must for the site's pages. That is format.ts's own check of voicecap's local ISO
+ * time (longDate and clock refuse any other), so its pattern isn't copied here.
+ */
+function isTime(at: string): boolean {
+  if (Number.isNaN(Date.parse(at))) return false;
+  try {
+    longDate(at);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a file with this name is one voicecap would publish: a plain name, made of what
+ * voicecap's are, and with no edge that's awkward (see AWKWARD_EDGE).
+ */
+function isPublishableName(name: string): boolean {
+  return isPlainName(name) && FILE_NAME.test(name) && !AWKWARD_EDGE.test(name);
+}
+
+/**
+ * A file as the site keeps it: with its run only when that's a run id. The run is printed on the
+ * site, so text that isn't an id is dropped, and the file stays, as one with no run.
+ */
+function withVettedRun(file: SharedFile): SharedFile {
+  if (file.run === undefined || isRunId(file.run)) return file;
+  return { name: file.name, bytes: file.bytes, sha256: file.sha256 };
 }
 
 /** The entry with the latest time, the higher seq of those with the same time; null for none. */

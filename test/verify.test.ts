@@ -1026,6 +1026,18 @@ describe("verifyHome, and what was shared", () => {
         `${SHARES_JSON}: a share at ${LATER} changed since it was recorded`,
       ]);
     });
+
+    it("names an entry whose time can't be made into text as a share, and goes on", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        // An object whose toString isn't a function: String can't make text of it. The entry
+        // changed, so it's named, and its time is no part of the name.
+        entries[0]!.at = { toString: 1 };
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: a share changed since it was recorded`,
+      ]);
+    });
   });
 
   describe("the copies an entry records", () => {

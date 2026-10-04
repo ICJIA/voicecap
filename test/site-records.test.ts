@@ -28,6 +28,18 @@ const CST = "2027-11-07T01:10:00-06:00";
 const EXAMPLE_RECORD = "example.illinois.gov/share/shares.json";
 const BAD_FOLDER_NAME = "not published: its name isn't one voicecap gives a site's folder";
 
+// Characters a terminal would act on, written with braces: a plain backslash-u escape can't be kept
+// in a file by the tools that write this one.
+const ESC = "\u{1b}";
+const DEL = "\u{7f}";
+const NEL = "\u{85}";
+const LINE_SEPARATOR = "\u{2028}";
+const PARAGRAPH_SEPARATOR = "\u{2029}";
+/** A control character, or a line separator: what no line of the output may hold as it is. */
+const RAW = /[\p{Cc}\u{2028}\u{2029}]/u;
+/** How the output writes such a character: a backslash, "u", and four lower-case hex digits. */
+const escaped = (hex: string) => `\\u${hex}`;
+
 /** The transcripts home: new for each test, and empty. */
 let home: string;
 
@@ -345,9 +357,9 @@ describe("readSiteRecords", () => {
   });
 
   it("names an entry whose time can't be made into text as a share, and reads on", async () => {
-    // An object whose toString isn't a function can't be made into text, so the way `voicecap
-    // verify` names an entry (by its seq and time) can't name one that has such a time. A record is
-    // untrusted, so that entry is left out like any other, and the read goes on.
+    // An object whose toString isn't a function can't be made into text, so an entry can't be
+    // named by its time when that's its time: it's "a share". A record is untrusted, so the entry
+    // is left out like any other, and the read goes on.
     const dir = await siteFolder("example.illinois.gov");
     const files = copies("example.illinois.gov_2027-01-15");
     const hostile = { toString: 1 };
@@ -365,6 +377,93 @@ describe("readSiteRecords", () => {
     expect(leftOut).toEqual([
       `${EXAMPLE_RECORD}: a share can't be published: its at isn't what voicecap records`,
       `${EXAMPLE_RECORD}: a share changed since it was recorded`,
+    ]);
+  });
+
+  it("leaves out an entry nested too deep for its seal to be checked, and reads on", async () => {
+    // sealOf reads an entry by recursion, so one nested this deep can't even be sealed here: the
+    // record's text is planted, the way a person could leave it.
+    const dir = await siteFolder("example.illinois.gov");
+    const files = copies("example.illinois.gov_2027-01-15");
+    const tooDeep = JSON.stringify({
+      seq: 2,
+      prev: null,
+      at: JAN_16,
+      by: "Pat Lee",
+      runs: [],
+      files,
+      note: "DEEP",
+      seal: "0".repeat(64),
+    }).replace('"DEEP"', `${"[".repeat(20_000)}${"]".repeat(20_000)}`);
+    await plant(
+      dir,
+      `{ "schemaVersion": 1, "shares": [${[
+        JSON.stringify(sealed(1, JAN_15, files)),
+        tooDeep,
+        JSON.stringify(sealed(3, JAN_17, files)),
+      ].join(", ")}] }`,
+    );
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    // The entry is one that changed, as far as anyone can tell, and the others are kept.
+    expect(kept(sites).map(({ seq }) => seq)).toEqual([1, 3]);
+    expect(leftOut).toEqual([
+      `${EXAMPLE_RECORD}: share 2 (${JAN_16}) changed since it was recorded`,
+    ]);
+  });
+
+  it("names an entry whose time is nested too deep to be made into text as a share", async () => {
+    // Making a list text reads the lists in it, so this overflows too, in the name of the entry.
+    const dir = await siteFolder("example.illinois.gov");
+    const files = copies("example.illinois.gov_2027-01-15");
+    const tooDeep = JSON.stringify({
+      seq: 2,
+      prev: null,
+      at: "DEEP",
+      by: "Pat Lee",
+      runs: [],
+      files,
+      seal: "0".repeat(64),
+    }).replace('"DEEP"', `${"[".repeat(20_000)}${"]".repeat(20_000)}`);
+    await plant(
+      dir,
+      `{ "schemaVersion": 1, "shares": [${[JSON.stringify(sealed(1, JAN_15, files)), tooDeep].join(
+        ", ",
+      )}] }`,
+    );
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ seq }) => seq)).toEqual([1]);
+    expect(leftOut).toEqual([`${EXAMPLE_RECORD}: a share changed since it was recorded`]);
+  });
+
+  it("leaves out an entry whose time isn't both one Date.parse reads and one voicecap writes", async () => {
+    // The site writes each time with format.ts, which reads only voicecap's own local ISO time, and
+    // orders them with Date.parse. Each is a time to one of the two, and not to the other.
+    const dir = await siteFolder("example.illinois.gov");
+    const files = copies("example.illinois.gov_2027-01-15");
+    await record(dir, [
+      sealed(1, JAN_15, files),
+      // Times to Date.parse, but not voicecap's.
+      sealed(2, "1/15/2027", files),
+      sealed(3, "2027-01-15", files),
+      sealed(4, "Jan 15 2027 10:00", files),
+      sealed(5, "2027-01-15T24:00:00-06:00", files),
+      // Voicecap's start, with more after it that Date.parse can't read.
+      sealed(6, "2027-01-15T10:00:00-06:00x", files),
+    ]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ seq }) => seq)).toEqual([1]);
+    expect(leftOut).toEqual([
+      `${EXAMPLE_RECORD}: share 2 (1/15/2027) can't be published: its at isn't what voicecap records`,
+      `${EXAMPLE_RECORD}: share 3 (2027-01-15) can't be published: its at isn't what voicecap records`,
+      `${EXAMPLE_RECORD}: share 4 (Jan 15 2027 10:00) can't be published: its at isn't what voicecap records`,
+      `${EXAMPLE_RECORD}: share 5 (2027-01-15T24:00:00-06:00) can't be published: its at isn't what voicecap records`,
+      `${EXAMPLE_RECORD}: share 6 (2027-01-15T10:00:00-06:00x) can't be published: its at isn't what voicecap records`,
     ]);
   });
 
@@ -395,6 +494,193 @@ describe("readSiteRecords", () => {
       ),
     );
   });
+
+  it("keeps a walkthrough file's run only when it's a run id, and the file either way", async () => {
+    // A run id, as the walkthrough file's own reader takes one: 1 to 100 letters, digits, ".", "_",
+    // and "-". The run is printed on the site and in its output, so text that isn't one is dropped.
+    const dir = await siteFolder("example.illinois.gov");
+    const stem = "example.illinois.gov_2027-01-15";
+    const withoutRun = (letter: string) => ({
+      name: `${stem}_${letter}_walkthrough.json`,
+      bytes: 30,
+      sha256: "c".repeat(64),
+    });
+    const runs: [letter: string, run: unknown][] = [
+      ["a", "2027-01-14_1315"],
+      ["b", "a".repeat(100)],
+      ["c", "a".repeat(101)],
+      ["d", ""],
+      ["e", "../../outside"],
+      ["f", "2027-01-14_1315\n"],
+      ["g", "2027-01-14 1315"],
+    ];
+    await record(dir, [
+      sealed(
+        1,
+        JAN_15,
+        runs.map(([letter, run]) => ({ ...withoutRun(letter), run })),
+      ),
+    ]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    // Each file is kept, as it's named; a run that isn't an id is left off it.
+    expect(kept(sites)[0]?.files).toStrictEqual([
+      { ...withoutRun("a"), run: "2027-01-14_1315" },
+      { ...withoutRun("b"), run: "a".repeat(100) },
+      withoutRun("c"),
+      withoutRun("d"),
+      withoutRun("e"),
+      withoutRun("f"),
+      withoutRun("g"),
+    ]);
+    expect(leftOut).toEqual([]);
+  });
+
+  it("refuses a file name that starts with . or -, or ends with .", async () => {
+    const dir = await siteFolder("example.illinois.gov");
+    const [page, word] = copies("example.illinois.gov_2027-01-15");
+    // A name with a dot first is a hidden file, one with a hyphen first can be taken for an option
+    // by a command, and Windows drops a dot from the end. An underscore first is as an IPv6 site's
+    // folder has it, so it's fine.
+    const underscored = { name: "_x.html", bytes: 5, sha256: "d".repeat(64) };
+    const refused = [".env", "-x.html", "x.html."];
+    const refusedFiles = refused.map((name) => ({ name, bytes: 5, sha256: "c".repeat(64) }));
+    await record(dir, [sealed(1, JAN_15, [page, ...refusedFiles, underscored, word])]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ files }) => files)).toEqual([[page, underscored, word]]);
+    expect(leftOut).toEqual(
+      refused.map(
+        (name) =>
+          `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names "${name}", which isn't a file voicecap would publish`,
+      ),
+    );
+  });
+
+  it("keeps a site folder by its characters alone: an IPv6 site's starts with an underscore", async () => {
+    // http://[::1]:4848 is the folder ___1__4848, and a URL can have a host with a hyphen first.
+    // The rule about how a name starts and ends is for a file's name, not a folder's.
+    const folders = ["-x.example.gov", "___1__4848"];
+    for (const folder of folders) {
+      await record(await siteFolder(folder), [sealed(1, JAN_15, copies("example_2027-01-15"))]);
+    }
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(sites.map((site) => site.folder)).toEqual(folders);
+    expect(leftOut).toEqual([]);
+  });
+
+  it("leaves out an entry with no file to publish, after naming the files it refused", async () => {
+    const dir = await siteFolder("example.illinois.gov");
+    const refused = (name: string) => ({ name, bytes: 5, sha256: "c".repeat(64) });
+    await record(dir, [
+      sealed(1, JAN_15, copies("example.illinois.gov_2027-01-15")),
+      // Every name is one it won't publish.
+      sealed(2, JAN_16, [refused("../outside.html"), refused(".env")]),
+      // It records none at all.
+      sealed(3, JAN_17, []),
+    ]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ seq }) => seq)).toEqual([1]);
+    expect(leftOut).toEqual([
+      `${EXAMPLE_RECORD}: share 2 (${JAN_16}) names "../outside.html", which isn't a file voicecap would publish`,
+      `${EXAMPLE_RECORD}: share 2 (${JAN_16}) names ".env", which isn't a file voicecap would publish`,
+      `${EXAMPLE_RECORD}: share 2 (${JAN_16}) names no file voicecap would publish`,
+      `${EXAMPLE_RECORD}: share 3 (${JAN_17}) names no file voicecap would publish`,
+    ]);
+  });
+
+  it("writes each control character in a line of the output as an escape, a time's too", async () => {
+    // A record is a file a person can edit, and its lines are printed to a terminal, so a time with a
+    // line break and an ESC in it (as red text starts) must not reach it as it is: in an entry that
+    // was changed, and in one whose seal holds.
+    const dir = await siteFolder("example.illinois.gov");
+    const files = copies("example.illinois.gov_2027-01-15");
+    const at = `first\nsecond ${ESC}[31mred`;
+    await record(dir, [{ ...sealed(1, at, files), by: "Someone Else" }, sealed(2, at, files)]);
+
+    const { leftOut } = await readSiteRecords(home);
+
+    const shown = `first${escaped("000a")}second ${escaped("001b")}[31mred`;
+    expect(leftOut).toEqual([
+      `${EXAMPLE_RECORD}: share 1 (${shown}) changed since it was recorded`,
+      `${EXAMPLE_RECORD}: share 2 (${shown}) can't be published: its at isn't what voicecap records`,
+    ]);
+    expect(leftOut.filter((line) => RAW.test(line))).toEqual([]);
+  });
+
+  it("writes a file's name without what JSON leaves as it is: DEL, C1 controls, line separators", async () => {
+    // JSON writes a character below U+0020 as an escape, so these are the ones it passes through.
+    const dir = await siteFolder("example.illinois.gov");
+    const [page, word] = copies("example.illinois.gov_2027-01-15");
+    const odd: [name: string, shown: string][] = [
+      [`a${DEL}.html`, `"a${escaped("007f")}.html"`],
+      [`a${NEL}.html`, `"a${escaped("0085")}.html"`],
+      [`a${LINE_SEPARATOR}.html`, `"a${escaped("2028")}.html"`],
+      [`a${PARAGRAPH_SEPARATOR}.html`, `"a${escaped("2029")}.html"`],
+      [`a${ESC}.html`, `"a${escaped("001b")}.html"`],
+    ];
+    const oddFiles = odd.map(([name]) => ({ name, bytes: 5, sha256: "c".repeat(64) }));
+    await record(dir, [sealed(1, JAN_15, [page, ...oddFiles, word])]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ files }) => files)).toEqual([[page, word]]);
+    expect(leftOut).toEqual(
+      odd.map(
+        ([, shown]) =>
+          `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names ${shown}, which isn't a file voicecap would publish`,
+      ),
+    );
+    expect(leftOut.filter((line) => RAW.test(line))).toEqual([]);
+  });
+
+  it("writes a rejected folder's name without its control characters, the demo's too", async () => {
+    // Names a person could give a folder on any system, Windows included.
+    const names = [`a${DEL}`, `a${NEL}`, `a${LINE_SEPARATOR}`, `a${PARAGRAPH_SEPARATOR}`];
+    for (const name of names) {
+      await record(await siteFolder(name), [
+        sealed(1, JAN_15, copies("example.illinois.gov_2027-01-15")),
+      ]);
+    }
+    await record(await siteFolder(`b${NEL}`, demoRoot()), [
+      sealed(1, JAN_15, copies("example.illinois.gov_2027-01-15")),
+    ]);
+
+    const { sites, demo, leftOut } = await readSiteRecords(home);
+
+    expect(sites).toEqual([]);
+    expect(demo).toBeNull();
+    expect(leftOut).toEqual([
+      `a${escaped("007f")}: ${BAD_FOLDER_NAME}`,
+      `a${escaped("0085")}: ${BAD_FOLDER_NAME}`,
+      `a${escaped("2028")}: ${BAD_FOLDER_NAME}`,
+      `a${escaped("2029")}: ${BAD_FOLDER_NAME}`,
+      `voicecap-demo/b${escaped("0085")}: ${BAD_FOLDER_NAME}`,
+    ]);
+  });
+
+  // Windows doesn't allow an ESC in a name, so only a folder made elsewhere can have one.
+  it.skipIf(process.platform === "win32")(
+    "writes a rejected folder's name with an ESC in it as an escape, in the demo's folders too",
+    async () => {
+      const name = `a${ESC}[2Jb`;
+      await record(await siteFolder(name), [sealed(1, JAN_15, copies("a_2027-01-15"))]);
+      await record(await siteFolder(name, demoRoot()), [sealed(1, JAN_15, copies("a_2027-01-15"))]);
+
+      const { leftOut } = await readSiteRecords(home);
+
+      expect(leftOut).toEqual([
+        `a${escaped("001b")}[2Jb: ${BAD_FOLDER_NAME}`,
+        `voicecap-demo/a${escaped("001b")}[2Jb: ${BAD_FOLDER_NAME}`,
+      ]);
+    },
+  );
 
   it("reads a home with nothing shared as nothing", async () => {
     // A site that never shared has no share/ folder, and one may have a record with no entries.
@@ -479,5 +765,20 @@ describe("readSiteRecords, for the demo", () => {
 
     expect(demo).toMatchObject({ folder: "demo", seq: 1 });
     expect(leftOut).toEqual([]);
+  });
+
+  it("takes the latest entry that has a file to publish", async () => {
+    // The latest by time has none, so it's left out, and the one before it is the demo.
+    await record(await siteFolder("127.0.0.1_4848", demoRoot()), [
+      sealed(1, JAN_15, copies("127.0.0.1_4848_2027-01-15")),
+      sealed(2, JAN_17, []),
+    ]);
+
+    const { demo, leftOut } = await readSiteRecords(home);
+
+    expect(demo).toMatchObject({ folder: "127.0.0.1_4848", seq: 1, at: JAN_15 });
+    expect(leftOut).toEqual([
+      `voicecap-demo/127.0.0.1_4848/share/shares.json: share 2 (${JAN_17}) names no file voicecap would publish`,
+    ]);
   });
 });

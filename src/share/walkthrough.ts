@@ -668,19 +668,24 @@ const siteSchema = z.string().superRefine((site, ctx) => {
 });
 
 /**
- * A run id, as run-id.ts makes one: no more than MAX_RUN_ID_LENGTH letters, digits, ".", "_", and
- * "-". An id is printed in a transcript's header, in messages, and in warnings, so a file can't give
- * one that breaks a header's lines or reaches the terminal. `place` is where in the file this id
- * is: the reason is a custom one that names it, whatever is wrong (even a number, or no id at all).
+ * Whether `value` is a run id, as run-id.ts makes one: 1 to MAX_RUN_ID_LENGTH letters, digits, ".",
+ * "_", and "-". An id is printed in a transcript's header, in messages, and in warnings, so a file
+ * can't give one that breaks a header's lines or reaches the terminal. It's the one rule for a run
+ * id: a walkthrough file's runs are read by it (see runId), and so is the run that a record of what
+ * was shared names for a file.
+ */
+export function isRunId(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length <= MAX_RUN_ID_LENGTH && RUN_ID_CHARACTERS.test(value)
+  );
+}
+
+/**
+ * A run id in the file (see isRunId). `place` is where in the file this id is: the reason is a
+ * custom one that names it, whatever is wrong (even a number, or no id at all).
  */
 function runId(place: string): z.ZodCustom<string, string> {
-  return z.custom<string>(
-    (value) =>
-      typeof value === "string" &&
-      value.length <= MAX_RUN_ID_LENGTH &&
-      RUN_ID_CHARACTERS.test(value),
-    { error: `${place} isn't a run id` },
-  );
+  return z.custom<string>(isRunId, { error: `${place} isn't a run id` });
 }
 
 /** Every kind of page source a run records. A fifth kind is one more entry here. */
