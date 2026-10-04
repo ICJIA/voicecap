@@ -4,6 +4,42 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The website, `voicecap site [--home <dir>] [--out <dir>]`**: builds a website of every report voicecap has shared, by site and by date, with the demo, for Netlify to publish. The README's "The website: `voicecap site`" describes it, with the numbered steps of the first deploy.
+  - **Its two options:** `--home` is the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`), and `--out` is the folder to build the site in (default: `_site` in the home). That differs from every other command, where `--out` is the home.
+  - **What's on it:** three views, which a bar of links reaches: the demo, the sites, and every report by date.
+    - The demo is voicecap's report on its own demo site: the latest share in the home's `voicecap-demo/` folder, published under `demo/`. It isn't in "Every report, by date", since it's an example, not a site.
+    - Each site's reports are listed the newest first, under the site's folder name (its host).
+    - Each report shows when it was shared, who prepared it, and its files: the page, to open, and its Word copy and each walkthrough file, to download. Each file shows its size and SHA-256 fingerprint. A report shared by 0.8.0 or earlier has no walkthrough file, and says so.
+    - The site's page is one self-contained file in the shareable page's design: dark at first, with a button for a light version, light in print, and complete without JavaScript. It keeps the reader's theme under the same name as the reports, so a choice made on one carries to the other.
+  - **What it publishes:** only what the records of what was shared name. That's each file of an entry whose seal still holds, as a regular file whose size and SHA-256 are the recorded ones, copied byte for byte. It reads each site folder's `share/shares.json`, and never a run.
+  - **What it leaves out, and names,** in the build's output. The build still succeeds, so one changed file doesn't stop every later update.
+    - An entry whose seal no longer holds, whose fields aren't what voicecap records, or whose `shares.json` can't be read: the site shows nothing of it.
+    - A copy that has changed, is missing, can't be read, or isn't a regular file: it's also named under its report on the site (`<name> isn't here: …`), and the report's other files are still published.
+    - A name voicecap never gives: only lower-case `.html`, `.docx`, and `.json` files are published, and only folders and files named with letters, digits, `.`, `_`, and `-`, with no dot at the start or end of a file's name, and none named `index.html`, which Netlify would serve at its site folder's own address, where it would have no Content Security Policy. A name that holds a path is never read.
+    - A site folder named `demo`, which would take the demo's place, and one named `index.html`, `robots.txt`, or `_headers`, which would take the place of the site's own file.
+    - A `voicecap-demo` that isn't a folder (Git for Windows checks a committed link out as a plain file): the site is built without a demo.
+  - **Where it builds:** the output folder is emptied first, so it's built into only when it's empty or one `voicecap site` built (its `_headers` starts with voicecap's line), and then only when it holds no name that starts with a dot and no folder inside a folder. The files an operating system adds (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder a build made. It refuses the transcripts home itself, a folder that holds it, and anything inside a site's folder or `voicecap-demo/`, through links too. On Windows it also refuses a folder whose name ends with a dot or a space, which Windows drops. A refusal says why, exits with code 1, and changes nothing.
+  - **What it writes:** `index.html`, the site's page; `robots.txt`, which turns every crawler away; and `_headers`, with each page's Content Security Policy, made from the hashes of that page's own style and script, and `Content-Disposition: attachment` for each Word copy and walkthrough file.
+  - **In the home, once, and never written over:** `netlify.toml`, with the build command (`npx --yes @icjia/voicecap@<the minor version that wrote it> site --home . --out _site`), `publish = "_site"`, and the security headers for every file; and `.nvmrc`, with `24`.
+  - **It's public:** everything on the site is open to anyone with its address. A share is never deleted, so the site shows every one whose record is intact.
+- **`voicecap share` writes each run's walkthrough file,** beside the page and its Word copy, so the website has one to offer: the file the page offers to download, named `<the page's name without .html>_<run id>_walkthrough.json`, oldest run first, and never written over. Each is recorded in `shares.json` with its run (`run`), size, and SHA-256. A run whose file can't be made gets a warning, and the share goes on. A share made before this has none. The line to paste into the email still names only the page and its Word copy.
+- **The README says why voicecap is useful and who it's for,** near its top: the two halves of an accessibility review, how voicecap is different, and stories written for the README, each a composite of the people it's made for (a web coordinator with a deadline, a developer, an accessibility specialist, a manager, an outside auditor, a tester, a content editor, a project manager, and a screen reader user).
+- **`pnpm site:fixture <folder>`**, for development: makes a transcripts home with reports shared in it, from the demo fixture, at `<folder>/home`, builds the site in `<folder>/_site`, and prints the path of its `index.html`. It needs no screen reader.
+- **Programmatic API**: `buildSite`, which builds the website as `voicecap site` does (it takes `home`, `out`, `cwd`, `env`, and `logger`, and gives back `out`, the folder it built in; `content`, what it published; and `leftOut`, each thing it left out); the types `BuildSiteOptions`, `BuildSiteResult`, `SiteContent`, `PublishedReport`, `PublishedFile`, and `SharesAsRead` (what `readShares` gives back); and `SharedFile`'s optional `run`, the run a walkthrough file is of. `shareReport`'s `files` and `entry.files` now hold each run's walkthrough file after the page and the Word copy, so a caller that took them for the pair gets more files.
+
+### Changed
+
+- **The line before the one to paste into the email, in `voicecap share`'s output, now says `To paste into the email that sends the page and its Word copy:`.** It said "…that sends them:", which read loosely once a share made more than the page and its Word copy. The line to paste is as it was.
+- **`readShares`'s type says what it checks.** It gives back a `SharesAsRead`, which is exported: `{ schemaVersion: 1, shares }` with each share a `Record<string, unknown>`, since it checks only that each entry is an object. It was a `SharesFile`, with every field known. It's a compile-time change for code that reads a field of a share: it now needs to check the field first. `SharesFile` is still exported, and describes what `voicecap share` writes.
+- **A new home's `.gitignore` keeps the website out of Git** (`_site/`), as it keeps `share/current.*` out. voicecap never rewrites a `.gitignore` it wrote before, so add `_site/` to an older home's by hand: `voicecap site` warns, with the line to add, when the home's `_site/` is built and the line isn't there, and never edits the file.
+- **The story's timeline has a row for the website,** and "Next" now lists the evidence recorded at the PC.
+
+### Fixed
+
+- **`voicecap verify` no longer crashes when it names a `shares.json` entry whose time can't be made into text** (a record someone edited by hand, such as a time that's an object whose `toString` isn't a function). It says "a share" in place of naming it.
+
 ## [0.8.0] - 2026-10-03
 
 The walkthrough file: `voicecap walkthrough` writes a run's recipe, and `--walkthrough` repeats the run, then says page by page how each page sounds against the original. The shareable page offers each run's file to download, and its Word copy says how to get it.

@@ -1,14 +1,15 @@
 /**
  * <site>/share/shares.json, the record of what `voicecap share` sent: one entry each time it made
- * copies of the shareable page and its Word copy to send, with when, who by, the runs the copies
- * drew on, and each file's name, size, and SHA-256. Entries are chained and sealed as reviews.json's
- * are (see ../reviews/store.ts), and never edited or deleted once they're recorded.
+ * copies of the shareable page and its Word copy to send, and of each run's walkthrough file, with
+ * when, who by, the runs the copies drew on, and each file's name, size, and SHA-256 (a walkthrough
+ * file's also names its run). Entries are chained and sealed as reviews.json's are (see
+ * ../reviews/store.ts), and never edited or deleted once they're recorded.
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 
-import type { ShareEntry, SharesFile } from "../model.js";
+import type { ShareEntry, SharedFile } from "../model.js";
 import { sharesPath } from "../run/paths.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError } from "../util/errors.js";
@@ -21,13 +22,20 @@ import { sealOf } from "../util/hash.js";
 const NEVER_OVERWRITES =
   "voicecap never overwrites the record of what was shared: fix the file or restore it from version control.";
 
+/** As read: only that each entry is an object is checked, so a caller checks each field it uses. */
+export interface SharesAsRead {
+  schemaVersion: 1;
+  shares: Record<string, unknown>[];
+}
+
 /**
  * A site folder's shares.json. A missing file is an empty record. A file that isn't JSON, or isn't
  * `{ schemaVersion: 1, shares: [...] }` with an object for each entry, is refused with a
  * UsageError: it's never overwritten. Of each entry it checks only that it's an object, so its
- * seq, seal, and files are whatever a person left there, and a caller reads each as unknown.
+ * seq, seal, and files are whatever a person left there: the type says so (SharesAsRead), and a
+ * caller checks each field it uses.
  */
-export async function readShares(siteDir: string): Promise<SharesFile> {
+export async function readShares(siteDir: string): Promise<SharesAsRead> {
   const file = sharesPath(siteDir);
   if (!existsSync(file)) return { schemaVersion: 1, shares: [] };
   return parseShares(await readFile(file, "utf8"), file);
@@ -59,7 +67,8 @@ export async function appendShare(
   const sealed: ShareEntry = { ...unsealed, seal: sealOf(unsealed) };
 
   const after = structuredClone(before);
-  after.shares.push(sealed);
+  // A spread: an interface (ShareEntry) isn't a Record<string, unknown>, but its fields are.
+  after.shares.push({ ...sealed });
   if (!isDeepStrictEqual(after.shares.slice(0, before.shares.length), before.shares)) {
     throw new Error("Refusing to write shares.json: an earlier share would change.");
   }
@@ -85,6 +94,45 @@ export function recordedNames(shares: readonly unknown[]): Set<string> {
 }
 
 /**
+ * The files an entry records, each as { name, bytes, sha256 } and, when it's text, its run, last:
+ * built key by key, so that nothing else a person left in a file is carried on. Null unless `files`
+ * is a list of such files. A name isn't checked here (see isPlainName).
+ */
+export function recordedFiles(files: unknown): SharedFile[] | null {
+  if (!Array.isArray(files)) return null;
+  const listed: SharedFile[] = [];
+  for (const file of files as unknown[]) {
+    if (
+      !isObject(file) ||
+      typeof file.name !== "string" ||
+      typeof file.bytes !== "number" ||
+      typeof file.sha256 !== "string"
+    ) {
+      return null;
+    }
+    const recorded: SharedFile = { name: file.name, bytes: file.bytes, sha256: file.sha256 };
+    if (typeof file.run === "string") recorded.run = file.run;
+    listed.push(recorded);
+  }
+  return listed;
+}
+
+/**
+ * Whether `name` is a file in share/ itself: not empty, ".", or "..", and with no separator in it
+ * (nor a null character, which no file name has and which makes a read throw).
+ */
+export function isPlainName(name: string): boolean {
+  return (
+    name !== "" &&
+    name !== "." &&
+    name !== ".." &&
+    !name.includes("/") &&
+    !name.includes("\\") &&
+    !name.includes("\0")
+  );
+}
+
+/**
  * Whether `value` can be an entry's seq: a whole number, 1 or more. It's the one rule for a place in
  * the chain: the next entry is numbered by it (see nextInChain), and `voicecap verify` checks the
  * chain by it.
@@ -94,19 +142,37 @@ export function isSeq(value: unknown): value is number {
 }
 
 /**
- * The seq and prev for the next entry: one past the highest seq in the file (1, when there is
- * none), and the seal of the entry that has it (null, when there is none). Only a seq that isSeq
- * counts. Reading checks only that each entry is an object, so one may have no usable seq (none,
- * text, 2.5, 0, or 1e999, which reads as Infinity), and takes no part in the chain.
+ * "share 2 (<time>)", or "a share at <time>" for one without a seq. An entry holds whatever a
+ * person left in it, so one whose time can't be made into text (an object whose toString isn't a
+ * function, or a list nested too deep) is just "a share": naming an entry never stops a caller.
  */
-function nextInChain(file: SharesFile): { seq: number; prev: string | null } {
-  let latest: ShareEntry | undefined;
+export function describeShare(entry: Record<string, unknown>): string {
+  try {
+    return isSeq(entry.seq)
+      ? `share ${entry.seq} (${String(entry.at)})`
+      : `a share at ${String(entry.at)}`;
+  } catch {
+    return "a share";
+  }
+}
+
+/**
+ * The seq and prev for the next entry: one past the highest seq in the file (1, when there is
+ * none), and the seal of the entry that has it (null, when there is none, or when it isn't text).
+ * Only a seq that isSeq counts. Reading checks only that each entry is an object, so one may have
+ * no usable seq (none, text, 2.5, 0, or 1e999, which reads as Infinity), and takes no part in the
+ * chain.
+ */
+function nextInChain(file: SharesAsRead): { seq: number; prev: string | null } {
+  let seq = 0;
+  let prev: string | null = null;
   for (const candidate of file.shares) {
-    if (isSeq(candidate.seq) && candidate.seq > (latest?.seq ?? 0)) {
-      latest = candidate;
+    if (isSeq(candidate.seq) && candidate.seq > seq) {
+      seq = candidate.seq;
+      prev = typeof candidate.seal === "string" ? candidate.seal : null;
     }
   }
-  return { seq: (latest?.seq ?? 0) + 1, prev: latest?.seal ?? null };
+  return { seq: seq + 1, prev };
 }
 
 /**
@@ -114,7 +180,7 @@ function nextInChain(file: SharesFile): { seq: number; prev: string | null } {
  * skipped. Of each entry, only that it's an object is checked: whether its seal holds, and its
  * place in the chain, are for `voicecap verify`.
  */
-function parseShares(text: string, file: string): SharesFile {
+function parseShares(text: string, file: string): SharesAsRead {
   let data: unknown;
   try {
     data = JSON.parse(text.replace(/^\uFEFF/, ""));
@@ -126,7 +192,7 @@ function parseShares(text: string, file: string): SharesFile {
       `${file} doesn't look like voicecap's record of what was shared (expected schemaVersion 1 and a "shares" list with an object for each entry). ${NEVER_OVERWRITES}`,
     );
   }
-  return data as SharesFile;
+  return data as SharesAsRead;
 }
 
 /** Whether `data` is `{ schemaVersion: 1, shares: [...] }`, with an object for each entry. */

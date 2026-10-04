@@ -630,9 +630,16 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.8.0</b>: the walkthrough file. <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
   },
   {
+    date: "2026-10-04",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "The website: <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
+  },
+  {
     date: null,
     release: null,
-    pc: "A website of the shared reports.",
+    pc: "The event log, screenshots, and NVDA's own log, recorded at the PC.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },

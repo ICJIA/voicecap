@@ -458,6 +458,8 @@ export interface ReviewsFile {
 /** A file `voicecap share` wrote: its name in the site's share/ folder, its size, and its SHA-256. */
 export interface SharedFile extends FileHash {
   name: string;
+  /** The run a walkthrough file is of. Only a walkthrough file has it. */
+  run?: string;
 }
 
 /** One share, in <site>/share/shares.json: never rewritten once it's recorded. */
@@ -472,7 +474,7 @@ export interface ShareEntry {
   by: string;
   /** The ids of the runs the copies drew on, oldest first. */
   runs: string[];
-  /** The page, then its Word copy. */
+  /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */
   files: SharedFile[];
   /** sealOf this entry. */
   seal: string;

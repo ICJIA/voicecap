@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { FileHash, ReviewsFile, SharedFile } from "./model.js";
+import type { FileHash, ReviewsFile } from "./model.js";
 import { canonicalKey, parseSiteUrl } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import {
@@ -19,11 +19,19 @@ import {
   siteFolder,
 } from "./run/paths.js";
 import { siteFolders } from "./run/site-dir.js";
-import { isSeq, readShares, recordedNames } from "./share/shares.js";
+import {
+  describeShare,
+  isPlainName,
+  isSeq,
+  readShares,
+  recordedFiles as recordedShareFiles,
+  recordedNames,
+} from "./share/shares.js";
 import { UsageError } from "./util/errors.js";
 import { assertNotRewritten } from "./util/git-bash.js";
 import { sealOf, sha256 } from "./util/hash.js";
 import type { Logger } from "./util/log.js";
+import { OS_LITTER } from "./util/os-litter.js";
 
 export interface VerifyHomeOptions {
   /** The transcripts home. */
@@ -66,8 +74,6 @@ const NOT_SEALED = "not sealed (written before voicecap 0.3.0), so it can't be c
 const CHANGED = "changed since it was recorded (SHA-256 differs)";
 const MISSING = "missing";
 const UNREADABLE = "not a readable run or manual session";
-/** Files an operating system leaves in a folder someone opened (macOS Finder, Windows Explorer). */
-const OS_LITTER: ReadonlySet<string> = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
 
 /**
  * Check that the records voicecap wrote in the home still match their hashes and seals (the design
@@ -485,7 +491,7 @@ async function checkShares(home: string, siteDir: string, site: VerifySiteResult
   let entries: Record<string, unknown>[] = [];
   try {
     // Reading checks only that each entry is an object: every field of one is read as unknown.
-    entries = ((await readShares(siteDir)).shares as unknown[]).filter(isRecord);
+    entries = (await readShares(siteDir)).shares;
   } catch {
     // A record voicecap can't use vouches for no copy, so each is one nothing records, below.
     problems.push(`${where}: not a readable record of what was shared`);
@@ -525,7 +531,7 @@ async function copyProblems(
   where: string,
   entry: Record<string, unknown>,
 ): Promise<string[]> {
-  const files = sharedFiles(entry.files);
+  const files = recordedShareFiles(entry.files);
   if (files === null) {
     return [`${where}: ${describeShare(entry)} lists its files in a form voicecap can't read`];
   }
@@ -577,39 +583,6 @@ async function unrecordedProblems(
     else if (!named.has(name)) problems.push(`${shown}: not recorded in shares.json`);
   }
   return problems;
-}
-
-/** The files an entry records, as { name, bytes, sha256 }; null unless it lists only such files. */
-function sharedFiles(files: unknown): SharedFile[] | null {
-  if (!Array.isArray(files)) return null;
-  const listed: SharedFile[] = [];
-  for (const file of files as unknown[]) {
-    if (!isRecord(file) || typeof file.name !== "string" || !isFileHash(file)) return null;
-    listed.push({ name: file.name, bytes: file.bytes, sha256: file.sha256 });
-  }
-  return listed;
-}
-
-/**
- * Whether `name` is a file in share/ itself: not empty, ".", or "..", and with no separator in it
- * (nor a null character, which no file name has and which makes a read throw).
- */
-function isPlainName(name: string): boolean {
-  return (
-    name !== "" &&
-    name !== "." &&
-    name !== ".." &&
-    !name.includes("/") &&
-    !name.includes("\\") &&
-    !name.includes("\0")
-  );
-}
-
-/** "share 2 (<time>)", or "a share at <time>" for one without a seq. */
-function describeShare(entry: Record<string, unknown>): string {
-  return isSeq(entry.seq)
-    ? `share ${entry.seq} (${String(entry.at)})`
-    : `a share at ${String(entry.at)}`;
 }
 
 /**

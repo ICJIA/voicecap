@@ -16,7 +16,7 @@ import { PassThrough, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 import { XMLValidator } from "fast-xml-parser";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli/main.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
@@ -35,6 +35,7 @@ import { unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
+import { homeWithShares } from "./helpers/site-home.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -1170,7 +1171,7 @@ describe("voicecap share", () => {
   const squeezed = (text: string) => text.replace(/\s+/g, " ");
 
   it("makes the dated pair, records it, and prints the line to paste into the email, last", async () => {
-    const { dir, siteDir } = await homeWithCountedRun();
+    const { dir, siteDir, run } = await homeWithCountedRun();
 
     const share = await cli(
       [
@@ -1193,13 +1194,16 @@ describe("voicecap share", () => {
     expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
     const page = entry.files[0]!;
     const word = entry.files[1]!;
-    // Named for the site's folder and the day, as the page, then its Word copy, whole on disk.
+    const walkthrough = entry.files[2]!;
+    // Named for the site's folder and the day, as the page, then its Word copy, then the run's
+    // walkthrough file, whole on disk.
     const day = entry.at.slice(0, 10);
-    expect([page.name, word.name]).toEqual([
+    expect([page.name, word.name, walkthrough.name]).toEqual([
       `example.illinois.gov_${day}.html`,
       `example.illinois.gov_${day}.docx`,
+      `example.illinois.gov_${day}_${run.runId}_walkthrough.json`,
     ]);
-    for (const file of [page, word]) {
+    for (const file of [page, word, walkthrough]) {
       const bytes = await readFile(path.join(shareDir(siteDir), file.name));
       expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
         bytes: file.bytes,
@@ -1213,7 +1217,9 @@ describe("voicecap share", () => {
         `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
         `  ${path.join(shareDir(siteDir), word.name)}`,
         `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
-        "To paste into the email that sends them:",
+        `  ${path.join(shareDir(siteDir), walkthrough.name)}`,
+        `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
+        "To paste into the email that sends the page and its Word copy:",
         `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
         "",
       ].join("\n"),
@@ -1251,7 +1257,7 @@ describe("voicecap share", () => {
 
     expect(help.code).toBe(0);
     expect(squeezed(help.out)).toContain(
-      "share [options] make a dated copy of the shareable page and its Word copy to send, and record it",
+      "share [options] make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
     );
   });
 
@@ -1261,7 +1267,7 @@ describe("voicecap share", () => {
     expect(help.code).toBe(0);
     const said = squeezed(help.out);
     expect(said).toContain(
-      "make a dated copy of the shareable page and its Word copy to send, and record it",
+      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
     );
     expect(said).toContain("--site <url> the site's URL (default: the home's only site)");
     expect(said).toContain(
@@ -1445,6 +1451,98 @@ describe("voicecap walkthrough", () => {
     );
     expect(said).toContain(
       "--out <dir> transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
+    );
+  });
+});
+
+describe("voicecap site", () => {
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  /** What the command is for, as the help says it. */
+  const WHAT_IT_DOES =
+    "build the website of every shared report, for Netlify: index.html, each report's files, robots.txt, and _headers";
+
+  /** What a build says it made of the home homeWithShares makes: its reports, its sites, and the demo. */
+  const BUILT = "3 reports from 2 sites, and the demo's.";
+
+  /** Each folder these tests made, which is taken away after each test. */
+  const made: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  /** A new, empty folder. */
+  async function newFolder(): Promise<string> {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    made.push(dir);
+    return dir;
+  }
+
+  /** A home with reports shared in it, in a folder of its own. */
+  async function homeToBuild(): Promise<string> {
+    const home = await homeWithShares();
+    made.push(path.dirname(home));
+    return home;
+  }
+
+  it("builds the site with voicecap site", async () => {
+    const home = await homeToBuild();
+    const out = await newFolder();
+
+    const site = await cli(["site", "--home", home, "--out", out], await newFolder());
+
+    expect(site.err).toBe("");
+    expect(site.code).toBe(0);
+    expect(existsSync(path.join(out, "index.html"))).toBe(true);
+    expect(site.out).toContain(`Built the site in ${out}: ${BUILT}`);
+  });
+
+  it("takes the home from VOICECAP_TRANSCRIPTS, and builds into _site there, when it's given neither", async () => {
+    const home = await homeToBuild();
+
+    const site = await cli(["site"], await newFolder(), { VOICECAP_TRANSCRIPTS: home });
+
+    expect(site.err).toBe("");
+    expect(site.code).toBe(0);
+    const out = path.join(home, "_site");
+    expect(existsSync(path.join(out, "index.html"))).toBe(true);
+    expect(site.out).toContain(`Built the site in ${out}: ${BUILT}`);
+  });
+
+  it("exits 1, and says why, when it's told to build into the home, and writes nothing", async () => {
+    const home = await homeToBuild();
+
+    const site = await cli(["site", "--home", home, "--out", home], await newFolder());
+
+    expect(site.code).toBe(1);
+    expect(site.out).toBe("");
+    expect(site.err).toBe(
+      `Error: voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as "${path.join(home, "_site")}".\n`,
+    );
+    expect(existsSync(path.join(home, "_site"))).toBe(false);
+    expect(existsSync(path.join(home, "netlify.toml"))).toBe(false);
+  });
+
+  it("lists site in voicecap --help", async () => {
+    const help = await cli(["--help"], await newFolder());
+
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(`site [options] ${WHAT_IT_DOES}`);
+  });
+
+  it("has --home and --out, each with its own words", async () => {
+    const help = await cli(["site", "--help"], await newFolder());
+
+    expect(help.code).toBe(0);
+    const said = squeezed(help.out);
+    expect(said).toContain(WHAT_IT_DOES);
+    expect(said).toContain(
+      "--home <dir> the transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
+    );
+    expect(said).toContain(
+      "--out <dir> the folder to build it in (default: _site in the home); a folder voicecap site built is emptied first",
     );
   });
 });

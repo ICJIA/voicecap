@@ -24,6 +24,7 @@ import { handleInterrupts } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
 import { shareReport } from "../share/share.js";
 import { writeWalkthrough } from "../share/write-walkthrough.js";
+import { buildSite } from "../site/build.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
@@ -482,7 +483,9 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
   program
     .command("share")
-    .description("make a dated copy of the shareable page and its Word copy to send, and record it")
+    .description(
+      "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
+    )
     .option("--site <url>", "the site's URL (default: the home's only site)")
     .option("--out <dir>", OUT_HELP)
     .option(
@@ -515,6 +518,30 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         file,
         site: options.site ?? null,
         run: options.run ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+        logger,
+      });
+      setExit(ExitCode.ok);
+    });
+
+  program
+    .command("site")
+    .description(
+      "build the website of every shared report, for Netlify: index.html, each report's files, robots.txt, and _headers",
+    )
+    .option(
+      "--home <dir>",
+      "the transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
+    )
+    .option(
+      "--out <dir>",
+      "the folder to build it in (default: _site in the home); a folder voicecap site built is emptied first",
+    )
+    .action(async (options: { home?: string; out?: string }) => {
+      await buildSite({
+        home: options.home,
         out: options.out,
         cwd: ctx.cwd,
         env: ctx.env,

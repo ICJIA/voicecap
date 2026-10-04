@@ -162,6 +162,24 @@ describe("appendShare", () => {
     expect(await appendShare(siteDir, entry)).toMatchObject({ seq: 6, prev: "f".repeat(64) });
   });
 
+  // The next entry follows the highest one by its seal. A seal that isn't text can't be followed,
+  // so prev is null: not the number or list that was there, and not an earlier entry's seal.
+  it.each<[string, Record<string, unknown>]>([
+    ["a number", { seal: 7 }],
+    ["null", { seal: null }],
+    ["a list", { seal: ["f".repeat(64)] }],
+    ["missing", {}],
+  ])("gives prev as null when the highest entry's seal is %s, not text", async (_what, seal) => {
+    const lower = { ...entry, seq: 1, prev: null, seal: "e".repeat(64) };
+    const highest = { ...entry, seq: 2, prev: null, ...seal };
+    await plant(JSON.stringify({ schemaVersion: 1, shares: [lower, highest] }));
+    expect(await appendShare(siteDir, entry)).toMatchObject({ seq: 3, prev: null });
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+      shares: { prev: unknown }[];
+    };
+    expect(written.shares.at(-1)?.prev).toBeNull();
+  });
+
   // The rule `voicecap verify` chains by: a whole number, 1 or more. JSON can say 1e999 only as
   // that, and it reads as Infinity, which writes back as null.
   it("counts only a seq that is a whole number of 1 or more", async () => {
