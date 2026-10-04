@@ -2026,24 +2026,29 @@ describe("voicecap init", () => {
       );
     };
 
+    // The site is at an address on this computer, so init asks for the address people visit, and
+    // writes it into the command as --canonical.
     const run = await cli(
       ["init"],
       dir,
       {},
       {
-        stdin: linesStream([SITE, "", "", "", "", "y"]),
+        stdin: linesStream([SITE, "https://dvfr.illinois.gov", "", "", "", "", "y"]),
         fetch: fetchHomeOnly,
         platformReadiness: () => Promise.resolve(READY),
       },
     );
 
     expect(run.code).toBe(0);
+    expect(run.out).toContain(`--site ${SITE} --canonical https://dvfr.illinois.gov/ --page`);
     const out = path.join(dir, "transcripts", "127.0.0.1_4747");
     const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
     const runJson = JSON.parse(
       await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
     ) as RunJson;
     expect(runJson.status).toBe("completed");
+    // The run took the address from the command it was given.
+    expect(runJson.canonical).toBe("https://dvfr.illinois.gov/");
   });
 
   it("never starts init again from the command it runs, even in a terminal", async () => {

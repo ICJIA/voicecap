@@ -1,4 +1,5 @@
-import { withScheme } from "../pages/url.js";
+import { canonicalRootFrom } from "../pages/canonical.js";
+import { isHtmlContentType, withScheme } from "../pages/url.js";
 import { InterruptedError } from "../passes/steps.js";
 import { errorMessage } from "../util/errors.js";
 
@@ -12,10 +13,13 @@ export type Check = { ok: true } | { ok: false; reason: string };
  * Whether the site answers, and where it really is. `site` is the final origin reached after
  * redirects: unchanged from the one given when the fetch's `response.url` is empty (as a
  * constructed `Response` has, meaning no redirect happened). `moved` is true when that origin
- * differs from the one given.
+ * differs from the one given. `canonical` is the root of the address the home page's
+ * `<link rel="canonical">` tag names (see `canonicalRootFrom`), or null when the page has no tag,
+ * isn't HTML, can't be read, or names no address people visit.
  */
 export type SiteCheck =
-  { ok: true; site: URL; moved: boolean } | { ok: false; site: URL; reason: string };
+  | { ok: true; site: URL; moved: boolean; canonical: string | null }
+  | { ok: false; site: URL; reason: string };
 
 /**
  * Normalize `init`'s website answer: trims it, adds `https://` when it has no scheme (see
@@ -46,9 +50,10 @@ function fetchSignal(signal?: AbortSignal): AbortSignal {
 /**
  * Check that `site` answers, following redirects, with a 15-second limit. On success, `site` in
  * the result is the final origin actually reached (see `SiteCheck`) and `moved` says whether
- * that's a different origin than the one given. On failure, `site` is the one given. When `signal`
- * is given and it (not the timeout) is why the request failed, rejects with `InterruptedError`
- * instead of returning a reason, so Ctrl+C stops the wizard at once.
+ * that's a different origin than the one given; the home page is read too, for the canonical
+ * address it names. On failure, `site` is the one given. When `signal` is given and it (not the
+ * timeout) is why the request, or the reading of the home page, failed, rejects with
+ * `InterruptedError` instead of returning a reason, so Ctrl+C stops the wizard at once.
  */
 export async function checkSite(
   site: URL,
@@ -62,12 +67,164 @@ export async function checkSite(
     if (signal?.aborted) throw new InterruptedError();
     return { ok: false, site, reason: fetchFailureReason(error) };
   }
-  // Nothing here reads the body, and a body that errors on its own (e.g. one that already timed
-  // out) must not fail a check whose status is already known.
-  await response.body?.cancel().catch(() => {});
-  if (!response.ok) return { ok: false, site, reason: `HTTP ${response.status}` };
-  const finalOrigin = response.url === "" ? site.origin : new URL(response.url).origin;
-  return { ok: true, site: new URL(`${finalOrigin}/`), moved: finalOrigin !== site.origin };
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    return { ok: false, site, reason: `HTTP ${response.status}` };
+  }
+  // Where the page ended up: its tag has to fit that address, which can have a path (a home page
+  // that redirects to /en/), not the origin alone.
+  const pageUrl = response.url === "" ? site.href : response.url;
+  const finalOrigin = new URL(pageUrl).origin;
+  return {
+    ok: true,
+    site: new URL(`${finalOrigin}/`),
+    moved: finalOrigin !== site.origin,
+    canonical: await namedRoot(response, pageUrl, signal),
+  };
+}
+
+/**
+ * The root of the canonical address the home page `response` names, read from its HTML at
+ * `pageUrl`, or null (see `SiteCheck`). A body that errors on its own (e.g. one that already timed
+ * out) names none, and must not fail a check whose status is already known. Rejects with
+ * `InterruptedError` when `signal` is why the body failed.
+ */
+async function namedRoot(
+  response: Response,
+  pageUrl: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  if (!isHtmlContentType(response.headers.get("content-type"))) {
+    await response.body?.cancel().catch(() => {});
+    return null;
+  }
+  let html: string;
+  try {
+    html = await response.text();
+  } catch {
+    if (signal?.aborted) throw new InterruptedError();
+    return null;
+  }
+  const href = canonicalLinkHref(html);
+  // A tag's address can be relative to its page, which is how a browser reads it.
+  const declared =
+    href !== null && URL.canParse(href, pageUrl) ? new URL(href, pageUrl).href : null;
+  return canonicalRootFrom(pageUrl, declared);
+}
+
+/** HTML's space characters. */
+const SPACE = " \t\n\f\r";
+
+/** The elements whose content is text, not markup: a `<link>` written inside one isn't a link. */
+const TEXT_ELEMENTS: ReadonlySet<string> = new Set(["script", "style", "textarea", "title"]);
+
+/** A start tag, as `readStartTag` reads it. */
+interface StartTag {
+  /** The tag's name, in lower case. */
+  name: string;
+  /** Each attribute's value by its lower-case name; a name written twice keeps its first value. */
+  attributes: ReadonlyMap<string, string>;
+  /** The index just after the tag's `>`. */
+  end: number;
+}
+
+/**
+ * The address written in the first `<link>` of `html` whose `rel` includes `canonical`, or null
+ * when there is none, or that link has no `href`. It's the address as written, so it can be
+ * relative, and a character reference in it (`&amp;`) is left as written. The first canonical link
+ * decides, as the first match of a browser's `link[rel~="canonical"]` does. The reader goes tag by
+ * tag, skipping comments and the text of `<script>`, `<style>`, `<title>`, and `<textarea>`, and
+ * reading each tag's attributes with their quotes, so text that only looks like a link, such as a
+ * `<link>` in a comment or in a script's string, isn't one.
+ */
+export function canonicalLinkHref(html: string): string | null {
+  let at = 0;
+  for (;;) {
+    const open = html.indexOf("<", at);
+    if (open === -1) return null;
+    at = open + 1;
+    if (html.startsWith("!--", at)) {
+      // A comment ends at the first "-->", which can start inside its own "<!--" (`<!-->` is one).
+      const close = html.indexOf("-->", at + 1);
+      if (close === -1) return null;
+      at = close + 3;
+    } else if (/[a-z]/i.test(html.charAt(at))) {
+      const tag = readStartTag(html, at);
+      if (tag === null) return null;
+      at = tag.end;
+      if (TEXT_ELEMENTS.has(tag.name)) {
+        at = endOfText(html, at, tag.name);
+      } else if (tag.name === "link" && hasCanonicalRel(tag.attributes.get("rel"))) {
+        return tag.attributes.get("href") ?? null;
+      }
+    }
+    // Anything else after a "<" (an end tag, a doctype, a "<" in the text) has nothing to read.
+  }
+}
+
+/**
+ * The start tag whose name begins at `from`, or null when it never ends. A value is in double
+ * quotes, in single quotes, or bare, so a `>` inside quotes doesn't end the tag.
+ */
+function readStartTag(html: string, from: number): StartTag | null {
+  let at = untilAny(html, from, `${SPACE}/>`);
+  const name = html.slice(from, at).toLowerCase();
+  const attributes = new Map<string, string>();
+  for (;;) {
+    at = skipAny(html, at, `${SPACE}/`);
+    if (at >= html.length) return null;
+    if (html.charAt(at) === ">") return { name, attributes, end: at + 1 };
+    // A name runs to a space, a "/", a ">", or an "=", and one that starts with "=" keeps it.
+    const nameStart = at;
+    at = untilAny(html, at + 1, `${SPACE}/>=`);
+    const attribute = html.slice(nameStart, at).toLowerCase();
+    at = skipAny(html, at, SPACE);
+    let value = "";
+    if (html.charAt(at) === "=") {
+      at = skipAny(html, at + 1, SPACE);
+      const quote = html.charAt(at);
+      if (quote === '"' || quote === "'") {
+        const close = html.indexOf(quote, at + 1);
+        if (close === -1) return null;
+        value = html.slice(at + 1, close);
+        at = close + 1;
+      } else {
+        const end = untilAny(html, at, `${SPACE}>`);
+        value = html.slice(at, end);
+        at = end;
+      }
+    }
+    if (!attributes.has(attribute)) attributes.set(attribute, value);
+  }
+}
+
+/** The index of the first character from `at` that is one of `chars`, or the end of `html`. */
+function untilAny(html: string, at: number, chars: string): number {
+  while (at < html.length && !chars.includes(html.charAt(at))) at++;
+  return at;
+}
+
+/** The index of the first character from `at` that isn't one of `chars`, or the end of `html`. */
+function skipAny(html: string, at: number, chars: string): number {
+  while (at < html.length && chars.includes(html.charAt(at))) at++;
+  return at;
+}
+
+/**
+ * Where the text of the element `name` ends, which starts at `from`: the index of its end tag, or
+ * the end of `html` when it never closes.
+ */
+function endOfText(html: string, from: number, name: string): number {
+  const endTag = new RegExp(`</${name}[\\s/>]`, "gi");
+  endTag.lastIndex = from;
+  return endTag.exec(html)?.index ?? html.length;
+}
+
+/** Whether a `rel` value, a list of words, includes `canonical`, in any case. */
+function hasCanonicalRel(rel: string | undefined): boolean {
+  if (rel === undefined) return false;
+  const words = rel.toLowerCase().split(/[ \t\n\f\r]+/);
+  return words.includes("canonical");
 }
 
 /**

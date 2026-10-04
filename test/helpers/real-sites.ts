@@ -30,7 +30,7 @@ function respond(body: string, contentType: string, status = 200): Response {
 }
 
 /** A redirect a real fetch already followed: a constructed Response's `url` starts empty. */
-function redirectedTo(finalUrl: string, body: string): Response {
+export function redirectedTo(finalUrl: string, body: string): Response {
   const response = respond(body, "text/html; charset=utf-8");
   Object.defineProperty(response, "url", { value: finalUrl });
   return response;

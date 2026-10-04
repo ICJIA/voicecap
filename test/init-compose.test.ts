@@ -6,6 +6,7 @@ describe("composeArgs", () => {
   it("orders --site, a sitemap, then --limit, and --reviewer last, with no --out when home is null", () => {
     const answers: InitAnswers = {
       site: "https://i2i.illinois.gov",
+      canonical: null,
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
@@ -26,6 +27,7 @@ describe("composeArgs", () => {
   it("uses --pages for a page list file, omits --limit when null, and puts --out before --reviewer", () => {
     const answers: InitAnswers = {
       site: "https://dvfr.illinois.gov",
+      canonical: null,
       pages: { kind: "pages", file: "pages.csv" },
       limit: null,
       home: "C:\\Users\\Jane Doe\\vt",
@@ -43,9 +45,35 @@ describe("composeArgs", () => {
     ]);
   });
 
+  it("puts --canonical right after --site when init asked for the address people visit", () => {
+    const answers: InitAnswers = {
+      site: "http://localhost:3000",
+      canonical: "https://dvfr.illinois.gov/",
+      pages: { kind: "sitemap", url: "http://localhost:3000/sitemap.xml" },
+      limit: 5,
+      home: "C:\\vt",
+      reviewer: "cschweda",
+    };
+    expect(composeArgs(answers)).toEqual([
+      "--site",
+      "http://localhost:3000",
+      "--canonical",
+      "https://dvfr.illinois.gov/",
+      "--sitemap",
+      "http://localhost:3000/sitemap.xml",
+      "--limit",
+      "5",
+      "--out",
+      "C:\\vt",
+      "--reviewer",
+      "cschweda",
+    ]);
+  });
+
   it("uses --page for a single page", () => {
     const answers: InitAnswers = {
       site: "https://dvfr.illinois.gov",
+      canonical: null,
       pages: { kind: "page", url: "https://dvfr.illinois.gov/faq/" },
       limit: null,
       home: null,
@@ -90,6 +118,7 @@ describe("formatCommand", () => {
   it("matches the spec's i2i example line", () => {
     const answers: InitAnswers = {
       site: "https://i2i.illinois.gov",
+      canonical: null,
       pages: { kind: "sitemap", url: "https://i2i.illinois.gov/sitemap-index.xml" },
       limit: 5,
       home: null,
@@ -103,6 +132,7 @@ describe("formatCommand", () => {
   it("quotes a reviewer's name with a space", () => {
     const answers: InitAnswers = {
       site: "https://dvfr.illinois.gov",
+      canonical: null,
       pages: { kind: "page", url: "https://dvfr.illinois.gov/" },
       limit: null,
       home: null,
