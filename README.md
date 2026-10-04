@@ -1468,7 +1468,7 @@ To update the demo, do the three steps again: the site shows the latest share.
 <details>
 <summary>Five steps, once: build the site, check <code>.gitignore</code>, commit and push the files it wrote in the home, import the repository in Netlify, and check the site</summary>
 
-Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
+Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `voicecap`, at https://voicecap.netlify.app. For another home, use its repository and a name of your own.
 
 **Check the team's Netlify plan first.** Netlify shows it under the team's **Usage & billing**. Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Pro or Enterprise plan (Core Pro, on older accounts). On Free, Personal, or Core Starter, every build fails. Netlify's troubleshooting page lists these ways around it:
 
@@ -1513,10 +1513,10 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    - Sign in at https://app.netlify.com.
    - On the Projects page, open the **Add new project** menu, and choose **Import an existing project**.
    - Choose GitHub. When Netlify asks for access to the repository, allow it, then pick `ICJIA/voicecap-transcripts`.
-   - Name the project `icjia-voicecap`, if the page has a field for the name. A project is Netlify's word for a site. The address is then `https://icjia-voicecap.netlify.app`. If Netlify says the name is taken, pick another, and use that address in step 5. If the page has no field for the name, go on: the last bullet renames the project afterwards.
+   - Name the project `voicecap`, if the page has a field for the name. A project is Netlify's word for a site. The address is then `https://voicecap.netlify.app`. If Netlify says the name is taken, pick another, and use that address in step 5. If the page has no field for the name, go on: the last bullet renames the project afterwards.
    - Leave the build settings as they are: `netlify.toml` sets them, and its settings win over the ones on the page.
    - Choose the button that starts the deploy (**Deploy site**), and wait for the deploy to finish.
-   - If the page had no field for the name, rename the project now that the deploy has finished. Open the project's overview, choose **Customize**, then **Manage project name and cover image**, enter `icjia-voicecap`, and save. The address changes to match.
+   - If the page had no field for the name, rename the project now that the deploy has finished. Open the project's overview, choose **Customize**, then **Manage project name and cover image**, enter `voicecap`, and save. The address changes to match.
 
 5. **Open the site and check it.** Open the address from step 4, or the one on the project's overview. Check that:
    - the page opens, with "Screen reader test results" at the top, and the links in its bar go to "The demo" (when the home has one), "The sites", and "Every report, by date";

@@ -377,7 +377,7 @@ In the site's folder of the transcripts home:
 
 ## The website
 
-A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (approved 2026-09-30): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Netlify builds it from ICJIA's transcripts repository (github.com/ICJIA/voicecap-transcripts, private), the transcripts home, on every push. voicecap's own repository stays code only.
+A public site the owner can point anyone to, https://voicecap.netlify.app (approved 2026-09-30, as `icjia-voicecap.netlify.app`; named `voicecap` at the first deploy, 2026-10-04): every report voicecap has shared, by site and by date, with the demo. It's ICJIA's own site, not a setting for everyone who downloads voicecap. Netlify builds it from ICJIA's transcripts repository (github.com/ICJIA/voicecap-transcripts, private), the transcripts home, on every push. voicecap's own repository stays code only.
 
 - **What's on it:**
   - the demo's latest report, as an example of what voicecap makes;
@@ -400,7 +400,7 @@ A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (appro
   - Each build writes `_site/robots.txt`: `User-agent: *`, then `Disallow: /`.
   - Each build writes `_site/_headers`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
 - **Search:** `robots.txt` and the noindex header keep the site out of search results. The transcripts repository is private, so the reports aren't on GitHub for anyone to find.
-- **The first deploy,** once a voicecap with `voicecap site` is released and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `icjia-voicecap`. `netlify.toml` sets the rest. Netlify builds from an organization's private repository only on its Pro or Enterprise plan; the owner's Netlify team is on Pro (confirmed 2026-10-04).
+- **The first deploy,** once a voicecap with `voicecap site` is released and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `voicecap` (it was, on 2026-10-04: https://voicecap.netlify.app). `netlify.toml` sets the rest. Netlify builds from an organization's private repository only on its Pro or Enterprise plan; the owner's Netlify team is on Pro (confirmed 2026-10-04).
 
 ## Rules the page follows
 
