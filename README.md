@@ -314,7 +314,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 6. **The report:** where it is, its flags, which are all on the "Common mistakes (on purpose)" page, and an offer to open it.
 7. **Your own site:** `npx @icjia/voicecap init` sets up a run.
 
-The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
+The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The one exception is a demo you put on the website: it's made in the home's folder and committed with the records, so deleting it, then pushing, takes the demo off the website at the next build (see [Publishing it, and the demo](#publishing-it-and-the-demo)). The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
 
 **On a Mac, for now,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit will do, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report come with voicecap's VoiceOver driver, in a later release; a Windows PC runs the full tour.
 
@@ -380,7 +380,7 @@ PowerShell doesn't rewrite arguments, so this note is only for people who use Gi
 - give a sitemap by its name, without the slash: `--sitemap sitemap.xml` is the same file as `/sitemap.xml`;
 - turn the rewriting off for one command: `MSYS_NO_PATHCONV=1 npx @icjia/voicecap review --page /about ...`.
 
-With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--walkthrough`, `--replay-from`, and the files `manual add`, `list-urls`, and `walkthrough` take all accept it.
+With the rewriting off, Git Bash also stops translating its own way of writing a Windows path, `/c/Users/me` (what `~` expands to), so voicecap reads that form itself on Windows: `--out` (`site`'s too), `site`'s `--home`, `VOICECAP_TRANSCRIPTS`, `--pages`, `--walkthrough`, `--replay-from`, and the files `manual add`, `list-urls`, and `walkthrough` take all accept it.
 
 ## Mac setup
 
@@ -1292,9 +1292,11 @@ The site's page follows the shareable page's rules. It's one self-contained file
 - **An entry whose seal no longer holds,** or whose fields aren't what voicecap records, and a `shares.json` that can't be read. The site shows nothing of it. Only the build's output names it.
 - **A copy that has changed since it was shared, is missing, can't be read, or isn't a regular file** (a link or a folder, say). The report's other files are still published, and under the report the site says that `<name> isn't here`, and why.
 - **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A name that holds a path, such as `../notes.txt`, is never read.
-- **A site folder named `demo`,** which would take the demo's place on the site.
+- **A site folder named `demo`,** which would take the demo's place on the site. One named `index.html`, `robots.txt`, or `_headers` is left out too: it would take the place of the site's own file.
 
-**The folder it builds into** is emptied first, so the build takes care which folder that is. It builds only into a folder that's empty (or new), or one an earlier build made: its `_headers` starts with voicecap's own line. It stops at a folder of an earlier build that holds a name that starts with a dot (a repository's `.git`, say) or a folder inside a folder, since a build writes neither. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest.
+**The folder it builds into** is emptied first, so voicecap builds only into a folder it can be sure of. That's a folder that's new or empty, or one an earlier build made: its `_headers` starts with voicecap's own line.
+
+It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count there, and are emptied with the rest.
 
 It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. Every refusal comes before anything is touched. The build says why, and exits with code 1:
 
@@ -1321,7 +1323,18 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 
 **In the home,** the first time, and never again. `voicecap site` never writes over either file, so they're yours once they're there, as `.gitattributes` is:
 
-- **`netlify.toml`:** the build command, such as `npx --yes @icjia/voicecap@0.9 site --home . --out _site`; `publish = "_site"`; and the headers every file gets: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`. The command names the minor version of the voicecap that wrote the file: `@0.9` when voicecap 0.9.x wrote it, which npm reads as the latest 0.9 release. So the next build uses a patch release, and a new minor version only when you change the version in the command.
+- **`netlify.toml`:** the build command, the folder to publish, and the headers every file gets.
+  - **The build command,** such as `npx --yes @icjia/voicecap@0.9 site --home . --out _site`. It names the minor version of the voicecap that wrote the file: `@0.9` when voicecap 0.9.x wrote it, which npm reads as the latest 0.9 release. So the next build uses a patch release. It uses a new minor version only when you change the version in the command.
+  - **The folder to publish:** `publish = "_site"`.
+  - **The headers,** one line each:
+    - `X-Robots-Tag: noindex, nofollow, noarchive`
+    - `Referrer-Policy: no-referrer`
+    - `X-Content-Type-Options: nosniff`
+    - `X-Frame-Options: DENY`
+    - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()`, which turns off those five
+    - `Strict-Transport-Security: max-age=63072000; includeSubDomains`
+    - `Cross-Origin-Opener-Policy: same-origin`
+    - `Cross-Origin-Resource-Policy: same-origin`
 - **`.nvmrc`:** `24`, so Netlify builds with Node 24, and the npm that comes with it.
 
 `voicecap site` says when it writes them: `Wrote netlify.toml into <home>, for Netlify: commit it with the records.` `_headers` is Netlify's format, and voicecap builds the site for Netlify.
@@ -1336,17 +1349,17 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 **To publish a report,** share it, then commit the transcripts home and push (as under [Setting it up](#setting-it-up)):
 
 ```bash
-npx @icjia/voicecap share
+npx @icjia/voicecap share --site https://dvfr.illinois.gov
 git add -A
 git commit -m "voicecap share"
 git push
 ```
 
-Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
+`--site` names the site to share. A home with only one site doesn't need it, but with more than one, `share` stops and names them (see [Other commands](#other-commands)). Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
 
 **To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
-**The demo on the site** is the latest share in the home's `voicecap-demo/` folder. To put one there, in PowerShell, in the transcripts home's folder:
+**The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/`, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
 1. Run `npx @icjia/voicecap demo`. It's a guided tour of about 9 minutes that starts NVDA for real, so follow its steps and keep your hands off the keyboard when it says to (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)). Use a Windows PC: on a Mac, the tour stops before the audit. Its files go in `voicecap-demo/`, in the current folder: the home.
 2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does.
@@ -1379,27 +1392,33 @@ Do this once, after the transcripts home holds a share, and is a repository on G
 
    Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If it says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
 
-2. **Add `_site/` to `.gitignore`, if voicecap says to.** If the output has a warning that ends `Add the line _site/ to it.`, open `.gitignore` in the transcripts home, add a line that says `_site/` at the end, and save it. A home that voicecap set up with 0.8.0 or earlier needs this. A new home's `.gitignore` has it already. Run the command from step 1 again: the warning should be gone.
+2. **Add `_site/` to `.gitignore`, if voicecap says to.** Look at step 1's output. If it has a warning that ends `Add the line _site/ to it.`, add that line to the home's `.gitignore`. A home that voicecap set up with 0.8.0 or earlier needs it. A new home's `.gitignore` has it already, so with no such warning, go on to step 3. To add the line:
+   1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`. (If you haven't set `VOICECAP_TRANSCRIPTS`, type `cd` and the folder's path.)
+   2. Run `notepad .gitignore`. It opens the file in Notepad.
+   3. Go to the end of the file, and add a line of its own that says `_site/`.
+   4. Save the file, and close Notepad.
+   5. Run the command from step 1 again. The warning should be gone.
 
-3. **Commit `netlify.toml` and `.nvmrc`, and push.** In PowerShell, in the transcripts home's folder, run `git status`. It should list `netlify.toml` and `.nvmrc`, and not `_site/`. If it lists `_site/`, go back to step 2. Then run:
+3. **Commit `netlify.toml` and `.nvmrc`, and push.**
+   1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`.
+   2. Run `git status`.
+   3. Check that it lists `netlify.toml` and `.nvmrc`, and doesn't list `_site/`. If it lists `_site/`, go back to step 2.
+   4. Run `git add netlify.toml .nvmrc`.
+   5. Run `git commit -m "Add the files Netlify reads"`.
+   6. Run `git push`.
 
-   ```powershell
-   git add netlify.toml .nvmrc
-   git commit -m "Add the files Netlify reads"
-   git push
-   ```
-
-   Netlify can publish only what's pushed. Shares you haven't pushed go the same way: `git add -A` takes them too.
+   Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in place of `git add netlify.toml .nvmrc`. It adds the share too.
 
 4. **In Netlify, import the repository and name the site.**
    - Sign in at https://app.netlify.com.
    - On the Projects page, open the **Add new project** menu, and choose **Import an existing project**.
    - Choose GitHub. When Netlify asks for access to the repository, allow it, then pick `ICJIA/voicecap-transcripts`.
-   - Name the project `icjia-voicecap`: Netlify's word for the site. Its address is then `https://icjia-voicecap.netlify.app`. If Netlify says the name is taken, pick another, and use that address in step 5.
+   - Name the project `icjia-voicecap`, if the page has a field for the name. A project is Netlify's word for a site. The address is then `https://icjia-voicecap.netlify.app`. If Netlify says the name is taken, pick another, and use that address in step 5. If the page has no field for the name, go on: the last bullet renames the project afterwards.
    - Leave the build settings as they are: `netlify.toml` sets them, and its settings win over the ones on the page.
-   - Choose **Deploy site**, and wait for the deploy to finish.
+   - Choose the button that starts the deploy (**Deploy site**), and wait for the deploy to finish.
+   - If the page had no field for the name, rename the project now that the deploy has finished. Open the project's overview, choose **Customize**, then **Manage project name and cover image**, enter `icjia-voicecap`, and save. The address changes to match.
 
-5. **Open the site and check it.** Open the address from step 4. Check that:
+5. **Open the site and check it.** Open the address from step 4, or the one on the project's overview. Check that:
    - the page opens, with "Screen reader test results" at the top, and the links in its bar go to "The demo" (when the home has one), "The sites", and "Every report, by date";
    - a report's page opens;
    - a Word copy and a walkthrough file download;
@@ -1642,7 +1661,7 @@ const repeat = await runAudit({ walkthrough: written.file });
 
 `generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated copies to send, as `voicecap share` does: the page, its Word copy, and each run's walkthrough file. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `path`, `name`, `bytes`, and `sha256`, and a walkthrough file's `run`; and `pasteLine`, the line for the email that sends the page and its Word copy. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read.
 
-`readShares(siteDir)` reads a site's `share/shares.json`, and gives back `{ schemaVersion: 1, shares }`. It checks only that each share is an object, since a person can edit the file, so each share is typed as a `Record<string, unknown>`, and a caller checks each field it uses. It was typed as a `SharesFile`, with every field known, which promised more than it checks. So it's a compile-time change: code that reads a field of a share, such as `files`, now needs to check it first. `SharesFile` is still exported, and describes what `voicecap share` writes. `SharedFile` has a new, optional `run`: the run that a walkthrough file is of.
+`readShares(siteDir)` reads a site's `share/shares.json`, and gives back a `SharesAsRead`: `{ schemaVersion: 1, shares }`. It checks only that each share is an object, since a person can edit the file, so each share is typed as a `Record<string, unknown>`, and a caller checks each field it uses. It was typed as a `SharesFile`, with every field known, which promised more than it checks. So it's a compile-time change: code that reads a field of a share, such as `files`, now needs to check it first. `SharesAsRead` is exported, so a caller can name the type. `SharesFile` is still exported too, and describes what `voicecap share` writes. `SharedFile` has a new, optional `run`: the run that a walkthrough file is of.
 
 `buildSite` builds the website as `voicecap site` does (see [The website: `voicecap site`](#the-website-voicecap-site)). It takes `home`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`), and `out`, the folder to build in (default: `_site` in the home), plus `cwd`, `env`, and `logger`, and says what it wrote and what it left out to its `logger` as the command does. It gives back `out`, the full path of the folder it built in; `content`, what it published, as a `SiteContent`; and `leftOut`, each thing it left out, worded as the build's output words it. A `SiteContent` has `demo`, a `PublishedReport` or `null`, and `sites`, each with its `folder` and its `reports`, the newest first. A `PublishedReport` has its `folder`, `id` (its anchor on the page), `at`, `by`, its `files`, and `notPublished`: the files its record names that aren't published, each with its `name` and a `reason`, `"changed"` or `"missing"`. A `PublishedFile` has its `kind` (`"page"`, `"word"`, `"walkthrough"`, or `"other"`), `name`, `href`, `bytes`, `sha256`, and `run` (the run a walkthrough file is of, else `null`). A copy that has changed, or is missing, doesn't make it throw: it's left out, and named in `leftOut`. It throws a `UsageError`, before anything is changed, when the home isn't a folder, and when the folder to build in is one it mustn't empty. The types `BuildSiteOptions`, `BuildSiteResult`, `SiteContent`, `PublishedReport`, and `PublishedFile` are exported.
 

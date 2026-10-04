@@ -1899,8 +1899,10 @@ describe("the package's entry", () => {
       Api.SiteContent | null,
       Api.PublishedReport | null,
       Api.PublishedFile | null,
-    ] = [null, null, null, null, null];
+      // What `readShares` gives back, so a caller can name it.
+      Api.SharesAsRead | null,
+    ] = [null, null, null, null, null, null];
 
-    expect(types).toHaveLength(5);
+    expect(types).toHaveLength(6);
   });
 });

@@ -19,8 +19,10 @@ export { resolveHome, siteDirFor, siteFolder } from "./run/paths.js";
 export { chooseSiteDir } from "./run/site-dir.js";
 export { shareReport } from "./share/share.js";
 export type { ShareReportOptions, ShareReportResult } from "./share/share.js";
-// What `voicecap share` recorded in a site's share/shares.json.
+// What `voicecap share` recorded in a site's share/shares.json, and the type readShares gives it
+// back as: each entry an object whose fields are unknown, since only that is checked.
 export { readShares } from "./share/shares.js";
+export type { SharesAsRead } from "./share/shares.js";
 // A walkthrough file: a run's recipe, so anyone can repeat the run. `voicecap walkthrough` writes
 // one from a completed run; parseWalkthrough reads one back strictly.
 export { writeWalkthrough } from "./share/write-walkthrough.js";
