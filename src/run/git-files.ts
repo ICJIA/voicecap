@@ -43,7 +43,11 @@ export async function ensureGitFiles(home: string): Promise<void> {
   await writeIfMissing(path.join(home, ".gitignore"), GITIGNORE);
 }
 
-async function writeIfMissing(file: string, content: string): Promise<void> {
+/**
+ * Write `content` to `file` when there's no file there yet. A file that's there is never written
+ * over. Whether it wrote: false means the file was there.
+ */
+export async function writeIfMissing(file: string, content: string): Promise<boolean> {
   try {
     const handle = await open(file, "wx");
     try {
@@ -51,7 +55,9 @@ async function writeIfMissing(file: string, content: string): Promise<void> {
     } finally {
       await handle.close();
     }
+    return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return false;
   }
 }

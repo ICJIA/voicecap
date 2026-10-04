@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ensureGitFiles, GITIGNORE } from "../src/run/git-files.js";
+import { ensureGitFiles, GITIGNORE, writeIfMissing } from "../src/run/git-files.js";
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), "voicecap-git-files-"));
 
@@ -91,4 +91,24 @@ describe("ensureGitFiles", () => {
       expect(ignored("dvfr.illinois.gov/share/x~$y.docx")).toBe(1);
     },
   );
+});
+
+describe("writeIfMissing", () => {
+  it("writes a file that isn't there, and says it wrote it", async () => {
+    const file = path.join(await tmp(), "a.txt");
+    expect(await writeIfMissing(file, "first\n")).toBe(true);
+    expect(await readFile(file, "utf8")).toBe("first\n");
+  });
+
+  it("leaves a file that is there as it was, and says it wrote nothing", async () => {
+    const file = path.join(await tmp(), "a.txt");
+    await writeFile(file, "mine\n");
+    expect(await writeIfMissing(file, "first\n")).toBe(false);
+    expect(await readFile(file, "utf8")).toBe("mine\n");
+  });
+
+  it("doesn't take any other failure for a file that is there", async () => {
+    const file = path.join(await tmp(), "no-such-folder", "a.txt");
+    await expect(writeIfMissing(file, "first\n")).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
