@@ -314,7 +314,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 6. **The report:** where it is, its flags, which are all on the "Common mistakes (on purpose)" page, and an offer to open it.
 7. **Your own site:** `npx @icjia/voicecap init` sets up a run.
 
-The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The one exception is a demo you put on the website: it's made in the home's folder and committed with the records, so deleting it, then pushing, takes the demo off the website at the next build (see [Publishing it, and the demo](#publishing-it-and-the-demo)). The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
+The demo's files go in a `voicecap-demo` folder in the current folder, never in your `VOICECAP_TRANSCRIPTS` audit record, and they're safe to delete. The one exception is a demo you put on the website: it's made in the home's folder and committed with the records, so deleting it and committing that, then pushing, takes the demo off the website at the next build (see [Publishing it, and the demo](#publishing-it-and-the-demo)). The demo site uses port 4848, or any free port when that one is taken. The tour needs a terminal: it doesn't run from a script. On Windows, run it in PowerShell or Windows Terminal, not Git Bash's own window (mintty), which doesn't always let Node see a terminal.
 
 **On a Mac, for now,** the tour checks the Mac and runs the VoiceOver live test (steps 1 to 3). Step 4 says what the audit will do, and the tour ends with the Mac's next steps. The audit, the transcripts, and the report come with voicecap's VoiceOver driver, in a later release; a Windows PC runs the full tour.
 
@@ -1291,17 +1291,18 @@ The site's page follows the shareable page's rules. It's one self-contained file
 
 - **An entry whose seal no longer holds,** or whose fields aren't what voicecap records, and a `shares.json` that can't be read. The site shows nothing of it. Only the build's output names it.
 - **A copy that has changed since it was shared, is missing, can't be read, or isn't a regular file** (a link or a folder, say). The report's other files are still published, and under the report the site says that `<name> isn't here`, and why.
-- **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A name that holds a path, such as `../notes.txt`, is never read.
+- **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A file named `index.html` is left out too, since Netlify would serve it at its site folder's own address, where it would have no Content Security Policy. A name that holds a path, such as `../notes.txt`, is never read.
 - **A site folder named `demo`,** which would take the demo's place on the site. One named `index.html`, `robots.txt`, or `_headers` is left out too: it would take the place of the site's own file.
+- **A `voicecap-demo` that isn't a folder.** Git for Windows checks a committed link out as a plain file, so a file can be where the folder should be. The site is built without a demo.
 
 **The folder it builds into** is emptied first, so voicecap builds only into a folder it can be sure of. That's a folder that's new or empty, or one an earlier build made: its `_headers` starts with voicecap's own line.
 
-It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count there, and are emptied with the rest.
+It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest.
 
-It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. Every refusal comes before anything is touched. The build says why, and exits with code 1:
+It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. On Windows, it also refuses a folder whose name ends with a dot or a space, which Windows drops: a folder made with one can't be opened or removed there. Every refusal comes before anything is touched. The build says why, and exits with code 1:
 
 ```
-Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\notes: it isn't empty, and voicecap site didn't build it. Give a folder of its own, such as C:\Users\cschw\code\voicecap-transcripts\_site.
+Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\notes: it isn't empty, and voicecap site didn't build it. Give a folder of its own, such as "C:\Users\cschw\code\voicecap-transcripts\_site".
 ```
 
 </details>
@@ -1359,7 +1360,7 @@ git push
 
 **To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
-**The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/`, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
+**The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/` and committing that, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
 1. Run `npx @icjia/voicecap demo`. It's a guided tour of about 9 minutes that starts NVDA for real, so follow its steps and keep your hands off the keyboard when it says to (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)). Use a Windows PC: on a Mac, the tour stops before the audit. Its files go in `voicecap-demo/`, in the current folder: the home.
 2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does.
@@ -1376,6 +1377,8 @@ To update the demo, do the three steps again: the site shows the latest share.
 
 Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
 
+**Check the team's Netlify plan first.** Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Core Pro or Enterprise plan. On Core Starter, every build fails. If the team is on Core Starter, Netlify lists ways around it: upgrade the plan; move the repository to a personal GitHub account (Netlify builds from a personal account's private repository on any plan); or deploy by hand after running `voicecap site`, with Netlify's CLI, its API, or by dragging the built folder onto the deploys page. A deploy by hand doesn't build on each push. [Netlify's page on it](https://docs.netlify.com/build/configure-builds/troubleshooting-tips/#organization-owned-private-repository) lists making the repository public too. Don't: it holds the run records.
+
 1. **Build the site once on this computer.** In PowerShell, run:
 
    ```powershell
@@ -1390,24 +1393,22 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    Built the site in C:\Users\cschw\code\voicecap-transcripts\_site: 3 reports from 2 sites, and the demo's.
    ```
 
-   Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If it says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
+   Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If the `Error:` says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
 
 2. **Add `_site/` to `.gitignore`, if voicecap says to.** Look at step 1's output. If it has a warning that ends `Add the line _site/ to it.`, add that line to the home's `.gitignore`. A home that voicecap set up with 0.8.0 or earlier needs it. A new home's `.gitignore` has it already, so with no such warning, go on to step 3. To add the line:
    1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`. (If you haven't set `VOICECAP_TRANSCRIPTS`, type `cd` and the folder's path.)
    2. Run `notepad .gitignore`. It opens the file in Notepad.
    3. Go to the end of the file, and add a line of its own that says `_site/`.
    4. Save the file, and close Notepad.
-   5. Run the command from step 1 again. The warning should be gone.
+   5. Do the `npx @icjia/voicecap@latest site` step again. The warning should be gone.
 
 3. **Commit `netlify.toml` and `.nvmrc`, and push.**
    1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`.
    2. Run `git status`.
-   3. Check that it lists `netlify.toml` and `.nvmrc`, and doesn't list `_site/`. If it lists `_site/`, go back to step 2.
-   4. Run `git add netlify.toml .nvmrc`.
+   3. Check that it lists `netlify.toml` and `.nvmrc` (and `.gitignore`, if you added `_site/` to it), and doesn't list `_site/`. If it lists `_site/`, go back to the step that adds `_site/`.
+   4. Run `git add netlify.toml .nvmrc .gitignore`. (Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in its place: it adds the share too.)
    5. Run `git commit -m "Add the files Netlify reads"`.
    6. Run `git push`.
-
-   Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in place of `git add netlify.toml .nvmrc`. It adds the share too.
 
 4. **In Netlify, import the repository and name the site.**
    - Sign in at https://app.netlify.com.
@@ -1421,10 +1422,11 @@ Do this once, after the transcripts home holds a share, and is a repository on G
 5. **Open the site and check it.** Open the address from step 4, or the one on the project's overview. Check that:
    - the page opens, with "Screen reader test results" at the top, and the links in its bar go to "The demo" (when the home has one), "The sites", and "Every report, by date";
    - a report's page opens;
-   - a Word copy and a walkthrough file download;
-   - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals.
+   - a Word copy and a walkthrough file download, for a report shared with this release or later, or the demo's; an earlier report says none was shared;
+   - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals;
+   - in the browser's developer tools (F12, the Network tab), a report's page came with a `Content-Security-Policy` header, and the site's home page with `X-Robots-Tag: noindex, nofollow, noarchive`, whichever way the site was deployed.
 
-   If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again.
+   If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again. A build that stops with "Build blocked" about a private repository means the team's plan: see the paragraph before step 1.
 
 </details>
 
