@@ -1,11 +1,12 @@
 /**
- * Dates, times, lists, numbers, and page names and addresses in the plain words the shareable
- * report uses.
+ * Dates, times, lists, numbers, sizes, and page names and addresses in the plain words the
+ * shareable report uses.
  *
  * The times are the local ISO times voicecap records ("2026-09-29T13:15:02-05:00", or to the
  * millisecond). Each is read from its own date and time fields, never through the machine's time
  * zone, so a page reads the same wherever it is built.
  */
+import { plural } from "../report/html.js";
 
 const MONTHS = [
   "January",
@@ -125,3 +126,26 @@ export function names(list: readonly string[]): string {
  * record's field that holds something else never reaches a copy as markup.
  */
 export const count = (value: number): string => Number(value).toLocaleString("en-US");
+
+const KILOBYTE = 1024;
+
+/** The bytes in a megabyte. */
+export const MEGABYTE = 1024 * 1024;
+
+/**
+ * A size in words: whole KB, rounded, never under 1, and with thousands separators, for as long as
+ * the rounded KB is under 1,024; from there MB with one decimal. The switch is on the rounded KB, so
+ * it falls at 1,048,064 bytes (1,023.5 KB) and not at 1,048,576: a size never reads "1,024 KB" a
+ * few bytes before "1.0 MB".
+ */
+export function sizeWords(bytes: number): string {
+  const kilobytes = Math.round(bytes / KILOBYTE);
+  return kilobytes < KILOBYTE
+    ? `${count(Math.max(1, kilobytes))} KB`
+    : `${(bytes / MEGABYTE).toFixed(1)} MB`;
+}
+
+/** A size and its bytes: "310 KB (317,440 bytes)", "1.2 MB (1,234,567 bytes)". */
+export function sizeLine(bytes: number): string {
+  return `${sizeWords(bytes)} (${plural(bytes, "byte")})`;
+}

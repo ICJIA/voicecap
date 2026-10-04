@@ -314,3 +314,13 @@ function defaultAttempts(status: PageStatus, failed: number): number {
   if (status === "failed") return Math.max(failed, 1);
   return failed + 1;
 }
+
+/**
+ * NVDA settings nested `levels` deep: the settings are the first level, and each next level is an
+ * object inside the one before.
+ */
+export function settingsNested(levels: number): Record<string, unknown> {
+  let settings: Record<string, unknown> = {};
+  for (let level = 1; level < levels; level += 1) settings = { inner: settings };
+  return settings;
+}

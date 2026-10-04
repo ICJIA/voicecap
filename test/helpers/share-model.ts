@@ -10,9 +10,15 @@ import path from "node:path";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import type { PassName, ReviewsFile, RunJson } from "../../src/model.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../../src/share/model.js";
+import {
+  buildShareModel,
+  type RunEvidence,
+  type ShareModel,
+  type WalkthroughDownload,
+} from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { SITE } from "./report-data.js";
+import { settingsNested } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
 
 /** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
@@ -89,6 +95,41 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     wordName: "current.docx",
     ...overrides,
   };
+}
+
+/** The run with its read pass's step limit set to `limit`. */
+export function withStepLimit(run: RunJson, limit: number): RunJson {
+  const { settings } = run;
+  return { ...run, settings: { ...settings, stepCaps: { ...settings.stepCaps, read: limit } } };
+}
+
+/** The run with the NVDA settings it recorded nested `levels` deep (see settingsNested). */
+export function withNestedSettings(run: RunJson, levels: number): RunJson {
+  const { settings } = run;
+  return { ...run, settings: { ...settings, nvdaSettings: settingsNested(levels) } };
+}
+
+/**
+ * Why no walkthrough file can be made of a run whose step limit is 100,001: a file holds a step
+ * limit of 100,000 at most. A sentence that ends with its period already.
+ */
+export const STEP_LIMIT_PROBLEM =
+  "its settings.stepCaps.read: must be a whole number from 1 to 100,000.";
+
+/**
+ * The walkthrough file a run's evidence offers, which a test says the run has: the evidence's own,
+ * or an error that says why the run has none.
+ */
+export function downloadOf(each: RunEvidence): WalkthroughDownload {
+  if ("problem" in each.walkthrough) {
+    throw new Error(`Run ${each.run.id} has no walkthrough file: ${each.walkthrough.problem}`);
+  }
+  return each.walkthrough;
+}
+
+/** The bytes of a walkthrough file a download carries: its base64, decoded. */
+export function fileBytes(download: Pick<WalkthroughDownload, "base64">): Buffer {
+  return Buffer.from(download.base64, "base64");
 }
 
 let demo: Promise<ShareModel> | undefined;

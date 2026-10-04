@@ -4,6 +4,7 @@ import type { ManualSessionFile } from "../manual/list.js";
 import type {
   EnvironmentRecord,
   PageRecord,
+  PageSource,
   PassName,
   PassSummary,
   ReviewEntry,
@@ -122,17 +123,10 @@ function banner(item: Banner): string {
 function summarySection(model: ReportModel): string {
   const { run } = model.input;
   const s = model.summary;
-  const source = run.settings.source;
-  const sourceText =
-    source.kind === "sitemap"
-      ? `Full sitemap: <a href="${esc(source.url)}">${esc(source.url)}</a>`
-      : source.kind === "pages"
-        ? `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`
-        : esc(describePageUrls(source.urls));
   const item = (term: string, value: string) => `<div><dt>${term}</dt><dd>${value}</dd></div>`;
   const count = (n: number) => n.toLocaleString("en-US");
   const items = [
-    item("Page source", sourceText),
+    item("Page source", pageSourceText(run.settings.source)),
     item("Driver and capture mode", esc(driverText(model))),
     item(
       "Pages in this run",
@@ -158,6 +152,54 @@ function summarySection(model: ReportModel): string {
   );
 }
 
+/** The summary's line for where the pages came from, as HTML. */
+function pageSourceText(source: PageSource): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `Full sitemap: <a href="${esc(source.url)}">${esc(source.url)}</a>`;
+    case "pages":
+      return `Curated page list: <span class="mono">${esc(source.file)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
+    case "walkthrough":
+      return `Walkthrough <span class="mono">${esc(source.file)}</span> from run <span class="mono">${esc(source.run)}</span> <span class="meta">SHA-256 <span class="mono">${esc(source.sha256.slice(0, 12))}…</span></span>`;
+    case "urls":
+      return esc(describePageUrls(source.urls));
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
+/** The page source details' rows for the file or the addresses the pages came from. */
+function pageSourceRows(source: PageSource): string[] {
+  switch (source.kind) {
+    case "sitemap":
+      // Its sitemaps are listed below, from what the run fetched.
+      return [];
+    case "pages":
+      return [
+        `<dt>Page list file</dt><dd class="mono">${esc(source.file)}</dd>`,
+        `<dt>Page list SHA-256</dt><dd class="mono">${esc(source.sha256)}</dd>`,
+      ];
+    case "walkthrough":
+      return [
+        `<dt>Walkthrough file</dt><dd class="mono">${esc(source.file)}</dd>`,
+        `<dt>Walkthrough SHA-256</dt><dd class="mono">${esc(source.sha256)}</dd>`,
+        `<dt>Walkthrough from run</dt><dd class="mono">${esc(source.run)}</dd>`,
+      ];
+    case "urls":
+      return [
+        `<dt>Pages given with --page</dt><dd><ul class="links">${source.urls
+          .map((url) => `<li><span class="mono">${esc(url)}</span></li>`)
+          .join("")}</ul></dd>`,
+      ];
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
 function driverText(model: ReportModel): string {
   const { run } = model.input;
   const env = model.environments.at(-1);
@@ -170,21 +212,8 @@ function driverText(model: ReportModel): string {
 
 function sourceDetails(model: ReportModel): string {
   const { source } = model.input.run;
-  const pageSource = model.input.run.settings.source;
   const rows: string[] = [
-    ...(pageSource.kind === "pages"
-      ? [
-          `<dt>Page list file</dt><dd class="mono">${esc(pageSource.file)}</dd>`,
-          `<dt>Page list SHA-256</dt><dd class="mono">${esc(pageSource.sha256)}</dd>`,
-        ]
-      : []),
-    ...(pageSource.kind === "urls"
-      ? [
-          `<dt>Pages given with --page</dt><dd><ul class="links">${pageSource.urls
-            .map((url) => `<li><span class="mono">${esc(url)}</span></li>`)
-            .join("")}</ul></dd>`,
-        ]
-      : []),
+    ...pageSourceRows(model.input.run.settings.source),
     `<dt>Entries listed</dt><dd>${source.listed.toLocaleString("en-US")}</dd>`,
     `<dt>Duplicates merged</dt><dd>${source.duplicates.toLocaleString("en-US")}</dd>`,
     `<dt>Excluded by --include / --exclude</dt><dd>${source.excludedByFilter.toLocaleString("en-US")}</dd>`,

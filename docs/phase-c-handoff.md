@@ -256,10 +256,15 @@ The owner's standing rules, from Phases A and B:
     - `voicecap verify`'s checks of that record and of every copy it names;
     - a fix for CI: a CLI run in the tests now uses the test's platform, so it no longer starts the real PowerShell probe on Windows (about 20 s on CI's Windows machines).
 - **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
-  - plan 4, the walkthrough file; plan 5, the website; plan 6, the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
-  - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`.
-- **Tests:** 2,844 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test and `voicecap verify`.
-- **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share` and the Word copy need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer."
+  - plan 4, the walkthrough file, is merged to `main` and not published yet (the CHANGELOG's `[Unreleased]` lists it):
+    - `voicecap walkthrough` writes a completed run's recipe: its pages in order, with its passes, step limits, capture mode, and readiness settings;
+    - `--walkthrough` repeats the run from the file, then says page by page how each page sounds against the original;
+    - the shareable page offers each run's file to download, and the Word copy says how to get it;
+    - runs now record their readiness settings, so a run that 0.7.0 or earlier left incomplete isn't resumed (voicecap says so at each new run, until a later completed run with the same other settings supersedes the old one).
+  - plan 5, the website; plan 6, the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
+  - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
+- **Tests:** 3,539 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, and `voicecap verify`.
+- **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share`, the Word copy, and `voicecap walkthrough` need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer." A walkthrough repeats on a Mac with VoiceOver once that driver exists. Until then, repeat it on a Windows computer, with NVDA.
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
 
@@ -291,6 +296,7 @@ Several things are tuned to NVDA and need VoiceOver versions:
 - **Keeping the machine awake and detecting a lock**, done for Windows.
 - **`setup`, `doctor`, and `init`'s readiness** for macOS, and the messages quoted above.
 - **Comparisons:** NVDA and VoiceOver transcripts can't be compared line for line, so `--compare previous` should only look at runs from the same screen reader.
+- **Repeats from a walkthrough file:** the comparison after a repeat (`compareWithOriginal`, in `src/share/walkthrough.ts`) sets each pass's fingerprint against the original's, whichever screen reader made it. A repeat with VoiceOver of an NVDA walkthrough will say every page sounds different, with both screen readers named among what differs ("VoiceOver … (was NVDA …)"). It shows that the same pages were covered, and no more, as the spec says.
 
 `docs/phase-b-handoff.md` ("Facts that turned out differently") covers what surprised us with NVDA. Most of it has a VoiceOver counterpart to check:
 - a browser launched by Playwright fakes focus, so the driver launches Chrome itself and attaches over CDP;

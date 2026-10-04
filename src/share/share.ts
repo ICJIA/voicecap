@@ -23,7 +23,6 @@ import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { ShareEntry, SharedFile } from "../model.js";
-import { plural } from "../report/html.js";
 import { resolveReviewer } from "../reviews/reviewer.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { resolveHome, shareDir, sharesPath } from "../run/paths.js";
@@ -34,7 +33,7 @@ import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, localDate } from "../util/time.js";
 import { renderWordCopy } from "./docx.js";
 import { fontFaceCss } from "./fonts.js";
-import { count } from "./format.js";
+import { MEGABYTE, sizeLine, sizeWords } from "./format.js";
 import { renderSharePage } from "./html/document.js";
 import { loadShareInput } from "./load.js";
 import { buildShareModel } from "./model.js";
@@ -70,27 +69,6 @@ export interface ShareReportResult {
  * exactly this size isn't.
  */
 export const EMAIL_LIMIT_BYTES = 20 * 1024 * 1024;
-
-const KILOBYTE = 1024;
-const MEGABYTE = 1024 * 1024;
-
-/**
- * A size in words: whole KB, rounded, never under 1, and with thousands separators, for as long as
- * the rounded KB is under 1,024; from there MB with one decimal. The switch is on the rounded KB, so
- * it falls at 1,048,064 bytes (1,023.5 KB) and not at 1,048,576: a size never reads "1,024 KB" a
- * few bytes before "1.0 MB".
- */
-function sizeWords(bytes: number): string {
-  const kilobytes = Math.round(bytes / KILOBYTE);
-  return kilobytes < KILOBYTE
-    ? `${count(Math.max(1, kilobytes))} KB`
-    : `${(bytes / MEGABYTE).toFixed(1)} MB`;
-}
-
-/** A size and its bytes: "310 KB (317,440 bytes)", "1.2 MB (1,234,567 bytes)". */
-export function sizeLine(bytes: number): string {
-  return `${sizeWords(bytes)} (${plural(bytes, "byte")})`;
-}
 
 /**
  * What to say of a copy over EMAIL_LIMIT_BYTES ("x.html is 23.4 MB, over 20 MB: too big for most

@@ -3,10 +3,21 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { PageSource } from "../src/model.js";
+import { samePageSource } from "../src/report/compare.js";
 import { compareRuns, environmentDifferences, resolveCompareBase } from "../src/report/index.js";
 import { liveCompareDir, runDir } from "../src/run/paths.js";
 import { UsageError } from "../src/util/errors.js";
 import { environment, findPage, tempOutDir, writeSyntheticRun } from "./helpers/report-data.js";
+import { shareRun } from "./helpers/share-data.js";
+
+/**
+ * A page source that is a walkthrough file, made from run 2026-09-29_1402 unless it says, a run of
+ * the pages of a sitemap.
+ */
+function walkthrough(file: string, sha256: string, run = "2026-09-29_1402"): PageSource {
+  return { kind: "walkthrough", file, sha256, run, from: "sitemap" };
+}
 
 async function twoRuns(outDir: string) {
   const base = await writeSyntheticRun(outDir, {
@@ -295,5 +306,105 @@ describe("resolveCompareBase", () => {
     await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
       /No earlier completed run with the same page source \(page https:\/\/dvfr\.illinois\.gov\/faq\/\)/,
     );
+  });
+
+  it("describes a sitemap run's page source in the no-match error", async () => {
+    const outDir = await tempOutDir();
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      source: { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" },
+      pages: [{ path: "/" }],
+    });
+    await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
+      "No earlier completed run with the same page source (sitemap https://example.illinois.gov/sitemap.xml) to compare with run 2026-09-26_1405.",
+    );
+  });
+
+  it("describes a walkthrough run's page source in the no-match error", async () => {
+    const outDir = await tempOutDir();
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      source: walkthrough("w.json", "a".repeat(64)),
+      pages: [{ path: "/" }],
+    });
+    await expect(resolveCompareBase(outDir, run, "previous")).rejects.toThrow(
+      "No earlier completed run with the same page source (walkthrough w.json from run 2026-09-29_1402) to compare with run 2026-09-26_1405.",
+    );
+  });
+
+  it("matches walkthrough runs by the walkthrough's SHA-256, whatever its file is called", async () => {
+    const outDir = await tempOutDir();
+    // The same file name with other contents is another walkthrough.
+    await writeSyntheticRun(outDir, {
+      id: "2026-09-18_0900",
+      createdAt: "2026-09-18T09:00:00-05:00",
+      source: walkthrough("w.json", "b".repeat(64)),
+      pages: [{ path: "/" }],
+    });
+    // The same contents under another name is the same walkthrough.
+    const earlier = await writeSyntheticRun(outDir, {
+      id: "2026-09-20_0930",
+      createdAt: "2026-09-20T09:30:00-05:00",
+      source: walkthrough("copy of w.json", "a".repeat(64)),
+      pages: [{ path: "/" }],
+    });
+    const run = await writeSyntheticRun(outDir, {
+      id: "2026-09-26_1405",
+      createdAt: "2026-09-26T14:05:00-05:00",
+      source: walkthrough("w.json", "a".repeat(64)),
+      pages: [{ path: "/" }],
+    });
+
+    expect((await resolveCompareBase(outDir, run, "previous")).id).toBe(earlier.id);
+  });
+});
+
+describe("samePageSource", () => {
+  const pages = [{ path: "/" }];
+  const runFrom = (source: PageSource) => shareRun({ id: "2026-09-26_1405", source, pages });
+
+  it("takes two walkthroughs with the same SHA-256 as the same source", () => {
+    const first = runFrom(walkthrough("w.json", "a".repeat(64)));
+    // The contents decide it: not what the file is called, nor which run it was made from.
+    const renamed = runFrom(walkthrough("copy of w.json", "a".repeat(64), "2026-09-30_0900"));
+    const edited = runFrom(walkthrough("w.json", "b".repeat(64)));
+
+    expect(samePageSource(first, renamed)).toBe(true);
+    expect(samePageSource(renamed, first)).toBe(true);
+    expect(samePageSource(first, edited)).toBe(false);
+    expect(samePageSource(edited, first)).toBe(false);
+  });
+
+  it("takes a walkthrough and any other kind of source as different", () => {
+    const repeat = runFrom(walkthrough("pages.csv", "a".repeat(64)));
+    const others = [
+      // Named and fingerprinted as the walkthrough is, but a page list.
+      runFrom({ kind: "pages", file: "pages.csv", sha256: "a".repeat(64) }),
+      runFrom({ kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" }),
+      runFrom({ kind: "urls", urls: ["https://example.illinois.gov/"] }),
+    ];
+
+    for (const other of others) {
+      expect(samePageSource(repeat, other)).toBe(false);
+      expect(samePageSource(other, repeat)).toBe(false);
+    }
+  });
+
+  it("takes a source of a kind this version doesn't know as different from every source", () => {
+    // A run.json from a later voicecap may record a kind this one can't read. It matches nothing,
+    // itself included: this version can't say what such a run's pages were.
+    const unknown = runFrom({ kind: "ftp", host: "example.test" } as unknown as PageSource);
+    const known = [
+      runFrom(walkthrough("w.json", "a".repeat(64))),
+      runFrom({ kind: "pages", file: "pages.csv", sha256: "a".repeat(64) }),
+      runFrom({ kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" }),
+      runFrom({ kind: "urls", urls: ["https://example.illinois.gov/"] }),
+    ];
+
+    expect(samePageSource(unknown, unknown)).toBe(false);
+    for (const other of known) {
+      expect(samePageSource(unknown, other)).toBe(false);
+      expect(samePageSource(other, unknown)).toBe(false);
+    }
   });
 });

@@ -23,6 +23,7 @@ import { resolveHome } from "../run/paths.js";
 import { handleInterrupts } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
 import { shareReport } from "../share/share.js";
+import { writeWalkthrough } from "../share/write-walkthrough.js";
 import { ExitCode, UsageError, VoicecapError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
 import { createConsoleLogger, type Logger, type OutputStream } from "../util/log.js";
@@ -72,6 +73,7 @@ interface RunOptions {
   runName?: string;
   reviewer?: string;
   replayFrom?: string;
+  walkthrough?: string;
 }
 
 const OUT_HELP = "transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)";
@@ -136,6 +138,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
       "take this page: a full URL, or a path like /faq/ (repeatable)",
       collect,
       [],
+    )
+    .option(
+      "--walkthrough <file>",
+      "repeat a run from its walkthrough file: the same pages, in the same order, with the same passes and limits",
     )
     .option("--limit <n>", "transcribe at most n pages", positiveInt("--limit"))
     .option(
@@ -496,6 +502,28 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     });
 
   program
+    .command("walkthrough")
+    .description(
+      "write a run's walkthrough file: its pages, in order, and its settings, so anyone can repeat the run",
+    )
+    .argument("<file>", "the file to write (never overwritten)")
+    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option("--run <id>", "the run to write it from (default: the latest completed run)")
+    .option("--out <dir>", OUT_HELP)
+    .action(async (file: string, options: { site?: string; run?: string; out?: string }) => {
+      await writeWalkthrough({
+        file,
+        site: options.site ?? null,
+        run: options.run ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+        logger,
+      });
+      setExit(ExitCode.ok);
+    });
+
+  program
     .command("verify")
     .description("check that the records voicecap wrote still match their hashes and seals")
     .option("--site <url>", "the site's URL (default: every site in the home)")
@@ -631,7 +659,8 @@ async function loadPlatform(
 }
 
 async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger): Promise<number> {
-  if (!options.site) {
+  // A repeat takes its site from its walkthrough file.
+  if (!options.site && !options.walkthrough) {
     throw new UsageError(
       "Missing --site <url>. Run voicecap init to answer a few questions instead, or voicecap --help for usage.",
     );
@@ -645,6 +674,7 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
       sitemap: options.sitemap ?? null,
       pages: options.pages ?? null,
       ...(options.page.length > 0 ? { pageUrls: options.page } : {}),
+      walkthrough: options.walkthrough ?? null,
       limit: options.limit ?? null,
       include: options.include,
       exclude: options.exclude,

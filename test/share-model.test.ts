@@ -4,7 +4,7 @@
  * case; site folders written as voicecap writes them, and runs built in memory, cover the rest.
  */
 import { readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
@@ -14,15 +14,29 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { flagRulesSha256 } from "../src/flags/evaluate.js";
-import type { EnvironmentRecord, FlagResult, MachineRecord, RunJson } from "../src/model.js";
+import type {
+  EnvironmentRecord,
+  FlagResult,
+  MachineRecord,
+  PageSource,
+  RunJson,
+} from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
 import { redactHome } from "../src/run/failure.js";
-import { pageDir, runJsonPath } from "../src/run/paths.js";
+import { pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { buildShareModel, type RunEvidence, type ShareModel } from "../src/share/model.js";
+import {
+  parseWalkthrough,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "../src/share/walkthrough.js";
+import { writeWalkthrough } from "../src/share/write-walkthrough.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { sealOf } from "../src/util/hash.js";
+import { createMemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 import {
   addManualSession,
@@ -35,7 +49,17 @@ import {
 } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
-import { DEMO_SITE, demoModel, inputOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  DEMO_SITE,
+  demoModel,
+  downloadOf,
+  fileBytes,
+  inputOf,
+  STEP_LIMIT_PROBLEM,
+  TRANSCRIPTS,
+  withNestedSettings,
+  withStepLimit,
+} from "./helpers/share-model.js";
 
 const CHRIS = "Christopher Schweda";
 const PAT = "Pat Lee";
@@ -144,15 +168,30 @@ function stringsIn(value: unknown): string[] {
 
 /**
  * What the page shows of a model: everything but the records it carries as they are, for the
- * fingerprint check and for the renderers to read fingerprints from.
+ * fingerprint check and for the renderers to read fingerprints from. A walkthrough file the page
+ * carries for download is shown as the words in it: its base64 would hide a folder's name.
  */
 function shown(model: ShareModel): unknown {
   return {
     ...model,
     check: null,
-    evidence: model.evidence.map((each) => ({ ...each, run: null })),
+    evidence: model.evidence.map((each) => ({
+      ...each,
+      run: null,
+      walkthrough:
+        "problem" in each.walkthrough
+          ? each.walkthrough
+          : { ...each.walkthrough, base64: fileBytes(each.walkthrough).toString("utf8") },
+    })),
     changes: model.changes && { ...model.changes, before: null, after: null },
   };
+}
+
+/** The evidence of the first run a model draws on, the latest. */
+function latestEvidence(model: ShareModel): RunEvidence {
+  const [first] = model.evidence;
+  if (first === undefined) throw new Error("The model has no run that counts.");
+  return first;
 }
 
 /** Whether text holds the home folder, however its separators are written. */
@@ -790,6 +829,14 @@ describe("buildShareModel", () => {
     // Nothing the page shows holds the home folder. The records, review entries, and transcripts it
     // carries for the fingerprint check are exactly as recorded, since a seal covers every field.
     expect(stringsIn(shown(model)).filter(mentionsHome)).toEqual([]);
+    // That includes the walkthrough file it offers, which keeps the page list by its name alone.
+    const offered = fileBytes(downloadOf(latestEvidence(model))).toString("utf8");
+    expect(parseWalkthrough(offered, "w.json").original.source).toEqual({
+      kind: "pages",
+      file: "pages.csv",
+      sha256: "a".repeat(64),
+    });
+    expect(mentionsHome(offered)).toBe(false);
     expect(model.check.runs[0]?.settings.source).toEqual({
       kind: "pages",
       file: list,
@@ -940,6 +987,65 @@ describe("buildShareModel", () => {
       "3 passes on each page, except 1 page shown from an earlier run, which had fewer: line by line (Down Arrow), heading by heading (H), and control by control (Tab).",
     );
     expect(pages[0]?.counts).toEqual({ read: 1, headings: null, tab: null });
+  });
+
+  it.each<[name: string, source: PageSource, from: string]>([
+    [
+      "a sitemap",
+      { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" },
+      "the sitemap https://example.illinois.gov/sitemap.xml",
+    ],
+    [
+      "a page list",
+      { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) },
+      "the page list pages.csv",
+    ],
+    ["--page", { kind: "urls", urls: ["https://example.illinois.gov/a"] }, "the pages given"],
+  ])("names the list the pages in scope came from: %s", (_name, source, from) => {
+    const run = shareRun({ id: "r1", source, pages: [{ path: "/a" }, { path: "/b" }] });
+
+    expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(`2 pages from ${from}.`);
+  });
+
+  it("names a walkthrough run's pages as from the walkthrough, by its file and its run", () => {
+    const run = shareRun({
+      id: "2026-09-30_0900",
+      source: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
+      pages: [{ path: "/" }],
+    });
+
+    expect(buildShareModel(inputOf([run])).coverage.covered[0]).toBe(
+      "1 page from the walkthrough w.json from run 2026-09-29_1402.",
+    );
+  });
+
+  it("replaces the home folder in a walkthrough's file, as in a page list's", () => {
+    const home = os.homedir();
+    const file = path.join(home, "walks", "w.json");
+    const run = shareRun({
+      id: "2026-09-30_0900",
+      source: {
+        kind: "walkthrough",
+        file,
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
+      pages: [{ path: "/" }],
+    });
+
+    const covered = buildShareModel(inputOf([run])).coverage.covered[0];
+
+    expect(covered).toBe(
+      `1 page from the walkthrough ${redactHome(file, home, process.platform)} from run 2026-09-29_1402.`,
+    );
+    expect(mentionsHome(covered ?? "")).toBe(false);
   });
 
   it("compares the latest run with the run before", async () => {
@@ -1239,5 +1345,217 @@ describe("buildShareModel", () => {
         value: `Part of the time. Asked as the session ended, and answered at 16:20 by ${PAT}.`,
       },
     ]);
+  });
+});
+
+describe("the walkthrough file each run's evidence offers", () => {
+  it("is the file voicecap writes of the run, named for the site's folder and the run, with the commands that get it and repeat it", async () => {
+    const model = await demoModel();
+
+    expect(model.evidence.map((each) => each.run.id)).toEqual([
+      "2026-09-29_1402",
+      "2026-09-29_1315",
+    ]);
+    for (const each of model.evidence) {
+      const time = each.run.id.endsWith("1402") ? "1402" : "1315";
+      const text = walkthroughJson(walkthroughOf(demoRun(time)));
+      const fileName = `127.0.0.1_4848_${each.run.id}_walkthrough.json`;
+
+      expect(each.walkthrough, each.run.id).toEqual({
+        fileName,
+        base64: Buffer.from(text, "utf8").toString("base64"),
+        bytes: Buffer.byteLength(text, "utf8"),
+        get: `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${each.run.id} ${fileName}`,
+        repeat: `npx @icjia/voicecap --walkthrough ${fileName}`,
+      });
+    }
+  });
+
+  it("is a file voicecap reads back, a walkthrough of that run", async () => {
+    for (const each of (await demoModel()).evidence) {
+      const file = downloadOf(each);
+      const read = parseWalkthrough(fileBytes(file).toString("utf8"), file.fileName);
+
+      expect(read.original.run).toBe(each.run.id);
+      expect(read.site).toBe("http://127.0.0.1:4848");
+      expect(read.pages).toHaveLength(each.run.pages.length);
+    }
+  });
+
+  it("is made from the run's record as its run.json holds it, so it is the file the get command writes", () => {
+    const shownRun = shareRun({ id: "r1", pages: [{ path: "/", label: "As shown" }] });
+    const recorded = shareRun({ id: "r1", pages: [{ path: "/", label: "As recorded" }] });
+    const evidence = latestEvidence(buildShareModel(inputOf([shownRun], { records: [recorded] })));
+    const text = fileBytes(downloadOf(evidence)).toString("utf8");
+
+    expect(text).toBe(walkthroughJson(walkthroughOf(recorded)));
+    expect(text).toContain("As recorded");
+    expect(text).not.toContain("As shown");
+  });
+
+  it("holds the file as UTF-8 in base64, and says its size in bytes, which is more than its characters", () => {
+    const run = shareRun({ id: "r1", pages: [{ path: "/", label: "Café – accueil ☕" }] });
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run]))));
+    const text = walkthroughJson(walkthroughOf(run));
+    const bytes = fileBytes(file);
+
+    expect(text).toContain("Café – accueil ☕");
+    expect(bytes.equals(Buffer.from(text, "utf8"))).toBe(true);
+    expect(bytes.toString("utf8")).toBe(text);
+    expect(file.bytes).toBe(bytes.length);
+    expect(file.bytes).toBeGreaterThan(text.length);
+  });
+
+  it.each([
+    ["https://example.illinois.gov/", "example.illinois.gov"],
+    ["http://127.0.0.1:4848", "127.0.0.1_4848"],
+    ["http://Localhost:3000/some/path", "localhost_3000"],
+  ])("names the file for the site's folder, as siteFolder does: %s", (site, folder) => {
+    // A run of that site, whose page is on it, as a walkthrough file needs.
+    const home = new URL("/", site).href;
+    const run = { ...shareRun({ id: "2026-09-26_1405", pages: [{ path: home }] }), site };
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { site }))));
+    const name = `${folder}_2026-09-26_1405_walkthrough.json`;
+
+    expect(file.fileName).toBe(name);
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site ${site} --run 2026-09-26_1405 ${name}`,
+    );
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+  });
+
+  // The commands are for pasting into a shell, so a value that a shell would read is quoted, as the
+  // other commands voicecap prints are (formatCommand). An IPv6 address's brackets are the one such
+  // thing a site's address can hold: zsh, a Mac's shell, reads them as a pattern, and stops with
+  // "no matches found". The file's name and the run's id are made of characters a shell leaves be.
+  it("quotes an IPv6 site's address in the commands that name it, and nothing else", () => {
+    const site = "http://[::1]:4848";
+    const run = {
+      ...shareRun({ id: "2026-09-26_1405", pages: [{ path: new URL("/", site).href }] }),
+      site,
+    };
+    const evidence = latestEvidence(buildShareModel(inputOf([run], { site })));
+    const file = downloadOf(evidence);
+    const name = `${siteFolder(site)}_2026-09-26_1405_walkthrough.json`;
+
+    expect(name).toBe("___1__4848_2026-09-26_1405_walkthrough.json");
+    expect(file.fileName).toBe(name);
+    expect(file.get).toBe(
+      `npx @icjia/voicecap walkthrough --site 'http://[::1]:4848' --run 2026-09-26_1405 ${name}`,
+    );
+    expect(evidence.verify).toBe("npx @icjia/voicecap verify --site 'http://[::1]:4848'");
+    expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
+  });
+
+  it("says why there is no file for a run beyond what a walkthrough file can hold, a step limit of 100,001", () => {
+    const run = withStepLimit(shareRun({ id: "r1", pages: [{ path: "/" }] }), 100_001);
+
+    // The reason is the one voicecap gives of the same run, and a sentence that ends with its period.
+    expect(walkthroughProblem(walkthroughOf(run))).toBe(STEP_LIMIT_PROBLEM);
+    const { walkthrough } = latestEvidence(buildShareModel(inputOf([run])));
+
+    expect(walkthrough).toEqual({ problem: STEP_LIMIT_PROBLEM });
+    expect(Object.keys(walkthrough)).toEqual(["problem"]);
+  });
+
+  it("says it of the run that has the problem only: the other run's file is still offered", () => {
+    const fine = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [{ path: "/" }],
+    });
+    const over = withStepLimit(shareRun({ id: "r2", pages: [{ path: "/" }] }), 100_001);
+    const { evidence } = buildShareModel(inputOf([fine, over]));
+    const [latest, earlier] = evidence;
+
+    expect(evidence.map((each) => each.run.id)).toEqual(["r2", "r1"]);
+    expect(latest?.walkthrough).toEqual({ problem: STEP_LIMIT_PROBLEM });
+    expect(earlier === undefined ? null : downloadOf(earlier).fileName).toBe(
+      "example.illinois.gov_r1_walkthrough.json",
+    );
+  });
+
+  it("is the very file `voicecap walkthrough` writes of the run", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-walkthrough-file-"));
+    try {
+      for (const each of (await demoModel()).evidence) {
+        const file = path.join(dir, `${each.run.id}.json`);
+
+        await writeWalkthrough({
+          file,
+          out: path.dirname(DEMO_SITE),
+          site: "http://127.0.0.1:4848",
+          run: each.run.id,
+          cwd: dir,
+          env: {},
+          logger: createMemoryLogger(),
+        });
+
+        // Byte for byte what the page carries for download, so either way a person gets one file.
+        const written = await readFile(file);
+        expect(written.length, each.run.id).toBeGreaterThan(0);
+        expect(written.equals(fileBytes(downloadOf(each))), each.run.id).toBe(true);
+        expect(written.length, each.run.id).toBe(downloadOf(each).bytes);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  describe("for a run whose record it can't make a file of", () => {
+    // The page is never stopped by one: it says why there is no file, as it does of a run beyond what
+    // the format holds.
+    it("says it couldn't read the record of a counted run that has no time it completed, its seal kept", () => {
+      const run = { ...shareRun({ id: "r1", pages: [{ path: "/" }] }), completedAt: null };
+      expect(run.seal).toMatch(/^[0-9a-f]{64}$/);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(model.evidence.map((each) => each.run.id)).toEqual(["r1"]);
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "voicecap couldn't read its record.",
+      });
+    });
+
+    it("gives the depth of NVDA settings nested 1,500 levels as the problem, and builds the model", () => {
+      const run = withNestedSettings(shareRun({ id: "r1", pages: [{ path: "/" }] }), 1_500);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "its original.nvdaSettings is nested more than 32 levels deep.",
+      });
+    });
+
+    it("says it couldn't read the record when the file can't be written out, a value JSON can't hold", () => {
+      const base = shareRun({ id: "r1", pages: [{ path: "/" }] });
+      // A BigInt: a record read from run.json never holds one, but this one makes the file's own
+      // serializing throw, after the file has been built and passed.
+      const nvdaSettings = { speech: { rate: 40n } };
+      const run = { ...base, settings: { ...base.settings, nvdaSettings } };
+      expect(() => walkthroughJson(walkthroughOf(run))).toThrow(TypeError);
+
+      const model = buildShareModel(inputOf([run]));
+
+      expect(latestEvidence(model).walkthrough).toEqual({
+        problem: "voicecap couldn't read its record.",
+      });
+    });
+
+    it("leaves the other runs' files alone", () => {
+      const fine = shareRun({
+        id: "r1",
+        createdAt: "2026-09-25T10:00:00-05:00",
+        pages: [{ path: "/" }],
+      });
+      const unreadable = { ...shareRun({ id: "r2", pages: [{ path: "/" }] }), completedAt: null };
+      const { evidence } = buildShareModel(inputOf([fine, unreadable]));
+      const [latest, earlier] = evidence;
+
+      expect(latest?.walkthrough).toEqual({ problem: "voicecap couldn't read its record." });
+      expect(earlier === undefined ? null : downloadOf(earlier).fileName).toBe(
+        "example.illinois.gov_r1_walkthrough.json",
+      );
+    });
   });
 });

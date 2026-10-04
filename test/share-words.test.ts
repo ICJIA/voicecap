@@ -1561,10 +1561,10 @@ describe("the lines of the evidence, the story, and the footer", () => {
     const problem = (await demoModel()).problems.problems[0];
 
     expect(inRun("2026-09-29_1402")).toBe("in run 2026-09-29_1402");
-    // The page says it after each of a run's four parts' titles, for a screen reader.
+    // The page says it after each of a run's five parts' titles, for a screen reader.
     for (const { run } of model.evidence) {
       expect(html.match(new RegExp(`<span class="sr">${inRun(run.id)}</span>`, "g"))).toHaveLength(
-        4,
+        5,
       );
     }
     // And a problem's heading names its run the same way.
@@ -1813,6 +1813,52 @@ describe("the section words in text.ts", () => {
       { text: "current.html", mono: true },
       ", can also check the transcripts it shows against their fingerprints, in any browser, offline.",
     ]);
+  });
+
+  it("title a run's five parts, in the order the page draws them, the walkthrough file last", () => {
+    expect(Object.values(EVIDENCE_TEXT.parts)).toEqual([
+      "Minute by minute",
+      "NVDA's own log, checked against the transcripts",
+      "Test environment",
+      "Fingerprints (SHA-256)",
+      "Walkthrough file",
+    ]);
+  });
+
+  it("say what a run's walkthrough file is for, and how to repeat the run from it, word for word", () => {
+    const { walkthrough } = EVIDENCE_TEXT;
+    const inWord = WORD_TEXT.evidence.walkthrough;
+
+    expect(walkthrough.lead).toBe(
+      "To repeat this run exactly, with the same pages in the same order and the same passes and limits, download its walkthrough file, then run:",
+    );
+    expect(walkthrough.download("4 KB")).toBe("Download the walkthrough file (4 KB)");
+    expect(walkthrough.promise).toBe(
+      "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
+    );
+    // A reason ends with its period already, so the sentence adds none.
+    expect(walkthrough.problem("its site isn't a web address.")).toBe(
+      "This run's walkthrough file can't be made: its site isn't a web address.",
+    );
+    // The reason for a record voicecap couldn't make a file of at all, in the same form.
+    expect(walkthrough.unreadable).toBe("voicecap couldn't read its record.");
+    expect(walkthrough.problem(walkthrough.unreadable)).toBe(
+      "This run's walkthrough file can't be made: voicecap couldn't read its record.",
+    );
+    // The Word copy can't carry the file, so it says how to get it instead; the rest is the page's.
+    expect(inWord.lead).toBe(
+      "To repeat this run exactly, with the same pages in the same order and the same passes and limits, get its walkthrough file from the web page, or with:",
+    );
+    expect(inWord.then).toBe("then run:");
+    expect(Object.keys(inWord).sort()).toEqual(["lead", "then"]);
+  });
+
+  it("begin a run's walkthrough file the same way in both copies: what a repeat keeps the same", () => {
+    const stem =
+      "To repeat this run exactly, with the same pages in the same order and the same passes and limits, ";
+
+    expect(EVIDENCE_TEXT.walkthrough.lead.startsWith(stem)).toBe(true);
+    expect(WORD_TEXT.evidence.walkthrough.lead.startsWith(stem)).toBe(true);
   });
 
   it("name the same three commands as the page's line on what its check proves", () => {

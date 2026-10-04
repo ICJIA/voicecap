@@ -6,8 +6,17 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { pageSourceFor, resolvePages } from "../src/pages/resolve.js";
-import { parseSiteUrl } from "../src/pages/url.js";
+import type { PageSource } from "../src/model.js";
+import {
+  describeSource,
+  pageSourceFor,
+  readWalkthroughFile,
+  resolvePages,
+  type WalkthroughFile,
+} from "../src/pages/resolve.js";
+import { pageSlug } from "../src/pages/slug.js";
+import { canonicalKey, parseSiteUrl } from "../src/pages/url.js";
+import type { Walkthrough, WalkthroughPage } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { gitBashForm } from "./helpers/git-bash.js";
@@ -481,5 +490,329 @@ describe("pageSourceFor", () => {
       pageSourceFor({ sitemap: `${ORIGIN}/sitemap.xml`, pageUrls: ["/a"], site }),
     ).rejects.toThrow(/Use one kind of page source/);
     await expect(pageSourceFor({ site })).rejects.toThrow(/--page <url>/);
+  });
+});
+
+describe("a walkthrough file as the page source", () => {
+  const SHA = "a".repeat(64);
+  const PAGES_SOURCE: PageSource = { kind: "pages", file: "pages.csv", sha256: "b".repeat(64) };
+
+  /**
+   * A walkthrough file of the fixture site, as a run reads it, listing `pages` (by their addresses
+   * or whole), made from a run whose pages came from `from`.
+   */
+  function walkthroughFile(
+    pages: (string | WalkthroughPage)[],
+    from: PageSource = PAGES_SOURCE,
+  ): WalkthroughFile {
+    const parsed: Walkthrough = {
+      voicecapWalkthrough: 1,
+      site: ORIGIN,
+      pages: pages.map((page) =>
+        typeof page === "string" ? { url: page, original: { status: "done", passes: {} } } : page,
+      ),
+      settings: {
+        passes: ["read", "headings", "tab"],
+        stepCaps: { read: 400, headings: 200, tab: 300 },
+        capture: "complete",
+        readiness: null,
+      },
+      original: {
+        run: "2026-09-29_1402",
+        seal: null,
+        createdAt: "2026-09-29T14:02:00-05:00",
+        completedAt: "2026-09-29T14:20:00-05:00",
+        replayed: false,
+        source: from,
+        sourceFingerprints: [],
+        voicecap: null,
+        screenReader: null,
+        browser: null,
+        nvdaSettings: {},
+        browserChannel: "chrome",
+      },
+    };
+    return { file: "w.json", sha256: SHA, parsed };
+  }
+
+  it.each<[name: string, from: PageSource, came: "sitemap" | "pages" | "urls"]>([
+    ["a sitemap", { kind: "sitemap", url: `${ORIGIN}/sitemap.xml` }, "sitemap"],
+    ["a page list", PAGES_SOURCE, "pages"],
+    ["--page", { kind: "urls", urls: [`${ORIGIN}/faq/`] }, "urls"],
+    [
+      "a walkthrough, which says what its own pages came from",
+      { kind: "walkthrough", file: "w0.json", sha256: "c".repeat(64), run: "r0", from: "urls" },
+      "urls",
+    ],
+  ])(
+    "names its file, SHA-256, and run, and what the pages of that run came from: %s",
+    async (_name, from, came) => {
+      const walkthrough = walkthroughFile([`${ORIGIN}/`], from);
+      const expected: PageSource = {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: SHA,
+        run: "2026-09-29_1402",
+        from: came,
+      };
+
+      expect(await pageSourceFor({ walkthrough })).toEqual(expected);
+      expect((await resolvePages({ site, walkthrough })).pageSource).toEqual(expected);
+    },
+  );
+
+  it("takes the file's pages, in its order, with their labels, templates, and notes", async () => {
+    const walkthrough = walkthroughFile([
+      {
+        url: `${ORIGIN}/flawed/`,
+        label: "Flawed page",
+        template: "content",
+        notes: "No skip link.",
+        original: { status: "done", passes: {} },
+      },
+      `${ORIGIN}/`,
+      {
+        url: `${ORIGIN}/duplicates/`,
+        label: "Duplicates",
+        original: { status: "failed", passes: {} },
+      },
+    ]);
+
+    const result = await resolvePages({ site, walkthrough });
+
+    expect(result.pages.map((page) => page.url)).toEqual([
+      `${ORIGIN}/flawed/`,
+      `${ORIGIN}/`,
+      `${ORIGIN}/duplicates/`,
+    ]);
+    expect(result.pages.map((page) => [page.label, page.template, page.notes])).toEqual([
+      ["Flawed page", "content", "No skip link."],
+      [undefined, undefined, undefined],
+      ["Duplicates", undefined, undefined],
+    ]);
+    expect(result.pages.map((page) => page.line)).toEqual([undefined, undefined, undefined]);
+    expect(result.pages[0]?.key).toBe(`${ORIGIN}/flawed`);
+    expect(result.pages[0]?.slug).toMatch(/^flawed-[0-9a-f]{10}$/);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("describes the pages as the file's: its name, SHA-256, and how many pages it lists", async () => {
+    const result = await resolvePages({
+      site,
+      walkthrough: walkthroughFile([`${ORIGIN}/`, `${ORIGIN}/flawed/`]),
+    });
+
+    expect(result.source).toEqual({
+      kind: "walkthrough",
+      file: "w.json",
+      sha256: SHA,
+      listed: 2,
+      duplicates: 0,
+      invalid: [],
+      excludedByFilter: 0,
+      excludedByLimit: 0,
+      warnings: [],
+    });
+  });
+
+  it("reads a page listed twice once, keeping the form listed first, and counts the repeats", async () => {
+    const logger = createMemoryLogger();
+    const walkthrough = walkthroughFile([
+      `${ORIGIN}/duplicates`,
+      `${ORIGIN}/`,
+      `${ORIGIN}/duplicates/`,
+      `${ORIGIN}/#top`,
+    ]);
+
+    const result = await resolvePages({ site, walkthrough, logger });
+
+    expect(result.pages.map((page) => page.url)).toEqual([`${ORIGIN}/duplicates`, `${ORIGIN}/`]);
+    expect(result.source).toMatchObject({ listed: 4, duplicates: 2 });
+    expect(result.source.warnings).toEqual([
+      "Ignored 2 duplicate entries; the first listing of each page is used.",
+    ]);
+    expect(logger.text("warn")).toContain(
+      "Ignored 2 duplicate entries; the first listing of each page is used.",
+    );
+    expect(logger.text()).toContain("2 pages to transcribe, 2 duplicates ignored.");
+  });
+
+  it("skips a page whose address is a file that isn't a page, as a page list does", async () => {
+    const result = await resolvePages({
+      site,
+      walkthrough: walkthroughFile([`${ORIGIN}/`, `${ORIGIN}/files/annual-report.pdf`]),
+    });
+
+    expect(result.pages.map((page) => page.url)).toEqual([`${ORIGIN}/`]);
+    expect(result.skipped).toEqual([
+      { url: `${ORIGIN}/files/annual-report.pdf`, reason: "non-html-extension" },
+    ]);
+  });
+
+  it("is a page source of its own, not to be mixed with another", async () => {
+    const walkthrough = walkthroughFile([`${ORIGIN}/`]);
+
+    await expect(
+      resolvePages({ site, walkthrough, sitemap: `${ORIGIN}/sitemap.xml` }),
+    ).rejects.toThrow(/^Use one kind of page source: --walkthrough, --sitemap, --pages, or --page/);
+    await expect(pageSourceFor({ walkthrough, pageUrls: ["/a"], site })).rejects.toThrow(
+      /^Use one kind of page source: --walkthrough, --sitemap, --pages, or --page/,
+    );
+  });
+
+  // A page's folder is named for its path and ten hex digits (40 bits) of a fingerprint of its whole
+  // address, so a search of a few seconds finds two addresses that differ in their query and share
+  // one name. A walkthrough file is made to travel, so one can be made to hold such a pair. The
+  // pair can't be read in one run, and that is a refusal like any other, not a crash.
+  describe("holding two addresses that would be saved under one name", () => {
+    const COLLIDING_SITE = "https://example.com";
+    const FIRST = `${COLLIDING_SITE}/page?x=1778912`;
+    const SECOND = `${COLLIDING_SITE}/page?x=2659347`;
+    const NAME = "page-c18143e304";
+    const REFUSAL = (first: string, second: string): string =>
+      `${first} and ${second} would be saved under the same name ("${NAME}"), so voicecap can't read both in one run.`;
+
+    /** A walkthrough file of `COLLIDING_SITE` listing `pages`. */
+    function collidingFile(pages: string[]): WalkthroughFile {
+      const file = walkthroughFile(pages);
+      return { ...file, parsed: { ...file.parsed, site: COLLIDING_SITE } };
+    }
+
+    /** What reading the pages with `resolve` is refused with, once it's checked it's a UsageError. */
+    async function refusedWith(resolve: () => Promise<unknown>): Promise<string> {
+      const error = await resolve().then(
+        () => {
+          throw new Error("It wasn't refused.");
+        },
+        (reason: unknown) => reason,
+      );
+      expect(error).toBeInstanceOf(UsageError);
+      return (error as UsageError).message;
+    }
+
+    it("really are two addresses with one name, which the tests below rely on", () => {
+      expect(FIRST).not.toBe(SECOND);
+      expect(pageSlug(canonicalKey(FIRST))).toBe(NAME);
+      expect(pageSlug(canonicalKey(SECOND))).toBe(NAME);
+    });
+
+    it("is refused, naming both addresses and the name, when the pages are in a walkthrough file", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({
+          site: parseSiteUrl(COLLIDING_SITE),
+          walkthrough: collidingFile([FIRST, SECOND]),
+        }),
+      );
+
+      expect(message).toBe(REFUSAL(FIRST, SECOND));
+    });
+
+    it("is refused the same way when the pages are given with --page", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({ site: parseSiteUrl(COLLIDING_SITE), pageUrls: [FIRST, SECOND] }),
+      );
+
+      expect(message).toBe(REFUSAL(FIRST, SECOND));
+    });
+
+    it("names the address listed first first, whatever the order", async () => {
+      const message = await refusedWith(() =>
+        resolvePages({
+          site: parseSiteUrl(COLLIDING_SITE),
+          walkthrough: collidingFile([`${COLLIDING_SITE}/about`, SECOND, FIRST]),
+        }),
+      );
+
+      expect(message).toBe(REFUSAL(SECOND, FIRST));
+    });
+
+    it("isn't a refusal for one address listed twice, which is one page", async () => {
+      const result = await resolvePages({
+        site: parseSiteUrl(COLLIDING_SITE),
+        walkthrough: collidingFile([FIRST, `${FIRST}#top`]),
+      });
+
+      expect(result.pages.map((page) => page.slug)).toEqual([NAME]);
+    });
+  });
+});
+
+describe("readWalkthroughFile", () => {
+  /** A walkthrough of the fixture site, as the text of a file. */
+  const text = JSON.stringify({
+    voicecapWalkthrough: 1,
+    site: ORIGIN,
+    pages: [{ url: `${ORIGIN}/`, original: { status: "done", passes: {} } }],
+    settings: {
+      passes: ["read"],
+      stepCaps: { read: 400, headings: 200, tab: 300 },
+      capture: "complete",
+      readiness: null,
+    },
+    original: {
+      run: "2026-09-29_1402",
+      seal: null,
+      createdAt: "2026-09-29T14:02:00-05:00",
+      completedAt: "2026-09-29T14:20:00-05:00",
+      replayed: false,
+      source: { kind: "urls", urls: [`${ORIGIN}/`] },
+      sourceFingerprints: [],
+      voicecap: null,
+      screenReader: null,
+      browser: null,
+      nvdaSettings: {},
+      browserChannel: "chrome",
+    },
+  });
+
+  it("reads the file once, as bytes, and keeps their SHA-256 as read", async () => {
+    // A byte order mark is part of the file as read, and the hash covers it.
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text)]);
+    await writeFile(path.join(dir, "bom.json"), bytes);
+
+    const read = await readWalkthroughFile("bom.json", dir);
+
+    expect(read.file).toBe("bom.json");
+    expect(read.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+    expect(read.parsed.pages.map((page) => page.url)).toEqual([`${ORIGIN}/`]);
+  });
+
+  it("names the file as it was given when it can't be read as a walkthrough", async () => {
+    await writeFile(path.join(dir, "not-a-walkthrough.json"), "{}");
+
+    await expect(readWalkthroughFile("not-a-walkthrough.json", dir)).rejects.toThrow(
+      /^not-a-walkthrough\.json isn't a voicecap walkthrough file: /,
+    );
+  });
+});
+
+describe("describeSource", () => {
+  // The words the warning about URLs on other sites uses for where the pages came from.
+  it.each<[name: string, source: PageSource, words: string]>([
+    [
+      "a sitemap",
+      { kind: "sitemap", url: `${ORIGIN}/sitemap.xml` },
+      `the sitemap ${ORIGIN}/sitemap.xml`,
+    ],
+    [
+      "a page list",
+      { kind: "pages", file: "pages.csv", sha256: "a".repeat(64) },
+      "the page list pages.csv",
+    ],
+    ["--page", { kind: "urls", urls: [`${ORIGIN}/faq/`] }, "the pages given with --page"],
+  ])("names %s", (_name, source, words) => {
+    expect(describeSource(source)).toBe(words);
+  });
+
+  it("names a walkthrough by its file, then its run", () => {
+    const source: PageSource = {
+      kind: "walkthrough",
+      file: "w.json",
+      sha256: "a".repeat(64),
+      run: "2026-09-29_1402",
+      from: "sitemap",
+    };
+
+    expect(describeSource(source)).toBe("the walkthrough w.json from run 2026-09-29_1402");
   });
 });

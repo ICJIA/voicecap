@@ -1,6 +1,7 @@
 import type {
   DriverCommand,
   EnvironmentRecord,
+  PageSource,
   PassName,
   StepRecord,
   StopReason,
@@ -98,14 +99,27 @@ export function headerLines(transcript: TranscriptJson): string[] {
   return lines;
 }
 
+/** Where the run's pages came from, as the header's "Page source" line says it. */
+function describePageSource(source: PageSource): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `sitemap ${source.url}`;
+    case "pages":
+      return `page list ${source.file} (sha256 ${source.sha256})`;
+    case "walkthrough":
+      return `walkthrough ${source.file} from run ${source.run} (sha256 ${source.sha256})`;
+    case "urls":
+      return describePageUrls(source.urls);
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
 /** The environment record as header lines; also used by the report. */
 export function environmentLines(env: EnvironmentRecord): string[] {
-  const source =
-    env.pageSource.kind === "sitemap"
-      ? `sitemap ${env.pageSource.url}`
-      : env.pageSource.kind === "pages"
-        ? `page list ${env.pageSource.file} (sha256 ${env.pageSource.sha256})`
-        : describePageUrls(env.pageSource.urls);
+  const source = describePageSource(env.pageSource);
   const reader = env.screenReader
     ? `${env.screenReader.name} ${env.screenReader.version} (build ${env.screenReader.build ?? "unknown"}, language ${env.screenReader.language ?? "unknown"})`
     : "none";
@@ -151,8 +165,15 @@ function flatten(value: unknown, prefix = ""): string[] {
   return [prefix ? `${prefix}=${rendered}` : rendered];
 }
 
+/**
+ * A field on one line: each run of spaces that holds a line break becomes one space, then the ends
+ * are trimmed; "-" for nothing. Each run is found once, so the time is linear in the text's length.
+ * A single pattern for a line break with the spaces around it searches again from each space of a
+ * run that has no line break: a label of 150,000 spaces took seconds that way, and a walkthrough
+ * file, which can come from anyone, can hold millions.
+ */
 function oneLine(value: string | undefined): string {
-  const text = (value ?? "").replace(/\s*[\r\n]+\s*/g, " ").trim();
+  const text = (value ?? "").replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? " " : run)).trim();
   return text === "" ? "-" : text;
 }
 

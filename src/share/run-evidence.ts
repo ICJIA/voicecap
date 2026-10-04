@@ -1,7 +1,8 @@
 /**
  * The evidence behind the page: what each run it draws on recorded (its facts, its test
- * environment, and its files' fingerprints), the runs it left out with what each did, and how the
- * page says what a run's voicecap didn't record. Pure: it works from records already read.
+ * environment, and its files' fingerprints), the walkthrough file that repeats it, the runs it left
+ * out with what each did, and how the page says what a run's voicecap didn't record. Pure: it works
+ * from records already read.
  */
 import type {
   EnvironmentRecord,
@@ -12,15 +13,40 @@ import type {
   SessionRecord,
 } from "../model.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
+import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
+import { formatCommand } from "../util/command-line.js";
 import { clock, longDate, names, pagePath } from "./format.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
+import { EVIDENCE_TEXT } from "./text.js";
+import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
 export interface EvidenceRow {
   label: string;
   value: string;
 }
+
+/** A run's walkthrough file, as the page offers it to download. */
+export interface WalkthroughDownload {
+  /** "127.0.0.1_4848_2026-09-29_1402_walkthrough.json": the site's folder, the run, and what it is. */
+  fileName: string;
+  /** The file's bytes, in base64: what the page's link carries. */
+  base64: string;
+  /** The file's size, in bytes. */
+  bytes: number;
+  /** The command that writes the file from the run's record: "npx @icjia/voicecap walkthrough …". */
+  get: string;
+  /** The command that repeats the run from the file: "npx @icjia/voicecap --walkthrough <file>". */
+  repeat: string;
+}
+
+/**
+ * What the evidence says of a run's walkthrough file: the file, or why voicecap can't make one of
+ * this run (a run beyond what the file's format holds, such as a step limit over 100,000), as a
+ * sentence that ends with its period.
+ */
+export type RunWalkthrough = WalkthroughDownload | { problem: string };
 
 export interface RunEvidence {
   /** The run's record exactly as its run.json holds it: its id, its seal, and its fingerprints. */
@@ -44,6 +70,11 @@ export interface RunEvidence {
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /** The command that checks the originals: "npx @icjia/voicecap verify --site <site>". */
   verify: string;
+  /**
+   * The walkthrough file that repeats the run, exactly as `voicecap walkthrough` writes it of the
+   * run's record, for the page to carry as a download and for the Word copy to say how to get.
+   */
+  walkthrough: RunWalkthrough;
 }
 
 /**
@@ -97,8 +128,9 @@ export function evidenceOf(input: {
   return standing.drawnOn.toReversed().map((run) => {
     const shown = standing.pages.filter((page) => page.shown?.run === run).length;
     const notRecorded = notRecordedBy(versionOf(run));
+    const record = input.recordOf(run);
     return {
-      run: input.recordOf(run),
+      run: record,
       facts: factsOf(run, shown, run === before),
       environment: environmentOf(run, redact),
       timeline: { notRecorded },
@@ -111,9 +143,40 @@ export function evidenceOf(input: {
           sha256: hash.sha256,
         })),
       ),
-      verify: `npx @icjia/voicecap verify --site ${site}`,
+      verify: formatCommand(["verify", "--site", site]),
+      walkthrough: walkthroughFor(record, site),
     };
   });
+}
+
+/**
+ * A run's walkthrough file: made of the run's record as run.json holds it, so it is the very file
+ * `voicecap walkthrough` writes, and named for the site's folder and the run. voicecap never
+ * offers a file it would refuse to read back, so a run beyond what the format holds (see
+ * `walkthroughProblem`) gets its reason instead, which is a sentence already.
+ *
+ * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
+ * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
+ * copy, which were made of such a record before there were walkthrough files. That run says
+ * voicecap couldn't read its record.
+ */
+function walkthroughFor(record: RunJson, site: string): RunWalkthrough {
+  try {
+    const walkthrough = walkthroughOf(record);
+    const problem = walkthroughProblem(walkthrough);
+    if (problem !== null) return { problem };
+    const file = Buffer.from(walkthroughJson(walkthrough), "utf8");
+    const fileName = `${siteFolder(site)}_${record.id}_walkthrough.json`;
+    return {
+      fileName,
+      base64: file.toString("base64"),
+      bytes: file.length,
+      get: formatCommand(["walkthrough", "--site", site, "--run", record.id, fileName]),
+      repeat: formatCommand(["--walkthrough", fileName]),
+    };
+  } catch {
+    return { problem: EVIDENCE_TEXT.walkthrough.unreadable };
+  }
 }
 
 /** A page's status in a run, in words that follow its count. */

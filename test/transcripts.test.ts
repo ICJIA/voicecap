@@ -11,6 +11,7 @@ import {
   contentSha256,
   environmentLines,
   extractBody,
+  headerLines,
   renderTranscriptTxt,
   stepLine,
 } from "../src/transcripts/format.js";
@@ -147,6 +148,69 @@ describe("TXT transcripts", () => {
   });
 });
 
+/**
+ * A header's one-line field as voicecap has always written it: each line break, with the spaces
+ * around it, as one space, then trimmed, and "-" for nothing. The fold was made linear, and must
+ * still say exactly this.
+ */
+function foldedAsBefore(value: string): string {
+  const text = value.replace(/\s*[\r\n]+\s*/g, " ").trim();
+  return text === "" ? "-" : text;
+}
+
+/** The header of a transcript whose page's label, template, and notes, and only error, are `text`. */
+function headerWith(text: string): string[] {
+  const { page } = transcript();
+  return headerLines(
+    transcript({ page: { ...page, label: text, template: text, notes: text }, errors: [text] }),
+  );
+}
+
+describe("a header's one-line fields", () => {
+  it("fold each line break, with the spaces around it, into one space, as they always have", () => {
+    const texts = [
+      "a  b",
+      "  a\n\n  b  ",
+      "a \r\n b",
+      "a \t \n \t b",
+      "x\r\r\ny",
+      "a\u{a0}\nb",
+      "\u{feff}\na",
+      "a\u{2028}\u{2029}b",
+    ];
+    // And every text of up to five of these characters.
+    const alphabet = [" ", "\t", "\r", "\n", "a", "\u{2028}"];
+    let level = [""];
+    for (let length = 0; length <= 5; length++) {
+      texts.push(...level);
+      level = level.flatMap((text) => alphabet.map((character) => text + character));
+    }
+    for (const text of texts) {
+      const folded = foldedAsBefore(text);
+      expect(headerWith(text)).toEqual(
+        expect.arrayContaining([
+          `Label: ${folded}`,
+          `Template: ${folded}`,
+          `Notes: ${folded}`,
+          `Errors: ${folded}`,
+        ]),
+      );
+    }
+  });
+
+  it("fold a long run of spaces at once", () => {
+    // Folded with one search that began at each space and went to the run's end, 150,000 spaces
+    // with no line break took seconds, and a walkthrough file's label can hold millions.
+    const label = `a${" ".repeat(150_000)}b`;
+    const { page } = transcript();
+    const started = performance.now();
+    const header = headerLines(transcript({ page: { ...page, label } }));
+    const elapsed = performance.now() - started;
+    expect(header).toContain(`Label: ${label}`);
+    expect(elapsed).toBeLessThan(1_000);
+  });
+});
+
 describe("environmentLines", () => {
   it("describes a --page source with describePageUrls", () => {
     const lines = environmentLines({
@@ -154,6 +218,30 @@ describe("environmentLines", () => {
       pageSource: { kind: "urls", urls: ["https://dvfr.illinois.gov/faq/"] },
     });
     expect(lines).toContain("Page source: page https://dvfr.illinois.gov/faq/");
+  });
+
+  it("describes a sitemap source by its address", () => {
+    const lines = environmentLines({
+      ...environment,
+      pageSource: { kind: "sitemap", url: "https://example.illinois.gov/sitemap.xml" },
+    });
+    expect(lines).toContain("Page source: sitemap https://example.illinois.gov/sitemap.xml");
+  });
+
+  it("describes a walkthrough source by its file, its run, and its SHA-256", () => {
+    const lines = environmentLines({
+      ...environment,
+      pageSource: {
+        kind: "walkthrough",
+        file: "w.json",
+        sha256: "a".repeat(64),
+        run: "2026-09-29_1402",
+        from: "sitemap",
+      },
+    });
+    expect(lines).toContain(
+      `Page source: walkthrough w.json from run 2026-09-29_1402 (sha256 ${"a".repeat(64)})`,
+    );
   });
 });
 

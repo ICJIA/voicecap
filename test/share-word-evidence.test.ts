@@ -48,7 +48,16 @@ import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
-import { demoModel, inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  demoModel,
+  downloadOf,
+  inputOf,
+  LINES,
+  STEP_LIMIT_PROBLEM,
+  storeOf,
+  TRANSCRIPTS,
+  withStepLimit,
+} from "./helpers/share-model.js";
 import {
   boldIn,
   cellLines,
@@ -347,8 +356,11 @@ describe("wordEvidence", () => {
       expect(checks.at(-1)).toBe(
         "This report's web page, 127.0.0.1_4848_2026-09-30.html, can also check the transcripts it shows against their fingerprints, in any browser, offline.",
       );
-      expect(wordsOf(latest ?? []).at(-1)).toBe(command);
-      expect(wordsOf(earlier ?? []).at(-1)).toBe(
+      // Each run's own, under its fingerprints: the last line of that part.
+      const fingerprints = (part: Block[] | undefined, id: string) =>
+        under(part ?? [], `${EVIDENCE_TEXT.parts.fingerprints} ${inRun(id)}`);
+      expect(wordsOf(fingerprints(latest, first.run.id)).at(-1)).toBe(command);
+      expect(wordsOf(fingerprints(earlier, rest[0]?.run.id ?? "")).at(-1)).toBe(
         "npx @icjia/voicecap verify --site http://127.0.0.1:4848",
       );
     });
@@ -375,7 +387,7 @@ describe("wordEvidence", () => {
       expect(said).not.toMatch(/\b(?:this|the) check\b/i);
     });
 
-    it("has a heading 2 for each run, the latest first, with its four parts as heading 3s that name the run", async () => {
+    it("has a heading 2 for each run, the latest first, with its five parts as heading 3s that name the run", async () => {
       expect(outlineOf(wordEvidence(await demoModel()))).toEqual([
         "1 The evidence behind these results",
         ...DEMO_RUNS.flatMap((id) => [
@@ -384,6 +396,7 @@ describe("wordEvidence", () => {
           `3 NVDA's own log, checked against the transcripts in run ${id}`,
           `3 Test environment in run ${id}`,
           `3 Fingerprints (SHA-256) in run ${id}`,
+          `3 Walkthrough file in run ${id}`,
         ]),
         "2 Runs left out",
       ]);
@@ -565,6 +578,100 @@ describe("wordEvidence", () => {
       }
     });
 
+    it("says how to get each run's walkthrough file, and how to repeat it, under its own heading: both commands as fixed-width blocks", async () => {
+      const model = await demoModel();
+      const parts = runParts(model);
+
+      for (const [index, each] of model.evidence.entries()) {
+        const id = each.run.id;
+        const file = downloadOf(each);
+        const part = partOf(parts, index);
+        const inside = under(part, `${EVIDENCE_TEXT.parts.walkthrough} ${inRun(id)}`);
+
+        expect(
+          inside.map(({ kind }) => kind),
+          id,
+        ).toEqual(["para", "mono", "para", "mono", "para"]);
+        expect(inside, id).toEqual([
+          para(WORD_TEXT.evidence.walkthrough.lead),
+          mono([file.get]),
+          para(WORD_TEXT.evidence.walkthrough.then),
+          mono([file.repeat]),
+          para(EVIDENCE_TEXT.walkthrough.promise),
+        ]);
+        expect(wordsOf(inside), id).toEqual([
+          "To repeat this run exactly, with the same pages in the same order and the same passes and limits, get its walkthrough file from the web page, or with:",
+          `npx @icjia/voicecap walkthrough --site http://127.0.0.1:4848 --run ${id} 127.0.0.1_4848_${id}_walkthrough.json`,
+          "then run:",
+          `npx @icjia/voicecap --walkthrough 127.0.0.1_4848_${id}_walkthrough.json`,
+          "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
+        ]);
+        // The part comes after the fingerprints', and is the last of the run's.
+        expect(part.at(-1), id).toEqual(para(EVIDENCE_TEXT.walkthrough.promise));
+      }
+    });
+
+    it("gives each run its own commands, never the other's", async () => {
+      const [latest, earlier] = runParts(await demoModel()).map(saysOf);
+
+      expect(latest).toContain("--run 2026-09-29_1402 ");
+      expect(latest).not.toContain("2026-09-29_1315_walkthrough");
+      expect(earlier).toContain("--run 2026-09-29_1315 ");
+      expect(earlier).not.toContain("2026-09-29_1402_walkthrough");
+    });
+
+    it("carries no download: it has no data address, no link, and none of the file", async () => {
+      const model = await demoModel();
+      const blocks = wordEvidence(model);
+      const said = saysOf(blocks);
+
+      expect(hrefsOf(blocks)).toEqual([]);
+      for (const piece of ["data:", "base64", "Download the walkthrough file"]) {
+        expect(said, piece).not.toContain(piece);
+      }
+      // The file's own words, as a download carries them in base64.
+      for (const each of model.evidence) {
+        expect(said).not.toContain(downloadOf(each).base64.slice(0, 40));
+      }
+    });
+
+    it("says why there is no file, in place of the commands, for a run that can't have one", () => {
+      const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
+      const model = buildShareModel(inputOf([withStepLimit(run, 100_001)]));
+      const [part = []] = runParts(model);
+
+      expect(under(part, "Walkthrough file in run r1")).toEqual([
+        para(`This run's walkthrough file can't be made: ${STEP_LIMIT_PROBLEM}`),
+      ]);
+      expect(saysOf(part)).not.toContain("npx @icjia/voicecap walkthrough");
+      expect(saysOf(part)).not.toContain("--walkthrough");
+      expect(saysOf(part)).not.toContain("To repeat this run exactly");
+      // Every run still has its five parts.
+      expect(outlineOf(part)).toHaveLength(6);
+    });
+
+    it("keeps the commands as words, never as markup", () => {
+      const hostile = '<img src=x onerror="alert(1)"> & more';
+      const model = modelOf([done("/")]);
+      const [first] = model.evidence;
+      if (first === undefined) throw new Error("The model has a run.");
+      const evidence = [
+        {
+          ...first,
+          walkthrough: { ...downloadOf(first), get: hostile, repeat: `${hostile} --walkthrough` },
+        },
+      ];
+      const inside = under(
+        partOf(runParts({ ...model, evidence }), 0),
+        "Walkthrough file in run r1",
+      );
+
+      expect(inside[1]).toEqual(mono([hostile]));
+      expect(inside[3]).toEqual(mono([`${hostile} --walkthrough`]));
+      expect(wordsOf(inside).join("\n")).not.toContain("&lt;");
+      expect(wordsOf(inside).join("\n")).not.toContain("&amp;");
+    });
+
     it("lists the runs left out last, with why a run is left out, and a line for each", async () => {
       const model = await demoModel();
       const part = leftOutPart(model) ?? [];
@@ -726,6 +833,8 @@ describe("wordEvidence", () => {
         );
       const summary = /<summary>(.*?)<\/summary>/s.exec(fold)?.[1] ?? "";
       const verify = /<div class="verify"><span>(.*?)<\/span><pre>(.*?)<\/pre><\/div>/s.exec(fold);
+      // The walkthrough file is the fold's last part: its paragraphs, and the command in its box.
+      const walkthrough = fold.slice(fold.indexOf("<div><h3>Walkthrough file "));
       return {
         title: spans(summary, "what")[0] ?? "",
         when: spans(summary, "sub")[0] ?? "",
@@ -741,6 +850,12 @@ describe("wordEvidence", () => {
           rowsOf(table),
         ),
         verify: [textOf(verify?.[1] ?? "", ""), textOf(verify?.[2] ?? "", "")],
+        walkthrough: {
+          said: [...walkthrough.matchAll(/<p>(.*?)<\/p>/gs)].map(([, said = ""]) =>
+            textOf(said, ""),
+          ),
+          command: textOf(/<pre>(.*?)<\/pre>/s.exec(walkthrough)?.[1] ?? "", ""),
+        },
       };
     }
 
@@ -777,7 +892,19 @@ describe("wordEvidence", () => {
           expect(wordsOf([tableAt(part, 1)])).toEqual(environment);
           if (fingerprints !== undefined) expect(wordsOf([tableAt(part, 2)])).toEqual(fingerprints);
           for (const line of says.verify) expect(words, line).toContain(line);
-          seen += says.facts.length + (environment?.length ?? 0) + (fingerprints?.length ?? 0);
+          // The walkthrough file: the page's lead, the download link's words, the command that repeats
+          // the run, and what a repeat can't promise. The Word copy says each but the download link's,
+          // which it can't carry: it says how to get the file instead, and the lead is its own, which
+          // begins as the page's does.
+          const [lead = "", download = "", promise = "", ...more] = says.walkthrough.said;
+          expect(more).toEqual([]);
+          expect(lead).toBe(EVIDENCE_TEXT.walkthrough.lead);
+          expect(words).toContain(WORD_TEXT.evidence.walkthrough.lead);
+          expect(words).toContain(says.walkthrough.command);
+          expect(words).toContain(promise);
+          expect(download).toMatch(/^Download the walkthrough file \(\d[\d,.]* (?:KB|MB)\)$/);
+          expect(saysOf(part)).not.toContain("Download the walkthrough file");
+          seen += says.facts.length + (environment?.length ?? 0) + (fingerprints?.length ?? 0) + 4;
         }
       }
       // Read at all, so a check of nothing can't pass.
@@ -929,6 +1056,7 @@ describe("wordStory", () => {
         ["2 October"],
         ["2 October"],
         ["3 October"],
+        ["3 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1018,7 +1146,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+        "Windows PC, with NVDA: A website of the shared reports.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

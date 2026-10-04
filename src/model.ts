@@ -42,7 +42,21 @@ export type PageSource =
   | { kind: "sitemap"; url: string }
   | { kind: "pages"; file: string; sha256: string }
   /** --page, one or more times: resolved absolute URLs, fragment dropped, in the order given. */
-  | { kind: "urls"; urls: string[] };
+  | { kind: "urls"; urls: string[] }
+  /**
+   * --walkthrough: the walkthrough file, recorded as a page list's is (relative to the working
+   * folder when inside it), its SHA-256 as read, the id of the run it was made from, and what that
+   * run's pages came from. For a walkthrough of a repeat that is the repeat's own `from`, so it
+   * always names a sitemap, a page list, or --page, never another walkthrough: a repeat of a
+   * --page spot check is a spot check too, and doesn't say which pages are on the site's list.
+   */
+  | {
+      kind: "walkthrough";
+      file: string;
+      sha256: string;
+      run: string;
+      from: "sitemap" | "pages" | "urls";
+    };
 
 /**
  * The computer a session ran on, as the report's "Test environment" shows it. Never its maker,
@@ -140,6 +154,12 @@ export interface RunSettings {
   stepCaps: Record<PassName, number>;
   nvdaSettings: Record<string, unknown>;
   browser: { channel: string; fallbackToChromium: boolean };
+  /**
+   * How long the run waited for each page to be ready, as the config gave it; for a repeat of a
+   * walkthrough file, as the file gave it, or the config where the file had none. Absent in runs
+   * from before voicecap recorded it.
+   */
+  readiness?: { readySelector: string | null; settleMs: number; networkIdleTimeoutMs: number };
 }
 
 export interface InvalidEntry {
@@ -150,10 +170,13 @@ export interface InvalidEntry {
 }
 
 export interface SourceDetails {
-  kind: "sitemap" | "pages" | "urls";
+  kind: "sitemap" | "pages" | "urls" | "walkthrough";
   /** Sitemap runs: every sitemap document fetched (index and children). */
   sitemaps?: { url: string; urls: number; sha256?: string; error?: string }[];
-  /** Page list runs: the file as given, its SHA-256, format, and the encoding it was decoded with. */
+  /**
+   * Page list and walkthrough runs: the file as given and its SHA-256. A page list run also has its
+   * format and the encoding it was decoded with.
+   */
   file?: string;
   sha256?: string;
   format?: "csv" | "json";

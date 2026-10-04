@@ -43,7 +43,12 @@ import { runBefore, standingOf, type PageStanding, type Standing } from "./stand
 import { summaryOf, type Summary } from "./summary.js";
 
 export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
-export type { EvidenceRow, RunEvidence } from "./run-evidence.js";
+export type {
+  EvidenceRow,
+  RunEvidence,
+  RunWalkthrough,
+  WalkthroughDownload,
+} from "./run-evidence.js";
 
 /** A transcript file the appendix shows: what NVDA said in a pass, with the file's fingerprint. */
 export interface AppendixFile {
@@ -410,13 +415,25 @@ function passesOf(standing: Standing, latest: RunJson): string {
 
 /** The pages in scope, and the list they came from. */
 function scopeOf(count: number, source: PageSource, redact: (text: string) => string): string {
-  const from =
-    source.kind === "sitemap"
-      ? `the sitemap ${source.url}`
-      : source.kind === "pages"
-        ? `the page list ${redact(source.file)}`
-        : "the pages given";
-  return `${count === 1 ? "1 page" : `${count} pages`} from ${from}.`;
+  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, redact)}.`;
+}
+
+/** The list the pages came from, as the page names it, with the home folder replaced. */
+function listOf(source: PageSource, redact: (text: string) => string): string {
+  switch (source.kind) {
+    case "sitemap":
+      return `the sitemap ${source.url}`;
+    case "pages":
+      return `the page list ${redact(source.file)}`;
+    case "walkthrough":
+      return `the walkthrough ${redact(source.file)} from run ${source.run}`;
+    case "urls":
+      return "the pages given";
+    default: {
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
 }
 
 /** The screen reader and browser the latest run's results come from. */

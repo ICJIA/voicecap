@@ -127,6 +127,39 @@ describe("chooseRun", () => {
     );
   });
 
+  it("names a changed walkthrough by its file, run, and hash, as it names a page list", () => {
+    const walkthrough = (sha256: string) => ({
+      ...settings,
+      source: {
+        kind: "walkthrough" as const,
+        file: "w.json",
+        sha256,
+        run: "2026-09-29_1402",
+        from: "sitemap" as const,
+      },
+    });
+    const edited = walkthrough("b".repeat(64));
+    const repeat = walkthrough("a".repeat(64));
+
+    expect(describeDifferences(edited, repeat)[0]).toBe(
+      "source: walkthrough w.json from run 2026-09-29_1402 (sha256 bbbbbbbbbbbb…) → walkthrough w.json from run 2026-09-29_1402 (sha256 aaaaaaaaaaaa…)",
+    );
+    expect(describeDifferences(settings, repeat)[0]).toBe(
+      "source: page list pages.csv (sha256 aaaaaaaaaaaa…) → walkthrough w.json from run 2026-09-29_1402 (sha256 aaaaaaaaaaaa…)",
+    );
+  });
+
+  it("names a changed sitemap by its address", () => {
+    const sitemap = {
+      ...settings,
+      source: { kind: "sitemap" as const, url: "https://example.illinois.gov/sitemap.xml" },
+    };
+
+    expect(describeDifferences(sitemap, settings)[0]).toBe(
+      "source: sitemap https://example.illinois.gov/sitemap.xml → page list pages.csv (sha256 aaaaaaaaaaaa…)",
+    );
+  });
+
   it("with --fresh, starts a new run and says the incomplete one is left alone", () => {
     const decision = chooseRun(
       [run("r1", "2026-09-20T09:00:00-05:00", "incomplete")],
@@ -164,5 +197,54 @@ describe("chooseRun", () => {
       chooseRun([run("r1", "2026-09-20T09:00:00-05:00", "incomplete", sitemap)], sitemap, false)
         .resume?.id,
     ).toBe("r1");
+  });
+});
+
+// `settings` above has no readiness: it's what voicecap 0.7.0 and earlier recorded. `recorded` is
+// the same settings as the versions after record them. Their hashes differ, so a later version
+// never resumes a run of 0.7.0's: a newer completed run is what supersedes it.
+const readiness = { readySelector: null, settleMs: 500, networkIdleTimeoutMs: 15_000 };
+const recorded: RunSettings = { ...settings, readiness };
+
+describe("a run from before voicecap recorded the readiness settings", () => {
+  const NOT_RESUMED =
+    'Starting a new run. Not resuming old because its settings differ: readiness: not recorded → {"readySelector":null,"settleMs":500,"networkIdleTimeoutMs":15000}.';
+
+  it("is superseded by a newer completed run whose settings are the same, with readiness", () => {
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete"),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", recorded),
+    ];
+    // Nothing to resume, and no note about the old run: the newer run has taken its place.
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: null });
+  });
+
+  it("has its readiness described as not recorded, while no newer completed run supersedes it", () => {
+    const runs = [run("old", "2026-09-20T09:00:00-05:00", "incomplete")];
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: NOT_RESUMED });
+  });
+
+  it("isn't superseded by a newer completed run that differs in another setting too", () => {
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete"),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", { ...recorded, passes: ["read"] }),
+    ];
+    expect(chooseRun(runs, recorded, false)).toEqual({ resume: null, message: NOT_RESUMED });
+  });
+});
+
+describe("a run that recorded the readiness settings", () => {
+  it("isn't superseded by a newer completed run with other readiness settings", () => {
+    const slower = { ...settings, readiness: { ...readiness, settleMs: 2000 } };
+    const runs = [
+      run("old", "2026-09-20T09:00:00-05:00", "incomplete", recorded),
+      run("newer", "2026-09-21T09:00:00-05:00", "completed", slower),
+    ];
+    // Compared exactly as before: the readiness settings are among those that must be the same.
+    expect(chooseRun(runs, slower, false)).toEqual({
+      resume: null,
+      message:
+        'Starting a new run. Not resuming old because its settings differ: readiness: {"readySelector":null,"settleMs":500,"networkIdleTimeoutMs":15000} → {"readySelector":null,"settleMs":2000,"networkIdleTimeoutMs":15000}.',
+    });
   });
 });

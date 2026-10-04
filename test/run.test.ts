@@ -126,6 +126,22 @@ describe("a complete run", () => {
     expect(driver.stops).toBe(1);
   });
 
+  it("records the readiness settings it waited with", async () => {
+    const dir = await setup(["/"]);
+    const readiness = { readySelector: "#app", settleMs: 250, networkIdleTimeoutMs: 4000 };
+    const result = await runAudit(
+      options(dir, new ScriptedDriver(sitePages()), { config: config({ readiness }) }),
+    );
+    expect(result.outcome).toBe("completed");
+
+    const run = await readRunJson(outDir(dir), result.runId);
+    expect(run.settings.readiness).toEqual({
+      readySelector: "#app",
+      settleMs: 250,
+      networkIdleTimeoutMs: 4000,
+    });
+  });
+
   it("records each page's title, as the browser reported it", async () => {
     const dir = await setup(["/", "/about"]);
     const driver = new ScriptedDriver(

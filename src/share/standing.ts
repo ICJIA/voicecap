@@ -2,7 +2,7 @@
  * A site's standing: which of its runs count, and what each page's latest result is. Pure: it
  * works from run records already read, and reads no files.
  */
-import type { PageRecord, RunJson } from "../model.js";
+import type { PageRecord, PageSource, RunJson } from "../model.js";
 import { samePageSource } from "../report/compare.js";
 
 export type LeftOutReason = "replayed" | "interrupted" | "unfinished" | "unsealed";
@@ -34,11 +34,11 @@ export interface Standing {
   /** Every other run, oldest first, with why it doesn't count. */
   leftOut: LeftOutRun[];
   /**
-   * The run that decides the pages in scope: the most recent counted run whose pages came from a
-   * sitemap or a page list. A later run given its pages with --page is a spot check: its records
-   * are each page's newest (its transcripts are shown, its failures said), but its pages aren't the
-   * list. When every counted run was given its pages with --page, the most recent of them. Null when
-   * no run counts.
+   * The run that decides the pages in scope: the most recent counted run whose pages were a list,
+   * from a sitemap, a page list, or a walkthrough of a run that was one. A later run given its pages
+   * with --page, or a repeat of one, is a spot check: its records are each page's newest (its
+   * transcripts are shown, its failures said), but its pages aren't the list. When every counted
+   * run was a spot check, the most recent of them. Null when no run counts.
    */
   latest: RunJson | null;
   /** In the latest run's page order. */
@@ -58,9 +58,9 @@ export interface Standing {
 
 /**
  * What a site's runs add up to. A run counts only when it completed, was sealed (so `verify` can
- * check it), and wasn't a replay. The most recent counted run from a sitemap or a page list decides
- * which pages are in scope (a later --page run spot-checks some of them), and a page's result is
- * its newest transcription in any counted run.
+ * check it), and wasn't a replay. The most recent counted run from a sitemap, a page list, or a
+ * walkthrough of one decides which pages are in scope (a later --page run, or a repeat of one,
+ * spot-checks some of them), and a page's result is its newest transcription in any counted run.
  */
 export function standingOf(runs: RunJson[]): Standing {
   const counted: RunJson[] = [];
@@ -158,11 +158,34 @@ export function runBefore(counted: RunJson[], latest: RunJson): RunJson | null {
 
 /**
  * The run that decides the pages in scope: the most recent of the counted runs (oldest first) whose
- * pages came from a sitemap or a page list, else the most recent. A run given its pages with
- * --page checks only those, so it doesn't say which pages are on the list.
+ * pages were a list, else the most recent. A run given its pages with --page checks only those, and
+ * so does a repeat of one, so neither says which pages are on the list.
  */
 function scopeRun(counted: RunJson[]): RunJson | undefined {
-  return counted.findLast((run) => run.settings.source.kind !== "urls") ?? counted.at(-1);
+  return counted.findLast((run) => isList(run.settings.source)) ?? counted.at(-1);
+}
+
+/**
+ * Whether a run's pages were a list of the site's: from a sitemap, from a page list, or from a
+ * walkthrough of a run whose pages were one. Pages given with --page, and a walkthrough of a run
+ * given its pages that way, are a spot check of some of them.
+ */
+function isList(source: PageSource): boolean {
+  switch (source.kind) {
+    case "sitemap":
+    case "pages":
+      return true;
+    case "walkthrough":
+      return source.from !== "urls";
+    case "urls":
+      return false;
+    default: {
+      // A kind this version doesn't know, from a later voicecap: counted as a list, as any kind but
+      // --page always was.
+      const _exhaustive: never = source;
+      return true;
+    }
+  }
 }
 
 function leftOutReason(run: RunJson): LeftOutReason | null {

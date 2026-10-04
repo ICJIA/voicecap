@@ -9,6 +9,8 @@ import {
   pagePath,
   pageTitle,
   seconds,
+  sizeLine,
+  sizeWords,
   utcOffset,
 } from "../src/share/format.js";
 
@@ -178,6 +180,66 @@ describe("seconds", () => {
     [61_931, "61.9 s"],
   ])("writes %i ms in seconds, to the tenth", (ms, expected) => {
     expect(seconds(ms)).toBe(expected);
+  });
+});
+
+describe("sizeWords", () => {
+  it.each([
+    // Whole KB, rounded, and never under 1, with thousands separators, for as long as the rounded
+    // KB is under 1,024.
+    [0, "1 KB"],
+    [1, "1 KB"],
+    [512, "1 KB"],
+    [3_676, "4 KB"],
+    [317_440, "310 KB"],
+    [1_047_551, "1,023 KB"],
+    [1_048_063, "1,023 KB"],
+    // From there MB with one decimal: the switch is where the rounded KB reaches 1,024 (1,048,064
+    // bytes, which is 1,023.5 KB), not at 1,048,576 bytes, so no size ever reads "1,024 KB".
+    [1_048_064, "1.0 MB"],
+    [1_048_576, "1.0 MB"],
+    [1_234_567, "1.2 MB"],
+    [24_536_679, "23.4 MB"],
+  ])("gives %i bytes as %s, with no count of bytes", (bytes, said) => {
+    expect(sizeWords(bytes)).toBe(said);
+  });
+});
+
+describe("sizeLine", () => {
+  it.each([
+    [0, "1 KB (0 bytes)"],
+    [1, "1 KB (1 byte)"],
+    [512, "1 KB (512 bytes)"],
+    [317_440, "310 KB (317,440 bytes)"],
+    [1_047_551, "1,023 KB (1,047,551 bytes)"],
+    [1_048_063, "1,023 KB (1,048,063 bytes)"],
+    [1_048_064, "1.0 MB (1,048,064 bytes)"],
+    [1_048_575, "1.0 MB (1,048,575 bytes)"],
+    [1_048_576, "1.0 MB (1,048,576 bytes)"],
+    [1_234_567, "1.2 MB (1,234,567 bytes)"],
+    [24_536_679, "23.4 MB (24,536,679 bytes)"],
+  ])("gives %i bytes as %s", (bytes, said) => {
+    expect(sizeLine(bytes)).toBe(said);
+  });
+
+  it("is the size in words, then its bytes", () => {
+    for (const bytes of [0, 1, 999, 317_440, 1_048_064, 24_536_679]) {
+      expect(sizeLine(bytes)).toBe(
+        `${sizeWords(bytes)} (${bytes.toLocaleString("en-US")} ${bytes === 1 ? "byte" : "bytes"})`,
+      );
+    }
+  });
+
+  it("never says 1,024 KB, and goes from KB to MB once, at 1,048,064 bytes", () => {
+    // Every size from a way under the switch to a way over it.
+    const lines: string[] = [];
+    for (let bytes = 1_000_000; bytes <= 1_100_000; bytes++) lines.push(sizeLine(bytes));
+    const unit = (line: string) => (line.includes(" KB (") ? "KB" : "MB");
+    const first = lines.findIndex((line) => unit(line) === "MB");
+    expect(1_000_000 + first).toBe(1_048_064);
+    expect(lines.slice(0, first).every((line) => unit(line) === "KB")).toBe(true);
+    expect(lines.slice(first).every((line) => unit(line) === "MB")).toBe(true);
+    expect(lines.some((line) => /^1,?024 KB/.test(line))).toBe(false);
   });
 });
 

@@ -352,9 +352,17 @@ export const POWERSHELL_HASH = "Get-FileHash <file>";
 export const MAC_HASH = "shasum -a 256 <file>";
 
 /**
+ * What both copies begin a run's walkthrough file with: what a repeat keeps the same. The page goes
+ * on to say to download the file (`EVIDENCE_TEXT.walkthrough.lead`), and the Word copy, which can't
+ * carry it, to get it from the web page or with a command (`WORD_TEXT.evidence.walkthrough.lead`).
+ */
+const REPEAT_EXACTLY =
+  "To repeat this run exactly, with the same pages in the same order and the same passes and limits, ";
+
+/**
  * "The evidence behind these results": its heading, what a fingerprint is, what the check proves,
- * what a run's line says it is, the titles of a run's parts, the heads of its tables, and the runs
- * left out.
+ * what a run's line says it is, the titles of a run's parts, the heads of its tables, a run's
+ * walkthrough file, and the runs left out.
  */
 export const EVIDENCE_TEXT = {
   title: "The evidence behind these results",
@@ -381,12 +389,13 @@ export const EVIDENCE_TEXT = {
   /** What a run's line says it is: that it completed, and that it was sealed. */
   completed: "completed",
   sealed: "sealed",
-  /** The titles of a run's four parts. */
+  /** The titles of a run's five parts. */
   parts: {
     timeline: "Minute by minute",
     nvdaLog: "NVDA's own log, checked against the transcripts",
     environment: "Test environment",
     fingerprints: "Fingerprints (SHA-256)",
+    walkthrough: "Walkthrough file",
   },
   /** The heads of the table of a run's test environment: what, and what the run recorded. */
   rowsHead: ["What", "What the run recorded"],
@@ -396,6 +405,23 @@ export const EVIDENCE_TEXT = {
   noFiles: "This run's record lists no files.",
   /** Before the command that checks a run's files against its record. */
   verify: "To check these against the recorded files, anyone with the transcripts folder runs:",
+  /**
+   * A run's walkthrough file, which repeats the run: the page carries it, to download. `lead` says
+   * what a repeat is and what to do, before the download (`download`, which takes its size in
+   * words) and the command that repeats the run; `promise` says what a repeat can't. The Word copy
+   * says the same `promise`, and its own lead (`WORD_TEXT.evidence.walkthrough`). `problem` is said
+   * in place of all of it for a run that can't have a file, after the reason it gives, which is a
+   * sentence that ends with its period already. `unreadable` is that reason for a record voicecap
+   * couldn't make a file of at all, rather than one beyond what a file holds.
+   */
+  walkthrough: {
+    lead: `${REPEAT_EXACTLY}download its walkthrough file, then run:`,
+    download: (size: string): string => `Download the walkthrough file (${size})`,
+    promise:
+      "A repeat reads the same pages the same way, but can't promise the same words: a changed site, or a newer screen reader or browser, changes what's said. After a repeat, voicecap says page by page whether each sounds the same.",
+    problem: (reason: string): string => `This run's walkthrough file can't be made: ${reason}`,
+    unreadable: "voicecap couldn't read its record.",
+  },
   /**
    * The runs left out: their title, and the lead that says why a run is left out, in two parts. The
    * page says `lead`, a space, and `why`. The Word copy says its own first sentence in place of
@@ -597,9 +623,16 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.7.0</b>: the Word copy of the shareable report, <code>voicecap share</code>, and <code>voicecap verify</code>'s checks of what was sent.",
   },
   {
+    date: "2026-10-03",
+    release: null,
+    pc: null,
+    mac: null,
+    both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
+  },
+  {
     date: null,
     release: null,
-    pc: "A walkthrough file that repeats a run exactly, and a website of the shared reports.",
+    pc: "A website of the shared reports.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },
@@ -755,6 +788,15 @@ export const WORD_TEXT = {
      * page's "on this page" (`EVIDENCE_TEXT.leftOut.lead`). The sentence that follows is the page's.
      */
     leftOutLead: "These runs aren't counted in any result in this report.",
+    /**
+     * A run's walkthrough file, which the Word copy can't carry: how to get it, from the web page
+     * or with a command (`lead`, then the command), and then (`then`) the command that repeats the
+     * run. What a repeat can't promise is the page's (`EVIDENCE_TEXT.walkthrough.promise`).
+     */
+    walkthrough: {
+      lead: `${REPEAT_EXACTLY}get its walkthrough file from the web page, or with:`,
+      then: "then run:",
+    },
   },
   /**
    * "How voicecap came to be": the heads of the timeline's table, which has two columns where the

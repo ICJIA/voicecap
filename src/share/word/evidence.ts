@@ -3,9 +3,9 @@
  * to be", and its footer, as blocks (./blocks.ts). Each takes the model, and says the words of the
  * page's renderer (../html/evidence.ts) in the same order: the fixed ones come from ../text.ts, the
  * ones worked out from the model from ../words.ts, and what only the Word copy says (what stands in
- * for the page's fingerprint check, the first sentence of the runs left out, the heads of the
- * timeline's table, the footer's heading, the document's own words) from `WORD_TEXT`. So the two
- * copies can't say different things.
+ * for the page's fingerprint check, how to get a run's walkthrough file, the first sentence of the
+ * runs left out, the heads of the timeline's table, the footer's heading, the document's own words)
+ * from `WORD_TEXT`. So the two copies can't say different things.
  *
  * The Word copy folds nothing: each run is a heading 2 with what its fold holds under it, and the
  * rest of the story and the six cards are in the open. It has no fingerprint check of its own, so it
@@ -15,7 +15,9 @@
  * under its page). It says in their place what a reader can check, and that the web page can check
  * the transcripts it shows. It also leaves out the words the page says for a screen reader alone
  * that its own headings say in view (a table's caption, a box's name), the summary lines of its
- * folds, and the page's links to its own sections, which follow one another in this copy. Pure.
+ * folds, the page's links to its own sections, which follow one another in this copy, and the link
+ * that downloads a run's walkthrough file, which a Word document can't carry: it says how to get
+ * the file instead. Pure.
  */
 import { firstSentenceBold, lineOfMarkup, type Line } from "../line.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
@@ -132,11 +134,30 @@ function partBlocks(title: string, run: string, inside: Block[]): Block[] {
 }
 
 /**
+ * A run's walkthrough file. The Word copy can't carry the file, as the page does in a link, so it
+ * says how to get it, from the web page or with the command that writes it, then the command that
+ * repeats the run, each as a fixed-width block, and what a repeat can't promise, as the page says
+ * it. A run that can't have a file says why in place of all of that, as the page does.
+ */
+function walkthroughBlocks({ walkthrough }: RunEvidence): Block[] {
+  const { promise, problem } = EVIDENCE_TEXT.walkthrough;
+  if ("problem" in walkthrough) return [para(problem(walkthrough.problem))];
+  const { lead, then } = WORD_TEXT.evidence.walkthrough;
+  return [
+    para(lead),
+    mono([walkthrough.get]),
+    para(then),
+    mono([walkthrough.repeat]),
+    para(promise),
+  ];
+}
+
+/**
  * A run: its title as a heading 2, when it ran and that it completed and was sealed, its facts, and
- * its four parts. The event log and NVDA's own log, which no version of voicecap records yet, each
+ * its five parts. The event log and NVDA's own log, which no version of voicecap records yet, each
  * say so, as the model words it. The test environment is a table. The fingerprints are a table,
  * and after it how to check them against the recorded files, with the command as a fixed-width
- * block.
+ * block. The walkthrough file is last.
  */
 function runBlocks(each: RunEvidence): Block[] {
   const { run } = each;
@@ -153,6 +174,7 @@ function runBlocks(each: RunEvidence): Block[] {
       para(EVIDENCE_TEXT.verify),
       mono([each.verify]),
     ]),
+    ...partBlocks(parts.walkthrough, run.id, walkthroughBlocks(each)),
   ];
 }
 

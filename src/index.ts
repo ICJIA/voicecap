@@ -21,6 +21,22 @@ export { shareReport } from "./share/share.js";
 export type { ShareReportOptions, ShareReportResult } from "./share/share.js";
 // What `voicecap share` recorded in a site's share/shares.json.
 export { readShares } from "./share/shares.js";
+// A walkthrough file: a run's recipe, so anyone can repeat the run. `voicecap walkthrough` writes
+// one from a completed run; parseWalkthrough reads one back strictly.
+export { writeWalkthrough } from "./share/write-walkthrough.js";
+export type { WriteWalkthroughOptions, WriteWalkthroughResult } from "./share/write-walkthrough.js";
+export {
+  parseWalkthrough,
+  walkthroughJson,
+  walkthroughOf,
+  walkthroughProblem,
+} from "./share/walkthrough.js";
+export type {
+  Walkthrough,
+  WalkthroughOrigin,
+  WalkthroughPage,
+  WalkthroughSettings,
+} from "./share/walkthrough.js";
 export { verifyHome } from "./verify.js";
 export type { VerifyHomeOptions, VerifyResult, VerifySiteResult } from "./verify.js";
 export { defineConfig, loadConfig, resolveConfig } from "./config/load.js";

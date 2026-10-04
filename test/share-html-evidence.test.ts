@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import type { PassName } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
-import { longDate } from "../src/share/format.js";
+import { longDate, sizeWords } from "../src/share/format.js";
 import {
   renderCoverage,
   renderEvidence,
@@ -22,9 +22,13 @@ import {
 import type { ShareInput, TranscriptStore } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
+import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
+import { inRun } from "../src/share/words.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { demoRun } from "./helpers/share-fixture.js";
 import {
   attributes,
+  decode,
   foldsIn,
   listsOf,
   rowsOf,
@@ -34,7 +38,15 @@ import {
   termsOf,
   textOf,
 } from "./helpers/share-html.js";
-import { demoModel, inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  demoModel,
+  downloadOf,
+  inputOf,
+  LINES,
+  storeOf,
+  TRANSCRIPTS,
+  withStepLimit,
+} from "./helpers/share-model.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 
@@ -128,6 +140,22 @@ function partOf(fold: string, title: string): string {
   const found = fold.split("<h3>").find((part) => part.startsWith(title));
   if (found === undefined) throw new Error(`No part called ${title}`);
   return found;
+}
+
+/**
+ * A run's walkthrough part, whole: from its box's opening tag to its closing tag. It is the last
+ * part of the fold, so the fold's own closing tag, which a run's fold ends with, is left off.
+ */
+function walkthroughPartOf(fold: string): string {
+  const start = fold.indexOf("<div><h3>Walkthrough file ");
+  if (start === -1) throw new Error("The fold has no walkthrough part.");
+  return fold.slice(start, fold.lastIndexOf("</div>"));
+}
+
+/** A model of one run whose read pass's step limit is over what a walkthrough file allows. */
+function overTheLimitModel(): ShareModel {
+  const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
+  return buildShareModel(inputOf([withStepLimit(run, 100_001)]));
 }
 
 describe("renderCoverage", () => {
@@ -447,7 +475,7 @@ describe("renderEvidence", () => {
   });
 
   describe("each run's fold", () => {
-    it("holds four parts, in the mockup's order, each named for its run", async () => {
+    it("holds five parts, in the mockup's order and then the walkthrough file, each named for its run", async () => {
       const html = renderEvidence(await demoModel());
 
       for (const [index, run] of ["2026-09-29_1402", "2026-09-29_1315"].entries()) {
@@ -459,6 +487,7 @@ describe("renderEvidence", () => {
           `NVDA's own log, checked against the transcripts in run ${run}`,
           `Test environment in run ${run}`,
           `Fingerprints (SHA-256) in run ${run}`,
+          `Walkthrough file in run ${run}`,
         ]);
       }
     });
@@ -543,7 +572,7 @@ describe("renderEvidence", () => {
       expect(scrollBoxes(html)).toHaveLength(5);
       for (const box of scrollBoxes(html)) expect(box).toContain('tabindex="0" role="region"');
       // No two have the same name, so a screen reader can tell them apart.
-      expect(attributes(html, "aria-label")).toEqual([
+      expect(scrollBoxes(html).flatMap((box) => attributes(box, "aria-label"))).toEqual([
         "Files checked, table",
         "Test environment, run 2026-09-29_1402, table",
         "Fingerprints, run 2026-09-29_1402, table",
@@ -560,6 +589,194 @@ describe("renderEvidence", () => {
       expect(textOf(part)).toContain("This run's record lists no files.");
       expect(part).not.toContain("<table");
       expect(part).toContain('<div class="verify">');
+    });
+
+    describe("its walkthrough file", () => {
+      it("is offered as a download the page carries: the run's file, byte for byte, with the command that repeats the run after it", async () => {
+        const model = await demoModel();
+        const folds = runFolds(renderEvidence(model));
+        const prefix = "data:application/json;base64,";
+
+        expect(folds).toHaveLength(2);
+        for (const [index, each] of model.evidence.entries()) {
+          const fold = folds[index] ?? "";
+          const file = downloadOf(each);
+          const links = fold.match(/<a\b[^>]*\bdownload=[^>]*>/g) ?? [];
+          const [address = ""] = attributes(links[0] ?? "", "href");
+          const record = demoRun(each.run.id.endsWith("1402") ? "1402" : "1315");
+          const written = Buffer.from(walkthroughJson(walkthroughOf(record)), "utf8");
+
+          // One download in the run's fold, named for the file, whose address carries it.
+          expect(links, each.run.id).toHaveLength(1);
+          expect(attributes(links[0] ?? "", "download"), each.run.id).toEqual([file.fileName]);
+          expect(address.startsWith(prefix), each.run.id).toBe(true);
+          const carried = Buffer.from(address.slice(prefix.length), "base64");
+          expect(carried.toString("utf8"), each.run.id).toBe(written.toString("utf8"));
+          expect(carried.equals(written), each.run.id).toBe(true);
+          // The command that repeats the run follows the download.
+          expect(fold.indexOf(file.repeat), each.run.id).toBeGreaterThan(fold.indexOf("</a>"));
+        }
+      });
+
+      it("is set out in order: the lead, the download with its size, the command in a box, and what a repeat can't promise", async () => {
+        const model = await demoModel();
+        const folds = runFolds(renderEvidence(model));
+
+        for (const [index, each] of model.evidence.entries()) {
+          const file = downloadOf(each);
+          // Without the file itself, which is base64.
+          const bare = walkthroughPartOf(folds[index] ?? "").replace(
+            /(href="data:application\/json;base64,)[A-Za-z0-9+/=]*/,
+            "$1…",
+          );
+
+          // The demo's files are about 3.6 KB, which the page says in whole KB.
+          expect(sizeWords(file.bytes)).toBe("4 KB");
+          expect(bare, each.run.id).toBe(
+            `<div><h3>Walkthrough file <span class="sr">in run ${each.run.id}</span></h3>` +
+              "<p>To repeat this run exactly, with the same pages in the same order and the same passes and limits, download its walkthrough file, then run:</p>" +
+              `<p><a download="${file.fileName}" href="data:application/json;base64,…" aria-label="Download the walkthrough file (4 KB) in run ${each.run.id}">Download the walkthrough file (4 KB)</a></p>` +
+              `<div class="verify"><pre>${file.repeat}</pre></div>` +
+              "<p>A repeat reads the same pages the same way, but can&#39;t promise the same words: a changed site, or a newer screen reader or browser, changes what&#39;s said. After a repeat, voicecap says page by page whether each sounds the same.</p></div>",
+          );
+        }
+      });
+
+      it("names each run's download by its run, so the two links that read alike are told apart", async () => {
+        const model = await demoModel();
+        const links = runFolds(renderEvidence(model)).map(
+          (fold) => /<a\b[^>]*\bdownload=[^>]*>.*?<\/a>/s.exec(fold)?.[0] ?? "",
+        );
+        const named = links.map((link) => ({
+          words: textOf(link),
+          name: decode(attributes(link, "aria-label")[0] ?? ""),
+        }));
+
+        // The two links say the same words, and are named for the two runs.
+        expect(named.map(({ words }) => words)).toEqual([
+          "Download the walkthrough file (4 KB)",
+          "Download the walkthrough file (4 KB)",
+        ]);
+        expect(new Set(named.map(({ name }) => name)).size).toBe(2);
+        for (const [index, each] of model.evidence.entries()) {
+          const { words = "", name = "" } = named[index] ?? {};
+          // The words first, then the run, as the page's other named links are (a person who says
+          // a link's words to a voice control finds it), and the run as a heading of the part says it.
+          expect(name.startsWith(words), each.run.id).toBe(true);
+          expect(name, each.run.id).toBe(`${words} ${inRun(each.run.id)}`);
+        }
+      });
+
+      it("names the file and the command for the site and the run, as the model has them", async () => {
+        const model = await demoModel();
+        const html = renderEvidence(model);
+
+        expect(attributes(html, "download")).toEqual([
+          "127.0.0.1_4848_2026-09-29_1402_walkthrough.json",
+          "127.0.0.1_4848_2026-09-29_1315_walkthrough.json",
+        ]);
+        expect(
+          [...html.matchAll(/<pre>(npx @icjia\/voicecap --walkthrough [^<]*)<\/pre>/g)].map(
+            (found) => found[1],
+          ),
+        ).toEqual([
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1402_walkthrough.json",
+          "npx @icjia/voicecap --walkthrough 127.0.0.1_4848_2026-09-29_1315_walkthrough.json",
+        ]);
+      });
+
+      it("says the download's size in words, as a size is said, with no count of bytes", async () => {
+        const model = await demoModel();
+        const [first, ...rest] = model.evidence;
+        if (first === undefined) throw new Error("The demo has runs.");
+
+        for (const [bytes, size] of [
+          [1, "1 KB"],
+          [317_440, "310 KB"],
+          [1_234_567, "1.2 MB"],
+        ] as const) {
+          const patched = { ...first, walkthrough: { ...downloadOf(first), bytes } };
+          const html = renderEvidence({ ...model, evidence: [patched, ...rest] });
+
+          expect(html).toContain(`>Download the walkthrough file (${size})</a>`);
+        }
+        expect(renderEvidence(model)).not.toMatch(/Download the walkthrough file \([^)]*bytes?\)/);
+      });
+
+      it("says why there is no file, in place of the download and the command, for a run that can't have one", () => {
+        const html = renderEvidence(overTheLimitModel());
+        const [fold = ""] = runFolds(html);
+
+        // The part is there, so every run has five; it says why it has no file, and nothing else.
+        expect(walkthroughPartOf(fold)).toBe(
+          '<div><h3>Walkthrough file <span class="sr">in run r1</span></h3>' +
+            "<p>This run&#39;s walkthrough file can&#39;t be made: its settings.stepCaps.read: must be a whole number from 1 to 100,000.</p></div>",
+        );
+        expect(fold.match(/<h3>/g)).toHaveLength(5);
+        expect(html).not.toContain("download=");
+        expect(html).not.toContain("data:application/json");
+        expect(html).not.toContain("--walkthrough");
+        expect(textOf(html)).not.toContain("To repeat this run exactly");
+      });
+
+      it("offers the file to the run that has one, and says why not for the run that hasn't, side by side", async () => {
+        const model = await demoModel();
+        const [first, second] = model.evidence;
+        if (first === undefined || second === undefined) throw new Error("The demo has two runs.");
+        const reason = "its original.run isn't a run id.";
+        const html = renderEvidence({
+          ...model,
+          evidence: [{ ...first, walkthrough: { problem: reason } }, second],
+        });
+        const [broken = "", fine = ""] = runFolds(html);
+
+        expect(textOf(walkthroughPartOf(broken))).toContain(
+          `This run's walkthrough file can't be made: ${reason}`,
+        );
+        expect(attributes(broken, "download")).toEqual([]);
+        expect(attributes(fine, "download")).toEqual([downloadOf(second).fileName]);
+      });
+
+      it("escapes what the model supplies of it: the file's name, the commands, the run, and the reason", async () => {
+        const model = await demoModel();
+        const [first, second, ...rest] = model.evidence;
+        if (first === undefined || second === undefined) throw new Error("The demo has two runs.");
+        const hostile = '<img src=x onerror="alert(1)">';
+        const html = renderEvidence({
+          ...model,
+          evidence: [
+            {
+              ...first,
+              run: { ...first.run, id: '7" onfocus="alert(1)' },
+              walkthrough: {
+                ...downloadOf(first),
+                fileName: 'x" onclick="alert(1)',
+                base64: 'AAAA" onmouseover="alert(1)',
+                repeat: hostile,
+              },
+            },
+            { ...second, walkthrough: { problem: hostile } },
+            ...rest,
+          ],
+        });
+
+        expect(html).not.toContain("<img");
+        expect(html).toContain(
+          '<a download="x&quot; onclick=&quot;alert(1)" href="data:application/json;base64,AAAA&quot; onmouseover=&quot;alert(1)" aria-label="Download the walkthrough file (4 KB) in run 7&quot; onfocus=&quot;alert(1)">',
+        );
+        // The link has the three attributes it was given, and none made of the hostile words: every
+        // quote in its tag is one of those attributes' own.
+        const [tag = ""] = html.match(/<a\b[^>]*\bdownload=[^>]*>/g) ?? [];
+        expect([...tag.matchAll(/\s([a-z-]+)="/g)].map(([, name]) => name)).toEqual([
+          "download",
+          "href",
+          "aria-label",
+        ]);
+        expect(html).toContain(`<div class="verify"><pre>${esc(hostile)}</pre></div>`);
+        expect(html).toContain(
+          `<p>This run&#39;s walkthrough file can&#39;t be made: ${esc(hostile)}</p>`,
+        );
+      });
     });
 
     it("takes only the run's id and dates from its record, never its other fields", async () => {
@@ -595,6 +812,9 @@ describe("renderEvidence", () => {
       );
       // Nothing else of it: the data block carries the model's own records, which hold none of these.
       expect(html).not.toContain("MARKER");
+      // Its walkthrough file is the model's own, named for the run the model says it is.
+      expect(attributes(html, "download")[0]).toBe(downloadOf(first).fileName);
+      expect(html).not.toContain("_9999_walkthrough.json");
     });
   });
 
