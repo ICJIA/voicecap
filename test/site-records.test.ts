@@ -28,8 +28,8 @@ const CST = "2027-11-07T01:10:00-06:00";
 const EXAMPLE_RECORD = "example.illinois.gov/share/shares.json";
 const BAD_FOLDER_NAME = "not published: its name isn't one voicecap gives a site's folder";
 
-// Characters a terminal would act on, written with braces: a plain backslash-u escape can't be kept
-// in a file by the tools that write this one.
+// Characters a terminal would act on. Written with braces (\u{…}), so this file holds no raw
+// control character.
 const ESC = "\u{1b}";
 const DEL = "\u{7f}";
 const NEL = "\u{85}";
@@ -537,20 +537,21 @@ describe("readSiteRecords", () => {
     expect(leftOut).toEqual([]);
   });
 
-  it("refuses a file name that starts with . or -, or ends with .", async () => {
+  it("refuses a file name that starts or ends with a dot, and keeps one that starts with - or _", async () => {
     const dir = await siteFolder("example.illinois.gov");
     const [page, word] = copies("example.illinois.gov_2027-01-15");
-    // A name with a dot first is a hidden file, one with a hyphen first can be taken for an option
-    // by a command, and Windows drops a dot from the end. An underscore first is as an IPv6 site's
-    // folder has it, so it's fine.
-    const underscored = { name: "_x.html", bytes: 5, sha256: "d".repeat(64) };
-    const refused = [".env", "-x.html", "x.html."];
+    // A name with a dot first is a hidden file, and Windows drops a dot from the end. A hyphen or
+    // an underscore first is fine: a host can be written with either, and a share's files are
+    // named from its folder.
+    const hyphened = { name: "-x.html", bytes: 5, sha256: "d".repeat(64) };
+    const underscored = { name: "_x.html", bytes: 5, sha256: "e".repeat(64) };
+    const refused = [".env", "x.html."];
     const refusedFiles = refused.map((name) => ({ name, bytes: 5, sha256: "c".repeat(64) }));
-    await record(dir, [sealed(1, JAN_15, [page, ...refusedFiles, underscored, word])]);
+    await record(dir, [sealed(1, JAN_15, [page, ...refusedFiles, hyphened, underscored, word])]);
 
     const { sites, leftOut } = await readSiteRecords(home);
 
-    expect(kept(sites).map(({ files }) => files)).toEqual([[page, underscored, word]]);
+    expect(kept(sites).map(({ files }) => files)).toEqual([[page, hyphened, underscored, word]]);
     expect(leftOut).toEqual(
       refused.map(
         (name) =>
@@ -559,17 +560,30 @@ describe("readSiteRecords", () => {
     );
   });
 
-  it("keeps a site folder by its characters alone: an IPv6 site's starts with an underscore", async () => {
-    // http://[::1]:4848 is the folder ___1__4848, and a URL can have a host with a hyphen first.
-    // The rule about how a name starts and ends is for a file's name, not a folder's.
-    const folders = ["-x.example.gov", "___1__4848"];
-    for (const folder of folders) {
-      await record(await siteFolder(folder), [sealed(1, JAN_15, copies("example_2027-01-15"))]);
-    }
+  it("publishes a site folder named with a hyphen first, with the files its own share is given", async () => {
+    // A host can be written with a hyphen first (new URL("http://-x.example.gov") is valid), and
+    // voicecap names a share's files from its folder, so these are the names it gives.
+    const folder = "-x.example.gov";
+    const at = "2026-10-04T14:05:00-05:00";
+    await record(await siteFolder(folder), [sealed(1, at, copies(`${folder}_2026-10-04`))]);
 
     const { sites, leftOut } = await readSiteRecords(home);
 
-    expect(sites.map((site) => site.folder)).toEqual(folders);
+    expect(sites.map((site) => site.folder)).toEqual([folder]);
+    expect(kept(sites).map(({ files }) => files.map(({ name }) => name))).toEqual([
+      ["-x.example.gov_2026-10-04.html", "-x.example.gov_2026-10-04.docx"],
+    ]);
+    expect(leftOut).toEqual([]);
+  });
+
+  it("keeps a site folder by its characters alone: an IPv6 site's starts with an underscore", async () => {
+    // http://[::1]:4848 is the folder ___1__4848.
+    const folder = "___1__4848";
+    await record(await siteFolder(folder), [sealed(1, JAN_15, copies(`${folder}_2027-01-15`))]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(sites.map((site) => site.folder)).toEqual([folder]);
     expect(leftOut).toEqual([]);
   });
 

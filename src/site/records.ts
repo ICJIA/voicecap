@@ -52,11 +52,11 @@ const SITE_FOLDER_NAME = /^[a-z0-9._-]+$/;
  */
 const FILE_NAME = /^[A-Za-z0-9._-]+$/;
 /**
- * What a published file's name may not start or end with: a "." first (a hidden file) or a "-"
- * first (a command can take it for an option), and a "." last (Windows drops it). A site folder's
- * name has only its characters to keep to: an IPv6 site's folder starts with "_".
+ * What a published file's name may not start or end with: a "." first (a hidden file) or a "." last
+ * (Windows drops it). A "-" first is fine: a host can be written with one, and voicecap names a
+ * share's files from its folder. A site folder's name has only its characters to keep to.
  */
-const AWKWARD_EDGE = /^[.-]|\.$/;
+const DOT_AT_EDGE = /^\.|\.$/;
 /** The demo is published as demo/ on the site, so the home's own site folder of that name isn't. */
 const DEMO_SITE = "demo";
 
@@ -228,10 +228,10 @@ function isTime(at: string): boolean {
 
 /**
  * Whether a file with this name is one voicecap would publish: a plain name, made of what
- * voicecap's are, and with no edge that's awkward (see AWKWARD_EDGE).
+ * voicecap's are, with no dot at either edge (see DOT_AT_EDGE).
  */
 function isPublishableName(name: string): boolean {
-  return isPlainName(name) && FILE_NAME.test(name) && !AWKWARD_EDGE.test(name);
+  return isPlainName(name) && FILE_NAME.test(name) && !DOT_AT_EDGE.test(name);
 }
 
 /**
