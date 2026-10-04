@@ -83,10 +83,17 @@ const headingId = (id: string): string => `heading-${id}`;
  */
 const IS_A_LIST = ' role="list"';
 
-/** A sentence as HTML: each piece escaped, and each command in the fixed-width font. */
+/**
+ * A sentence as HTML: each piece escaped, each command in the fixed-width font, and each link made
+ * from its words and where it goes.
+ */
 function sentenceHtml(sentence: Sentence): string {
   return sentence
-    .map((piece) => (typeof piece === "string" ? esc(piece) : `<code>${esc(piece.code)}</code>`))
+    .map((piece) => {
+      if (typeof piece === "string") return esc(piece);
+      if ("code" in piece) return `<code>${esc(piece.code)}</code>`;
+      return `<a href="${esc(piece.href)}">${esc(piece.link)}</a>`;
+    })
     .join("");
 }
 
@@ -145,10 +152,13 @@ function report(shared: PublishedReport, level: 3 | 4): string {
   ].join("\n");
 }
 
-/** The demo's view: its one report, whose heading is one level below the view's. */
+/**
+ * The demo's view: its lead, which links to the demo's own pages in demo-site/ (see ./build.ts), and
+ * its one report, whose heading is one level below the view's.
+ */
 function demoView(demo: PublishedReport): string {
   const { title, lead } = SITE_TEXT.views.demo;
-  return view("demo", title, [`<p>${esc(lead)}</p>`, report(demo, 3)]);
+  return view("demo", title, [`<p>${sentenceHtml(lead)}</p>`, report(demo, 3)]);
 }
 
 /**

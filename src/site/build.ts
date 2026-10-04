@@ -24,17 +24,21 @@
  * ENDS_WITH_DOT_OR_SPACE). A build writes files, in its folder and in the folders it makes, and no
  * name that starts with a dot: a folder with such a name (a repository's .git), or with a folder in
  * a folder (a site folder of someone's own), holds more than a build wrote, and is never emptied.
+ * The one folder in a folder is the demo's own pages, demo-site/, which has a folder for each page:
+ * it's taken for a build's when it holds only the paths a build writes there (see moreThanTheDemo).
  * The files an operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini)
  * hold nothing of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes
  * before anything is touched. The records are read before the folder is emptied, so an earlier
  * build is kept when they can't be.
  *
- * Besides each report's files, a build writes the site's page (index.html), robots.txt, and
- * _headers, which gives each page its Content Security Policy, made from the hashes of that page's
- * own bytes, and each download its Content-Disposition. In the home it writes .gitattributes and
- * .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of Git
- * with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None of
- * them is ever written again.
+ * Besides each report's files, a build writes the demo's own pages in demo-site/ (the demo site
+ * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
+ * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), robots.txt,
+ * and _headers, which gives each page its Content Security Policy, made from the hashes of that
+ * page's own bytes, the demo's pages theirs, and each download its Content-Disposition. In the home
+ * it writes .gitattributes and .gitignore when they aren't there, as a run does, so a home's first
+ * build keeps _site/ out of Git with the rest of what voicecap keeps out, then netlify.toml and
+ * .nvmrc the first time. None of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -50,6 +54,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 
+import { DEMO_CANONICAL, DEMO_SITE_DIR, DEMO_SITEMAP, sitemapXml } from "../demo/server.js";
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
 import { canonicalName, recordedCanonical } from "../pages/canonical.js";
@@ -66,6 +71,7 @@ import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
 import {
   contentSecurityPolicy,
+  DEMO_SITE_RULE,
   headersFile,
   HEADERS_FIRST_LINE,
   inlineHashes,
@@ -104,8 +110,26 @@ export interface BuildSiteResult {
 const SITE_DIR = "_site";
 /** The file a build's folder is known by: it starts with HEADERS_FIRST_LINE. */
 const HEADERS_FILE = "_headers";
-/** The site's own files at its top, which a site folder of the same name would take the place of. */
-const OWN_FILES: ReadonlySet<string> = new Set(["index.html", "robots.txt", HEADERS_FILE]);
+/** The folder of the demo's own pages in a built site: its address is the demo's canonical one. */
+const DEMO_FOLDER = "demo-site";
+/** The demo site's 404 page, which only its own server gives: it isn't one of its pages. */
+const DEMO_NOT_FOUND = "404.html";
+/**
+ * The demo's pages' address without the slash that ends it: what each address in their sitemap
+ * starts with.
+ */
+const DEMO_BASE = DEMO_CANONICAL.replace(/\/$/, "");
+/**
+ * The site's own files and folders at its top, which a site folder of the same name would take the
+ * place of. The demo's pages are one: a site folder named so would be mixed with them, and its
+ * pages given their policy.
+ */
+const OWN_FILES: ReadonlySet<string> = new Set([
+  "index.html",
+  "robots.txt",
+  HEADERS_FILE,
+  DEMO_FOLDER,
+]);
 /**
  * The lines of a .gitignore that keep the site's folder out of Git, as Git reads them (see
  * gitignoreKeepsSiteOut).
@@ -160,7 +184,10 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   }
   const out =
     options.out === undefined ? path.join(home, SITE_DIR) : resolveUserPath(cwd, options.out);
-  const why = await whyNotBuiltInto(home, out);
+  // The demo's own pages are read from the package before the folder is looked at: the guard takes
+  // exactly their paths for a build's, and they're written from these same bytes.
+  const demoFiles = await readDemoSite();
+  const why = await whyNotBuiltInto(home, out, treeOfDemoSite(demoFiles));
   if (why !== null) {
     // The path is in quotes, so that the sentence's period isn't taken for part of it.
     throw new UsageError(
@@ -223,6 +250,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
       ? null
       : await publishReport(publishing, records.demo, DEMO_SITE, `report-${DEMO_SITE}`);
   const content: SiteContent = { demo, sites };
+  await publishDemoSite(out, demoFiles);
 
   const index = renderSiteIndex(content, { fontCss });
   await writeFile(path.join(out, "index.html"), index);
@@ -377,12 +405,17 @@ async function realOf(target: string): Promise<string> {
  *   records in it) or the demo's: by the names of the paths, and then by where they really are, so
  *   that a link, a short name, or another letter case is the folder it leads to;
  * - it's there, isn't empty, and isn't one a build made (see builtBefore);
- * - it's one a build made, and holds more than a build writes (see moreThanABuild).
+ * - it's one a build made, and holds more than a build writes (see moreThanABuild), the paths
+ *   `demoSite` has for the demo's own pages being among those a build writes.
  *
  * What's left is a folder that isn't there, one with nothing in it, or one an earlier build made and
  * nothing else has been put in.
  */
-async function whyNotBuiltInto(home: string, out: string): Promise<string | null> {
+async function whyNotBuiltInto(
+  home: string,
+  out: string,
+  demoSite: DemoSiteTree,
+): Promise<string | null> {
   if (process.platform === "win32" && ENDS_WITH_DOT_OR_SPACE.test(path.basename(out))) {
     return "its name ends with a dot or a space, which Windows drops";
   }
@@ -410,7 +443,7 @@ async function whyNotBuiltInto(home: string, out: string): Promise<string | null
 
   if (found === "folder" && (await readdir(out)).length > 0) {
     if (!(await builtBefore(out))) return "it isn't empty, and voicecap site didn't build it";
-    return moreThanABuild(out);
+    return moreThanABuild(out, demoSite);
   }
   return null;
 }
@@ -438,17 +471,25 @@ function isOsLitter(entry: Dirent): boolean {
  * ...", or null when it holds only what a build writes. A build writes files, in its folder and in
  * each folder it makes, and no name that starts with a dot. A name with a dot first (a repository's
  * .git), or a folder in a folder (a site folder of someone's own, with its date folder and its
- * record), is somebody's, and emptying the folder would lose it. A link isn't looked into: when the
+ * record), is somebody's, and emptying the folder would lose it. The one exception is the folder at
+ * the top that's named DEMO_FOLDER: the demo's own pages, which a build writes with a folder for each
+ * page, and which holds nothing else (see moreThanTheDemo). A link isn't looked into: when the
  * folder is emptied it's removed, and what it leads to isn't. The files an operating system adds
- * (see isOsLitter) are no one's, at the folder's top and one folder down, and aren't counted.
+ * (see isOsLitter) are no one's, at the folder's top, one folder down, and in each folder of the
+ * demo's pages, and aren't counted.
  */
-async function moreThanABuild(folder: string): Promise<string | null> {
+async function moreThanABuild(folder: string, demoSite: DemoSiteTree): Promise<string | null> {
   for (const entry of await entriesOf(folder)) {
     if (isOsLitter(entry)) continue;
     if (entry.name.startsWith(".")) {
       return `it holds ${printable(entry.name)}, which a build never writes`;
     }
     if (!entry.isDirectory()) continue;
+    if (entry.name === DEMO_FOLDER) {
+      const more = await moreThanTheDemo(path.join(folder, entry.name), "", demoSite);
+      if (more !== null) return more;
+      continue;
+    }
     for (const inner of await entriesOf(path.join(folder, entry.name))) {
       if (isOsLitter(inner)) continue;
       const where = printable(`${entry.name}/${inner.name}`);
@@ -456,6 +497,41 @@ async function moreThanABuild(folder: string): Promise<string | null> {
       if (inner.isDirectory()) {
         return `it holds ${where}, a folder inside a folder, which a build never writes`;
       }
+    }
+  }
+  return null;
+}
+
+/**
+ * Why a demo-site/ folder that a build made is more than that, in words that finish "won't build
+ * into <out>: ...", or null when it holds only what a build writes there: each file at a path the
+ * demo's pages have (see DemoSiteTree), in a folder they have, and nothing else. A name with a dot
+ * first, a file or a folder of any other name, a folder where a file goes, a file where a folder
+ * goes, and a link, are somebody's, or at best a build's of another voicecap, and emptying the
+ * folder would lose them. The files an operating system adds (see isOsLitter) aren't counted. A
+ * folder is looked into only when the pages have it, so the walk goes no deeper than they do.
+ * `dir` is the folder, and `inside` its path from demo-site/ ("" for demo-site/ itself).
+ */
+async function moreThanTheDemo(
+  dir: string,
+  inside: string,
+  demoSite: DemoSiteTree,
+): Promise<string | null> {
+  for (const entry of await entriesOf(dir)) {
+    if (isOsLitter(entry)) continue;
+    const relative = inside === "" ? entry.name : `${inside}/${entry.name}`;
+    const written = entry.isDirectory()
+      ? demoSite.folders.has(relative)
+      : entry.isFile() && demoSite.files.has(relative);
+    if (!written) {
+      const where = printable(`${DEMO_FOLDER}/${relative}`);
+      return entry.isDirectory()
+        ? `it holds ${where}, a folder inside a folder, which a build never writes`
+        : `it holds ${where}, which a build never writes`;
+    }
+    if (entry.isDirectory()) {
+      const more = await moreThanTheDemo(path.join(dir, entry.name), relative, demoSite);
+      if (more !== null) return more;
     }
   }
   return null;
@@ -485,6 +561,59 @@ async function builtBefore(folder: string): Promise<boolean> {
   } catch (error) {
     if (isNotThere(error)) return false;
     throw error;
+  }
+}
+
+/** A file a build writes in demo-site/: its path from there, with "/" between names, and its bytes. */
+interface DemoSiteFile {
+  path: string;
+  bytes: Buffer;
+}
+
+/**
+ * The files a build writes in demo-site/: every file of the demo site that comes with voicecap
+ * (DEMO_SITE_DIR), but its 404 page, and a sitemap of the pages at their canonical address. Only
+ * regular files are taken, so a link in the package's folder is never followed.
+ */
+async function readDemoSite(): Promise<DemoSiteFile[]> {
+  const files: DemoSiteFile[] = [];
+  for (const entry of await readdir(DEMO_SITE_DIR, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const source = path.join(entry.parentPath, entry.name);
+    const relative = path.relative(DEMO_SITE_DIR, source).split(path.sep).join("/");
+    if (relative === DEMO_NOT_FOUND) continue;
+    files.push({ path: relative, bytes: await readFile(source) });
+  }
+  files.push({ path: DEMO_SITEMAP, bytes: Buffer.from(sitemapXml(DEMO_BASE)) });
+  return files;
+}
+
+/**
+ * What a build writes in demo-site/, as the guard takes it for a build's own (see
+ * moreThanTheDemo): each file by its path from there, and each folder those paths are in.
+ */
+interface DemoSiteTree {
+  files: ReadonlySet<string>;
+  folders: ReadonlySet<string>;
+}
+
+/** The paths of `files`, and the folders they're in. */
+function treeOfDemoSite(files: readonly DemoSiteFile[]): DemoSiteTree {
+  const folders = new Set<string>();
+  for (const { path: file } of files) {
+    for (let slash = file.indexOf("/"); slash !== -1; slash = file.indexOf("/", slash + 1)) {
+      folders.add(file.slice(0, slash));
+    }
+  }
+  return { files: new Set(files.map((file) => file.path)), folders };
+}
+
+/** Write the demo's own pages into `<out>/demo-site/`, a folder made for each page. */
+async function publishDemoSite(out: string, files: readonly DemoSiteFile[]): Promise<void> {
+  for (const { path: file, bytes } of files) {
+    const target = path.join(out, DEMO_FOLDER, ...file.split("/"));
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, bytes);
   }
 }
 
@@ -588,9 +717,10 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 }
 
 /**
- * The rules of _headers: the index at both its addresses, then each published file's, in the order
- * the site lists them (the demo's first, then each site's reports as they're shown). A path has one
- * rule, however many reports list its file.
+ * The rules of _headers: the index at both its addresses, the demo's own pages by one rule for
+ * everything under demo-site/ (see DEMO_SITE_RULE), then each published file's, in the order the
+ * site lists them (the demo's report first, then each site's reports as they're shown). A path has
+ * one rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,
@@ -601,6 +731,7 @@ function headerRules(
   const rules: HeaderRule[] = [
     { path: "/", headers: [[POLICY, policy]] },
     { path: "/index.html", headers: [[POLICY, policy]] },
+    DEMO_SITE_RULE,
   ];
   const seen = new Set(rules.map((rule) => rule.path));
   const reports = [

@@ -29,9 +29,11 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
+import { DEMO_SITE_DIR } from "../src/demo/server.js";
 import { DEMO_OUT } from "../src/demo/words.js";
 import type * as Api from "../src/index.js";
 import type { SharedFile } from "../src/model.js";
+import { parseSitemapXml } from "../src/pages/sitemap.js";
 import { esc } from "../src/report/html.js";
 import { ensureGitFiles, GITATTRIBUTES, GITIGNORE } from "../src/run/git-files.js";
 import { fontFaceCss } from "../src/share/fonts.js";
@@ -125,6 +127,30 @@ afterEach(async () => {
 });
 
 const CSP = "Content-Security-Policy";
+/** The folder the build publishes the demo's own pages in, beside the reports' folders. */
+const DEMO_PAGES = "demo-site";
+/** The demo's canonical address: its own pages are published there, in demo-site/. */
+const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+/** The policy every path under demo-site/ is served with, from the one rule of _headers. */
+const DEMO_POLICY =
+  "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+/**
+ * What a build writes under demo-site/, by path from there, sorted: the demo's eight pages (the
+ * seven of the tour, and the form's answer), its style sheet, and the sitemap that lists the seven.
+ * Its 404 page is the local server's own, and isn't one.
+ */
+const DEMO_FILES = [
+  "ask-a-question/index.html",
+  "ask-a-question/sent.html",
+  "before-you-start/index.html",
+  "common-mistakes/index.html",
+  "how-a-run-works/index.html",
+  "index.html",
+  "reading-transcripts/index.html",
+  "sitemap.xml",
+  "style.css",
+  "the-report/index.html",
+];
 /** The first of the fixture site's two shares: its Word copy, and the line that names it. */
 const FIRST_WORD = `${FIXTURE_FOLDER}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
@@ -380,12 +406,13 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, and the site's own three files.
+    // Only those, the site's own three files, and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
         "_headers",
         "index.html",
         "robots.txt",
+        ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
     );
@@ -473,6 +500,51 @@ describe("buildSite", () => {
     ]);
   });
 
+  it("publishes the demo's own pages under demo-site/, byte for byte, with a sitemap of them at their canonical address", async () => {
+    const home = await newHome();
+
+    const { out } = await build(home);
+
+    const published = path.join(out, DEMO_PAGES);
+    // Every file of the demo that ships in the package, but its 404 page, which only the server
+    // gives; and the sitemap.
+    const shipped = await filesUnder(DEMO_SITE_DIR);
+    expect(shipped).toContain("404.html");
+    const copied = shipped.filter((file) => file !== "404.html");
+    expect([...copied, "sitemap.xml"].sort()).toEqual(DEMO_FILES);
+    expect(await filesUnder(published)).toEqual(DEMO_FILES);
+    expect(existsSync(path.join(published, "404.html"))).toBe(false);
+    for (const file of copied) {
+      expect(await readFile(path.join(published, file)), file).toEqual(
+        await readFile(path.join(DEMO_SITE_DIR, file)),
+      );
+    }
+
+    // The sitemap lists the seven pages of the tour, in its order, in the shape the demo's own
+    // server writes, and not the form's answer.
+    const pages = [
+      "",
+      "before-you-start/",
+      "how-a-run-works/",
+      "reading-transcripts/",
+      "the-report/",
+      "ask-a-question/",
+      "common-mistakes/",
+    ].map((page) => `${DEMO_CANONICAL}${page}`);
+    const sitemap = await readFile(path.join(published, "sitemap.xml"), "utf8");
+    expect(sitemap).toBe(
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        ...pages.map((page) => `  <url><loc>${page}</loc></url>`),
+        "</urlset>",
+        "",
+      ].join("\n"),
+    );
+    expect(parseSitemapXml(sitemap)).toEqual({ kind: "urlset", locs: pages });
+    expect(pages[0]).toBe("https://voicecap.netlify.app/demo-site/");
+  });
+
   it("writes index.html, robots.txt, and _headers", async () => {
     const home = await newHome();
 
@@ -496,12 +568,14 @@ describe("buildSite", () => {
       scripts: [sourceOf(SITE_SCRIPT)],
       styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
     });
-    // The index at both its addresses, then each published file in the order the site lists them: a
-    // page at both its addresses, with the policy of its own bytes, and a Word copy or a walkthrough
-    // file as a download.
+    // The index at both its addresses, the demo's own pages by one rule for everything under
+    // demo-site/, then each published file in the order the site lists them: a page at both its
+    // addresses, with the policy of its own bytes, and a Word copy or a walkthrough file as a
+    // download.
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
+      ["/demo-site/*", [[CSP, DEMO_POLICY]]],
     ];
     for (const file of filesOf(content)) {
       const bytes = await readFile(path.join(out, file.href));
@@ -516,8 +590,8 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, four pages at two addresses each, and ten downloads.
-    expect(rules).toHaveLength(2 + 4 * 2 + 4 + 6);
+    // The index, the demo's own pages, four pages at two addresses each, and ten downloads.
+    expect(rules).toHaveLength(2 + 1 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -1035,9 +1109,9 @@ describe("buildSite", () => {
       expect(lastWarning).toBe(logger.entries.length - 2);
     });
 
-    it("leaves out a site folder named as one of the site's own files, and builds the rest", async () => {
+    it("leaves out a site folder named as one of the site's own files, or as the demo's own pages, and builds the rest", async () => {
       const home = await newHome();
-      for (const folder of ["index.html", "robots.txt", "_headers"]) {
+      for (const folder of ["index.html", "robots.txt", "_headers", DEMO_PAGES]) {
         const siteDir = path.join(home, folder);
         const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
         await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
@@ -1052,11 +1126,22 @@ describe("buildSite", () => {
 
       expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
       expect(leftOut).toEqual(
-        ["_headers", "index.html", "robots.txt"].map(
+        ["_headers", DEMO_PAGES, "index.html", "robots.txt"].map(
           (folder) =>
             `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
         ),
       );
+      // The demo's own pages are theirs alone: the site folder's report isn't among them, and the
+      // rule of _headers for everything under demo-site/ is the demo's.
+      expect(await filesUnder(path.join(out, DEMO_PAGES))).toEqual(DEMO_FILES);
+      expect(await readFile(path.join(out, DEMO_PAGES, "index.html"))).toEqual(
+        await readFile(path.join(DEMO_SITE_DIR, "index.html")),
+      );
+      expect(
+        readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.filter(([rulePath]) =>
+          rulePath.startsWith(`/${DEMO_PAGES}/`),
+        ),
+      ).toEqual([["/demo-site/*", [[CSP, DEMO_POLICY]]]]);
       // The site's own files are its own.
       expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
       expect(
@@ -1344,6 +1429,15 @@ describe("buildSite", () => {
           { "a\u{2028}site/in\u{2028}side": null },
           `a${written}site/in${written}side, a folder inside a folder, which a build never writes`,
         ],
+        // In the demo's own pages' folder, and in a folder of it: a file, and a folder.
+        [
+          { "demo-site/a\u{2028}b.txt": "a file" },
+          `demo-site/a${written}b.txt, which a build never writes`,
+        ],
+        [
+          { "demo-site/the-report/in\u{2028}side": null },
+          `demo-site/the-report/in${written}side, a folder inside a folder, which a build never writes`,
+        ],
       ];
       for (const [index, [more, said]] of cases.entries()) {
         const out = await builtWith(path.join(root, `built-with-odd-names-${index}`), more);
@@ -1532,6 +1626,146 @@ describe("buildSite", () => {
       expect(await readFile(path.join(atTheTop, ".DS_Store", "mine.txt"), "utf8")).toBe(
         "my own file",
       );
+    });
+
+    // A build writes the demo's own pages in demo-site/, whose page folders are folders in a folder:
+    // the one place a folder a build made holds one. The guard takes that place, and only the paths
+    // a build writes there, for a build's own.
+    it("empties and rebuilds a built folder that holds demo-site/, whole or in part, with the files an operating system adds in it", async () => {
+      const home = await newHome();
+      const first = await build(home);
+      const files = await filesUnder(first.out);
+      expect(files).toEqual(
+        expect.arrayContaining(DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`)),
+      );
+      const demo = path.join(first.out, DEMO_PAGES);
+      // In part, as a build that stopped leaves it: a file and a page's folder are gone.
+      await rm(path.join(demo, "sitemap.xml"));
+      await rm(path.join(demo, "the-report"), { recursive: true });
+      // What an operating system adds to the folders someone opens: demo-site/, and its page folders.
+      await writeFile(path.join(demo, ".DS_Store"), "how the system shows the folder");
+      await writeFile(path.join(demo, "ask-a-question", "Thumbs.db"), "how the system shows it");
+      await writeFile(
+        path.join(demo, "before-you-start", "desktop.ini"),
+        "how the system shows it",
+      );
+      vi.mocked(rm).mockClear();
+
+      const second = await build(home);
+
+      expect(second.out).toBe(first.out);
+      // Rebuilt whole: exactly what the first build made.
+      expect(await filesUnder(second.out)).toEqual(files);
+      expect(vi.mocked(rm)).toHaveBeenCalledWith(second.out, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+      });
+    });
+
+    it("still refuses a built folder whose demo-site/ holds more than a build writes there, or a folder inside a folder anywhere else, and deletes nothing", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      const first = await build(home);
+      // Somebody's own folder, which a link in demo-site/ leads to: a build never follows a link.
+      const precious = path.join(root, "precious");
+      await mkdir(precious);
+      await writeFile(path.join(precious, "mine.txt"), "my own file");
+      /** Puts a file of somebody's at `relative` in a copy of the built folder. */
+      const put = (relative: string) => async (dir: string) => {
+        await mkdir(path.dirname(path.join(dir, relative)), { recursive: true });
+        await writeFile(path.join(dir, relative), "my own file");
+      };
+      const never = "which a build never writes";
+      const inAFolder = `a folder inside a folder, ${never}`;
+      const cases: [change: (dir: string) => Promise<void>, why: string][] = [
+        // More than a build writes in demo-site/, and in a folder of it.
+        [put("demo-site/notes.txt"), `it holds demo-site/notes.txt, ${never}`],
+        [put("demo-site/.env"), `it holds demo-site/.env, ${never}`],
+        // A folder named as a file the system adds is somebody's folder, not one of those files.
+        [put("demo-site/.DS_Store/mine.txt"), `it holds demo-site/.DS_Store, ${inAFolder}`],
+        [put("demo-site/extra/page.html"), `it holds demo-site/extra, ${inAFolder}`],
+        [
+          put("demo-site/the-report/notes.txt"),
+          `it holds demo-site/the-report/notes.txt, ${never}`,
+        ],
+        [
+          put("demo-site/the-report/nested/mine.txt"),
+          `it holds demo-site/the-report/nested, ${inAFolder}`,
+        ],
+        // The wrong kind of thing where a build writes a folder, a file, or neither.
+        [
+          async (dir) => {
+            await rm(path.join(dir, "demo-site", "the-report"), { recursive: true });
+            await writeFile(path.join(dir, "demo-site", "the-report"), "my own file");
+          },
+          `it holds demo-site/the-report, ${never}`,
+        ],
+        [
+          async (dir) => {
+            await rm(path.join(dir, "demo-site", "style.css"));
+            await mkdir(path.join(dir, "demo-site", "style.css"));
+          },
+          `it holds demo-site/style.css, ${inAFolder}`,
+        ],
+        // A link, by a name a build doesn't write and by one it does: it's no file of a build's.
+        [
+          (dir) => linkToFolder(precious, path.join(dir, "demo-site", "a-link")),
+          `it holds demo-site/a-link, ${never}`,
+        ],
+        [
+          async (dir) => {
+            await rm(path.join(dir, "demo-site", "style.css"));
+            await linkToFolder(precious, path.join(dir, "demo-site", "style.css"));
+          },
+          `it holds demo-site/style.css, ${never}`,
+        ],
+        // The exception is for demo-site/ at the top, and nothing else: a good demo-site/ doesn't
+        // excuse a folder inside a folder elsewhere, one named demo-site/ in a site's folder, or
+        // one laid out as it is, with another name.
+        [
+          put(`${FIXTURE_FOLDER}/nested/mine.txt`),
+          `it holds ${FIXTURE_FOLDER}/nested, ${inAFolder}`,
+        ],
+        [
+          put(`${FIXTURE_FOLDER}/demo-site/index.html`),
+          `it holds ${FIXTURE_FOLDER}/demo-site, ${inAFolder}`,
+        ],
+        [put("demo-pages/the-report/index.html"), `it holds demo-pages/the-report, ${inAFolder}`],
+        // A folder voicecap didn't build is refused, demo-site/ or not.
+        [
+          async (dir) => {
+            await writeFile(path.join(dir, "_headers"), "/*\n  X-Their-Header: yes\n");
+          },
+          "it isn't empty, and voicecap site didn't build it",
+        ],
+        [
+          async (dir) => {
+            await rm(path.join(dir, "_headers"));
+          },
+          "it isn't empty, and voicecap site didn't build it",
+        ],
+      ];
+      const folders: [out: string, why: string][] = [];
+      for (const [index, [change, why]] of cases.entries()) {
+        const out = path.join(root, `built-${index}`);
+        await cp(first.out, out, { recursive: true });
+        await change(out);
+        folders.push([out, why]);
+      }
+      const before = await treeOf(root);
+      vi.mocked(rm).mockClear();
+
+      for (const [out, why] of folders) {
+        expect(await refusalOf(build(home, { out })), out).toBe(
+          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
+        );
+      }
+
+      // Nothing was removed, written, or made: every file is as it was, and what the link leads to.
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(root)).toEqual(before);
+      expect(await readFile(path.join(precious, "mine.txt"), "utf8")).toBe("my own file");
     });
 
     it("refuses the folder it builds in by default when a site has that folder", async () => {
@@ -2038,13 +2272,21 @@ describe("buildSite", () => {
       expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
         "No reports have been shared yet.",
       );
-      // Only the site's own files, and the page's policy at its two addresses.
-      expect(await filesUnder(out)).toEqual(["_headers", "index.html", "robots.txt"]);
+      // Only the site's own files, and the demo's own pages, which are the site's whether or not
+      // any report is shared; and the page's policy at its two addresses, then theirs.
+      expect(await filesUnder(out)).toEqual(
+        [
+          "_headers",
+          "index.html",
+          "robots.txt",
+          ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
+        ].sort(),
+      );
       expect(
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
           ([rulePath]) => rulePath,
         ),
-      ).toEqual(["/", "/index.html"]);
+      ).toEqual(["/", "/index.html", "/demo-site/*"]);
       expect(logger.entries.at(-1)).toEqual({
         level: "info",
         message: `Built the site in ${out}: 0 reports from 0 sites.`,
@@ -2381,6 +2623,7 @@ describe("buildSite", () => {
           `${NAME}/${page}`,
           "index.html",
           "robots.txt",
+          ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
       // The page links to each, twice (with its report, and by date), and each link leads to the
@@ -2394,13 +2637,15 @@ describe("buildSite", () => {
         const shared = await readFile(path.join(home, folder, "share", ...rest));
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
-      // And each page has its own rules in _headers, at both its addresses.
+      // And each page has its own rules in _headers, at both its addresses, after the index's and the
+      // demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
       expect(rules).toEqual([
         "/",
         "/index.html",
+        "/demo-site/*",
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,
         `/${COPY_FOLDER}/${page}`,

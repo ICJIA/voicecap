@@ -13,6 +13,7 @@ import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import {
   contentSecurityPolicy,
+  DEMO_SITE_RULE,
   type HeaderRule,
   HEADERS_FIRST_LINE,
   headersFile,
@@ -485,5 +486,32 @@ describe("headersFile", () => {
 describe("ROBOTS_TXT", () => {
   it("turns every crawler away from everything", () => {
     expect(ROBOTS_TXT).toBe("User-agent: *\nDisallow: /\n");
+  });
+});
+
+describe("DEMO_SITE_RULE", () => {
+  const POLICY =
+    "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+  // The demo's own pages hold no script and no style block (test/demo-site.test.ts), so unlike the
+  // reports' they need no hashes: they have a style sheet, and a form that goes to its own address.
+  it("gives everything under demo-site/ a policy that allows its own style sheet and form, and nothing else", () => {
+    expect(DEMO_SITE_RULE).toEqual({
+      path: "/demo-site/*",
+      headers: [["Content-Security-Policy", POLICY]],
+    });
+    expect(POLICY).not.toContain("script-src");
+  });
+
+  it("is written as Netlify reads it", () => {
+    expect(headersFile([DEMO_SITE_RULE])).toBe(
+      [
+        "# Made by voicecap site. Each build empties this folder and writes it again.",
+        "",
+        "/demo-site/*",
+        `  Content-Security-Policy: ${POLICY}`,
+        "",
+      ].join("\n"),
+    );
   });
 });

@@ -6,13 +6,25 @@ import type { Browser, Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import { DEMO_PAGES, DEMO_SITE_DIR, startDemoServer, type DemoServer } from "../src/demo/server.js";
+import {
+  DEMO_CANONICAL,
+  DEMO_PAGES,
+  DEMO_SITE_DIR,
+  startDemoServer,
+  type DemoServer,
+} from "../src/demo/server.js";
+import { canonicalRootFrom } from "../src/pages/canonical.js";
 import { fetchSitemap } from "../src/pages/sitemap.js";
+import { inlineHashes } from "../src/site/headers.js";
 import { packageRoot } from "../src/util/version.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
 
 const MISTAKES = "/common-mistakes/";
 const GOOD_PAGES = DEMO_PAGES.filter((page) => page !== MISTAKES);
+/** The demo's canonical address: its pages are published inside voicecap's website, at /demo-site/. */
+const CANONICAL = "https://voicecap.netlify.app/demo-site/";
+/** The page the server gives for any address it has nothing at: it names no address of its own. */
+const NOT_FOUND = "404.html";
 
 let browser: Browser;
 let server: DemoServer;
@@ -54,6 +66,36 @@ function headingTags(page: Page): Promise<string[]> {
     .locator("h1, h2, h3, h4, h5, h6")
     .evaluateAll((headings) => headings.map((heading) => heading.tagName));
 }
+
+/**
+ * Every page of the demo site's folder, by its path from there with forward slashes, sorted: the
+ * seven pages and the form's answer. The 404 page is the server's own, so it isn't one.
+ */
+async function pageFiles(): Promise<string[]> {
+  const entries = await readdir(DEMO_SITE_DIR, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".html"))
+    .map((entry) =>
+      path
+        .relative(DEMO_SITE_DIR, path.join(entry.parentPath, entry.name))
+        .split(path.sep)
+        .join("/"),
+    )
+    .filter((file) => file !== NOT_FOUND)
+    .sort();
+}
+
+/** The address the server gives a page's file: a folder's index.html is the folder's own address. */
+const localPath = (file: string): string => `/${file.replace(/(^|\/)index\.html$/, "$1")}`;
+
+/** The value of each attribute of that name in a page's source, in order. */
+function attributeValues(html: string, name: string): string[] {
+  return [...html.matchAll(new RegExp(`\\s${name}="([^"]*)"`, "g"))].map(([, value = ""]) => value);
+}
+
+/** The `<link rel="canonical">` tags of a page's source. */
+const canonicalTags = (html: string): string[] =>
+  html.match(/<link\b[^>]*\brel="canonical"[^>]*>/g) ?? [];
 
 describe("the demo site", () => {
   // Review Focus: npx runs dist/demo/server.js, and tests run src/demo/server.ts. Both sit two
@@ -97,6 +139,152 @@ describe("the demo site", () => {
       expect(response.status, loc).toBe(200);
       expect(response.headers.get("content-type"), loc).toMatch(/^text\/html/);
     }
+  });
+});
+
+// The demo's canonical address is https://voicecap.netlify.app/demo-site/: the website publishes
+// the demo's own pages there. Each page names its own address under it, so a run on the copy at
+// this computer learns the real name, and its links are relative, so the pages work at either
+// address.
+describe("the demo site's addresses", () => {
+  it("names its canonical address on every page, and each tag fits the page it is on", async () => {
+    // The address the build publishes the pages at, and the sitemap it writes of them, is this one.
+    expect(DEMO_CANONICAL).toBe(CANONICAL);
+    const files = await pageFiles();
+    // The seven pages, and the form's answer.
+    expect(files).toHaveLength(DEMO_PAGES.length + 1);
+    for (const file of files) {
+      const html = await readFile(path.join(DEMO_SITE_DIR, file), "utf8");
+      const tags = canonicalTags(html);
+      expect(tags, file).toHaveLength(1);
+      const [href] = attributeValues(tags[0] ?? "", "href");
+      expect(href, file).toBe(`${CANONICAL}${localPath(file).slice(1)}`);
+      // As voicecap reads it on the copy at this computer: the website's demo-site/ is the root.
+      expect(canonicalRootFrom(`http://127.0.0.1:4848${localPath(file)}`, href ?? null), file).toBe(
+        CANONICAL,
+      );
+    }
+    // The values themselves, so that a rule above that went wrong can't make a wrong tag right.
+    const tagOf = async (file: string) =>
+      canonicalTags(await readFile(path.join(DEMO_SITE_DIR, file), "utf8"))[0];
+    expect(await tagOf("index.html")).toBe(
+      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/" />',
+    );
+    expect(await tagOf("before-you-start/index.html")).toBe(
+      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/before-you-start/" />',
+    );
+    expect(await tagOf("ask-a-question/sent.html")).toBe(
+      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/ask-a-question/sent.html" />',
+    );
+  });
+
+  it("gives the 404 page no canonical address: the server gives it for any address", async () => {
+    const html = await readFile(path.join(DEMO_SITE_DIR, NOT_FOUND), "utf8");
+
+    expect(canonicalTags(html)).toEqual([]);
+  });
+
+  it("links no page root-relatively, except the 404 page, which the server gives at any depth", async () => {
+    for (const file of await pageFiles()) {
+      const html = await readFile(path.join(DEMO_SITE_DIR, file), "utf8");
+      const addresses = [...attributeValues(html, "href"), ...attributeValues(html, "action")];
+      expect(
+        addresses.filter((address) => address.startsWith("/")),
+        file,
+      ).toEqual([]);
+    }
+    // It's given for an address at any depth, so its links go from the site's top.
+    const notFound = await readFile(path.join(DEMO_SITE_DIR, NOT_FOUND), "utf8");
+    expect(attributeValues(notFound, "href")).toEqual(["/style.css", "#main", "/"]);
+  });
+
+  it("links relatively: style.css and each page's folder from the home page, ../style.css and ../ from a page", async () => {
+    const hrefs = async (file: string) =>
+      attributeValues(await readFile(path.join(DEMO_SITE_DIR, file), "utf8"), "href");
+
+    expect(await hrefs("index.html")).toEqual([
+      CANONICAL,
+      "style.css",
+      "#main",
+      "before-you-start/",
+      "before-you-start/",
+      "how-a-run-works/",
+      "reading-transcripts/",
+      "the-report/",
+      "ask-a-question/",
+      "common-mistakes/",
+    ]);
+    expect(await hrefs("before-you-start/index.html")).toEqual([
+      `${CANONICAL}before-you-start/`,
+      "../style.css",
+      "#main",
+      "../",
+      "../how-a-run-works/",
+    ]);
+    expect(await hrefs("the-report/index.html")).toEqual([
+      `${CANONICAL}the-report/`,
+      "../style.css",
+      "#main",
+      "../reading-transcripts/",
+      "../ask-a-question/",
+    ]);
+    expect(await hrefs("ask-a-question/sent.html")).toEqual([
+      `${CANONICAL}ask-a-question/sent.html`,
+      "../style.css",
+      "#main",
+      "../ask-a-question/",
+      "../common-mistakes/",
+    ]);
+  });
+
+  it("has every link, its style sheet, and its form lead to a file of the site, from any page", async () => {
+    for (const file of await pageFiles()) {
+      const html = await readFile(path.join(DEMO_SITE_DIR, file), "utf8");
+      const [tag = ""] = canonicalTags(html);
+      const [canonical] = attributeValues(tag, "href");
+      const addresses = [...attributeValues(html, "href"), ...attributeValues(html, "action")]
+        .filter((address) => address !== canonical)
+        .filter((address) => !address.startsWith("#"));
+      // At least its style sheet and a link.
+      expect(addresses.length, file).toBeGreaterThanOrEqual(2);
+      for (const address of addresses) {
+        // No scheme and no host: the address is a path from the page, wherever the page is.
+        expect(address, `${file}: ${address}`).not.toMatch(/^(?:[a-z][a-z0-9+.-]*:|\/)/i);
+        const target = new URL(address, new URL(localPath(file), server.origin));
+        expect((await fetch(target)).status, `${file}: ${address}`).toBe(200);
+      }
+    }
+  });
+
+  it("holds no code of its own, so the policy it is published under needs no hashes", async () => {
+    for (const file of [...(await pageFiles()), NOT_FOUND]) {
+      const html = await readFile(path.join(DEMO_SITE_DIR, file), "utf8");
+      expect(inlineHashes(html), file).toEqual({ styles: [], scripts: [] });
+      expect(html, file).not.toMatch(/\sstyle\s*=/i);
+    }
+  });
+
+  // A static host can't answer a post, so the form is a GET to a page that's a file, which the
+  // server gives here, and the website gives there.
+  it("answers the question form with sent.html, as a file", async () => {
+    const page = await open("/ask-a-question/");
+    expect(
+      await page
+        .locator("form")
+        .evaluate((form) => [form.getAttribute("method"), form.getAttribute("action")]),
+    ).toEqual(["get", "sent.html"]);
+
+    await page.fill("#question", "Does this go anywhere?");
+    await page.click("button[type=submit]");
+    await page.waitForURL(/\/ask-a-question\/sent\.html\?/);
+
+    const answered = new URL(page.url());
+    expect([answered.origin, answered.pathname]).toEqual([
+      server.origin,
+      "/ask-a-question/sent.html",
+    ]);
+    expect(await page.title()).toBe("Nothing was sent | voicecap demo");
+    await close(page);
   });
 });
 

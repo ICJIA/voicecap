@@ -366,13 +366,13 @@ describe("the site's page", () => {
 
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.page, { width: 1100, height: 500 });
-    // The skip link, the bar's three links and its button, each file's link, each report's page by
-    // date, and the footer's link.
+    // The skip link, the bar's three links and its button, the link to the demo's pages, each file's
+    // link, each report's page by date, and the footer's link.
     const stops = await page.evaluate(
       (selector) => document.querySelectorAll(selector).length,
       STOPS,
     );
-    expect(stops).toBe(1 + 3 + 1 + filesOf(CONTENT).length + reportsOf(CONTENT).length + 1);
+    expect(stops).toBe(1 + 3 + 1 + 1 + filesOf(CONTENT).length + reportsOf(CONTENT).length + 1);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(1500);
 
     expect(await stopsUnderTheBar(page)).toEqual([]);

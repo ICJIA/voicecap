@@ -85,10 +85,30 @@ export function contentSecurityPolicy(hashes: { styles: string[]; scripts: strin
 
 /** The headers Netlify adds to its response for one path. */
 export interface HeaderRule {
-  /** The exact path, from the site's top: "/index.html". */
+  /**
+   * The exact path, from the site's top: "/index.html". Netlify reads a path that ends with "/*" as
+   * that folder's own address and every path under it.
+   */
   path: string;
   headers: [name: string, value: string][];
 }
+
+/**
+ * The rule for the demo's own pages, which the build publishes in demo-site/ (see ./build.ts): one
+ * rule for every path under it. Unlike a report's, its policy holds no hash: the pages have a style
+ * sheet beside them and a form that goes to a page of their own, and no script, no style block, and
+ * no style attribute (test/demo-site.test.ts keeps it so). It allows images from the pages' own
+ * address and as data: URIs, though they have none.
+ */
+export const DEMO_SITE_RULE: HeaderRule = {
+  path: "/demo-site/*",
+  headers: [
+    [
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    ],
+  ],
+};
 
 /**
  * _headers as Netlify reads it: HEADERS_FIRST_LINE, then each rule as a blank line, its path on a

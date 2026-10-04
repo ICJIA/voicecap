@@ -11,6 +11,7 @@ import vm from "node:vm";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
@@ -41,6 +42,8 @@ import {
 } from "./helpers/site-content.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
+/** Where the build publishes the demo's own pages, from the site's top: a relative link goes there. */
+const DEMO_PAGES_HREF = "demo-site/";
 
 const NO_FONTS = { fontCss: "" };
 
@@ -215,11 +218,11 @@ describe("renderSiteIndex", () => {
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("links only to its files, its own anchors, and voicecap's GitHub page", () => {
+  it("links only to its files, its own anchors, the demo's pages, and voicecap's GitHub page", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
-    const allowed = [...anchors, GITHUB, ...files.map(({ href }) => href)];
+    const allowed = [...anchors, DEMO_PAGES_HREF, GITHUB, ...files.map(({ href }) => href)];
 
     expect(links.filter(({ href }) => !allowed.includes(href))).toEqual([]);
     // Each anchor lands on something in the page, and each published file is offered.
@@ -644,6 +647,24 @@ describe("renderSiteIndex", () => {
     expect(textOf(item?.[1] ?? "")).toContain("its page isn't here");
   });
 
+  it("links the demo view to the demo's own pages, with a relative link named by their address", () => {
+    const demo = sectionOf(html, "demo");
+    const [lead] = [...demo.matchAll(/<p>([\s\S]*?)<\/p>/g)];
+
+    // The build publishes them in demo-site/, beside this page: a link from the page's own address.
+    expect(lead?.[1]).toBe(
+      `voicecap&#39;s report on its own small demo site, as an example of what it makes. The site&#39;s pages are at <a href="${DEMO_PAGES_HREF}">voicecap.netlify.app/demo-site/</a>.`,
+    );
+    expect(linksOf(demo).filter(({ href }) => href === DEMO_PAGES_HREF)).toEqual([
+      { href: DEMO_PAGES_HREF, download: false },
+    ]);
+    // Only the demo view has it, and the link's words are its address: the demo's canonical one.
+    expect(linksOf(html).filter(({ href }) => href === DEMO_PAGES_HREF)).toHaveLength(1);
+    expect(textsOf(demo, "a")[0]).toBe("voicecap.netlify.app/demo-site/");
+    expect(`https://${textsOf(demo, "a")[0]}`).toBe(DEMO_CANONICAL);
+    expect(demo).not.toMatch(/\shref="(?:[a-z][a-z0-9+.-]*:|\/)/i);
+  });
+
   it("has no demo view, and no link to one, without a demo", () => {
     const page = renderSiteIndex({ ...CONTENT, demo: null }, NO_FONTS);
     const barOf = (markup: string) => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
@@ -652,6 +673,7 @@ describe("renderSiteIndex", () => {
     expect(page).not.toContain('href="#demo"');
     expect(page).not.toContain("The demo");
     expect(page).not.toContain("report-demo");
+    expect(page).not.toContain("demo-site");
     // The bar's links go to the views that are there.
     expect(textsOf(barOf(page), "a")).toEqual(["The sites", "Every report, by date"]);
     expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
@@ -739,7 +761,7 @@ describe("renderSiteIndex", () => {
     expect(sentences).toEqual(
       expect.arrayContaining([
         "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
-        "voicecap's report on its own small demo site, as an example of what it makes.",
+        "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.netlify.app/demo-site/.",
         "Each site's reports, the newest first.",
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",

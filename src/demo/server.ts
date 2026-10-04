@@ -1,14 +1,13 @@
 /**
  * The demo site's server, for voicecap demo: serves demo/site/, which ships in the package, on
  * 127.0.0.1, at port 4848 when it's free and any free port otherwise. It writes /sitemap.xml and
- * /robots.txt from the address it's serving, answers the question form's POST with a "Nothing was
- * sent" page, and gives a 404 page for anything else. Nothing is fetched from anywhere, and
- * nothing a visitor sends is kept.
+ * /robots.txt from the address it's serving, and gives a 404 page for anything else. The question
+ * form is a GET to ask-a-question/sent.html, a file like any other, since the website serves these
+ * pages too (see DEMO_CANONICAL) and a static host can't answer a post: so the server answers no
+ * POST. Nothing is fetched from anywhere, and nothing a visitor sends is kept.
  */
-import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -27,7 +26,17 @@ export const DEMO_SITEMAP = "sitemap.xml";
 // This file is src/demo/server.ts (tests) or dist/demo/server.js (published): either way, the
 // package root is two levels up, and demo/site/ is in it.
 export const DEMO_SITE_DIR = fileURLToPath(new URL("../../demo/site/", import.meta.url));
-/** The demo site's pages, in the tour's order: what /sitemap.xml lists. */
+/**
+ * The demo's canonical address: where `voicecap site` publishes the demo's pages, inside the
+ * website. Each page's `<link rel="canonical">` names its own address under it, so a run on the copy
+ * at this computer learns the site's real name.
+ */
+export const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+/**
+ * The demo site's pages, in the tour's order: what /sitemap.xml lists. ask-a-question/sent.html,
+ * which the question form goes to, is a page of the site too, but it's reached by the form, not the
+ * tour, so it isn't listed.
+ */
 export const DEMO_PAGES = [
   "/",
   "/before-you-start/",
@@ -37,10 +46,6 @@ export const DEMO_PAGES = [
   "/ask-a-question/",
   "/common-mistakes/",
 ] as const;
-/** Where the question form posts. */
-const FORM_PATH = "/ask-a-question/";
-/** The page that answers the form: in the site folder, but not in the sitemap. */
-const SENT_PAGE = path.join("ask-a-question", "sent.html");
 /** Errors that mean the port can't be had: in use, or in a range Windows reserves (Hyper-V, WSL). */
 const PORT_UNAVAILABLE = new Set(["EADDRINUSE", "EACCES"]);
 
@@ -108,9 +113,13 @@ function listen(server: Server, port: number): Promise<number> {
   });
 }
 
-/** The sitemap: a <urlset> of the demo's pages, with the origin being served. */
-export function sitemapXml(origin: string): string {
-  const urls = DEMO_PAGES.map((page) => `  <url><loc>${origin}${page}</loc></url>`);
+/**
+ * The sitemap: a <urlset> of the demo's pages, each at `base`, the address they're served at with
+ * no slash on the end: the origin being served, or, for the website's copy, its origin and the
+ * path the pages are under (`https://voicecap.netlify.app/demo-site`).
+ */
+export function sitemapXml(base: string): string {
+  const urls = DEMO_PAGES.map((page) => `  <url><loc>${base}${page}</loc></url>`);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
@@ -134,12 +143,6 @@ async function handle(
   const where = requestPath(request);
   if (where === null) {
     send(response, 400, CONTENT_TYPES[".txt"]!, "Bad request");
-    return;
-  }
-  if (request.method === "POST" && where.decoded === FORM_PATH) {
-    // Nothing is kept: the form's fields are read and dropped, and the answer says so.
-    request.resume();
-    send(response, 200, CONTENT_TYPES[".html"]!, await readFile(path.join(siteDir, SENT_PAGE)));
     return;
   }
   if (request.method !== "GET" && request.method !== "HEAD") {
