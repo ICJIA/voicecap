@@ -1499,11 +1499,16 @@ describe("the lines of the evidence, the story, and the footer", () => {
     const elsewhere = { ...local, header: { ...local.header, readFrom: "elsewhere" as const } };
 
     expect(local.header.readFrom).toBe("local");
-    expect(readCopyNote(local)).toBe("These runs read a copy of the site on this computer.");
+    expect(readCopyNote(local)).toBe(
+      "These runs read a copy of the site on the computer that ran them.",
+    );
     expect(readCopyNote(elsewhere)).toBe("These runs read a copy of the site at another address.");
-    // Neither names an address of any kind.
     for (const note of [readCopyNote(local), readCopyNote(elsewhere)]) {
+      // Neither names an address of any kind.
       expect(note).not.toMatch(/\d|:|\/|localhost/i);
+      // Nor says "this computer": in a page and a Word copy that are sent to other people, that
+      // reads as the reader's own computer.
+      expect(note).not.toMatch(/this computer/i);
     }
   });
 

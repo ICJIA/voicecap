@@ -259,7 +259,8 @@ describe("renderEvidence", () => {
       const model = await demoModel(DEMO_ROOT);
       const html = renderEvidence(model);
       const at = (text: string) => html.indexOf(text);
-      const note = '<p class="gist">These runs read a copy of the site on this computer.</p>';
+      const note =
+        '<p class="gist">These runs read a copy of the site on the computer that ran them.</p>';
 
       expect(model.header.readFrom).toBe("local");
       expect(html).toContain(note);
@@ -267,7 +268,9 @@ describe("renderEvidence", () => {
       expect(at('<p class="gist"><b>2 runs')).toBeGreaterThan(-1);
       expect(at(note)).toBeGreaterThan(at('<p class="gist"><b>2 runs'));
       expect(at(note)).toBeLessThan(at('<div class="fp-check">'));
-      expect(textOf(note)).toBe("These runs read a copy of the site on this computer.");
+      expect(textOf(note)).toBe(
+        "These runs read a copy of the site on the computer that ran them.",
+      );
 
       // A copy anywhere else is said so too, with no more of an address.
       const elsewhere = renderEvidence({
@@ -277,7 +280,7 @@ describe("renderEvidence", () => {
       expect(elsewhere).toContain(
         '<p class="gist">These runs read a copy of the site at another address.</p>',
       );
-      expect(elsewhere).not.toContain("These runs read a copy of the site on this computer.");
+      expect(elsewhere).not.toContain("on the computer that ran them");
     });
 
     it("says nothing of a copy when the runs read the site itself, or no canonical address names it", async () => {

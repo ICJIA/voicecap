@@ -691,10 +691,10 @@ export function evidenceGist(model: ShareModel): Line {
 
 /**
  * That the runs read a copy of the site, when they did: said under the evidence's opening line, on
- * this computer or at another address, and never which address (a copy's means nothing to a
- * reader). None when they read the site itself, when the site has no canonical address to compare
- * with (it is named by the address voicecap read, so there is no copy to speak of), and when no run
- * is shown, since there are then no "these runs".
+ * the computer that ran them or at another address, and never which address (a copy's means nothing
+ * to a reader). None when they read the site itself, when the site has no canonical address to
+ * compare with (it is named by the address voicecap read, so there is no copy to speak of), and when
+ * no run is shown, since there are then no "these runs".
  */
 export function readCopyNote({ header, evidence }: ShareModel): string | null {
   const { readFrom } = header;

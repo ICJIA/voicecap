@@ -372,10 +372,12 @@ export const EVIDENCE_TEXT = {
   /**
    * Said under the section's opening line when the runs read a copy of the site rather than the
    * site itself, by where the copy was (`ShareModel.header.readFrom`): on the computer that ran
-   * them, or at another address. It names no address, since a copy's means nothing to a reader.
+   * them, or at another address. It names no address, since a copy's means nothing to a reader. It
+   * never says "this computer": the page and its Word copy are sent to other people, to whom that
+   * reads as their own.
    */
   readCopy: {
-    local: "These runs read a copy of the site on this computer.",
+    local: "These runs read a copy of the site on the computer that ran them.",
     elsewhere: "These runs read a copy of the site at another address.",
   },
   /** What a fingerprint is: its question, which a copy sets in bold, and the answer. */

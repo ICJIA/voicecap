@@ -313,7 +313,7 @@ describe("wordEvidence", () => {
       expect(blocks.slice(0, 4)).toEqual([
         heading(1, "The evidence behind these results"),
         para(...evidenceGist(model)),
-        para("These runs read a copy of the site on this computer."),
+        para("These runs read a copy of the site on the computer that ran them."),
         para(...firstSentenceBold(EVIDENCE_TEXT.fingerprint)),
       ]);
       // A copy anywhere else is said so too, with no more of an address.
