@@ -1,9 +1,10 @@
 /**
  * The website's page as a reader gets it: written to a file by renderSiteIndex, with the fonts
  * embedded, and opened from there in headless Chromium. It's checked for accessibility (axe, in both
- * themes, and at a phone's width), for fitting a window 320 pixels wide, for what the bar does at a
- * wide window (it stays in view, and never hides what has focus or what a link points to), for the
- * theme button, and for being complete without JavaScript.
+ * themes, and at a phone's width; and the landmarks in Chromium's own accessibility tree), for
+ * fitting a window 320 pixels wide, for what the bar does (it stays in view where it fits, at the
+ * reader's text size, and never hides what has focus or what a link points to), for the theme
+ * button, and for being complete without JavaScript.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,9 +15,9 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { fontFaceCss } from "../src/share/fonts.js";
-import { renderSiteIndex, type SiteContent } from "../src/site/render.js";
+import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
-import { CONTENT, filesOf, published, reportsOf } from "./helpers/site-content.js";
+import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
 
 /** The page's background in each theme. */
 const DARK = "rgb(11, 16, 21)";
@@ -56,10 +57,30 @@ function longContent(): SiteContent {
   };
 }
 
+/** A demo and 14 sites of one report each: more sites than anyone wants to meet as landmarks. */
+function manyContent(): SiteContent {
+  const day = (index: number): string => String(index + 1).padStart(2, "0");
+  return {
+    demo: DEMO_REPORT,
+    sites: Array.from({ length: 14 }, (_, index) => {
+      const folder = `site-${day(index)}.example.illinois.gov`;
+      const report: PublishedReport = {
+        folder,
+        id: `report-${folder}-1`,
+        at: `2026-10-${day(index)}T10:00:00-05:00`,
+        by: "Pat Lee",
+        files: [published("page", folder, `${folder}_2026-10-${day(index)}.html`, 100)],
+        notPublished: [],
+      };
+      return { folder, reports: [report] };
+    }),
+  };
+}
+
 let browser: Browser;
 let folder: string;
-/** The page files: the tests' content, and a site with names as long as they can be. */
-let files: { page: string; long: string };
+/** The page files: the tests' content, a site with names as long as they can be, and many sites. */
+let files: { page: string; long: string; many: string };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
 const reported: string[] = [];
@@ -76,6 +97,7 @@ beforeAll(async () => {
   files = {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
+    many: await write("many.html", manyContent()),
   };
 });
 
@@ -91,6 +113,8 @@ afterAll(async () => {
 });
 
 interface OpenOptions {
+  /** The browser to open it in. Default: the one of these tests, with its own text size. */
+  browser?: Browser;
   width?: number;
   height?: number;
   /** Whether the page's script runs. Default: it does. */
@@ -101,7 +125,7 @@ interface OpenOptions {
 
 /** A page, open from its file, with every font it declares loaded, so its layout is the final one. */
 async function open(file: string, options: OpenOptions = {}): Promise<Page> {
-  const context = await browser.newContext({
+  const context = await (options.browser ?? browser).newContext({
     javaScriptEnabled: options.scripts ?? true,
     viewport: { width: options.width ?? 1280, height: options.height ?? 800 },
   });
@@ -127,6 +151,124 @@ const background = (page: Page): Promise<string> =>
 /** The stored choice of theme, which the reports keep under the same name. */
 const stored = (page: Page): Promise<string | null> =>
   page.evaluate(() => window.localStorage.getItem("voicecap-theme"));
+
+/** What the Tab key reaches: the page's links, and its button once the script has shown it. */
+const STOPS = "a[href], button:not([hidden])";
+
+/**
+ * Tabs through every stop of the page, and says which of them ends up under the bar, one line each.
+ * Each stop is tried twice. Before the Tab, the page is scrolled so that the stop is 10 pixels from
+ * the top of the window, which is under the bar: a browser that doesn't know about the bar takes it
+ * for a stop in view, and leaves it there. And so that it is 1 pixel inside the edge that
+ * `scroll-padding-top` keeps clear: a stop that is already in view stays where it is, so a bar
+ * taller than its padding covers it. What is at the middle of a stop, and at its top edge, is the
+ * stop or is inside it. A bar that doesn't stick has no such edge, so each stop is tried once.
+ */
+async function stopsUnderTheBar(page: Page): Promise<string[]> {
+  const count = await page.evaluate(
+    (selector) => document.querySelectorAll(selector).length,
+    STOPS,
+  );
+  const padding = await page.evaluate(() =>
+    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+  );
+  const found: string[] = [];
+  for (const offset of Number.isFinite(padding) ? [10, padding + 1] : [10]) {
+    for (let stop = 0; stop < count; stop++) {
+      await page.evaluate(
+        ({ selector, at, offset }) => {
+          const stops = document.querySelectorAll<HTMLElement>(selector);
+          // The stop before has focus, without the page moving, so the Tab goes on from it. For the
+          // first stop, the body has it: where a Tab starts from the top of the page, even after a
+          // tour that ended at the last stop.
+          const before = stops[at - 1];
+          if (before !== undefined) {
+            before.focus({ preventScroll: true });
+          } else {
+            document.body.tabIndex = -1;
+            document.body.focus({ preventScroll: true });
+            document.body.removeAttribute("tabindex");
+          }
+          const next = stops[at];
+          // A stop in the bar is in view wherever the page is scrolled.
+          if (next === undefined || next.closest(".bar") !== null) return;
+          window.scrollTo(
+            0,
+            Math.max(0, next.getBoundingClientRect().top + window.scrollY - offset),
+          );
+        },
+        { selector: STOPS, at: stop, offset },
+      );
+      await page.keyboard.press("Tab");
+
+      const problem = await page.evaluate(
+        ({ selector, at }) => {
+          const focused = document.activeElement;
+          const expected = document.querySelectorAll(selector)[at];
+          const name = (element: Element | null): string =>
+            element === null
+              ? "nothing"
+              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
+          if (focused === null || focused !== expected) {
+            return `${name(focused)} has focus, not ${name(expected ?? null)}`;
+          }
+          const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
+          const middle = box.left + box.width / 2;
+          for (const [where, top] of [
+            ["middle", box.top + box.height / 2],
+            ["top edge", box.top + 1],
+          ] as const) {
+            const hit = document.elementFromPoint(middle, top);
+            if (hit === null || (hit !== focused && !focused.contains(hit))) {
+              return `its ${where} is under ${name(hit)}`;
+            }
+          }
+          return null;
+        },
+        { selector: STOPS, at: stop },
+      );
+      if (problem !== null) {
+        found.push(`stop ${stop + 1} of ${count}, ${offset} px from the top: ${problem}`);
+      }
+    }
+  }
+  return found;
+}
+
+/** The roles that make a landmark. */
+const LANDMARK_ROLES = new Set([
+  "banner",
+  "complementary",
+  "contentinfo",
+  "form",
+  "main",
+  "navigation",
+  "region",
+  "search",
+]);
+
+type Landmark = [role: string, name: string];
+
+const byRoleThenName = ([roleA, nameA]: Landmark, [roleB, nameB]: Landmark): number =>
+  roleA.localeCompare(roleB) || nameA.localeCompare(nameB);
+
+/** The page's landmarks as Chromium's own accessibility tree has them, by role and then by name. */
+async function landmarksOf(page: Page): Promise<Landmark[]> {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = await client.send("Accessibility.getFullAXTree");
+    return nodes
+      .flatMap((node): Landmark[] => {
+        const role: unknown = node.role?.value;
+        const name: unknown = node.name?.value;
+        if (node.ignored || typeof role !== "string" || !LANDMARK_ROLES.has(role)) return [];
+        return [[role, typeof name === "string" ? name : ""]];
+      })
+      .sort(byRoleThenName);
+  } finally {
+    await client.detach();
+  }
+}
 
 describe("the site's page", () => {
   /** Axe over a page as tall as its content takes a while, more on a slow computer. */
@@ -202,51 +344,16 @@ describe("the site's page", () => {
 
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.page, { width: 1100, height: 500 });
-    const focusable = "a[href], button:not([hidden])";
     // The skip link, the bar's three links and its button, each file's link, each report's page by
     // date, and the footer's link.
     const stops = await page.evaluate(
       (selector) => document.querySelectorAll(selector).length,
-      focusable,
+      STOPS,
     );
     expect(stops).toBe(1 + 3 + 1 + filesOf(CONTENT).length + reportsOf(CONTENT).length + 1);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(1500);
 
-    for (let stop = 0; stop < stops; stop++) {
-      // Before each Tab, the page is scrolled so the next stop is 10 pixels below the top of the
-      // window, which is under the bar. A browser that doesn't know about the bar takes that stop
-      // for one in view, and leaves it there.
-      await page.evaluate(
-        ({ selector, index }) => {
-          const next = document.querySelectorAll(selector)[index];
-          const top = (next?.getBoundingClientRect().top ?? 0) + window.scrollY;
-          window.scrollTo(0, Math.max(0, top - 10));
-        },
-        { selector: focusable, index: stop },
-      );
-      await page.keyboard.press("Tab");
-
-      const result = await page.evaluate(
-        ({ selector, index }) => {
-          const focused = document.activeElement;
-          const expected = document.querySelectorAll(selector)[index];
-          const name = (element: Element | null): string =>
-            element === null
-              ? "nothing"
-              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
-          if (focused === null || focused !== expected) {
-            return `${name(focused)} has focus, not ${name(expected ?? null)}`;
-          }
-          // What is at the middle of the focused element's first line is it, or inside it.
-          const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
-          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-          if (hit !== null && (hit === focused || focused.contains(hit))) return null;
-          return `${name(focused)} is under ${name(hit)}`;
-        },
-        { selector: focusable, index: stop },
-      );
-      expect(result, `stop ${stop + 1} of ${stops}`).toBeNull();
-    }
+    expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
   it("puts what a link in the bar points to below the bar, 1100 pixels wide", async () => {
@@ -272,6 +379,7 @@ describe("the site's page", () => {
   });
 
   it("keeps the bar in view from 640 pixels wide, and scrolls it away on a narrower window", async () => {
+    // At the browser's own text size, 16 pixels, 40em is 640 pixels.
     const page = await open(files.page, { width: 1100, height: 600 });
 
     for (const [width, sticks] of [
@@ -375,4 +483,78 @@ describe("the site's page", () => {
     expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
     expect(await background(page)).toBe(DARK);
   });
+
+  it("has the page's landmarks and a region for each of its three views, and none for a site, however many sites", async () => {
+    // As Chromium's own accessibility tree has them. A site's section has no name, so it isn't a
+    // region: with many sites that would be a long list of landmarks, and each site's heading, an
+    // h3, already leads to it.
+    const landmarks: Landmark[] = [
+      ["banner", ""],
+      ["navigation", "Views"],
+      ["main", ""],
+      ["region", "The demo"],
+      ["region", "The sites"],
+      ["region", "Every report, by date"],
+      ["contentinfo", ""],
+    ];
+
+    for (const which of ["page", "many"] as const) {
+      const page = await open(files[which]);
+      expect(await landmarksOf(page), which).toEqual([...landmarks].sort(byRoleThenName));
+    }
+    // The second page does have the sites, each with its heading.
+    const many = await open(files.many);
+    expect(await many.locator("section.site").count()).toBe(14);
+    expect(await many.locator("section.site > h3").count()).toBe(14);
+  });
+});
+
+describe("the bar at a larger default text size", () => {
+  /**
+   * Sizes a reader can set the browser's text to, in pixels: its own is 16. A browser starts a page
+   * at that size, and an em in a media query is that size too, so each of these is a browser of its
+   * own, started with the size set.
+   */
+  const SIZES = [24, 32, 40];
+  const sized = new Map<number, Browser>();
+
+  beforeAll(async () => {
+    for (const size of SIZES) {
+      sized.set(size, await launchBrowser([`--blink-settings=defaultFontSize=${size}`]));
+    }
+  });
+
+  afterAll(async () => {
+    await Promise.all([...sized.values()].map((each) => each.close()));
+  });
+
+  it.each(SIZES)(
+    "sticks only where it fits on one line, and hides nothing that has focus, at %i pixels",
+    async (size) => {
+      const own = sized.get(size);
+      if (own === undefined) throw new Error(`No browser was started for a text size of ${size}.`);
+      // The bar sticks from 40em wide: 640 pixels at 16, and wider as the text gets larger.
+      const sticksFrom = 40 * size;
+
+      for (const width of [640, sticksFrom - 1, sticksFrom]) {
+        const page = await open(files.page, { browser: own, width, height: 500 });
+        const bar = await page.evaluate(() => {
+          const header = document.querySelector(".bar");
+          return {
+            text: getComputedStyle(document.documentElement).fontSize,
+            position: header === null ? "" : getComputedStyle(header).position,
+            height: header?.getBoundingClientRect().height ?? NaN,
+            padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+          };
+        });
+        const where = `${width} px wide, text at ${size} px`;
+
+        expect(bar.text, where).toBe(`${size}px`);
+        expect(bar.position, where).toBe(width >= sticksFrom ? "sticky" : "static");
+        // Where it sticks it's one line, shorter than the space kept clear for it.
+        if (width >= sticksFrom) expect(bar.height, where).toBeLessThan(bar.padding);
+        expect(await stopsUnderTheBar(page), where).toEqual([]);
+      }
+    },
+  );
 });

@@ -7,9 +7,12 @@
  *
  * It is the page's only styling: the page sets no `style` attribute, since a Content Security
  * Policy that hashes this block allows nothing else. Beyond those rules:
- * - the bar is `position: sticky` from 640 pixels wide, and below that it scrolls with the page, so
- *   it never covers half a phone's screen. From 640 pixels, `scroll-padding-top` keeps whatever has
- *   focus, or a link points to, below it;
+ * - the bar is `position: sticky` from 40em wide, which is 640 pixels at the browser's own text size
+ *   of 16. An em in a media query is that size, so for a reader who has made it larger the bar
+ *   sticks only from a wider window, where it still fits on one line. Narrower, it scrolls with the
+ *   page, so it never covers half a phone's screen, or grows taller than the room kept clear for
+ *   it. Where it sticks, `scroll-padding-top` keeps whatever has focus, or a link points to, below
+ *   it;
  * - a name or a fingerprint is one word, longer than any box, so the text it can be in breaks it
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
  * - the files of a report are a grid whose columns are no wider than their own box
@@ -39,8 +42,8 @@ main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflo
 .bar nav { display: flex; flex-wrap: wrap; gap: 0 22px; }
 .bar nav a { display: inline-block; padding: 0.25rem 0.125rem; font-weight: 500; }
 .theme { border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: 500 0.82rem var(--body); cursor: pointer; }
-/* In view while the page scrolls, from 640 pixels wide. What has focus, or what a link points to, is kept below it. */
-@media (min-width: 640px) {
+/* In view while the page scrolls, from 40em wide: 640 pixels at the default text size, and wider as the reader's text gets larger, so it is one line where it sticks. What has focus, or what a link points to, is kept below it. */
+@media (min-width: 40em) {
   .bar { position: sticky; top: 0; z-index: 3; }
   html { scroll-padding-top: 5rem; }
 }

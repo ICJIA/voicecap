@@ -260,18 +260,28 @@ describe("renderSiteIndex", () => {
     });
   });
 
-  it("names each view's section, and each site's, by its own heading", () => {
-    for (const id of ["demo", "sites", "by-date", `site-${DVFR}`, `site-${EXAMPLE}`]) {
+  it("names each view's section by its heading, and gives a site's section no name, so a site is no landmark", () => {
+    for (const id of ["demo", "sites", "by-date"]) {
       const labelled = /\saria-labelledby="([^"]*)"/.exec(openingOf(html, id)[0])?.[1];
       expect(labelled, id).toEqual(expect.any(String));
-      // The first heading in the section: an h2 for a view and an h3 for a site.
+      // The first heading in the section is an h2, and it's the one that names it.
       const heading = /<h([1-6]) id="([^"]*)"/.exec(sectionOf(html, id));
-      expect(heading?.[1], id).toBe(id.startsWith("site-") ? "3" : "2");
+      expect(heading?.[1], id).toBe("2");
       expect(heading?.[2], id).toBe(labelled);
     }
+    // A named section is a region of its own, and with many sites that is a long list of landmarks.
+    // A site's heading, an h3, already leads to it.
+    for (const folder of [DVFR, EXAMPLE]) {
+      const id = `site-${folder}`;
+      expect(openingOf(html, id)[0], id).not.toMatch(/\saria-label(?:ledby)?=/);
+      expect(/<h([1-6])\b/.exec(sectionOf(html, id))?.[1], id).toBe("3");
+    }
+    // The three views are named by their headings, and the bar's navigation by its label: no more.
+    expect(html.match(/\saria-labelledby=/g)).toHaveLength(3);
+    expect(html.match(/\saria-label=/g)).toHaveLength(1);
   });
 
-  it("gives every id once, even for a site named like another site's heading", () => {
+  it("gives every id once, whatever the sites are named", () => {
     const page = renderSiteIndex(
       {
         ...sitesAt(
@@ -290,7 +300,7 @@ describe("renderSiteIndex", () => {
     expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
     // Each id a label names is in the page.
     const named = [...page.matchAll(/\saria-labelledby="([^"]*)"/g)].map(([, id = ""]) => id);
-    expect(named).toHaveLength(3 + 4);
+    expect(named).toHaveLength(3);
     for (const id of named) expect(ids, id).toContain(id);
   });
 
@@ -716,15 +726,22 @@ describe("SITE_CSS", () => {
     expect(SITE_CSS).toMatch(/\n$/);
   });
 
-  it("keeps the bar in view from 640 pixels wide, and wraps what is long", () => {
-    expect(SITE_CSS).toMatch(/@media \(min-width: 640px\) \{[^}]*\.bar \{[^}]*position: sticky;/);
+  it("keeps the bar in view from 40em wide, which is 640 pixels at 16, and wraps what is long", () => {
+    expect(SITE_CSS).toMatch(/@media \(min-width: 40em\) \{[^}]*\.bar \{[^}]*position: sticky;/);
     expect(SITE_CSS).toMatch(/scroll-padding-top: [\d.]+rem/);
     expect(SITE_CSS).toContain("overflow-wrap: anywhere");
-    // Only from 640 pixels wide: the bar has no position of its own before it.
+    // Only from 40em wide: the bar has no position of its own before it.
     expect(SITE_CSS.match(/position: sticky/g)).toHaveLength(1);
     expect(SITE_CSS.indexOf("position: sticky")).toBeGreaterThan(
-      SITE_CSS.indexOf("@media (min-width: 640px)"),
+      SITE_CSS.indexOf("@media (min-width: 40em)"),
     );
+    // An em in a media query is the reader's own text size, so the bar sticks only where it fits on
+    // one line at that size. A width in pixels would stick it where a larger size makes it wrap, and
+    // grow taller than the space kept clear for it.
+    const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
+      query.trim(),
+    );
+    expect(queries).toEqual(["print", "(min-width: 40em)"]);
   });
 });
 

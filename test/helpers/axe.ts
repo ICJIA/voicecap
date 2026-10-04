@@ -9,13 +9,16 @@ import { errorMessage } from "../../src/util/errors.js";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
-/** Playwright's Chromium, or else the installed Chrome. */
-export async function launchBrowser(): Promise<Browser> {
+/**
+ * Playwright's Chromium, or else the installed Chrome. `args` are command-line switches for the
+ * browser, such as `--blink-settings=defaultFontSize=32`, which sets the text size a page starts from.
+ */
+export async function launchBrowser(args: string[] = []): Promise<Browser> {
   try {
-    return await chromium.launch();
+    return await chromium.launch({ args });
   } catch (bundled) {
     try {
-      return await chromium.launch({ channel: "chrome" });
+      return await chromium.launch({ channel: "chrome", args });
     } catch {
       throw new Error(
         `No browser for the accessibility tests. Run pnpm exec playwright install chromium (${errorMessage(bundled)})`,

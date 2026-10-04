@@ -65,7 +65,7 @@ export function fileKind(name: string): PublishedFile["kind"] {
   return "other";
 }
 
-/** The id of the heading that names a section, from the section's own id. */
+/** The id of the heading that names a view's section, from the section's own id. */
 const headingId = (id: string): string => `heading-${id}`;
 
 /**
@@ -82,17 +82,14 @@ function sentenceHtml(sentence: Sentence): string {
     .join("");
 }
 
-/** A section named by its heading, whose level is `level`; `inside` is HTML, already escaped. */
-function section(
-  className: string,
-  id: string,
-  level: 2 | 3,
-  title: string,
-  inside: string[],
-): string {
+/**
+ * One of the three views: a section named by its heading, an h2, which makes it a region, one of
+ * the page's landmarks. `inside` is HTML, already escaped.
+ */
+function view(id: string, title: string, inside: string[]): string {
   return [
-    `<section class="${esc(className)}" id="${esc(id)}" aria-labelledby="${esc(headingId(id))}">`,
-    `<h${level} id="${esc(headingId(id))}">${esc(title)}</h${level}>`,
+    `<section class="view" id="${esc(id)}" aria-labelledby="${esc(headingId(id))}">`,
+    `<h2 id="${esc(headingId(id))}">${esc(title)}</h2>`,
     ...inside,
     "</section>",
   ].join("\n");
@@ -143,15 +140,22 @@ function report(shared: PublishedReport, level: 3 | 4): string {
 /** The demo's view: its one report, whose heading is one level below the view's. */
 function demoView(demo: PublishedReport): string {
   const { title, lead } = SITE_TEXT.views.demo;
-  return section("view", "demo", 2, title, [`<p>${esc(lead)}</p>`, report(demo, 3)]);
+  return view("demo", title, [`<p>${esc(lead)}</p>`, report(demo, 3)]);
 }
 
-/** One site: its folder, how many reports it has, and its reports as they were given. */
+/**
+ * One site: its folder, how many reports it has, and its reports as they were given. Its section
+ * has no name. A named section is a region, one more landmark, and with many sites that is a long
+ * list of them; the site's heading, an h3, already leads to it.
+ */
 function site({ folder, reports }: SiteContent["sites"][number]): string {
-  return section("site", `site-${folder}`, 3, folder, [
+  return [
+    `<section class="site" id="${esc(`site-${folder}`)}">`,
+    `<h3>${esc(folder)}</h3>`,
     `<p class="count">${esc(SITE_TEXT.reports(reports.length))}</p>`,
     ...reports.map((each) => report(each, 4)),
-  ]);
+    "</section>",
+  ].join("\n");
 }
 
 /** The sites' view: each site, or, with none, that no report has been shared. */
@@ -161,7 +165,7 @@ function sitesView(sites: SiteContent["sites"]): string {
     sites.length === 0
       ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
       : [`<p>${esc(lead)}</p>`, ...sites.map(site)];
-  return section("view", "sites", 2, title, inside);
+  return view("sites", title, inside);
 }
 
 /**
@@ -187,7 +191,7 @@ function byDateView(sites: SiteContent["sites"]): string {
     reports.length === 0
       ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
       : [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"];
-  return section("view", "by-date", 2, title, inside);
+  return view("by-date", title, inside);
 }
 
 /** The bar: a link to each view that's there, and the theme button, hidden until the script shows it. */
