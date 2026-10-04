@@ -1837,6 +1837,8 @@ describe("buildSite", () => {
       },
     );
 
+    // Git honors `_site/*`, but it isn't one of the four lines voicecap counts, so the warning (add
+    // `_site/`) is a false alarm there, on the safe side. The other lines keep the site out to no one.
     it.each(
       ["_site/*", "# _site/", "site/", "/_site/x", "_sites/", "", ...WHITE_SPACE_GIT_KEEPS].map(
         (line) => [line],
@@ -1850,30 +1852,70 @@ describe("buildSite", () => {
       expect(warned(logger)).toEqual([WARNING(home)]);
     });
 
+    it("counts a _site/ first line after a UTF-8 byte order mark, which Git skips", async () => {
+      const home = await newHome();
+      // As Windows PowerShell 5.1's Out-File -Encoding utf8 writes a file: EF BB BF first.
+      await writeFile(path.join(home, ".gitignore"), "\uFEFF_site/\r\n");
+
+      const { logger } = await build(home);
+
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("reads a line with a long run of spaces inside it in one pass", async () => {
+      const home = await newHome();
+      // A pattern such as / +$/ starts again at each of these spaces: about 18 seconds' work.
+      await writeFile(path.join(home, ".gitignore"), `_site/${" ".repeat(300_000)}x\n_site/\n`);
+
+      const started = performance.now();
+      const { logger } = await build(home);
+
+      expect(performance.now() - started).toBeLessThan(5_000);
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("says to add _site/ when the .gitignore can't be read", async () => {
+      const home = await newHome();
+      await rm(path.join(home, ".gitignore"));
+      // A folder: it's there, so it's never written over, and it can't be read as a file.
+      await mkdir(path.join(home, ".gitignore"));
+
+      const { logger } = await build(home);
+
+      expect(warned(logger)).toEqual([WARNING(home)]);
+      expect(logger.text("info")).not.toContain("for Git");
+    });
+
     it.skipIf(!gitAvailable)(
-      "counts only lines with which Git keeps the site out, and none with which it doesn't",
+      "takes Git's word for the lists: Git ignores the site with each line counted, and not with the white-space ones",
       async () => {
-        // Git itself, so the lists above can't drift from what Git does: in a repository of its
-        // own, with no global excludes file. check-ignore's status is 0 for a path it ignores.
+        // Git itself, so the two lists can't drift from what Git does: in a repository of its own,
+        // with no global excludes file. check-ignore's status is 0 for a path it ignores.
         const repo = await newFolder();
         const noExcludes = path.join(repo, "no-excludes");
         await writeFile(noExcludes, "");
         await mkdir(path.join(repo, "_site"));
         await writeFile(path.join(repo, "_site", "index.html"), "");
         expect(git(["init", "-q"], repo)).toBe(0);
-        const verdicts: [string, number | null][] = [];
-        for (const line of [...KEEP_IT_OUT, ...WHITE_SPACE_GIT_KEEPS]) {
-          await writeFile(path.join(repo, ".gitignore"), `.voicecap.lock\r\n${line}\r\n`);
-          const status = git(
+        const checkIgnore = async (gitignore: string): Promise<number | null> => {
+          await writeFile(path.join(repo, ".gitignore"), gitignore);
+          return git(
             ["-c", `core.excludesFile=${noExcludes}`, "check-ignore", "-q", "_site/index.html"],
             repo,
           );
-          verdicts.push([line, status]);
+        };
+
+        const verdicts: [string, number | null][] = [];
+        for (const line of [...KEEP_IT_OUT, ...WHITE_SPACE_GIT_KEEPS]) {
+          verdicts.push([line, await checkIgnore(`.voicecap.lock\r\n${line}\r\n`)]);
         }
+        // A byte order mark counts only at the file's start, so it gets a file of its own.
+        verdicts.push(["\uFEFF_site/", await checkIgnore("\uFEFF_site/\r\n")]);
 
         expect(verdicts).toEqual([
           ...KEEP_IT_OUT.map((line) => [line, 0]),
           ...WHITE_SPACE_GIT_KEEPS.map((line) => [line, 1]),
+          ["\uFEFF_site/", 0],
         ]);
       },
     );

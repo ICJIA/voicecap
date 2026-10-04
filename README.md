@@ -1402,7 +1402,7 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 ### The files it writes, and the headers
 
 <details>
-<summary>What goes in the output folder, what <code>_headers</code> and <code>robots.txt</code> hold, and the two files it writes in the home for Netlify</summary>
+<summary>What goes in the output folder, what <code>_headers</code> and <code>robots.txt</code> hold, and the files it writes in the home, for Git and for Netlify</summary>
 
 **In the output folder,** every build writes:
 
@@ -1416,7 +1416,7 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 
 **In the home,** the first time, and never again. `voicecap site` never writes over any of these files, so they're yours once they're there:
 
-- **`.gitattributes` and `.gitignore`,** only in a home that has none yet, such as a new home no run has written to. They're the two a run writes, so the home's first build keeps `_site/` out of Git, with everything else voicecap keeps out (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)).
+- **`.gitattributes` and `.gitignore`,** each only if the home doesn't have it yet. A run, a review, a share, or a manual session writes them too, so a home has both once any of those has written in it. They're the two a run writes, so the home's first build keeps `_site/` out of Git, with everything else voicecap keeps out (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)).
 - **`netlify.toml`:** the build command, the folder to publish, and the headers every file gets.
   - **The build command,** such as `npx --yes @icjia/voicecap@0.9 site --home . --out _site`. It names the minor version of the voicecap that wrote the file: `@0.9` when voicecap 0.9.x wrote it, which npm reads as the latest 0.9 release. So the next build uses a patch release. It uses a new minor version only when you change the version in the command.
   - **The folder to publish:** `publish = "_site"`.
@@ -1451,7 +1451,7 @@ git push
 
 `--site` names the site to share. A home with only one site doesn't need it, but with more than one, `share` stops and names them (see [Other commands](#other-commands)). Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
 
-**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home, and `.gitattributes` and `.gitignore` if the home has none yet (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
+**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home, and `.gitattributes` or `.gitignore` if the home is missing one (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
 **The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/` and committing that, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
@@ -1466,7 +1466,7 @@ To update the demo, do the three steps again: the site shows the latest share.
 ### The first deploy
 
 <details>
-<summary>Five steps, once: build the site, check <code>.gitignore</code>, commit and push the files Netlify reads, import the repository in Netlify, and check the site</summary>
+<summary>Five steps, once: build the site, check <code>.gitignore</code>, commit and push the files it wrote in the home, import the repository in Netlify, and check the site</summary>
 
 Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
 
@@ -1484,7 +1484,7 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    npx @icjia/voicecap@latest site
    ```
 
-   It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each file it writes in the home, then one for the site (your numbers will differ). A home no run has written to yet gets `.gitattributes` and `.gitignore` too, each with a line that ends `for Git: commit it with the records.`:
+   It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each file it writes in the home, then one for the site (your numbers will differ). If the home is missing `.gitattributes` or `.gitignore` (a home that holds a share has both already), it writes that too, with a line that ends `for Git: commit it with the records.`:
 
    ```
    Wrote netlify.toml into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
@@ -1506,7 +1506,7 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    2. Run `git status`.
    3. Check that it lists the files step 1 said it wrote: `netlify.toml` and `.nvmrc`, and `.gitattributes` and `.gitignore` if it wrote them. It lists `.gitignore` too if you added `_site/` to it. It must not list `_site/`. If it does, go back to step 2.
    4. Run `git add .gitattributes .gitignore netlify.toml .nvmrc`. (Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in its place: it adds the share too.)
-   5. Run `git commit -m "Add the files Netlify reads"`.
+   5. Run `git commit -m "Add the files voicecap site wrote"`.
    6. Run `git push`.
 
 4. **In Netlify, import the repository and name the site.**

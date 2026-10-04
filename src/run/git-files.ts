@@ -42,13 +42,23 @@ desktop.ini
  */
 export async function ensureGitFiles(home: string): Promise<string[]> {
   await mkdir(home, { recursive: true });
-  const files: [name: string, content: string][] = [
+  return writeEachIfMissing(home, [
     [".gitattributes", GITATTRIBUTES],
     [".gitignore", GITIGNORE],
-  ];
+  ]);
+}
+
+/**
+ * Write each of `files` into `folder` where there's no file of its name yet, in order, never over
+ * one that's there (see writeIfMissing). The names written, in the order they were written.
+ */
+export async function writeEachIfMissing(
+  folder: string,
+  files: readonly (readonly [name: string, content: string])[],
+): Promise<string[]> {
   const written: string[] = [];
   for (const [name, content] of files) {
-    if (await writeIfMissing(path.join(home, name), content)) written.push(name);
+    if (await writeIfMissing(path.join(folder, name), content)) written.push(name);
   }
   return written;
 }

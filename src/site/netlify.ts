@@ -4,9 +4,7 @@
  * command and the headers that every file gets, and .nvmrc, with the Node version of the build.
  * They belong to the home's owner after that, and an edit of theirs stays.
  */
-import path from "node:path";
-
-import { writeIfMissing } from "../run/git-files.js";
+import { writeEachIfMissing } from "../run/git-files.js";
 
 /** The Node version Netlify builds with: 24, and the npm that comes with it. */
 export const NVMRC = "24\n";
@@ -51,13 +49,8 @@ export function netlifyToml(version: string): string {
 export async function ensureNetlifyFiles(home: string, version: string): Promise<string[]> {
   // Both texts are made before either file is written, so a version that can't be named leaves
   // nothing half written.
-  const files: [name: string, content: string][] = [
+  return writeEachIfMissing(home, [
     ["netlify.toml", netlifyToml(version)],
     [".nvmrc", NVMRC],
-  ];
-  const written: string[] = [];
-  for (const [name, content] of files) {
-    if (await writeIfMissing(path.join(home, name), content)) written.push(name);
-  }
-  return written;
+  ]);
 }
