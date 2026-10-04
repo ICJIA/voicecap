@@ -31,6 +31,7 @@ import { UsageError } from "./util/errors.js";
 import { assertNotRewritten } from "./util/git-bash.js";
 import { sealOf, sha256 } from "./util/hash.js";
 import type { Logger } from "./util/log.js";
+import { OS_LITTER } from "./util/os-litter.js";
 
 export interface VerifyHomeOptions {
   /** The transcripts home. */
@@ -73,8 +74,6 @@ const NOT_SEALED = "not sealed (written before voicecap 0.3.0), so it can't be c
 const CHANGED = "changed since it was recorded (SHA-256 differs)";
 const MISSING = "missing";
 const UNREADABLE = "not a readable run or manual session";
-/** Files an operating system leaves in a folder someone opened (macOS Finder, Windows Explorer). */
-const OS_LITTER: ReadonlySet<string> = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
 
 /**
  * Check that the records voicecap wrote in the home still match their hashes and seals (the design

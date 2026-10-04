@@ -16,9 +16,11 @@
  * name and by where it really is: a link, a short name, or another letter case leads to the same
  * folder. A build writes files, in its folder and in the folders it makes, and no name that starts
  * with a dot: a folder with such a name (a repository's .git), or with a folder in a folder (a site
- * folder of someone's own), holds more than a build wrote, and is never emptied. Every refusal comes
- * before anything is touched. The records are read before the folder is emptied, so an earlier build
- * is kept when they can't be.
+ * folder of someone's own), holds more than a build wrote, and is never emptied. The files an
+ * operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini) hold nothing
+ * of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes before
+ * anything is touched. The records are read before the folder is emptied, so an earlier build is
+ * kept when they can't be.
  *
  * Besides each report's files, a build writes the site's page (index.html), robots.txt, and
  * _headers, which gives each page its Content Security Policy, made from the hashes of that page's
@@ -49,6 +51,7 @@ import { UsageError } from "../util/errors.js";
 import { resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
+import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
 import {
   contentSecurityPolicy,
@@ -340,20 +343,32 @@ async function entriesOf(folder: string): Promise<Dirent[]> {
 }
 
 /**
+ * Whether a listed thing is one of the files an operating system adds to a folder someone opens: a
+ * file with one of those names. A folder or a link with the name of one is somebody's, not the
+ * system's, and its contents would be lost with it.
+ */
+function isOsLitter(entry: Dirent): boolean {
+  return entry.isFile() && OS_LITTER.has(entry.name);
+}
+
+/**
  * Why a folder that a build made is more than that, in words that finish "won't build into <out>:
  * ...", or null when it holds only what a build writes. A build writes files, in its folder and in
  * each folder it makes, and no name that starts with a dot. A name with a dot first (a repository's
  * .git), or a folder in a folder (a site folder of someone's own, with its date folder and its
  * record), is somebody's, and emptying the folder would lose it. A link isn't looked into: when the
- * folder is emptied it's removed, and what it leads to isn't.
+ * folder is emptied it's removed, and what it leads to isn't. The files an operating system adds
+ * (see isOsLitter) are no one's, at the folder's top and one folder down, and aren't counted.
  */
 async function moreThanABuild(folder: string): Promise<string | null> {
   for (const entry of await entriesOf(folder)) {
+    if (isOsLitter(entry)) continue;
     if (entry.name.startsWith(".")) {
       return `it holds ${printable(entry.name)}, which a build never writes`;
     }
     if (!entry.isDirectory()) continue;
     for (const inner of await entriesOf(path.join(folder, entry.name))) {
+      if (isOsLitter(inner)) continue;
       const where = printable(`${entry.name}/${inner.name}`);
       if (inner.name.startsWith(".")) return `it holds ${where}, which a build never writes`;
       if (inner.isDirectory()) {

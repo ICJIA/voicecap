@@ -51,6 +51,7 @@ import { SITE_CSS } from "../src/site/style.js";
 import { UsageError } from "../src/util/errors.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type MemoryLogger } from "../src/util/log.js";
+import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
 import { voicecapVersion } from "../src/util/version.js";
 import {
@@ -1331,6 +1332,126 @@ describe("buildSite", () => {
       expect(await treeOf(precious)).toEqual(before);
       expect(await readFile(path.join(precious, "inner", "also-mine.txt"), "utf8")).toBe(
         "my other file",
+      );
+    });
+
+    it("names the files macOS and Windows add to a folder someone opens, which verify and the build share", () => {
+      expect([...OS_LITTER].sort()).toEqual([".DS_Store", "Thumbs.db", "desktop.ini"]);
+    });
+
+    // Opening _site in Finder or Explorer adds one of these to it, and to the folders in it. They hold
+    // nothing anyone made, so the next build empties them with the rest, and doesn't refuse the folder.
+    it.each([...OS_LITTER])(
+      "empties and rebuilds a built folder that holds %s, at its top and inside a site's folder",
+      async (name) => {
+        const home = await newHome();
+        const first = await build(home);
+        const files = await filesUnder(first.out);
+        const atTheTop = path.join(first.out, name);
+        const inASite = path.join(first.out, FIXTURE_FOLDER, name);
+        await writeFile(atTheTop, "how the system shows the folder");
+        await writeFile(inASite, "how the system shows a folder of the site's");
+        vi.mocked(rm).mockClear();
+
+        const second = await build(home);
+
+        expect(second.out).toBe(first.out);
+        expect(existsSync(atTheTop)).toBe(false);
+        expect(existsSync(inASite)).toBe(false);
+        // Rebuilt whole: exactly what the first build made.
+        expect(await filesUnder(second.out)).toEqual(files);
+        expect(vi.mocked(rm)).toHaveBeenCalledWith(second.out, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+        });
+      },
+    );
+
+    it("still refuses a built folder that holds .git, beside the files an operating system adds", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      const out = await builtWith(path.join(root, "built-with-git-and-litter"), {
+        ".DS_Store": "how the system shows the folder",
+        "dvfr.illinois.gov/page.html": "a page",
+        "dvfr.illinois.gov/Thumbs.db": "how the system shows a folder of the site's",
+        ".git/HEAD": "ref: refs/heads/main\n",
+      });
+      const before = await treeOf(root);
+      vi.mocked(rm).mockClear();
+
+      const message = await refusalOf(build(home, { out }));
+
+      // The litter isn't what it refuses for, and doesn't hide what it does.
+      expect(message).toBe(
+        `voicecap site won't build into ${out}: it holds .git, which a build never writes. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+      );
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(root)).toEqual(before);
+    });
+
+    it("still refuses what comes after the files an operating system adds, inside a site's folder", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      // The litter comes first in each folder of the site's, and isn't all that's in it: a dot-file
+      // of someone's, and a folder of someone's.
+      const withADotFile = await builtWith(path.join(root, "built-with-litter-and-a-dot-file"), {
+        "dvfr.illinois.gov/.DS_Store": "how the system shows the folder",
+        "dvfr.illinois.gov/.env": "SECRET=1",
+      });
+      const withAFolder = await builtWith(path.join(root, "built-with-litter-and-a-folder"), {
+        "dvfr.illinois.gov/.DS_Store": "how the system shows the folder",
+        "dvfr.illinois.gov/nested/mine.txt": "my own file",
+      });
+      const before = await treeOf(root);
+      vi.mocked(rm).mockClear();
+
+      const cases: [out: string, said: string][] = [
+        [withADotFile, "dvfr.illinois.gov/.env, which a build never writes"],
+        [
+          withAFolder,
+          "dvfr.illinois.gov/nested, a folder inside a folder, which a build never writes",
+        ],
+      ];
+      for (const [out, said] of cases) {
+        expect(await refusalOf(build(home, { out }))).toBe(
+          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        );
+      }
+
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(root)).toEqual(before);
+    });
+
+    it("takes a folder named as one of those files for a folder, and refuses it, at the top and inside a site's folder", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+      // Somebody's own folder, named as the files the system adds are: not one of them, and its
+      // contents would be lost with it.
+      const atTheTop = await builtWith(path.join(root, "built-with-a-folder-named-so"), {
+        ".DS_Store/mine.txt": "my own file",
+      });
+      const inASite = await builtWith(path.join(root, "built-with-one-in-a-site"), {
+        "dvfr.illinois.gov/page.html": "a page",
+        "dvfr.illinois.gov/.DS_Store/mine.txt": "my own file",
+      });
+      const before = await treeOf(root);
+      vi.mocked(rm).mockClear();
+
+      const cases: [out: string, said: string][] = [
+        [atTheTop, ".DS_Store"],
+        [inASite, "dvfr.illinois.gov/.DS_Store"],
+      ];
+      for (const [out, said] of cases) {
+        expect(await refusalOf(build(home, { out }))).toBe(
+          `voicecap site won't build into ${out}: it holds ${said}, which a build never writes. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        );
+      }
+
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(root)).toEqual(before);
+      expect(await readFile(path.join(atTheTop, ".DS_Store", "mine.txt"), "utf8")).toBe(
+        "my own file",
       );
     });
 
