@@ -35,11 +35,12 @@ Success:
 The mockup shows this order. Each section's first sentence is its point.
 
 1. **The top.**
-   - The site's name as the headline. It isn't its address.
+   - The site's canonical name as the headline: the host of its canonical address, such as `dvfr.illinois.gov`, never an IP address or `localhost`, even for a run on a copy on the tester's computer (see "Canonical names"). The `report.siteName` setting, when set, is a line under it; the home page's title is no longer a headline.
+   - The date and time of the latest run beside it: "Tested 29 September 2026, 14:02".
    - A plain line: "How its pages read aloud with NVDA, a free screen reader, tested on <date>."
    - A second: "voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said."
    - "As of <date>", "Prepared by <name>", and "Made with voicecap", linked to https://github.com/ICJIA/voicecap.
-   - The site's address last, small.
+   - The site's canonical address last, small.
    - NVDA links to https://www.nvaccess.org/.
    - Two buttons: "Open every section" and the theme.
 2. **Summary**, written for a non-technical manager who reads nothing else. It's in plain words, with no jargon, all computed from the records, in this order:
@@ -340,13 +341,30 @@ Everything below goes in the run's folder. Each file's SHA-256 is recorded in `r
   The pass keeps the error's cause, step, and stack for this. Today it keeps only the message.
 - **F. The listener's statement,** in the session's record (see "The human review").
 
+## Canonical names
+
+Readers know a site by its name, such as `dvfr.illinois.gov`. An IP address, public or local, means nothing to them, and neither does the address of a copy on the tester's computer (the owner, 2026-10-04: "use canonical site names, even if run on localhost… IP addresses -- prod or local -- make no sense and mean nothing"). So everything voicecap makes for readers names a site by its **canonical address**, and leads with its canonical name and a date and time. Added in 0.10.0.
+
+- **The canonical address** is a site's root, as people visit it: a scheme, a host, and a path ending in `/`, such as `https://dvfr.illinois.gov/`, or `https://voicecap.netlify.app/demo-site/` for the demo. Its **canonical name** is that address's host: `dvfr.illinois.gov`, `voicecap.netlify.app`.
+- **Where voicecap learns it,** first to last:
+  1. **The person's word:** `--canonical <address>` on a run (recorded with the run), or `report.canonical` in the config (used when the page, the Word copy, or a share is made, for runs that recorded none or a different one).
+  2. **The site's own pages:** a page's `<link rel="canonical">`, read with its title on the first pass, gives the root when its address ends with the page's own path (a tag that names another page or another site is ignored). The home page's tag counts first, then the first page whose tag fits. A copy on the tester's computer keeps the tags of the site it copies, so a run on `localhost` learns the real address.
+  3. **The address voicecap read,** for a site with neither: its own address is its name.
+- **`voicecap init`** reads the home page's tag when it checks the site. When the address given is local (`localhost`, or an IP address) and the page names no canonical address, it asks for the address people visit, and adds `--canonical` to the command it composes.
+- **Where it shows:** the page's headline, title, and every page address it shows (page names, the sample of what NVDA said, flags, the appendix, what the results cover, the evidence's page source); the Word copy, likewise; the commands both show (`voicecap verify` with no `--site`; `--site <canonical address>` elsewhere, which `--site` accepts, finding the folder whose runs recorded it); the names of shared copies and walkthrough downloads; the website's headings and lists; the run report's header. Each page address keeps its path and query, on the canonical address: a run on `http://127.0.0.1:4848` shows `/before-you-start/` as `voicecap.netlify.app/demo-site/before-you-start/`.
+- **The address voicecap read** never leads. When it isn't the canonical address, the evidence says the runs read a copy: "a copy of the site on this computer" for a local address, "a copy of the site at another address" for any other, and names no IP address.
+- **What keeps the address voicecap read:** the run records (`run.site`, the folders named after it, every sealed file), the walkthrough file (it says where a repeat runs), terminal output, and a problem's record, quoted word for word.
+- **Recorded:** `run.json` gets `canonical` (the root, when a run learned one), and each page's record keeps the address its tag named. Each `shares.json` entry gets `site`: the canonical address the share named the site by.
+- **Records from before 0.10.0** have neither, and are named as before, unless `report.canonical` names them. Nothing older is rewritten.
+- **The demo's canonical address is `https://voicecap.netlify.app/demo-site/`.** voicecap.netlify.app is ICJIA's site, and `voicecap site` publishes the demo's own pages there, under `demo-site/`, so the address leads somewhere real: anyone reading the demo's report can open the pages NVDA read. Each demo page names its canonical address, and its links are relative, so the same pages work at `http://127.0.0.1:4848/` for the demo's runs and under `demo-site/` on the website.
+
 ## Files, names, and the record of what was sent
 
 In the site's folder of the transcripts home:
 
 - **`share/current.html` and `share/current.docx`** are rewritten after every run, review, and manual session, and by `voicecap report`, as the site's `report.html` is today. They're always the latest.
 - **`voicecap share [--site <url>] [--out <home>]`** writes the dated copies:
-  - `share/<site>_<YYYY-MM-DD>.html` and `.docx` (`<site>` is the site's folder name); a second pair on the same day gets `-2`, then `-3`;
+  - `share/<site>_<YYYY-MM-DD>.html` and `.docx` (`<site>` is the site's canonical name, made safe for a file name as a folder name is: `dvfr.illinois.gov_2026-10-05.html`; before 0.10.0 it was the site's folder name); a second pair on the same day gets `-2`, then `-3`;
   - sent copies are never changed or deleted;
   - it prints both paths, their sizes, and their fingerprints, and warns when a file is over 20 MB, too big for most email;
   - it also prints a line to paste into the email that sends the files, with each file's name and fingerprint, so the people receiving them can check them.
@@ -354,6 +372,7 @@ In the site's folder of the transcripts home:
   - `seq`, `prev`, and `seal`, chained and sealed as reviews are;
   - the date and time, and who made it;
   - the runs it drew on;
+  - the site's canonical address (`site`, from 0.10.0);
   - each file's name, size, and SHA-256.
 
   A page can't carry its own fingerprint, so this record carries it. Anyone can later check that a copy someone holds is exactly what was sent.
@@ -363,6 +382,7 @@ In the site's folder of the transcripts home:
 ## The Word copy
 
 - **Same content:** the same sections, order, and numbers, built from the same model, so the two can't disagree.
+- **Its first lines:** the title, then the site's canonical name, then the date and time it was tested and when the copy was made, so a reader never meets an address first (the owner asked on 2026-10-03, and again on 2026-10-04 for canonical names; see "Canonical names").
 - **Nothing is folded:** every section is there in full.
 - **The steps, problems, and story:** How voicecap works has its steps as a numbered table and its sample as a three-column table. Each problem is a table, with its record in the fixed-width font. The story has its text, its timeline as a table, and its six cards as a list.
 - **Made for paper:**
@@ -385,6 +405,9 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
   - every report by date, across sites.
 
   Each report lists its date, who prepared it, and its files: the page to open, and the Word copy and the walkthrough file to download, so anyone can repeat the run exactly (see "Repeating a walkthrough"). Each file shows its size and SHA-256 fingerprint, a second place to check a copy against.
+
+  Each site is headed by its canonical name, from its newest share's `site` (see "Canonical names"), and the list by date names it the same way. Site folders whose shares name the same site, such as a copy on a tester's computer and the site itself, are one site there, their reports together, the newest first. A share from before 0.10.0 names its site by its folder.
+- **The demo's own pages:** each build publishes the pages of voicecap's demo site, from the voicecap that builds it, under `demo-site/`, so the demo's canonical address, `https://voicecap.netlify.app/demo-site/`, leads to them. They get their own Content Security Policy (their style sheet and their form are their own, and nothing else loads), and the demo's view links to them.
 - **How it looks:** the report's design, dark by default with a light toggle, sleek, with a bar that stays in view for the three views: the demo, the sites, and every report by date.
 - **`voicecap site [--home <dir>] [--out <dir>]`** builds it:
   - from each site folder's `share/shares.json` in the transcripts home (`--home`, default: the home in effect): the dated copies, sealed and fingerprinted. A copy that no longer matches its fingerprint is left out, and named;
