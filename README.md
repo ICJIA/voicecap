@@ -32,6 +32,59 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
 > - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
 
+## Why voicecap, and who it's for
+
+An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick. They can't tell you what a page sounds like:
+
+- whether its links make sense read aloud;
+- whether its headings tell a listener where they are;
+- whether its buttons and fields have names a screen reader can say.
+
+That takes a person going through each page with a real screen reader. On a large site, or a dozen sites, it's weeks of work that's hard to write down and harder to repeat.
+
+voicecap speeds up that second half. It presses NVDA's keys the way a person would, moves from page to page along the site's sitemap or a list of pages, and saves every word NVDA says. The person running it hears NVDA at work, reads the transcripts, records what they found, and fixes it.
+
+**How it's different:**
+
+- **The real screen reader, never a simulation.** Every line of a transcript is what NVDA said.
+- **Every page on the list, three ways.** voicecap goes line by line, heading by heading, and control by control, as a blind visitor moves through a page. No page is missed or done twice.
+- **A person's review, on the record.** What the person found and fixed is recorded beside the transcripts, with their own hands-on NVDA sessions.
+- **A record anyone can check.** Every file is fingerprinted and every run sealed, and `voicecap verify` shows that nothing has changed since.
+- **Results for people who never open a terminal.** There's a plain-language web page and its Word copy, dated copies to send with their fingerprints, and a website of every shared report.
+- **Repeatable.** Comparing two runs shows what changed after an update. A walkthrough file repeats a run, with the same pages in the same order and the same passes, then says page by page how each page sounds against the original.
+- **Free and open source.** ICJIA made it for its own websites.
+
+### In their words
+
+These are composite stories: the kinds of people voicecap is made for, how they'd describe using it, and why they'd choose it. They aren't quotes from real users.
+
+**A web coordinator with a dozen sites and a deadline.** "I look after more than a dozen websites, and every one has to meet the April 2027 ADA Title II deadline for accessible digital content. Our automated checks came back clean, but my manager wanted to know that a person had gone through each site with a real screen reader. voicecap takes NVDA through every page on a site's sitemap. Then I read the transcripts and fix what I find, one site after another. When someone asks how we know, I send the report."
+_Why voicecap:_ every page on the list is accounted for, and the work leaves a record.
+
+**A front-end developer.** "When a page sounds wrong, I don't want to guess from the markup. The transcript shows me, line by line, what NVDA said and in what order. I fix the code, run that page again with `--page`, and compare the two runs to see exactly which lines changed."
+_Why voicecap:_ the screen reader's own words, and a quick way to check a fix.
+
+**An accessibility specialist.** "I still judge the hard pages in my own hands-on sessions with NVDA, and voicecap keeps those too, with `voicecap manual add`. What it saves me is the key-pressing on the hundreds of pages in between. Its flags point me to what's worth a closer listen, like links that say only 'click here', which axe passes."
+_Why voicecap:_ it covers the whole list, so the specialist's time goes where it's needed.
+
+**A manager responsible for compliance.** "I'm never going to run a command. I need something I can read and forward: which pages were reviewed, by whom, with what screen reader, what was found, and what was fixed. The shareable page gives me that in plain language, and its Word copy goes in our files."
+_Why voicecap:_ results in plain language that show a person did the review.
+
+**An outside auditor.** "I'm paid to look for holes, so I don't take a report's word for it. voicecap's page checks its own fingerprints in my browser, the records behind it are sealed, and failures are shown with their records, not smoothed over. To hear it for myself, I repeat the run from its walkthrough file on my own computer, and it tells me page by page whether anything sounds different."
+_Why voicecap:_ evidence that can be checked, not just trusted.
+
+**A tester on a team that ships often.** "After each major update, I run the same list of pages again and compare it with the run before. The report marks the pages that changed and shows the lines that changed. When we need to know a page still sounds the way it did at launch, the walkthrough file from launch repeats that exact run."
+_Why voicecap:_ the same pages, the same keys, in the same order, every time.
+
+**A content editor.** "I write the pages; I don't build them. Reading the transcripts was the first time I knew how my links sounded: 'click here', again and again, on one page. Those were mine to fix, and I fixed them without touching any code."
+_Why voicecap:_ plain-text transcripts anyone on the team can read.
+
+**A project manager signing off on a vendor's redesign.** "Before we accept a vendor's work, voicecap goes through the staging site, and the vendor gets the shareable report: every page, what NVDA said, and what needs fixing. When they say it's fixed, we run it again and compare."
+_Why voicecap:_ a shared, specific record of what accessible meant on this project, page by page.
+
+**A screen reader user on the accessibility team.** "I use NVDA every day. When I report a problem, developers want it written down exactly. voicecap writes down every word NVDA says on every page, so my report can point at the line, not at my memory of it."
+_Why voicecap:_ the screen reader's exact words, ready to quote.
+
 ## How voicecap works
 
 ![How voicecap works: a human review, sped up. Six steps, each described in the list below, and three lines NVDA said on voicecap's demo site.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/how-voicecap-works.png)
@@ -70,6 +123,8 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 
 ## Contents
 
+- [Why voicecap, and who it's for](#why-voicecap-and-who-its-for)
+  - [In their words](#in-their-words)
 - [How voicecap works](#how-voicecap-works)
 - [When to run voicecap](#when-to-run-voicecap)
 - [Quick start](#quick-start)
@@ -1373,11 +1428,17 @@ To update the demo, do the three steps again: the site shows the latest share.
 ### The first deploy
 
 <details>
-<summary>Five steps, once: build the site, check <code>.gitignore</code>, push Netlify's two files, import the repository in Netlify, and check the site</summary>
+<summary>Five steps, once: build the site, check <code>.gitignore</code>, commit and push the files Netlify reads, import the repository in Netlify, and check the site</summary>
 
 Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
 
-**Check the team's Netlify plan first.** Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Core Pro or Enterprise plan. On Core Starter, every build fails. If the team is on Core Starter, Netlify lists ways around it: upgrade the plan; move the repository to a personal GitHub account (Netlify builds from a personal account's private repository on any plan); or deploy by hand after running `voicecap site`, with Netlify's CLI, its API, or by dragging the built folder onto the deploys page. A deploy by hand doesn't build on each push. [Netlify's page on it](https://docs.netlify.com/build/configure-builds/troubleshooting-tips/#organization-owned-private-repository) lists making the repository public too. Don't: it holds the run records.
+**Check the team's Netlify plan first.** Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Pro or Enterprise plan (Core Pro, on older accounts). On Free, Personal, or Core Starter, every build fails. On one of those plans, Netlify lists these ways around it:
+
+- Upgrade the plan.
+- Move the repository to a personal GitHub account. Netlify builds from a personal account's private repository on any plan.
+- Deploy by hand after running `voicecap site`, with Netlify's CLI or its API, or by dragging the built folder onto the deploys page. A deploy by hand doesn't build on each push, and may not send the headers `netlify.toml` gives every file, such as `X-Robots-Tag`. `robots.txt` still asks search engines to stay out.
+
+[Netlify's page on it](https://docs.netlify.com/build/configure-builds/troubleshooting-tips/#organization-owned-private-repository) lists making the repository public too. Don't: it holds the run records.
 
 1. **Build the site once on this computer.** In PowerShell, run:
 
@@ -1402,7 +1463,7 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    4. Save the file, and close Notepad.
    5. Do the `npx @icjia/voicecap@latest site` step again. The warning should be gone.
 
-3. **Commit `netlify.toml` and `.nvmrc`, and push.**
+3. **Commit `netlify.toml` and `.nvmrc` (and `.gitignore`, if you changed it), and push.**
    1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`.
    2. Run `git status`.
    3. Check that it lists `netlify.toml` and `.nvmrc` (and `.gitignore`, if you added `_site/` to it), and doesn't list `_site/`. If it lists `_site/`, go back to the step that adds `_site/`.
@@ -1424,7 +1485,7 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    - a report's page opens;
    - a Word copy and a walkthrough file download, for a report shared with this release or later, or the demo's; an earlier report says none was shared;
    - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals;
-   - in the browser's developer tools (F12, the Network tab), a report's page came with a `Content-Security-Policy` header, and the site's home page with `X-Robots-Tag: noindex, nofollow, noarchive`, whichever way the site was deployed.
+   - each page came with its headers. Press F12 for the browser's developer tools, choose the Network tab, and reload the page. Then click the first request in the list and read its Response Headers. A report's page has `Content-Security-Policy`, and the site's home page has `X-Robots-Tag: noindex, nofollow, noarchive`.
 
    If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again. A build that stops with "Build blocked" about a private repository means the team's plan: see the paragraph before step 1.
 
