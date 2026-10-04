@@ -13,8 +13,8 @@ const GITATTRIBUTES = `# Written by voicecap. Git must not change line endings i
  * review, so a copy in Git each time would only grow the record; the dated copies that are sent
  * stay), the temporary files a crash can leave (writeFileAtomic names them
  * .<name>.<pid>.<hex>.tmp), the lock files Word keeps beside a document it has open (named ~$
- * first, as beside a sent copy someone is reading), and the files an operating system adds to
- * folders.
+ * first, as beside a sent copy someone is reading), the website that `voicecap site` builds (_site/,
+ * made again from the records by every build), and the files an operating system adds to folders.
  */
 export const GITIGNORE = `# Written by voicecap. Keep these out of Git:
 # the lock a run holds while it writes,
@@ -27,6 +27,8 @@ export const GITIGNORE = `# Written by voicecap. Keep these out of Git:
 .*.tmp
 # Word's lock files beside a document it has open,
 ~$*
+# the website voicecap site builds,
+_site/
 # and files the operating system adds.
 .DS_Store
 Thumbs.db

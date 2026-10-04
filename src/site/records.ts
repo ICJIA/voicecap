@@ -172,9 +172,9 @@ async function readEntries(
  * and each of U+2028 and U+2029 (which end a line), is written as a backslash, "u", and four
  * lower-case hex digits. What a record holds, and what a folder is named, is its own, and a line is
  * printed to a terminal and kept in a build's log, so nothing in one may act there. Every line goes
- * through here.
+ * through here, the build's own (./build.ts) as well as this module's.
  */
-function leaveOut(leftOut: string[], line: string): void {
+export function leaveOut(leftOut: string[], line: string): void {
   leftOut.push(
     line.replace(
       /[\p{Cc}\u{2028}\u{2029}]/gu,

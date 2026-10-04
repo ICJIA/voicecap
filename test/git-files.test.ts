@@ -74,6 +74,37 @@ describe("ensureGitFiles", () => {
     },
   );
 
+  it("has _site/, the website voicecap site builds, ahead of the files an operating system adds", () => {
+    expect(GITIGNORE).toContain(
+      "# the website voicecap site builds,\n_site/\n# and files the operating system adds.\n",
+    );
+    expect(GITIGNORE.split("\n").filter((line) => line === "_site/")).toHaveLength(1);
+  });
+
+  it.skipIf(!gitAvailable)(
+    "keeps the website voicecap site builds out of Git, wherever its folder is, and nothing else",
+    async () => {
+      const home = await tmp();
+      expect(git(["init"], home)).toBe(0);
+      await ensureGitFiles(home);
+
+      const ignored = (relativePath: string) => git(["check-ignore", "-q", relativePath], home);
+
+      expect(ignored("_site/index.html")).toBe(0);
+      expect(ignored("_site/dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html")).toBe(0);
+      expect(ignored("_site/_headers")).toBe(0);
+      // In any folder, as a build into a folder of that name inside a site's is.
+      expect(ignored("dvfr.illinois.gov/_site/index.html")).toBe(0);
+      // The records, and the files Netlify reads at the home's top, stay in Git.
+      expect(ignored("netlify.toml")).toBe(1);
+      expect(ignored(".nvmrc")).toBe(1);
+      expect(ignored("dvfr.illinois.gov/share/shares.json")).toBe(1);
+      // Only a folder with that name: not a name that holds it.
+      expect(ignored("_sites/index.html")).toBe(1);
+      expect(ignored("dvfr.illinois.gov/share/_site.html")).toBe(1);
+    },
+  );
+
   it.skipIf(!gitAvailable)(
     "keeps the owner file Word writes beside a sent copy that's open out of Git, and not the copy",
     async () => {
