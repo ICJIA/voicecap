@@ -44,7 +44,12 @@ jobs:
 
       - run: pnpm lint
       - run: pnpm typecheck
+      # Set as a person's would be, so that test/environment.test.ts checks here too that test/setup.ts
+      # keeps every test from seeing them.
       - run: pnpm test
+        env:
+          VOICECAP_TRANSCRIPTS: never-a-test-home
+          VOICECAP_REVIEWER: never-a-test-reviewer
       - run: pnpm build
 
       - name: Smoke test the CLI with the replay driver
