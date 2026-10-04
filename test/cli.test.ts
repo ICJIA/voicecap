@@ -1519,7 +1519,7 @@ describe("voicecap site", () => {
     expect(site.code).toBe(1);
     expect(site.out).toBe("");
     expect(site.err).toBe(
-      `Error: voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as ${path.join(home, "_site")}.\n`,
+      `Error: voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as "${path.join(home, "_site")}".\n`,
     );
     expect(existsSync(path.join(home, "_site"))).toBe(false);
     expect(existsSync(path.join(home, "netlify.toml"))).toBe(false);

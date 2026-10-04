@@ -1223,7 +1223,7 @@ describe("buildSite", () => {
         const message = await refusalOf(build(home, { out }));
 
         expect(message).toBe(
-          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
         );
         // Nothing was removed, written, or made: every file is as it was.
         expect(vi.mocked(rm)).not.toHaveBeenCalled();
@@ -1258,7 +1258,7 @@ describe("buildSite", () => {
         const message = await refusalOf(build(home, { out }));
 
         expect(message).toBe(
-          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
         );
         expect(vi.mocked(rm)).not.toHaveBeenCalled();
         expect([await treeOf(root), await treeOf(links)]).toEqual(before);
@@ -1279,7 +1279,7 @@ describe("buildSite", () => {
       const message = await refusalOf(build(home, { out }));
 
       expect(message).toBe(
-        `voicecap site won't build into ${out}: it's inside voicecap-demo, where the demo's records are. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        `voicecap site won't build into ${out}: it's inside voicecap-demo, where the demo's records are. Give a folder of its own, such as "${path.join(home, "_site")}".`,
       );
       expect(vi.mocked(rm)).not.toHaveBeenCalled();
       expect(await treeOf(root)).toEqual(before);
@@ -1298,7 +1298,7 @@ describe("buildSite", () => {
       const message = await refusalOf(build(home, { out: link }));
 
       expect(message).toBe(
-        `voicecap site won't build into ${link}: it's the transcripts home itself. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        `voicecap site won't build into ${link}: it's the transcripts home itself. Give a folder of its own, such as "${path.join(home, "_site")}".`,
       );
       expect(vi.mocked(rm)).not.toHaveBeenCalled();
       expect(await treeOf(path.dirname(home))).toEqual(before);
@@ -1330,7 +1330,7 @@ describe("buildSite", () => {
         const message = await refusalOf(build(home, { out }));
 
         expect(message).toBe(
-          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
         );
         expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
       }
@@ -1348,7 +1348,7 @@ describe("buildSite", () => {
       const message = await refusalOf(build(link, { out: home }));
 
       expect(message).toBe(
-        `voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as ${path.join(link, "_site")}.`,
+        `voicecap site won't build into ${home}: it's the transcripts home itself. Give a folder of its own, such as "${path.join(link, "_site")}".`,
       );
       expect(vi.mocked(rm)).not.toHaveBeenCalled();
       expect(await treeOf(path.dirname(home))).toEqual(before);
@@ -1442,7 +1442,7 @@ describe("buildSite", () => {
 
       // The litter isn't what it refuses for, and doesn't hide what it does.
       expect(message).toBe(
-        `voicecap site won't build into ${out}: it holds .git, which a build never writes. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+        `voicecap site won't build into ${out}: it holds .git, which a build never writes. Give a folder of its own, such as "${path.join(home, "_site")}".`,
       );
       expect(vi.mocked(rm)).not.toHaveBeenCalled();
       expect(await treeOf(root)).toEqual(before);
@@ -1473,7 +1473,7 @@ describe("buildSite", () => {
       ];
       for (const [out, said] of cases) {
         expect(await refusalOf(build(home, { out }))).toBe(
-          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
         );
       }
 
@@ -1502,7 +1502,7 @@ describe("buildSite", () => {
       ];
       for (const [out, said] of cases) {
         expect(await refusalOf(build(home, { out }))).toBe(
-          `voicecap site won't build into ${out}: it holds ${said}, which a build never writes. Give a folder of its own, such as ${path.join(home, "_site")}.`,
+          `voicecap site won't build into ${out}: it holds ${said}, which a build never writes. Give a folder of its own, such as "${path.join(home, "_site")}".`,
         );
       }
 
@@ -1523,7 +1523,7 @@ describe("buildSite", () => {
       vi.mocked(rm).mockClear();
 
       expect(await refusalOf(build(home))).toBe(
-        `voicecap site won't build into ${siteDir}: it's inside a site's folder, where its records are. Give a folder of its own, such as ${siteDir}.`,
+        `voicecap site won't build into ${siteDir}: it's inside a site's folder, where its records are. Give a folder of its own, such as "${siteDir}".`,
       );
 
       expect(vi.mocked(rm)).not.toHaveBeenCalled();
@@ -1583,6 +1583,55 @@ describe("buildSite", () => {
         expect(await treeOf(path.dirname(home))).toEqual(before);
       },
     );
+
+    // Windows drops a dot or a space at the end of a name, but Node passes the name on as it is, so
+    // a build would make a folder that Windows' own tools can't open or remove.
+    it.skipIf(process.platform !== "win32")(
+      "refuses a folder whose name ends with a dot or a space, which Windows drops, and makes nothing",
+      async () => {
+        const home = await newHome();
+        const root = path.dirname(home);
+        const cases = [
+          path.join(root, "the-site."),
+          path.join(root, "the-site "),
+          path.join(root, "the-site. ."),
+          path.join(root, "the-site..."),
+          // In the home, where a site's folder or the demo's would be, and in one not there yet.
+          path.join(home, `${FIXTURE_FOLDER}.`),
+          path.join(home, `${DEMO_OUT}.`),
+          path.join(root, "not-there", "the-site."),
+        ];
+        const before = await treeOf(root);
+        vi.mocked(rm).mockClear();
+
+        for (const out of cases) {
+          expect(await refusalOf(build(home, { out }))).toBe(
+            `voicecap site won't build into ${out}: its name ends with a dot or a space, which Windows drops. Give a folder of its own, such as "${path.join(home, "_site")}".`,
+          );
+        }
+        // Given as a path from the current folder, too.
+        expect(await refusalOf(build(home, { out: "the-site." }))).toContain(
+          `won't build into ${path.join(root, "the-site.")}: its name ends with a dot or a space, which Windows drops.`,
+        );
+
+        expect(vi.mocked(rm)).not.toHaveBeenCalled();
+        expect(await treeOf(root)).toEqual(before);
+      },
+    );
+
+    it("builds in a folder whose name holds a dot or a space, when it doesn't end with one", async () => {
+      const home = await newHome();
+      const root = path.dirname(home);
+
+      for (const name of ["the.site", "the site", "the-site.d", ".the-site"]) {
+        const out = path.join(root, name);
+
+        const built = await build(home, { out });
+
+        expect(built.out).toBe(out);
+        expect(existsSync(path.join(out, "index.html"))).toBe(true);
+      }
+    });
 
     it("builds in a folder that's there with nothing in it", async () => {
       const home = await newHome();

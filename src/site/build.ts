@@ -14,13 +14,14 @@
  * made (its _headers starts with HEADERS_FIRST_LINE) and that holds nothing but what a build writes,
  * and never when it's the home, holds the home, or is inside a site's folder or the demo's, by its
  * name and by where it really is: a link, a short name, or another letter case leads to the same
- * folder. A build writes files, in its folder and in the folders it makes, and no name that starts
- * with a dot: a folder with such a name (a repository's .git), or with a folder in a folder (a site
- * folder of someone's own), holds more than a build wrote, and is never emptied. The files an
- * operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini) hold nothing
- * of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes before
- * anything is touched. The records are read before the folder is emptied, so an earlier build is
- * kept when they can't be.
+ * folder. On Windows, a folder whose name ends with a dot or a space is refused too (see
+ * ENDS_WITH_DOT_OR_SPACE). A build writes files, in its folder and in the folders it makes, and no
+ * name that starts with a dot: a folder with such a name (a repository's .git), or with a folder in
+ * a folder (a site folder of someone's own), holds more than a build wrote, and is never emptied.
+ * The files an operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini)
+ * hold nothing of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes
+ * before anything is touched. The records are read before the folder is emptied, so an earlier
+ * build is kept when they can't be.
  *
  * Besides each report's files, a build writes the site's page (index.html), robots.txt, and
  * _headers, which gives each page its Content Security Policy, made from the hashes of that page's
@@ -147,8 +148,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     options.out === undefined ? path.join(home, SITE_DIR) : resolveUserPath(cwd, options.out);
   const why = await whyNotBuiltInto(home, out);
   if (why !== null) {
+    // The path is in quotes, so that the sentence's period isn't taken for part of it.
     throw new UsageError(
-      `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as ${path.join(home, SITE_DIR)}.`,
+      `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, SITE_DIR)}".`,
     );
   }
 
@@ -244,6 +246,13 @@ function isSamePath(a: string, b: string): boolean {
   return path.relative(a, b) === "";
 }
 
+/**
+ * A name that ends with a dot or a space. Windows drops either from the end of a name, but Node
+ * passes the name on as it is, so a folder made with one is not the folder Windows' own tools see:
+ * they can't open it or remove it, and Git can't add it.
+ */
+const ENDS_WITH_DOT_OR_SPACE = /[. ]$/;
+
 /** What the build says of a folder that's, or is in, or holds, the records. */
 const THE_HOME = "it's the transcripts home itself";
 const HOLDS_THE_HOME = "it holds the transcripts home";
@@ -293,6 +302,7 @@ async function realOf(target: string): Promise<string> {
  * Why the site can't be built into `out`, in words that finish "won't build into <out>: ...", or
  * null when it can. Nothing is touched: it's only looked at. The checks, in order:
  *
+ * - on Windows, its name ends with a dot or a space (see ENDS_WITH_DOT_OR_SPACE);
  * - `out` is a file, not a folder;
  * - it's the home, holds the home, or is inside a site's folder (a folder at the home's top that has
  *   records in it) or the demo's: by the names of the paths, and then by where they really are, so
@@ -304,6 +314,9 @@ async function realOf(target: string): Promise<string> {
  * nothing else has been put in.
  */
 async function whyNotBuiltInto(home: string, out: string): Promise<string | null> {
+  if (process.platform === "win32" && ENDS_WITH_DOT_OR_SPACE.test(path.basename(out))) {
+    return "its name ends with a dot or a space, which Windows drops";
+  }
   const found = await kindOf(out);
   if (found === "file") return "it's a file, not a folder";
 
