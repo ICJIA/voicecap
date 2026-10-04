@@ -366,24 +366,20 @@ describe("renderEvidence", () => {
       const model = await demoModel();
       const html = renderEvidence(model);
 
-      expect(model.evidence[0]?.verify).toBe(
-        "npx @icjia/voicecap verify --site http://127.0.0.1:4848",
-      );
+      expect(model.evidence[0]?.verify).toBe("npx @icjia/voicecap verify");
       expect(textOf(withoutData(html))).toContain(
         "What the check proves: this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too.",
       );
       expect(html).toContain("<code>Get-FileHash &lt;file&gt;</code> in PowerShell");
       expect(html).toContain("<code>shasum -a 256 &lt;file&gt;</code> on a Mac");
-      expect(html).toContain(
-        "<code>npx @icjia/voicecap verify --site http://127.0.0.1:4848</code> on the transcripts folder",
-      );
+      expect(html).toContain("<code>npx @icjia/voicecap verify</code> on the transcripts folder");
     });
 
     it("says where the sender's own fingerprint comes from: voicecap share prints it, for the email that sends the file", async () => {
       const model = await demoModel();
       const verify = model.evidence[0]?.verify;
 
-      expect(verify).toBe("npx @icjia/voicecap verify --site http://127.0.0.1:4848");
+      expect(verify).toBe("npx @icjia/voicecap verify");
       // The whole paragraph, as the page writes it: what the check proves, then what's stronger.
       expect(renderEvidence(model)).toContain(
         `<p class="sub fp-limit"><b>What the check proves:</b> this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can&#39;t prove the page itself wasn&#39;t changed, since whoever changed it could change the fingerprints too. For that, compare this file&#39;s own fingerprint with the one its sender recorded: <code>voicecap share</code> prints it, ready for the email that sends the file, and <code>Get-FileHash &lt;file&gt;</code> in PowerShell, or <code>shasum -a 256 &lt;file&gt;</code> on a Mac, shows it for the file you received. Or run <code>${verify}</code> on the transcripts folder.</p>`,

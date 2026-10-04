@@ -73,10 +73,10 @@ export function topLead(header: ShareModel["header"]): Line {
 
 /**
  * What the document is called, in the page's tab and in the Word copy's properties: the site's
- * name, and what the report shows. "127.0.0.1:4848: how its pages read aloud with NVDA".
+ * name, and what the report shows. "dvfr.illinois.gov: how its pages read aloud with NVDA".
  */
-export function documentTitle({ siteName, screenReader }: ShareModel["header"]): string {
-  return `${siteName}: how its pages read aloud with ${screenReader}`;
+export function documentTitle({ name, screenReader }: ShareModel["header"]): string {
+  return `${name}: how its pages read aloud with ${screenReader}`;
 }
 
 // The summary.

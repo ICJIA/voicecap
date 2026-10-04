@@ -882,12 +882,14 @@ describe("the fingerprint check, on the page's own data", () => {
     const read = await page.locator('#tx-home [aria-label^="Read transcript"] pre').textContent();
     for (const line of HOSTILE_LINES) expect(read).toContain(line);
     expect(await page.locator("#tx-home pre b").count()).toBe(0);
-    // The site's name, from a title with markup in it, is text too.
-    expect(await page.title()).toBe(
-      "Grants </title></script><b>Agency</b>: how its pages read aloud with NVDA",
+    // A page's title, with markup in it, is text too. It names no site: the home page's card shows
+    // it, and the site is named by its host.
+    expect(await page.title()).toBe("example.illinois.gov: how its pages read aloud with NVDA");
+    expect(await page.locator("h1").textContent()).toBe("example.illinois.gov");
+    expect(await page.locator("#pg-home p.sub").allTextContents()).toContain(
+      "Title: Grants </title></script><b>Agency</b>",
     );
-    expect(await page.locator("h1").textContent()).toBe("Grants </title></script><b>Agency</b>");
-    expect(await page.locator("h1 b").count()).toBe(0);
+    expect(await page.locator("#pg-home p.sub b").count()).toBe(0);
 
     // The data holds each file exactly as it is on disk.
     const data = JSON.parse((await page.locator("#fp-data").textContent()) ?? "") as Data;

@@ -304,7 +304,7 @@ describe("wordEvidence", () => {
 
     it("says what a reader can check in place of the page's check: that a Word document can't check itself, the two checks, and the web page's own", async () => {
       const model = await demoModel();
-      const verify = "npx @icjia/voicecap verify --site http://127.0.0.1:4848";
+      const verify = "npx @icjia/voicecap verify";
       const checks = wordEvidence(model).slice(3, 6);
 
       expect(model.evidence[0]?.verify).toBe(verify);
@@ -333,7 +333,7 @@ describe("wordEvidence", () => {
         "voicecap share",
         "Get-FileHash <file>",
         "shasum -a 256 <file>",
-        "npx @icjia/voicecap verify --site http://127.0.0.1:4848",
+        "npx @icjia/voicecap verify",
         "current.html",
       ]);
     });
@@ -361,7 +361,7 @@ describe("wordEvidence", () => {
         under(part ?? [], `${EVIDENCE_TEXT.parts.fingerprints} ${inRun(id)}`);
       expect(wordsOf(fingerprints(latest, first.run.id)).at(-1)).toBe(command);
       expect(wordsOf(fingerprints(earlier, rest[0]?.run.id ?? "")).at(-1)).toBe(
-        "npx @icjia/voicecap verify --site http://127.0.0.1:4848",
+        "npx @icjia/voicecap verify",
       );
     });
 
@@ -573,7 +573,7 @@ describe("wordEvidence", () => {
         expect(inside.slice(1), id).toEqual([para(EVIDENCE_TEXT.verify), mono([each.verify])]);
         expect(wordsOf(inside.slice(1))).toEqual([
           "To check these against the recorded files, anyone with the transcripts folder runs:",
-          "npx @icjia/voicecap verify --site http://127.0.0.1:4848",
+          "npx @icjia/voicecap verify",
         ]);
       }
     });
@@ -751,7 +751,7 @@ describe("wordEvidence", () => {
       expect(inside).toEqual([
         para("This run's record lists no files."),
         para(EVIDENCE_TEXT.verify),
-        mono([`npx @icjia/voicecap verify --site ${model.header.site}`]),
+        mono(["npx @icjia/voicecap verify"]),
       ]);
       // Its facts and environment are still tables; no table has no rows to show.
       expect(tablesIn(part).map((table) => table.head)).toEqual([

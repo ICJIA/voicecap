@@ -11,6 +11,13 @@
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
  * problems' in problemsOf, the evidence's in evidenceOf. The run records and transcripts the page
  * embeds for its fingerprint check are exactly as recorded, since a seal covers every field.
+ *
+ * A site is named by its canonical address, and every address the page shows for one of its pages
+ * is the page on that address: `shown`, made here, maps the address voicecap read onto it, and the
+ * parts that show an address whole (a page's name, the sample, the pages no longer listed, the
+ * sitemap, the page source) take it from here. A page's `url` in the records and in the model's
+ * lists is as it was read, and a part that shows one shows only its path. The run records, the
+ * walkthrough files, and a problem's record keep the address voicecap read.
  */
 import {
   PASS_NAMES,
@@ -20,6 +27,7 @@ import {
   type ReviewsFile,
   type RunJson,
 } from "../model.js";
+import { canonicalName, readLocation, toCanonical } from "../pages/canonical.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { pageName } from "../report/model.js";
 import { redactHome } from "../run/failure.js";
@@ -34,7 +42,15 @@ import {
 } from "./cards.js";
 import { changesOf, type Changes } from "./changes.js";
 import type { CheckData } from "./check.js";
-import { dateRange, longDate, names, seconds, utcOffset } from "./format.js";
+import {
+  dateAndTime,
+  dateRange,
+  longDate,
+  names,
+  seconds,
+  utcOffset,
+  type Shown,
+} from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { problemsOf, type ProblemsSection } from "./problems.js";
 import { reviewOf } from "./review.js";
@@ -71,27 +87,47 @@ export interface AppendixFile {
 
 export interface ShareModel {
   header: {
-    /** The headline: report.siteName, else the latest run's home page title, else the host. */
-    siteName: string;
-    /** The site's address, as its runs recorded it: shown small. */
+    /**
+     * The headline: the site's canonical name, the host of its canonical address
+     * ("dvfr.illinois.gov"), else, with none known, the host voicecap read ("127.0.0.1:4848").
+     */
+    name: string;
+    /**
+     * The site's address, shown small: the root of its canonical address
+     * ("https://dvfr.illinois.gov/"), else the address voicecap read.
+     */
     site: string;
+    /** report.siteName, a line under the name that the setting never replaces. Null when unset. */
+    siteName: string | null;
     /**
      * The days of the runs the results come from ("29 to 30 September 2026"): the latest run, and
      * each run a page's transcripts or its latest failure come from, but not a run the page only
      * compares the latest with. Null when no run counts.
      */
     tested: string | null;
+    /**
+     * When the latest run began, as that run recorded it: "29 September 2026, 14:02". Null when no
+     * run counts.
+     */
+    testedAt: string | null;
     /** The page's own date: "30 September 2026". */
     asOf: string;
     /** Who ran the latest run's last session, when the record names someone. */
     preparedBy: string | null;
     /** The screen reader the results come from, by name: "NVDA". */
     screenReader: string;
+    /**
+     * Where the runs read the site, against its canonical address: at that address ("same"), at a
+     * copy on this computer ("local"), or at a copy at another address ("elsewhere"). Null when the
+     * site has no canonical address, so there's no copy to speak of. No address is ever said.
+     */
+    readFrom: "same" | "local" | "elsewhere" | null;
   };
   summary: Summary;
   /**
    * The first three lines of each pass on the home page (the page at "/", else the first in scope),
    * from its shown transcripts, each with how long it took ("1.3 s"). Null when that page has none.
+   * `page` names the page: its label, else its address, as the page shows it.
    */
   heard: {
     page: string;
@@ -128,6 +164,10 @@ export interface ShareModel {
 /** Build the page's model from what loadShareInput read. Pure. */
 export function buildShareModel(input: ShareInput): ShareModel {
   const redact = (text: string) => redactHome(text, input.home, input.platform);
+  // An address shown for a page is the page on the canonical address; a label names a page first.
+  const shown: Shown = (url) => toCanonical(url, input.readOrigin, input.canonical);
+  const nameOf = (page: { label?: string; url: string }) =>
+    pageName({ ...page, url: shown(page.url) });
   const standing = standingOf(input.runs.map((run) => withFlagsRedacted(run, redact)));
   const review = reviewOf(
     standing,
@@ -139,7 +179,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
   const { latest } = standing;
   const before = latest && runBefore(standing.counted, latest);
   const compared =
-    latest && before ? changesOf(before, latest, bodyOf(input.transcripts), pageName) : null;
+    latest && before ? changesOf(before, latest, bodyOf(input.transcripts), nameOf) : null;
   // What tools differ can name a setting's path, which can hold the home folder.
   const changes = compared && { ...compared, tools: compared.tools.map(redact) };
   const summary = summaryOf({
@@ -148,7 +188,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     problems,
     changes,
     flags: new Map(standing.pages.map((page) => [page.key, page.shown?.page.flags ?? []])),
-    name: pageName,
+    name: nameOf,
     linesSpoken: linesSpokenOf(standing),
     nvdaMs: nvdaMsOf(standing.drawnOn),
     sessionsWithoutEnd: standing.drawnOn
@@ -161,21 +201,23 @@ export function buildShareModel(input: ShareInput): ShareModel {
     problems,
     transcripts: input.transcripts,
     flagsAsRecorded: input.flagsAsRecorded,
+    name: nameOf,
   });
   const recordOf = recordsOf(input.records);
+  const header = headerOf(input, standing);
   return {
-    header: headerOf(input, standing),
+    header,
     summary,
-    heard: heardOf(standing.pages, input.transcripts),
+    heard: heardOf(standing.pages, input.transcripts, nameOf),
     pages,
-    noLongerListed: noLongerListedOf(standing),
+    noLongerListed: noLongerListedOf(standing, nameOf, shown),
     flagged: flaggedOf(standing, pages, input.transcripts, input.flagRules),
     changes,
     problems,
-    coverage: coverageOf(standing, redact),
-    evidence: evidenceOf({ standing, recordOf, site: input.site, redact }),
+    coverage: coverageOf(standing, redact, shown),
+    evidence: evidenceOf({ standing, recordOf, site: header.site, shown, redact }),
     leftOut: leftOutOf(standing, input.unreadableRuns),
-    appendix: appendixOf(standing, input.transcripts),
+    appendix: appendixOf(standing, input.transcripts, nameOf),
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
     // exactly as recorded, and the review entries.
     check: {
@@ -267,33 +309,29 @@ function homeOf<T extends { url: string }>(pages: T[]): T | undefined {
   return pages.find((page) => new URL(page.url).pathname === "/") ?? pages[0];
 }
 
+/**
+ * The header. The site is named by its canonical address when it has one, else by the address
+ * voicecap read, with its port as its folder has it. Neither is the setting or the home page's
+ * title: the setting is a line under the name, and a page's title names no site.
+ */
 function headerOf(input: ShareInput, standing: Standing): ShareModel["header"] {
   const { latest } = standing;
+  const { canonical, readOrigin } = input;
   const environment = latest?.sessions.findLast(
     (session) => session.environment?.screenReader,
   )?.environment;
   return {
-    siteName: siteNameOf(input, latest),
-    site: input.site,
+    name: canonical === null ? new URL(readOrigin).host : canonicalName(canonical),
+    site: canonical ?? readOrigin,
+    siteName: input.siteName?.trim() || null,
     tested: latest === null ? null : testedOf(resultsFrom(standing, latest)),
+    testedAt: latest === null ? null : dateAndTime(latest.createdAt),
     asOf: longDate(input.generatedAt),
     preparedBy: latest?.sessions.at(-1)?.reviewer?.name ?? null,
     // Every run voicecap can count today is NVDA's.
     screenReader: environment?.screenReader?.name ?? "NVDA",
+    readFrom: canonical === null ? null : readLocation(readOrigin, canonical),
   };
-}
-
-/**
- * The setting, else the title of the latest run's home page as the browser reported it, when that
- * run read the page in full, else the site's host (with its port, as its folder has it). The latest
- * run is a counted one, so a replay's titles never name a site.
- */
-function siteNameOf(input: ShareInput, latest: RunJson | null): string {
-  const setting = input.siteName?.trim();
-  if (setting) return setting;
-  const home = latest === null ? undefined : homeOf(latest.pages);
-  const title = home?.status === "done" ? home.title?.trim() : undefined;
-  return title || new URL(input.site).host;
 }
 
 /**
@@ -350,7 +388,11 @@ const HEARD = 3;
  * read pass's Ctrl+End and Ctrl+Home, which set it up. Each with how long it took: the key press
  * and NVDA's speech, until NVDA was quiet.
  */
-function heardOf(pages: PageStanding[], transcripts: TranscriptStore): ShareModel["heard"] {
+function heardOf(
+  pages: PageStanding[],
+  transcripts: TranscriptStore,
+  nameOf: (page: { label?: string; url: string }) => string,
+): ShareModel["heard"] {
   const home = homeOf(pages);
   const shown = home?.shown;
   if (!home || !shown) return null;
@@ -362,7 +404,7 @@ function heardOf(pages: PageStanding[], transcripts: TranscriptStore): ShareMode
       .map((step) => ({ text: stepLine(step, pass), took: seconds(step.durationMs) }));
     return lines.length === 0 ? [] : [{ pass, lines }];
   });
-  return passes.length === 0 ? null : { page: pageName(home), passes };
+  return passes.length === 0 ? null : { page: nameOf(home), passes };
 }
 
 /** How each pass goes through a page, with the key NVDA's users press for it. */
@@ -372,14 +414,18 @@ const WAYS: Record<PassName, string> = {
   tab: "control by control (Tab)",
 };
 
-function coverageOf(standing: Standing, redact: (text: string) => string): ShareModel["coverage"] {
+function coverageOf(
+  standing: Standing,
+  redact: (text: string) => string,
+  shown: Shown,
+): ShareModel["coverage"] {
   const { latest } = standing;
   if (latest === null) {
     return { covered: ["No live run counts yet, so these results cover no pages."], limits: [] };
   }
   return {
     covered: [
-      scopeOf(standing.pages.length, latest.settings.source, redact),
+      scopeOf(standing.pages.length, latest.settings.source, redact, shown),
       passesOf(standing, latest),
       "Every problem during the runs is explained under Problems during the runs.",
     ],
@@ -414,15 +460,23 @@ function passesOf(standing: Standing, latest: RunJson): string {
 }
 
 /** The pages in scope, and the list they came from. */
-function scopeOf(count: number, source: PageSource, redact: (text: string) => string): string {
-  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, redact)}.`;
+function scopeOf(
+  count: number,
+  source: PageSource,
+  redact: (text: string) => string,
+  shown: Shown,
+): string {
+  return `${count === 1 ? "1 page" : `${count} pages`} from ${listOf(source, redact, shown)}.`;
 }
 
-/** The list the pages came from, as the page names it, with the home folder replaced. */
-function listOf(source: PageSource, redact: (text: string) => string): string {
+/**
+ * The list the pages came from, as the page names it, with the home folder replaced and a sitemap's
+ * address as the page shows it.
+ */
+function listOf(source: PageSource, redact: (text: string) => string, shown: Shown): string {
   switch (source.kind) {
     case "sitemap":
-      return `the sitemap ${source.url}`;
+      return `the sitemap ${shown(source.url)}`;
     case "pages":
       return `the page list ${redact(source.file)}`;
     case "walkthrough":
@@ -498,14 +552,18 @@ function shownTranscripts(page: PageStanding, transcripts: TranscriptStore): Sho
   });
 }
 
-function appendixOf(standing: Standing, transcripts: TranscriptStore): ShareModel["appendix"] {
+function appendixOf(
+  standing: Standing,
+  transcripts: TranscriptStore,
+  nameOf: (page: { label?: string; url: string }) => string,
+): ShareModel["appendix"] {
   return standing.pages.flatMap((page) => {
     if (page.shown === null) return [];
     const own = shownTranscripts(page, transcripts);
     return [
       {
         slug: page.slug,
-        name: pageName(page),
+        name: nameOf(page),
         files: own.flatMap(({ run, slug, pass, name, hash, text }): AppendixFile[] => {
           if (text === null) return [];
           const lines = extractBody(text);

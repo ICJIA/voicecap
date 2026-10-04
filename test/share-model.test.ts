@@ -211,7 +211,7 @@ describe("loadShareInput", () => {
     const input = await loadShareInput({ siteDir: DEMO_SITE, config, now });
 
     expect(input).toMatchObject({
-      site: "http://127.0.0.1:4848",
+      readOrigin: "http://127.0.0.1:4848",
       siteName: "The voicecap demo",
       flagRules: DEFAULT_CONFIG.flags,
       flagRulesSha256: flagRulesSha256(DEFAULT_CONFIG.flags),
@@ -253,7 +253,10 @@ describe("loadShareInput", () => {
 });
 
 describe("buildShareModel", () => {
-  it("names the site from the setting, the home page's title, or its host", async () => {
+  // The home page's title and the report.siteName setting named a site before 0.10.0. A site is
+  // named now by the host of its canonical address, or, with none known, by the host voicecap read
+  // (test/share-canonical.test.ts has the rest of the rule).
+  it("names the site by the host voicecap read when no canonical address is known, never by its home page's title", async () => {
     const titled = shareRun({
       id: "r1",
       pages: [
@@ -261,46 +264,16 @@ describe("buildShareModel", () => {
         { path: "/", title: " Example Agency " },
       ],
     });
-    expect(
-      buildShareModel(inputOf([titled], { siteName: "Example Agency's website" })).header.siteName,
-    ).toBe("Example Agency's website");
-    // Without the setting: the title of the page at "/", as the browser reported it.
-    expect(buildShareModel(inputOf([titled])).header.siteName).toBe("Example Agency");
-
-    // With no page at "/": the first page's.
-    const noHome = shareRun({
-      id: "r1",
-      pages: [
-        { path: "/about", title: "About us" },
-        { path: "/contact", title: "Contact" },
-      ],
+    expect(buildShareModel(inputOf([titled])).header).toMatchObject({
+      name: "example.illinois.gov",
+      site: SITE,
     });
-    expect(buildShareModel(inputOf([noHome])).header.siteName).toBe("About us");
-
-    // A home page the latest run didn't read in full, or that has no title: the host.
-    const homes = [
-      { status: "failed", title: "Example Agency" },
-      { status: "skipped", title: "Example Agency" },
-      { title: null },
-      {},
-    ] as const;
-    for (const home of homes) {
-      const run = shareRun({ id: "r1", pages: [{ path: "/", ...home }] });
-      expect(buildShareModel(inputOf([run])).header.siteName).toBe("example.illinois.gov");
-    }
-
-    // A replayed run never counts, so its titles never name the site.
-    const live = shareRun({ id: "r1", pages: [{ path: "/" }] });
-    const replayed = shareRun({
-      id: "r2",
-      createdAt: "2026-09-27T10:00:00-05:00",
-      replayed: true,
-      pages: [{ path: "/", title: "Replayed" }],
-    });
-    expect(buildShareModel(inputOf([live, replayed])).header.siteName).toBe("example.illinois.gov");
 
     // A site with a port is named with it, as its folder is.
-    expect((await demoModel()).header.siteName).toBe("127.0.0.1:4848");
+    expect((await demoModel()).header).toMatchObject({
+      name: "127.0.0.1:4848",
+      site: "http://127.0.0.1:4848",
+    });
   });
 
   it("builds a card for every page in scope, with its status in words", () => {
@@ -649,11 +622,14 @@ describe("buildShareModel", () => {
       "No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.",
     );
     expect(model.header).toMatchObject({
-      siteName: "example.illinois.gov",
+      name: "example.illinois.gov",
       site: SITE,
+      siteName: null,
       tested: null,
+      testedAt: null,
       preparedBy: null,
       screenReader: "NVDA",
+      readFrom: null,
     });
     expect(model).toMatchObject({
       heard: null,
@@ -1191,12 +1167,15 @@ describe("buildShareModel", () => {
     // Every page's results are the latest run's: the run before is only compared with it, so its
     // day isn't a day these results were tested.
     expect(model.header).toEqual({
-      siteName: "example.illinois.gov",
+      name: "example.illinois.gov",
       site: SITE,
+      siteName: null,
       tested: "30 September 2026",
+      testedAt: "30 September 2026, 09:00",
       asOf: "1 October 2026",
       preparedBy: CHRIS,
       screenReader: "NVDA",
+      readFrom: null,
     });
     expect(model.footer).toEqual({
       generatedAt: "2026-10-01T08:30:00-05:00",
@@ -1315,7 +1294,8 @@ describe("buildShareModel", () => {
     expect(evidence?.fingerprints).toEqual([
       { page: "/", file: "read.txt", bytes: 1, sha256: "0".repeat(64) },
     ]);
-    expect(evidence?.verify).toBe(`npx @icjia/voicecap verify --site ${SITE}`);
+    // It checks every site in the home, so it names none.
+    expect(evidence?.verify).toBe("npx @icjia/voicecap verify");
   });
 
   it("gives each session's statement, and says when a session ended without one", () => {
@@ -1414,7 +1394,7 @@ describe("the walkthrough file each run's evidence offers", () => {
     // A run of that site, whose page is on it, as a walkthrough file needs.
     const home = new URL("/", site).href;
     const run = { ...shareRun({ id: "2026-09-26_1405", pages: [{ path: home }] }), site };
-    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { site }))));
+    const file = downloadOf(latestEvidence(buildShareModel(inputOf([run], { readOrigin: site }))));
     const name = `${folder}_2026-09-26_1405_walkthrough.json`;
 
     expect(file.fileName).toBe(name);
@@ -1434,7 +1414,7 @@ describe("the walkthrough file each run's evidence offers", () => {
       ...shareRun({ id: "2026-09-26_1405", pages: [{ path: new URL("/", site).href }] }),
       site,
     };
-    const evidence = latestEvidence(buildShareModel(inputOf([run], { site })));
+    const evidence = latestEvidence(buildShareModel(inputOf([run], { readOrigin: site })));
     const file = downloadOf(evidence);
     const name = `${siteFolder(site)}_2026-09-26_1405_walkthrough.json`;
 
@@ -1443,7 +1423,7 @@ describe("the walkthrough file each run's evidence offers", () => {
     expect(file.get).toBe(
       `npx @icjia/voicecap walkthrough --site 'http://[::1]:4848' --run 2026-09-26_1405 ${name}`,
     );
-    expect(evidence.verify).toBe("npx @icjia/voicecap verify --site 'http://[::1]:4848'");
+    expect(evidence.verify).toBe("npx @icjia/voicecap verify");
     expect(file.repeat).toBe(`npx @icjia/voicecap --walkthrough ${name}`);
   });
 

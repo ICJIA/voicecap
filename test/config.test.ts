@@ -91,6 +91,39 @@ describe("loadConfig", () => {
     expect(() => resolveConfig({ report: { siteName: "" } })).toThrow(/- report\.siteName: /);
   });
 
+  it("reads the site's canonical address from report.canonical, as the root people visit", () => {
+    expect(DEFAULT_CONFIG.report.canonical).toBeNull();
+    expect(resolveConfig({}).report.canonical).toBeNull();
+    const root = (canonical: string) => resolveConfig({ report: { canonical } }).report.canonical;
+    expect(root("https://dvfr.illinois.gov/")).toBe("https://dvfr.illinois.gov/");
+    // Written the short way, or without its closing slash, or with more than a root: the root.
+    expect(root("dvfr.illinois.gov")).toBe("https://dvfr.illinois.gov/");
+    expect(root("https://voicecap.netlify.app/demo-site")).toBe(
+      "https://voicecap.netlify.app/demo-site/",
+    );
+    expect(root("https://dvfr.illinois.gov/about/?x=1#top")).toBe(
+      "https://dvfr.illinois.gov/about/",
+    );
+  });
+
+  it("names report.canonical when it isn't a site's name: not an address, an IP address, or a local address", () => {
+    for (const canonical of [
+      "",
+      "not an address",
+      "ftp://dvfr.illinois.gov/",
+      "http://127.0.0.1:4848",
+      "localhost:3000",
+      "http://[::1]:4848/",
+    ]) {
+      expect(() => resolveConfig({ report: { canonical } }), canonical).toThrow(
+        /- report\.canonical: /,
+      );
+    }
+    expect(() => resolveConfig({ report: { canonical: "http://127.0.0.1:4848" } })).toThrow(
+      /is an IP address or a local address, not a site's name/,
+    );
+  });
+
   it("rejects unknown keys, to catch typos", () => {
     expect(() => resolveConfig({ stepcaps: { read: 5 } })).toThrow(/stepcaps|Unrecognized/);
   });

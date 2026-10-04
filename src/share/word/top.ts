@@ -40,19 +40,13 @@ import {
 
 // The top.
 
-/** A site's host, with its port ("127.0.0.1:4848"); null for an address that isn't a URL. */
-function hostOf(site: string): string | null {
-  return URL.canParse(site) ? new URL(site).host : null;
-}
-
 /**
- * The site, where a reader who isn't technical can place it: its name in bold, when its records
- * give it one beyond its host, then its address. "Grants. Site address https://grants.illinois.gov/."
- * A site known only by its host is said once, as its address: "Site address http://127.0.0.1:4848."
+ * The site, where a reader who isn't technical can place it: its name in bold, then its address.
+ * "dvfr.illinois.gov. Site address https://dvfr.illinois.gov/." Its name is its canonical one when
+ * it has one, and then so is its address.
  */
-function siteLine({ siteName, site }: ShareModel["header"]): Line {
-  const address = `${TOP_TEXT.siteAddress} ${site}.`;
-  return siteName === hostOf(site) ? [address] : [{ text: siteName, bold: true }, `. ${address}`];
+function siteLine({ name, site }: ShareModel["header"]): Line {
+  return [{ text: name, bold: true }, `. ${TOP_TEXT.siteAddress} ${site}.`];
 }
 
 /**
@@ -72,9 +66,9 @@ function madeByLine({ preparedBy }: ShareModel["header"]): Line {
 
 /**
  * The top: what the copy is, as its title, and when it was made, in bold, so a reader meets those
- * first rather than an address such as 127.0.0.1:4848; then the site, how its pages were read (the
- * lead), and who made it. The page's header says the same words, in its own order: the site's name
- * as its heading, and two buttons that a document has no use for.
+ * first rather than an address; then the site, how its pages were read (the lead), and who made it.
+ * The page's header says the same words, in its own order: the site's name as its heading, and two
+ * buttons that a document has no use for.
  */
 export function wordTop(model: ShareModel): Block[] {
   const { header, footer } = model;

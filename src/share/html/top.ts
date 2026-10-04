@@ -71,7 +71,7 @@ export function renderTop(model: ShareModel): string {
     `    <div class="eyebrow">${esc(TOP_TEXT.eyebrow)}</div>`,
     `    <div class="chips"><button class="theme" id="open-all" type="button" hidden>Open every section</button><button class="theme" id="theme-toggle" type="button" hidden>Light version</button></div>`,
     `  </div>`,
-    `  <h1>${esc(header.siteName)}</h1>`,
+    `  <h1>${esc(header.name)}</h1>`,
     `  <p class="mast-lead">${lineHtml(topLead(header))}</p>`,
     `  <div class="mast-meta">${meta.join("")}</div>`,
     `</header>`,

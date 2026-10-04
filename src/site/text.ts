@@ -9,7 +9,7 @@
  * are for lines with a name, a date, or a count in them.
  */
 import { plural } from "../report/html.js";
-import { clock, longDate } from "../share/format.js";
+import { dateAndTime } from "../share/format.js";
 import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
 
 /**
@@ -42,7 +42,7 @@ export const SITE_TEXT = {
   /** A site's count of reports: "1 report", "3 reports". */
   reports: (count: number): string => plural(count, "report"),
   /** A report's line, which heads it: "3 October 2026, 14:05". */
-  reportLine: (at: string): string => `${longDate(at)}, ${clock(at)}`,
+  reportLine: (at: string): string => dateAndTime(at),
   /** Under a report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
   /** In a line of the list by date, after the site: "prepared by Pat Lee". */

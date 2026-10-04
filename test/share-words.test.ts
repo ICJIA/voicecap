@@ -1591,12 +1591,12 @@ describe("the lines of the evidence, the story, and the footer", () => {
     const page = renderSharePage(model, { fontCss: "" });
 
     expect(documentTitle(model.header)).toBe("127.0.0.1:4848: how its pages read aloud with NVDA");
-    expect(documentTitle({ ...model.header, siteName: "Grants", screenReader: "VoiceOver" })).toBe(
+    expect(documentTitle({ ...model.header, name: "Grants", screenReader: "VoiceOver" })).toBe(
       "Grants: how its pages read aloud with VoiceOver",
     );
     expect(page).toContain(`<title>${esc(documentTitle(model.header))}</title>`);
     // Escaped as one sentence, so a name with markup in it is words in the tab.
-    const hostile = { ...model.header, siteName: '<Agency> & "Co"', screenReader: "<b>x</b>" };
+    const hostile = { ...model.header, name: '<Agency> & "Co"', screenReader: "<b>x</b>" };
     expect(renderSharePage({ ...model, header: hostile }, { fontCss: "" })).toContain(
       "<title>&lt;Agency&gt; &amp; &quot;Co&quot;: how its pages read aloud with &lt;b&gt;x&lt;/b&gt;</title>",
     );

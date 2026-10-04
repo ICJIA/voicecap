@@ -500,7 +500,10 @@ describe("renderTop", () => {
   it("heads the page with the site's name, the date, and who made it", async () => {
     const html = renderTop(richModel());
 
-    expect(html).toContain("<h1>Example Agency</h1>");
+    // The name of a site no canonical address names is the host voicecap read: its home page's
+    // title ("Example Agency" here) doesn't head the page.
+    expect(html).toContain("<h1>example.illinois.gov</h1>");
+    expect(html).not.toContain("Example Agency");
     expect(html).toContain('<div class="eyebrow">Screen reader test results</div>');
     expect(html).toContain(
       `<p class="mast-lead">How its pages read aloud with <a href="${NV_ACCESS}">NVDA</a>, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.</p>`,
@@ -512,7 +515,7 @@ describe("renderTop", () => {
     expect(html).toContain(`<span class="addr">Site address ${SITE}</span>`);
     expect(html.indexOf("Prepared by")).toBeLessThan(html.indexOf("Site address"));
 
-    // The demo's runs name no title: its host heads the page.
+    // The demo's runs name no canonical address: the host they read heads the page.
     expect(renderTop(await demoModel())).toContain("<h1>127.0.0.1:4848</h1>");
   });
 
@@ -536,7 +539,7 @@ describe("renderTop", () => {
       ...model,
       header: {
         ...model.header,
-        siteName: '<Agency> & "Co"',
+        name: '<Agency> & "Co"',
         site: "https://a.gov/?x=1&y=2",
         asOf: "1 <b> 2026",
         tested: "29 <b> 2026",

@@ -95,22 +95,31 @@ describe("wordTop", () => {
     expect(wordsOf(top)).toEqual([
       "Screen reader test results",
       "30 September 2026 at 09:00 (UTC−05:00)",
-      "Site address http://127.0.0.1:4848.",
+      "127.0.0.1:4848. Site address http://127.0.0.1:4848.",
       "How its pages read aloud with NVDA, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.",
       "Made with voicecap.",
     ]);
   });
 
-  it("names the site in bold before its address, when its name is more than its host", () => {
-    const named = patsModel();
-    const grants = wordTop({ ...named, header: { ...named.header, siteName: "Grants" } });
-    const [, , site] = grants;
+  it("names the site in bold before its address, whether the address is its canonical one or the one voicecap read", () => {
+    const read = patsModel();
+    const [, , site] = wordTop(read);
 
-    expect(wordsOf(grants)[2]).toBe(`Grants. Site address ${SITE}.`);
-    expect(site?.kind === "para" ? boldIn(site.line) : []).toEqual(["Grants"]);
-    // A site known only by its host isn't named twice.
-    expect(wordsOf(wordTop(named))[2]).toBe(`Site address ${SITE}.`);
-    expect(named.header.siteName).toBe(new URL(SITE).host);
+    expect(wordsOf(wordTop(read))[2]).toBe(`example.illinois.gov. Site address ${SITE}.`);
+    expect(site?.kind === "para" ? boldIn(site.line) : []).toEqual(["example.illinois.gov"]);
+    // Named by its canonical address, the line is that name and that address.
+    const header = {
+      ...read.header,
+      name: "dvfr.illinois.gov",
+      site: "https://dvfr.illinois.gov/",
+    };
+    const canonical = wordTop({ ...read, header });
+    expect(wordsOf(canonical)[2]).toBe(
+      "dvfr.illinois.gov. Site address https://dvfr.illinois.gov/.",
+    );
+    expect(boldIn(canonical[2]?.kind === "para" ? canonical[2].line : [])).toEqual([
+      "dvfr.illinois.gov",
+    ]);
   });
 
   it("never makes the site's address or host the title", async () => {
@@ -159,7 +168,7 @@ describe("wordTop", () => {
 
     expect(none.header.tested).toBeNull();
     expect(words[1]).toBe("30 September 2026 at 09:00 (UTC−05:00)");
-    expect(words[2]).toBe(`Site address ${SITE}.`);
+    expect(words[2]).toBe(`example.illinois.gov. Site address ${SITE}.`);
     expect(words[3]).toContain("No live run counts yet, so there's no test date.");
     expect(words[4]).toBe("Made with voicecap.");
   });

@@ -15,9 +15,8 @@ import {
   type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
-import { pageName } from "../report/model.js";
 import { attentionClauses } from "./attention.js";
-import { longDate, pagePath } from "./format.js";
+import { longDate, pagePath, type Shown } from "./format.js";
 import type { TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
 import type { PageReview } from "./review.js";
@@ -28,7 +27,7 @@ import { SKIP_REASONS } from "./summary.js";
 export interface PageCard {
   key: string;
   slug: string;
-  /** What the page is called: its label, else its address. */
+  /** What the page is called: its label, else its address, as the page shows it (see `Shown`). */
   name: string;
   /** The page list gave the page a label (one that isn't blank): `name` is it, whatever it says. */
   labeled: boolean;
@@ -124,7 +123,9 @@ export interface FlaggedPage {
 }
 
 export interface NoLongerListed {
+  /** What the page is called: its label, else its address. */
   name: string;
+  /** Its address, as the page shows it: on the site's canonical address (see `Shown`). */
   url: string;
   /** The last counted run that had the page, and what that run's record of it says. */
   lastRun: string;
@@ -138,6 +139,8 @@ interface CardsInput {
   transcripts: TranscriptStore;
   /** The pages whose flags are their record's (ShareInput.flagsAsRecorded). */
   flagsAsRecorded: { run: string; slug: string }[];
+  /** How a page is called: its label, else its address as the page shows it (see `Shown`). */
+  name: (page: { label?: string; url: string }) => string;
 }
 
 /** A card for each page in scope, in the latest run's page order. */
@@ -160,7 +163,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
     return {
       key: page.key,
       slug: page.slug,
-      name: pageName(page),
+      name: input.name(page),
       labeled: (page.label?.trim() ?? "") !== "",
       path: pagePath(page.url),
       title: source === null ? null : titleOf(source.page, version),
@@ -365,11 +368,18 @@ const LAST_STATUS: Record<PageStatus, string> = {
   pending: "Not reached",
 };
 
-/** The pages earlier counted runs had and the latest's list doesn't, with their last record. */
-export function noLongerListedOf(standing: Standing): NoLongerListed[] {
+/**
+ * The pages earlier counted runs had and the latest's list doesn't, with their last record. `name`
+ * says how a page is called, and `shown` gives its address, as the page shows them.
+ */
+export function noLongerListedOf(
+  standing: Standing,
+  name: CardsInput["name"],
+  shown: Shown,
+): NoLongerListed[] {
   return standing.noLongerListed.map(({ run, page }) => ({
-    name: pageName(page),
-    url: page.url,
+    name: name(page),
+    url: shown(page.url),
     lastRun: run.id,
     lastStatus: LAST_STATUS[page.status],
   }));

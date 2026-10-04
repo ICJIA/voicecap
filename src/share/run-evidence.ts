@@ -8,6 +8,7 @@ import type {
   EnvironmentRecord,
   ListenerAnswer,
   MachineRecord,
+  PageSource,
   PageStatus,
   RunJson,
   SessionRecord,
@@ -16,7 +17,7 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
-import { clock, longDate, names, pagePath } from "./format.js";
+import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT } from "./text.js";
 import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
@@ -29,7 +30,7 @@ export interface EvidenceRow {
 
 /** A run's walkthrough file, as the page offers it to download. */
 export interface WalkthroughDownload {
-  /** "127.0.0.1_4848_2026-09-29_1402_walkthrough.json": the site's folder, the run, and what it is. */
+  /** "dvfr.illinois.gov_2026-09-29_1402_walkthrough.json": the site's name, the run, and what it is. */
   fileName: string;
   /** The file's bytes, in base64: what the page's link carries. */
   base64: string;
@@ -68,7 +69,10 @@ export interface RunEvidence {
   nvdaLog: { notRecorded: string };
   /** Every file the run's record lists, page by page: its size and SHA-256. */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
-  /** The command that checks the originals: "npx @icjia/voicecap verify --site <site>". */
+  /**
+   * The command that checks the originals: "npx @icjia/voicecap verify", which checks every site
+   * in the home, so it names none.
+   */
   verify: string;
   /**
    * The walkthrough file that repeats the run, exactly as `voicecap walkthrough` writes it of the
@@ -115,24 +119,28 @@ export function runEnd(run: RunJson): string {
 
 /**
  * The evidence of each run the standing draws on, the latest first. `recordOf` gives a run's record
- * as its run.json holds it; `redact` replaces the home folder in what the page shows.
+ * as its run.json holds it; `redact` replaces the home folder in what the page shows. `site` is the
+ * site as the page names it (its canonical address, else the address voicecap read), which the
+ * commands and the walkthrough files' names take, and `shown` gives any other address as the page
+ * shows it. A run's record, and the walkthrough file made of it, keep the address voicecap read.
  */
 export function evidenceOf(input: {
   standing: Standing;
   recordOf: (run: RunJson) => RunJson;
   site: string;
+  shown: Shown;
   redact: (text: string) => string;
 }): RunEvidence[] {
-  const { standing, site, redact } = input;
+  const { standing, site, shown, redact } = input;
   const before = standing.latest && runBefore(standing.counted, standing.latest);
   return standing.drawnOn.toReversed().map((run) => {
-    const shown = standing.pages.filter((page) => page.shown?.run === run).length;
+    const fromRun = standing.pages.filter((page) => page.shown?.run === run).length;
     const notRecorded = notRecordedBy(versionOf(run));
     const record = input.recordOf(run);
     return {
       run: record,
-      facts: factsOf(run, shown, run === before),
-      environment: environmentOf(run, redact),
+      facts: factsOf(run, fromRun, run === before),
+      environment: environmentOf(run, redact, shown),
       timeline: { notRecorded },
       nvdaLog: { notRecorded },
       fingerprints: run.pages.flatMap((page) =>
@@ -143,7 +151,7 @@ export function evidenceOf(input: {
           sha256: hash.sha256,
         })),
       ),
-      verify: formatCommand(["verify", "--site", site]),
+      verify: formatCommand(["verify"]),
       walkthrough: walkthroughFor(record, site),
     };
   });
@@ -151,9 +159,11 @@ export function evidenceOf(input: {
 
 /**
  * A run's walkthrough file: made of the run's record as run.json holds it, so it is the very file
- * `voicecap walkthrough` writes, and named for the site's folder and the run. voicecap never
- * offers a file it would refuse to read back, so a run beyond what the format holds (see
- * `walkthroughProblem`) gets its reason instead, which is a sentence already.
+ * `voicecap walkthrough` writes (it says where voicecap read, which is where a repeat runs), and
+ * named for the run and the site as the page names it: its host, made safe for a file name as a
+ * site's folder is (`siteFolder`). voicecap never offers a file it would refuse to read back, so a
+ * run beyond what the format holds (see `walkthroughProblem`) gets its reason instead, which is a
+ * sentence already.
  *
  * It never throws: the file is an extra, and a run whose record can't be made into one (a completed
  * run with no time of completion, or a value JSON can't write) must not stop the page or its Word
@@ -206,8 +216,8 @@ function factsOf(run: RunJson, shown: number, isRunBefore: boolean): EvidenceRow
         ? "None: the latest run is compared with it"
         : "None";
   return [
-    { label: "Started", value: when(runStart(run)) },
-    { label: "Finished", value: when(runEnd(run)) },
+    { label: "Started", value: dateAndTime(runStart(run)) },
+    { label: "Finished", value: dateAndTime(runEnd(run)) },
     { label: "Pages", value: statuses.length > 0 ? names(statuses) : "None" },
     { label: "Transcripts shown", value: shownHere },
     // Only the event log (evidence A) will say when NVDA was started again, and why.
@@ -215,11 +225,6 @@ function factsOf(run: RunJson, shown: number, isRunBefore: boolean): EvidenceRow
     { label: "Run by", value: ranBy(run, version) },
     ...statements(run),
   ];
-}
-
-/** "29 September 2026, 14:02". */
-function when(time: string): string {
-  return `${longDate(time)}, ${clock(time)}`;
 }
 
 /** Who ran a run's sessions, as the summary's "When and how" says it. */
@@ -271,10 +276,37 @@ function statementOf(session: SessionRecord): string {
 }
 
 /**
- * The test environment, from the run's latest session with one: who ran it, the computer, then the
- * screen reader, browser, driver, voicecap, and page source as a transcript's header lists them.
+ * A page source with the addresses it names as the page shows them: the sitemap's, or each page
+ * given with --page. A page list and a walkthrough file are named by their files, which hold no
+ * address of the site.
  */
-function environmentOf(run: RunJson, redact: (text: string) => string): EvidenceRow[] {
+function sourceShown(source: PageSource, shown: Shown): PageSource {
+  switch (source.kind) {
+    case "sitemap":
+      return { ...source, url: shown(source.url) };
+    case "urls":
+      return { ...source, urls: source.urls.map(shown) };
+    case "pages":
+    case "walkthrough":
+      return source;
+    default: {
+      // A kind this version doesn't know, from a later voicecap: shown as it was recorded.
+      const _exhaustive: never = source;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * The test environment, from the run's latest session with one: who ran it, the computer, then the
+ * screen reader, browser, driver, voicecap, and page source as a transcript's header lists them,
+ * with the page source's addresses as the page shows them.
+ */
+function environmentOf(
+  run: RunJson,
+  redact: (text: string) => string,
+  shown: Shown,
+): EvidenceRow[] {
   const version = versionOf(run);
   const environment = run.sessions.findLast((session) => session.environment !== null)?.environment;
   if (!environment) {
@@ -283,7 +315,10 @@ function environmentOf(run: RunJson, redact: (text: string) => string): Evidence
   const rows: EvidenceRow[] = [
     { label: "Run by", value: ranBy(run, version) },
     ...computerRows(environment, notRecordedBy(version)),
-    ...environmentLines(environment)
+    ...environmentLines({
+      ...environment,
+      pageSource: sourceShown(environment.pageSource, shown),
+    })
       .filter((line) => !line.startsWith("OS: "))
       .map((line) => {
         const colon = line.indexOf(": ");

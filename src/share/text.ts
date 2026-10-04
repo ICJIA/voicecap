@@ -823,6 +823,6 @@ export const WORD_TEXT = {
    */
   document: {
     author: "voicecap",
-    footer: (siteName: string, asOf: string): string => `${siteName}, as of ${asOf}`,
+    footer: (name: string, asOf: string): string => `${name}, as of ${asOf}`,
   },
 };

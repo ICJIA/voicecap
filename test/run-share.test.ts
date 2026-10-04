@@ -448,21 +448,33 @@ describe("writeShareFiles", () => {
     );
   });
 
-  it("takes the site's name from the config", async () => {
+  // report.canonical names the site, for a run that recorded no address of its own. report.siteName
+  // is a line under the name (the page's top shows it), never the name.
+  it("names the site by the canonical address in the config", async () => {
     const { site } = await siteWithRun();
 
     await writeShareFiles({
       siteDir: site,
-      config: { ...DEFAULT_CONFIG, report: { ...DEFAULT_CONFIG.report, siteName: "The agency" } },
+      config: {
+        ...DEFAULT_CONFIG,
+        report: {
+          ...DEFAULT_CONFIG.report,
+          canonical: "https://dvfr.illinois.gov/",
+          siteName: "The agency",
+        },
+      },
       logger: createMemoryLogger(),
     });
 
-    expect(await readFile(sharePath(site), "utf8")).toContain(
-      "<title>The agency: how its pages read aloud with NVDA</title>",
+    const page = await readFile(sharePath(site), "utf8");
+    expect(page).toContain("<title>dvfr.illinois.gov: how its pages read aloud with NVDA</title>");
+    expect(page).toContain("<h1>dvfr.illinois.gov</h1>");
+    expect(page).not.toContain("<title>The agency");
+    const word = await wordCopy(site);
+    expect(propertyOf(word.core, "dc:title")).toBe(
+      "dvfr.illinois.gov: how its pages read aloud with NVDA",
     );
-    expect(propertyOf((await wordCopy(site)).core, "dc:title")).toBe(
-      "The agency: how its pages read aloud with NVDA",
-    );
+    expect(footerWords(word.footer)[0]).toMatch(/^dvfr\.illinois\.gov, as of /);
   });
 
   // Where neither HOME (USERPROFILE on Windows) nor the account's entry gives one, Node throws.
@@ -620,6 +632,29 @@ describe("writeShareFiles", () => {
       expect(logger.entries).toEqual([{ level: "warn", message: heldWarning(code, site) }]);
     },
   );
+
+  // Terminal output keeps the address voicecap read, which finds the site's folder with every
+  // version of --site: the page and its Word copy name the site by its canonical address.
+  it("gives the address voicecap read in the warning's command, whatever address names the site", async () => {
+    const { site } = await siteWithRun();
+    const held = Object.assign(new Error("EBUSY: the file is held by another program"), {
+      code: "EBUSY",
+    });
+    const logger = createMemoryLogger();
+
+    await writeShareFiles({
+      siteDir: site,
+      config: {
+        ...DEFAULT_CONFIG,
+        report: { ...DEFAULT_CONFIG.report, canonical: "https://dvfr.illinois.gov/" },
+      },
+      logger,
+      rename: refusingTheWordCopy(held),
+    });
+
+    expect(logger.entries).toEqual([{ level: "warn", message: heldWarning("EBUSY", site) }]);
+    expect(logger.text("warn")).not.toContain("dvfr.illinois.gov");
+  });
 
   it.each([
     {

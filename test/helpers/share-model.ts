@@ -77,7 +77,8 @@ export function storeOf(
 /** What the model is built from, for runs built in memory, with no transcripts to read. */
 export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
   return {
-    site: SITE,
+    readOrigin: SITE,
+    canonical: null,
     runs,
     records: runs,
     reviews: NO_REVIEWS,
@@ -132,12 +133,24 @@ export function fileBytes(download: Pick<WalkthroughDownload, "base64">): Buffer
   return Buffer.from(download.base64, "base64");
 }
 
-let demo: Promise<ShareModel> | undefined;
+/** The demo's canonical address: where `voicecap site` publishes the demo's own pages. */
+export const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
 
-/** The demo site's page, as made the next morning. */
-export function demoModel(): Promise<ShareModel> {
-  demo ??= loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG }).then((input) =>
-    buildShareModel({ ...input, generatedAt: "2026-09-30T09:00:00-05:00" }),
-  );
-  return demo;
+const demos = new Map<string | null, Promise<ShareModel>>();
+
+/**
+ * The demo site's page, as made the next morning. `canonical` is the root `report.canonical` names
+ * the site by, when a test sets one: by default there is none, and the site is named by the
+ * address its runs read, `http://127.0.0.1:4848`.
+ */
+export function demoModel(canonical: string | null = null): Promise<ShareModel> {
+  let model = demos.get(canonical);
+  if (model === undefined) {
+    const config = { ...DEFAULT_CONFIG, report: { ...DEFAULT_CONFIG.report, canonical } };
+    model = loadShareInput({ siteDir: DEMO_SITE, config }).then((input) =>
+      buildShareModel({ ...input, generatedAt: "2026-09-30T09:00:00-05:00" }),
+    );
+    demos.set(canonical, model);
+  }
+  return model;
 }
