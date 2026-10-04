@@ -399,7 +399,7 @@ A public site the owner can point anyone to, `icjia-voicecap.netlify.app` (appro
   - Each build writes `_site/robots.txt`: `User-agent: *`, then `Disallow: /`.
   - Each build writes `_site/_headers`: each page's Content Security Policy, `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`, with the hashes of that page's own scripts and style block. Each page was made by its own voicecap version, so each gets its own. For this to work, a page has no inline style attributes, only its one style block.
 - **Search:** `robots.txt` and the noindex header keep the site out of search results. The transcripts repository is private, so the reports aren't on GitHub for anyone to find.
-- **The first deploy,** once 0.6.0 is released with `voicecap site` and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `icjia-voicecap`. `netlify.toml` sets the rest. Netlify builds from an organization's private repository only on its Pro or Enterprise plan; the owner's Netlify team is on Pro (confirmed 2026-10-04, after plan 5's review found the requirement).
+- **The first deploy,** once a voicecap with `voicecap site` is released and the home holds a shared report: in Netlify, import `ICJIA/voicecap-transcripts` from GitHub, and name the site `icjia-voicecap`. `netlify.toml` sets the rest. Netlify builds from an organization's private repository only on its Pro or Enterprise plan; the owner's Netlify team is on Pro (confirmed 2026-10-04).
 
 ## Rules the page follows
 

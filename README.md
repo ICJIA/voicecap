@@ -34,11 +34,11 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 
 ## Why voicecap, and who it's for
 
-An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick. They can't tell you what a page sounds like:
+An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick: they catch a missing label or a missing description. What they can't tell you is what a page sounds like:
 
 - whether its links make sense read aloud;
-- whether its headings tell a listener where they are;
-- whether its buttons and fields have names a screen reader can say.
+- whether its headings tell a screen reader user where they are;
+- whether its buttons and fields are named in words that make sense when a screen reader says them.
 
 That takes a person going through each page with a real screen reader. On a large site, or a dozen sites, it's weeks of work that's hard to write down and harder to repeat.
 
@@ -47,42 +47,52 @@ voicecap speeds up that second half. It presses NVDA's keys the way a person wou
 **How it's different:**
 
 - **The real screen reader, never a simulation.** Every line of a transcript is what NVDA said.
-- **Every page on the list, three ways.** voicecap goes line by line, heading by heading, and control by control, as a blind visitor moves through a page. No page is missed or done twice.
+- **Every page on the list, three ways.** voicecap goes line by line, heading by heading, and control by control, as a blind visitor moves through a page. No page on the list is missed or done twice.
 - **A person's review, on the record.** What the person found and fixed is recorded beside the transcripts, with their own hands-on NVDA sessions.
-- **A record anyone can check.** Every file is fingerprinted and every run sealed, and `voicecap verify` shows that nothing has changed since.
-- **Results for people who never open a terminal.** There's a plain-language web page and its Word copy, dated copies to send with their fingerprints, and a website of every shared report.
-- **Repeatable.** Comparing two runs shows what changed after an update. A walkthrough file repeats a run, with the same pages in the same order and the same passes, then says page by page how each page sounds against the original.
-- **Free and open source.** ICJIA made it for its own websites.
+- **A record anyone can check.** Each transcript has a fingerprint and each finished run is sealed, so `voicecap verify` flags any recorded file that has changed (see [Checking the record](#checking-the-record-voicecap-verify)).
+- **Results for people who never open a terminal.** There's a plain-language web page and its Word copy, dated copies to send with their fingerprints, and a website of every shared report (see [The shareable page](#the-shareable-page)).
+- **Repeatable.** Comparing two runs shows what changed after an update. A walkthrough file repeats a run, with the same pages in the same order and the same passes, then says page by page how each page sounds against the original (see [Repeating a run](#repeating-a-run-the-walkthrough-file)).
 
-### In their words
+To see it at work before you use it on your own site, try the guided demo (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
 
-These are composite stories: the kinds of people voicecap is made for, how they'd describe using it, and why they'd choose it. They aren't quotes from real users.
+### Stories of the people it's for
 
-**A web coordinator with a dozen sites and a deadline.** "I look after more than a dozen websites, and every one has to meet the April 2027 ADA Title II deadline for accessible digital content. Our automated checks came back clean, but my manager wanted to know that a person had gone through each site with a real screen reader. voicecap takes NVDA through every page on a site's sitemap. Then I read the transcripts and fix what I find, one site after another. When someone asks how we know, I send the report."
+These stories were written for this page. Each is a composite of the people voicecap is made for: how they'd describe using it, and why they'd choose it. They aren't quotes from real users, and none of them endorses voicecap.
+
+**A web coordinator with more than a dozen sites and a deadline.** "I look after more than a dozen websites, and every one has to meet the April 2027 ADA Title II deadline for accessible digital content. Our automated checks came back clean, but my manager wanted to know that a person had gone through each site with a real screen reader. voicecap takes NVDA through every page on the list from each site's sitemap. Then I read the transcripts and fix what I find, one site after another. When someone asks how we know, I send the report."
+
 _Why voicecap:_ every page on the list is accounted for, and the work leaves a record.
 
-**A front-end developer.** "When a page sounds wrong, I don't want to guess from the markup. The transcript shows me, line by line, what NVDA said and in what order. I fix the code, run that page again with `--page`, and compare the two runs to see exactly which lines changed."
+**A front-end developer.** "When a page sounds wrong, I don't want to guess from the markup. The transcript shows me, line by line, what NVDA said and in what order. I fix the code, run that page again with `--page`, and compare it with the earlier run, naming that run with `--compare`, to see exactly which lines changed."
+
 _Why voicecap:_ the screen reader's own words, and a quick way to check a fix.
 
-**An accessibility specialist.** "I still judge the hard pages in my own hands-on sessions with NVDA, and voicecap keeps those too, with `voicecap manual add`. What it saves me is the key-pressing on the hundreds of pages in between. Its flags point me to what's worth a closer listen, like links that say only 'click here', which axe passes."
+**An accessibility specialist.** "I judge the hard pages in my own hands-on sessions with NVDA, and voicecap keeps those beside its transcripts, with `voicecap manual add`. What it saves me is the key-pressing on the hundreds of pages in between. Its flags point me to what's worth a closer listen, like links that say only 'click here', which axe passes."
+
 _Why voicecap:_ it covers the whole list, so the specialist's time goes where it's needed.
 
 **A manager responsible for compliance.** "I'm never going to run a command. I need something I can read and forward: which pages were reviewed, by whom, with what screen reader, what was found, and what was fixed. The shareable page gives me that in plain language, and its Word copy goes in our files."
+
 _Why voicecap:_ results in plain language that show a person did the review.
 
-**An outside auditor.** "I'm paid to look for holes, so I don't take a report's word for it. voicecap's page checks its own fingerprints in my browser, the records behind it are sealed, and failures are shown with their records, not smoothed over. To hear it for myself, I repeat the run from its walkthrough file on my own computer, and it tells me page by page whether anything sounds different."
+**An outside auditor.** "I'm paid to look for holes, so I don't take a report's word for it. I check the file's own fingerprint against the one in the sender's email. Inside it, the page checks every transcript against its sealed records, and failures are shown with their records, not smoothed over. To hear it for myself, I repeat the run from its walkthrough file on my own Windows PC with NVDA, and it tells me page by page whether anything sounds different."
+
 _Why voicecap:_ evidence that can be checked, not just trusted.
 
 **A tester on a team that ships often.** "After each major update, I run the same list of pages again and compare it with the run before. The report marks the pages that changed and shows the lines that changed. When we need to know a page still sounds the way it did at launch, the walkthrough file from launch repeats that exact run."
+
 _Why voicecap:_ the same pages, the same keys, in the same order, every time.
 
 **A content editor.** "I write the pages; I don't build them. Reading the transcripts was the first time I knew how my links sounded: 'click here', again and again, on one page. Those were mine to fix, and I fixed them without touching any code."
+
 _Why voicecap:_ plain-text transcripts anyone on the team can read.
 
-**A project manager signing off on a vendor's redesign.** "Before we accept a vendor's work, voicecap goes through the staging site, and the vendor gets the shareable report: every page, what NVDA said, and what needs fixing. When they say it's fixed, we run it again and compare."
-_Why voicecap:_ a shared, specific record of what accessible meant on this project, page by page.
+**A project manager signing off on a vendor's redesign.** "Before we accept a vendor's work, voicecap goes through the pages on our list on the staging site, and the vendor gets the shareable report: every page on the list, what NVDA said, and what needs fixing. When they say it's fixed, we run it again and compare."
 
-**A screen reader user on the accessibility team.** "I use NVDA every day. When I report a problem, developers want it written down exactly. voicecap writes down every word NVDA says on every page, so my report can point at the line, not at my memory of it."
+_Why voicecap:_ a shared, specific record of what NVDA said on each page, and what was found.
+
+**A screen reader user on the accessibility team.** "I use NVDA every day. When I report a problem, developers want it written down exactly. voicecap writes down every word NVDA says on each page on the list, so my report can point at the line, not at my memory of it."
+
 _Why voicecap:_ the screen reader's exact words, ready to quote.
 
 ## How voicecap works
@@ -124,7 +134,7 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 ## Contents
 
 - [Why voicecap, and who it's for](#why-voicecap-and-who-its-for)
-  - [In their words](#in-their-words)
+  - [Stories of the people it's for](#stories-of-the-people-its-for)
 - [How voicecap works](#how-voicecap-works)
 - [When to run voicecap](#when-to-run-voicecap)
 - [Quick start](#quick-start)
@@ -1432,7 +1442,7 @@ To update the demo, do the three steps again: the site shows the latest share.
 
 Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
 
-**Check the team's Netlify plan first.** Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Pro or Enterprise plan (Core Pro, on older accounts). On Free, Personal, or Core Starter, every build fails. On one of those plans, Netlify lists these ways around it:
+**Check the team's Netlify plan first.** Netlify shows it under the team's **Usage & billing**. Netlify builds from an organization's private repository, as `ICJIA/voicecap-transcripts` is, only on its Pro or Enterprise plan (Core Pro, on older accounts). On Free, Personal, or Core Starter, every build fails. Netlify's troubleshooting page lists these ways around it:
 
 - Upgrade the plan.
 - Move the repository to a personal GitHub account. Netlify builds from a personal account's private repository on any plan.
@@ -1485,7 +1495,16 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    - a report's page opens;
    - a Word copy and a walkthrough file download, for a report shared with this release or later, or the demo's; an earlier report says none was shared;
    - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals;
-   - each page came with its headers. Press F12 for the browser's developer tools, choose the Network tab, and reload the page. Then click the first request in the list and read its Response Headers. A report's page has `Content-Security-Policy`, and the site's home page has `X-Robots-Tag: noindex, nofollow, noarchive`.
+   - each page came with its headers. Do this for the site's home page, then for a report's page:
+     1. Open the page.
+     2. Press F12. The browser's developer tools open.
+     3. Choose the **Network** tab.
+     4. Press F5. The page loads again.
+     5. Click the first request in the list.
+     6. Find **Response Headers**.
+     7. On the home page, find `X-Robots-Tag: noindex, nofollow, noarchive`. On a report's page, find `Content-Security-Policy`. The names may show in lower case.
+
+     If `X-Robots-Tag` is missing, `netlify.toml` isn't in what Netlify built from: check that step 3's commit was pushed. If `Content-Security-Policy` is missing, open the deploy's log in Netlify, as below.
 
    If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again. A build that stops with "Build blocked" about a private repository means the team's plan: see the paragraph before step 1.
 
