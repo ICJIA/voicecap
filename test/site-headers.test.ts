@@ -13,7 +13,8 @@ import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import {
   contentSecurityPolicy,
-  DEMO_SITE_RULE,
+  DEMO_SITE_POLICY,
+  demoSiteRules,
   type HeaderRule,
   HEADERS_FIRST_LINE,
   headersFile,
@@ -489,26 +490,103 @@ describe("ROBOTS_TXT", () => {
   });
 });
 
-describe("DEMO_SITE_RULE", () => {
+describe("the demo's own pages' rules", () => {
   const POLICY =
     "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+  /** The rule a page's address has: the policy, and nothing else. */
+  const policyRule = (path: string): HeaderRule => ({
+    path,
+    headers: [["Content-Security-Policy", POLICY]],
+  });
 
   // The demo's own pages hold no script and no style block (test/demo-site.test.ts), so unlike the
   // reports' they need no hashes: they have a style sheet, and a form that goes to its own address.
-  it("gives everything under demo-site/ a policy that allows its own style sheet and form, and nothing else", () => {
-    expect(DEMO_SITE_RULE).toEqual({
-      path: "/demo-site/*",
-      headers: [["Content-Security-Policy", POLICY]],
-    });
+  it("has a policy that allows the pages' style sheet and form, and nothing else", () => {
+    expect(DEMO_SITE_POLICY).toBe(POLICY);
     expect(POLICY).not.toContain("script-src");
   });
 
+  it("gives each page a rule at every address it answers at, and a file that isn't a page none", () => {
+    const rules = demoSiteRules("demo-site", [
+      "style.css",
+      "the-report/index.html",
+      "index.html",
+      "sitemap.xml",
+      "ask-a-question/sent.html",
+      "ask-a-question/index.html",
+    ]);
+
+    // A folder's page is at the folder's address and at its index.html, as the site's own page is
+    // at / and at /index.html. Any other page is at its own address. In the order of the addresses.
+    expect(rules).toEqual(
+      [
+        "/demo-site/",
+        "/demo-site/ask-a-question/",
+        "/demo-site/ask-a-question/index.html",
+        "/demo-site/ask-a-question/sent.html",
+        "/demo-site/index.html",
+        "/demo-site/the-report/",
+        "/demo-site/the-report/index.html",
+      ].map(policyRule),
+    );
+  });
+
+  it("is made from the files it is given, at any depth, so no page that is published is left without one", () => {
+    const files = [
+      "index.html",
+      "a/index.html",
+      "a/b/index.html",
+      "a/b/page.html",
+      "a/b/style.css",
+      "a/myindex.html",
+      "c.html",
+      "myindex.html",
+    ];
+
+    const rules = demoSiteRules("demo-site", files);
+
+    // A name that only ends with index.html isn't a folder's index.
+    expect(rules.map(({ path }) => path)).toEqual([
+      "/demo-site/",
+      "/demo-site/a/",
+      "/demo-site/a/b/",
+      "/demo-site/a/b/index.html",
+      "/demo-site/a/b/page.html",
+      "/demo-site/a/index.html",
+      "/demo-site/a/myindex.html",
+      "/demo-site/c.html",
+      "/demo-site/index.html",
+      "/demo-site/myindex.html",
+    ]);
+    // The same files in another order give the same rules in the same order, and none give none.
+    expect(demoSiteRules("demo-site", [...files].reverse())).toEqual(rules);
+    expect(demoSiteRules("demo-site", [])).toEqual([]);
+    expect(demoSiteRules("demo-site", ["style.css", "sitemap.xml"])).toEqual([]);
+  });
+
+  // Netlify's documentation doesn't say whether a path that ends with /* matches the folder's own
+  // address, so no rule has one: each address is written out.
+  it("writes no wildcard", () => {
+    const rules = demoSiteRules("demo-site", ["index.html", "a/index.html", "a/page.html"]);
+
+    expect(rules.length).toBeGreaterThan(0);
+    for (const { path } of rules) expect(path).not.toContain("*");
+  });
+
   it("is written as Netlify reads it", () => {
-    expect(headersFile([DEMO_SITE_RULE])).toBe(
+    expect(
+      headersFile(demoSiteRules("demo-site", ["index.html", "ask-a-question/sent.html"])),
+    ).toBe(
       [
         "# Made by voicecap site. Each build empties this folder and writes it again.",
         "",
-        "/demo-site/*",
+        "/demo-site/",
+        `  Content-Security-Policy: ${POLICY}`,
+        "",
+        "/demo-site/ask-a-question/sent.html",
+        `  Content-Security-Policy: ${POLICY}`,
+        "",
+        "/demo-site/index.html",
         `  Content-Security-Policy: ${POLICY}`,
         "",
       ].join("\n"),

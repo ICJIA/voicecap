@@ -131,9 +131,36 @@ const CSP = "Content-Security-Policy";
 const DEMO_PAGES = "demo-site";
 /** The demo's canonical address: its own pages are published there, in demo-site/. */
 const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
-/** The policy every path under demo-site/ is served with, from the one rule of _headers. */
+/** The policy each of the demo's pages is served with, at each address it answers at. */
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+/**
+ * The addresses the demo's eight pages answer at, in the order of _headers: each page of a folder
+ * (the home page's is the site's own) at the folder's address and at its index.html, and the form's
+ * answer at its own. Each has a rule of its own in _headers, and none has a wildcard.
+ */
+const DEMO_ADDRESSES = [
+  "/demo-site/",
+  "/demo-site/ask-a-question/",
+  "/demo-site/ask-a-question/index.html",
+  "/demo-site/ask-a-question/sent.html",
+  "/demo-site/before-you-start/",
+  "/demo-site/before-you-start/index.html",
+  "/demo-site/common-mistakes/",
+  "/demo-site/common-mistakes/index.html",
+  "/demo-site/how-a-run-works/",
+  "/demo-site/how-a-run-works/index.html",
+  "/demo-site/index.html",
+  "/demo-site/reading-transcripts/",
+  "/demo-site/reading-transcripts/index.html",
+  "/demo-site/the-report/",
+  "/demo-site/the-report/index.html",
+];
+/** The rules _headers has for them: the policy at each address. */
+const DEMO_RULES: [string, [string, string][]][] = DEMO_ADDRESSES.map((address) => [
+  address,
+  [[CSP, DEMO_POLICY]],
+]);
 /**
  * What a build writes under demo-site/, by path from there, sorted: the demo's eight pages (the
  * seven of the tour, and the form's answer), its style sheet, and the sitemap that lists the seven.
@@ -568,14 +595,14 @@ describe("buildSite", () => {
       scripts: [sourceOf(SITE_SCRIPT)],
       styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
     });
-    // The index at both its addresses, the demo's own pages by one rule for everything under
-    // demo-site/, then each published file in the order the site lists them: a page at both its
+    // The index at both its addresses, the demo's own pages by a rule for each address each
+    // answers at, then each published file in the order the site lists them: a page at both its
     // addresses, with the policy of its own bytes, and a Word copy or a walkthrough file as a
     // download.
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
-      ["/demo-site/*", [[CSP, DEMO_POLICY]]],
+      ...DEMO_RULES,
     ];
     for (const file of filesOf(content)) {
       const bytes = await readFile(path.join(out, file.href));
@@ -590,8 +617,8 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the demo's own pages, four pages at two addresses each, and ten downloads.
-    expect(rules).toHaveLength(2 + 1 + 4 * 2 + 4 + 6);
+    // The index, the demo's fifteen addresses, four pages at two addresses each, and ten downloads.
+    expect(rules).toHaveLength(2 + 15 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -607,6 +634,37 @@ describe("buildSite", () => {
       ],
     ]);
     expect(rules.map(([rulePath]) => rulePath)).toContain(`/${EXAMPLE_FOLDER}/${EXAMPLE_STEM}`);
+  });
+
+  // Netlify's documentation doesn't say whether a rule for /demo-site/* matches /demo-site/ itself,
+  // so no rule has a wildcard: each address a page answers at has a rule of its own.
+  it("gives each of the demo's pages its policy at every address it answers at, a rule for each, made from the pages it publishes", async () => {
+    const home = await newHome();
+
+    const { out } = await build(home);
+
+    const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
+    const ofTheDemo = rules.filter(([rulePath]) => rulePath.startsWith(`/${DEMO_PAGES}/`));
+    // The addresses follow from the files published under demo-site/: each page at its own
+    // address, and an index.html at its folder's too. The style sheet and the sitemap are no pages.
+    const pages = (await filesUnder(path.join(out, DEMO_PAGES))).filter((file) =>
+      file.endsWith(".html"),
+    );
+    expect(pages).toHaveLength(8);
+    const addresses = pages.flatMap((file) =>
+      file.endsWith("index.html")
+        ? [`/${DEMO_PAGES}/${file.slice(0, -"index.html".length)}`, `/${DEMO_PAGES}/${file}`]
+        : [`/${DEMO_PAGES}/${file}`],
+    );
+    expect(ofTheDemo.map(([rulePath]) => rulePath)).toEqual(addresses.toSorted());
+    // The home page's two, each of the six other pages' two, and the form's answer's one.
+    expect(addresses).toHaveLength(2 + 6 * 2 + 1);
+    expect(addresses.toSorted()).toEqual(DEMO_ADDRESSES);
+    // Each has its own rule, the policy and nothing else, and no rule has a wildcard.
+    expect(ofTheDemo).toEqual(DEMO_RULES);
+    expect(rules.filter(([rulePath]) => rulePath.includes("*"))).toEqual([]);
+    expect(ofTheDemo.map(([rulePath]) => rulePath)).not.toContain(`/${DEMO_PAGES}/style.css`);
+    expect(ofTheDemo.map(([rulePath]) => rulePath)).not.toContain(`/${DEMO_PAGES}/sitemap.xml`);
   });
 
   it("gives a page's policy and a download's headers once for each address, however many reports list the file", async () => {
@@ -1132,7 +1190,7 @@ describe("buildSite", () => {
         ),
       );
       // The demo's own pages are theirs alone: the site folder's report isn't among them, and the
-      // rule of _headers for everything under demo-site/ is the demo's.
+      // rules of _headers for the addresses under demo-site/ are the demo's.
       expect(await filesUnder(path.join(out, DEMO_PAGES))).toEqual(DEMO_FILES);
       expect(await readFile(path.join(out, DEMO_PAGES, "index.html"))).toEqual(
         await readFile(path.join(DEMO_SITE_DIR, "index.html")),
@@ -1141,7 +1199,7 @@ describe("buildSite", () => {
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.filter(([rulePath]) =>
           rulePath.startsWith(`/${DEMO_PAGES}/`),
         ),
-      ).toEqual([["/demo-site/*", [[CSP, DEMO_POLICY]]]]);
+      ).toEqual(DEMO_RULES);
       // The site's own files are its own.
       expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
       expect(
@@ -2273,7 +2331,7 @@ describe("buildSite", () => {
         "No reports have been shared yet.",
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
-      // any report is shared; and the page's policy at its two addresses, then theirs.
+      // any report is shared; and the page's policy at its two addresses, then each of theirs.
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
@@ -2286,7 +2344,7 @@ describe("buildSite", () => {
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
           ([rulePath]) => rulePath,
         ),
-      ).toEqual(["/", "/index.html", "/demo-site/*"]);
+      ).toEqual(["/", "/index.html", ...DEMO_ADDRESSES]);
       expect(logger.entries.at(-1)).toEqual({
         level: "info",
         message: `Built the site in ${out}: 0 reports from 0 sites.`,
@@ -2637,15 +2695,15 @@ describe("buildSite", () => {
         const shared = await readFile(path.join(home, folder, "share", ...rest));
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
-      // And each page has its own rules in _headers, at both its addresses, after the index's and the
-      // demo's own pages'.
+      // And each page has its own rules in _headers, at both its addresses, after the index's and
+      // the demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
       expect(rules).toEqual([
         "/",
         "/index.html",
-        "/demo-site/*",
+        ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,
         `/${COPY_FOLDER}/${page}`,

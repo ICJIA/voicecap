@@ -141,12 +141,12 @@ const HOME_LINES = [
   "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
   "main landmark, heading, level 1, Welcome to the voicecap demo",
   "This small site shows how voicecap works, one page at a time.",
-  "content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+  "content info landmark, This demo site comes with voicecap, for trying it out.",
 ];
 
 /** What NVDA said on the demo's home page, as read.txt has it after its header. */
 const HOME_READ = [
-  "[to bottom] content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+  "[to bottom] content info landmark, This demo site comes with voicecap, for trying it out.",
   "[to top] same page, link, Skip to main content",
   "banner landmark, voicecap demo",
   "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
@@ -244,7 +244,7 @@ function spokenDemo(
           : [
               "same page, link, Skip to main content",
               `main landmark, heading, level 1, ${title}`,
-              "content info landmark, This demo site comes with voicecap.",
+              "content info landmark, This demo site comes with voicecap, for trying it out.",
             ],
       headings: [`heading, level 1, ${title}`],
       stops: [skipLink],

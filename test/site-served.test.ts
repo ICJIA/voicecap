@@ -49,7 +49,7 @@ const COLLECT_VIOLATIONS = `
   });
 `;
 
-/** The policy of the demo's own pages: everything under /demo-site/ has it, from one rule. */
+/** The policy of the demo's own pages: each address a page answers at has it, from a rule of its own. */
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 /** The demo's canonical address: the website's /demo-site/, which each of its pages names. */
@@ -328,27 +328,41 @@ describe("the site, served as Netlify serves it", () => {
 });
 
 // The demo's own pages are published inside the website at /demo-site/, which is their canonical
-// address. They hold no script and no style block, so one rule of _headers gives every path under
-// /demo-site/ the same policy, which allows their style sheet and their form.
+// address. They hold no script and no style block, so a rule of _headers gives each address a page
+// answers at the same policy, which allows their style sheet and their form. There is no wildcard
+// rule: each address is written out, and the server here gives a rule only to its exact path.
 describe("the demo's own pages, served as Netlify serves them", () => {
   const demoAddress = (where: string): string => new URL(`demo-site/${where}`, server.url).href;
+  /**
+   * The addresses a page answers at, by its path under /demo-site/: a page in a folder is at the
+   * folder's address and at its index.html, and the form's answer is at its own.
+   */
+  const addressesOf = (where: string): string[] =>
+    where === "" || where.endsWith("/") ? [where, `${where}index.html`] : [where];
 
-  it("loads each page with its style, under the demo's policy, naming its own address, with no violation", async () => {
+  it("loads each page with its style, at every address it answers at, under the demo's policy, naming its own address, with no violation", async () => {
     const page = await newPage();
+    const visited: string[] = [];
 
     for (const where of DEMO_PAGE_PATHS) {
-      expect(await visit(page, demoAddress(where)), where).toBe(DEMO_POLICY);
-      // The style sheet beside the pages loaded under the policy: the page has its text color, and
-      // without it would have the browser's black.
-      expect(await page.locator('link[rel="stylesheet"]').count(), where).toBe(1);
-      expect(await page.evaluate(() => getComputedStyle(document.body).color), where).toBe(
-        "rgb(24, 31, 58)",
-      );
-      expect(await page.locator('link[rel="canonical"]').getAttribute("href"), where).toBe(
-        `${DEMO_CANONICAL}${where}`,
-      );
-      expect(await violationsOf(page), where).toEqual([]);
+      for (const at of addressesOf(where)) {
+        expect(await visit(page, demoAddress(at)), at).toBe(DEMO_POLICY);
+        // The style sheet beside the pages loaded under the policy: the page has its text color,
+        // and without it would have the browser's black.
+        expect(await page.locator('link[rel="stylesheet"]').count(), at).toBe(1);
+        expect(await page.evaluate(() => getComputedStyle(document.body).color), at).toBe(
+          "rgb(24, 31, 58)",
+        );
+        // Whichever address it is read at, it names the one address it has: its folder's.
+        expect(await page.locator('link[rel="canonical"]').getAttribute("href"), at).toBe(
+          `${DEMO_CANONICAL}${where}`,
+        );
+        expect(await violationsOf(page), at).toEqual([]);
+        visited.push(at);
+      }
     }
+    // The home page's two, each of the six other pages' two, and the form's answer's one.
+    expect(visited).toHaveLength(2 + 6 * 2 + 1);
   });
 
   it("leads every link, style sheet, and form of the pages to a file under /demo-site/", async () => {

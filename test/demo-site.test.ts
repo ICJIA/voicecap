@@ -288,6 +288,33 @@ describe("the demo site's addresses", () => {
   });
 });
 
+// The same pages are read on this computer and on the website, so what they say of where the demo
+// runs, and of what the form does with what a visitor types, has to be true at both.
+describe("the demo site's words", () => {
+  const FOOTER = "This demo site comes with voicecap, for trying it out.";
+  const NOTE =
+    "This is a practice form: sending it only shows a thank-you page, so don't type anything private.";
+
+  it("ends every page, the 404 page too, with a footer that is true wherever the demo is served", async () => {
+    const pages = [...DEMO_PAGES, "/ask-a-question/sent.html", "/no-such-page/"];
+    expect(pages).toHaveLength(9);
+    for (const pagePath of pages) {
+      const page = await open(pagePath);
+      expect(await page.locator("footer").innerText(), pagePath).toBe(FOOTER);
+      await close(page);
+    }
+  });
+
+  it("tells whoever is at the question form that it is for practice, and not to type anything private", async () => {
+    const page = await open("/ask-a-question/");
+    const notes = await page.locator("main p").allInnerTexts();
+
+    expect(notes).toContain(NOTE);
+    expect(notes.join(" ")).not.toContain("Nothing you type is sent anywhere");
+    await close(page);
+  });
+});
+
 describe("the demo site's accessibility (axe-core in Chromium)", () => {
   it("has no violations on the six good pages", async () => {
     expect(GOOD_PAGES).toHaveLength(6);

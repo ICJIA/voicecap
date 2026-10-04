@@ -150,7 +150,7 @@ describe("the tour's words, as the spec's example on a ready Windows PC has them
       ].join("\n"),
     );
     const lines = [
-      "[to bottom] content info landmark, This demo site comes with voicecap.",
+      "[to bottom] content info landmark, This demo site comes with voicecap, for trying it out.",
       "[to top] same page, link, Skip to main content",
       "banner landmark, voicecap demo",
       "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",

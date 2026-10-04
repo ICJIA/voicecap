@@ -35,10 +35,11 @@
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), robots.txt,
  * and _headers, which gives each page its Content Security Policy, made from the hashes of that
- * page's own bytes, the demo's pages theirs, and each download its Content-Disposition. In the home
- * it writes .gitattributes and .gitignore when they aren't there, as a run does, so a home's first
- * build keeps _site/ out of Git with the rest of what voicecap keeps out, then netlify.toml and
- * .nvmrc the first time. None of them is ever written again.
+ * page's own bytes, the demo's pages theirs at each address they answer at (see demoSiteRules), and
+ * each download its Content-Disposition. In the home it writes .gitattributes and .gitignore when
+ * they aren't there, as a run does, so a home's first build keeps _site/ out of Git with the rest
+ * of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None of them is ever
+ * written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -71,10 +72,11 @@ import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
 import {
   contentSecurityPolicy,
-  DEMO_SITE_RULE,
+  demoSiteRules,
   headersFile,
   HEADERS_FIRST_LINE,
   inlineHashes,
+  POLICY_HEADER,
   ROBOTS_TXT,
   type HeaderRule,
 } from "./headers.js";
@@ -121,8 +123,8 @@ const DEMO_NOT_FOUND = "404.html";
 const DEMO_BASE = DEMO_CANONICAL.replace(/\/$/, "");
 /**
  * The site's own files and folders at its top, which a site folder of the same name would take the
- * place of. The demo's pages are one: a site folder named so would be mixed with them, and its
- * pages given their policy.
+ * place of. The demo's pages are one: a site folder named so would be published among them, and a
+ * file of one name would take another's place.
  */
 const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
@@ -255,9 +257,14 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const index = renderSiteIndex(content, { fontCss });
   await writeFile(path.join(out, "index.html"), index);
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
+  // The demo's own pages' rules are made from the files just published, so that none is left out.
+  const demoRules = demoSiteRules(
+    DEMO_FOLDER,
+    demoFiles.map((file) => file.path),
+  );
   await writeFile(
     path.join(out, HEADERS_FILE),
-    headersFile(headerRules(content, index, publishing.rulesOf)),
+    headersFile(headerRules(content, index, demoRules, publishing.rulesOf)),
   );
   // A home that has no .gitignore gets voicecap's now, with _site/ in it, so the check below warns
   // only of a .gitignore that was there and doesn't keep the site out.
@@ -694,8 +701,6 @@ async function readCopy(
   }
 }
 
-const POLICY = "Content-Security-Policy";
-
 /**
  * The rules of _headers for one published file, from the bytes written: a page is given the policy of
  * its own bytes at its address and at the same without ".html", which is how Netlify serves it too;
@@ -706,8 +711,8 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
   if (file.kind === "page") {
     const policy = contentSecurityPolicy(inlineHashes(bytes.toString("utf8")));
     return [
-      { path: address, headers: [[POLICY, policy]] },
-      { path: address.slice(0, -".html".length), headers: [[POLICY, policy]] },
+      { path: address, headers: [[POLICY_HEADER, policy]] },
+      { path: address.slice(0, -".html".length), headers: [[POLICY_HEADER, policy]] },
     ];
   }
   if (file.kind === "word" || file.kind === "walkthrough") {
@@ -717,21 +722,22 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 }
 
 /**
- * The rules of _headers: the index at both its addresses, the demo's own pages by one rule for
- * everything under demo-site/ (see DEMO_SITE_RULE), then each published file's, in the order the
- * site lists them (the demo's report first, then each site's reports as they're shown). A path has
- * one rule, however many reports list its file.
+ * The rules of _headers: the index at both its addresses, the demo's own pages' rules (`demoRules`,
+ * made by demoSiteRules: a rule for each address a page answers at), then each published file's, in
+ * the order the site lists them (the demo's report first, then each site's reports as they're
+ * shown). A path has one rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,
   index: string,
+  demoRules: readonly HeaderRule[],
   rulesOf: ReadonlyMap<PublishedFile, HeaderRule[]>,
 ): HeaderRule[] {
   const policy = contentSecurityPolicy(inlineHashes(index));
   const rules: HeaderRule[] = [
-    { path: "/", headers: [[POLICY, policy]] },
-    { path: "/index.html", headers: [[POLICY, policy]] },
-    DEMO_SITE_RULE,
+    { path: "/", headers: [[POLICY_HEADER, policy]] },
+    { path: "/index.html", headers: [[POLICY_HEADER, policy]] },
+    ...demoRules,
   ];
   const seen = new Set(rules.map((rule) => rule.path));
   const reports = [

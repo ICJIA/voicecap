@@ -1,11 +1,9 @@
 /**
  * A built website served as Netlify serves it, for the tests that open it in a browser: each file at
  * its address (serveStatic, src/util/static-site.ts), and each rule of the site's _headers giving its
- * headers to the response for its path. A rule is for its exact path, or, as Netlify reads one whose
- * path ends with /*, for that folder's own address and every path under it (the one wildcard
- * voicecap writes: /demo-site/*). The page at /<folder>/<name>.html isn't also served at
- * /<folder>/<name>. A .docx and a .json have no content type of their own here: serveStatic sends
- * each as application/octet-stream.
+ * headers to the response for its path. A rule is for its exact path, since voicecap writes no
+ * wildcard, and the page at /<folder>/<name>.html isn't also served at /<folder>/<name>. A .docx and
+ * a .json have no content type of their own here: serveStatic sends each as application/octet-stream.
  *
  * The server is on 127.0.0.1, at a free port, and is stopped by `close`.
  */
@@ -61,19 +59,6 @@ function rulesOf(text: string): Rules {
   return rules;
 }
 
-/**
- * The headers the rules give a path, in the file's order: the rule for exactly that path, and each
- * rule whose path ends with /* and starts it ("/demo-site/*" gives its headers to "/demo-site/" and
- * to every path under it).
- */
-function headersFor(rules: Rules, pathname: string): [name: string, value: string][] {
-  return [...rules].flatMap(([rulePath, headers]) =>
-    rulePath === pathname || (rulePath.endsWith("/*") && pathname.startsWith(rulePath.slice(0, -1)))
-      ? headers
-      : [],
-  );
-}
-
 async function handle(
   dir: string,
   rules: Rules,
@@ -91,7 +76,7 @@ async function handle(
     return;
   }
   // Set before the file is sent, which writes the rest of the response's headers around them.
-  for (const [name, value] of headersFor(rules, where.decoded)) response.setHeader(name, value);
+  for (const [name, value] of rules.get(where.decoded) ?? []) response.setHeader(name, value);
   if (!(await serveStatic(dir, where, request, response))) {
     send(response, 404, CONTENT_TYPES[".txt"]!, "Not found", request.method);
   }
