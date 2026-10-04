@@ -6,7 +6,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ### Changed
 
-- **The website's footer keeps to the width of the notes above it,** so a line of it is no longer to read than theirs. On a wide window it ran the main column's whole width, about 170 characters a line. Its smaller text now stops at 80 characters, as wide as the notes' 72.
+- **The footer of the website and of the shareable page keeps to the width of the text above it,** so a line of it is no longer to read. On a wide window it ran the page's whole width, about 170 characters a line. Its smaller text now stops at 80 characters, as wide as the 72 of the text above. A page already shared is as it was: only pages made from now on change.
 
 ## [0.9.1] - 2026-10-04
 

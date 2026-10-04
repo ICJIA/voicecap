@@ -195,6 +195,8 @@ dl.spec dt { color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tx .scroll { max-height: 280px; overflow: auto; }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; }
+/* A line of the footer is no longer to read than the page's own text: 80 characters of its smaller text are as wide as the page's 72. */
+footer > * { max-width: 80ch; }
 footer .mono { overflow-wrap: anywhere; }
 /* collapsed parts: a line that says what's inside, opened with a click (or all at once, or for printing) */
 details.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }

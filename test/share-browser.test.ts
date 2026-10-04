@@ -491,6 +491,32 @@ describe("a page in a narrow window", () => {
   });
 });
 
+describe("the footer", () => {
+  it("keeps each line to 80 characters of its smaller text, as wide as the page's 72, on a wide window", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1600, height: 900 });
+
+    // How wide each of the footer's lines is, and how wide 80 characters of its own text are.
+    const lines = await page.evaluate(async () => {
+      await Promise.all([...document.fonts].map((face) => face.load()));
+      const context = document.createElement("canvas").getContext("2d");
+      if (context === null) throw new Error("There's no canvas to measure text with.");
+      return [...document.querySelectorAll("footer > *")].map((element) => {
+        const style = getComputedStyle(element);
+        context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        return {
+          width: element.getBoundingClientRect().width,
+          eighty: context.measureText("0".repeat(80)).width,
+        };
+      });
+    });
+
+    // What voicecap is, when the page was made, and the file's name with its Word copy's.
+    expect(lines).toHaveLength(3);
+    for (const { width, eighty } of lines) expect(width).toBeLessThanOrEqual(eighty + 1);
+  });
+});
+
 describe("a run's walkthrough file", () => {
   it("downloads as the file voicecap writes of the run, under its own name", async () => {
     const page = await open(pages.demo);
