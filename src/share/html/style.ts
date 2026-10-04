@@ -1,4 +1,28 @@
 /**
+ * The theme's rules, which come first among the rules of both the shareable page's style and the
+ * website's (../../site/style.ts), so the two look alike and switch alike: the colors and the fonts
+ * as variables, dark by default, light when the reader switches it (`data-theme="light"` on the
+ * root), and light in print, where the theme's button (`.theme`) is left out. Both pages keep the
+ * reader's choice under the same name, so a choice made on one carries to the other.
+ */
+export const THEME_CSS = `:root {
+  --bg: #0b1015; --panel: #10171f; --panel-2: #151e28; --line: #243242;
+  --fg: #e6edf3; --muted: #9aabbd; --accent: #72b7ff;
+  --ok: #4cc38a; --warn: #f0b23e; --bad: #f27575; --mac: #b99cff;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff; --panel: #f5f7fa; --panel-2: #edf1f5; --line: #d5dde6;
+  --fg: #0e1621; --muted: #4b5b6c; --accent: #1d63c9;
+  --ok: #187a51; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9;
+  color-scheme: light;
+}
+@media print { :root { --bg: #fff; --panel: #fff; --panel-2: #f3f5f8; --line: #cfd7e0; --fg: #0e1621; --muted: #445566; --accent: #1d63c9; --ok: #1a7f55; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9; color-scheme: light; } .theme { display: none; } }`;
+
+/**
  * The shareable page's one style block: the approved mockup's, ported, with the fonts embedded
  * ahead of it (see ../fonts.ts) in place of its Google Fonts link. It's dark by default, light when
  * the reader switches (`data-theme="light"` on the root), and light in print, where the page's
@@ -30,22 +54,7 @@
  * Nothing from the mockup's samples (`.mock`) is here.
  */
 export const SHARE_CSS = `/* Layout: an instrument panel for evidence — the verdict band first, then every page, then the run's own proof. */
-:root {
-  --bg: #0b1015; --panel: #10171f; --panel-2: #151e28; --line: #243242;
-  --fg: #e6edf3; --muted: #9aabbd; --accent: #72b7ff;
-  --ok: #4cc38a; --warn: #f0b23e; --bad: #f27575; --mac: #b99cff;
-  --display: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  color-scheme: dark;
-}
-:root[data-theme="light"] {
-  --bg: #ffffff; --panel: #f5f7fa; --panel-2: #edf1f5; --line: #d5dde6;
-  --fg: #0e1621; --muted: #4b5b6c; --accent: #1d63c9;
-  --ok: #187a51; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9;
-  color-scheme: light;
-}
-@media print { :root { --bg: #fff; --panel: #fff; --panel-2: #f3f5f8; --line: #cfd7e0; --fg: #0e1621; --muted: #445566; --accent: #1d63c9; --ok: #1a7f55; --warn: #8f5c00; --bad: #c0392b; --mac: #6a3fc9; color-scheme: light; } .theme { display: none; } }
+${THEME_CSS}
 body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); padding-inline: 16px; }
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
