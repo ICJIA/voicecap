@@ -4,13 +4,20 @@ import { resolveUserPath } from "../util/git-bash.js";
 
 /**
  * The transcripts home: `.gitattributes` and `.gitignore` at its top (written once, by
- * ./git-files.js), then one folder per site (siteFolder, below):
+ * ./git-files.js), `netlify.toml` and `.nvmrc` beside them (written once, by `voicecap site`: see
+ * ../site/netlify.js), and `_site/`, where `voicecap site` builds the website by default (made
+ * again by every build, and kept out of Git by .gitignore). Then one folder per site (siteFolder,
+ * below):
  *
  *   report.html  latest.txt  reviews.json  .voicecap.lock (only while a run writes here)
  *   share/current.html                  (the shareable page, rewritten wherever report.html is)
  *   share/current.docx                  (its Word copy, written with it)
- *   share/<site>_<date>.html            (the pair `voicecap share` made to send, named for this folder
- *   share/<site>_<date>.docx             and the day, with -2, -3 for more the same day: never rewritten)
+ *   share/<site>_<date>.html            (the page and its Word copy that `voicecap share` made to
+ *   share/<site>_<date>.docx             send, named for this folder and the day, with -2, -3 for
+ *                                        more the same day: never rewritten)
+ *   share/<site>_<date>_<run>_walkthrough.json
+ *                                       (each run's walkthrough file, made with them and named for
+ *                                        them and the run: never rewritten)
  *   share/shares.json                   (what `voicecap share` sent: sealed, chained, only added to)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)

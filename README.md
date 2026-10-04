@@ -30,7 +30,7 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 >
 > - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
-> - **Any computer, Linux included:** reviews, reports, `share`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
+> - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
 
 ## How voicecap works
 
@@ -93,6 +93,11 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
   - [The Word copy](#the-word-copy)
   - [Sending it: voicecap share](#sending-it-voicecap-share)
   - [What was sent: shares.json](#what-was-sent-sharesjson)
+- [The website: voicecap site](#the-website-voicecap-site)
+  - [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)
+  - [The files it writes, and the headers](#the-files-it-writes-and-the-headers)
+  - [Publishing it, and the demo](#publishing-it-and-the-demo)
+  - [The first deploy](#the-first-deploy)
 - [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)
   - [Writing the file: voicecap walkthrough](#writing-the-file-voicecap-walkthrough)
   - [Repeating the run from the file](#repeating-the-run-from-the-file)
@@ -565,7 +570,7 @@ npx @icjia/voicecap --walkthrough <file> [options]
 ### Other commands
 
 <details>
-<summary>One line for each of the other commands, how they pick a site's folder, what <code>share</code> and <code>walkthrough</code> take, and what <code>doctor</code> prints</summary>
+<summary>One line for each of the other commands, how they pick a site's folder, what <code>share</code>, <code>site</code>, and <code>walkthrough</code> take, and what <code>doctor</code> prints</summary>
 
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
@@ -574,6 +579,7 @@ voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <Y
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
 voicecap walkthrough [--site <url>] [--run <id>] [--out <dir>] <file>
+voicecap site [--home <dir>] [--out <dir>]
 voicecap verify [--site <url>] [--out <dir>]
 voicecap setup     # install and check what voicecap needs on this computer (Windows or a Mac)
 voicecap preflight # check this computer is ready for a run, without starting the screen reader
@@ -586,6 +592,8 @@ Wherever a command takes a page, give a full URL or a root-relative path (`/abou
 **`share` takes three options:** `--site <url>`, the site (default: the home's only site); `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--reviewer <name>`, who is sharing (default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config). With no name it stops, as `review` does: a share is recorded with who made it. What it makes and prints is under [Sending it: `voicecap share`](#sending-it-voicecap-share).
 
 **`walkthrough` takes the file to write, and three options:** `--site <url>`, the site (default: the home's only site); `--run <id>`, the run to write it from (default: the site's latest completed run); and `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). It never overwrites a file, and it needs no screen reader. What it writes is under [Writing the file: `voicecap walkthrough`](#writing-the-file-voicecap-walkthrough).
+
+**`site` takes two options:** `--home <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--out <dir>`, the folder to build the website in (default: `_site` in the home). **Here `--out` isn't the home.** In every other command that takes it, `--out` is the transcripts home, and `site` takes the home as `--home`. It reads every site's folder in the home, so it takes no `--site`, and it needs no screen reader. What it builds and prints is under [The website: `voicecap site`](#the-website-voicecap-site).
 
 **`setup` and `doctor` work on Windows and on a Mac;** [Quick start](#quick-start) says what each does there. `doctor` installs nothing and changes no settings. It runs the checks and, if they pass, the live test, without asking first, then prints one report to paste whole into a bug report: this computer's details, one line per check (`OK`, `WARN`, or `FAIL`), and a verdict. On Windows:
 
@@ -808,6 +816,8 @@ Everything goes in the transcripts home: `--out <dir>`, else the `VOICECAP_TRANS
 ```
 voicecap-transcripts/                  ← the transcripts home
   .gitattributes  .gitignore           ← written once, at the top (see "The audit record")
+  netlify.toml  .nvmrc                 ← written once by `voicecap site`, for Netlify (see "The website")
+  _site/                               ← the website `voicecap site` builds, made again by every build and kept out of Git
   dvfr.illinois.gov/                   ← one folder per site: its host name, plus _port if the URL has one
     2026-09-26/                        ← one folder per day with a run or manual session
       1405/                            ← a run: its local time, plus --run-name if given
@@ -823,7 +833,8 @@ voicecap-transcripts/                  ← the transcripts home
     report.html  latest.txt            ← live report, and the id of the most recently completed run
     share/current.html                 ← the shareable page, written again with report.html
     share/current.docx                 ← its Word copy, written with it
-    share/<site>_<date>.html  .docx    ← the pair `voicecap share` made to send: never written again
+    share/<site>_<date>.html  .docx    ← the page and its Word copy that `voicecap share` made to send: never written again
+    share/<site>_<date>_<run>_walkthrough.json  ← each run's walkthrough file, made with them: never written again
     share/shares.json                  ← what `voicecap share` sent: sealed, chained, only added to
     compare/<base>__<run>/             ← diffs made by `voicecap report --compare`
     .voicecap.lock                     ← only while a run writes here
@@ -849,7 +860,7 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 
 The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
-The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, `walkthrough`, and `verify` never take it for a site.
+The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, `walkthrough`, `verify`, and `site` never take it for a site.
 
 ### What each run records
 
@@ -927,9 +938,10 @@ voicecap writes `.gitattributes` and `.gitignore` at the home's top the first ti
 
 - **`.voicecap.lock`**, the marker a run holds while it's writing.
 - **Manual sessions' raw NVDA logs** (`**/*_manual_*/raw/`). At Input/output level, NVDA's log records every keystroke, including passwords typed into forms — not something to put in Git. The raw copy's SHA-256 stays in `session.json` either way, so a home missing a raw copy isn't something `verify` will flag.
-- **The shareable page and its Word copy** (`**/share/current.*`). voicecap writes them again after every run and review, so a copy in Git each time would only make the record bigger; they're made from the records, which are in Git. The dated copies that `voicecap share` makes, and `shares.json`, go into Git with the rest of the record: they're what was sent. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
+- **The shareable page and its Word copy** (`**/share/current.*`). voicecap writes them again after every run and review, so a copy in Git each time would only make the record bigger; they're made from the records, which are in Git. The dated copies that `voicecap share` makes (the page, its Word copy, and each run's walkthrough file), and `shares.json`, go into Git with the rest of the record: they're what was shared, and what the website is built from. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
 - **Temporary files a crash can leave behind** (`.*.tmp`). voicecap writes each file under a temporary name first, then renames it into place.
 - **Word's lock files** (`~$*`). Word keeps one beside a document it has open (a sent copy someone is reading, say), named with `~$` first, and a commit made then would take it. voicecap never changes a `.gitignore` it wrote before, so the owner of a home set up before this line was added can add `~$*` by hand.
+- **The website** (`_site/`). `voicecap site` builds it from the records, and builds it again every time, so a copy in Git would only make the record bigger, and could be committed with the records by mistake. Netlify builds its own copy. A home whose `.gitignore` voicecap wrote with 0.8.0 or earlier doesn't have this line. When `voicecap site` builds into the home's `_site/` and the line isn't there, it warns, with the line to add, and never changes the file: add `_site/` by hand.
 - **Files the operating system adds** to folders you open: `.DS_Store` (macOS), `Thumbs.db` and `desktop.ini` (Windows).
 
 > **Never commit an unredacted raw NVDA log.** See [Manual NVDA sessions](#manual-nvda-sessions).
@@ -1165,7 +1177,7 @@ Its sections, in order:
 
 **The fingerprint check.** "Check the fingerprints", in the evidence, checks every transcript the page shows against the fingerprint in its run's sealed record, each run's seal, and each review's seal and the review chain, all in the browser. It also checks that the text each transcript shows in the appendix is the file the page carries, so the transcripts shown are exactly the ones the sealed records list. "Show a change being caught" repeats the check on a copy with one character changed, in memory only, so a reader can see a mismatch named. The check shows that the page agrees with itself. It can't show that the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare the file's own fingerprint with the one its sender recorded: `voicecap share` prints it, ready for the email that sends the file, and `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, shows it for the file you received. Or run `voicecap verify` on the transcripts home, which checks the originals. `voicecap verify` leaves `current.html` and `current.docx` alone, since voicecap makes them again from the records each time, and `verify` checks the records. It does check the dated copies that `voicecap share` made, against what `shares.json` recorded of them (see [Checking the record](#checking-the-record-voicecap-verify)).
 
-**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only. Each walkthrough file carries the pages' labels, templates, and notes from your page list, as the records do.
+**Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only. Each walkthrough file carries the pages' labels, templates, and notes from your page list, as the records do. **Everything on the website is public to anyone with its address,** so all of this holds there too, for every page, Word copy, and walkthrough file that has been shared (see [The website: `voicecap site`](#the-website-voicecap-site)).
 
 **The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
 
@@ -1193,17 +1205,19 @@ On Windows, voicecap can't replace `current.docx` while Word has it open. A run,
 ### Sending it: `voicecap share`
 
 <details>
-<summary>The dated copies, what <code>share</code> prints, the line for the email, and when it stops</summary>
+<summary>The dated copies and each run's walkthrough file, what <code>share</code> prints, the line for the email, and when it stops</summary>
 
-`current.html` and `current.docx` change with every run, review, and report, so they aren't what to send. `voicecap share` makes a pair of copies of its own, to send, and records them in `shares.json` (see [What was sent](#what-was-sent-sharesjson)). The page it sends is the one described above, so read "Before you send it" there first.
+`current.html` and `current.docx` change with every run, review, and report, so they aren't what to send. `voicecap share` makes copies of its own: the page and its Word copy, to send, and the walkthrough file of each run the page draws on. It records them all in `shares.json` (see [What was sent](#what-was-sent-sharesjson)). The page it sends is the one described above, so read "Before you send it" there first.
 
 ```bash
 npx @icjia/voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
 ```
 
-**The copies are dated.** They're named for the site's folder and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `dvfr.illinois.gov_2026-10-02.docx`, and they go in the site's `share/` folder. A second share the same day takes `-2` (`dvfr.illinois.gov_2026-10-02-2.html`), then `-3`, and so on. A copy is never overwritten, and a name that `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
+**The copies are dated.** The page and its Word copy are named for the site's folder and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `dvfr.illinois.gov_2026-10-02.docx`, and they go in the site's `share/` folder. A second share the same day takes `-2` (`dvfr.illinois.gov_2026-10-02-2.html`), then `-3`, and so on. A copy is never overwritten, and a name that `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
 
-**It prints what it made:** each copy's path, size, and SHA-256, then the line to paste into the email that sends them (the fingerprints are shortened here: a real one is 64 characters):
+**Each run's walkthrough file** goes beside them, the oldest run first. It's the file the page offers to download, byte for byte, named for the share and the run, such as `dvfr.illinois.gov_2026-10-02_2026-09-26_1405_walkthrough.json`. It's recorded with its run, and never overwritten, as the other copies are. A run whose file can't be made gets a warning, such as `Warning: Run 2026-09-26_1405's walkthrough file can't be made, so it isn't shared: <why>`, and the share goes on without it. The website offers these files (see [The website: `voicecap site`](#the-website-voicecap-site)).
+
+**It prints what it made:** each file's path, size, and SHA-256, then the line to paste into the email that sends the page and its Word copy (the fingerprints are shortened here: a real one is 64 characters):
 
 ```
 PS> npx @icjia/voicecap share
@@ -1212,11 +1226,13 @@ Shared dvfr.illinois.gov, as of 2 October 2026: entry 1 in C:\Users\cschw\code\v
     1.2 MB (1,234,567 bytes), SHA-256 9f2c…e41a
   C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02.docx
     310 KB (317,440 bytes), SHA-256 61b7…03d5
-To paste into the email that sends them:
+  C:\Users\cschw\code\voicecap-transcripts\dvfr.illinois.gov\share\dvfr.illinois.gov_2026-10-02_2026-09-26_1405_walkthrough.json
+    4 KB (3,894 bytes), SHA-256 c04e…77b9
+To paste into the email that sends the page and its Word copy:
   Fingerprints (SHA-256): dvfr.illinois.gov_2026-10-02.html 9f2c…e41a; dvfr.illinois.gov_2026-10-02.docx 61b7…03d5. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.
 ```
 
-**The line for the email** names each copy and its fingerprint, and says how to check a file you received. The fingerprints are in lower case, as the copies and `shares.json` have them, and PowerShell shows the same letters in capitals, so the line ends by saying so. The copies' own fingerprint checks tell a reader to run the same two commands.
+**The line for the email** names the page and its Word copy, each with its fingerprint, and says how to check a file you received. The walkthrough files aren't in it: they aren't what's emailed. The fingerprints are in lower case, as the copies and `shares.json` have them, and PowerShell shows the same letters in capitals, so the line ends by saying so. The copies' own fingerprint checks tell a reader to run the same two commands.
 
 **Sizes** are in KB, with thousands separators, while the rounded size is under 1,024 KB, and in MB with one decimal from there. Each comes with its exact bytes. A copy over 20 MB gets a warning after the line for the email, such as `Warning: dvfr.illinois.gov_2026-10-02.docx is 23.4 MB, over 20 MB: too big for most email.`
 
@@ -1231,12 +1247,167 @@ To paste into the email that sends them:
 - `seq` and `prev`: its number in the chain, and the seal of the entry before it (`null` for the first);
 - `at`, when the copies were made, in local time, and `by`, who shared;
 - `runs`: the ids of the runs the copies drew on, oldest first;
-- `files`: the page, then its Word copy, each with its `name`, `bytes`, and `sha256`;
+- `files`: the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `name`, `bytes`, and `sha256`, and a walkthrough file's `run`, the id of its run;
 - `seal`: a SHA-256 of the entry itself.
 
-Entries are sealed and chained as `reviews.json`'s are, and they're never edited or deleted: a new share is a new entry (see [Checking the record](#checking-the-record-voicecap-verify)). voicecap refuses to overwrite a `shares.json` it can't read.
+A share made by voicecap 0.8.0 or earlier lists only the page and its Word copy. Entries are sealed and chained as `reviews.json`'s are, and they're never edited or deleted: a new share is a new entry (see [Checking the record](#checking-the-record-voicecap-verify)). voicecap refuses to overwrite a `shares.json` it can't read.
 
-The dated copies and `shares.json` go into Git with the rest of the record: they're what was sent, and the record of it. `current.html` and `current.docx` stay out, since every run writes them again (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)). `voicecap verify` checks `shares.json` and each copy it records, and names a copy that nothing records.
+The dated copies, the walkthrough files, and `shares.json` go into Git with the rest of the record: they're what was shared, and the record of it. `current.html` and `current.docx` stay out, since every run writes them again (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)). `voicecap verify` checks `shares.json` and each copy it records, and names a copy that nothing records.
+
+## The website: `voicecap site`
+
+`voicecap site` builds a website of every report voicecap has shared, by site and by date, with the demo. It gives people one address to open, in place of a file to send. Netlify can build it from the transcripts home's repository every time the repository is pushed. voicecap's own repository stays code only.
+
+```bash
+npx @icjia/voicecap site [--home <dir>] [--out <dir>]
+```
+
+`--home` is the transcripts home, and `--out` is the folder to build the site in: `_site` in the home, by default. Here `--out` isn't the home, as it is in the other commands (see [Other commands](#other-commands)). The command needs no screen reader.
+
+**What's on the site,** in three views, with a bar of links to them:
+
+- **The demo:** voicecap's report on its own small demo site, as an example of what it makes. It's there only when the home has a share of the demo (see [Publishing it, and the demo](#publishing-it-and-the-demo)).
+- **The sites:** each site, by its folder's name (its host, such as `dvfr.illinois.gov`), with its reports, the newest first.
+- **Every report, by date:** every site's reports, the newest first, each with a link to its page. The demo isn't in it: it's an example, not a site.
+
+Each report shows when it was shared and who prepared it, then its files: the page, to open; and its Word copy and the walkthrough file of each run it draws on, to download. Each file shows its size and its SHA-256 fingerprint, as `shares.json` recorded them. To check a copy against its fingerprint, run `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac. A report shared before voicecap shared walkthrough files says that none was shared with it.
+
+The site's page follows the shareable page's rules. It's one self-contained file, dark at first, with a button for a light version, and light in print. It's complete without JavaScript, and voicecap's tests run axe on it, in both themes. A reader's choice of theme carries between the site and its reports.
+
+**Everything on the website is public to anyone with its address.** Anyone can open each report, and download each Word copy and walkthrough file. `robots.txt` and a header ask search engines to keep the site out of their results, but that's a request, not a lock. Keep the transcripts repository private: the website holds only what was shared, and the repository holds much more. Read "Before you send it", under [The shareable page](#the-shareable-page), and share only what you'd put on a public page.
+
+**A share is never deleted, so the site shows every one,** as long as its record is intact. voicecap has no command that takes a report off the site.
+
+### What the build reads, and what it leaves out
+
+<details>
+<summary>What it reads, what it publishes, what it leaves out and says so, and the folders it builds into</summary>
+
+**What it reads:** only the record of what was shared. That's each site folder's `share/shares.json`, and the latest share in the home's `voicecap-demo/` folder, which it publishes under `demo/`. It never reads a run.
+
+**What it publishes:** each file that an entry names, when the entry's seal still holds and the file is still a regular file whose size and SHA-256 are the recorded ones. It copies the file byte for byte, so a file on the site is exactly the file that was shared, and its fingerprint matches.
+
+**What it leaves out, and names.** Each is a warning in the build's output, such as `Warning: dvfr.illinois.gov/share/dvfr.illinois.gov_2026-10-02.docx: not published: the file is missing`. The build still finishes, with exit code 0, so one changed file doesn't stop every later update.
+
+- **An entry whose seal no longer holds,** or whose fields aren't what voicecap records, and a `shares.json` that can't be read. The site shows nothing of it. Only the build's output names it.
+- **A copy that has changed since it was shared, is missing, can't be read, or isn't a regular file** (a link or a folder, say). The report's other files are still published, and under the report the site says that `<name> isn't here`, and why.
+- **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A name that holds a path, such as `../notes.txt`, is never read.
+- **A site folder named `demo`,** which would take the demo's place on the site.
+
+**The folder it builds into** is emptied first, so the build takes care which folder that is. It builds only into a folder that's empty (or new), or one an earlier build made: its `_headers` starts with voicecap's own line. Even then, it stops if the folder holds a name that starts with a dot (a repository's `.git`, say) or a folder inside a folder, since a build writes neither. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count, and are emptied with the rest.
+
+It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. Every refusal comes before anything is touched. The build says why, and exits with code 1:
+
+```
+Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\notes: it isn't empty, and voicecap site didn't build it. Give a folder of its own, such as C:\Users\cschw\code\voicecap-transcripts\_site.
+```
+
+</details>
+
+### The files it writes, and the headers
+
+<details>
+<summary>What goes in the output folder, what <code>_headers</code> and <code>robots.txt</code> hold, and the two files it writes in the home for Netlify</summary>
+
+**In the output folder,** every build writes:
+
+- **`index.html`:** the site's page.
+- **A folder for each site, and `demo/`,** holding the files of their reports, with the names they were shared under.
+- **`robots.txt`:** `User-agent: *` and `Disallow: /`, which turns every crawler away.
+- **`_headers`:** Netlify's file of headers, with a rule for each path.
+  - Each page gets its own Content Security Policy, made from the SHA-256 of that page's own style and script: `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. The page's own code runs, and nothing else does. It loads nothing from outside, makes no connection, and can't be put in a frame. Each page was made by the voicecap that shared it, so each is hashed from its own bytes.
+  - Each Word copy and walkthrough file gets `Content-Disposition: attachment`, so a browser downloads it.
+  - Its first line, `# Made by voicecap site. Each build empties this folder and writes it again.`, is how a later build knows the folder is one it made.
+
+**In the home,** the first time, and never again. `voicecap site` never writes over either file, so they're yours once they're there, as `.gitattributes` is:
+
+- **`netlify.toml`:** the build command, such as `npx --yes @icjia/voicecap@0.9 site --home . --out _site`; `publish = "_site"`; and the headers every file gets: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a `Permissions-Policy` that turns off the camera, microphone, geolocation, payment, and USB, `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `Cross-Origin-Opener-Policy: same-origin`, and `Cross-Origin-Resource-Policy: same-origin`. The command names the minor version of the voicecap that wrote the file: `@0.9` when voicecap 0.9.x wrote it, which npm reads as the latest 0.9 release. So the next build uses a patch release, and a new minor version only when you change the version in the command.
+- **`.nvmrc`:** `24`, so Netlify builds with Node 24, and the npm that comes with it.
+
+`voicecap site` says when it writes them: `Wrote netlify.toml into <home>, for Netlify: commit it with the records.` `_headers` is Netlify's format, and voicecap builds the site for Netlify.
+
+</details>
+
+### Publishing it, and the demo
+
+<details>
+<summary>Sharing, committing, and pushing; looking at the site before it's pushed; and putting the demo on it</summary>
+
+**To publish a report,** share it, then commit the transcripts home and push (the same lines as under [Setting it up](#setting-it-up)):
+
+```bash
+npx @icjia/voicecap share
+git add -A
+git commit -m "voicecap share"
+git push
+```
+
+Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
+
+**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to the files beside it, so it works from the folder. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
+
+**The demo on the site** is the latest share in the home's `voicecap-demo/` folder. To put one there, in PowerShell, in the transcripts home's folder:
+
+1. Run `npx @icjia/voicecap demo`. It's a guided tour of about 9 minutes that starts NVDA for real, so follow its steps and keep your hands off the keyboard when it says to (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)). Use a Windows PC: on a Mac, the tour stops before the audit. Its files go in `voicecap-demo/`, in the current folder: the home.
+2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does.
+3. Commit and push, as above. `voicecap-demo/` goes with the rest.
+
+To update the demo, do the three steps again: the site shows the latest share.
+
+</details>
+
+### The first deploy
+
+<details>
+<summary>Five steps, once: build the site, check <code>.gitignore</code>, push Netlify's two files, import the repository in Netlify, and check the site</summary>
+
+Do this once, after the transcripts home holds a share, and is a repository on GitHub (see [Setting it up](#setting-it-up)). The names below are ICJIA's: the repository `ICJIA/voicecap-transcripts` and the Netlify site `icjia-voicecap`, which makes the address `icjia-voicecap.netlify.app`. For another home, use its repository and a name of your own.
+
+1. **Build the site once on this computer.** In PowerShell, run:
+
+   ```powershell
+   npx @icjia/voicecap@latest site
+   ```
+
+   It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each of the two files it writes, then one for the site (your numbers will differ):
+
+   ```
+   Wrote netlify.toml into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
+   Wrote .nvmrc into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
+   Built the site in C:\Users\cschw\code\voicecap-transcripts\_site: 3 reports from 2 sites, and the demo's.
+   ```
+
+   Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If it says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
+
+2. **Add `_site/` to `.gitignore`, if voicecap says to.** If the output has a warning that ends `Add the line _site/ to it.`, open `.gitignore` in the transcripts home, add a line that says `_site/` at the end, and save it. A home that voicecap set up with 0.8.0 or earlier needs this. A new home's `.gitignore` has it already. Run the command from step 1 again: the warning should be gone.
+
+3. **Commit `netlify.toml` and `.nvmrc`, and push.** In PowerShell, in the transcripts home's folder, run `git status`. It should list `netlify.toml` and `.nvmrc`, and not `_site/`. If it lists `_site/`, go back to step 2. Then run:
+
+   ```powershell
+   git add netlify.toml .nvmrc
+   git commit -m "Add the files Netlify reads"
+   git push
+   ```
+
+   Netlify can publish only what's pushed. Shares you haven't pushed go the same way: `git add -A` takes them too.
+
+4. **In Netlify, import the repository and name the site.**
+   - Sign in at https://app.netlify.com.
+   - On the Projects page, open the **Add new project** menu, and choose **Import an existing project**.
+   - Choose GitHub. When Netlify asks for access to the repository, allow it, then pick `ICJIA/voicecap-transcripts`.
+   - Name the project `icjia-voicecap`: Netlify's word for the site. Its address is then `https://icjia-voicecap.netlify.app`. If Netlify says the name is taken, pick another, and use that address in step 5.
+   - Leave the build settings as they are: `netlify.toml` sets them, and its settings win over the ones on the page.
+   - Choose **Deploy site**, and wait for the deploy to finish.
+
+5. **Open the site and check it.** Open the address from step 4. Check that:
+   - the page opens, with "Screen reader test results" at the top, and the links in its bar go to "The demo" (when the home has one), "The sites", and "Every report, by date";
+   - a report's page opens;
+   - a Word copy and a walkthrough file download;
+   - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals.
+
+   If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again.
+
+</details>
 
 ## Repeating a run: the walkthrough file
 
@@ -1434,6 +1605,7 @@ Unknown settings are errors, to catch typos. The SHA-256 of the effective config
 import {
   addManualSession,
   addReview,
+  buildSite,
   createConsoleLogger,
   generateReport,
   loadConfig,
@@ -1454,6 +1626,9 @@ await generateReport({ outDir: result.siteDir, config, logger: createConsoleLogg
 const shared = await shareReport({ site: "https://dvfr.illinois.gov", reviewer: "Pat Reviewer" });
 console.log(shared.pasteLine);
 
+const site = await buildSite({ home: "voicecap-transcripts" });
+console.log(site.out, site.leftOut);
+
 const written = await writeWalkthrough({
   file: "walkthrough.json",
   site: "https://dvfr.illinois.gov",
@@ -1465,7 +1640,11 @@ const repeat = await runAudit({ walkthrough: written.file });
 
 `runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`, `SharesFile`) are exported as TypeScript types.
 
-`generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated pair to send, as `voicecap share` does. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page then its Word copy, each with its `path`, `name`, `bytes`, and `sha256`; and `pasteLine`, the line for the email. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read. `readShares(siteDir)` reads a site's `share/shares.json`.
+`generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated copies to send, as `voicecap share` does: the page, its Word copy, and each run's walkthrough file. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `path`, `name`, `bytes`, and `sha256`, and a walkthrough file's `run`; and `pasteLine`, the line for the email that sends the page and its Word copy. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read.
+
+`readShares(siteDir)` reads a site's `share/shares.json`, and gives back `{ schemaVersion: 1, shares }`. It checks only that each share is an object, since a person can edit the file, so each share is typed as a `Record<string, unknown>`, and a caller checks each field it uses. It was typed as a `SharesFile`, with every field known, which promised more than it checks. So it's a compile-time change: code that reads a field of a share, such as `files`, now needs to check it first. `SharesFile` is still exported, and describes what `voicecap share` writes. `SharedFile` has a new, optional `run`: the run that a walkthrough file is of.
+
+`buildSite` builds the website as `voicecap site` does (see [The website: `voicecap site`](#the-website-voicecap-site)). It takes `home`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`), and `out`, the folder to build in (default: `_site` in the home), plus `cwd`, `env`, and `logger`, and says what it wrote and what it left out to its `logger` as the command does. It gives back `out`, the full path of the folder it built in; `content`, what it published, as a `SiteContent`; and `leftOut`, each thing it left out, worded as the build's output words it. A `SiteContent` has `demo`, a `PublishedReport` or `null`, and `sites`, each with its `folder` and its `reports`, the newest first. A `PublishedReport` has its `folder`, `id` (its anchor on the page), `at`, `by`, its `files`, and `notPublished`: the files its record names that aren't published, each with its `name` and a `reason`, `"changed"` or `"missing"`. A `PublishedFile` has its `kind` (`"page"`, `"word"`, `"walkthrough"`, or `"other"`), `name`, `href`, `bytes`, `sha256`, and `run` (the run a walkthrough file is of, else `null`). A copy that has changed, or is missing, doesn't make it throw: it's left out, and named in `leftOut`. It throws a `UsageError`, before anything is changed, when the home isn't a folder, and when the folder to build in is one it mustn't empty. The types `BuildSiteOptions`, `BuildSiteResult`, `SiteContent`, `PublishedReport`, and `PublishedFile` are exported.
 
 `writeWalkthrough` writes a run's walkthrough file as `voicecap walkthrough` does (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)), and never overwrites one. It takes `file`, plus `site`, `run`, and `out`, and `logger`, and says what it wrote to its `logger` as the command does. It gives back `file`, the full path it wrote; `runId`; and `walkthrough`, what the file holds. It throws a `UsageError`, with nothing written, when the site has no completed run, when the run named isn't there or didn't complete, when voicecap's own reader would refuse the file, and when something is at `file` already. `runAudit`'s `walkthrough` is the path of a walkthrough file to repeat: the pages, passes, step limits, capture mode, and readiness settings come from it (the config's readiness settings, when the file has none), `site` becomes optional, and `sitemap`, `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps` are refused with it. `parseWalkthrough(text, file)` reads a walkthrough file's text as a repeat does, strictly, and gives back a `Walkthrough`, or throws a `UsageError` that names the file (`file` is its name, for that message) and says what's wrong. `walkthroughOf(run)` builds the `Walkthrough` of a completed run's record, `walkthroughJson(walkthrough)` is the text a file holds, and `walkthroughProblem(walkthrough)` is why `parseWalkthrough` would refuse a `Walkthrough`, or `null`. The types `Walkthrough`, `WalkthroughPage`, `WalkthroughSettings`, `WalkthroughOrigin`, `WriteWalkthroughOptions`, and `WriteWalkthroughResult` are exported.
 
@@ -1549,6 +1728,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 | `pnpm fixture:capture` | Windows: the same, then replaces the fixture's recorded run with it. |
 | `pnpm fixture:reviews` | Rebuilds `fixture/reviews.json` from the recorded run. |
 | `pnpm share:fixture <folder>` | Writes the demo's shareable page and its Word copy into a folder, to look at a change to either. Needs no screen reader. |
+| `pnpm site:fixture <folder>` | Builds the website from the demo fixture, to look at a change to it: makes a transcripts home with reports shared in it at `<folder>/home` (which must not be there yet), builds the site in `<folder>/_site`, and prints the path of its `index.html`. Needs no screen reader. |
 
 `fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, and a run recorded with real NVDA that the replay driver plays back; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
 

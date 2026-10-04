@@ -228,13 +228,31 @@ describe("the timeline", () => {
     expect(TIMELINE.filter((row) => row.date === "2026-10-03" && row.release === null)).toEqual([]);
   });
 
-  it("leaves only the website in Next, which is last, with no day and no release", () => {
+  it("tells the website in a row of its own, across both tracks, after 0.8.0's", () => {
+    const before = TIMELINE.find((row) => row.release === "0.8.0");
+    // No release has this day yet: the row is found by its day, with no release, and never by its
+    // place, which each later feature moves.
+    const website = TIMELINE.find((row) => row.date === "2026-10-04" && row.release === null);
+
+    // What the site is: every shared report, by site and by date, with each one's files.
+    expect(website).toEqual({
+      date: "2026-10-04",
+      release: null,
+      pc: null,
+      mac: null,
+      both: "The website: <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
+    });
+    expect(TIMELINE.indexOf(website!)).toBeGreaterThan(TIMELINE.indexOf(before!));
+  });
+
+  it("leaves only the evidence recorded at the PC in Next, which is last, with no day and no release", () => {
     const next = TIMELINE.at(-1);
 
     expect(next?.date).toBeNull();
     expect(next?.release).toBeNull();
-    // The walkthrough file has its own row now: what still comes on the Windows PC is the website.
-    expect(next?.pc).toBe("A website of the shared reports.");
+    // The website has its own row now: what still comes on the Windows PC is the evidence the runs
+    // don't record yet.
+    expect(next?.pc).toBe("The event log, screenshots, and NVDA's own log, recorded at the PC.");
     expect(next?.mac).toBe("Full runs with VoiceOver, with voicecap's VoiceOver driver.");
     expect(next?.both).toBeNull();
   });
