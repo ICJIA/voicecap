@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-03
+
+The walkthrough file: `voicecap walkthrough` writes a run's recipe, and `--walkthrough` repeats the run, then says page by page how each page sounds against the original. The shareable page offers each run's file to download, and its Word copy says how to get it.
+
 ### Added
 
 - **The walkthrough file**: a run's recipe in one JSON file, so anyone can repeat the run exactly: the same pages, in the same order, with the same passes and limits. The README's "Repeating a run: the walkthrough file" describes it.

@@ -210,20 +210,22 @@ describe("the timeline", () => {
     expect(TIMELINE.indexOf(made!)).toBeLessThan(TIMELINE.indexOf(released!));
   });
 
-  it("tells the walkthrough file in a row of its own, across both tracks, the day it merged and after 0.7.0's", () => {
-    const released = TIMELINE.find((row) => row.release === "0.7.0");
-    // The day it merged is no release's day yet: found by its day, with no release.
-    const walkthrough = TIMELINE.find((row) => row.date === "2026-10-03" && row.release === null);
+  it("tells 0.8.0, the walkthrough file, in a row of its own, across both tracks, after 0.7.0's", () => {
+    // Made and published on one day, so one row, as 0.4.0's and 0.5.0's are: found by its release.
+    const before = TIMELINE.find((row) => row.release === "0.7.0");
+    const walkthrough = TIMELINE.find((row) => row.release === "0.8.0");
 
     // What the file is, and the two ways to use it.
     expect(walkthrough).toEqual({
       date: "2026-10-03",
-      release: null,
+      release: "0.8.0",
       pc: null,
       mac: null,
-      both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
+      both: "<b>0.8.0</b>: the walkthrough file. <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
     });
-    expect(TIMELINE.indexOf(walkthrough!)).toBeGreaterThan(TIMELINE.indexOf(released!));
+    expect(TIMELINE.indexOf(walkthrough!)).toBeGreaterThan(TIMELINE.indexOf(before!));
+    // No row of that day is left without a release: the walkthrough's day is the release's.
+    expect(TIMELINE.filter((row) => row.date === "2026-10-03" && row.release === null)).toEqual([]);
   });
 
   it("leaves only the website in Next, which is last, with no day and no release", () => {

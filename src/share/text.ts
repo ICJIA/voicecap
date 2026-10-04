@@ -624,10 +624,10 @@ export const TIMELINE: TimelineRow[] = [
   },
   {
     date: "2026-10-03",
-    release: null,
+    release: "0.8.0",
     pc: null,
     mac: null,
-    both: "The walkthrough file: <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
+    both: "<b>0.8.0</b>: the walkthrough file. <code>voicecap walkthrough</code> writes a run's recipe, and <code>--walkthrough</code> repeats the run exactly, then says page by page how it sounds against the original.",
   },
   {
     date: null,
