@@ -32,7 +32,7 @@ import { DEMO_OUT } from "../src/demo/words.js";
 import type * as Api from "../src/index.js";
 import type { SharedFile } from "../src/model.js";
 import { esc } from "../src/report/html.js";
-import { ensureGitFiles, GITIGNORE } from "../src/run/git-files.js";
+import { ensureGitFiles, GITATTRIBUTES, GITIGNORE } from "../src/run/git-files.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
@@ -1814,7 +1814,15 @@ describe("buildSite", () => {
       ]);
     });
 
-    it.each([["_site"], ["_site/"], ["/_site"], ["/_site/"], ["  _site/  "], ["\t/_site\t"]])(
+    /**
+     * Lines that keep the site out, as Git reads them: it drops a line's trailing spaces, and the CR
+     * of a CRLF line ending.
+     */
+    const KEEP_IT_OUT = ["_site", "_site/", "/_site", "/_site/", "_site/   "];
+    /** Lines that don't: to Git, white space at a line's start, and a tab at its end, are the pattern's. */
+    const WHITE_SPACE_GIT_KEEPS = ["  _site/  ", "\t/_site\t", "_site/\t", "\t_site/"];
+
+    it.each(KEEP_IT_OUT.map((line) => [line]))(
       "counts the line %j as keeping it out, with other lines and either line ending",
       async (line) => {
         const home = await newHome();
@@ -1829,26 +1837,88 @@ describe("buildSite", () => {
       },
     );
 
-    it.each([["_site/*"], ["# _site/"], ["site/"], ["/_site/x"], ["_sites/"], [""]])(
-      "doesn't count the line %j as keeping it out",
-      async (line) => {
-        const home = await newHome();
-        await writeFile(path.join(home, ".gitignore"), `.voicecap.lock\n${line}\n`);
-
-        const { logger } = await build(home);
-
-        expect(warned(logger)).toEqual([WARNING(home)]);
-      },
-    );
-
-    it("says it for a home with no .gitignore at all", async () => {
+    // Git honors `_site/*`, but it isn't one of the four lines voicecap counts, so the warning (add
+    // `_site/`) is a false alarm there, on the safe side. The other lines keep the site out to no one.
+    it.each(
+      ["_site/*", "# _site/", "site/", "/_site/x", "_sites/", "", ...WHITE_SPACE_GIT_KEEPS].map(
+        (line) => [line],
+      ),
+    )("doesn't count the line %j as keeping it out", async (line) => {
       const home = await newHome();
-      await rm(path.join(home, ".gitignore"));
+      await writeFile(path.join(home, ".gitignore"), `.voicecap.lock\n${line}\n`);
 
       const { logger } = await build(home);
 
       expect(warned(logger)).toEqual([WARNING(home)]);
     });
+
+    it("counts a _site/ first line after a UTF-8 byte order mark, which Git skips", async () => {
+      const home = await newHome();
+      // As Windows PowerShell 5.1's Out-File -Encoding utf8 writes a file: EF BB BF first.
+      await writeFile(path.join(home, ".gitignore"), "\uFEFF_site/\r\n");
+
+      const { logger } = await build(home);
+
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("reads a line with a long run of spaces inside it in one pass", async () => {
+      const home = await newHome();
+      // A pattern such as / +$/ starts again at each of these spaces: about 18 seconds' work.
+      await writeFile(path.join(home, ".gitignore"), `_site/${" ".repeat(300_000)}x\n_site/\n`);
+
+      const started = performance.now();
+      const { logger } = await build(home);
+
+      expect(performance.now() - started).toBeLessThan(5_000);
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("says to add _site/ when the .gitignore can't be read", async () => {
+      const home = await newHome();
+      await rm(path.join(home, ".gitignore"));
+      // A folder: it's there, so it's never written over, and it can't be read as a file.
+      await mkdir(path.join(home, ".gitignore"));
+
+      const { logger } = await build(home);
+
+      expect(warned(logger)).toEqual([WARNING(home)]);
+      expect(logger.text("info")).not.toContain("for Git");
+    });
+
+    it.skipIf(!gitAvailable)(
+      "takes Git's word for the lists: Git ignores the site with each line counted, and not with the white-space ones",
+      async () => {
+        // Git itself, so the two lists can't drift from what Git does: in a repository of its own,
+        // with no global excludes file. check-ignore's status is 0 for a path it ignores.
+        const repo = await newFolder();
+        const noExcludes = path.join(repo, "no-excludes");
+        await writeFile(noExcludes, "");
+        await mkdir(path.join(repo, "_site"));
+        await writeFile(path.join(repo, "_site", "index.html"), "");
+        expect(git(["init", "-q"], repo)).toBe(0);
+        const checkIgnore = async (gitignore: string): Promise<number | null> => {
+          await writeFile(path.join(repo, ".gitignore"), gitignore);
+          return git(
+            ["-c", `core.excludesFile=${noExcludes}`, "check-ignore", "-q", "_site/index.html"],
+            repo,
+          );
+        };
+
+        const verdicts: [string, number | null][] = [];
+        for (const line of [...KEEP_IT_OUT, ...WHITE_SPACE_GIT_KEEPS]) {
+          verdicts.push([line, await checkIgnore(`.voicecap.lock\r\n${line}\r\n`)]);
+        }
+        // A byte order mark counts only at the file's start, so it gets a file of its own.
+        verdicts.push(["\uFEFF_site/", await checkIgnore("\uFEFF_site/\r\n")]);
+
+        expect(verdicts).toEqual([
+          ...KEEP_IT_OUT.map((line) => [line, 0]),
+          ...WHITE_SPACE_GIT_KEEPS.map((line) => [line, 1]),
+          ["\uFEFF_site/", 0],
+        ]);
+      },
+    );
 
     it("checks it for _site in the home however that folder is written, and for no other folder", async () => {
       const home = await newHome();
@@ -1864,6 +1934,72 @@ describe("buildSite", () => {
       expect(warned(elsewhere.logger)).toEqual([]);
       const inTheHome = await build(home, { out: path.join(home, "public") });
       expect(warned(inTheHome.logger)).toEqual([]);
+    });
+  });
+
+  describe(".gitattributes and .gitignore", () => {
+    const wrote = (name: string, home: string) =>
+      `Wrote ${name} into ${home}, for Git: commit it with the records.`;
+
+    it("writes voicecap's own into a home that has neither, as a run would, and says so first", async () => {
+      const home = await newHome();
+      await rm(path.join(home, ".gitattributes"));
+      await rm(path.join(home, ".gitignore"));
+      await rm(path.join(home, "netlify.toml"), { force: true });
+      await rm(path.join(home, ".nvmrc"), { force: true });
+
+      const { logger } = await build(home);
+
+      expect(await readFile(path.join(home, ".gitattributes"), "utf8")).toBe(GITATTRIBUTES);
+      expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe(GITIGNORE);
+      // Its .gitignore keeps the site out, so there's nothing to warn of.
+      expect(warned(logger)).toEqual([]);
+      expect(
+        logger.entries.filter(({ level }) => level === "info").map(({ message }) => message),
+      ).toEqual([
+        wrote(".gitattributes", home),
+        wrote(".gitignore", home),
+        `Wrote netlify.toml into ${home}, for Netlify: commit it with the records.`,
+        `Wrote .nvmrc into ${home}, for Netlify: commit it with the records.`,
+        expect.stringMatching(/^Built the site in /),
+      ]);
+    });
+
+    it("writes only the one that's missing, and never changes the other", async () => {
+      const home = await newHome();
+      await rm(path.join(home, ".gitignore"));
+      await writeFile(path.join(home, ".gitattributes"), "# the owner's own\n");
+
+      const { logger } = await build(home);
+
+      expect(await readFile(path.join(home, ".gitattributes"), "utf8")).toBe("# the owner's own\n");
+      expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe(GITIGNORE);
+      expect(logger.text("info")).toContain(wrote(".gitignore", home));
+      expect(logger.text("info")).not.toContain(".gitattributes");
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("writes them into the home even when the site is built somewhere else", async () => {
+      const home = await newHome();
+      await rm(path.join(home, ".gitattributes"));
+      await rm(path.join(home, ".gitignore"));
+      const out = path.join(await newFolder(), "site");
+
+      await build(home, { out });
+
+      expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe(GITIGNORE);
+      expect(await readFile(path.join(home, ".gitattributes"), "utf8")).toBe(GITATTRIBUTES);
+      expect(existsSync(path.join(out, ".gitignore"))).toBe(false);
+    });
+
+    it("never writes over the home's own, and says nothing of them", async () => {
+      const home = await newHome();
+      await writeFile(path.join(home, ".gitignore"), "_site/\n");
+
+      const { logger } = await build(home);
+
+      expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe("_site/\n");
+      expect(logger.text("info")).not.toContain("for Git");
     });
   });
 

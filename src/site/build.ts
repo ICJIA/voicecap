@@ -25,8 +25,10 @@
  *
  * Besides each report's files, a build writes the site's page (index.html), robots.txt, and
  * _headers, which gives each page its Content Security Policy, made from the hashes of that page's
- * own bytes, and each download its Content-Disposition. In the home it writes netlify.toml and
- * .nvmrc the first time, and never again.
+ * own bytes, and each download its Content-Disposition. In the home it writes .gitattributes and
+ * .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of Git
+ * with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None of
+ * them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -45,6 +47,7 @@ import path from "node:path";
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
 import { plural } from "../report/html.js";
+import { ensureGitFiles } from "../run/git-files.js";
 import { linkPath, resolveHome } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
 import { fontFaceCss } from "../share/fonts.js";
@@ -96,7 +99,10 @@ const SITE_DIR = "_site";
 const HEADERS_FILE = "_headers";
 /** The site's own files at its top, which a site folder of the same name would take the place of. */
 const OWN_FILES: ReadonlySet<string> = new Set(["index.html", "robots.txt", HEADERS_FILE]);
-/** The lines of a .gitignore that keep the site's folder out of Git, once trimmed. */
+/**
+ * The lines of a .gitignore that keep the site's folder out of Git, as Git reads them (see
+ * gitignoreKeepsSiteOut).
+ */
 const SITE_LINES: ReadonlySet<string> = new Set([
   SITE_DIR,
   `${SITE_DIR}/`,
@@ -129,9 +135,10 @@ function unreadable(error: unknown): Unpublished {
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
  * shared file that still matches its record, and write the site's page, robots.txt, and _headers
- * beside them, then netlify.toml and .nvmrc in the home when they aren't there. Each thing left out
- * is warned of, and the last line says what was built. Refuses with a UsageError when the home isn't
- * a folder, and when the folder to build in is one that must not be emptied (see the top of this file).
+ * beside them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they
+ * aren't there. Each thing left out is warned of, and the last line says what was built. Refuses
+ * with a UsageError when the home isn't a folder, and when the folder to build in is one that must
+ * not be emptied (see the top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -198,6 +205,11 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     path.join(out, HEADERS_FILE),
     headersFile(headerRules(content, index, publishing.rulesOf)),
   );
+  // A home that has no .gitignore gets voicecap's now, with _site/ in it, so the check below warns
+  // only of a .gitignore that was there and doesn't keep the site out.
+  for (const name of await ensureGitFiles(home)) {
+    logger.info(`Wrote ${name} into ${home}, for Git: commit it with the records.`);
+  }
   for (const name of await ensureNetlifyFiles(home, version)) {
     logger.info(`Wrote ${name} into ${home}, for Netlify: commit it with the records.`);
   }
@@ -550,8 +562,13 @@ function headerRules(
 
 /**
  * Whether the home's .gitignore has a line that keeps the site's folder out of Git: `_site`,
- * `_site/`, `/_site`, or `/_site/`, with white space around it. No file, or one that can't be read,
- * keeps nothing out.
+ * `_site/`, `/_site`, or `/_site/`, read as Git reads it. Git skips a UTF-8 byte order mark at the
+ * file's start (Windows PowerShell 5.1 writes one), and drops the CR of a CRLF line ending, then the
+ * line's trailing spaces. White space at a line's start, and a tab at its end, are the pattern's, so
+ * `  _site/` keeps nothing out. No file, or one that can't be read, keeps nothing out.
+ *
+ * A line Git would honor but that isn't one of the four, such as `_site/*`, gets the warning too: the
+ * warning says to add `_site/`, which ends it.
  */
 async function gitignoreKeepsSiteOut(home: string): Promise<boolean> {
   let text: string;
@@ -560,5 +577,18 @@ async function gitignoreKeepsSiteOut(home: string): Promise<boolean> {
   } catch {
     return false;
   }
-  return text.split("\n").some((line) => SITE_LINES.has(line.trim()));
+  return text
+    .replace(/^\uFEFF/, "")
+    .split("\n")
+    .some((line) => SITE_LINES.has(withoutTrailingSpaces(line.replace(/\r$/, ""))));
+}
+
+/**
+ * A line without its trailing spaces, which Git drops (but not tabs). In one pass from the end, so a
+ * long run of spaces inside a line can't stall the build, as a pattern such as / +$/ would.
+ */
+function withoutTrailingSpaces(line: string): string {
+  let end = line.length;
+  while (end > 0 && line.charCodeAt(end - 1) === 0x20) end--;
+  return line.slice(0, end);
 }

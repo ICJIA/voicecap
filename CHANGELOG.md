@@ -4,6 +4,21 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-04
+
+A fix for a home's first website build: `voicecap site` writes voicecap's own `.gitignore` and `.gitattributes` where the home is missing them, and reads a `.gitignore` as Git does. The README's stories of who voicecap is for now open from one line each.
+
+### Changed
+
+- **The README's stories of who voicecap is for** are now one line each, naming the person and what voicecap gives them, and each opens to its story, so all nine can be read at a glance.
+- **The first deploy's steps** say what `voicecap site` writes in a home that is missing `.gitattributes` or `.gitignore`, and commit them with the Netlify files.
+- **No test can reach a person's own transcripts home or reviewer name:** the tests take `VOICECAP_TRANSCRIPTS` and `VOICECAP_REVIEWER` out of their environment before each file runs, so even a mistake in the code under test that reads the environment can't write into the home. CI sets both for its test run, to check it.
+
+### Fixed
+
+- **`voicecap site` writes `.gitattributes` and `.gitignore` into a home that is missing either,** as a run does, and says so (`Wrote .gitignore into <home>, for Git: commit it with the records.`). Before, a home that no run had written to was told to add `_site/` to a `.gitignore` it didn't have. A `.gitignore` made by hand then would have kept voicecap from ever writing its own, which keeps raw NVDA logs, the run lock, and the page's working copies out of Git too. If you made one that way, with only `_site/` in it, delete it and run `voicecap site` again: it writes voicecap's own, `_site/` included.
+- **The `.gitignore` check reads each line as Git does.** A line with white space at its start or a tab at its end, such as `  _site/`, keeps nothing out of Git, and it now gets the warning: before, it passed. A CRLF line ending, trailing spaces, and a UTF-8 byte order mark at the file's start still count, since Git drops them. A line with a long run of spaces in it is read in one pass.
+
 ## [0.9.0] - 2026-10-04
 
 The website: `voicecap site` builds a site of every shared report, by site and by date, with the demo, each report with its page, Word copy, and walkthrough files and their fingerprints, for Netlify to publish. `voicecap share` now shares each run's walkthrough file too, and the README opens with who voicecap is for.
