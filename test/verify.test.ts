@@ -619,6 +619,31 @@ describe("verifyHome", () => {
     expect((await verify(home, `${SITE}/flawed/`)).lines).toEqual([MATCHES]);
   });
 
+  it("takes a site's canonical address for --site: the folder whose run recorded it", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-verify-"));
+    const home = path.join(dir, "home");
+    const run = await runAudit({
+      out: home,
+      cwd: dir,
+      env: {},
+      logger: createMemoryLogger(),
+      ...replay(),
+      canonical: "https://dvfr.illinois.gov/",
+      now: () => new Date(2026, 8, 27, 11, 2),
+    });
+    expect(run.outcome).toBe("completed");
+
+    // The address the run read and the address people visit find the one folder.
+    const matches = `${FOLDER}: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.`;
+    expect((await verify(home, SITE)).lines).toEqual([matches]);
+    expect((await verify(home, "https://dvfr.illinois.gov/")).lines).toEqual([matches]);
+    expect((await verify(home, "https://dvfr.illinois.gov")).lines).toEqual([matches]);
+    // An address no run recorded has no folder to check, as before.
+    await expect(verify(home, "https://i2i.illinois.gov/")).rejects.toThrow(
+      `${home} has no i2i.illinois.gov folder, so there's nothing to check.`,
+    );
+  });
+
   it("leaves the owner's own folders at the home's top alone", async () => {
     const home = await copyOfHome();
     await mkdir(path.join(home, "notes"));

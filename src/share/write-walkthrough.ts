@@ -30,7 +30,10 @@ import {
 export interface WriteWalkthroughOptions {
   /** Where to write it, resolved against `cwd`. Never overwritten. */
   file: string;
-  /** Any URL on the site. Default: the home's only site. */
+  /**
+   * Any URL on the site, or the site's canonical address (see chooseSiteDir). Default: the home's
+   * only site.
+   */
   site?: string | null;
   /**
    * The run to write it from, by its id. It has to have completed. Default: the latest completed

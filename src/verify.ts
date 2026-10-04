@@ -4,7 +4,7 @@ import path from "node:path";
 
 import type { FileHash, ReviewsFile } from "./model.js";
 import { isWebRoot } from "./pages/canonical.js";
-import { canonicalKey, parseSiteUrl } from "./pages/url.js";
+import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
 import {
   DATE_FOLDER,
@@ -17,9 +17,8 @@ import {
   sharesPath,
   shareWordPath,
   siteDirFor,
-  siteFolder,
 } from "./run/paths.js";
-import { siteFolders } from "./run/site-dir.js";
+import { chooseSiteDir, siteFolders } from "./run/site-dir.js";
 import {
   describeShare,
   isPlainName,
@@ -29,7 +28,6 @@ import {
   recordedNames,
 } from "./share/shares.js";
 import { UsageError } from "./util/errors.js";
-import { assertNotRewritten } from "./util/git-bash.js";
 import { sealOf, sha256 } from "./util/hash.js";
 import type { Logger } from "./util/log.js";
 import { OS_LITTER } from "./util/os-litter.js";
@@ -37,7 +35,10 @@ import { OS_LITTER } from "./util/os-litter.js";
 export interface VerifyHomeOptions {
   /** The transcripts home. */
   home: string;
-  /** Check only this site's folder (any URL on the site). Default: every site folder in the home. */
+  /**
+   * Check only this site's folder: any URL on the site, or the site's canonical address (see
+   * chooseSiteDir). Default: every site folder in the home.
+   */
   site?: string | null;
   /** Gets, for each site, one line per problem, then one per incomplete run, then a summary. */
   logger: Logger;
@@ -107,9 +108,11 @@ async function foldersToCheck(home: string, site: string | null): Promise<string
     }
     return folders;
   }
-  assertNotRewritten("--site", site);
-  const folder = siteFolder(parseSiteUrl(site));
-  if (!(await isDirectory(path.join(home, folder)))) {
+  // The folder named after the address voicecap read, or else the one whose run recorded this
+  // canonical address: the same folder every command that takes --site works in.
+  const dir = await chooseSiteDir({ home, site });
+  const folder = path.basename(dir);
+  if (!(await isDirectory(dir))) {
     throw new UsageError(`${home} has no ${folder} folder, so there's nothing to check.`);
   }
   return [folder];

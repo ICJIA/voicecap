@@ -53,7 +53,10 @@ import { appendShare, readShares, recordedNames } from "./shares.js";
 import { MAC_HASH, POWERSHELL_HASH } from "./text.js";
 
 export interface ShareReportOptions {
-  /** Any URL on the site. Default: the home's only site. */
+  /**
+   * Any URL on the site, or the site's canonical address (see chooseSiteDir). Default: the home's
+   * only site.
+   */
   site?: string | null;
   /** The transcripts home. Default: VOICECAP_TRANSCRIPTS, else "transcripts". */
   out?: string;

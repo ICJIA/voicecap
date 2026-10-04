@@ -367,7 +367,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .option("--run <run-id>", "the run reviewed (default: the latest run with the page)")
     .option(
       "--site <url>",
-      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+      "the site's address, or its canonical address (default: the site of a full --page URL, else the home's only site)",
     )
     .option("--out <dir>", OUT_HELP)
     .action(
@@ -417,7 +417,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     )
     .option(
       "--site <url>",
-      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+      "the site's address, or its canonical address (default: the site of a full --page URL, else the home's only site)",
     )
     .option("--out <dir>", OUT_HELP)
     .action(
@@ -466,7 +466,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "show this run instead of the latest completed one (it may be incomplete)",
     )
     .option("--compare <run>", 'compare with a run id, or "previous"')
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--out <dir>", OUT_HELP)
     .action(async (options: { run?: string; compare?: string; site?: string; out?: string }) => {
       const home = resolveHome({ out: options.out, env: ctx.env, cwd: ctx.cwd });
@@ -492,7 +495,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .description(
       "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
     )
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--out <dir>", OUT_HELP)
     .option(
       "--reviewer <name>",
@@ -516,7 +522,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "write a run's walkthrough file: its pages, in order, and its settings, so anyone can repeat the run",
     )
     .argument("<file>", "the file to write (never overwritten)")
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--run <id>", "the run to write it from (default: the latest completed run)")
     .option("--out <dir>", OUT_HELP)
     .action(async (file: string, options: { site?: string; run?: string; out?: string }) => {
@@ -559,7 +568,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("verify")
     .description("check that the records voicecap wrote still match their hashes and seals")
-    .option("--site <url>", "the site's URL (default: every site in the home)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: every site in the home)",
+    )
     .option("--out <dir>", OUT_HELP)
     .addHelpText(
       "after",
