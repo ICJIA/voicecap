@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ensureGitFiles, GITIGNORE, writeIfMissing } from "../src/run/git-files.js";
+import { ensureGitFiles, GITATTRIBUTES, GITIGNORE, writeIfMissing } from "../src/run/git-files.js";
 
 const tmp = () => mkdtemp(path.join(os.tmpdir(), "voicecap-git-files-"));
 
@@ -24,7 +24,8 @@ describe("ensureGitFiles", () => {
   it("writes .gitattributes and .gitignore at the home's top", async () => {
     const home = await tmp();
     await ensureGitFiles(home);
-    expect(await readFile(path.join(home, ".gitattributes"), "utf8")).toContain("* -text");
+    expect(await readFile(path.join(home, ".gitattributes"), "utf8")).toBe(GITATTRIBUTES);
+    expect(GITATTRIBUTES).toContain("\n* -text\n");
     expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe(GITIGNORE);
   });
 
@@ -33,6 +34,16 @@ describe("ensureGitFiles", () => {
     await writeFile(path.join(home, ".gitignore"), "mine\n");
     await ensureGitFiles(home);
     expect(await readFile(path.join(home, ".gitignore"), "utf8")).toBe("mine\n");
+  });
+
+  it("says which of the two it wrote, in the order it wrote them", async () => {
+    const home = await tmp();
+    expect(await ensureGitFiles(home)).toEqual([".gitattributes", ".gitignore"]);
+    expect(await ensureGitFiles(home)).toEqual([]);
+
+    const another = await tmp();
+    await writeFile(path.join(another, ".gitattributes"), "mine\n");
+    expect(await ensureGitFiles(another)).toEqual([".gitignore"]);
   });
 
   it.skipIf(!gitAvailable)(

@@ -2,7 +2,7 @@ import { mkdir, open } from "node:fs/promises";
 import path from "node:path";
 
 /** Keeps Git from rewriting transcripts, which would break their recorded hashes. */
-const GITATTRIBUTES = `# Written by voicecap. Git must not change line endings in these files: the SHA-256
+export const GITATTRIBUTES = `# Written by voicecap. Git must not change line endings in these files: the SHA-256
 # hashes in run.json and reviews.json only match the files byte for byte.
 * -text
 `;
@@ -37,12 +37,20 @@ desktop.ini
 
 /**
  * Write .gitattributes and .gitignore at the home's top, if they aren't there yet. Neither file
- * is ever overwritten, so the owner's own edits or additions stay.
+ * is ever overwritten, so the owner's own edits or additions stay. The names written, in the order
+ * they were written.
  */
-export async function ensureGitFiles(home: string): Promise<void> {
+export async function ensureGitFiles(home: string): Promise<string[]> {
   await mkdir(home, { recursive: true });
-  await writeIfMissing(path.join(home, ".gitattributes"), GITATTRIBUTES);
-  await writeIfMissing(path.join(home, ".gitignore"), GITIGNORE);
+  const files: [name: string, content: string][] = [
+    [".gitattributes", GITATTRIBUTES],
+    [".gitignore", GITIGNORE],
+  ];
+  const written: string[] = [];
+  for (const [name, content] of files) {
+    if (await writeIfMissing(path.join(home, name), content)) written.push(name);
+  }
+  return written;
 }
 
 /**
