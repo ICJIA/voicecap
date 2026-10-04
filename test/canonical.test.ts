@@ -78,19 +78,19 @@ describe("normalizeCanonical", () => {
     }
   });
 
-  it("refuses an address on this computer, saying so", () => {
-    for (const input of ["http://localhost:3000", "127.0.0.1:4848"]) {
+  it("refuses an IP address or a local address, saying so", () => {
+    for (const input of [
+      "http://localhost:3000",
+      "127.0.0.1:4848",
+      "https://203.0.113.7/",
+      "https://[2001:db8::1]/",
+    ]) {
       const refusal = refusalOf(input);
       expect(refusal, input).toBeInstanceOf(UsageError);
       expect(errorMessage(refusal), input).toBe(
-        `"${input}" is an address on this computer; give the address people visit, such as https://dvfr.illinois.gov.`,
+        `"${input}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
       );
     }
-  });
-
-  it("refuses an IP address, public or not", () => {
-    expect(() => normalizeCanonical("https://203.0.113.7/")).toThrow(UsageError);
-    expect(() => normalizeCanonical("https://[2001:db8::1]/")).toThrow(UsageError);
   });
 });
 

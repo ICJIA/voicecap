@@ -21,8 +21,8 @@ function originOf(value: string): string | null {
  * the end and without any query, hash, or credentials. An address typed the short way gets
  * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme` in
  * src/init/site.ts, which this file can't import because init builds on the pages code. Throws a
- * `UsageError` when `input` isn't an http(s) web address, and when it's an address on this
- * computer or an IP address (see `isLocalHost`), which readers can't visit.
+ * `UsageError` when `input` isn't an http(s) web address, and when it's an IP address or a local
+ * address (see `isLocalHost`), since neither is a site's name.
  */
 export function normalizeCanonical(input: string): string {
   const answer = input.trim();
@@ -33,7 +33,7 @@ export function normalizeCanonical(input: string): string {
   }
   if (isLocalHost(url.hostname)) {
     throw new UsageError(
-      `"${input}" is an address on this computer; give the address people visit, such as https://dvfr.illinois.gov.`,
+      `"${input}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
     );
   }
   const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
