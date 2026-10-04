@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-04
+
+A fix for a home's first website build: `voicecap site` writes voicecap's own `.gitignore` and `.gitattributes` where the home is missing them, and reads a `.gitignore` as Git does. The README's stories of who voicecap is for now open from one line each.
+
 ### Changed
 
 - **The README's stories of who voicecap is for** are now one line each, naming the person and what voicecap gives them, and each opens to its story, so all nine can be read at a glance.
