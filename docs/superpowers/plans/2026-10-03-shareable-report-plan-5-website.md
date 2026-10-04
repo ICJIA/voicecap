@@ -627,3 +627,74 @@ No screen reader is needed for any of this:
 - **Search, or naming a site by its report's headline.**
 - **Hosting anywhere but Netlify.** `_headers` is Netlify's format. Cloudflare Pages reads the same file, but that's untested.
 - **Committing or pushing.** voicecap never does either; publishing is the owner's push.
+
+## After execution
+
+The plan was built as written, with the rulings below, fix rounds after several task reviews, and a final wave of fixes after the whole-branch review. The ledger (`.superpowers/sdd/2026-10-03-shareable-report-plan-5-website/progress.md`, on the Windows PC) has each ruling's full text.
+
+**Where the plan's text is wrong, as built:**
+
+- **Task 2:**
+  - An entry is named as `verify` names it, "share 2 (<at>)", not "entry 2" (Ruling Q5).
+  - A published file's name also can't start or end with a dot, and must end with `.html`, `.docx`, or `.json` in lower case (Rulings Q8, Q12, Q19).
+  - An entry's `at` must be one the site can write, and a file's `run` a run id (Ruling Q11).
+  - An entry with no file to publish is left out whole (Ruling Q10).
+- **Task 4:**
+  - The bar is sticky from 40em, not 640px (Ruling Q15).
+  - A site's section isn't a named region (Ruling Q16).
+  - The site's lists carry `role="list"` (Ruling Q14).
+  - The lead's second sentence is "Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's." (Ruling Q22).
+- **Task 5:**
+  - The summary line's counts are `homeWithShares()`'s, "3 reports from 2 sites" (Ruling Q1).
+  - It also refuses a folder that looks built but holds a dot name or a folder inside a folder, with an operating system's own files allowed (Rulings Q17, Q20). On Windows, it refuses a folder whose name ends with a dot or a space.
+  - It also leaves out a copy that's unreadable or isn't a regular file, a `voicecap-demo` that isn't a folder, site folders named `index.html`, `robots.txt`, or `_headers`, and a page named `index.html` (Rulings Q7, Q18).
+- **Task 7:**
+  - The first deploy names the site afterwards, from the project's overview, when the import page has no field for it.
+  - The README states Netlify's plan requirement for a private organization repository (Ruling Q23).
+
+**The rulings that changed the plan:**
+
+- **Q1, the summary's counts:** the helper's home's.
+- **Q2, a file's kind:** `fileKind`, one rule in `render.ts`.
+- **Q3, commands on the site's page:** in `<code>`, with no backtick.
+- **Q4, wording left over from Task 1:** placed where each file was next touched.
+- **Q5, naming an entry:** `describeShare`'s words.
+- **Q6, an entry that can't be named:** "a share".
+- **Q7, reading a copy:** only a regular file, by `lstat`.
+- **Q8 and Q12, a file name's edges:** no leading or trailing dot.
+- **Q9, `describeShare`'s fallback:** `verify` no longer crashes on such an entry.
+- **Q10, an entry with no file to publish:** left out.
+- **Q11, `at` and `run`:** checked by `longDate` and `isRunId`.
+- **Q13, the no-walkthrough line:** only when the record names none.
+- **Q14, `role="list"`:** on the site's lists, for VoiceOver.
+- **Q15, the bar:** sticky from 40em.
+- **Q16, sites:** not landmarks.
+- **Q17, a folder that looks built:** refused when it holds a dot name or a nested folder; paths compared by their real place.
+- **Q18, a copy's size:** checked first; an unreadable copy is left out, and the build goes on.
+- **Q19, what's published:** only voicecap's three kinds of file.
+- **Q20, an operating system's files:** they don't count against a built folder.
+- **Q21, `SharesAsRead`:** exported.
+- **Q22, the lead:** each transcript is word for word.
+- **Q23, Netlify's plan:** stated in the README; the design is unchanged (the owner is on Netlify Pro).
+
+**At the owner's request,** the README gained a section near its top, "Why voicecap, and who it's for": the two halves of an accessibility review, how voicecap is different, and stories of the people it's made for. The stories were written for the README and are labeled as composites, not quotes. A review checked each claim in it against what voicecap does.
+
+**Items carried to later plans:**
+
+- **The full security audit,** once every phase is done:
+  - `voicecap verify` prints a `shares.json` entry's time and file names raw, and throws on an entry nested thousands of levels deep;
+  - Netlify's `_headers` parser and header names (unreachable today);
+  - `voicecap share`'s warning prints a run id raw for a hand-edited `run.json`;
+  - one printing escape, with the wider class `walkthrough.ts` uses;
+  - a deploy by hand doesn't apply `netlify.toml`'s headers, such as `X-Robots-Tag`.
+- **Later:**
+  - test-helper polish: the download test, the alias paths, `rulesOf` and wildcards, `serveSite`'s 500;
+  - comments: the bar's "one line", the reader's CR;
+  - moving the page reader and `writeIfMissing` to modules of their own;
+  - the CI step's name;
+  - a brand-new folder holding only `.DS_Store`, which still counts as not empty;
+  - "`voicecap verify` can show that nothing has changed since", in the README's six steps, the shareable page's own steps (`src/share/text.ts`), the diagram (`assets/how-voicecap-works.svg` and its PNG), and the spec, to say what the README's new section says. All four change together.
+- **For the owner:**
+  - the first deploy, by the README's steps;
+  - on the Mac: WebKit and VoiceOver with the site's lists and its sticky bar;
+  - once deployed: check that a report's page, at its address with and without `.html`, comes with its `Content-Security-Policy`.
