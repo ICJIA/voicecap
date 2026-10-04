@@ -228,21 +228,23 @@ describe("the timeline", () => {
     expect(TIMELINE.filter((row) => row.date === "2026-10-03" && row.release === null)).toEqual([]);
   });
 
-  it("tells the website in a row of its own, across both tracks, after 0.8.0's", () => {
-    const before = TIMELINE.find((row) => row.release === "0.8.0");
-    // No release has this day yet: the row is found by its day, with no release, and never by its
+  it("tells 0.9.0, the website, in a row of its own, across both tracks, after 0.8.0's", () => {
+    // Made and published on one day, so one row, as 0.8.0's is: found by its release, never by its
     // place, which each later feature moves.
-    const website = TIMELINE.find((row) => row.date === "2026-10-04" && row.release === null);
+    const before = TIMELINE.find((row) => row.release === "0.8.0");
+    const website = TIMELINE.find((row) => row.release === "0.9.0");
 
     // What the site is: every shared report, by site and by date, with each one's files.
     expect(website).toEqual({
       date: "2026-10-04",
-      release: null,
+      release: "0.9.0",
       pc: null,
       mac: null,
-      both: "The website: <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
+      both: "<b>0.9.0</b>: the website. <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
     });
     expect(TIMELINE.indexOf(website!)).toBeGreaterThan(TIMELINE.indexOf(before!));
+    // No row of that day is left without a release: the website's day is the release's.
+    expect(TIMELINE.filter((row) => row.date === "2026-10-04" && row.release === null)).toEqual([]);
   });
 
   it("leaves only the evidence recorded at the PC in Next, which is last, with no day and no release", () => {

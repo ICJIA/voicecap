@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-04
+
+The website: `voicecap site` builds a site of every shared report, by site and by date, with the demo, each report with its page, Word copy, and walkthrough files and their fingerprints, for Netlify to publish. `voicecap share` now shares each run's walkthrough file too, and the README opens with who voicecap is for.
+
 ### Added
 
 - **The website, `voicecap site [--home <dir>] [--out <dir>]`**: builds a website of every report voicecap has shared, by site and by date, with the demo, for Netlify to publish. The README's "The website: `voicecap site`" describes it, with the numbered steps of the first deploy.

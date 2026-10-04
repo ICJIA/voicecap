@@ -631,10 +631,10 @@ export const TIMELINE: TimelineRow[] = [
   },
   {
     date: "2026-10-04",
-    release: null,
+    release: "0.9.0",
     pc: null,
     mac: null,
-    both: "The website: <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
+    both: "<b>0.9.0</b>: the website. <code>voicecap site</code> builds a site of every shared report, by site and by date, with each one's page, Word copy, and walkthrough files, and their fingerprints.",
   },
   {
     date: null,
