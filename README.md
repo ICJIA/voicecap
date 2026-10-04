@@ -1294,7 +1294,7 @@ The site's page follows the shareable page's rules. It's one self-contained file
 - **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A name that holds a path, such as `../notes.txt`, is never read.
 - **A site folder named `demo`,** which would take the demo's place on the site.
 
-**The folder it builds into** is emptied first, so the build takes care which folder that is. It builds only into a folder that's empty (or new), or one an earlier build made: its `_headers` starts with voicecap's own line. Even then, it stops if the folder holds a name that starts with a dot (a repository's `.git`, say) or a folder inside a folder, since a build writes neither. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count, and are emptied with the rest.
+**The folder it builds into** is emptied first, so the build takes care which folder that is. It builds only into a folder that's empty (or new), or one an earlier build made: its `_headers` starts with voicecap's own line. It stops at a folder of an earlier build that holds a name that starts with a dot (a repository's `.git`, say) or a folder inside a folder, since a build writes neither. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest.
 
 It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. Every refusal comes before anything is touched. The build says why, and exits with code 1:
 
@@ -1333,7 +1333,7 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 <details>
 <summary>Sharing, committing, and pushing; looking at the site before it's pushed; and putting the demo on it</summary>
 
-**To publish a report,** share it, then commit the transcripts home and push (the same lines as under [Setting it up](#setting-it-up)):
+**To publish a report,** share it, then commit the transcripts home and push (as under [Setting it up](#setting-it-up)):
 
 ```bash
 npx @icjia/voicecap share
@@ -1344,7 +1344,7 @@ git push
 
 Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
 
-**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to the files beside it, so it works from the folder. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
+**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
 **The demo on the site** is the latest share in the home's `voicecap-demo/` folder. To put one there, in PowerShell, in the transcripts home's folder:
 
