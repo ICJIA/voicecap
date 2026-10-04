@@ -599,7 +599,7 @@ describe("renderSiteIndex", () => {
 
     expect(sentences).toEqual(
       expect.arrayContaining([
-        "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every word in a report is what the screen reader said, and every decision in it is a person's.",
+        "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
         "voicecap's report on its own small demo site, as an example of what it makes.",
         "Each site's reports, the newest first.",
         "Every site's reports, the newest first, each with its page.",

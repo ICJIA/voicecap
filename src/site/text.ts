@@ -21,7 +21,7 @@ export type Sentence = (string | { code: string })[];
 export const SITE_TEXT = {
   /** The page's title, and its one heading of the first level. */
   title: "Screen reader test results",
-  lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every word in a report is what the screen reader said, and every decision in it is a person's.",
+  lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   skip: "Skip to main content",
   /** The label of the bar's navigation, whose links are the views' headings. */
   nav: "Views",
