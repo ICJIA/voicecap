@@ -238,7 +238,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.7.0 on npm, released 2026-10-03 (tag `v0.7.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.8.0 on npm, released 2026-10-03 (tag `v0.8.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -255,12 +255,14 @@ The owner's standing rules, from Phases A and B:
     - `voicecap share`, which makes the dated pair to send, records it in `share/shares.json` with its fingerprints, and prints a line to paste into the email;
     - `voicecap verify`'s checks of that record and of every copy it names;
     - a fix for CI: a CLI run in the tests now uses the test's platform, so it no longer starts the real PowerShell probe on Windows (about 20 s on CI's Windows machines).
-- **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
-  - plan 4, the walkthrough file, is merged to `main` and not published yet (the CHANGELOG's `[Unreleased]` lists it):
+  - 0.8.0 (2026-10-03) added plan 4 of the shareable report, the walkthrough file:
     - `voicecap walkthrough` writes a completed run's recipe: its pages in order, with its passes, step limits, capture mode, and readiness settings;
     - `--walkthrough` repeats the run from the file, then says page by page how each page sounds against the original;
     - the shareable page offers each run's file to download, and the Word copy says how to get it;
-    - runs now record their readiness settings, so a run that 0.7.0 or earlier left incomplete isn't resumed (voicecap says so at each new run, until a later completed run with the same other settings supersedes the old one).
+    - runs now record their readiness settings, so a run that 0.7.0 or earlier left incomplete isn't resumed (voicecap says so at each new run, until a later completed run with the same other settings supersedes the old one);
+    - a file can come from anyone, so voicecap reads it strictly: among other things, it refuses a file whose page labels, templates, or notes hold a control character (a tab or a line break is fine), or whose ready selector holds one or is over 1,024 characters;
+    - a fix: a key named `__proto__` added to a sealed record now changes its seal.
+- **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
   - plan 5, the website; plan 6, the evidence recorded at the PC (the event log, screenshots, and NVDA's own log).
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
 - **Tests:** 3,539 Vitest tests. CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, and `voicecap verify`.
