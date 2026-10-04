@@ -85,8 +85,9 @@ export async function writeRecord(siteDir: string, shares: unknown[]): Promise<v
 }
 
 /**
- * A new home, in a folder of its own that this makes in the machine's temporary folder: the caller
- * takes `path.dirname(home)` away.
+ * A new home. With no `at`, it's `transcripts` in a folder of its own that this makes in the
+ * machine's temporary folder: the caller takes `path.dirname(home)` away. With `at`, it's made there,
+ * and the folder it's in is the caller's.
  *
  * - The fixture site's folder, shared twice on the same day (`_2027-01-15` and `_2027-01-15-2`), each
  *   share a page, its Word copy, and the walkthrough file of each of the two runs that count.
@@ -95,9 +96,13 @@ export async function writeRecord(siteDir: string, shares: unknown[]): Promise<v
  * - `voicecap-demo/127.0.0.1_4848/`, a copy of the fixture's site folder, shared once on 16 January
  *   with `out: <home>/voicecap-demo`, as `voicecap demo` and `voicecap share --out voicecap-demo` do.
  */
-export async function homeWithShares(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-site-home-"));
-  const home = path.join(root, "transcripts");
+export async function homeWithShares(at?: string): Promise<string> {
+  const home =
+    at === undefined
+      ? path.join(await mkdtemp(path.join(os.tmpdir(), "voicecap-site-home-")), "transcripts")
+      : path.resolve(at);
+  // The folder the home is in.
+  const root = path.dirname(home);
   await cp(FIXTURE_HOME, home, { recursive: true });
 
   const share = (out: string, now: Date, reviewer: string) =>

@@ -201,7 +201,7 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
       logger.info(`  ${file.path}`);
       logger.info(`    ${sizeLine(file.bytes)}, SHA-256 ${file.sha256}`);
     }
-    logger.info("To paste into the email that sends them:");
+    logger.info("To paste into the email that sends the page and its Word copy:");
     logger.info(`  ${pasteLine}`);
     for (const file of files) {
       const warning = sizeWarning(file.name, file.bytes);

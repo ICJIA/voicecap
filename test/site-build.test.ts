@@ -29,6 +29,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEMO_OUT } from "../src/demo/words.js";
+import type * as Api from "../src/index.js";
 import type { SharedFile } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { ensureGitFiles, GITIGNORE } from "../src/run/git-files.js";
@@ -1880,5 +1881,26 @@ describe("buildSite", () => {
         ],
       ]);
     });
+  });
+});
+
+describe("the package's entry", () => {
+  it("exports buildSite", async () => {
+    const api = await import("../src/index.js");
+
+    expect(api.buildSite).toBe(buildSite);
+  });
+
+  it("exports its types", () => {
+    // This compiles only if the entry exports each of these types.
+    const types: [
+      Api.BuildSiteOptions | null,
+      Api.BuildSiteResult | null,
+      Api.SiteContent | null,
+      Api.PublishedReport | null,
+      Api.PublishedFile | null,
+    ] = [null, null, null, null, null];
+
+    expect(types).toHaveLength(5);
   });
 });

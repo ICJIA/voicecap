@@ -476,7 +476,7 @@ describe("shareReport", () => {
       `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
       `  ${walkthrough.path}`,
       `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
-      "To paste into the email that sends them:",
+      "To paste into the email that sends the page and its Word copy:",
       `  ${pasteLine}`,
     ]);
     // Each size is in KB or MB, with its bytes.
@@ -770,7 +770,8 @@ describe("shareReport", () => {
         walkthroughName(`${FIRST}-2`, run.runId),
       ]);
       expect(loadShareInput).toHaveBeenCalledTimes(1);
-      // The first build is only to see that a run counts, with the names a current copy has.
+      // The first build, with the names a current copy has, is to see that a run counts, and it
+      // also gives each run's walkthrough bytes.
       const tried = vi
         .mocked(buildShareModel)
         .mock.calls.map(([input]) => [input.fileName, input.wordName])
