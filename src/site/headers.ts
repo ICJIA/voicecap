@@ -108,9 +108,11 @@ export const DEMO_SITE_POLICY =
  * (demo-site/): each page has DEMO_SITE_POLICY at every address it answers at. `files` are the
  * paths of the files published there, from the folder and with "/" between names, and the rules are
  * made from them, so no page that is published can be left without one. A page is a file whose
- * name ends with .html; the style sheet and the sitemap are none. A page in a folder (index.html)
- * answers at the folder's own address too, as the site's own page answers at / and at /index.html;
- * any other page answers at its own. The rules come in the order of their addresses.
+ * name ends with .html; the style sheet and the sitemap are none. A page answers at its own
+ * address and at the same without ".html", which is how Netlify serves it too (as for a report's
+ * page, see rulesFor in ./build.ts), and a page in a folder (index.html) answers at the folder's
+ * own address as well, as the site's own page answers at / and at /index.html. The rules come in
+ * the order of their addresses.
  *
  * Netlify's documentation doesn't say whether a path that ends with /* also matches the folder's
  * own address, so no rule has a wildcard: each address is written out.
@@ -120,6 +122,7 @@ export function demoSiteRules(folder: string, files: readonly string[]): HeaderR
   for (const file of files) {
     if (!file.endsWith(".html")) continue;
     addresses.add(`/${folder}/${file}`);
+    addresses.add(`/${folder}/${file.slice(0, -".html".length)}`);
     if (file === "index.html" || file.endsWith("/index.html")) {
       addresses.add(`/${folder}/${file.slice(0, -"index.html".length)}`);
     }

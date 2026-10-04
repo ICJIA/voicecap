@@ -516,16 +516,21 @@ describe("the demo's own pages' rules", () => {
       "ask-a-question/index.html",
     ]);
 
-    // A folder's page is at the folder's address and at its index.html, as the site's own page is
-    // at / and at /index.html. Any other page is at its own address. In the order of the addresses.
+    // A page is at its own address, and at the same without .html, which is how Netlify serves it
+    // too. A folder's page is also at the folder's address, as the site's own page is at / (and at
+    // /index.html). In the order of the addresses.
     expect(rules).toEqual(
       [
         "/demo-site/",
         "/demo-site/ask-a-question/",
+        "/demo-site/ask-a-question/index",
         "/demo-site/ask-a-question/index.html",
+        "/demo-site/ask-a-question/sent",
         "/demo-site/ask-a-question/sent.html",
+        "/demo-site/index",
         "/demo-site/index.html",
         "/demo-site/the-report/",
+        "/demo-site/the-report/index",
         "/demo-site/the-report/index.html",
       ].map(policyRule),
     );
@@ -545,17 +550,24 @@ describe("the demo's own pages' rules", () => {
 
     const rules = demoSiteRules("demo-site", files);
 
-    // A name that only ends with index.html isn't a folder's index.
+    // A name that only ends with index.html isn't a folder's index: it has no folder's address.
     expect(rules.map(({ path }) => path)).toEqual([
       "/demo-site/",
       "/demo-site/a/",
       "/demo-site/a/b/",
+      "/demo-site/a/b/index",
       "/demo-site/a/b/index.html",
+      "/demo-site/a/b/page",
       "/demo-site/a/b/page.html",
+      "/demo-site/a/index",
       "/demo-site/a/index.html",
+      "/demo-site/a/myindex",
       "/demo-site/a/myindex.html",
+      "/demo-site/c",
       "/demo-site/c.html",
+      "/demo-site/index",
       "/demo-site/index.html",
+      "/demo-site/myindex",
       "/demo-site/myindex.html",
     ]);
     // The same files in another order give the same rules in the same order, and none give none.
@@ -583,7 +595,13 @@ describe("the demo's own pages' rules", () => {
         "/demo-site/",
         `  Content-Security-Policy: ${POLICY}`,
         "",
+        "/demo-site/ask-a-question/sent",
+        `  Content-Security-Policy: ${POLICY}`,
+        "",
         "/demo-site/ask-a-question/sent.html",
+        `  Content-Security-Policy: ${POLICY}`,
+        "",
+        "/demo-site/index",
         `  Content-Security-Policy: ${POLICY}`,
         "",
         "/demo-site/index.html",

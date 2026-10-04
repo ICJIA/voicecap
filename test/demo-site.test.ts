@@ -283,7 +283,7 @@ describe("the demo site's addresses", () => {
       server.origin,
       "/ask-a-question/sent.html",
     ]);
-    expect(await page.title()).toBe("Nothing was sent | voicecap demo");
+    expect(await page.title()).toBe("Practice form | voicecap demo");
     await close(page);
   });
 });
@@ -313,6 +313,17 @@ describe("the demo site's words", () => {
     expect(notes.join(" ")).not.toContain("Nothing you type is sent anywhere");
     await close(page);
   });
+
+  it("tells whoever is at the form's answer that the form is for practice, in its title and its heading, and not that nothing was sent", async () => {
+    const page = await open("/ask-a-question/sent.html");
+
+    expect(await page.title()).toBe("Practice form | voicecap demo");
+    expect(await page.locator("h1").allInnerTexts()).toEqual([
+      "This is a practice form, so no one will answer it.",
+    ]);
+    expect(await page.locator("body").innerText()).not.toContain("Nothing was sent");
+    await close(page);
+  });
 });
 
 describe("the demo site's accessibility (axe-core in Chromium)", () => {
@@ -335,7 +346,7 @@ describe("the demo site's accessibility (axe-core in Chromium)", () => {
     const page = await open("/ask-a-question/");
     await page.fill("#question", "Does this go anywhere?");
     await page.click("button[type=submit]");
-    await page.waitForFunction(() => document.title.startsWith("Nothing was sent"));
+    await page.waitForFunction(() => document.title.startsWith("Practice form"));
     expect(await violations(page)).toEqual([]);
     await page.goto(`${server.origin}/no-such-page/`);
     expect(await page.title()).toBe("Page not found | voicecap demo");

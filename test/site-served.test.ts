@@ -335,10 +335,13 @@ describe("the demo's own pages, served as Netlify serves them", () => {
   const demoAddress = (where: string): string => new URL(`demo-site/${where}`, server.url).href;
   /**
    * The addresses a page answers at, by its path under /demo-site/: a page in a folder is at the
-   * folder's address and at its index.html, and the form's answer is at its own.
+   * folder's address, at its index.html, and at its index; the form's answer is at its own address
+   * and at the same without ".html", which is how Netlify serves a page too.
    */
   const addressesOf = (where: string): string[] =>
-    where === "" || where.endsWith("/") ? [where, `${where}index.html`] : [where];
+    where === "" || where.endsWith("/")
+      ? [where, `${where}index.html`, `${where}index`]
+      : [where, where.slice(0, -".html".length)];
 
   it("loads each page with its style, at every address it answers at, under the demo's policy, naming its own address, with no violation", async () => {
     const page = await newPage();
@@ -361,8 +364,8 @@ describe("the demo's own pages, served as Netlify serves them", () => {
         visited.push(at);
       }
     }
-    // The home page's two, each of the six other pages' two, and the form's answer's one.
-    expect(visited).toHaveLength(2 + 6 * 2 + 1);
+    // The home page's three, each of the six other pages' three, and the form's answer's two.
+    expect(visited).toHaveLength(3 + 6 * 3 + 2);
   });
 
   it("leads every link, style sheet, and form of the pages to a file under /demo-site/", async () => {
@@ -408,7 +411,7 @@ describe("the demo's own pages, served as Netlify serves them", () => {
     expect(answer.status()).toBe(200);
     expect(answer.headers()["content-security-policy"]).toBe(DEMO_POLICY);
     expect(new URL(page.url()).pathname).toBe("/demo-site/ask-a-question/sent.html");
-    expect(await page.title()).toBe("Nothing was sent | voicecap demo");
+    expect(await page.title()).toBe("Practice form | voicecap demo");
     expect(await violationsOf(page)).toEqual([]);
   });
 

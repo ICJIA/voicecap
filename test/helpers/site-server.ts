@@ -2,8 +2,10 @@
  * A built website served as Netlify serves it, for the tests that open it in a browser: each file at
  * its address (serveStatic, src/util/static-site.ts), and each rule of the site's _headers giving its
  * headers to the response for its path. A rule is for its exact path, since voicecap writes no
- * wildcard, and the page at /<folder>/<name>.html isn't also served at /<folder>/<name>. A .docx and
- * a .json have no content type of their own here: serveStatic sends each as application/octet-stream.
+ * wildcard. A page is served at its address without ".html" too, as Netlify serves it
+ * (/<folder>/<name> is /<folder>/<name>.html), and the rules it gets are those of the address that
+ * was asked for. A .docx and a .json have no content type of their own here: serveStatic sends each
+ * as application/octet-stream.
  *
  * The server is on 127.0.0.1, at a free port, and is stopped by `close`.
  */
@@ -77,9 +79,13 @@ async function handle(
   }
   // Set before the file is sent, which writes the rest of the response's headers around them.
   for (const [name, value] of rules.get(where.decoded) ?? []) response.setHeader(name, value);
-  if (!(await serveStatic(dir, where, request, response))) {
-    send(response, 404, CONTENT_TYPES[".txt"]!, "Not found", request.method);
+  if (await serveStatic(dir, where, request, response)) return;
+  // Nothing at the address: Netlify serves /about from /about.html, if that is there.
+  if (!where.decoded.endsWith("/")) {
+    const page = { raw: `${where.raw}.html`, decoded: `${where.decoded}.html` };
+    if (await serveStatic(dir, page, request, response)) return;
   }
+  send(response, 404, CONTENT_TYPES[".txt"]!, "Not found", request.method);
 }
 
 /** Serve the site built in `dir`, whose _headers it reads once, as the folder is when it's served. */

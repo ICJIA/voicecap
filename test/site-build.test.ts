@@ -135,25 +135,34 @@ const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 /**
- * The addresses the demo's eight pages answer at, in the order of _headers: each page of a folder
- * (the home page's is the site's own) at the folder's address and at its index.html, and the form's
- * answer at its own. Each has a rule of its own in _headers, and none has a wildcard.
+ * The addresses the demo's eight pages answer at, in the order of _headers: each page at its own
+ * address and at the same without ".html", which is how Netlify serves it too, and each page of a
+ * folder (the home page's is the site's own) at the folder's address as well. Each has a rule of its
+ * own in _headers, and none has a wildcard.
  */
 const DEMO_ADDRESSES = [
   "/demo-site/",
   "/demo-site/ask-a-question/",
+  "/demo-site/ask-a-question/index",
   "/demo-site/ask-a-question/index.html",
+  "/demo-site/ask-a-question/sent",
   "/demo-site/ask-a-question/sent.html",
   "/demo-site/before-you-start/",
+  "/demo-site/before-you-start/index",
   "/demo-site/before-you-start/index.html",
   "/demo-site/common-mistakes/",
+  "/demo-site/common-mistakes/index",
   "/demo-site/common-mistakes/index.html",
   "/demo-site/how-a-run-works/",
+  "/demo-site/how-a-run-works/index",
   "/demo-site/how-a-run-works/index.html",
+  "/demo-site/index",
   "/demo-site/index.html",
   "/demo-site/reading-transcripts/",
+  "/demo-site/reading-transcripts/index",
   "/demo-site/reading-transcripts/index.html",
   "/demo-site/the-report/",
+  "/demo-site/the-report/index",
   "/demo-site/the-report/index.html",
 ];
 /** The rules _headers has for them: the policy at each address. */
@@ -617,8 +626,9 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the demo's fifteen addresses, four pages at two addresses each, and ten downloads.
-    expect(rules).toHaveLength(2 + 15 + 4 * 2 + 4 + 6);
+    // The index, the demo's twenty-three addresses, four pages at two addresses each, and ten
+    // downloads.
+    expect(rules).toHaveLength(2 + 23 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -646,19 +656,22 @@ describe("buildSite", () => {
     const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
     const ofTheDemo = rules.filter(([rulePath]) => rulePath.startsWith(`/${DEMO_PAGES}/`));
     // The addresses follow from the files published under demo-site/: each page at its own
-    // address, and an index.html at its folder's too. The style sheet and the sitemap are no pages.
+    // address and at the same without ".html", and an index.html at its folder's too. The style
+    // sheet and the sitemap are no pages.
     const pages = (await filesUnder(path.join(out, DEMO_PAGES))).filter((file) =>
       file.endsWith(".html"),
     );
     expect(pages).toHaveLength(8);
-    const addresses = pages.flatMap((file) =>
-      file.endsWith("index.html")
-        ? [`/${DEMO_PAGES}/${file.slice(0, -"index.html".length)}`, `/${DEMO_PAGES}/${file}`]
-        : [`/${DEMO_PAGES}/${file}`],
-    );
+    const addresses = pages.flatMap((file) => [
+      `/${DEMO_PAGES}/${file}`,
+      `/${DEMO_PAGES}/${file.slice(0, -".html".length)}`,
+      ...(file.endsWith("index.html")
+        ? [`/${DEMO_PAGES}/${file.slice(0, -"index.html".length)}`]
+        : []),
+    ]);
     expect(ofTheDemo.map(([rulePath]) => rulePath)).toEqual(addresses.toSorted());
-    // The home page's two, each of the six other pages' two, and the form's answer's one.
-    expect(addresses).toHaveLength(2 + 6 * 2 + 1);
+    // The home page's three, each of the six other pages' three, and the form's answer's two.
+    expect(addresses).toHaveLength(3 + 6 * 3 + 2);
     expect(addresses.toSorted()).toEqual(DEMO_ADDRESSES);
     // Each has its own rule, the policy and nothing else, and no rule has a wildcard.
     expect(ofTheDemo).toEqual(DEMO_RULES);

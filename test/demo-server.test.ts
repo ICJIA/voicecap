@@ -35,7 +35,7 @@ async function stubSite(): Promise<string> {
   await writeFile(path.join(site, "ask-a-question", "index.html"), "<!doctype html><form>");
   await writeFile(
     path.join(site, "ask-a-question", "sent.html"),
-    "<!doctype html><title>Nothing was sent: this is a demo</title>",
+    "<!doctype html><title>Practice form</title><h1>This is a practice form, so no one will answer it.</h1>",
   );
   return site;
 }
@@ -157,7 +157,7 @@ describe("the demo server", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toMatch(/^text\/html/);
-    expect(await response.text()).toContain("Nothing was sent: this is a demo");
+    expect(await response.text()).toContain("This is a practice form, so no one will answer it.");
   });
 
   it("refuses a POST, the question form's page too, which it no longer answers", async () => {
@@ -169,7 +169,7 @@ describe("the demo server", () => {
 
       expect(response.status, where).toBe(405);
       expect(response.headers.get("allow"), where).toBe("GET, HEAD");
-      expect(await response.text(), where).not.toContain("Nothing was sent");
+      expect(await response.text(), where).not.toContain("practice form");
     }
   });
 
