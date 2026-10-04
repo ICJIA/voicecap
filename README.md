@@ -57,43 +57,70 @@ To see it at work before you use it on your own site, try the guided demo on a W
 
 ### Stories of the people it's for
 
-These stories were written for this page. Each is a composite of the people voicecap is made for: how they'd describe using it, and why they'd choose it. They aren't quotes from real users, and none of them endorses voicecap.
+These stories were written for this page. Each is a composite of the people voicecap is made for: how they'd describe using it, and why they'd choose it. They aren't quotes from real users, and none of them endorses voicecap. Each line below names one of them and what voicecap gives them. Open one to read their story.
 
-**A web coordinator with more than a dozen sites and a deadline.** "I look after more than a dozen websites, and every one has to meet the April 2027 ADA Title II deadline for accessible digital content. Our automated checks came back clean, but my manager wanted to know that a person had gone through each site with a real screen reader. voicecap takes NVDA through every page on the list from each site's sitemap. Then I read the transcripts and fix what I find, one site after another. When someone asks how we know, I send the report."
+<details>
+<summary><b>A web coordinator with more than a dozen sites and a deadline:</b> every page on the list is accounted for, and the work leaves a record.</summary>
 
-_Why voicecap:_ every page on the list is accounted for, and the work leaves a record.
+"I look after more than a dozen websites, and every one has to meet the April 2027 ADA Title II deadline for accessible digital content. Our automated checks came back clean, but my manager wanted to know that a person had gone through each site with a real screen reader. voicecap takes NVDA through every page on the list from each site's sitemap. Then I read the transcripts and fix what I find, one site after another. When someone asks how we know, I send the report."
 
-**A front-end developer.** "When a page sounds wrong, I don't want to guess from the markup. The transcript shows me, line by line, what NVDA said and in what order. I fix the code, run that page again with `--page`, and compare it with the earlier run, naming that run with `--compare`, to see exactly which lines changed."
+</details>
 
-_Why voicecap:_ the screen reader's own words, and a quick way to check a fix.
+<details>
+<summary><b>A front-end developer:</b> the screen reader's own words, and a quick way to check a fix.</summary>
 
-**An accessibility specialist.** "I judge the hard pages in my own hands-on sessions with NVDA, and voicecap keeps those beside its transcripts, with `voicecap manual add`. What it saves me is the key-pressing on the hundreds of pages in between. Its flags point me to what's worth a closer listen, like links that say only 'click here', which axe passes."
+"When a page sounds wrong, I don't want to guess from the markup. The transcript shows me, line by line, what NVDA said and in what order. I fix the code, run that page again with `--page`, and compare it with the earlier run, naming that run with `--compare`, to see exactly which lines changed."
 
-_Why voicecap:_ it covers the whole list, so the specialist's time goes where it's needed.
+</details>
 
-**A manager responsible for compliance.** "I'm never going to run a command. I need something I can read and forward: which pages were reviewed, by whom, with what screen reader, what was found, and what was fixed. The shareable page gives me that in plain language, and its Word copy goes in our files."
+<details>
+<summary><b>An accessibility specialist:</b> it covers the whole list, so their time goes where it's needed.</summary>
 
-_Why voicecap:_ results in plain language that show a person did the review.
+"I judge the hard pages in my own hands-on sessions with NVDA, and voicecap keeps those beside its transcripts, with `voicecap manual add`. What it saves me is the key-pressing on the hundreds of pages in between. Its flags point me to what's worth a closer listen, like links that say only 'click here', which axe passes."
 
-**An outside auditor.** "I'm paid to look for holes, so I don't take a report's word for it. I check the file's own fingerprint against the one in the sender's email. Inside it, the page checks every transcript against its sealed records, and failures are shown with their records, not smoothed over. To hear it for myself, I repeat the run from its walkthrough file on my own Windows PC with NVDA, and it tells me page by page whether anything sounds different."
+</details>
 
-_Why voicecap:_ evidence that can be checked, not just trusted.
+<details>
+<summary><b>A manager responsible for compliance:</b> results in plain language that show a person did the review.</summary>
 
-**A tester on a team that ships often.** "After each major update, I run the same list of pages again and compare it with the run before. The report marks the pages that changed and shows the lines that changed. When we need to know a page still sounds the way it did at launch, the walkthrough file from launch repeats that exact run."
+"I'm never going to run a command. I need something I can read and forward: which pages were reviewed, by whom, with what screen reader, what was found, and what was fixed. The shareable page gives me that in plain language, and its Word copy goes in our files."
 
-_Why voicecap:_ the same pages, the same keys, in the same order, every time.
+</details>
 
-**A content editor.** "I write the pages; I don't build them. Reading the transcripts was the first time I knew how my links sounded: 'click here', again and again, on one page. Those were mine to fix, and I fixed them without touching any code."
+<details>
+<summary><b>An outside auditor:</b> evidence that can be checked, not just trusted.</summary>
 
-_Why voicecap:_ plain-text transcripts anyone on the team can read.
+"I'm paid to look for holes, so I don't take a report's word for it. I check the file's own fingerprint against the one in the sender's email. Inside it, the page checks every transcript against its sealed records, and failures are shown with their records, not smoothed over. To hear it for myself, I repeat the run from its walkthrough file on my own Windows PC with NVDA, and it tells me page by page whether anything sounds different."
 
-**A project manager signing off on a vendor's redesign.** "Before we accept a vendor's work, voicecap goes through the pages on our list on the staging site, and the vendor gets the shareable report: every page on the list, what NVDA said, and what needs fixing. When they say it's fixed, we run it again and compare."
+</details>
 
-_Why voicecap:_ a shared, specific record of what NVDA said on each page, and what was found.
+<details>
+<summary><b>A tester on a team that ships often:</b> the same pages, the same keys, in the same order, every time.</summary>
 
-**A screen reader user on the accessibility team.** "I use NVDA every day. When I report a problem, developers want it written down exactly. voicecap writes down every word NVDA says on each page on the list, so my report can point at the line, not at my memory of it."
+"After each major update, I run the same list of pages again and compare it with the run before. The report marks the pages that changed and shows the lines that changed. When we need to know a page still sounds the way it did at launch, the walkthrough file from launch repeats that exact run."
 
-_Why voicecap:_ the screen reader's exact words, ready to quote.
+</details>
+
+<details>
+<summary><b>A content editor:</b> plain-text transcripts anyone on the team can read.</summary>
+
+"I write the pages; I don't build them. Reading the transcripts was the first time I knew how my links sounded: 'click here', again and again, on one page. Those were mine to fix, and I fixed them without touching any code."
+
+</details>
+
+<details>
+<summary><b>A project manager signing off on a vendor's redesign:</b> a shared, specific record of what NVDA said on each page, and what was found.</summary>
+
+"Before we accept a vendor's work, voicecap goes through the pages on our list on the staging site, and the vendor gets the shareable report: every page on the list, what NVDA said, and what needs fixing. When they say it's fixed, we run it again and compare."
+
+</details>
+
+<details>
+<summary><b>A screen reader user on the accessibility team:</b> the screen reader's exact words, ready to quote.</summary>
+
+"I use NVDA every day. When I report a problem, developers want it written down exactly. voicecap writes down every word NVDA says on each page on the list, so my report can point at the line, not at my memory of it."
+
+</details>
 
 ## How voicecap works
 
@@ -999,14 +1026,14 @@ The summary line says what it checked: `dvfr.illinois.gov: 3 runs (1 incomplete)
 <details>
 <summary>What <code>.gitignore</code> keeps out of Git, and why</summary>
 
-voicecap writes `.gitattributes` and `.gitignore` at the home's top the first time it needs them, and never overwrites them, so your own edits or additions stay. `.gitattributes` (`* -text`) keeps Git from changing line endings on checkout, which would otherwise make the recorded hashes stop matching the files. `.gitignore` keeps out:
+voicecap writes `.gitattributes` and `.gitignore` at the home's top the first time it needs them (a run, a review, a share, a manual session, or a build of the website), and never overwrites them, so your own edits or additions stay. Since voicecap writes its own only where there's none, don't start a home's `.gitignore` yourself: add to the one voicecap wrote. `.gitattributes` (`* -text`) keeps Git from changing line endings on checkout, which would otherwise make the recorded hashes stop matching the files. `.gitignore` keeps out:
 
 - **`.voicecap.lock`**, the marker a run holds while it's writing.
 - **Manual sessions' raw NVDA logs** (`**/*_manual_*/raw/`). At Input/output level, NVDA's log records every keystroke, including passwords typed into forms — not something to put in Git. The raw copy's SHA-256 stays in `session.json` either way, so a home missing a raw copy isn't something `verify` will flag.
 - **The shareable page and its Word copy** (`**/share/current.*`). voicecap writes them again after every run and review, so a copy in Git each time would only make the record bigger; they're made from the records, which are in Git. The dated copies that `voicecap share` makes (the page, its Word copy, and each run's walkthrough file), and `shares.json`, go into Git with the rest of the record: they're what was shared, and what the website is built from. A home whose `.gitignore` voicecap wrote before 0.6.0 doesn't have this line: add it by hand.
 - **Temporary files a crash can leave behind** (`.*.tmp`). voicecap writes each file under a temporary name first, then renames it into place.
 - **Word's lock files** (`~$*`). Word keeps one beside a document it has open (a sent copy someone is reading, say), named with `~$` first, and a commit made then would take it. voicecap never changes a `.gitignore` it wrote before, so the owner of a home set up before this line was added can add `~$*` by hand.
-- **The website** (`_site/`). `voicecap site` builds it from the records, and builds it again every time, so a copy in Git would only make the record bigger, and could be committed with the records by mistake. Netlify builds its own copy. A home whose `.gitignore` voicecap wrote with 0.8.0 or earlier doesn't have this line. When `voicecap site` builds into the home's `_site/` and the line isn't there, it warns, with the line to add, and never changes the file: add `_site/` by hand.
+- **The website** (`_site/`). `voicecap site` builds it from the records, and builds it again every time, so a copy in Git would only make the record bigger, and could be committed with the records by mistake. Netlify builds its own copy. A home whose `.gitignore` voicecap wrote with 0.8.0 or earlier doesn't have this line. When `voicecap site` builds into the home's `_site/` and the line isn't there, it warns, with the line to add, and never changes the file: add `_site/` by hand, on a line of its own with nothing before it (Git reads a space at a line's start as part of the name).
 - **Files the operating system adds** to folders you open: `.DS_Store` (macOS), `Thumbs.db` and `desktop.ini` (Windows).
 
 > **Never commit an unredacted raw NVDA log.** See [Manual NVDA sessions](#manual-nvda-sessions).
@@ -1387,8 +1414,9 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
   - Each Word copy and walkthrough file gets `Content-Disposition: attachment`, so a browser downloads it.
   - Its first line, `# Made by voicecap site. Each build empties this folder and writes it again.`, is how a later build knows the folder is one it made.
 
-**In the home,** the first time, and never again. `voicecap site` never writes over either file, so they're yours once they're there, as `.gitattributes` is:
+**In the home,** the first time, and never again. `voicecap site` never writes over any of these files, so they're yours once they're there:
 
+- **`.gitattributes` and `.gitignore`,** only in a home that has none yet, such as a new home no run has written to. They're the two a run writes, so the home's first build keeps `_site/` out of Git, with everything else voicecap keeps out (see [What `.gitignore` keeps out, and why](#what-gitignore-keeps-out-and-why)).
 - **`netlify.toml`:** the build command, the folder to publish, and the headers every file gets.
   - **The build command,** such as `npx --yes @icjia/voicecap@0.9 site --home . --out _site`. It names the minor version of the voicecap that wrote the file: `@0.9` when voicecap 0.9.x wrote it, which npm reads as the latest 0.9 release. So the next build uses a patch release. It uses a new minor version only when you change the version in the command.
   - **The folder to publish:** `publish = "_site"`.
@@ -1403,7 +1431,7 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
     - `Cross-Origin-Resource-Policy: same-origin`
 - **`.nvmrc`:** `24`, so Netlify builds with Node 24, and the npm that comes with it.
 
-`voicecap site` says when it writes them: `Wrote netlify.toml into <home>, for Netlify: commit it with the records.` `_headers` is Netlify's format, and voicecap builds the site for Netlify.
+`voicecap site` says when it writes one, such as `Wrote netlify.toml into <home>, for Netlify: commit it with the records.` or `Wrote .gitignore into <home>, for Git: commit it with the records.` `_headers` is Netlify's format, and voicecap builds the site for Netlify.
 
 </details>
 
@@ -1423,7 +1451,7 @@ git push
 
 `--site` names the site to share. A home with only one site doesn't need it, but with more than one, `share` stops and names them (see [Other commands](#other-commands)). Netlify then builds the site again, with `voicecap site`, and publishes what it builds. voicecap never commits or pushes: publishing is your push.
 
-**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
+**To look at the site first,** run `npx @icjia/voicecap site`, then open `index.html`, in the `_site` folder of the transcripts home, in a browser. The links in it go to files in the same folder, so it works from there. The first time, the command also writes `netlify.toml` and `.nvmrc` in the home, and `.gitattributes` and `.gitignore` if the home has none yet (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
 **The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/` and committing that, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
@@ -1456,7 +1484,7 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    npx @icjia/voicecap@latest site
    ```
 
-   It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each of the two files it writes, then one for the site (your numbers will differ):
+   It builds from the transcripts home (`VOICECAP_TRANSCRIPTS`; give `--home <folder>` if you haven't set it). `@latest` makes `npx` use the newest voicecap, not one it kept: `netlify.toml` names the version that writes it, and Netlify builds with that version. It prints a line for each file it writes in the home, then one for the site (your numbers will differ). A home no run has written to yet gets `.gitattributes` and `.gitignore` too, each with a line that ends `for Git: commit it with the records.`:
 
    ```
    Wrote netlify.toml into C:\Users\cschw\code\voicecap-transcripts, for Netlify: commit it with the records.
@@ -1466,18 +1494,18 @@ Do this once, after the transcripts home holds a share, and is a repository on G
 
    Check that the folder it names is your transcripts home. Anything it left out comes as `Warning:` lines before the last line, and the build still finishes (see [What the build reads, and what it leaves out](#what-the-build-reads-and-what-it-leaves-out)). If it stops with an `Error:`, it says why. If the `Error:` says `isn't a folder`, the transcripts home isn't where `VOICECAP_TRANSCRIPTS` (or `--home`) says it is.
 
-2. **Add `_site/` to `.gitignore`, if voicecap says to.** Look at step 1's output. If it has a warning that ends `Add the line _site/ to it.`, add that line to the home's `.gitignore`. A home that voicecap set up with 0.8.0 or earlier needs it. A new home's `.gitignore` has it already, so with no such warning, go on to step 3. To add the line:
+2. **Add `_site/` to `.gitignore`, if voicecap says to.** Look at step 1's output. If it has a warning that ends `Add the line _site/ to it.`, add that line to the home's `.gitignore`. A home that voicecap set up with 0.8.0 or earlier needs it. A newer home's `.gitignore` has it already, and so does the one step 1 writes in a home that had none, so with no such warning, go on to step 3. To add the line:
    1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`. (If you haven't set `VOICECAP_TRANSCRIPTS`, type `cd` and the folder's path.)
    2. Run `notepad .gitignore`. It opens the file in Notepad.
    3. Go to the end of the file, and add a line of its own that says `_site/`.
    4. Save the file, and close Notepad.
    5. Do the `npx @icjia/voicecap@latest site` step again. The warning should be gone.
 
-3. **Commit `netlify.toml` and `.nvmrc` (and `.gitignore`, if you changed it), and push.**
+3. **Commit the files step 1 wrote in the home (and `.gitignore`, if you changed it), and push.**
    1. In PowerShell, go to the transcripts home's folder: `cd $env:VOICECAP_TRANSCRIPTS`.
    2. Run `git status`.
-   3. Check that it lists `netlify.toml` and `.nvmrc` (and `.gitignore`, if you added `_site/` to it), and doesn't list `_site/`. If it lists `_site/`, go back to the step that adds `_site/`.
-   4. Run `git add netlify.toml .nvmrc .gitignore`. (Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in its place: it adds the share too.)
+   3. Check that it lists the files step 1 said it wrote: `netlify.toml` and `.nvmrc`, and `.gitattributes` and `.gitignore` if it wrote them. It lists `.gitignore` too if you added `_site/` to it. It must not list `_site/`. If it does, go back to step 2.
+   4. Run `git add .gitattributes .gitignore netlify.toml .nvmrc`. (Netlify can publish only what's pushed. If a share isn't pushed yet, run `git add -A` in its place: it adds the share too.)
    5. Run `git commit -m "Add the files Netlify reads"`.
    6. Run `git push`.
 

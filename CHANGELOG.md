@@ -4,6 +4,17 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- **`voicecap site` writes `.gitattributes` and `.gitignore` into a home that has neither,** as a run does, and says so (`Wrote .gitignore into <home>, for Git: commit it with the records.`). Before, a home that no run had written to was told to add `_site/` to a `.gitignore` it didn't have. A `.gitignore` made by hand then would have kept voicecap from ever writing its own, which keeps raw NVDA logs, the run lock, and the page's working copies out of Git too.
+- **The `.gitignore` check reads each line as Git does.** A line with white space at its start or a tab at its end, such as `  _site/`, keeps nothing out of Git, and it now gets the warning: before, it passed. A CRLF line ending and trailing spaces still count, since Git drops them.
+- **No test can reach a person's own transcripts home or reviewer name:** the tests take `VOICECAP_TRANSCRIPTS` and `VOICECAP_REVIEWER` out of their environment before each file runs, so even a mistake in the code under test that reads the environment can't write into the home. CI sets both for its test run, to check it.
+
+### Changed
+
+- **The README's stories of who voicecap is for** are now one line each, naming the person and what voicecap gives them, and each opens to its story, so all nine can be read at a glance.
+- **The first deploy's steps** say what `voicecap site` writes in a home that no run has written to, and commit `.gitattributes` and `.gitignore` with the Netlify files.
+
 ## [0.9.0] - 2026-10-04
 
 The website: `voicecap site` builds a site of every shared report, by site and by date, with the demo, each report with its page, Word copy, and walkthrough files and their fingerprints, for Netlify to publish. `voicecap share` now shares each run's walkthrough file too, and the README opens with who voicecap is for.
