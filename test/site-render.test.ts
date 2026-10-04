@@ -412,6 +412,21 @@ describe("renderSiteIndex", () => {
     ]);
   });
 
+  it("gives each of its lists the role of a list, which WebKit takes from a list with no markers", () => {
+    const tags = [...html.matchAll(/<(?:ul|ol)\b[^>]*>/g)].map(([tag]) => tag);
+    const files = tags.filter((tag) => tag.startsWith("<ul"));
+    const withFiles = [DEMO_REPORT, ...reportsOf(CONTENT)].filter(
+      (shared) => shared.files.length > 0,
+    );
+
+    // A list of files for each report that has one published, and the list by date: no other list.
+    expect(files).toHaveLength(withFiles.length);
+    expect(tags.filter((tag) => tag.startsWith("<ol"))).toHaveLength(1);
+    for (const tag of files) expect(tag).toMatch(/\sclass="files"/);
+    for (const tag of tags) expect(tag).toMatch(/\srole="list"/);
+    expect(sectionOf(html, "by-date")).toMatch(/<ol\b[^>]*\srole="list"/);
+  });
+
   it("counts each site's reports", () => {
     expect(textsOf(sectionOf(html, `site-${DVFR}`), "p")[0]).toBe("2 reports");
     expect(textsOf(sectionOf(html, `site-${EXAMPLE}`), "p")[0]).toBe("1 report");

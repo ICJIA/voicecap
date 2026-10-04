@@ -68,6 +68,13 @@ export function fileKind(name: string): PublishedFile["kind"] {
 /** The id of the heading that names a section, from the section's own id. */
 const headingId = (id: string): string => `heading-${id}`;
 
+/**
+ * What each of the page's lists says it is. WebKit takes the semantics of a list from one whose
+ * markers are removed (`list-style: none`), and a screen reader there (VoiceOver) then doesn't
+ * announce it as a list. The role keeps it one.
+ */
+const IS_A_LIST = ' role="list"';
+
 /** A sentence as HTML: each piece escaped, and each command in the fixed-width font. */
 function sentenceHtml(sentence: Sentence): string {
   return sentence
@@ -122,7 +129,9 @@ function report(shared: PublishedReport, level: 3 | 4): string {
     `<h${level}>${esc(SITE_TEXT.reportLine(shared.at))}</h${level}>`,
     `<p>${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
     // No list with nothing in it: a screen reader would announce it.
-    ...(files.length === 0 ? [] : ['<ul class="files">', ...files.map(fileItem), "</ul>"]),
+    ...(files.length === 0
+      ? []
+      : [`<ul class="files"${IS_A_LIST}>`, ...files.map(fileItem), "</ul>"]),
     ...notPublished.map(
       ({ name, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](name))}</p>`,
     ),
@@ -177,7 +186,7 @@ function byDateView(sites: SiteContent["sites"]): string {
   const inside =
     reports.length === 0
       ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
-      : [`<p>${esc(lead)}</p>`, '<ol class="dates">', ...reports.map(item), "</ol>"];
+      : [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"];
   return section("view", "by-date", 2, title, inside);
 }
 
