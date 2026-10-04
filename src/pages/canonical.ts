@@ -1,5 +1,5 @@
 import { UsageError } from "../util/errors.js";
-import { hasScheme, startsWithHost } from "./url.js";
+import { withScheme } from "./url.js";
 
 /** `value` as a URL, or null when it isn't one. */
 function parseUrl(value: string): URL | null {
@@ -19,15 +19,12 @@ function originOf(value: string): string | null {
 /**
  * The root of the site at the canonical address `input`: its scheme, host, and path, with a `/` on
  * the end and without any query, hash, or credentials. An address typed the short way gets
- * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme` in
- * src/init/site.ts, which this file can't import because init builds on the pages code. Throws a
- * `UsageError` when `input` isn't an http(s) web address, and when it's an IP address or a local
- * address (see `isLocalHost`), since neither is a site's name.
+ * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.
+ * Throws a `UsageError` when `input` isn't an http(s) web address, and when it's an IP address or a
+ * local address (see `isLocalHost`), since neither is a site's name.
  */
 export function normalizeCanonical(input: string): string {
-  const answer = input.trim();
-  const address = hasScheme(answer) && !startsWithHost(answer) ? answer : `https://${answer}`;
-  const url = parseUrl(address);
+  const url = parseUrl(withScheme(input.trim()));
   if (url === null || !isWebAddress(url)) {
     throw new UsageError(`"${input}" isn't a web address, such as https://dvfr.illinois.gov.`);
   }

@@ -2,7 +2,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { readPageList } from "../pages/page-list.js";
-import { resolvePageUrl, resolveSitemapUrl, sameOrigin, startsWithHost } from "../pages/url.js";
+import {
+  resolvePageUrl,
+  resolveSitemapUrl,
+  sameOrigin,
+  startsWithHost,
+  withScheme,
+} from "../pages/url.js";
 import { DEFAULT_OUT_DIR, resolveHome, siteFolder } from "../run/paths.js";
 import { UsageError } from "../util/errors.js";
 import { fromGitBash } from "../util/git-bash.js";
@@ -14,7 +20,6 @@ import {
   checkSitemap,
   findSitemaps,
   normalizeSiteAnswer,
-  withScheme,
   type FoundSitemap,
 } from "./site.js";
 

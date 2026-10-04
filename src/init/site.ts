@@ -1,4 +1,4 @@
-import { hasScheme, startsWithHost } from "../pages/url.js";
+import { withScheme } from "../pages/url.js";
 import { InterruptedError } from "../passes/steps.js";
 import { errorMessage } from "../util/errors.js";
 
@@ -16,16 +16,6 @@ export type Check = { ok: true } | { ok: false; reason: string };
  */
 export type SiteCheck =
   { ok: true; site: URL; moved: boolean } | { ok: false; site: URL; reason: string };
-
-/**
- * `answer` with `https://` added when it has no scheme, as an address typed the short way
- * (`dvfr.illinois.gov`, `dvfr.illinois.gov/sitemap.xml`) has none. A `host:port` answer such as
- * `localhost:3000` counts as having none too: it starts with its host (see `startsWithHost`), and
- * nothing with a real scheme does.
- */
-export function withScheme(answer: string): string {
-  return hasScheme(answer) && !startsWithHost(answer) ? answer : `https://${answer}`;
-}
 
 /**
  * Normalize `init`'s website answer: trims it, adds `https://` when it has no scheme (see

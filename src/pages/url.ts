@@ -58,6 +58,16 @@ export function startsWithHost(value: string): boolean {
 }
 
 /**
+ * `answer` with `https://` added when it has no scheme, as an address typed the short way
+ * (`dvfr.illinois.gov`, `dvfr.illinois.gov/sitemap.xml`) has none. A `host:port` answer such as
+ * `localhost:3000` counts as having none too: it starts with its host (see `startsWithHost`), and
+ * nothing with a real scheme does.
+ */
+export function withScheme(answer: string): string {
+  return hasScheme(answer) && !startsWithHost(answer) ? answer : `https://${answer}`;
+}
+
+/**
  * Resolve a page given as a full URL or a root-relative path ("/about") against the site.
  * Returns null for anything that isn't an http(s) page URL.
  */
