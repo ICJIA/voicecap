@@ -2026,8 +2026,8 @@ describe("voicecap init", () => {
       );
     };
 
-    // The site is at an address on this computer, so init asks for the address people visit, and
-    // writes it into the command as --canonical.
+    // The site is at an IP address, so init asks for the address people visit, and writes it into
+    // the command as --canonical.
     const run = await cli(
       ["init"],
       dir,

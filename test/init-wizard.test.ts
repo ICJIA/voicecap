@@ -24,7 +24,7 @@ const R = " --reviewer icjia";
 const REVIEWER_QUESTION = "Reviewer, recorded with the run";
 const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the default.";
 const CANONICAL_QUESTION =
-  "This site runs on this computer, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
+  "This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
 const CANONICAL_NEEDED =
   "A report has to name the site. Enter the address people visit, such as https://dvfr.illinois.gov.";
 
@@ -786,7 +786,7 @@ describe("runWizard, for the site's canonical address", () => {
   const LOCAL_PAGE = "--page http://localhost:3000/ --reviewer icjia";
   const LOCAL_ANSWERS = ["http://localhost:3000", "dvfr.illinois.gov", "", "", "", ""];
 
-  it("asks for the address people visit when the site runs on this computer", async () => {
+  it("asks for the address people visit when the site is at a local address", async () => {
     const { result, screen } = await session(
       ["http://localhost:3000", "https://dvfr.illinois.gov", "", "", "", ""],
       { fetch: copyAt("http://localhost:3000") },
@@ -851,7 +851,7 @@ describe("runWizard, for the site's canonical address", () => {
     ]);
   });
 
-  it("says what the home page names, and asks nothing, when its tag fits", async () => {
+  it("says what the home page names, and asks nothing, when its tag names the host's own root", async () => {
     const { result, screen } = await session(["http://localhost:3000", "", "", "", ""], {
       fetch: copyAt("http://localhost:3000", tag("https://dvfr.illinois.gov/")),
     });
@@ -862,12 +862,13 @@ describe("runWizard, for the site's canonical address", () => {
         "Looking for the site's sitemap…\n",
     );
     expect(screen).not.toContain(CANONICAL_QUESTION);
-    // The run reads the same tags, so the command doesn't repeat the address.
+    // Init reads the home page only. The run reads every page and goes by its inner pages' tags
+    // first, so the command leaves the address to it.
     expect(result.args).not.toContain("--canonical");
     expect(result.command).toBe(`${LOCAL} ${LOCAL_PAGE}`);
   });
 
-  it("says what the home page names for a site that isn't on this computer too", async () => {
+  it("says what the home page names for a site at a public address too", async () => {
     const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
       fetch: copyAt("https://dvfr.illinois.gov", tag("https://www.dvfr.illinois.gov/")),
     });
@@ -880,8 +881,32 @@ describe("runWizard, for the site's canonical address", () => {
     expect(result.args).not.toContain("--canonical");
   });
 
-  it("asks nothing for a site that isn't on this computer", async () => {
+  it("asks nothing for a site at a public address", async () => {
     const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""]);
+
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    expect(screen).not.toContain("canonical");
+    expect(result.args).not.toContain("--canonical");
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+  });
+
+  it("asks when the home page's tag names a root with a path, as it names none", async () => {
+    // At "/", a tag that names another page fits, as its path ends in "/", so a root with a path
+    // might be that page's address. Init counts only the host's own root, and asks.
+    const { result, screen } = await session(LOCAL_ANSWERS, {
+      fetch: copyAt("http://localhost:3000", tag("https://x.org/about/")),
+    });
+
+    expect(screen).toContain(`${CANONICAL_QUESTION}: dvfr.illinois.gov\n`);
+    expect(screen).not.toContain("The site names its canonical address");
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it("says nothing and asks nothing at a public address whose home page's tag names a root with a path", async () => {
+    // The run decides, from every page it reads, with its inner pages' tags first.
+    const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
+      fetch: copyAt("https://dvfr.illinois.gov", tag("https://x.org/about/")),
+    });
 
     expect(screen).not.toContain(CANONICAL_QUESTION);
     expect(screen).not.toContain("canonical");

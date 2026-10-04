@@ -171,10 +171,28 @@ describe("checkSite's canonical address", () => {
     );
   });
 
-  it("keeps the path of a root with one", async () => {
-    expect(
-      await canonicalOf("http://127.0.0.1:4848", tag("https://voicecap.netlify.app/demo-site/")),
-    ).toBe("https://voicecap.netlify.app/demo-site/");
+  it.each([
+    ["the demo's root", "https://voicecap.netlify.app/demo-site/"],
+    ["another page of the site", "https://dvfr.illinois.gov/about/"],
+    ["a language folder", "https://dvfr.illinois.gov/en/"],
+  ])("is null for a home page's tag that names a root with a path: %s", async (_what, href) => {
+    // At the path "/", a tag that names any page fits, as its path ends in "/", so a root with a
+    // path might be another page's address. The run judges it from its inner pages' tags.
+    expect(await canonicalOf("http://127.0.0.1:4848", tag(href))).toBeNull();
+  });
+
+  it("keeps a root with a path when the page it read isn't at the path /", async () => {
+    // The home page redirects to /en/, so its tag has to end with that path, which is stronger.
+    const fetch = realSitesFetch({
+      "http://127.0.0.1:4848/": () =>
+        redirectedTo(
+          "http://127.0.0.1:4848/en/",
+          `<html><head>${tag("https://voicecap.netlify.app/demo-site/en/")}</head></html>`,
+        ),
+    });
+    const result = await checkSite(new URL("http://127.0.0.1:4848"), fetch);
+    if (!result.ok) throw new Error(`expected ok, got reason: ${result.reason}`);
+    expect(result.canonical).toBe("https://voicecap.netlify.app/demo-site/");
   });
 
   it("reads a relative tag against the page's address, as a browser does", async () => {

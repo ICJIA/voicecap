@@ -65,7 +65,7 @@ const SITEMAP_HINT =
   "Enter a full URL, such as https://dvfr.illinois.gov/sitemap.xml, or a name or path on the site, such as sitemap.xml.";
 const LIMIT_HINT = "Enter a whole number of at least 1, or press Enter for all.";
 const CANONICAL_QUESTION =
-  "This site runs on this computer, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
+  "This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
 const CANONICAL_HINT =
   "A report has to name the site. Enter the address people visit, such as https://dvfr.illinois.gov.";
 const HOME_TIP =
@@ -76,13 +76,13 @@ const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the defau
 
 /**
  * Ask `init`'s questions in order: the website, the address people visit (only when the website is
- * on this computer and its home page names none), where the pages are, how many (for a sitemap or a
- * page list), the transcripts home, and the reviewer. Then show the command (with what to change
- * for cmd when it has a single-quoted value, and the folder to run it from when it depends on one)
- * and, where this computer can run it, warn that the screen reader takes over and ask whether to
- * run it now; elsewhere, say why it can't. A wrong answer is explained and asked again. The
- * prompter's InterruptedError and InputEndedError propagate, and closing the prompter is left to
- * the caller.
+ * an IP address or a local address, and its home page doesn't name the host's own root), where the
+ * pages are, how many (for a sitemap or a page list), the transcripts home, and the reviewer. Then
+ * show the command (with what to change for cmd when it has a single-quoted value, and the folder
+ * to run it from when it depends on one) and, where this computer can run it, warn that the screen
+ * reader takes over and ask whether to run it now; elsewhere, say why it can't. A wrong answer is
+ * explained and asked again. The prompter's InterruptedError and InputEndedError propagate, and
+ * closing the prompter is left to the caller.
  */
 export async function runWizard(deps: WizardDeps): Promise<WizardResult> {
   const { prompter } = deps;
@@ -129,10 +129,10 @@ function dependsOnFolder(pages: PageChoice, home: string | null, env: NodeJS.Pro
   return !path.isAbsolute(home ?? (fromEnv ? fromEnv : DEFAULT_OUT_DIR));
 }
 
-/** The website `askSite` settled on, and the root of the canonical address its home page names. */
+/** The website `askSite` settled on, and the host's own root, if its home page names that. */
 interface AskedSite {
   site: URL;
-  /** Null when the home page names none, or the site didn't answer. */
+  /** Null when the home page names no such root (see `SiteCheck`), or the site didn't answer. */
   named: string | null;
 }
 
@@ -141,7 +141,7 @@ interface AskedSite {
  * any redirect (a run keeps to --site's origin, so it must be the one the pages are on), or the
  * origin given when it doesn't answer and "Use it anyway?" gets a yes; a no asks again. Each check
  * can take up to 15 seconds, so it's announced. With the origin comes the canonical address the
- * site's home page names, when it does.
+ * site's home page names, when it names the host's own root (see `SiteCheck`).
  */
 async function askSite(deps: WizardDeps): Promise<AskedSite> {
   const { prompter } = deps;
@@ -166,11 +166,13 @@ async function askSite(deps: WizardDeps): Promise<AskedSite> {
 }
 
 /**
- * The address people visit, for reports to name the site by. A home page that names one (`named`)
- * settles it: that's said, and nothing is asked, since the run reads the same tags. Otherwise a site
- * on this computer has no address people visit, so that's asked, until an answer
- * `normalizeCanonical` accepts; a wrong answer, or none, is explained and asked again. Returns the
- * root asked for, for --canonical, or null when none was.
+ * The address people visit, for reports to name the site by. A home page that names the host's own
+ * root (`named`) settles it: that's said, nothing is asked, and the command leaves --canonical out.
+ * That's the home page's word alone: the run reads every page's tag and goes by its inner pages'
+ * first, so it can choose another root. Otherwise a site at an IP address or a local address is
+ * asked for the address people visit, until an answer `normalizeCanonical` accepts; a wrong answer,
+ * or none, is explained and asked again. Returns the root asked for, for --canonical, or null when
+ * none was: any other site is left to the run.
  */
 async function askCanonical(
   deps: WizardDeps,

@@ -14,8 +14,9 @@ export type Check = { ok: true } | { ok: false; reason: string };
  * redirects: unchanged from the one given when the fetch's `response.url` is empty (as a
  * constructed `Response` has, meaning no redirect happened). `moved` is true when that origin
  * differs from the one given. `canonical` is the root of the address the home page's
- * `<link rel="canonical">` tag names (see `canonicalRootFrom`), or null when the page has no tag,
- * isn't HTML, can't be read, or names no address people visit.
+ * `<link rel="canonical">` tag names (see `canonicalRootFrom`), when that's the host's own root, the
+ * one with the path `/`; it's null when the page has no tag, isn't HTML, can't be read, names no
+ * address people visit, or names a root with a path (see `namedRoot`).
  */
 export type SiteCheck =
   | { ok: true; site: URL; moved: boolean; canonical: string | null }
@@ -88,6 +89,12 @@ export async function checkSite(
  * `pageUrl`, or null (see `SiteCheck`). A body that errors on its own (e.g. one that already timed
  * out) names none, and must not fail a check whose status is already known. Rejects with
  * `InterruptedError` when `signal` is why the body failed.
+ *
+ * A page at the path `/` counts only when its tag names the host's own root. Its path ends any tag
+ * path that ends in `/`, so a tag that names another page (`https://x.org/about/`) would give that
+ * page's address as the root. The run weighs its inner pages' tags before the home page's (see
+ * `chooseCanonicalRoot`), so init leaves a root with a path to it. A page that ended at another
+ * path, such as `/en/`, has to match that path, which is stronger, so its root counts.
  */
 async function namedRoot(
   response: Response,
@@ -109,7 +116,11 @@ async function namedRoot(
   // A tag's address can be relative to its page, which is how a browser reads it.
   const declared =
     href !== null && URL.canParse(href, pageUrl) ? new URL(href, pageUrl).href : null;
-  return canonicalRootFrom(pageUrl, declared);
+  const root = canonicalRootFrom(pageUrl, declared);
+  if (root !== null && new URL(pageUrl).pathname === "/" && new URL(root).pathname !== "/") {
+    return null;
+  }
+  return root;
 }
 
 /** HTML's space characters. */
