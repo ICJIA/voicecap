@@ -34,7 +34,7 @@ voicecap makes screen reader testing faster, repeatable, and documented: https:/
 
 ## Why voicecap, and who it's for
 
-An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick: they catch a missing label or a missing description. What they can't tell you is what a page sounds like:
+An accessibility review has two halves. Automated checkers such as axe, Lighthouse, and Pa11y test a page's code against rules, and they're quick: they catch a missing label or missing alt text. What they can't tell you is what a page sounds like:
 
 - whether its links make sense read aloud;
 - whether its headings tell a screen reader user where they are;
@@ -53,7 +53,7 @@ voicecap speeds up that second half. It presses NVDA's keys the way a person wou
 - **Results for people who never open a terminal.** There's a plain-language web page and its Word copy, dated copies to send with their fingerprints, and a website of every shared report (see [The shareable page](#the-shareable-page)).
 - **Repeatable.** Comparing two runs shows what changed after an update. A walkthrough file repeats a run, with the same pages in the same order and the same passes, then says page by page how each page sounds against the original (see [Repeating a run](#repeating-a-run-the-walkthrough-file)).
 
-To see it at work before you use it on your own site, try the guided demo (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
+To see it at work before you use it on your own site, try the guided demo on a Windows PC (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)).
 
 ### Stories of the people it's for
 
@@ -1495,16 +1495,16 @@ Do this once, after the transcripts home holds a share, and is a repository on G
    - a report's page opens;
    - a Word copy and a walkthrough file download, for a report shared with this release or later, or the demo's; an earlier report says none was shared;
    - a downloaded file's fingerprint is the one the site shows: `Get-FileHash <file>` in PowerShell shows it, in capitals;
-   - each page came with its headers. Do this for the site's home page, then for a report's page:
+   - each page came with its headers. Do this for the site's home page, looking for `X-Robots-Tag: noindex, nofollow, noarchive`, then for a report's page, looking for `Content-Security-Policy`:
      1. Open the page.
      2. Press F12. The browser's developer tools open.
      3. Choose the **Network** tab.
      4. Press F5. The page loads again.
-     5. Click the first request in the list.
+     5. Click the first request in the list. Its name is the page's own address.
      6. Find **Response Headers**.
-     7. On the home page, find `X-Robots-Tag: noindex, nofollow, noarchive`. On a report's page, find `Content-Security-Policy`. The names may show in lower case.
+     7. Find the header. Its name may show in lower case.
 
-     If `X-Robots-Tag` is missing, `netlify.toml` isn't in what Netlify built from: check that step 3's commit was pushed. If `Content-Security-Policy` is missing, open the deploy's log in Netlify, as below.
+     If a header is missing, check first that you clicked the page's own request. If `X-Robots-Tag` is still missing, check that `netlify.toml` in the repository still has its `[[headers]]` part, and that Netlify built the site from the repository: a deploy by hand may not send it. If `Content-Security-Policy` is missing on a report's page, open the deploy's log in Netlify: the build's last line should start `Built the site in`.
 
    If the site says `No reports have been shared yet.`, nothing shared has been pushed: share, commit, and push, and Netlify builds again. If the deploy failed, open its log in Netlify. The build's own lines are the ones `voicecap site` printed in step 1. If they show that voicecap doesn't know the command `site`, `netlify.toml` names a version from before the website: change the version in its build command to one that has it, push, and deploy again. A build that stops with "Build blocked" about a private repository means the team's plan: see the paragraph before step 1.
 
