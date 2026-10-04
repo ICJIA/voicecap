@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { normalizeCanonical, recordedCanonical } from "../pages/canonical.js";
@@ -57,36 +57,45 @@ export async function chooseSiteDir(options: {
 
 /**
  * The site folder `site`, given as --site, names:
- * 1. the folder named after it, when there is one: the folder of the address voicecap read, which
- *    is what --site always was;
+ * 1. the folder named after it, when it holds site records (see holdsSiteRecords): the folder of
+ *    the address voicecap read, which is what --site always was. A folder with none is no site's,
+ *    whatever it's called: a first attempt that stopped before it recorded anything leaves one;
  * 2. else the one site folder whose newest completed run recorded `site` as its site's canonical
  *    address, the one people visit. So `--site https://dvfr.illinois.gov/` finds the records of a
  *    run that read a copy of the site on this computer. The two are compared as `normalizeCanonical`
  *    writes them, and an IP address or a local address, which can't be a canonical address, skips
  *    this step;
  * 3. else the folder the address would have, which a command that may make it makes.
+ * A canonical address with a path, such as https://voicecap.netlify.app/demo-site/, is a site that
+ * lives under its host. Folders are named after hosts, so the one named after this host holds the
+ * host's own pages, and for such an address step 2 comes before step 1.
  * Two folders that recorded it are a usage error: the address can't say which one is meant, so it
  * asks for the address voicecap read, which names one folder.
  */
 async function siteDirNamed(home: string, site: string): Promise<string> {
   const named = siteDirFor(home, parseSiteUrl(site));
-  if (existsSync(named)) return named;
   const root = canonicalRoot(site);
-  if (root === null) return named;
+  const recorded = async () => (root === null ? null : await folderRecording(home, root));
+  const underAPath = root !== null && new URL(root).pathname !== "/";
 
-  const recording = await foldersRecording(home, root);
-  const [only] = recording;
-  if (only === undefined) return named;
-  if (recording.length > 1) {
-    const folders = new Intl.ListFormat("en").format(recording.map(({ folder }) => folder));
-    const addresses = new Intl.ListFormat("en", { type: "disjunction" }).format(
-      recording.map(({ read }) => read),
-    );
-    throw new UsageError(
-      `${root} is the canonical address of ${folders}: give --site the address voicecap read, ${addresses}.`,
-    );
+  if (underAPath) {
+    const found = await recorded();
+    if (found !== null) return found;
   }
-  return path.join(home, only.folder);
+  if (await isSiteFolder(named)) return named;
+  if (!underAPath) {
+    const found = await recorded();
+    if (found !== null) return found;
+  }
+  return named;
+}
+
+/**
+ * Whether `dir`, the folder named after an address, is a site's: it is there, and it holds site
+ * records (see holdsSiteRecords). A folder that is empty, or holds nothing a site does, isn't.
+ */
+async function isSiteFolder(dir: string): Promise<boolean> {
+  return existsSync(dir) && (await stat(dir)).isDirectory() && (await holdsSiteRecords(dir));
 }
 
 /**
@@ -102,21 +111,16 @@ function canonicalRoot(site: string): string | null {
   }
 }
 
-/** A site folder, and the address its newest completed run read. */
-interface FolderRecording {
-  folder: string;
-  read: string;
-}
-
 /**
- * The site folders whose newest completed run recorded `root` as its site's canonical address,
- * sorted, each with the address that run read. A folder counts once, however many of its runs
- * recorded `root`: an older run, or one that didn't complete, doesn't speak for its site. A record
- * is data, so each is checked again (see `recordedCanonical`): a root that isn't a site's name
- * never matches, and a folder from before 0.10.0, whose runs recorded none, isn't one.
+ * The one site folder, as a path in `home`, whose newest completed run recorded `root` as its
+ * site's canonical address; null when no folder's did. A folder counts once, however many of its
+ * runs recorded `root`: an older run, or one that didn't complete, doesn't speak for its site. A
+ * record is data, so each is checked again (see `recordedCanonical`): a root that isn't a site's
+ * name never matches, and a folder from before 0.10.0, whose runs recorded none, isn't one. Two or
+ * more folders is a usage error, which asks for the address voicecap read.
  */
-async function foldersRecording(home: string, root: string): Promise<FolderRecording[]> {
-  const found: FolderRecording[] = [];
+async function folderRecording(home: string, root: string): Promise<string | null> {
+  const found: { folder: string; read: string }[] = [];
   for (const folder of await siteFolders(home)) {
     const runs = await listRuns(path.join(home, folder));
     const newest = runs.findLast((run) => run.status === "completed");
@@ -124,7 +128,18 @@ async function foldersRecording(home: string, root: string): Promise<FolderRecor
       found.push({ folder, read: newest.site });
     }
   }
-  return found;
+  const [only] = found;
+  if (only === undefined) return null;
+  if (found.length > 1) {
+    const folders = new Intl.ListFormat("en").format(found.map(({ folder }) => folder));
+    const addresses = new Intl.ListFormat("en", { type: "disjunction" }).format(
+      found.map(({ read }) => read),
+    );
+    throw new UsageError(
+      `${root} is the canonical address of ${folders}: give --site the address voicecap read, ${addresses}.`,
+    );
+  }
+  return path.join(home, only.folder);
 }
 
 /**

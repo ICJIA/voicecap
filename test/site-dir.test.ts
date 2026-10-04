@@ -231,7 +231,8 @@ describe("chooseSiteDir, given a site's canonical address", () => {
       path.join(home, "dvfr.illinois.gov"),
     );
 
-    // A folder is there when it's on disk, whether or not anything has been recorded in it yet.
+    // A folder with no records isn't a site's, whatever it's called: a first attempt that stopped
+    // before it recorded anything leaves one. The folder whose runs recorded the address wins.
     const empty = await makeHome();
     await mkdir(path.join(empty, "dvfr.illinois.gov"));
     await recordRun(empty, "localhost_3000", {
@@ -240,7 +241,108 @@ describe("chooseSiteDir, given a site's canonical address", () => {
       canonical: DVFR_ROOT,
     });
     expect(await chooseSiteDir({ home: empty, site: DVFR_ROOT })).toBe(
-      path.join(empty, "dvfr.illinois.gov"),
+      path.join(empty, "localhost_3000"),
+    );
+  });
+
+  it("passes over a folder named after the address that holds no records, and over a file", async () => {
+    // With nothing else that recorded the address, the folder the address would have is that same
+    // path, as it was before.
+    const home = await makeHome();
+    await mkdir(path.join(home, "dvfr.illinois.gov"));
+    await mkdir(path.join(home, "127.0.0.1_4848"));
+    await recordRun(home, "localhost_3000", { began: "2026-09-29 14:02", site: COPY_READ });
+    expect(await chooseSiteDir({ home, site: DVFR_ROOT })).toBe(
+      path.join(home, "dvfr.illinois.gov"),
+    );
+    // An address of this computer has no canonical address to look for, so it is that path too.
+    expect(await chooseSiteDir({ home, site: DEMO_READ })).toBe(path.join(home, "127.0.0.1_4848"));
+
+    // Something that isn't a folder, left where the folder would be, is passed over too.
+    const stray = await makeHome();
+    await writeFile(path.join(stray, "dvfr.illinois.gov"), "not a folder\n");
+    await recordRun(stray, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+    expect(await chooseSiteDir({ home: stray, site: DVFR_ROOT })).toBe(
+      path.join(stray, "localhost_3000"),
+    );
+  });
+
+  it("takes a folder named after the address that holds any record of a site, runs or not", async () => {
+    // manual add makes a live site's folder with a session in it, before any run.
+    const manual = await makeHome();
+    const session = path.join(manual, "dvfr.illinois.gov", "2026-09-25", "2357_manual_home");
+    await mkdir(session, { recursive: true });
+    await writeFile(path.join(session, "session.json"), "{}\n");
+    await recordRun(manual, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+    expect(await chooseSiteDir({ home: manual, site: DVFR_ROOT })).toBe(
+      path.join(manual, "dvfr.illinois.gov"),
+    );
+
+    // So does a folder with only a file voicecap writes at a site's top.
+    for (const file of ["reviews.json", "latest.txt", "report.html"]) {
+      const home = await makeHome();
+      await mkdir(path.join(home, "dvfr.illinois.gov"));
+      await writeFile(path.join(home, "dvfr.illinois.gov", file), "\n");
+      await recordRun(home, "localhost_3000", {
+        began: "2026-09-29 14:02",
+        site: COPY_READ,
+        canonical: DVFR_ROOT,
+      });
+      expect(await chooseSiteDir({ home, site: DVFR_ROOT })).toBe(
+        path.join(home, "dvfr.illinois.gov"),
+      );
+    }
+  });
+
+  it("finds a root with a path by what its runs recorded, before the folder named after its host", async () => {
+    const home = await makeHome();
+    // Folders are named after the host, so this one holds the records of a run on the website's own
+    // pages, not of the demo that lives under /demo-site/ on it.
+    await recordRun(home, "voicecap.netlify.app", {
+      began: "2026-09-28 09:00",
+      site: "https://voicecap.netlify.app",
+    });
+    await recordRun(home, "127.0.0.1_4848", {
+      began: "2026-09-29 14:02",
+      site: DEMO_READ,
+      canonical: DEMO_ROOT,
+    });
+
+    expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(path.join(home, "127.0.0.1_4848"));
+    // The host alone is the website's own site. And a root with a path that no run recorded is
+    // as it was before canonical addresses: any URL on the host's site.
+    for (const site of ["https://voicecap.netlify.app", "https://voicecap.netlify.app/other/"]) {
+      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.netlify.app"));
+    }
+  });
+
+  it("names both folders for a root with a path, whatever folder is named after its host", async () => {
+    const home = await makeHome();
+    await recordRun(home, "voicecap.netlify.app", {
+      began: "2026-09-28 09:00",
+      site: "https://voicecap.netlify.app",
+    });
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DEMO_ROOT,
+    });
+    await recordRun(home, "127.0.0.1_4848", {
+      began: "2026-09-28 09:00",
+      site: DEMO_READ,
+      canonical: DEMO_ROOT,
+    });
+
+    expect((await refusal({ home, site: DEMO_ROOT })).message).toBe(
+      `${DEMO_ROOT} is the canonical address of 127.0.0.1_4848 and localhost_3000: give --site the address voicecap read, http://127.0.0.1:4848 or http://localhost:3000.`,
     );
   });
 

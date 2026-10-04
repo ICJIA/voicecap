@@ -1533,9 +1533,9 @@ describe("--site takes a site's canonical address", () => {
 
   /**
    * A home (the default one, in the folder this gives) with one replayed run of the copy at SITE,
-   * which recorded ROOT as the site's canonical address.
+   * which recorded `root` as the site's canonical address.
    */
-  async function homeOfTheCopy(): Promise<string> {
+  async function homeOfTheCopy(root = ROOT): Promise<string> {
     const run = await cli([
       "--site",
       SITE,
@@ -1544,7 +1544,7 @@ describe("--site takes a site's canonical address", () => {
       "--replay-from",
       fixture("replay-run"),
       "--canonical",
-      ROOT,
+      root,
     ]);
     expect(run.code).toBe(0);
     return run.cwd;
@@ -1608,6 +1608,45 @@ describe("--site takes a site's canonical address", () => {
     expect(none.err).toBe(
       `Error: ${path.join(cwd, "transcripts")} has no i2i.illinois.gov folder, so there's nothing to check.\n`,
     );
+  });
+
+  it("passes over an empty folder named after the address, as a stopped first attempt leaves one", async () => {
+    const cwd = await homeOfTheCopy();
+    // A first attempt at the live address that stopped before it recorded anything.
+    await mkdir(path.join(cwd, "transcripts", NAMED));
+
+    const verify = await cli(["verify", "--site", ROOT], cwd);
+    const report = await cli(["report", "--site", ROOT], cwd);
+
+    // Each is of the copy's records, not of the empty folder, which would be checked, or stopped at.
+    expect(verify.err).toBe("");
+    expect(verify.code).toBe(0);
+    expect(verify.out).toBe(
+      `${FOLDER}: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.\n`,
+    );
+    expect(report.err).toBe("");
+    expect(report.code).toBe(0);
+    expect(report.out).toContain(`Report: ${path.join(cwd, "transcripts", FOLDER, "report.html")}`);
+  });
+
+  it("finds a root with a path by what its run recorded, though a folder is named after its host", async () => {
+    const root = "https://voicecap.netlify.app/demo-site/";
+    const cwd = await homeOfTheCopy(root);
+    // The website itself was run once: its folder holds records, and folders are named by host.
+    await mkdir(path.join(cwd, "transcripts", "voicecap.netlify.app", "2026-09-28"), {
+      recursive: true,
+    });
+    const runId = (
+      await readFile(path.join(cwd, "transcripts", FOLDER, "latest.txt"), "utf8")
+    ).trim();
+    const file = path.join(cwd, "walkthrough.json");
+
+    // The command the shareable page shows for a run of the demo.
+    const walkthrough = await cli(["walkthrough", "--site", root, "--run", runId, file], cwd);
+
+    expect(walkthrough.err).toBe("");
+    expect(walkthrough.code).toBe(0);
+    expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(runId);
   });
 
   it("finds the folder to share, for share", async () => {
