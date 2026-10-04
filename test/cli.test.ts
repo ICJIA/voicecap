@@ -1170,7 +1170,7 @@ describe("voicecap share", () => {
   const squeezed = (text: string) => text.replace(/\s+/g, " ");
 
   it("makes the dated pair, records it, and prints the line to paste into the email, last", async () => {
-    const { dir, siteDir } = await homeWithCountedRun();
+    const { dir, siteDir, run } = await homeWithCountedRun();
 
     const share = await cli(
       [
@@ -1193,13 +1193,16 @@ describe("voicecap share", () => {
     expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
     const page = entry.files[0]!;
     const word = entry.files[1]!;
-    // Named for the site's folder and the day, as the page, then its Word copy, whole on disk.
+    const walkthrough = entry.files[2]!;
+    // Named for the site's folder and the day, as the page, then its Word copy, then the run's
+    // walkthrough file, whole on disk.
     const day = entry.at.slice(0, 10);
-    expect([page.name, word.name]).toEqual([
+    expect([page.name, word.name, walkthrough.name]).toEqual([
       `example.illinois.gov_${day}.html`,
       `example.illinois.gov_${day}.docx`,
+      `example.illinois.gov_${day}_${run.runId}_walkthrough.json`,
     ]);
-    for (const file of [page, word]) {
+    for (const file of [page, word, walkthrough]) {
       const bytes = await readFile(path.join(shareDir(siteDir), file.name));
       expect({ bytes: bytes.length, sha256: sha256(bytes) }).toEqual({
         bytes: file.bytes,
@@ -1213,6 +1216,8 @@ describe("voicecap share", () => {
         `    ${sizeLine(page.bytes)}, SHA-256 ${page.sha256}`,
         `  ${path.join(shareDir(siteDir), word.name)}`,
         `    ${sizeLine(word.bytes)}, SHA-256 ${word.sha256}`,
+        `  ${path.join(shareDir(siteDir), walkthrough.name)}`,
+        `    ${sizeLine(walkthrough.bytes)}, SHA-256 ${walkthrough.sha256}`,
         "To paste into the email that sends them:",
         `  Fingerprints (SHA-256): ${page.name} ${page.sha256}; ${word.name} ${word.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
         "",
