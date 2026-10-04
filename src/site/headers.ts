@@ -37,10 +37,18 @@ export const ROBOTS_TXT = "User-agent: *\nDisallow: /\n";
  *   hashes against;
  * - nothing in a comment as an element.
  *
- * It isn't a full parser, and voicecap's pages don't need one. They write every "<" of their text
- * as an entity, so no tag hides in an attribute's value or in another element's text. Their one
- * script holds no "<!--" followed by "<script", which would make the parser read past its first
- * "</script". A page is read in one pass, whatever it holds, so no page can make the read slow.
+ * It isn't a full parser. A browser reads some text differently, and each difference fails closed:
+ * a script whose hash is missing is blocked, and a hash that no script has allows nothing.
+ * - A decoy "<script>" or "<style>" inside a <title>, a <textarea>, or an attribute's value is read
+ *   here as an element. It can swallow the real element after it, which the browser then blocks.
+ * - A script that holds "<!--" followed by "<script" ends later in a browser than here.
+ * - A NUL in a script's or a style's text is a U+FFFD to a browser, and a character reference in a
+ *   `type` is the character it names.
+ *
+ * voicecap's own pages never hold such text. `esc` writes every "<" of their text as "&lt;", the
+ * JSON block writes every "<" as a Unicode escape, and SHARE_CSS, SHARE_SCRIPT, and the check's
+ * script hold no "<!--", "</style", or "<script". A page is read in one pass, whatever it holds, so
+ * no page can make the read slow.
  */
 export function inlineHashes(html: string): { styles: string[]; scripts: string[] } {
   const styles = new Set<string>();
@@ -85,13 +93,49 @@ export interface HeaderRule {
 /**
  * _headers as Netlify reads it: HEADERS_FIRST_LINE, then each rule as a blank line, its path on a
  * line of its own, and each of its headers on a line, indented.
+ *
+ * A rule that couldn't be written as those lines, because it would be read as other headers or
+ * other rules, throws an Error that names its path: a path that doesn't start with "/", a header
+ * with no name or a ":" in its name, and a line break in a path, a name, or a value.
  */
 export function headersFile(rules: HeaderRule[]): string {
   const lines = [HEADERS_FIRST_LINE];
-  for (const { path, headers } of rules) {
-    lines.push("", path, ...headers.map(([name, value]) => `  ${name}: ${value}`));
+  for (const rule of rules) {
+    const problem = problemWith(rule);
+    if (problem !== null) {
+      throw new Error(`The _headers rule for ${quoted(rule.path)} can't be written: ${problem}.`);
+    }
+    lines.push("", rule.path, ...rule.headers.map(([name, value]) => `  ${name}: ${value}`));
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** A CR or an LF. In _headers it ends a line, and what follows is read as a line of its own. */
+const LINE_BREAK = /[\r\n]/;
+
+/** What keeps a rule from being written as lines of _headers, or null when nothing does. */
+function problemWith({ path, headers }: HeaderRule): string | null {
+  if (!path.startsWith("/")) return 'its path doesn\'t start with "/"';
+  if (LINE_BREAK.test(path)) return "its path holds a line break";
+  for (const [name, value] of headers) {
+    if (name === "") return "a header has no name";
+    if (name.includes(":")) return 'a header\'s name holds a ":"';
+    if (LINE_BREAK.test(name)) return "a header's name holds a line break";
+    if (LINE_BREAK.test(value)) return "a header's value holds a line break";
+  }
+  return null;
+}
+
+/**
+ * `text` written so that it's safe to print: in double quotes, with each control character, and
+ * each of U+2028 and U+2029 (which end a line), as an escape. A path names a file, and an error's
+ * words are printed and kept in a log.
+ */
+function quoted(text: string): string {
+  return JSON.stringify(text).replace(
+    /[\p{Cc}\u{2028}\u{2029}]/gu,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
 }
 
 /**
@@ -114,7 +158,7 @@ function runsFromItsText(attributes: Map<string, string>): boolean {
   const type = attributes.get("type");
   if (type === undefined || type === "") return true;
   // The parser strips white space from the ends of a type, and reads it in any case.
-  return CODE_TYPES.has(type.replace(/^[\t\n\f ]+|[\t\n\f ]+$/g, "").toLowerCase());
+  return CODE_TYPES.has(trimSpace(type).toLowerCase());
 }
 
 /** A script or style element: its name, its attributes, and its text. */
@@ -151,10 +195,15 @@ function* inlineElements(page: string): Generator<InlineElement> {
 
 /**
  * Where an element's text ends, at its name's first end tag from `from` on, and where the page goes
- * on, after that tag. With no end tag, or one that never ends, the text and the rest of the page
- * run to the page's end.
+ * on, after that tag. With no end tag, the text runs to the page's end. With an end tag that never
+ * ends, the text still ends where that tag starts, and the page goes on at its end: the parser
+ * drops the tag, and the rest of the page with it.
  */
-function endOf(name: string, page: string, from: number): { textEnd: number; resumeAt: number } {
+function endOf(
+  name: InlineElement["name"],
+  page: string,
+  from: number,
+): { textEnd: number; resumeAt: number } {
   const endTag = new RegExp(`</${name}(?=[\\t\\n\\f />])`, "gi");
   endTag.lastIndex = from;
   const found = endTag.exec(page);
@@ -229,4 +278,17 @@ function skipSpace(page: string, from: number): number {
   let at = from;
   while (at < page.length && SPACE.has(page.charAt(at))) at++;
   return at;
+}
+
+/**
+ * `text` without the white space at its ends. Two loops, each looking in from an end, and no
+ * pattern: a pattern for white space at the end of a text takes time in proportion to the square of
+ * a long run of it with something after it.
+ */
+function trimSpace(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && SPACE.has(text.charAt(start))) start++;
+  while (end > start && SPACE.has(text.charAt(end - 1))) end--;
+  return text.slice(start, end);
 }

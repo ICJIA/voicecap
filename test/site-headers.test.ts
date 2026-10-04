@@ -13,6 +13,7 @@ import { renderSharePage } from "../src/share/html/document.js";
 import { SHARE_CSS } from "../src/share/html/style.js";
 import {
   contentSecurityPolicy,
+  type HeaderRule,
   HEADERS_FIRST_LINE,
   headersFile,
   inlineHashes,
@@ -27,6 +28,17 @@ function hashOf(text: string): string {
 
 /** What a page with no code of its own has. */
 const NONE = { styles: [], scripts: [] };
+
+/** The message of the Error that `run` throws. */
+function messageOf(run: () => unknown): string {
+  try {
+    run();
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    return (error as Error).message;
+  }
+  throw new Error("It threw nothing.");
+}
 
 describe("inlineHashes", () => {
   it("hashes the shareable page's one style block and one script, and not its data", async () => {
@@ -159,6 +171,18 @@ describe("inlineHashes", () => {
     });
   });
 
+  it.each([
+    ["a space", " "],
+    ["a tab", "\t"],
+    ["a line feed", "\n"],
+    ["a form feed", "\f"],
+  ])("strips %s from each end of a type", (_name, space) => {
+    expect(inlineHashes(`<script type="${space}text/javascript${space}">a()</script>`)).toEqual({
+      styles: [],
+      scripts: [hashOf("a()")],
+    });
+  });
+
   it("hashes each style block, whatever its attributes", () => {
     const html = [
       "<style>a{}</style>",
@@ -261,14 +285,36 @@ describe("inlineHashes", () => {
     });
   });
 
-  it("reads a page of tags that never end in one pass, not once for each tag", () => {
+  it("ends an element's text where its end tag starts, even when that tag never ends", () => {
+    // The end tag's attributes run to the page's end, so the parser drops them and the rest of the
+    // page. The element's text is only what came before the tag.
+    expect(inlineHashes("<script>a()</script x")).toEqual({
+      styles: [],
+      scripts: [hashOf("a()")],
+    });
+    expect(inlineHashes('<style>b{}</style x="y')).toEqual({
+      styles: [hashOf("b{}")],
+      scripts: [],
+    });
+  });
+
+  it("reads a page in one pass, however it is made: not once for each tag, nor each space", () => {
+    const spaces = " ".repeat(200_000);
+
     const started = performance.now();
     const noQuote = inlineHashes("<script ".repeat(50_000));
     const openQuotes = inlineHashes('<script a="b '.repeat(50_000));
+    // A type with a long run of white space in its middle, and one with a run at each end.
+    const spacedType = inlineHashes(`<script type="x${spaces}y">`);
+    const paddedType = inlineHashes(
+      `<script type="${spaces}text/javascript${spaces}">a()</script>`,
+    );
     const elapsed = performance.now() - started;
 
     expect(noQuote).toEqual(NONE);
     expect(openQuotes).toEqual(NONE);
+    expect(spacedType).toEqual(NONE);
+    expect(paddedType).toEqual({ styles: [], scripts: [hashOf("a()")] });
     expect(elapsed).toBeLessThan(2_000);
   });
 
@@ -346,6 +392,93 @@ describe("headersFile", () => {
     expect(HEADERS_FIRST_LINE).toBe(
       "# Made by voicecap site. Each build empties this folder and writes it again.",
     );
+  });
+
+  it("allows a colon in a value, as a policy has in data:", () => {
+    const rule: HeaderRule = {
+      path: "/a.html",
+      headers: [["Content-Security-Policy", "img-src data:; font-src data:"]],
+    };
+
+    expect(headersFile([rule])).toBe(
+      `${HEADERS_FIRST_LINE}\n\n/a.html\n  Content-Security-Policy: img-src data:; font-src data:\n`,
+    );
+  });
+
+  it.each<[string, HeaderRule, string]>([
+    [
+      "a path with a line feed",
+      { path: "/a\nb.html", headers: [["X-A", "b"]] },
+      "its path holds a line break",
+    ],
+    [
+      "a path with a carriage return",
+      { path: "/a\rb.html", headers: [["X-A", "b"]] },
+      "its path holds a line break",
+    ],
+    [
+      "a path that doesn't start with a slash",
+      { path: "index.html", headers: [["X-A", "b"]] },
+      'its path doesn\'t start with "/"',
+    ],
+    ["an empty path", { path: "", headers: [["X-A", "b"]] }, 'its path doesn\'t start with "/"'],
+    [
+      "a header name with a line feed",
+      { path: "/a.html", headers: [["X-A\nX-B", "b"]] },
+      "a header's name holds a line break",
+    ],
+    [
+      "a header name with a carriage return",
+      { path: "/a.html", headers: [["X-A\rX-B", "b"]] },
+      "a header's name holds a line break",
+    ],
+    ["an empty header name", { path: "/a.html", headers: [["", "b"]] }, "a header has no name"],
+    [
+      "a header name with a colon",
+      { path: "/a.html", headers: [["X-A:X-B", "b"]] },
+      'a header\'s name holds a ":"',
+    ],
+    [
+      "a header value with a line feed",
+      { path: "/a.html", headers: [["X-A", "b\nX-B: c"]] },
+      "a header's value holds a line break",
+    ],
+    [
+      "a header value with a carriage return",
+      { path: "/a.html", headers: [["X-A", "b\rX-B: c"]] },
+      "a header's value holds a line break",
+    ],
+  ])("refuses %s, and names the rule's path", (_name, rule, problem) => {
+    expect(messageOf(() => headersFile([rule]))).toBe(
+      `The _headers rule for ${JSON.stringify(rule.path)} can't be written: ${problem}.`,
+    );
+  });
+
+  it("names the rule that has the problem, whichever it is", () => {
+    const fine: HeaderRule = { path: "/index.html", headers: [["X-A", "b"]] };
+    const bad: HeaderRule = {
+      path: "/bad.html",
+      headers: [
+        ["X-A", "b"],
+        ["X:B", "c"],
+      ],
+    };
+
+    expect(messageOf(() => headersFile([fine, bad, fine]))).toBe(
+      `The _headers rule for "/bad.html" can't be written: a header's name holds a ":".`,
+    );
+  });
+
+  it("writes each control character of the path it names as an escape, so its message is safe to print", () => {
+    const path = "/a\n\u{1b}\u{7f}\u{85}\u{2028}\u{2029}b";
+    const escape = (code: number) => `\\u${code.toString(16).padStart(4, "0")}`;
+
+    const message = messageOf(() => headersFile([{ path, headers: [["X-A", "b"]] }]));
+
+    expect(message).toBe(
+      `The _headers rule for "/a\\n${escape(0x1b)}${escape(0x7f)}${escape(0x85)}${escape(0x2028)}${escape(0x2029)}b" can't be written: its path holds a line break.`,
+    );
+    expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
   });
 });
 
