@@ -15,6 +15,7 @@ import type { SharedFile } from "../src/model.js";
 import { shareDir, sharesPath } from "../src/run/paths.js";
 import { DEMO_SITE, readSiteRecords, type SiteRecords } from "../src/site/records.js";
 import { sealOf } from "../src/util/hash.js";
+import { linkToFolder } from "./helpers/links.js";
 
 const JAN_14 = "2027-01-14T16:00:00-06:00";
 const JAN_15 = "2027-01-15T10:00:00-06:00";
@@ -560,6 +561,35 @@ describe("readSiteRecords", () => {
     );
   });
 
+  it("refuses a file named index.html, which Netlify serves at its folder's own address, and keeps names that only hold it", async () => {
+    // A site's folder is served at /<folder>/, whose page is the folder's index.html, and _headers
+    // has no rule for that address: such a page would run with no policy. voicecap never names a
+    // copy so. A host that takes no notice of letter case would serve Index.html there too.
+    const dir = await siteFolder("example.illinois.gov");
+    const asFile = (name: string) => ({ name, bytes: 5, sha256: "c".repeat(64) });
+    const refused = ["index.html", "Index.html"];
+    const named = [
+      "example.illinois.gov_2027-01-15.html",
+      "index.docx",
+      "index.json",
+      "my_index.html",
+      "index.html.docx",
+      "index2.html",
+    ];
+    // The entry lists one refused name first and the other last, so the others are kept in order.
+    await record(dir, [sealed(1, JAN_15, ["index.html", ...named, "Index.html"].map(asFile))]);
+
+    const { sites, leftOut } = await readSiteRecords(home);
+
+    expect(kept(sites).map(({ files }) => files.map(({ name }) => name))).toEqual([named]);
+    expect(leftOut).toEqual(
+      refused.map(
+        (name) =>
+          `${EXAMPLE_RECORD}: share 1 (${JAN_15}) names "${name}", which isn't a file voicecap would publish`,
+      ),
+    );
+  });
+
   it("keeps only the kinds of file voicecap names, .html, .docx, and .json in lower case", async () => {
     // A site is served from one address, so a name it publishes must be one that voicecap gives its
     // copies: a page, a Word copy, or a walkthrough file. An .svg or an .htm that holds a script
@@ -838,6 +868,36 @@ describe("readSiteRecords, for the demo", () => {
     expect(leftOut).toEqual([
       `${DEMO_SITE}: not published: a site folder named demo would take the demo's place on the site`,
     ]);
+  });
+
+  it("leaves out a voicecap-demo that isn't a folder, names it, and reads the rest", async () => {
+    // Git for Windows checks a committed link out as a plain file, so a file can be where the
+    // demo's folder should be. The sites are read all the same.
+    await record(await siteFolder("example.illinois.gov"), [
+      sealed(1, JAN_15, copies("example.illinois.gov_2027-01-15")),
+    ]);
+    await writeFile(demoRoot(), "a file where the demo's folder should be");
+
+    const { sites, demo, leftOut } = await readSiteRecords(home);
+
+    expect(sites.map(({ folder }) => folder)).toEqual(["example.illinois.gov"]);
+    expect(demo).toBeNull();
+    expect(leftOut).toEqual(["voicecap-demo: not published: it isn't a folder"]);
+  });
+
+  it("reads a voicecap-demo that is a link to a folder as that folder", async () => {
+    // The demo's records are somewhere else, and voicecap-demo leads to them.
+    const elsewhere = path.join(home, "demo-records");
+    await record(await siteFolder("127.0.0.1_4848", elsewhere), [
+      sealed(1, JAN_15, copies("127.0.0.1_4848_2027-01-15")),
+    ]);
+    await linkToFolder(elsewhere, demoRoot());
+
+    const { sites, demo, leftOut } = await readSiteRecords(home);
+
+    expect(sites).toEqual([]);
+    expect(demo).toMatchObject({ folder: "127.0.0.1_4848", seq: 1 });
+    expect(leftOut).toEqual([]);
   });
 
   it("lets a site folder of the demo be named demo, which the home's own can't be", async () => {

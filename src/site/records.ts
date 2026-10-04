@@ -7,6 +7,7 @@
  * and never stops the rest, whatever a record holds. No file an entry lists is read here: the build
  * checks each one against its recorded size and SHA-256.
  */
+import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
@@ -65,6 +66,13 @@ const DOT_AT_EDGE = /^\.|\.$/;
  */
 const PUBLISHED_KIND = /\.(?:html|docx|json)$/;
 /**
+ * The name of the file a folder's own address is served from. Netlify serves a site folder's
+ * index.html at /<folder>/ as well as at its own address, and _headers has no rule for /<folder>/,
+ * so such a page would run with no policy of its own. voicecap never names a copy so. A host that
+ * takes no notice of letter case serves Index.html there too, so the name is refused in any case.
+ */
+const FOLDER_INDEX = "index.html";
+/**
  * The folder the demo is published in on the site, demo/, which the build (./build.ts) uses too. The
  * home's own site folder of that name isn't published, since it would take the demo's place.
  */
@@ -72,15 +80,47 @@ export const DEMO_SITE = "demo";
 
 /**
  * Every entry of the home's records that the site can publish from, and a line for each thing left
- * out. A site's folder that can't be published, a record that can't be read, an entry that can't be
- * trusted or read or has no file to publish, and a file with a name voicecap wouldn't give, each
- * leave out only themselves. Each line is safe to print (see leaveOut).
+ * out. A demo's folder that isn't a folder, a site's folder that can't be published, a record that
+ * can't be read, an entry that can't be trusted or read or has no file to publish, and a file with
+ * a name voicecap wouldn't give, each leave out only themselves. Each line is safe to print (see
+ * leaveOut).
  */
 export async function readSiteRecords(home: string): Promise<SiteRecords> {
   const leftOut: string[] = [];
   const sites = await readSites(home, home, leftOut);
-  const demoSites = await readSites(home, path.join(home, DEMO_OUT), leftOut);
+  const demoSites = await readDemoSites(home, leftOut);
   return { sites, demo: latestOf(demoSites.flatMap(({ entries }) => entries)), leftOut };
+}
+
+/**
+ * The site folders of the home's voicecap-demo/ that have an entry to publish. Something there that
+ * isn't a folder (Git for Windows checks a committed link out as a plain file) has no site folders
+ * to read: it's left out and named, and the rest of the records are read all the same. A link to a
+ * folder counts as that folder, and nothing there is nothing to name.
+ */
+async function readDemoSites(home: string, leftOut: string[]): Promise<SiteRecords["sites"]> {
+  const demoDir = path.join(home, DEMO_OUT);
+  const found = await whatIsAt(demoDir);
+  if (found === "nothing") return [];
+  if (found === "other") {
+    leaveOut(leftOut, `${linkPath(home, demoDir)}: not published: it isn't a folder`);
+    return [];
+  }
+  return readSites(home, demoDir, leftOut);
+}
+
+/**
+ * What's at a path: nothing, a folder (a link to one too), or something else. A lookup that fails
+ * for any other reason than there being nothing says it's something else: a folder that can't even
+ * be looked at isn't one that can be read.
+ */
+async function whatIsAt(target: string): Promise<"nothing" | "folder" | "other"> {
+  try {
+    return (await stat(target)).isDirectory() ? "folder" : "other";
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
+    return code === "ENOENT" || code === "ENOTDIR" ? "nothing" : "other";
+  }
 }
 
 /**
@@ -243,15 +283,17 @@ function isTime(at: string): boolean {
 
 /**
  * Whether a file with this name is one voicecap would publish: a plain name, made of what
- * voicecap's are, with no dot at either edge (see DOT_AT_EDGE), and of a kind voicecap names its
- * copies (see PUBLISHED_KIND).
+ * voicecap's are, with no dot at either edge (see DOT_AT_EDGE), of a kind voicecap names its
+ * copies (see PUBLISHED_KIND), and not the one a folder's own address is served from (see
+ * FOLDER_INDEX).
  */
 function isPublishableName(name: string): boolean {
   return (
     isPlainName(name) &&
     FILE_NAME.test(name) &&
     !DOT_AT_EDGE.test(name) &&
-    PUBLISHED_KIND.test(name)
+    PUBLISHED_KIND.test(name) &&
+    name.toLowerCase() !== FOLDER_INDEX
   );
 }
 

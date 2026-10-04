@@ -933,6 +933,40 @@ describe("buildSite", () => {
       expect(existsSync(path.join(out, EXAMPLE_FOLDER, `${EXAMPLE_STEM}.html`))).toBe(true);
     });
 
+    it("never publishes a file named index.html, which Netlify serves at its site's folder with no policy of its own, and publishes the rest", async () => {
+      const home = await newHome();
+      const siteDir = path.join(home, EXAMPLE_FOLDER);
+      // The folder holds it, with the bytes the entry records for it: only its name leaves it out.
+      const page = Buffer.from(EXAMPLE_PAGE);
+      await writeFile(path.join(siteDir, "share", "index.html"), page);
+      await writeRecord(siteDir, [
+        sealedEntry(1, EXAMPLE_AT, [
+          recordOf(`${EXAMPLE_STEM}.html`, page),
+          recordOf("index.html", page),
+          recordOf(`${EXAMPLE_STEM}.docx`, EXAMPLE_WORD),
+        ]),
+      ]);
+      vi.mocked(readFile).mockClear();
+
+      const { out, content, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${EXAMPLE_FOLDER}/share/shares.json: share 1 (${EXAMPLE_AT}) names "index.html", which isn't a file voicecap would publish`,
+      ]);
+      expect(existsSync(path.join(out, EXAMPLE_FOLDER, "index.html"))).toBe(false);
+      expect(pathsRead()).not.toContain(path.join(siteDir, "share", "index.html"));
+      expect(content.sites[1]?.reports[0]?.files.map(({ name }) => name)).toEqual([
+        `${EXAMPLE_STEM}.html`,
+        `${EXAMPLE_STEM}.docx`,
+      ]);
+      // _headers has the rules of the page that is published, and none for one named index.html.
+      const paths = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
+        ([rulePath]) => rulePath,
+      );
+      expect(paths).toContain(`/${EXAMPLE_FOLDER}/${EXAMPLE_STEM}.html`);
+      expect(paths).not.toContain(`/${EXAMPLE_FOLDER}/index.html`);
+    });
+
     it("leaves out what a site's record can't give, and builds the other sites", async () => {
       const home = await newHome();
       // A record that isn't JSON, and a site folder named as voicecap never names one.
@@ -1011,6 +1045,28 @@ describe("buildSite", () => {
       expect(
         (await readFile(path.join(out, "_headers"), "utf8")).startsWith(HEADERS_FIRST_LINE),
       ).toBe(true);
+    });
+
+    it("leaves out a voicecap-demo that is a file, names it, and builds the sites", async () => {
+      const home = await newHome();
+      // Git for Windows checks a committed link out as a plain file.
+      await rm(path.join(home, DEMO_OUT), { recursive: true });
+      await writeFile(path.join(home, DEMO_OUT), "a file where the demo's folder should be");
+
+      const { out, content, leftOut, logger } = await build(home);
+
+      const line = `${DEMO_OUT}: not published: it isn't a folder`;
+      expect(leftOut).toEqual([line]);
+      expect(warned(logger)).toEqual([line]);
+      expect(content.demo).toBeNull();
+      expect(content.sites.map(({ folder }) => folder)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_FOLDER}_2027-01-15.html`))).toBe(
+        true,
+      );
+      expect(existsSync(path.join(out, DEMO_SITE))).toBe(false);
+      expect(logger.entries.at(-1)?.message).toBe(
+        `Built the site in ${out}: 3 reports from 2 sites.`,
+      );
     });
 
     it("writes each line it adds without what a terminal would act on", async () => {
