@@ -103,12 +103,14 @@ export class ReplayDriver implements ScreenReaderDriver {
     const recording = this.recordings.get(key);
     this.current = recording ?? null;
     this.focus = { inDocument: true, focused: recording?.passes.tab?.initialFocus ?? null };
+    // A recording keeps no page title and no tag, so a replay run learns no canonical root.
     if (recording) {
       return Promise.resolve({
         finalUrl: recording.finalUrl,
         status: 200,
         contentType: "text/html",
         title: null,
+        canonical: null,
       });
     }
 
@@ -120,6 +122,7 @@ export class ReplayDriver implements ScreenReaderDriver {
         contentType:
           skip.contentType ?? (skip.reason === "redirect-off-origin" ? "text/html" : null),
         title: null,
+        canonical: null,
       });
     }
     return Promise.reject(new Error(`No recording of ${url} in ${this.label}`));

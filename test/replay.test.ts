@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { resolveConfig } from "../src/config/load.js";
 import { ReplayDriver } from "../src/drivers/replay.js";
 import type { RunJson } from "../src/model.js";
-import { runAudit } from "../src/run/audit.js";
+import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { pageDir, siteFolder } from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
 import { createMemoryLogger } from "../src/util/log.js";
@@ -41,7 +41,10 @@ async function fixtureRun(): Promise<RunJson> {
 /** SITE's folder in the default home. */
 const siteDir = (cwd: string) => path.join(cwd, "transcripts", siteFolder(SITE));
 
-async function replay(source: { pages?: string; sitemap?: string }) {
+async function replay(
+  source: { pages?: string; sitemap?: string },
+  extra: Partial<RunAuditOptions> = {},
+) {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "voicecap-replay-"));
   const result = await runAudit({
     site: SITE,
@@ -53,6 +56,7 @@ async function replay(source: { pages?: string; sitemap?: string }) {
     config: { config: resolveConfig({}), file: null, sha256: "test" },
     logger: createMemoryLogger(),
     fetch: fixtureFetch,
+    ...extra,
   });
   return { result, run: await readRunJson(siteDir(cwd), result.runId), cwd };
 }
@@ -180,9 +184,30 @@ describe("replaying the fixture run", () => {
     ) as { replayed: boolean };
     expect(json.replayed).toBe(true);
   });
+
+  it("learns no canonical root, since a replay records no tag: only --canonical names one", async () => {
+    const pages = path.join(ROOT, "fixture", "pages.json");
+    const { run } = await replay({ pages });
+    expect(run).not.toHaveProperty("canonical");
+    expect(
+      run.pages.filter((page) => page.status === "done").map((page) => page.canonical),
+    ).toEqual([null, null, null]);
+
+    const given = await replay({ pages }, { canonical: "dvfr.illinois.gov" });
+    expect(given.run.canonical).toBe("https://dvfr.illinois.gov/");
+  });
 });
 
 describe("ReplayDriver", () => {
+  it("reports no canonical tag for a page, or for one the recording skipped", async () => {
+    const driver = new ReplayDriver(FIXTURE_RUN, "fixture/replay-run");
+    await driver.start();
+    expect(await driver.openPage(`${SITE}/`)).toMatchObject({ canonical: null });
+    // /feed/ and /contact/ were skipped on load: for their type, and for a redirect to another site.
+    expect(await driver.openPage(`${SITE}/feed/`)).toMatchObject({ canonical: null });
+    expect(await driver.openPage(`${SITE}/contact/`)).toMatchObject({ canonical: null });
+  });
+
   it("emulates NVDA's end-of-pass behavior after the recording runs out", async () => {
     const driver = new ReplayDriver(FIXTURE_RUN, "fixture/replay-run");
     await driver.start();

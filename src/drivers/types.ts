@@ -66,6 +66,12 @@ export interface PageInfo {
   /** Content-Type of the final response, when known. */
   contentType: string | null;
   title: string | null;
+  /**
+   * The address the page's first `<link rel="canonical">` tag gives, as the browser resolved it (so
+   * absolute, even for a tag written as a path), or null when the page has no such tag, the tag has
+   * no address, or the response isn't HTML. A driver that can't read the page's tags gives null.
+   */
+  canonical: string | null;
 }
 
 export interface FocusedElement {

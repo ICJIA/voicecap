@@ -319,12 +319,16 @@ export interface FakePage {
   status?: number | null;
   contentType?: string | null;
   title?: string;
+  /** The address of the page's canonical tag, as the browser reports it (default: no tag). */
+  canonical?: string;
 }
 
 export class FakeSession implements BrowserSession {
   readonly name = "Chrome";
   readonly version: string;
   title = "";
+  /** The loaded page's canonical tag: null when it has none. */
+  canonical: string | null = null;
   closed = false;
   killed = false;
   loaded: string[] = [];
@@ -360,6 +364,7 @@ export class FakeSession implements BrowserSession {
     this.loadTimeouts.push(timeoutMs);
     const page = this.pages[url] ?? {};
     this.title = page.title ?? "Fake page";
+    this.canonical = page.canonical ?? null;
     this.inToolbar = false;
     this.tabs = 0;
     return Promise.resolve({
@@ -375,6 +380,10 @@ export class FakeSession implements BrowserSession {
 
   pageTitle(): Promise<string> {
     return Promise.resolve(this.title);
+  }
+
+  pageCanonical(): Promise<string | null> {
+    return Promise.resolve(this.canonical);
   }
 
   setTitle(title: string): Promise<() => Promise<void>> {

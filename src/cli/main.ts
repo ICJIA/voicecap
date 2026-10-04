@@ -10,6 +10,7 @@ import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
 import { PASS_NAMES, REVIEW_STATUSES, type PassName, type ReviewStatus } from "../model.js";
+import { normalizeCanonical } from "../pages/canonical.js";
 import { InterruptedError } from "../passes/steps.js";
 import { offerLiveTest } from "../readiness/guided.js";
 import type { PlatformReadiness } from "../readiness/model.js";
@@ -60,6 +61,7 @@ export interface CliContext {
 
 interface RunOptions {
   site?: string;
+  canonical?: string;
   sitemap?: string;
   pages?: string;
   page: string[];
@@ -129,6 +131,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
 
   program
     .option("--site <url>", "the site's URL; pages must be on its origin")
+    .option(
+      "--canonical <address>",
+      "the address people visit, for reports to name the site by, such as https://dvfr.illinois.gov (default: the one the pages' canonical tags name)",
+    )
     .option(
       "--sitemap <url>",
       "take pages from this sitemap (<urlset> or <sitemapindex>): a full URL, or a name or path on the site (from its root), such as sitemap.xml",
@@ -693,11 +699,15 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
     );
   }
   checkUrlOptions(options);
+  // A bad --canonical is a usage error here, before anything starts. runAudit normalizes it too,
+  // for a caller of its own.
+  const canonical = options.canonical === undefined ? null : normalizeCanonical(options.canonical);
   const controller = new AbortController();
   const unhook = ctx.signal ? () => {} : handleInterrupts(controller, logger);
   try {
     const result = await runAudit({
       site: options.site,
+      canonical,
       sitemap: options.sitemap ?? null,
       pages: options.pages ?? null,
       ...(options.page.length > 0 ? { pageUrls: options.page } : {}),

@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalName,
   canonicalRootFrom,
+  chooseCanonicalRoot,
   isLocalHost,
   normalizeCanonical,
   readLocation,
   toCanonical,
+  type TaggedPage,
 } from "../src/pages/canonical.js";
 import { UsageError, errorMessage } from "../src/util/errors.js";
 
@@ -155,6 +157,120 @@ describe("canonicalRootFrom", () => {
     expect(canonicalRootFrom("chrome-error://chromewebdata/", "https://x.org/a/b/")).toBeNull();
     expect(canonicalRootFrom("about:blank", "https://x.org/blank")).toBeNull();
     expect(canonicalRootFrom("not a url", "https://x.org/a/")).toBeNull();
+  });
+});
+
+describe("chooseCanonicalRoot", () => {
+  const read = "http://127.0.0.1:4848";
+  /** Two roots a copy's pages can name: with and without www. */
+  const plain = "https://dvfr.illinois.gov/";
+  const www = "https://www.dvfr.illinois.gov/";
+
+  /** A page of the copy that was read, as a run's record has it: where it ended, and its tag. */
+  const page = (path: string, canonical: string | null, finalUrl?: string): TaggedPage => ({
+    url: `${read}${path}`,
+    ...(finalUrl === undefined ? {} : { finalUrl }),
+    canonical,
+  });
+
+  it("is the address given, whatever the pages' tags say", () => {
+    const pages = [page("/", plain), page("/grants/", `${plain}grants/`)];
+    expect(chooseCanonicalRoot(pages, "https://given.example/agency/")).toBe(
+      "https://given.example/agency/",
+    );
+    expect(chooseCanonicalRoot([], "https://given.example/")).toBe("https://given.example/");
+  });
+
+  it("is the root the home page's tag names when no inner page's tag fits", () => {
+    expect(chooseCanonicalRoot([page("/", plain), page("/about/", null)], null)).toBe(plain);
+  });
+
+  it("is the root most inner pages' tags name, over a home page tag that names another page", () => {
+    // The home page's path ("/") ends any tag's path ending in "/", so its tag fits, whatever it
+    // names. The inner pages' tags each end with their own page's path.
+    const pages = [
+      page("/", `${plain}about/`),
+      page("/grants/", `${plain}grants/`),
+      page("/news/", `${plain}news/`),
+      page("/about/", `${www}about/`),
+    ];
+    expect(chooseCanonicalRoot(pages, null)).toBe(plain);
+  });
+
+  it("is the first inner page's root when inner pages tie, whatever the home page names", () => {
+    const grants = page("/grants/", `${plain}grants/`);
+    const news = page("/news/", `${www}news/`);
+    expect(chooseCanonicalRoot([page("/", www), grants, news], null)).toBe(plain);
+    expect(chooseCanonicalRoot([page("/", plain), news, grants], null)).toBe(www);
+  });
+
+  it("is the root the pages' tags name for a path that isn't the home page's", () => {
+    // A site on a path: its pages' tags end with their own paths, and the root is what's before.
+    const pages = [page("/a/", "https://x.org/agency/a/"), page("/b/", "https://x.org/agency/b/")];
+    expect(chooseCanonicalRoot(pages, null)).toBe("https://x.org/agency/");
+  });
+
+  it("counts http and https, and www and not, as different roots", () => {
+    const pages = [
+      page("/a/", `${www}a/`),
+      page("/b/", "http://dvfr.illinois.gov/b/"),
+      page("/c/", `${plain}c/`),
+      page("/d/", `${plain}d/`),
+    ];
+    expect(chooseCanonicalRoot(pages, null)).toBe(plain);
+  });
+
+  it.each([
+    ["another page", "https://dvfr.illinois.gov/news/"],
+    ["a page of another site", "https://other.example.org/news/"],
+    ["this copy's own address", `${read}/grants/`],
+    ["an address that isn't http or https", "ftp://dvfr.illinois.gov/grants/"],
+    ["something that isn't an address", "grants"],
+  ])("ignores an inner page's tag that names %s", (_what, tag) => {
+    expect(chooseCanonicalRoot([page("/", null), page("/grants/", tag)], null)).toBeNull();
+  });
+
+  it("ignores a home page's tag that is this copy's own address, or isn't a web address", () => {
+    for (const tag of [`${read}/`, "ftp://dvfr.illinois.gov/", "not an address"]) {
+      expect(chooseCanonicalRoot([page("/", tag)], null), tag).toBeNull();
+    }
+  });
+
+  it("reads a page at the address it ended at", () => {
+    // The tag ends with the address the page ended at, not the one the run asked for.
+    expect(chooseCanonicalRoot([page("/about", `${plain}about/`, `${read}/about/`)], null)).toBe(
+      plain,
+    );
+    expect(chooseCanonicalRoot([page("/about", `${plain}about/`)], null)).toBeNull();
+  });
+
+  it("takes a page that ended at the home page for the home page", () => {
+    // Inner pages decide first, so a page that ended at "/" can't outvote them.
+    const pages = [page("/index.html", plain, `${read}/`), page("/grants/", `${www}grants/`)];
+    expect(chooseCanonicalRoot(pages, null)).toBe(www);
+    expect(chooseCanonicalRoot([pages[0]!], null)).toBe(plain);
+  });
+
+  it("takes a home page with a query for the home page", () => {
+    const pages = [page("/?lang=es", plain), page("/grants/", `${www}grants/`)];
+    expect(chooseCanonicalRoot(pages, null)).toBe(www);
+    expect(chooseCanonicalRoot([pages[0]!], null)).toBe(plain);
+  });
+
+  it("takes the first home page whose tag fits when there's no inner page", () => {
+    const pages = [page("/", "not an address"), page("/?lang=es", www), page("/?lang=fr", plain)];
+    expect(chooseCanonicalRoot(pages, null)).toBe(www);
+  });
+
+  it("takes a page with no tag, and one never read, as having none", () => {
+    const neverRead: TaggedPage = { url: `${read}/grants/` };
+    expect(chooseCanonicalRoot([neverRead, page("/news/", null)], null)).toBeNull();
+    expect(chooseCanonicalRoot([neverRead, page("/", plain)], null)).toBe(plain);
+  });
+
+  it("is null when no page names a root, and for no pages", () => {
+    expect(chooseCanonicalRoot([page("/", null), page("/about/", null)], null)).toBeNull();
+    expect(chooseCanonicalRoot([], null)).toBeNull();
   });
 });
 

@@ -32,7 +32,13 @@ class StubDriver implements ScreenReaderDriver {
   getEnvironmentInfo = () => this.call("getEnvironmentInfo", environment);
   cleanupStale = () => this.call("cleanupStale", [] as string[]);
   openPage = (url: string) =>
-    this.call("openPage", { finalUrl: url, status: 200, contentType: "text/html", title: "t" });
+    this.call("openPage", {
+      finalUrl: url,
+      status: 200,
+      contentType: "text/html",
+      title: "t",
+      canonical: null,
+    });
   nextLine = () => this.call("nextLine", "");
   nextHeading = () => this.call("nextHeading", "");
   nextFocusable = () => this.call("nextFocusable", "Doctor button, button");

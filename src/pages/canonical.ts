@@ -62,6 +62,54 @@ export function canonicalRootFrom(pageUrl: string, declared: string | null): str
   return `${tag.origin}${rootPath}`;
 }
 
+/** What a page's record says about its address and its tag: all `chooseCanonicalRoot` reads. */
+export interface TaggedPage {
+  /** The address voicecap asked for. */
+  url: string;
+  /** Where the page ended up, after redirects: the address its tag has to fit. */
+  finalUrl?: string;
+  /** The tag's address as the browser gave it. Null or absent: no tag, or the page wasn't read. */
+  canonical?: string | null;
+}
+
+/**
+ * The root of the canonical address a run records for its site. It's `given` when there is one (the
+ * address --canonical gave, already normalized), whatever the pages say. Otherwise it's what the
+ * pages' tags name, each read by `canonicalRootFrom` at the address its page ended at:
+ * - the root most inner pages' tags give, an inner page being any page whose path isn't "/", and
+ *   the first such page in `pages` deciding a tie. An inner page's tag fits only if it ends with
+ *   that page's own path, which is strong evidence;
+ * - else the root the first home page's tag gives, a home page being one whose path is "/". Its
+ *   path fits any tag that ends in "/", so a home page's tag that names another page gives a wrong
+ *   root, and this comes last for that reason;
+ * - else null.
+ */
+export function chooseCanonicalRoot(
+  pages: readonly TaggedPage[],
+  given: string | null,
+): string | null {
+  if (given !== null) return given;
+  // The roots the inner pages give, each with its page count, in the order they first appear.
+  const votes = new Map<string, number>();
+  let home: string | null = null;
+  for (const page of pages) {
+    const address = page.finalUrl ?? page.url;
+    const root = canonicalRootFrom(address, page.canonical ?? null);
+    if (root === null) continue;
+    if (parseUrl(address)?.pathname === "/") home ??= root;
+    else votes.set(root, (votes.get(root) ?? 0) + 1);
+  }
+  let chosen: string | null = null;
+  let most = 0;
+  for (const [root, count] of votes) {
+    if (count > most) {
+      chosen = root;
+      most = count;
+    }
+  }
+  return chosen ?? home;
+}
+
 /**
  * The address to show readers for `url`. An address on `readOrigin`, the origin voicecap read, is
  * shown on the canonical `root` (which ends in `/`): the root, then the address's path without its

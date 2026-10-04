@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import net, { type AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -56,6 +57,29 @@ async function droppingServer(): Promise<{ port: number; close(): Promise<void> 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return { port, close: () => new Promise<void>((resolve) => server.close(() => resolve())) };
+}
+
+/**
+ * A local server of HTML pages by path, and a 404 for any other path. The fixture site has no
+ * page with a canonical tag, and the browser resolves a tag against the address it loaded the page
+ * from, so the page has to come from a server. It holds its port until it's closed.
+ */
+async function servingPages(
+  pages: Record<string, string>,
+): Promise<{ url: string; close(): Promise<void> }> {
+  const server = createServer((request, response) => {
+    const html = pages[request.url ?? ""];
+    response.writeHead(html === undefined ? 404 : 200, {
+      "Content-Type": "text/html; charset=utf-8",
+    });
+    response.end(html ?? "Not found");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}/`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
 }
 
 describe.skipIf(!haveChromium)("a Chrome session", () => {
@@ -125,6 +149,75 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
     expect(await session.pageTitle()).toBe("voicecap check k3m9x2");
     await restore();
     expect(await session.pageTitle()).toBe("Home | Voicecap Test Agency");
+  });
+
+  describe("reading the page's canonical tag", () => {
+    const tagged = (tags: string) => `<!doctype html><title>Tagged</title>${tags}<p>Hello</p>`;
+    const pages = {
+      "/path/": tagged('<link rel="Canonical" href="/x/">'),
+      "/absolute/": tagged(
+        '<link rel="canonical" href="https://dvfr.illinois.gov/about/?a=1#top">',
+      ),
+      "/upper/": tagged('<link rel="CANONICAL" href="y/">'),
+      "/with-other/": tagged(
+        '<link rel="stylesheet" href="/s.css"><link rel="canonical" href="/z/">',
+      ),
+      "/two/": tagged(
+        '<link rel="canonical" href="/first/"><link rel="canonical" href="/second/">',
+      ),
+      "/no-address/": tagged('<link rel="canonical">'),
+      "/other-links/": tagged(
+        '<link rel="stylesheet" href="/s.css"><link rel="alternate" href="/e/">',
+      ),
+      "/plain/": "<!doctype html><title>Plain</title><p>No tag.</p>",
+    };
+    let served: Awaited<ReturnType<typeof servingPages>>;
+    beforeAll(async () => {
+      served = await servingPages(pages);
+    });
+    afterAll(async () => {
+      await served.close();
+    });
+
+    /** The address `pageCanonical` reads from the page at `where` on the local server. */
+    async function read(where: string): Promise<string | null> {
+      const session = await launch();
+      await session.load(new URL(where, served.url).href, 15_000);
+      return session.pageCanonical();
+    }
+
+    it("gives the absolute address of a tag written as a path", async () => {
+      expect(await read("/path/")).toBe(new URL("/x/", served.url).href);
+    });
+
+    it("gives a tag's address as it is, query and hash too, when it's absolute", async () => {
+      expect(await read("/absolute/")).toBe("https://dvfr.illinois.gov/about/?a=1#top");
+    });
+
+    it("resolves a tag against the page it's on, and reads rel without regard to case", async () => {
+      expect(await read("/upper/")).toBe(new URL("/upper/y/", served.url).href);
+    });
+
+    it("finds the tag among the page's other links", async () => {
+      expect(await read("/with-other/")).toBe(new URL("/z/", served.url).href);
+    });
+
+    it("takes the first tag, when a page has two", async () => {
+      expect(await read("/two/")).toBe(new URL("/first/", served.url).href);
+    });
+
+    it("gives null for a tag with no address", async () => {
+      expect(await read("/no-address/")).toBeNull();
+    });
+
+    it("gives null when the page has no canonical tag", async () => {
+      expect(await read("/other-links/")).toBeNull();
+      expect(await read("/plain/")).toBeNull();
+      // The fixture site's own home page has no such tag either.
+      const session = await launch();
+      await session.load(server.url, 15_000);
+      expect(await session.pageCanonical()).toBeNull();
+    });
   });
 
   it("starts with nothing focused, and its first Tab reaches the skip link", async () => {
@@ -572,6 +665,7 @@ describe("a browser that closes or crashes mid-page", () => {
     ["load", (session) => session.load("https://example.gov/", 0)],
     ["waitUntilReady", (session) => session.waitUntilReady(readiness)],
     ["pageTitle", (session) => session.pageTitle()],
+    ["pageCanonical", (session) => session.pageCanonical()],
     ["setTitle", (session) => session.setTitle("voicecap check k3m9x2")],
     ["focusState", (session) => session.focusState()],
     ["raise", (session) => session.raise()],

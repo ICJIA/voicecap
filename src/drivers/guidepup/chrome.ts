@@ -387,7 +387,8 @@ interface AxValue {
 /** The little of the page's document the session touches. */
 interface PageDocument {
   title: string;
-  querySelector(selector: string): { remove(): void } | null;
+  /** An element can be removed, and a link has its address (as the browser resolved it). */
+  querySelector(selector: string): { remove(): void; href?: string } | null;
 }
 
 /**
@@ -504,6 +505,18 @@ export class ChromeSession implements BrowserSession {
 
   pageTitle(): Promise<string> {
     return this.onPage(() => this.page.title());
+  }
+
+  pageCanonical(): Promise<string | null> {
+    // This function runs in the page (voicecap's own code is compiled without DOM types). A link's
+    // `href` is the address resolved against the page's own, and "" when the tag has none.
+    return this.onPage(() =>
+      this.page.evaluate(() => {
+        const doc = (globalThis as unknown as { document: PageDocument }).document;
+        const href = doc.querySelector('link[rel~="canonical" i]')?.href;
+        return href === undefined || href === "" ? null : href;
+      }),
+    );
   }
 
   async setTitle(title: string): Promise<() => Promise<void>> {

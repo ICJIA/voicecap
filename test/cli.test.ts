@@ -499,6 +499,60 @@ describe("--page", () => {
   });
 });
 
+describe("--canonical", () => {
+  const replay = [
+    "--site",
+    SITE,
+    "--pages",
+    fixture("pages.json"),
+    "--replay-from",
+    fixture("replay-run"),
+  ];
+
+  /** The run.json of the run a command made in `cwd`'s home. */
+  async function recordIn(cwd: string): Promise<RunJson> {
+    const out = path.join(cwd, "transcripts", "127.0.0.1_4747");
+    const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
+    return JSON.parse(await readFile(path.join(runDir(out, runId), "run.json"), "utf8")) as RunJson;
+  }
+
+  it("is in the help", async () => {
+    expect((await cli(["--help"])).out).toContain("--canonical <address>");
+  });
+
+  it("records the address it gives as the run's root, and leaves the site as it was read", async () => {
+    const run = await cli([...replay, "--canonical", "dvfr.illinois.gov"]);
+    expect(run.code).toBe(0);
+    const record = await recordIn(run.cwd);
+    expect(record.canonical).toBe("https://dvfr.illinois.gov/");
+    expect(record.site).toBe(SITE);
+    // The terminal says nothing new about it.
+    expect(run.out).not.toMatch(/canonical/i);
+  });
+
+  it("leaves a replay run without a root when it isn't given, as a replay learns none", async () => {
+    const run = await cli(replay);
+    expect(run.code).toBe(0);
+    expect(await recordIn(run.cwd)).not.toHaveProperty("canonical");
+  });
+
+  it.each([
+    [
+      "ftp://dvfr.illinois.gov",
+      `"ftp://dvfr.illinois.gov" isn't a web address, such as https://dvfr.illinois.gov.`,
+    ],
+    [
+      "http://localhost:3000",
+      `"http://localhost:3000" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
+    ],
+  ])("refuses %s as a usage error, before anything runs", async (value, message) => {
+    const run = await cli([...replay, "--canonical", value]);
+    expect(run.code).toBe(1);
+    expect(run.err).toContain(message);
+    expect(existsSync(path.join(run.cwd, "transcripts"))).toBe(false);
+  });
+});
+
 describe("a full session through the CLI", () => {
   it("records a run's --reviewer with its session, and says so", async () => {
     const run = await cli([
