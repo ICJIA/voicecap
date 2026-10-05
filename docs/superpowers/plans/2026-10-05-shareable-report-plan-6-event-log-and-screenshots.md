@@ -669,3 +669,95 @@ Real runs check A and B before the release, and settle the facts plan 6c needs.
    - then set the transcripts repo's `netlify.toml` to `@0.11`, and commit and push.
 6. Check the live site, the 23 demo addresses and the front page, against a local build.
 7. Record the release in the handoff note, then write plan 6c from the PC's step 4.
+
+## After execution
+
+**How it was built (2026-10-05):**
+- Subagent-driven, as the owner chose ("Yes build and do subagent"). One implementer per task (Task 6 on opus, the rest on sonnet), each task reviewed (Tasks 6 and 7 on opus), with scoped re-reviews of each fix round.
+- Fix rounds: Task 2 had one (a test that read the year 2026), Task 6 had one (a problem blamed the version for a log the page couldn't show), and Task 4 had a fix before its review (R5).
+- The owner's computer crashed during Task 8. Its implementer resumed from its saved transcript and finished; nothing was lost.
+- A final whole-branch review (opus) found 0 Critical, 3 Important, and 7 Minor. One fix wave (opus, 13 commits) followed, then a scoped re-review: all twelve items addressed, nothing new beyond three minor notes.
+- Commits: the plan, 1f75b06; Tasks 1–8, a1ab279..bbad1ee; the fix wave, 34aab36..0adc076. 4,652 tests pass, and 2 skip on Windows.
+
+**Rulings** (what, why, and what it costs if wrong; there is no R7):
+- **R1:** work in place on this branch, as plans 5 and 5b did. *If wrong:* none.
+- **R2, R2a:** implementers on sonnet, Task 6 on opus; reviews on sonnet, Tasks 6 and 7 on opus. *If wrong:* cost.
+- **R3:** a retry's "attempt k of n" counts across sessions, as `AttemptRecord.n` does. *If wrong:* a resumed retry says "of 7" where "of 5" was meant.
+- **R4:** `verify` refuses a `run.files` path that leaves the run's folder. *If wrong:* such a run reads as unreadable.
+- **R5:** the window lookup returns the window's process. When it's voicecap's own browser (the other window already gone), the program counts as unknown, never "Google Chrome". *If wrong:* that loss reads as not named, which is true.
+- **R6:** the capture's scale is half the page's CSS size, whatever the display's scaling (later from the browser's layout metrics, M5). *If wrong:* smaller files.
+- **R8:** tests get 90 s on Windows CI only. *Why:* the runners pause (main's CI failed once that way on 2026-10-05). *If wrong:* a real hang there shows after 90 s, not 30.
+- **R9:** a page with no screenshot says the driver takes none only when no page of that run has one; otherwise `Not recorded: no screenshot was taken, since the page wasn't read.`
+- **R10:** `voicecap couldn't tell which program came to the front.` replaces "Windows didn't say…", true when Windows answered with voicecap's own browser too.
+- **R11:** `EventRecorder.record` takes an optional moment. The driver stamps NVDA's start when it finished, before the process lookup, and the computer's own NVDA's shutdown when the start began. *If wrong:* an optional parameter on an exported type.
+- **R12:** the run's own files (`events.jsonl`) get rows in the fingerprint table, under `The run`.
+- **R13:** the problems' verdict line names each program that came to the front, and how often. Older runs keep today's line.
+- **R14:** a session the event log doesn't cover says so (`Session {n}: not recorded: …`), and the restarts fact says which sessions it counts.
+
+**What the final review changed:**
+- **I1:** R12.
+- **I2:** R13.
+- **I3:** R14.
+- **M1:** the chart works out its tick count before making ticks, so a session of years (a clock jump) marks 12.
+- **M2:** a screenshot record of no known shape never stops a share.
+- **M3:** more strings moved into text.ts.
+- **M4:** R11.
+- **M5:** the pixel ratio comes from the browser's layout metrics, never the page's script, and is kept between 0.5 and 4.
+- **M6:** R10.
+- **M7:** a README line.
+- **C1:** R8.
+- **C2:** a test that printing puts every screenshot on paper, those in folds too.
+
+**Carried, for later:**
+- **The run side:**
+  - `hashOfEventLog` swallows a read error with no warning;
+  - `verifyHome`'s doc;
+  - `audit.ts`'s size;
+  - tests for resuming a 0.10.0 run, for `page-started`'s time against `AttemptRecord.startedAt`, and for `verify` on an incomplete run with `files`.
+- **The driver:**
+  - a process lookup slower than a stop's wait can log after the stop;
+  - no `checkLive` after the lock check or the window lookup;
+  - the lookups run with no recorder (doctor's live check, fixture capture);
+  - the recorder's "never throws" contract is documented only on `openEventLog`;
+  - the factory's `onRelaunch` wiring is untested;
+  - `own-screen-reader-closed`'s pids are every nvda.exe;
+  - the window script has no automated syntax guard;
+  - the repeated P/Invoke block;
+  - the file sizes.
+- **Screenshots:**
+  - nothing pins the capture after the page is ready;
+  - only the first load's capture is kept;
+  - three captures per page;
+  - another race-a-timer helper.
+- **The page:**
+  - a mixed-version run's evidence and problems name versions by different scopes;
+  - the chart's word-fit isn't measured;
+  - "NVDA stopped running" under other screen readers (Phase C);
+  - `cards.ts`'s size, and its base64 decoder imported by the Word side;
+  - `sizeOf`'s stale doc;
+  - `records.ts` repeats `verify`'s `isFileHash`;
+  - tick labels read 00:00 at a step of a day or more;
+  - older sentences built outside text.ts in problems.ts;
+  - duplicated test helpers.
+- **Docs:**
+  - the handoff note's top status still reads as if Phase C starts now;
+  - two README lead-ins;
+  - the long API paragraph.
+
+**At the PC, added to the checklist by the reviews:**
+- R5's assumption, that voicecap's Chrome window belongs to the process it launched;
+- whether an endpoint tool blocks the window lookup's hidden script (every loss would read as unknown);
+- what Microsoft Teams, Outlook, and a Store app are called;
+- screenshots on real headed runs: none timed out because the window was behind others, and about 640 wide at 110%;
+- the capture's cost per page.
+- **The version:** a branch build records "voicecap 0.10.0", so missing pieces get the older wording. Build with a local prerelease version, not committed, or expect it.
+
+**For the owner's release review:**
+- the new fixed text, including the event phrases, the timeline's sentences, the gap sentences, R9's, R10's, R12's, R13's, and R14's;
+- the computer's own NVDA lane's drawing against the mockup;
+- the Word copy's thumbnail for a page that was never transcribed (about 117 px);
+- a large site's page size, two copies of each picture (about 21 MB for 400 pages);
+- "Check the fingerprints" described as covering transcripts only, in `EVIDENCE_TEXT.proves` and the Word copy;
+- a session line without a heading.
+
+**At "Prepare 0.11.0":** name `SCREENSHOT_FILE` in the CHANGELOG's API line, and fix the CHANGELOG's compare links (`[Unreleased]` compares from v0.7.0, and 0.8.0 to 0.10.0 have none).
