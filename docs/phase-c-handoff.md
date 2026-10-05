@@ -238,7 +238,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.9.1 on npm, released 2026-10-04 (tag `v0.9.1`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.10.0 on npm, released 2026-10-05 (tag `v0.10.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -273,10 +273,18 @@ The owner's standing rules, from Phases A and B:
     - the check that a `.gitignore` keeps `_site/` out reads it as Git does: a line with a space at its start keeps nothing out, and a byte order mark at the file's start is skipped;
     - the tests take `VOICECAP_TRANSCRIPTS` and `VOICECAP_REVIEWER` out of their environment, since a deliberate-break check during plan 5 had read them and written a stale `netlify.toml` (`@0.8`), `.nvmrc`, and `_site/` into the owner's real home. CI sets both, to check it;
     - the README's stories of who voicecap is for open from one line each (the owner asked).
+  - 0.10.0 (2026-10-05) added plan 5b, canonical site names. The owner asked three times that nothing readers see lead with an IP address: "use canonical site names, even if run on localhost".
+    - **Where the name comes from:** a run learns the site's canonical address from `--canonical` or its pages' `<link rel="canonical">` (inner pages first) and records it in `run.json`. `report.canonical` in a config names it when the page or a share is made. `init` asks for it when the site's address is an IP or local and its home page names none.
+    - **What leads:** the page, its Word copy, the run report, shared copies' names, and the website name the site by that address, never an IP. The page and the Word copy lead with the name and "Tested <date>, <time>".
+    - **Shares:** a share refuses to name a site by an IP or local address. Shares record the address as `site`, and `--site` accepts it.
+    - **The demo:** its pages are published at voicecap.netlify.app/demo-site/, its canonical address, with relative links, canonical tags, a GET form, and exact CSP rules.
+    - **Also:** the website's and the page's footers keep to the width of the text above them, and the README shows six screenshots of what voicecap makes (`pnpm readme:screenshots`).
+    - **The plan's record:** its After execution lists 23 rulings and what's carried.
+    - **Still to confirm on the PC:** one real demo run with 0.10.0 records `"canonical": "https://voicecap.netlify.app/demo-site/"`, and `share --out voicecap-demo` names `voicecap.netlify.app_<day>.*`. The owner released first, and this is the real Chrome path no test drives.
 - **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
   - plan 6, the evidence recorded at the PC (the event log, screenshots, and NVDA's own log), is next.
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
-- **Tests:** 3,846 Vitest tests pass on the Windows PC, and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
+- **Tests:** 4,282 Vitest tests pass on the Windows PC, and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share`, the Word copy, `voicecap walkthrough`, and `voicecap site` need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer." A walkthrough repeats on a Mac with VoiceOver once that driver exists. Until then, repeat it on a Windows computer, with NVDA.
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
