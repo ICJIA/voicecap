@@ -47,10 +47,15 @@ const CHART = {
 /** About how wide a character of the chart's words is, in its units: a lane's, the mono, the body. */
 const CHAR = { lane: 7.2, mono: 7, body: 6.6 } as const;
 
-/** The steps, in minutes, the chart can mark the minutes at: the first that gives at most 12. */
+/**
+ * The steps, in minutes, the chart can mark the minutes at: the first that gives at most 12. A
+ * session longer than that (a clock that jumped, say) is marked at whole days, as many as keep it to
+ * 12.
+ */
 const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440];
 const MOST_TICKS = 12;
 const MINUTE = 60_000;
+const DAY = 1440 * MINUTE;
 
 /** A position as the chart writes it, to a tenth. */
 const at = (value: number): string => value.toFixed(1);
@@ -114,22 +119,20 @@ function offsetMinutes(iso: string): number {
 
 /**
  * The minutes the chart marks, from its first moment to its last, on the session's own clock (its
- * first event's offset): whole multiples of the first step that gives at most 12 of them.
+ * first event's offset): whole multiples of the first step that gives at most 12 of them, each
+ * step's count worked out before any is made, so a session that runs for years makes 12, not
+ * millions. Past the largest step, whole days, enough to keep to 12.
  */
 function ticksOf(fromIso: string, from: number, to: number): { ms: number; label: string }[] {
   const offset = offsetMinutes(fromIso) * MINUTE;
-  let ticks: { ms: number; label: string }[] = [];
-  for (const step of STEPS) {
-    const size = step * MINUTE;
-    ticks = [];
-    for (
-      let local = Math.ceil((from + offset) / size) * size;
-      local <= to + offset;
-      local += size
-    ) {
-      ticks.push({ ms: local - offset, label: new Date(local).toISOString().slice(11, 16) });
-    }
-    if (ticks.length <= MOST_TICKS) break;
+  const [first, last] = [from + offset, to + offset];
+  const marks = (size: number) => Math.floor(last / size) - Math.ceil(first / size) + 1;
+  const size =
+    STEPS.map((step) => step * MINUTE).find((each) => marks(each) <= MOST_TICKS) ??
+    Math.ceil((last - first) / (MOST_TICKS - 1) / DAY) * DAY;
+  const ticks: { ms: number; label: string }[] = [];
+  for (let local = Math.ceil(first / size) * size; local <= last; local += size) {
+    ticks.push({ ms: local - offset, label: new Date(local).toISOString().slice(11, 16) });
   }
   return ticks;
 }

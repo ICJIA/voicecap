@@ -657,6 +657,31 @@ describe("renderTimelines", () => {
     }
   });
 
+  it("marks at most 12 times, and quickly, on a session that spans months or years, as after the clock jumped", () => {
+    for (const day of ["2026-10-26", "2027-09-26", "2043-09-26"]) {
+      const events = [
+        on("14:00:00.000", { type: "run-started", session: 1, resumed: false }),
+        on("14:00:10.000", { type: "page-started", page: HOME, attempt: 1 }),
+        logged(day, "14:01:10.000", {
+          type: "page-finished",
+          page: HOME,
+          attempt: 1,
+          status: "done",
+        }),
+        logged(day, "14:09:00.000", { type: "run-ended", session: 1, reason: "completed" }),
+      ];
+      const timelines = timelinesFor(events);
+      const began = performance.now();
+      const html = renderTimelines(timelines, "r1", "NVDA");
+      const took = performance.now() - began;
+      const ticks = html.match(/class="t-axis"/g) ?? [];
+
+      expect(ticks.length, day).toBeGreaterThanOrEqual(2);
+      expect(ticks.length, day).toBeLessThanOrEqual(12);
+      expect(took, day).toBeLessThan(1000);
+    }
+  });
+
   it("is an image named by its summary, in a box a keyboard can reach and scroll, and sets no style", () => {
     const timelines = loggedTimelines();
     const html = renderTimelines(timelines, "2026-09-26_1402", "NVDA");
