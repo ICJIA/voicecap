@@ -77,7 +77,7 @@ jobs:
           printf '%s\n' '{ "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }' > "$named/voicecap.config.json"
           cli="$PWD/dist/cli.js"
           (cd "$named" && node "$cli" share --out "$home" --reviewer CI)
-          ls "$home/127.0.0.1_4848/share" | grep -q '^voicecap\.netlify\.app_[0-9-]*\.html$'
+          ls "$home/127.0.0.1_4848/share" | grep '^voicecap\.netlify\.app_[0-9-]*\.html$' > /dev/null
           node dist/cli.js site --home "$home" --out "$home/_site"
           test -f "$home/_site/index.html"
           grep -q "^/index.html$" "$home/_site/_headers"
