@@ -3,6 +3,7 @@
  * src/drivers/ touches Guidepup or Playwright. The interface is expressed in actions, not
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
+import type { NewRunEvent } from "../model.js";
 
 /**
  * Everything the screen reader said in response to one action.
@@ -14,9 +15,27 @@
  */
 export type Speech = string;
 
+/**
+ * Where a driver reports what it does to the screen reader and the browser, as it does it, for the
+ * run's event log (events.jsonl). The log stamps each event with when it was recorded.
+ */
+export interface EventRecorder {
+  record(event: NewRunEvent): void;
+}
+
+/** A recorder that records nothing: what a driver reports to until a run gives it a real one. */
+export const NO_EVENTS: EventRecorder = Object.freeze({ record: () => {} });
+
 export interface ScreenReaderDriver {
   /** "guidepup", "replay", or "at-driver". */
   readonly name: string;
+
+  /**
+   * Where to report the events of the run: the screen reader and the browser starting and
+   * stopping, and the like. Optional, so a driver that has nothing to report needn't have it. A run
+   * calls it once, before it first calls `cleanupStale` or `start`.
+   */
+  setEventRecorder?(recorder: EventRecorder): void;
 
   /** Start the screen reader and the browser. Throws EnvironmentError if they can't start. */
   start(): Promise<void>;

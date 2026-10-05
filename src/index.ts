@@ -55,6 +55,7 @@ export { ReplayDriver } from "./drivers/replay.js";
 export type {
   CaptureMode,
   EnvironmentInfo,
+  EventRecorder,
   FocusedElement,
   PageInfo,
   ScreenReaderDriver,

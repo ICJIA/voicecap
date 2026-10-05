@@ -28,6 +28,7 @@ import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
 import { shareReport, type ShareReportResult } from "../src/share/share.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
@@ -181,6 +182,94 @@ describe("verifyHome", () => {
       `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
     ]);
     expect(result.problems).toBe(3);
+  });
+
+  it("checks the event log its run recorded", async () => {
+    const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+    expect(Object.keys(run.files ?? {})).toEqual(["events.jsonl"]);
+    expect(existsSync(at(untouched, `${RUN}/events.jsonl`))).toBe(true);
+  });
+
+  it("catches an edited event log", async () => {
+    const home = await copyOfHome();
+    await appendFile(
+      at(home, `${RUN}/events.jsonl`),
+      '{"at":"2026-09-27T11:03:00.000-05:00","type":"computer-locked"}\n',
+    );
+    const { result, lines } = await verify(home);
+    expect(lines).toEqual([
+      `${RUN}/events.jsonl: changed since it was recorded (SHA-256 differs)`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+    expect(result.problems).toBe(1);
+  });
+
+  it("catches a missing event log", async () => {
+    const home = await copyOfHome();
+    await rm(at(home, `${RUN}/events.jsonl`));
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/events.jsonl: missing`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("passes a run from before the event log, and catches a log added to it", async () => {
+    const home = await copyOfHome();
+    // A run from before voicecap 0.11.0: no log in its folder, none recorded, sealed without one.
+    await rm(at(home, `${RUN}/events.jsonl`));
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      delete run.files;
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([MATCHES]);
+
+    // A log the run doesn't record is one nothing vouches for.
+    await writeFile(
+      at(home, `${RUN}/events.jsonl`),
+      '{"at":"2026-09-27T11:03:00.000-05:00","type":"computer-locked"}\n',
+    );
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/events.jsonl: not recorded by the run`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("checks each file a run records beside its pages, in a folder or not", async () => {
+    const home = await copyOfHome();
+    const notes = "Kept with the run.\n";
+    await mkdir(at(home, `${RUN}/extra`));
+    await writeFile(at(home, `${RUN}/extra/notes.txt`), notes);
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.files = { ...run.files, "extra/notes.txt": fileHash(notes) };
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([MATCHES]);
+
+    await appendFile(at(home, `${RUN}/extra/notes.txt`), "An added line.\n");
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/extra/notes.txt: changed since it was recorded (SHA-256 differs)`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+
+    await rm(at(home, `${RUN}/extra`), { recursive: true });
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/extra/notes.txt: missing`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("reads no file a run names outside its own folder", async () => {
+    const home = await copyOfHome();
+    const outside = "Not part of the run.\n";
+    await writeFile(at(home, `${FOLDER}/outside.txt`), outside);
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.files = { ...run.files, "../../outside.txt": fileHash(outside) };
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}: not a readable run or manual session`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
   });
 
   it("doesn't mind the files an operating system leaves in folders", async () => {

@@ -1,5 +1,6 @@
 import type {
   EnvironmentInfo,
+  EventRecorder,
   FocusedElement,
   PageInfo,
   ScreenReaderDriver,
@@ -66,6 +67,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   readonly stopOptions: ({ restarting?: boolean } | undefined)[] = [];
   readonly opened: string[] = [];
   readonly calls: Command[] = [];
+  /** The recorder the run gave this driver, null until it does. This driver records nothing. */
+  recorder: EventRecorder | null = null;
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
@@ -83,6 +86,10 @@ export class ScriptedDriver implements ScreenReaderDriver {
     private readonly options: ScriptedOptions = {},
   ) {
     for (const page of pages) this.pages.set(canonicalKey(page.url), page);
+  }
+
+  setEventRecorder(recorder: EventRecorder): void {
+    this.recorder = recorder;
   }
 
   start(): Promise<void> {

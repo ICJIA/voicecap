@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
@@ -11,6 +11,7 @@ import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
   type EnvironmentRecord,
+  type FileHash,
   type ListenerAnswer,
   type PageRecord,
   type PassName,
@@ -43,12 +44,14 @@ import {
   type WalkthroughSettings,
 } from "../share/walkthrough.js";
 import { writeShareFiles } from "../share/write.js";
+import { fileHash } from "../transcripts/write.js";
 import { EnvironmentError, errorMessage, ExitCode, UsageError } from "../util/errors.js";
 import { sealOf } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
+import { EVENT_LOG, openEventLog, type EventLog } from "./events.js";
 import { withCurrentFlags } from "./flags.js";
 import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
@@ -59,7 +62,14 @@ import {
   type MachineProbe,
 } from "./machine-record.js";
 import { processPage, type PageOutcome } from "./page-runner.js";
-import { liveCompareDir, resolveHome, runCompareDir, runDir, siteDirFor } from "./paths.js";
+import {
+  eventLogFile,
+  liveCompareDir,
+  resolveHome,
+  runCompareDir,
+  runDir,
+  siteDirFor,
+} from "./paths.js";
 import { estimateRemaining, progressLine, type PassProgress } from "./progress.js";
 import { chooseRun, settingsHash } from "./resume.js";
 import { allocateRunId, sanitizeRunName } from "./run-id.js";
@@ -348,6 +358,10 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
     }
     if (decision.resume && options.compare) await resolveCompareBase(outDir, run, options.compare);
 
+    // The run's event log, opened now its folder is there. A resumed run adds to its earlier
+    // sessions' events.
+    const events = openEventLog(eventLogFile(outDir, run.id), { now, logger });
+
     return await execute({
       run,
       driver,
@@ -359,6 +373,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
       logger,
       signal,
       now,
+      events,
       options,
       walkthrough: walkthrough?.parsed ?? null,
     });
@@ -451,6 +466,11 @@ interface ExecuteContext {
   logger: Logger;
   signal: AbortSignal;
   now: () => Date;
+  /**
+   * The run's event log: handed to the driver, the driver session, and every page. A session
+   * records its end there, and closes the log as it does.
+   */
+  events: EventLog;
   options: RunAuditOptions;
   /**
    * The walkthrough file a repeat was made from, parsed; null for a run that repeats none. Kept
@@ -486,16 +506,31 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     environment: null,
   };
   run.sessions.push(session);
+  // The log's first line for the session comes before anything the driver reports, which starts
+  // once it has the recorder.
+  ctx.events.record({ type: "run-started", session: session.n, resumed: session.n > 1 });
+  ctx.driver.setEventRecorder?.(ctx.events);
   if (run.flagRulesSha256 !== flagRulesSha256(config.flags)) {
     // Resumed with different flag rules: all flags are recomputed at completion.
     run.flagRulesSha256 = "";
   }
   await writeRunJson(outDir, run);
 
-  const driverSession = new DriverSession(ctx.driver, config.timeouts.driverStartMs, logger);
-  const end = async (reason: SessionRecord["endReason"]) => {
+  const driverSession = new DriverSession(
+    ctx.driver,
+    config.timeouts.driverStartMs,
+    logger,
+    ctx.events,
+  );
+  const end = async (reason: NonNullable<SessionRecord["endReason"]>) => {
     session.endedAt = isoLocal(now());
     session.endReason = reason;
+    // The log's last line for the session, and then it's closed and hashed into the run's record,
+    // so that a completed run's seal covers it and nothing is written to it after.
+    ctx.events.record({ type: "run-ended", session: session.n, reason });
+    ctx.events.close();
+    const log = await hashOfEventLog(eventLogFile(outDir, run.id));
+    if (log) (run.files ??= {})[EVENT_LOG] = log;
     await writeRunJson(outDir, run);
   };
 
@@ -577,6 +612,18 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
   };
 }
 
+/**
+ * The event log's size and SHA-256, or null when there's no log to read: one that couldn't be
+ * written (the run warned of it), so the run records no file for it.
+ */
+async function hashOfEventLog(file: string): Promise<FileHash | null> {
+  try {
+    return fileHash(await readFile(file));
+  } catch {
+    return null;
+  }
+}
+
 /** How a session ended: with an outcome of the run's, or with an error that's thrown on. */
 type Ending = { outcome: RunAuditResult["outcome"] } | { error: unknown };
 
@@ -654,7 +701,7 @@ async function transcribePages(
   for (const [index, page] of todo.entries()) {
     throwIfAborted(signal);
     if (sinceRestart >= config.restartEvery) {
-      await driverSession.restart(`every ${config.restartEvery} pages`, signal);
+      await driverSession.restart({ kind: "every", pages: config.restartEvery }, signal);
       sinceRestart = 0;
     }
     const startedAt = isoLocal(now());
@@ -672,6 +719,7 @@ async function transcribePages(
       environment,
       signal,
       save: () => writeRunJson(outDir, run),
+      events: ctx.events,
       now,
       ...(ctx.options.clock ? { clock: ctx.options.clock } : {}),
     });
@@ -709,7 +757,7 @@ async function transcribePages(
       if (!retried.has(page)) consecutiveFailures++;
       if (consecutiveFailures >= config.maxConsecutiveFailures) return "stopped";
       if (index < todo.length - 1) {
-        await driverSession.restart("after a failed page", signal);
+        await driverSession.restart({ kind: "failed-page" }, signal);
         sinceRestart = 0;
       }
     } else if (outcome.status === "done") {

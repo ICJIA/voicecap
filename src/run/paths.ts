@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { resolveUserPath } from "../util/git-bash.js";
+import { EVENT_LOG } from "./events.js";
 
 /**
  * The transcripts home: `.gitattributes` and `.gitignore` at its top (written once, by
@@ -21,6 +22,7 @@ import { resolveUserPath } from "../util/git-bash.js";
  *                                        them and the run: never rewritten)
  *   share/shares.json                   (what `voicecap share` sent: sealed, chained, only added to)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
+ *   <date>/<time>/events.jsonl      (the run's event log, added to as the run goes, sealed with it)
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
  *   <date>/<time>_manual_<slug>/session.{txt,json}  <date>/<time>_manual_<slug>/raw/<format>.txt
@@ -44,6 +46,11 @@ export function runJsonPath(outDir: string, runId: string): string {
 
 export function runReportPath(outDir: string, runId: string): string {
   return path.join(runDir(outDir, runId), "report.html");
+}
+
+/** The run's event log: every session's events, added to as the run goes. */
+export function eventLogFile(siteDir: string, runId: string): string {
+  return path.join(runDir(siteDir, runId), EVENT_LOG);
 }
 
 export function pageDir(outDir: string, runId: string, slug: string): string {

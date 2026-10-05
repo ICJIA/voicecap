@@ -1,4 +1,4 @@
-import type { PageInfo } from "../drivers/types.js";
+import type { EventRecorder, PageInfo } from "../drivers/types.js";
 import type {
   AttemptRecord,
   EnvironmentRecord,
@@ -47,6 +47,11 @@ export interface PageContext {
   signal: AbortSignal;
   /** Writes the run's record (run.json) as it stands: a failed attempt is kept as it happens. */
   save: () => Promise<void>;
+  /**
+   * The run's event log: each attempt's start is recorded as it begins, and its end as it ends,
+   * numbered as the page's record numbers its attempts.
+   */
+  events: EventRecorder;
   now: () => Date;
   clock?: () => number;
 }
@@ -138,11 +143,17 @@ type Attempt = Loaded &
  * Whether the screen reader and browser were restarted for the next attempt is added once that
  * restart has finished. Ctrl+C propagates as InterruptedError and leaves the page pending; the
  * attempt it stopped isn't counted.
+ *
+ * Each attempt is in the run's event log too, numbered as the page's record numbers it: its start,
+ * and its end, which is the page read or skipped, or the attempt failed. A failed attempt is
+ * recorded before it's kept, and before any restart for the next.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
   const started = clock();
   const errors: string[] = [];
+  // The attempts the page had before this call: an earlier session's, in a run that was resumed.
+  const earlier = ctx.page.attempts;
   const outcome = (
     result: Attempt,
     status: PageOutcome["status"],
@@ -165,7 +176,15 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     const result = await runAttempt(ctx);
     // The attempt has ended, so it counts: one that Ctrl+C stopped threw instead.
     ctx.page.attempts++;
-    if (result.kind === "done" || result.kind === "skipped") return outcome(result, result.kind);
+    // This attempt's number in the page's record, which is its number in the event log.
+    const n = ctx.page.attempts;
+    const page = ctx.page.url;
+    if (result.kind === "done" || result.kind === "skipped") {
+      ctx.events.record({ type: "page-finished", page, attempt: n, status: result.kind });
+      return outcome(result, result.kind);
+    }
+    const { cause, message } = result.record;
+    ctx.events.record({ type: "page-failed", page, attempt: n, cause, message });
 
     const kept = await keepFailedAttempt(ctx, result.record);
     if (result.kind === "failed" || attempt >= ctx.maxAttempts) {
@@ -174,8 +193,9 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     }
     errors.push(`Attempt ${attempt} failed (${result.error}); retrying.`);
     if (result.restart) {
+      // The next attempt, and the last this call can make, numbered as the page's record numbers.
       await ctx.session.restart(
-        `retrying ${ctx.page.url}: attempt ${attempt + 1} of ${ctx.maxAttempts}`,
+        { kind: "retry", page, attempt: n + 1, of: earlier + ctx.maxAttempts },
         ctx.signal,
       );
       // Only now that it has finished: a restart that throws leaves the attempt saying it had none.
@@ -200,6 +220,8 @@ async function keepFailedAttempt(ctx: PageContext, failed: FailedAttempt): Promi
 async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const startedAt = isoLocalMs(ctx.now());
   const { page, session } = ctx;
+  // The page's record counts an attempt once it has ended, so the one starting is the next number.
+  ctx.events.record({ type: "page-started", page: page.url, attempt: page.attempts + 1 });
   const dir = pageDir(ctx.outDir, ctx.run.id, page.slug);
   // A retry (or a resumed page) starts from an empty folder; any earlier attempt is moved into
   // attempts/<slug>/ rather than deleted.
