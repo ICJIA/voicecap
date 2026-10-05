@@ -56,9 +56,17 @@ import {
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { problemsOf, type EventRows, type ProblemsSection } from "./problems.js";
 import { reviewOf } from "./review.js";
-import { evidenceOf, leftOutOf, runEnd, runStart, type RunEvidence } from "./run-evidence.js";
+import {
+  eventLogGap,
+  evidenceOf,
+  leftOutOf,
+  runEnd,
+  runStart,
+  type RunEvidence,
+} from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
+import { TIMELINE_TEXT } from "./text.js";
 import {
   attemptEvents,
   eventText,
@@ -196,14 +204,19 @@ export function buildShareModel(input: ShareInput): ShareModel {
     said.set(run, words);
     return words;
   };
+  // What a run's log says of an attempt, for its problem's record: its lines, or, where the page
+  // can't show the log, the reason the run's evidence gives.
   const eventRows: EventRows = (run, page, attempt) => {
     const log = eventLog(run);
+    const gap = eventLogGap(run, log);
+    if (gap !== null) return { gap: TIMELINE_TEXT.gaps[gap].problem };
     if (log === null) return null;
     const words = wordsFor(run);
-    return attemptEvents(log, page.url, attempt).map((event) => ({
+    const rows = attemptEvents(log, page.url, attempt).map((event) => ({
       time: event.at,
       entry: eventText(event, words),
     }));
+    return { rows };
   };
   const problems = problemsOf(standing, {
     home: input.home,

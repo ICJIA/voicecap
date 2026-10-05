@@ -20,9 +20,16 @@ import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
+import { keepsEventLog } from "./problems.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
-import { restartsOf, timelinesOf, type EventWords, type SessionTimeline } from "./timeline.js";
+import {
+  isEventTime,
+  restartsOf,
+  timelinesOf,
+  type EventWords,
+  type SessionTimeline,
+} from "./timeline.js";
 import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
@@ -183,34 +190,37 @@ export function evidenceOf(input: {
   });
 }
 
+/** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */
+export type EventLogGap = keyof typeof TIMELINE_TEXT.gaps;
+
+/**
+ * Why the page can't show a run's event log, for a run whose voicecap keeps one (0.11.0 and later):
+ * the log its record lists isn't as the run recorded it (missing, unreadable, or changed), and
+ * `voicecap verify` names it; its record lists none, so the log couldn't be written; or no line of
+ * it could be read. Null when the page shows the log, and for a run from before voicecap kept one,
+ * which its evidence says as it says every part the run didn't record. The run's evidence and its
+ * problems' records each give this reason, so they never say different things.
+ */
+export function eventLogGap(run: RunJson, log: EventLog | null): EventLogGap | null {
+  if (log !== null) return log.events.some((event) => isEventTime(event.at)) ? null : "unreadable";
+  if (run.files?.[EVENT_LOG] !== undefined) return "changed";
+  return keepsEventLog(versionOf(run)) ? "unlisted" : null;
+}
+
 /**
  * A run's event log as the page shows it: a timeline of each of its sessions. Where the page can't,
- * it says why: the log its record lists isn't as the run recorded it (missing, unreadable, or
- * changed), and `voicecap verify` names it; its record lists none, from a voicecap that records one
- * (0.11.0 and later), so the log couldn't be written; the log has no event that could be read; or
- * the run is from before voicecap recorded the log, as every part of its evidence says.
+ * it says why (`eventLogGap`), or, for a run from before voicecap kept the log, that it didn't.
  */
 function timelineOf(
   run: RunJson,
   log: EventLog | null,
   words: EventWords,
 ): RunEvidence["timeline"] {
-  if (log !== null) {
-    const timelines = timelinesOf(run, log, words);
-    return timelines.length > 0 ? timelines : { notRecorded: TIMELINE_TEXT.noEvents };
-  }
-  if (run.files?.[EVENT_LOG] !== undefined) return { notRecorded: TIMELINE_TEXT.notShown };
-  const version = versionOf(run);
-  return { notRecorded: recordsEventLog(version) ? TIMELINE_TEXT.noLog : notRecordedBy(version) };
-}
-
-/**
- * Whether a run's voicecap records an event log: 0.11.0, the first, and every version since. An
- * unknown version counts as an earlier one.
- */
-function recordsEventLog(version: string | null): boolean {
-  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
-  return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 11);
+  const gap = eventLogGap(run, log);
+  if (gap !== null) return { notRecorded: TIMELINE_TEXT.gaps[gap].part };
+  return log === null
+    ? { notRecorded: notRecordedBy(versionOf(run)) }
+    : timelinesOf(run, log, words);
 }
 
 /**

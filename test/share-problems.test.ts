@@ -4,7 +4,14 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { AttemptRecord, FailureCause, NewRunEvent, PassName, RunJson } from "../src/model.js";
+import type {
+  AttemptRecord,
+  FailureCause,
+  NewRunEvent,
+  PassName,
+  RunEvent,
+  RunJson,
+} from "../src/model.js";
 import { buildShareModel } from "../src/share/model.js";
 import {
   KIND_ROWS,
@@ -2158,6 +2165,16 @@ describe("problemsOf: the program that took the screen", () => {
     expect(problem?.notRecorded).toContain(notRecorded("0.10.0"));
   });
 
+  it("says a run of 0.11.0 whose driver didn't look didn't record the program, without blaming its voicecap", () => {
+    const [problem] = problemsWith(failedAttempt({ n: 1 }), "0.11.0");
+
+    expect(problem).not.toHaveProperty("program");
+    expect(problem?.notRecorded).toContain(
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
+    );
+    expect(problem?.notRecorded).not.toContain(notRecorded("0.11.0"));
+  });
+
   it("names no program for a problem of another kind", () => {
     const [problem] = problemsWith(
       failedAttempt({ n: 1, cause: "step-timeout", message: STEP_TIMEOUT, program: "Teams" }),
@@ -2299,7 +2316,77 @@ describe("problemsOf: the record's lines from the event log", () => {
     ]);
   });
 
-  it("adds none for an attempt of a session the log doesn't have, as a run begun before voicecap kept one", () => {
+  it("says which voicecap kept no log, for each attempt of a run begun before voicecap kept one and resumed after", () => {
+    const page = `${SITE}a`;
+    const version = (used: string) => ({
+      voicecap: { version: used, configSha256: "c".repeat(64) },
+    });
+    const run = shareRun({
+      id: "r1",
+      sessions: [
+        {
+          startedAt: "2026-09-26T14:00:00-05:00",
+          endReason: "interrupted",
+          environment: version("0.10.0"),
+        },
+        { startedAt: "2026-09-27T09:00:00-05:00", environment: version("0.11.0") },
+      ],
+      pages: [
+        {
+          path: "/a",
+          attempts: 3,
+          session: 2,
+          failedAttempts: [
+            failedAttempt({ n: 1, startedAt: at(0, 10), endedAt: at(0, 20) }),
+            failedAttempt({
+              n: 2,
+              startedAt: "2026-09-27T09:00:10.000-05:00",
+              endedAt: "2026-09-27T09:00:20.000-05:00",
+              program: "Outlook",
+              restarted: true,
+            }),
+          ],
+        },
+      ],
+    });
+    // Only the session that resumed it, the next day with 0.11.0, is in the log.
+    const events = [
+      logged("2026-09-27", "09:00:00.000", { type: "run-started", session: 2, resumed: true }),
+      logged("2026-09-27", "09:00:10.000", { type: "page-started", page, attempt: 2 }),
+      logged("2026-09-27", "09:00:20.000", {
+        type: "page-failed",
+        page,
+        attempt: 2,
+        cause: "foreground",
+        message: FOREGROUND,
+      }),
+      logged("2026-09-27", "09:00:30.000", { type: "page-started", page, attempt: 3 }),
+      logged("2026-09-27", "09:01:00.000", {
+        type: "page-finished",
+        page,
+        attempt: 3,
+        status: "done",
+      }),
+    ];
+    const model = buildShareModel(
+      inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+    );
+    const [first, second] = model.problems.problems;
+
+    // The first attempt's session used 0.10.0, which kept no log, and its record says so.
+    expect(first?.record.map((row) => row.source)).toEqual(["run.json", "run.json"]);
+    expect(first?.notRecorded).toEqual([
+      "Which program came to the front: not recorded: this run used voicecap 0.10.0.",
+      "The event log and NVDA's own log: not recorded: this run used voicecap 0.10.0.",
+    ]);
+    // The second's used 0.11.0: the log's lines are in its record, and only NVDA's own log isn't.
+    expect(second?.record.map((row) => row.source)).toContain("events.jsonl");
+    expect(second?.notRecorded).toEqual([
+      "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+    ]);
+  });
+
+  it("says the log has no line of an attempt of a voicecap that keeps it, never that its voicecap didn't keep one", () => {
     const page = `${SITE}a`;
     const run = shareRun({
       id: "r1",
@@ -2317,7 +2404,7 @@ describe("problemsOf: the record's lines from the event log", () => {
         },
       ],
     });
-    // Only the session that resumed it, the next day, is in the log.
+    // The first session's lines aren't in the log, as when it couldn't write them.
     const events = [
       logged("2026-09-27", "09:00:00.000", { type: "run-started", session: 2, resumed: true }),
       logged("2026-09-27", "09:00:10.000", { type: "page-started", page, attempt: 2 }),
@@ -2331,13 +2418,14 @@ describe("problemsOf: the record's lines from the event log", () => {
     const model = buildShareModel(
       inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
     );
-
     const [problem] = model.problems.problems;
+
     expect(problem?.record.map((row) => row.source)).toEqual(["run.json", "run.json"]);
-    // So the record says the event log has nothing of it, as for a run with no log.
-    expect(problem?.notRecorded.at(-1)).toBe(
-      "The event log and NVDA's own log: not recorded: this run used voicecap 0.11.0.",
-    );
+    expect(problem?.notRecorded).toEqual([
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
+      "The event log: not recorded: it has no line of this attempt.",
+      "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+    ]);
   });
 
   it("shows the home folder in an event's words as it does everywhere", () => {
@@ -2368,14 +2456,71 @@ describe("problemsOf: the record's lines from the event log", () => {
     ]);
   });
 
-  it("adds no line from a log for a run that has none, and says so as before", () => {
-    const { run } = loggedRun();
-    const [problem] = buildShareModel(inputOf([run])).problems.problems;
+  describe("where the page doesn't have the log of a run of a voicecap that keeps one", () => {
+    /** The logged run of 0.11.0, the log the page has of it (none, by default), and what each says. */
+    function saidOf(
+      run: RunJson,
+      log?: { events: RunEvent[]; unreadable: number },
+    ): { problem: string[]; timeline: unknown; restarts: string | undefined } {
+      const model = buildShareModel(
+        inputOf([run], { events: log === undefined ? new Map() : new Map([[run.id, log]]) }),
+      );
+      const [evidence] = model.evidence;
+      return {
+        problem: model.problems.problems[0]?.notRecorded ?? [],
+        timeline: evidence?.timeline,
+        restarts: evidence?.facts.find(({ label }) => label === "NVDA restarts")?.value,
+      };
+    }
+    const NVDA_LOG = "NVDA's own log: not recorded: this run used voicecap 0.11.0.";
 
-    expect(problem?.record.map((row) => row.source)).toEqual(["run.json", "run.json"]);
-    expect(problem?.notRecorded).toEqual([
-      "The event log and NVDA's own log: not recorded: this run used voicecap 0.11.0.",
-    ]);
+    it("says, as the evidence does, that the log its record lists isn't as the run recorded it", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const part =
+        "Not shown: the event log isn't as the run recorded it; voicecap verify names it.";
+
+      expect(saidOf(listed)).toEqual({
+        problem: [
+          "The event log: not shown: it isn't as the run recorded it; voicecap verify names it.",
+          NVDA_LOG,
+        ],
+        timeline: { notRecorded: part },
+        restarts: part,
+      });
+    });
+
+    it("says, as the evidence does, that its record lists none", () => {
+      const { run } = loggedRun();
+
+      expect(saidOf(run)).toEqual({
+        problem: ["The event log: not recorded: this run's record lists none.", NVDA_LOG],
+        timeline: { notRecorded: "Not recorded: this run's record lists no event log." },
+        restarts: "Not recorded: this run's record lists no event log.",
+      });
+    });
+
+    it("says, as the evidence does, that no line of it could be read", () => {
+      const { run } = loggedRun();
+
+      expect(saidOf(run, { events: [], unreadable: 3 })).toEqual({
+        problem: ["The event log: not shown: no line of it could be read.", NVDA_LOG],
+        timeline: { notRecorded: "Not shown: no line of the event log could be read." },
+        restarts: "Not shown: no line of the event log could be read.",
+      });
+    });
+
+    it("never says the run's voicecap didn't record the event log", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const said = [saidOf(listed), saidOf(run), saidOf(run, { events: [], unreadable: 1 })]
+        .flatMap(({ problem }) => problem)
+        .filter((line) => line !== NVDA_LOG);
+
+      // One line of the event log for each of the three.
+      expect(said.length).toBe(3);
+      expect(said.filter((line) => /this run used voicecap/.test(line))).toEqual([]);
+    });
   });
 });
 

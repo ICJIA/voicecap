@@ -325,11 +325,15 @@ export const PROBLEMS_TEXT = {
   stack: "Where in voicecap's code it happened",
   /**
    * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
-   * after what happened: its name, never its window's title, or that Windows didn't say.
+   * after what happened: its name, never its window's title, or that Windows didn't say. A run of
+   * 0.11.0 or later whose screen reader driver didn't look says so where the problem says what the
+   * run didn't record (`notLooked`); an older run's voicecap didn't look at all.
    */
   program: {
     named: (program: string): string => `Which program came to the front: ${program}.`,
     unknown: "Windows didn't say which program came to the front.",
+    notLooked:
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
   },
   /**
    * The table of kinds of problem: its title, what its line says is in it (the number of kinds is
@@ -575,14 +579,33 @@ export const TIMELINE_TEXT = {
   times: (reason: string, times: number): string =>
     times === 1 ? reason : `${reason} (${times} times)`,
   /**
-   * What the part says when the page can't show a run's log: its record lists one, and the file
-   * isn't as recorded (missing, unreadable, or changed); its record lists none, from a voicecap that
-   * records one; and a log with no line that could be read. A run from before voicecap recorded the
-   * log says so as every part does (notRecordedBy).
+   * Why the page can't show the event log of a run whose voicecap keeps one (0.11.0 and later), the
+   * same reason where the run's timeline says it (`part`) as where a problem's record says it of its
+   * attempt (`problem`): the log its record lists isn't as the run recorded it (missing,
+   * unreadable, or changed), and `voicecap verify` names it; its record lists none, so it couldn't be
+   * written; or no line of it could be read. A run from before voicecap kept the log says so as every
+   * part of its evidence does (notRecordedBy), and so do its problems.
    */
-  notShown: "Not shown: the event log isn't as the run recorded it; voicecap verify names it.",
-  noLog: "Not recorded: this run's record lists no event log.",
-  noEvents: "Not shown: no line of the event log could be read.",
+  gaps: {
+    changed: {
+      part: "Not shown: the event log isn't as the run recorded it; voicecap verify names it.",
+      problem:
+        "The event log: not shown: it isn't as the run recorded it; voicecap verify names it.",
+    },
+    unlisted: {
+      part: "Not recorded: this run's record lists no event log.",
+      problem: "The event log: not recorded: this run's record lists none.",
+    },
+    unreadable: {
+      part: "Not shown: no line of the event log could be read.",
+      problem: "The event log: not shown: no line of it could be read.",
+    },
+  },
+  /**
+   * What a problem's record says when the page has the run's log, of a voicecap that keeps one, but
+   * the log has no line of the attempt: one of a session whose lines it couldn't write.
+   */
+  noLinesOfAttempt: "The event log: not recorded: it has no line of this attempt.",
   /** What a run whose environment names no screen reader calls it. */
   someScreenReader: "screen reader",
 };

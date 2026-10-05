@@ -14,6 +14,7 @@ import {
 } from "../model.js";
 import { redactHome } from "../run/failure.js";
 import type { Standing } from "./standing.js";
+import { PROBLEMS_TEXT, TIMELINE_TEXT } from "./text.js";
 
 /** A problem's kind: a cause code, with the three timeouts under one kind. */
 export type ProblemKind =
@@ -34,15 +35,29 @@ export interface ProblemRecordRow {
 }
 
 /**
- * What a run's event log says of an attempt at a page: each of its events from the attempt's start
- * until the next attempt's, or until 10 seconds after it ended when none followed, as its time and
- * its words. Null for a run whose log the page doesn't have.
+ * What a run's event log says of an attempt at a page, for its record:
+ * - `rows`: each of its events from the attempt's start until the next attempt's, or until 10
+ *   seconds after it ended when none followed, as its time and its words (none for an attempt of a
+ *   session the log has no line of);
+ * - `gap`: where the page doesn't have the log of a run whose voicecap keeps one, why, as the
+ *   record's line says it, which is the reason the run's evidence gives (TIMELINE_TEXT.gaps);
+ * - null: the page has no log of a run from before voicecap kept one.
  */
 export type EventRows = (
   run: RunJson,
   page: PageRecord,
   attempt: AttemptRecord,
-) => { time: string; entry: string }[] | null;
+) => { rows: { time: string; entry: string }[] } | { gap: string } | null;
+
+/**
+ * Whether a voicecap keeps a run's event log, and the program that takes the screen when the
+ * browser loses it: 0.11.0, the first, and every version since. An unknown version counts as an
+ * earlier one.
+ */
+export function keepsEventLog(version: string | null): boolean {
+  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
+  return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 11);
+}
 
 export interface Problem {
   run: string;
@@ -368,17 +383,22 @@ interface Failure {
   >;
   /** Whether the record has the event log's lines of the attempt. */
   logged: boolean;
+  /**
+   * Why the page doesn't have the log of a run whose voicecap keeps one, as the record says it (see
+   * EventRows); null otherwise.
+   */
+  gap: string | null;
 }
 
 /**
- * A failed attempt from its record, with what the run's event log says of it (`events`, or null
- * when the page doesn't have the log) among the record's own lines, by time. Its program, for a
- * foreground loss, is as the record keeps it: a name, or null when Windows didn't say.
+ * A failed attempt from its record, with what the run's event log says of it (`events`, see
+ * EventRows) among the record's own lines, by time. Its program, for a foreground loss, is as the
+ * record keeps it: a name, or null when Windows didn't say.
  */
 function failureOfRecord(
   attempt: AttemptRecord,
   redact: (text: string) => string,
-  events: { time: string; entry: string }[] | null,
+  events: ReturnType<EventRows>,
 ): Failure {
   const message = redact(attempt.message);
   // A cause code this version doesn't know (a newer voicecap's) is an unexpected error, as the
@@ -391,7 +411,8 @@ function failureOfRecord(
     { time: attempt.endedAt, source: "run.json", entry: `Failed: ${attempt.cause}: ${message}` },
     ...(stack === null ? [] : [{ time: attempt.endedAt, source: "stack" as const, entry: stack }]),
   ];
-  const logged = (events ?? []).map(({ time, entry }): ProblemRecordRow => ({
+  const lines = events !== null && "rows" in events ? events.rows : [];
+  const logged = lines.map(({ time, entry }): ProblemRecordRow => ({
     time,
     source: "events.jsonl",
     entry,
@@ -405,6 +426,7 @@ function failureOfRecord(
     unnamedStep: false,
     at: Date.parse(attempt.startedAt) || 0,
     logged: logged.length > 0,
+    gap: events !== null && "gap" in events ? events.gap : null,
     fields: {
       n: attempt.n,
       startedAt: attempt.startedAt,
@@ -462,6 +484,7 @@ function failureOfEntry(entry: string, index: number, redact: (text: string) => 
     at: 0,
     // Runs that wrote their errors as text recorded no event log.
     logged: false,
+    gap: null,
     fields: {
       n: parsed.n,
       startedAt: null,
@@ -546,10 +569,22 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
       verdict,
       again,
       effect: effectOf(ctx, failure, endsPage, version),
-      notRecorded: notRecordedOf(failure, version),
+      notRecorded: notRecordedOf(failure, versionAt(run, failure.fields.startedAt) ?? version),
     };
     return { problem, at: failure.at };
   });
+}
+
+/**
+ * The voicecap version of the session a time is in: the last to start at or before it. An attempt
+ * names no session, but its time places it in one, and a run begun with one voicecap can be resumed
+ * with a later one. Null for no time, or a session that recorded no environment.
+ */
+function versionAt(run: RunJson, time: string | null): string | null {
+  const at = time === null ? NaN : Date.parse(time);
+  if (!Number.isFinite(at)) return null;
+  const session = run.sessions.findLast((each) => Date.parse(each.startedAt) <= at);
+  return session?.environment?.voicecap.version ?? null;
 }
 
 /** "What happened": the pass, the step, and the key, in plain words, and what went wrong. */
@@ -748,20 +783,37 @@ function keepsEarlierAttempts(version: string | null): boolean {
 }
 
 /**
- * What a run didn't record, said where it matters. An error from a pass's step, written as text,
- * doesn't give the step that failed or the key it pressed. The program in front is for a foreground
- * loss only, when the record has none (a run that recorded one, or that Windows didn't say, says so
- * after what happened). The event log and NVDA's own log are for every problem: NVDA's own alone
- * once the record has the event log's lines of the attempt.
+ * What a run didn't record, said where it matters, and never put down to a voicecap that records
+ * it. `version` is the voicecap of the attempt's session.
+ * - The step and the key: for an error from a pass's step, written as text, which gives neither.
+ * - Which program came to the front: for a foreground loss whose record has none. A voicecap that
+ *   looks (0.11.0 on) left it out because the run's screen reader driver didn't look; an older one
+ *   never looked. A record that names the program, or says Windows didn't, says so after what
+ *   happened.
+ * - The event log: for a problem whose record has none of its lines. From a voicecap that keeps the
+ *   log, why: the page doesn't have the log, for the reason the run's evidence gives (`gap`), or the
+ *   log has no line of the attempt. From an older voicecap, that it kept none.
+ * - NVDA's own log: for every problem, since no voicecap keeps it yet, said by the run's voicecap as
+ *   the run's evidence says it.
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
+  const keeps = keepsEventLog(version);
+  const program =
+    failure.fields.kind === "foreground" && failure.fields.program === undefined
+      ? [keeps ? PROBLEMS_TEXT.program.notLooked : notRecorded("Which program came to the front")]
+      : [];
+  const eventLog = failure.logged
+    ? []
+    : !keeps
+      ? null
+      : [failure.gap ?? TIMELINE_TEXT.noLinesOfAttempt];
   return [
     ...(failure.unnamedStep ? [notRecorded("The step and the key")] : []),
-    ...(failure.fields.kind === "foreground" && failure.fields.program === undefined
-      ? [notRecorded("Which program came to the front")]
-      : []),
-    notRecorded(failure.logged ? "NVDA's own log" : "The event log and NVDA's own log"),
+    ...program,
+    ...(eventLog === null
+      ? [notRecorded("The event log and NVDA's own log")]
+      : [...eventLog, notRecorded("NVDA's own log")]),
   ];
 }
 
