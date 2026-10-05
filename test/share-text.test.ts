@@ -303,6 +303,28 @@ describe("the fixed text", () => {
     );
   });
 
+  it("words a page's screenshot as the plan pins it: its alt text, and why there's none", () => {
+    const { SCREENSHOT_TEXT } = text;
+
+    expect(SCREENSHOT_TEXT.alt("/about/", "NVDA")).toBe(
+      "The page /about/ as it loaded, before NVDA read it",
+    );
+    expect(SCREENSHOT_TEXT.failed("timed out after 5s")).toBe(
+      "Not recorded: the screenshot couldn't be taken (timed out after 5s).",
+    );
+    // A reason that says nothing leaves the sentence without its brackets.
+    expect(SCREENSHOT_TEXT.failed("")).toBe("Not recorded: the screenshot couldn't be taken.");
+    expect(SCREENSHOT_TEXT.noDriver).toBe(
+      "Not recorded: this run's screen reader driver doesn't take screenshots.",
+    );
+    expect(SCREENSHOT_TEXT.notRead).toBe(
+      "Not recorded: no screenshot was taken, since the page wasn't read.",
+    );
+    expect(SCREENSHOT_TEXT.changed).toBe(
+      "Not shown: the file isn't as the run recorded it; voicecap verify names it.",
+    );
+  });
+
   it("never names a library as how voicecap began", () => {
     expect(everyString().join("\n")).not.toMatch(/guidepup/i);
   });

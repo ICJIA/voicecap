@@ -1,9 +1,9 @@
 /**
  * What the shareable page's tests build models from: the input of runs built in memory
  * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
- * memory (`storeOf`), and a run with its event log held in memory (`loggedRun`). The tests that
- * render the page, and the one that builds its model, share them, so each file says only what it
- * adds.
+ * memory (`storeOf`), screenshots held in memory (`picturesOf`), and a run with its event log held
+ * in memory (`loggedRun`). The tests that render the page, and the one that builds its model, share
+ * them, so each file says only what it adds.
  */
 import os from "node:os";
 import path from "node:path";
@@ -18,6 +18,7 @@ import {
   type WalkthroughDownload,
 } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
+import { TINY_JPEG } from "./jpeg.js";
 import { SITE } from "./report-data.js";
 import { failedAttempt, settingsNested, shareRun } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
@@ -86,6 +87,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     manual: [],
     transcripts: NO_TRANSCRIPTS,
     events: new Map(),
+    screenshots: new Map(),
     flagsAsRecorded: [],
     unreadableRuns: [],
     siteName: null,
@@ -98,6 +100,22 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     wordName: "current.docx",
     ...overrides,
   };
+}
+
+/**
+ * The screenshot files of some runs as the loader holds them: TINY_JPEG for each page whose record
+ * has the fingerprint of a picture, by run id and slug (`ShareInput.screenshots`).
+ */
+export function picturesOf(runs: RunJson[]): Map<string, Uint8Array> {
+  return new Map(
+    runs.flatMap((run) =>
+      run.pages.flatMap((page): [string, Uint8Array][] =>
+        page.screenshot !== undefined && "sha256" in page.screenshot
+          ? [[`${run.id}/${page.slug}`, TINY_JPEG]]
+          : [],
+      ),
+    ),
+  );
 }
 
 /** The run with its read pass's step limit set to `limit`. */

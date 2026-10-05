@@ -11,8 +11,9 @@
  * fingerprint check's data.
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
- * problems' in problemsOf, the evidence's in evidenceOf. The run records and transcripts the page
- * embeds for its fingerprint check are exactly as recorded, since a seal covers every field.
+ * problems' in problemsOf, the evidence's in evidenceOf, the reason a screenshot couldn't be taken
+ * in cardsOf. The run records and transcripts the page embeds for its fingerprint check are exactly
+ * as recorded, since a seal covers every field.
  *
  * A site is named by its canonical address, and every address the page shows for one of its pages
  * is the page on that address: `shown`, made here, maps the address voicecap read onto it, and the
@@ -36,6 +37,7 @@ import { redactHome } from "../run/failure.js";
 import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import {
   cardsOf,
+  embeddedOf,
   flaggedOf,
   noLongerListedOf,
   type FlaggedPage,
@@ -249,6 +251,9 @@ export function buildShareModel(input: ShareInput): ShareModel {
     transcripts: input.transcripts,
     flagsAsRecorded: input.flagsAsRecorded,
     name: nameOf,
+    screenshots: input.screenshots,
+    screenReader: (run) => wordsFor(run).screenReader,
+    redact,
   });
   const recordOf = recordsOf(input.records);
   const header = headerOf(input, standing);
@@ -274,7 +279,8 @@ export function buildShareModel(input: ShareInput): ShareModel {
     leftOut: leftOutOf(standing, input.unreadableRuns),
     appendix: appendixOf(standing, input.transcripts, nameOf),
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
-    // exactly as recorded, and the review entries.
+    // exactly as recorded, which screenshots the page shows (their fingerprints are in the records:
+    // the page carries no picture a third time), and the review entries.
     check: {
       runs: standing.drawnOn.map(recordOf),
       files: standing.pages.flatMap((page) =>
@@ -282,6 +288,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
           text === null ? [] : [{ run, slug, name, text }],
         ),
       ),
+      screenshots: embeddedOf(standing, pages),
       reviews: Object.keys(input.reviews.pages).length === 0 ? null : input.reviews.pages,
     },
     flagRulesSha256: input.flagRulesSha256,

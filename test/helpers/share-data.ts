@@ -16,6 +16,7 @@ import {
   type PageStatus,
   type PassName,
   type RunJson,
+  type ScreenshotRecord,
   type SessionRecord,
   type SkipReason,
   type StopReason,
@@ -70,6 +71,12 @@ export interface SharePageSpec {
    * that isn't skipped.
    */
   skip?: SkipReason | null;
+  /**
+   * The page's screenshot, as the record's `screenshot` (see test/helpers/jpeg.ts's TINY_RECORD).
+   * No file is written: a test that shows the picture gives the model its bytes. Default: none, as
+   * for a run whose driver took no screenshots.
+   */
+  screenshot?: ScreenshotRecord;
 }
 
 /** One session of a run (see ShareRunSpec.sessions). */
@@ -291,6 +298,7 @@ function sharePage(page: SharePageSpec, site: string): PageRecord {
     ...(page.failedAttempts === undefined ? {} : { failedAttempts: page.failedAttempts }),
     passes: passSummaries(page.passes, page.stopped),
     files: Object.fromEntries((page.files ?? []).map((name) => [name, PLACEHOLDER_FILE])),
+    ...(page.screenshot === undefined ? {} : { screenshot: page.screenshot }),
     flags: page.flags ?? [],
     errors: page.errors ?? [],
   };

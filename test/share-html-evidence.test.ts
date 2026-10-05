@@ -25,6 +25,7 @@ import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
 import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
+import { TINY_RECORD } from "./helpers/jpeg.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
@@ -605,6 +606,22 @@ describe("renderEvidence", () => {
         );
         expect(part).toContain(`<caption class="sr">Fingerprints of run ${each.run.id}</caption>`);
       }
+    });
+
+    it("lists a page's screenshot among the files the run's record lists, after the page's transcripts, with its size and fingerprint", () => {
+      const model = modelOf([
+        { path: "/", files: ["read.txt"], screenshot: TINY_RECORD },
+        { path: "/b", screenshot: { error: "timed out", takenAt: TINY_RECORD.takenAt } },
+      ]);
+      const [fold = ""] = runFolds(renderEvidence(model));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      // A record of why there's none lists no file.
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${plural(TINY_RECORD.bytes, "byte")} | ${TINY_RECORD.sha256}`,
+      ]);
     });
 
     it("puts each table in a box that a keyboard can reach and scroll, named for its run", async () => {

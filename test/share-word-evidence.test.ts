@@ -47,6 +47,7 @@ import {
 } from "../src/share/words.js";
 import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
+import { TINY_RECORD } from "./helpers/jpeg.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -571,6 +572,25 @@ describe("wordEvidence", () => {
           each.fingerprints.flatMap(() => [undefined, undefined, undefined]),
         );
       }
+    });
+
+    it("lists a page's screenshot among the run's files, after the page's transcripts, as the page does", () => {
+      const run = shareRun({
+        id: "r1",
+        pages: [
+          { path: "/", files: ["read.txt"], screenshot: TINY_RECORD },
+          { path: "/b", screenshot: { error: "timed out", takenAt: TINY_RECORD.takenAt } },
+        ],
+      });
+      const part = partOf(runParts(buildShareModel(inputOf([run]))), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+
+      // A record of why there's none lists no file.
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
+      ]);
     });
 
     it("gives each run its own fingerprints, never the other's", async () => {

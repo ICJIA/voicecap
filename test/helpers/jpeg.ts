@@ -1,3 +1,6 @@
+import type { ScreenshotRecord } from "../../src/model.js";
+import { fileHash } from "../../src/transcripts/write.js";
+
 /**
  * A real JPEG, 16 pixels wide and 12 high: a page in miniature, with a dark bar for its header, two
  * lines of text, and a button. Chromium drew and encoded it, and a browser reads it, so a test can
@@ -17,3 +20,14 @@ export const TINY_JPEG: Uint8Array = new Uint8Array(
     "base64",
   ),
 );
+
+/**
+ * What a run's record keeps of TINY_JPEG as a page's screenshot: the file's fingerprint, the
+ * picture's size, and when the run recorded it.
+ */
+export const TINY_RECORD = {
+  ...fileHash(TINY_JPEG),
+  takenAt: "2026-09-26T14:05:03.120-05:00",
+  width: 16,
+  height: 12,
+} satisfies ScreenshotRecord;

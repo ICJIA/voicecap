@@ -17,7 +17,7 @@
  * title, its manual sessions, the run its transcripts come from, a pass that wasn't read, a
  * transcript that couldn't be read), the words are new, and use the mockup's own classes.
  */
-import { PASS_NAMES, type PassName } from "../../model.js";
+import { PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
 import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
 import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
@@ -44,9 +44,6 @@ const MOST_PAGES_OPEN = 12;
 /** More flagged pages than this, and each page's quotes fold. */
 const MOST_QUOTES_OPEN = 3;
 
-/** The size the mockup gives every screenshot, which its card crops to 4:3. */
-const SHOT = { width: 640, height: 480 } as const;
-
 /**
  * What the appendix's opening line says of its folds. The page's alone: a copy that folds nothing,
  * as the Word copy doesn't, has no page to open (`appendixGist`).
@@ -57,18 +54,27 @@ type Kind = "ok" | "warn" | "bad" | "quiet";
 
 /**
  * A page's screenshot as the markup of the two places it can be: the picture, as the mockup has it,
- * or the line that stands in for it when it wasn't recorded, named for a screen reader.
+ * or the line that stands in for it when it isn't there (not recorded, or not shown), named for a
+ * screen reader.
+ *
+ * The picture is laid out at the size its record gives, which the browser then holds the room for
+ * as the page loads. It names its page and file (`data-slug`, `data-file`), so the page's
+ * fingerprint check can find every copy of it: the card's, and the appendix's.
  */
-function screenshotOf(shot: PageCard["screenshot"]): { picture: string; missing: string } {
+function screenshotOf(
+  shot: PageCard["screenshot"],
+  slug: string,
+): { picture: string; missing: string } {
   if ("notRecorded" in shot) {
     return {
       picture: "",
       missing: `<div role="group" aria-label="${esc(PAGES_TEXT.screenshot)}">${notRecorded(shot.notRecorded)}</div>`,
     };
   }
-  const size = `width="${SHOT.width}" height="${SHOT.height}"`;
+  const size = `width="${Number(shot.width)}" height="${Number(shot.height)}"`;
+  const names = `data-slug="${esc(slug)}" data-file="${SCREENSHOT_FILE}"`;
   return {
-    picture: `<img src="${esc(shot.dataUri)}" alt="${esc(shot.alt)}" ${size} loading="lazy">`,
+    picture: `<img src="${esc(shot.dataUri)}" alt="${esc(shot.alt)}" ${size} loading="lazy" ${names}>`,
     missing: "",
   };
 }
@@ -165,7 +171,7 @@ function stripOf({ strip: lines }: PageCard): string {
  * the failure, the run the transcripts come from, the manual sessions) comes between.
  */
 function cardOf(card: PageCard, number: number, linked: boolean): string {
-  const { picture, missing } = screenshotOf(card.screenshot);
+  const { picture, missing } = screenshotOf(card.screenshot, card.slug);
   const manual = card.manual.map((session) => small(manualLine(session)));
   const link = `<a class="more" href="#tx-${idFragment(card.slug)}" aria-label="${esc(`Transcripts and fingerprints for ${card.path}`)}">Transcripts and fingerprints</a>`;
   const body = [
@@ -344,7 +350,7 @@ function appendixPage(
   });
   const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
   const { picture, missing } =
-    card === undefined ? { picture: "", missing: "" } : screenshotOf(card.screenshot);
+    card === undefined ? { picture: "", missing: "" } : screenshotOf(card.screenshot, card.slug);
   const body = `<div class="tx-grid">${picture}${missing}<div>${originLine(card, latest)}${sections.join("")}${none}</div></div>`;
   return fold(summary, body, { id: `tx-${idFragment(entry.slug)}` });
 }

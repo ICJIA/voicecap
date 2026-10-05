@@ -29,6 +29,7 @@ import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { STORY } from "../src/share/text.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
+import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode, foldsIn, textOf } from "./helpers/share-html.js";
 import {
@@ -37,6 +38,7 @@ import {
   inputOf,
   LINES,
   loggedModel,
+  picturesOf,
   storeOf,
   TRANSCRIPTS,
   withNestedSettings,
@@ -158,6 +160,38 @@ function largeModel(): ShareModel {
   return buildShareModel(inputOf(runs, { transcripts: storeOf() }));
 }
 
+/**
+ * A run of voicecap 0.11.0, whose three pages took a screenshot each (TINY_JPEG): two were read in
+ * full, so each has an entry in the appendix, and the third failed after its picture was taken, so
+ * its card is the only place that has it. The page writes each picture where its page has one: five
+ * in all.
+ */
+function shotsModel(): ShareModel {
+  const run = shareRun({
+    id: "2026-09-26_1405",
+    voicecapVersion: "0.11.0",
+    pages: [
+      { path: "/", files: TRANSCRIPTS, passes: LINES, screenshot: TINY_RECORD },
+      {
+        path: "/grants/",
+        label: "Grants",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        screenshot: TINY_RECORD,
+      },
+      {
+        path: "/apply/",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        screenshot: TINY_RECORD,
+      },
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], { transcripts: storeOf(), screenshots: picturesOf([run]) }),
+  );
+}
+
 /** A site whose only run was a replay, so no run counts yet. */
 function noRunModel(): ShareModel {
   return buildShareModel(
@@ -173,14 +207,21 @@ function markupOf(html: string): string {
 }
 
 /**
- * The page with its fonts' data and its walkthrough files' left out: base64 is letters, and could
- * spell anything.
+ * The page with its fonts' data, its walkthrough files', and its screenshots' left out: base64 is
+ * letters, and could spell anything.
  */
 function withoutBase64Data(html: string): string {
   return html
     .replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,")
-    .replace(/data:application\/json;base64,[A-Za-z0-9+/=]+/g, "data:application/json;base64,");
+    .replace(/data:application\/json;base64,[A-Za-z0-9+/=]+/g, "data:application/json;base64,")
+    .replace(/data:image\/jpeg;base64,[A-Za-z0-9+/=]+/g, "data:image/jpeg;base64,");
 }
+
+/** A screenshot's address: a JPEG, in base64, and nothing else. */
+const IMAGE_ADDRESS = /^data:image\/jpeg;base64,[A-Za-z0-9+/]*={0,2}$/;
+
+/** The page's images, each as its tag: the only places it may have a source of any kind. */
+const IMAGE_TAG = /<img\b[^>]*>/g;
 
 /** A walkthrough file's download, as its link's address gives it: JSON, in base64, and nothing else. */
 const DOWNLOAD_ADDRESS = /^data:application\/json;base64,[A-Za-z0-9+/]*={0,2}$/;
@@ -263,8 +304,8 @@ const library = vm.runInNewContext(CHECK_LIBRARY + ";({ sha256Hex, checkAll })",
 describe("renderSharePage", () => {
   let fontCss: string;
   /**
-   * The page of each model: the demo's, one built in memory, one where no run counts, and one with a
-   * run's event log, with how many runs each draws on.
+   * The page of each model: the demo's, one built in memory, one where no run counts, one with a
+   * run's event log, and one with screenshots, with how many runs each draws on.
    */
   let pages: { name: string; html: string; runs: number }[];
   let demoPage: string;
@@ -276,6 +317,7 @@ describe("renderSharePage", () => {
       ["runs built in memory", richModel()],
       ["no run that counts", noRunModel()],
       ["a run with its event log", loggedModel()],
+      ["a run with its screenshots", shotsModel()],
     ];
     pages = models.map(([name, model]) => ({
       name,
@@ -304,8 +346,15 @@ describe("renderSharePage", () => {
       ).toEqual(
         name === "no run that counts" ? [] : ['<script type="application/json" id="fp-data">'],
       );
-      // Nothing loaded: no source, no linked file, no import, and every url() the page's own data.
-      expect(withoutBase64Data(html), name).not.toMatch(/\ssrc\s*=/i);
+      // Nothing loaded: no source but a screenshot's own address, a JPEG in base64 in an image of the
+      // page (five in all, on the page that has them: see shotsModel); no linked file, no import,
+      // and every url() the page's own data.
+      const images = html.match(IMAGE_TAG) ?? [];
+      expect(images, name).toHaveLength(name === "a run with its screenshots" ? 5 : 0);
+      for (const tag of images) {
+        expect(attributes(tag, "src"), name).toEqual([expect.stringMatching(IMAGE_ADDRESS)]);
+      }
+      expect(withoutBase64Data(html).replace(IMAGE_TAG, "<img>"), name).not.toMatch(/\ssrc\s*=/i);
       expect(markup, name).not.toMatch(/<link\b/i);
       expect(html, name).not.toMatch(/@import/i);
       for (const [, address = ""] of html.matchAll(/url\(\s*["']?([^"')]*)/g)) {
@@ -414,6 +463,37 @@ describe("renderSharePage", () => {
     // Nothing but the files themselves: the page is as long as it was without them, plus them.
     expect(page.length - bare.length).toBe(added);
     expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBe(added);
+  });
+
+  it("grows by each screenshot's base64 at most twice, on its card and in the appendix, and by nothing else for it", () => {
+    const model = shotsModel();
+    const base64 = Buffer.from(TINY_JPEG).toString("base64");
+    // The same page with every picture's base64 left out: only what each picture adds is missing.
+    const bare: ShareModel = {
+      ...model,
+      pages: model.pages.map((card) =>
+        "dataUri" in card.screenshot
+          ? { ...card, screenshot: { ...card.screenshot, dataUri: "data:image/jpeg;base64," } }
+          : card,
+      ),
+    };
+    const page = renderSharePage(model, { fontCss: "" });
+    const plain = renderSharePage(bare, { fontCss: "" });
+    const data = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/.exec(
+      page,
+    )?.[1];
+
+    // Two pages have an entry in the appendix, so each shows its picture twice; the third has its
+    // card alone, so it shows it once.
+    expect(model.pages.map((card) => "dataUri" in card.screenshot)).toEqual([true, true, true]);
+    expect(model.appendix).toHaveLength(2);
+    expect(page.length - plain.length).toBe(base64.length * (2 + 2 + 1));
+    expect(Buffer.byteLength(page) - Buffer.byteLength(plain)).toBe(base64.length * 5);
+    expect(page.split(base64)).toHaveLength(5 + 1);
+    // The check's data holds each picture's fingerprint, in the records, and never the picture.
+    expect(data).toEqual(expect.any(String));
+    expect(data).not.toContain(base64);
+    expect(data).toContain(TINY_RECORD.sha256);
   });
 
   it("puts the sections in the spec's order, each h2 outside every fold", () => {

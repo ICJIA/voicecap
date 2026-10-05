@@ -1,15 +1,18 @@
 /**
  * The shareable page's fingerprint check: what the page carries so a reader can check, offline and
- * in one click, that the transcripts it shows are the ones its sealed records list.
+ * in one click, that the transcripts and screenshots it shows are the ones its sealed records list.
  *
  * The page carries the data (`checkDataJson`) and a small script (`CHECK_SCRIPT`). The script
  * recomputes what voicecap recorded: each transcript file's SHA-256, each run record's seal (the
  * record without its `seal`, as JSON with its keys sorted, hashed), and each review entry's seal
  * and the review chain, by the rules `verify` uses (see `chainProblems` in src/verify.ts). It also
  * compares each transcript the page shows (in its appendix) with the body of the file the page
- * carries for it, so the transcripts shown are exactly the ones the sealed records list. It uses
- * the browser's own SHA-256 (Web Crypto) where there is one, and a small one of its own where
- * there isn't (a page opened from an address that isn't secure).
+ * carries for it, so the transcripts shown are exactly the ones the sealed records list. And it
+ * hashes the bytes of each screenshot the page shows (the JPEG in each image's address, on a page's
+ * card and in its appendix entry), against the fingerprint its run's record has for it: the page
+ * carries no picture twice over for this, only which pictures it shows. It uses the browser's own
+ * SHA-256 (Web Crypto) where there is one, and a small one of its own where there isn't (a page
+ * opened from an address that isn't secure).
  *
  * Both scripts are plain browser JavaScript (ES2020, no imports), held as strings the way
  * src/report/client.ts holds the report's script. The check proves the page is consistent with
@@ -27,6 +30,13 @@ export interface CheckData {
   runs: RunJson[];
   /** Each transcript file the page shows: its run, slug, file name ("read.txt"), and exact text. */
   files: { run: string; slug: string; name: string; text: string }[];
+  /**
+   * Each screenshot the page shows, by its run, its page's slug, and its file name
+   * ("screenshot.jpg"): the fingerprint it's held to is in that run's record, which the seal covers.
+   * Each image of one has `data-slug` and `data-file` that name it, and holds its bytes in its
+   * address, so the data has no copy of the picture.
+   */
+  screenshots: { run: string; slug: string; name: string }[];
   /** reviews.json's pages, or null when there's none. */
   reviews: ReviewsFile["pages"] | null;
 }
@@ -43,22 +53,32 @@ export function checkDataJson(data: CheckData): string {
 /**
  * The check's library, as plain browser JavaScript (ES2020, no imports, nothing but TextEncoder
  * from outside): `sha256Hex(bytes)` (FIPS 180-4, over a Uint8Array), `canonicalJson(value)` and
- * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest, shown)`.
+ * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest, shown,
+ * pictures)`.
  *
- * `checkAll` resolves to `{ files, runs, reviewProblems, line }`:
+ * `checkAll` resolves to `{ files, screenshots, runs, reviewProblems, line }`:
  * - `files` has each transcript's label ("Run 1402 · /about/ · read.txt") and whether it matches:
  *   the SHA-256 of its text is the one its run records for it, and the text the page shows for it
  *   is its body;
+ * - `screenshots` has each screenshot's label ("Run 1402 · /about/ · screenshot.jpg") and whether
+ *   it matches: the page shows at least one copy of it, and the SHA-256 of every copy's bytes is
+ *   the one its run records for it. It's named for that, once, as a transcript is: "doesn't match
+ *   its fingerprint". It's empty without `pictures`;
  * - `runs` has each run's id and whether its record still matches its seal;
  * - `reviewProblems` lists, in words, each review entry that doesn't match its seal and each break
  *   in the chain (seq running from 1 with no gaps or repeats, entry 1's prev null, each prev the
  *   seal of the entry before); entries from before seals are left out;
  * - `line` is the result in words, without its closing full stop: a sentence for each mismatch,
  *   naming what doesn't match, then the count ("21 of 21 transcripts match their fingerprints, and
- *   both runs' seals check out").
+ *   7 of 7 screenshots match their fingerprints, and both runs' seals check out"; a page that
+ *   shows no screenshot says nothing of them).
  *
  * `digest(bytes)` gives the SHA-256 of a Uint8Array as hex, now or as a promise: Web Crypto's where
  * the browser has it, else `sha256Hex`, which is also the default.
+ *
+ * `pictures(shot)` gives the bytes of each copy the page shows of one of the data's screenshots, as
+ * the JPEG in its address (an empty list for a screenshot it shows none of). Without `pictures`,
+ * screenshots are never checked.
  *
  * `shown(file)` gives the text the page shows for one of the data's files (its appendix shows each
  * file's body: the file without its header block), "" for one it shows as having no lines, and
@@ -210,6 +230,14 @@ function fileLabel(runs, file) {
   return runLabel(runs, file.run) + " · " + where + " · " + file.name;
 }
 
+// What a run's record has for a screenshot the page shows: the file's fingerprint, which the run's
+// seal covers. A page with none, or only the reason it has none, has none.
+function shotRecord(runs, shot) {
+  var page = pageOf(runs, shot);
+  var record = page && page.screenshot;
+  return record && typeof record.sha256 === "string" ? record : undefined;
+}
+
 function reviewEntries(reviews) {
   var found = [];
   Object.keys(reviews || {}).forEach(function (key) {
@@ -285,10 +313,16 @@ function sealsPhrase(total, ok) {
   return ok + " of " + total + " runs' seals check out";
 }
 
-async function checkAll(data, digest, shown) {
+function shotsPhrase(total, ok) {
+  var which = total === 1 ? " screenshot matches its fingerprint" : " screenshots match their fingerprints";
+  return ok + " of " + total + which;
+}
+
+async function checkAll(data, digest, shown, pictures) {
   digest = digest || sha256Hex;
   var runs = data.runs || [];
   var files = [];
+  var shots = [];
   var sentences = [];
   for (var file of data.files || []) {
     var label = fileLabel(runs, file);
@@ -301,6 +335,20 @@ async function checkAll(data, digest, shown) {
     files.push({ label: label, ok: matches && asShown });
     if (!matches) sentences.push(label + " doesn't match its fingerprint.");
     if (!asShown) sentences.push(label + ": the text shown doesn't match its file.");
+  }
+  // Each screenshot the page shows must be there, and every copy of it must be the file its run
+  // recorded: one that isn't named for that, once, as a transcript is. Without a way to read the
+  // pictures, none is checked.
+  for (var shot of pictures ? data.screenshots || [] : []) {
+    var shotLabel = fileLabel(runs, shot);
+    var kept = shotRecord(runs, shot);
+    var copies = pictures(shot);
+    var shotOk = !!kept && copies.length > 0;
+    for (var copy of copies) {
+      if (shotOk && (await digest(copy)) !== kept.sha256) shotOk = false;
+    }
+    shots.push({ label: shotLabel, ok: shotOk });
+    if (!shotOk) sentences.push(shotLabel + " doesn't match its fingerprint.");
   }
   var seals = [];
   for (var run of runs) {
@@ -316,6 +364,10 @@ async function checkAll(data, digest, shown) {
     var matching = files.filter(function (file) { return file.ok; }).length;
     clauses.push(matching + " of " + files.length + " transcripts match their fingerprints");
   }
+  if (shots.length > 0) {
+    var shotsMatching = shots.filter(function (each) { return each.ok; }).length;
+    clauses.push(shotsPhrase(shots.length, shotsMatching));
+  }
   if (seals.length > 0) {
     var sealed = seals.filter(function (seal) { return seal.ok; }).length;
     clauses.push(sealsPhrase(seals.length, sealed));
@@ -329,7 +381,13 @@ async function checkAll(data, digest, shown) {
       ? "This page holds no transcripts or run records to check"
       : summary.charAt(0).toUpperCase() + summary.slice(1)
   );
-  return { files: files, runs: seals, reviewProblems: reviews.problems, line: sentences.join(" ") };
+  return {
+    files: files,
+    screenshots: shots,
+    runs: seals,
+    reviewProblems: reviews.problems,
+    line: sentences.join(" ")
+  };
 }
 `;
 
@@ -340,11 +398,14 @@ async function checkAll(data, digest, shown) {
  * `hidden`, and the `.fp-noscript` line says how to check without scripts; the script un-hides the
  * buttons and hides that line.
  *
- * A click reads `#fp-data` afresh, and the transcripts the page shows, so the check always sees
- * what the page holds now. Each transcript the appendix shows is a `section.tx` that names its file
- * (`data-run`, `data-slug`, and `data-file`), with its text in a `<pre>`, or none for a transcript
- * with no lines. "Show a change being caught" runs the same check on a copy with the first character
- * of the first file changed, in memory only: the page's own data is never changed.
+ * A click reads `#fp-data` afresh, and the transcripts and pictures the page shows, so the check
+ * always sees what the page holds now. Each transcript the appendix shows is a `section.tx` that
+ * names its file (`data-run`, `data-slug`, and `data-file`), with its text in a `<pre>`, or none for
+ * a transcript with no lines. Each screenshot is an `img` that names its page and file (`data-slug`
+ * and `data-file`), with the JPEG in its address in base64: a page's card and its entry in the
+ * appendix each have one, and each is decoded and hashed. "Show a change being caught" runs the
+ * same check on a copy with the first character of the first file changed, in memory only: the
+ * page's own data is never changed.
  *
  * A page without that markup is left alone. Each script starts and ends on a new line, so it can
  * follow another in the page's one `<script>`, even one that ends without its semicolon.
@@ -414,6 +475,37 @@ export const CHECK_SCRIPT =
     return null;
   }
 
+  // The JPEG an image's address holds, as bytes: the address must be a JPEG in base64, as voicecap
+  // writes one, and anything else (another kind of address, or base64 that isn't) is no bytes at all,
+  // which match no fingerprint.
+  function bytesOfAddress(address) {
+    var prefix = "data:image/jpeg;base64,";
+    var text = String(address || "");
+    if (text.indexOf(prefix) !== 0) return new Uint8Array(0);
+    try {
+      var binary = atob(text.slice(prefix.length));
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    } catch (error) {
+      return new Uint8Array(0);
+    }
+  }
+
+  // The bytes of each copy the page shows of a screenshot: every image that names its page and file.
+  function shownPictures(shot) {
+    var images = document.querySelectorAll("img[data-file]");
+    var found = [];
+    for (var i = 0; i < images.length; i++) {
+      var image = images[i];
+      var named =
+        image.getAttribute("data-slug") === shot.slug &&
+        image.getAttribute("data-file") === shot.name;
+      if (named) found.push(bytesOfAddress(image.getAttribute("src")));
+    }
+    return found;
+  }
+
   function withFirstCharacterChanged(data) {
     var copy = JSON.parse(JSON.stringify(data));
     var file = copy.files[0];
@@ -439,11 +531,15 @@ export const CHECK_SCRIPT =
           "”); the page itself is unchanged. ";
       }
       var runs = data.runs || [];
-      var checked = await checkAll(data, digest, shownText);
+      var checked = await checkAll(data, digest, shownText, shownPictures);
       var table = [];
       checked.files.forEach(function (file, index) {
         var recorded = fileRecord(runs, data.files[index]);
         table.push([file.label, recorded ? recorded.sha256 : "none recorded", file.ok]);
+      });
+      checked.screenshots.forEach(function (shot, index) {
+        var kept = shotRecord(runs, data.screenshots[index]);
+        table.push([shot.label, kept ? kept.sha256 : "none recorded", shot.ok]);
       });
       checked.runs.forEach(function (run, index) {
         table.push([runLabel(runs, run.id) + " · its record's seal", runs[index].seal, run.ok]);

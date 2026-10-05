@@ -7,12 +7,14 @@
  *
  * Where the page has a card for each page, the Word copy has a row, in one table. It folds nothing:
  * every page, every flagged page's quotes, and every transcript is there in full. What it leaves
- * out has no use on paper: the link on a card to its transcripts, the strip of bars that draws a
- * page's spoken lines (the spec's charts that become tables don't include it), and the picture of
- * a screenshot (it has no image yet). Nor does it say anything of the page's fingerprint check,
- * which it has none of. Pure.
+ * out has no use on paper: the link on a card to its transcripts, and the strip of bars that draws
+ * a page's spoken lines (the spec's charts that become tables don't include it). Nor does it say
+ * anything of the page's fingerprint check, which it has none of. A page's screenshot is an image
+ * (./blocks.ts): in its entry in the appendix, 400 pixels wide, or, for a page with no entry (it has
+ * no transcripts), in its row's result, as wide as that cell holds. Pure.
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
+import { jpegOfAddress } from "../cards.js";
 import type { Line } from "../line.js";
 import type { AppendixFile, FlaggedPage, NoLongerListed, PageCard, ShareModel } from "../model.js";
 import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
@@ -36,12 +38,14 @@ import {
   PAGE_BREAK,
   cell,
   heading,
+  image,
   mono,
   monoCell,
   para,
   table,
   type Block,
   type Cell,
+  type Picture,
 } from "./blocks.js";
 
 // Every page.
@@ -61,33 +65,47 @@ function pageCell(card: PageCard): Cell {
 }
 
 /**
- * A page's screenshot as a line: its label in bold, then the line that says it wasn't recorded, as
- * the page does. A screenshot that was recorded has no place in this copy yet, which holds no
- * image, so it is said by its words for the picture.
+ * A page's screenshot as a line: its label in bold, then, when it wasn't recorded or isn't shown,
+ * the line that says so, as the page does. A picture follows its label as an image of its own.
  */
 function screenshotLine({ screenshot }: PageCard): Line {
-  if ("notRecorded" in screenshot) {
-    return [
-      { text: `${PAGES_TEXT.screenshot}:`, bold: true },
-      ` ${notRecordedLine(screenshot.notRecorded)}`,
-    ];
-  }
-  return [screenshot.alt];
+  const label = { text: `${PAGES_TEXT.screenshot}:`, bold: true } as const;
+  return "notRecorded" in screenshot
+    ? [label, ` ${notRecordedLine(screenshot.notRecorded)}`]
+    : [label];
+}
+
+/**
+ * A page's picture, as the image the page's address holds: its bytes, its recorded size, and its
+ * alt text. Null for a page with none.
+ */
+function pictureOf({ screenshot }: PageCard): Picture | null {
+  return "dataUri" in screenshot
+    ? {
+        jpeg: jpegOfAddress(screenshot.dataUri),
+        width: screenshot.width,
+        height: screenshot.height,
+        alt: screenshot.alt,
+      }
+    : null;
 }
 
 /**
  * A page's result in words, the failure when it has one, and the run its transcripts are from. A
- * page with no entry in the appendix (it has no transcripts) says its screenshot last, since no
- * entry does; every other page says it in its entry, so each page says it once.
+ * page with no entry in the appendix (it has no transcripts) says its screenshot last, with its
+ * picture if it has one, since no entry does; every other page says it in its entry, so each page
+ * says it once.
  */
 function resultCell(card: PageCard, inAppendix: boolean): Cell {
   const from = fromRun(card);
-  return cell(
+  const said = cell(
     card.statusText,
     ...(card.failure === null ? [] : [card.failure]),
     ...(from === null ? [] : [from]),
     ...(inAppendix ? [] : [screenshotLine(card)]),
   );
+  const picture = inAppendix ? null : pictureOf(card);
+  return picture === null ? said : { ...said, picture };
 }
 
 /**
@@ -241,9 +259,10 @@ function unreadableBlocks(pass: PassName, path: string): Block[] {
 /**
  * One page of the appendix: its number, its name, and the transcripts it has (a heading as the
  * page's fold has it, which says which, as many as there are); the run its transcripts are from;
- * its screenshot (the only place a page with transcripts says it); and a transcript for each pass
- * the run recorded. A page whose record lists no transcript files says so. A page with no card
- * has the latest run's transcripts, and no screenshot.
+ * its screenshot (the only place a page with transcripts says it): its label, then its picture, or
+ * the line that says why there's none; and a transcript for each pass the run recorded. A page
+ * whose record lists no transcript files says so. A page with no card has the latest run's
+ * transcripts, and no screenshot.
  */
 function appendixPage(
   entry: ShareModel["appendix"][number],
@@ -260,10 +279,12 @@ function appendixPage(
     const file = entry.files.find((each) => each.pass === pass);
     return file === undefined ? unreadableBlocks(pass, path) : transcriptBlocks(file, path);
   });
+  const picture = card === undefined ? null : pictureOf(card);
   return [
     heading(2, `${number} ${entry.name}: ${transcriptsInside(passes)}`),
     ...(origin === null ? [] : [para(...origin)]),
     ...(card === undefined ? [] : [para(...screenshotLine(card))]),
+    ...(picture === null ? [] : [image(picture)]),
     ...transcripts,
     ...(passes.length === 0 ? [para(APPENDIX_TEXT.noFiles)] : []),
   ];

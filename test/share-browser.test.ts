@@ -31,15 +31,26 @@ import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { renderSharePage } from "../src/share/html/document.js";
+import { buildShareModel } from "../src/share/model.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
+import { TINY_JPEG } from "./helpers/jpeg.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
-import { DEMO_SITE, loggedModel } from "./helpers/share-model.js";
+import {
+  DEMO_SITE,
+  inputOf,
+  LINES,
+  loggedModel,
+  storeOf,
+  TRANSCRIPTS,
+} from "./helpers/share-model.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -126,13 +137,15 @@ async function demoPage(): Promise<string> {
  * each of which writes the page again. In the second run the home page and /about are read (and
  * /about sounds different), and the page with the long address (LONG_PATH) can't be opened, so its
  * transcripts are the first run's. A person said they heard NVDA speaking in both runs, the whole
- * time.
+ * time. Each page that's loaded takes a screenshot (TINY_JPEG): the page shows three of them, each
+ * on its card and in the appendix.
  */
 async function richPage(): Promise<string> {
   const dir = await setup(["/", "/about", LONG_PATH]);
   folders.push(dir);
   const logger = createMemoryLogger();
-  const titled = { title: "Example Agency" };
+  const picture = { screenshot: { jpeg: TINY_JPEG } };
+  const titled = { title: "Example Agency", ...picture };
   const long = { url: `${SITE}${LONG_PATH}` };
   const run = (driver: ScriptedDriver, when: Date, attempts: number) =>
     runAudit({
@@ -146,7 +159,9 @@ async function richPage(): Promise<string> {
     });
 
   await run(
-    new ScriptedDriver(sitePages({ home: titled, resources: long })),
+    new ScriptedDriver(
+      sitePages({ home: titled, about: picture, resources: { ...long, ...picture } }),
+    ),
     new Date(2026, 8, 26, 14, 5),
     1,
   );
@@ -156,6 +171,7 @@ async function richPage(): Promise<string> {
         home: titled,
         about: {
           lines: ["heading, level 1, About us", "We have a new address.", "© 2026 Example Agency"],
+          ...picture,
         },
         resources: { ...long, openError: new Error("NVDA is not responding") },
       }),
@@ -464,6 +480,17 @@ describe("axe, in Chromium", () => {
         // Its runs recorded their event logs: each has a chart and a folded table of its events.
         expect(await page.locator("svg.timeline").count()).toBe(2);
         expect(await page.locator("details.log").count()).toBe(2);
+        // And a screenshot of each page, on its card and in the appendix, each with its alt text.
+        expect(await page.locator("img").count()).toBe(6);
+        expect(
+          await page
+            .locator("img")
+            .evaluateAll((images) =>
+              images
+                .map((image) => image.getAttribute("alt") ?? "")
+                .filter((alt) => alt.trim() === ""),
+            ),
+        ).toEqual([]);
       }
       expect(await axeFindings(page), "dark, folds closed").toEqual([]);
 
@@ -905,6 +932,105 @@ describe("a page that needs nothing from outside its file", () => {
   });
 });
 
+describe("a page's screenshots", () => {
+  it("draws each of them from the file itself, with nothing requested from outside it", async () => {
+    const context = await newContext();
+    const requested: string[] = [];
+    // Every request goes through here, and only the file itself is let through.
+    await context.route("**/*", (route) => {
+      const url = route.request().url();
+      requested.push(url);
+      return url.startsWith("file:") ? route.continue() : route.abort();
+    });
+    const page = await context.newPage();
+    await page.goto(addressOf(pages.rich));
+    await page.waitForLoadState("networkidle");
+    await page.locator("#open-all").click();
+    // The window as tall as the page, so each picture is near enough to the window to load.
+    await page.setViewportSize({
+      width: 1280,
+      height: await page.evaluate(() => document.documentElement.scrollHeight),
+    });
+
+    // Three pages, a picture on each card and one in each page's entry in the appendix: all drawn.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            [...document.images].map((image) => (image.complete ? image.naturalWidth : 0)),
+          ),
+        { timeout: 10_000 },
+      )
+      .toEqual([16, 16, 16, 16, 16, 16]);
+    expect(
+      requested.map((url) => (url.startsWith("file:") ? path.resolve(fileURLToPath(url)) : url)),
+    ).toEqual([path.resolve(pages.rich)]);
+  });
+
+  it("shows a card's picture whole, at its own proportions, not cropped to the 4:3 the cards were drawn for", async () => {
+    // A real JPEG 160 wide and 100 high (8:5), blue on its left half and red on its right.
+    const maker = await (await newContext()).newPage();
+    await maker.setViewportSize({ width: 200, height: 200 });
+    await maker.setContent(
+      '<body style="margin:0;background:#c33"><div style="width:80px;height:100px;background:#33c"></div></body>',
+    );
+    const jpeg = await maker.screenshot({
+      type: "jpeg",
+      clip: { x: 0, y: 0, width: 160, height: 100 },
+    });
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        {
+          path: "/",
+          files: TRANSCRIPTS,
+          passes: LINES,
+          screenshot: {
+            ...fileHash(jpeg),
+            takenAt: "2026-09-26T14:05:03.120-05:00",
+            width: 160,
+            height: 100,
+          },
+        },
+      ],
+    });
+    const slug = run.pages[0]?.slug ?? "";
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), screenshots: new Map([[`r1/${slug}`, jpeg]]) }),
+    );
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-wide-"));
+    folders.push(folder);
+    const file = path.join(folder, "wide.html");
+    await writeFile(file, renderSharePage(model, { fontCss: "" }));
+
+    const page = await open(file);
+    const picture = await page.locator("#pg-home img").evaluate((image) => ({
+      // The picture's box, inside its border: as wide and high as the picture is, in proportion.
+      ratio: image.clientWidth / image.clientHeight,
+      fit: getComputedStyle(image).objectFit,
+    }));
+
+    expect(picture.ratio).toBeGreaterThan(1.58);
+    expect(picture.ratio).toBeLessThan(1.62);
+    expect(picture.fit).toBe("fill");
+  });
+
+  it("names each one as the page it shows, as it loaded, before NVDA read it", async () => {
+    const page = await open(pages.rich);
+
+    const alts = await page
+      .locator("#pages .card img")
+      .evaluateAll((images) => images.map((image) => image.getAttribute("alt")));
+
+    expect(alts).toEqual([
+      `The page ${SITE}/ as it loaded, before NVDA read it`,
+      `The page ${SITE}/about as it loaded, before NVDA read it`,
+      `The page ${SITE}${LONG_PATH} as it loaded, before NVDA read it`,
+    ]);
+  });
+});
+
 describe("Open every section, and printing", () => {
   it("opens every fold, and a second press puts each back as it was, a hand-opened one too", async () => {
     const page = await open(pages.demo);
@@ -1040,6 +1166,22 @@ describe("the fingerprint check, on the page's own data", () => {
     expect(await result(page)).not.toContain("doesn't match");
     expect(await page.locator("#fp-count").textContent()).toBe("23 checked, 0 not matching");
     expect(await page.locator("#fp-rows .c-ok").count()).toBe(23);
+    expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
+  });
+
+  it("checks each screenshot of a page whose runs took them, with its transcripts and its seals", async () => {
+    const page = await open(pages.rich);
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toContain("3 of 3 screenshots match their fingerprints");
+
+    expect(await result(page)).not.toContain("doesn't match");
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+    // Each is listed with the transcripts and the seals, and each matches.
+    const rows = await page.locator("#fp-rows tr").allTextContents();
+    expect(rows.filter((row) => row.includes("screenshot.jpg"))).toHaveLength(3);
     expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
   });
 

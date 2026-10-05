@@ -226,6 +226,28 @@ export const PAGES_TEXT = {
   noLongerListedHead: ["Page", "Last run that had it", "What it recorded"],
 };
 
+/**
+ * A page's screenshot: the words of its picture for a screen reader, and what a card says in place
+ * of a picture it doesn't have. (A run from before voicecap took screenshots says it as it says of
+ * every part such a run didn't record: `notRecordedBy`. `PAGES_TEXT.screenshot` names the picture.)
+ */
+export const SCREENSHOT_TEXT = {
+  /** The page, as the page names it, and the run's screen reader, as its environment records it. */
+  alt: (page: string, screenReader: string): string =>
+    `The page ${page} as it loaded, before ${screenReader} read it`,
+  /** The browser couldn't take it: the reason it gave, already on one line and with no full stop. */
+  failed: (reason: string): string =>
+    reason === ""
+      ? "Not recorded: the screenshot couldn't be taken."
+      : `Not recorded: the screenshot couldn't be taken (${reason}).`,
+  /** A run of voicecap 0.11.0 or later whose screen reader driver took no page's screenshot. */
+  noDriver: "Not recorded: this run's screen reader driver doesn't take screenshots.",
+  /** A page of a run whose driver took some, that wasn't read: skipped, or failed before it loaded. */
+  notRead: "Not recorded: no screenshot was taken, since the page wasn't read.",
+  /** The picture's file is missing, or isn't as its run recorded it (changed since the seal). */
+  changed: "Not shown: the file isn't as the run recorded it; voicecap verify names it.",
+};
+
 /** "What the flags found": its heading, and the words of each flagged page's table. */
 export const FLAGS_TEXT = {
   title: "What the flags found",

@@ -4,15 +4,17 @@
  * left out with what each did, and how the page says what a run's voicecap didn't record. Pure: it
  * works from records already read.
  */
-import type {
-  EnvironmentRecord,
-  ListenerAnswer,
-  MachineRecord,
-  PageSource,
-  PageStatus,
-  RunEvent,
-  RunJson,
-  SessionRecord,
+import {
+  SCREENSHOT_FILE,
+  type EnvironmentRecord,
+  type ListenerAnswer,
+  type MachineRecord,
+  type PageRecord,
+  type PageSource,
+  type PageStatus,
+  type RunEvent,
+  type RunJson,
+  type SessionRecord,
 } from "../model.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { EVENT_LOG } from "../run/events.js";
@@ -82,7 +84,10 @@ export interface RunEvidence {
   screenReader: string;
   /** Evidence C, NVDA's own log checked against the transcripts: no version records it yet. */
   nvdaLog: { notRecorded: string };
-  /** Every file the run's record lists, page by page: its size and SHA-256. */
+  /**
+   * Every file the run's record lists, page by page: its size and SHA-256. A page's transcripts,
+   * then its screenshot, where its record has the file's fingerprint.
+   */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
    * The command that checks the originals: "npx @icjia/voicecap verify", which checks every site
@@ -104,6 +109,15 @@ export interface RunEvidence {
 export function notRecordedBy(version: string | null): string {
   const used = version === null ? "an earlier version of voicecap" : `voicecap ${version}`;
   return `Not recorded: this run used ${used}.`;
+}
+
+/**
+ * Whether a run's voicecap records a screenshot of each page it loads: 0.11.0 and later, as it keeps
+ * the event log. A page of such a run with none says why (SCREENSHOT_TEXT), and a page of an earlier
+ * run says that run's voicecap didn't (`notRecordedBy`). An unknown version counts as an earlier one.
+ */
+export function keepsScreenshots(version: string | null): boolean {
+  return keepsEventLog(version);
 }
 
 /** The voicecap version a session recorded, or null when it recorded no environment. */
@@ -176,18 +190,32 @@ export function evidenceOf(input: {
       timeline,
       screenReader: words.screenReader,
       nvdaLog: { notRecorded },
-      fingerprints: run.pages.flatMap((page) =>
-        Object.entries(page.files).map(([file, hash]) => ({
+      fingerprints: run.pages.flatMap((page) => [
+        ...Object.entries(page.files).map(([file, hash]) => ({
           page: pagePath(page.url),
           file,
           bytes: hash.bytes,
           sha256: hash.sha256,
         })),
-      ),
+        ...screenshotFile(page),
+      ]),
       verify: formatCommand(["verify"]),
       walkthrough: walkthroughFor(record, site),
     };
   });
+}
+
+/**
+ * A page's screenshot as one of its run's files, when the page's record has the file's fingerprint
+ * (a record of why there's none lists no file). The record keeps it apart from the page's
+ * transcripts, so it's added to them here.
+ */
+function screenshotFile(page: PageRecord): RunEvidence["fingerprints"] {
+  const shot = page.screenshot;
+  if (shot === undefined || "error" in shot) return [];
+  return [
+    { page: pagePath(page.url), file: SCREENSHOT_FILE, bytes: shot.bytes, sha256: shot.sha256 },
+  ];
 }
 
 /** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */

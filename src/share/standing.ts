@@ -28,6 +28,15 @@ export interface PageStanding {
   latestFailure: { run: RunJson; page: PageRecord } | null;
 }
 
+/**
+ * The record of a page that its card speaks for: the one whose transcripts the page shows, else, for
+ * a page never transcribed, its latest failure's or skip's. Null for a page with neither, which only
+ * a run that left the page pending has.
+ */
+export function cardRecord(page: PageStanding): { run: RunJson; page: PageRecord } | null {
+  return page.shown ?? page.latestFailure;
+}
+
 export interface Standing {
   /** Completed, sealed, live runs, oldest first. */
   counted: RunJson[];

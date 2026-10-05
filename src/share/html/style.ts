@@ -145,7 +145,7 @@ code { overflow-wrap: anywhere; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
 .cards + .folds, .cards + .panel, .folds + .panel { margin-top: 16px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
-.card img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border-bottom: 1px solid var(--line); background: #fff; }
+.card img { width: 100%; height: auto; border-bottom: 1px solid var(--line); background: #fff; }
 .card-body { padding: 14px 16px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .card-body p { margin: 0; }
 .num { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font: 600 0.8rem var(--mono); margin-right: 6px; }
@@ -210,7 +210,7 @@ dl.spec dt { color: var(--muted); }
 .appendix summary { padding: 12px 16px; font: 600 1rem var(--display); cursor: pointer; }
 .tx-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; padding: 0 16px 16px; }
 .inside > .tx-grid { padding: 0; }
-.tx-grid > img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.tx-grid > img { box-sizing: border-box; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .tx h3 { margin: 10px 0 2px; font: 600 0.95rem var(--display); }
 .fp { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
