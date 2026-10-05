@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-05
+
+Canonical site names: everything voicecap makes for readers names a site by the address people visit, never an IP address, even for a run on a copy on the tester's computer, and the page and its Word copy lead with that name and when the site was tested. The website publishes the demo's own pages at voicecap.netlify.app/demo-site/, the footers keep to the width of the text above them, and the README shows what voicecap makes.
+
 ### Added
 
 - **Canonical names:** voicecap names a site by its canonical address, the one people visit, such as `https://dvfr.illinois.gov/`, in everything it makes for readers. Its canonical name is that address's host, `dvfr.illinois.gov`, and it leads the shareable page, the Word copy, the dated copies' names, and the website. The page and its Word copy lead with when the site was tested too; the dated copies' names, and the website, give the day the report was shared. An IP address or a local address doesn't lead, even for a run on a copy of the site on the tester's own computer, once the site's canonical address is known. The README's "A site's name: its canonical address" describes it.
