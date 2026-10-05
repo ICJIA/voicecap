@@ -112,16 +112,18 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
 
 /**
  * The screenshot files of some runs as the loader holds them: TINY_JPEG for each page whose record
- * has the fingerprint of a picture, by run id and slug (`ShareInput.screenshots`).
+ * has the fingerprint of a picture, by run id and slug (`ShareInput.screenshots`). A record a test
+ * gives that isn't an object has none.
  */
 export function picturesOf(runs: RunJson[]): Map<string, Uint8Array> {
   return new Map(
     runs.flatMap((run) =>
-      run.pages.flatMap((page): [string, Uint8Array][] =>
-        page.screenshot !== undefined && "sha256" in page.screenshot
+      run.pages.flatMap((page): [string, Uint8Array][] => {
+        const shot: unknown = page.screenshot;
+        return typeof shot === "object" && shot !== null && "sha256" in shot
           ? [[`${run.id}/${page.slug}`, TINY_JPEG]]
-          : [],
-      ),
+          : [];
+      }),
     ),
   );
 }

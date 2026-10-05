@@ -22,6 +22,7 @@ import type {
   PageSource,
   RunEvent,
   RunJson,
+  ScreenshotRecord,
 } from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
 import { runAudit } from "../src/run/audit.js";
@@ -334,6 +335,7 @@ describe("loadShareInput", () => {
 
   describe("each page's screenshot", () => {
     const NOT_SHOWN = "Not shown: the file isn't as the run recorded it; voicecap verify names it.";
+    const UNREADABLE_RECORD = "Not shown: the run's record of this screenshot couldn't be read.";
     const PICTURE: PageScreenshot = { jpeg: TINY_JPEG };
 
     /** A site folder with one run of the scripted site, each of whose pages took `screenshot`. */
@@ -375,6 +377,30 @@ describe("loadShareInput", () => {
         { notRecorded: NOT_SHOWN },
         { notRecorded: NOT_SHOWN },
       ]);
+    });
+
+    it("reads no file for a record no voicecap writes, and the page says it couldn't read the record, rather than stop", async () => {
+      const { siteDir, run } = await shotSite();
+      const file = runJsonPath(siteDir, run.id);
+      const recorded = JSON.parse(await readFile(file, "utf8")) as RunJson;
+      // As an edit, or a later voicecap, might leave them: no object, and an object of neither kind.
+      const odd: unknown[] = [null, "screenshot.jpg"];
+      const { seal: _seal, ...unsealed } = {
+        ...recorded,
+        pages: recorded.pages.map((page, index) => ({ ...page, screenshot: odd[index] })),
+      };
+      await writeFile(file, JSON.stringify({ ...unsealed, seal: sealOf(unsealed) }, null, 2));
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+      const model = buildShareModel(input);
+
+      expect(input.screenshots.size).toBe(0);
+      expect(model.pages.map((card) => card.screenshot)).toEqual([
+        { notRecorded: UNREADABLE_RECORD },
+        { notRecorded: UNREADABLE_RECORD },
+      ]);
+      expect(model.evidence[0]?.fingerprints.map(({ file: name }) => name)).not.toContain(
+        "screenshot.jpg",
+      );
     });
 
     it("reads no file for a page whose record says why it has none", async () => {
@@ -1789,7 +1815,8 @@ describe("a page's screenshot", () => {
       { width: 16, height: 12 },
       { width: 16, height: 12 },
     ]);
-    // Bytes that aren't a picture with a size aren't what the run recorded either.
+    // Bytes that are as the run recorded them, but aren't a picture with a size, can't be shown:
+    // the page says that, and never that verify names a file that matches its record.
     const odd = runOf([{ path: "/", screenshot: { ...TINY_RECORD, width: 0 } }]);
     const slug = odd.pages[0]?.slug ?? "";
     const bytes = Uint8Array.of(1, 2, 3);
@@ -1797,7 +1824,38 @@ describe("a page's screenshot", () => {
       saidInPlace(
         buildShareModel(inputOf([odd], { screenshots: new Map([[`r1/${slug}`, bytes]]) })).pages[0],
       ),
-    ).toBe(NOT_SHOWN);
+    ).toBe(
+      "Not shown: the file is as the run recorded it, but it isn't a picture voicecap can show.",
+    );
+  });
+
+  it("says it couldn't read a record no voicecap writes, and lists no file for it, rather than stop", () => {
+    const records: unknown[] = [
+      null,
+      "screenshot.jpg",
+      42,
+      [],
+      {},
+      { takenAt: TAKEN },
+      { sha256: TINY_RECORD.sha256, takenAt: TAKEN },
+    ];
+    const run = runOf([
+      { path: "/", screenshot: TINY_RECORD },
+      ...records.map((screenshot, index) => ({
+        path: `/odd-${index}`,
+        screenshot: screenshot as ScreenshotRecord,
+      })),
+    ]);
+    const model = buildShareModel(inputOf([run], { screenshots: picturesOf([run]) }));
+
+    expect(model.pages.map(saidInPlace)).toEqual([
+      null,
+      ...records.map(() => "Not shown: the run's record of this screenshot couldn't be read."),
+    ]);
+    expect(model.evidence[0]?.fingerprints.filter(({ file }) => file === "screenshot.jpg")).toEqual(
+      [{ page: "/", file: "screenshot.jpg", bytes: TINY_RECORD.bytes, sha256: TINY_RECORD.sha256 }],
+    );
+    expect(model.check.screenshots).toHaveLength(1);
   });
 
   describe("says why a page has no picture", () => {

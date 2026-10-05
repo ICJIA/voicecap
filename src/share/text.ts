@@ -246,6 +246,14 @@ export const SCREENSHOT_TEXT = {
   notRead: "Not recorded: no screenshot was taken, since the page wasn't read.",
   /** The picture's file is missing, or isn't as its run recorded it (changed since the seal). */
   changed: "Not shown: the file isn't as the run recorded it; voicecap verify names it.",
+  /**
+   * The picture's file is as its run recorded it, but neither its record nor the file itself gives
+   * its size: it isn't a JPEG the page can lay out.
+   */
+  notAPicture:
+    "Not shown: the file is as the run recorded it, but it isn't a picture voicecap can show.",
+  /** The page's record of its screenshot is of no kind voicecap writes: null, or a string, say. */
+  unreadable: "Not shown: the run's record of this screenshot couldn't be read.",
 };
 
 /** "What the flags found": its heading, and the words of each flagged page's table. */

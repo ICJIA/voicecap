@@ -23,6 +23,7 @@ import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
+import { screenshotRecordOf } from "./records.js";
 import type { PageReview } from "./review.js";
 import { keepsScreenshots, notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
 import { cardRecord, type PageStanding, type Standing } from "./standing.js";
@@ -238,8 +239,10 @@ export function jpegOfAddress(address: string): Uint8Array {
 /**
  * A page's screenshot as its card shows it, of the record the card speaks for. A record with the
  * file's fingerprint is the picture, when the loader holds the file (it holds only a file as its
- * record has it), at the size the record gives; otherwise it's the words that say why there's none,
- * as SCREENSHOT_TEXT has them.
+ * record has it), at the size the record gives, else the size the picture itself gives; otherwise
+ * it's the words that say why there's none, as SCREENSHOT_TEXT has them: the file isn't as recorded,
+ * the file is as recorded but isn't a picture with a size, or the record itself (read through
+ * `screenshotRecordOf`) is of no kind voicecap writes.
  *
  * A record with no screenshot says it as every part a run didn't record is said, when its run is
  * from before voicecap took screenshots (0.11.0). From then on, either its run's driver took none of
@@ -255,7 +258,8 @@ function screenshotOf(
 ): PageCard["screenshot"] {
   if (source === null) return { notRecorded: notRecordedBy(version) };
   const { run, page } = source;
-  const record = page.screenshot;
+  const record = screenshotRecordOf(page);
+  if (record === "unreadable") return { notRecorded: SCREENSHOT_TEXT.unreadable };
   if (record === undefined) {
     if (!keepsScreenshots(version)) return { notRecorded: notRecordedBy(version) };
     let took = tookAny.get(run);
@@ -268,9 +272,11 @@ function screenshotOf(
   if ("error" in record) {
     return { notRecorded: SCREENSHOT_TEXT.failed(reasonOf(record.error, input.redact)) };
   }
+  // The loader holds a file only when it's as its record has it.
   const bytes = input.screenshots.get(`${run.id}/${page.slug}`);
-  const size = bytes === undefined ? null : sizeOf(record, bytes);
-  if (bytes === undefined || size === null) return { notRecorded: SCREENSHOT_TEXT.changed };
+  if (bytes === undefined) return { notRecorded: SCREENSHOT_TEXT.changed };
+  const size = sizeOf(record, bytes);
+  if (size === null) return { notRecorded: SCREENSHOT_TEXT.notAPicture };
   return {
     dataUri: `${JPEG_ADDRESS}${Buffer.from(bytes).toString("base64")}`,
     alt: SCREENSHOT_TEXT.alt(name, input.screenReader(run)),

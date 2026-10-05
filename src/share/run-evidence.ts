@@ -23,7 +23,7 @@ import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import { keepsEventLog } from "./problems.js";
-import { isFileHash } from "./records.js";
+import { isFileHash, screenshotRecordOf } from "./records.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
 import {
@@ -240,12 +240,12 @@ function ownFiles(run: RunJson): RunEvidence["fingerprints"] {
 
 /**
  * A page's screenshot as one of its run's files, when the page's record has the file's fingerprint
- * (a record of why there's none lists no file). The record keeps it apart from the page's
- * transcripts, so it's added to them here.
+ * (a record of why there's none lists no file, and neither does one of no kind voicecap writes). The
+ * record keeps it apart from the page's transcripts, so it's added to them here.
  */
 function screenshotFile(page: PageRecord): RunEvidence["fingerprints"] {
-  const shot = page.screenshot;
-  if (shot === undefined || "error" in shot) return [];
+  const shot = screenshotRecordOf(page);
+  if (shot === undefined || shot === "unreadable" || "error" in shot) return [];
   return [
     { page: pagePath(page.url), file: SCREENSHOT_FILE, bytes: shot.bytes, sha256: shot.sha256 },
   ];

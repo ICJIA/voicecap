@@ -37,6 +37,7 @@ import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
+import { screenshotRecordOf } from "./records.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
 /** The transcripts the page shows or compares, by run id, page slug, and pass. */
@@ -284,10 +285,11 @@ async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput
 
 /**
  * The screenshot of each page, by run id and slug: the file of the record its card speaks for, when
- * the record lists one (a record of why there's none lists no file) and the file is there and is as
- * the record has it. A file that isn't (missing, unreadable, or changed since its run's seal) is left
- * out, and the page says so; `voicecap verify` names it. They're read one at a time: a site of
- * hundreds of pages would otherwise hold hundreds of files open at once, more than some systems allow.
+ * the record lists one (a record of why there's none lists no file, and neither does a record of no
+ * kind voicecap writes) and the file is there and is as the record has it. A file that isn't
+ * (missing, unreadable, or changed since its run's seal) is left out, and the page says so; `voicecap
+ * verify` names it. They're read one at a time: a site of hundreds of pages would otherwise hold
+ * hundreds of files open at once, more than some systems allow.
  */
 async function screenshotsOf(
   siteDir: string,
@@ -296,8 +298,9 @@ async function screenshotsOf(
   const pictures: ShareInput["screenshots"] = new Map();
   for (const card of standing.pages) {
     const source = cardRecord(card);
-    const recorded = source?.page.screenshot;
-    if (source === null || recorded === undefined || "error" in recorded) continue;
+    const recorded = source === null ? undefined : screenshotRecordOf(source.page);
+    if (source === null || recorded === undefined || recorded === "unreadable") continue;
+    if ("error" in recorded) continue;
     let bytes: Buffer;
     try {
       bytes = await readFile(
