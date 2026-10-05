@@ -224,9 +224,10 @@ export function evidenceOf(input: {
 }
 
 /**
- * The files a run's record lists beside its pages (RunJson.files: its event log), each as the run's.
- * Only an entry that is a file's fingerprint as voicecap writes one: `voicecap verify` reads a record
- * with any other as not voicecap's, and the page shows no size or fingerprint it doesn't have.
+ * The files a run's record lists beside its pages (RunJson.files: its event log), each as the
+ * run's. Only an entry that is a file's fingerprint as voicecap writes one: `voicecap verify` reads
+ * a record with any other as not voicecap's, and the page shows no size or fingerprint it doesn't
+ * have.
  */
 function ownFiles(run: RunJson): RunEvidence["fingerprints"] {
   const files: unknown = run.files;

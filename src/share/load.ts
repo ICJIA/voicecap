@@ -287,9 +287,9 @@ async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput
  * The screenshot of each page, by run id and slug: the file of the record its card speaks for, when
  * the record lists one (a record of why there's none lists no file, and neither does a record of no
  * kind voicecap writes) and the file is there and is as the record has it. A file that isn't
- * (missing, unreadable, or changed since its run's seal) is left out, and the page says so; `voicecap
- * verify` names it. They're read one at a time: a site of hundreds of pages would otherwise hold
- * hundreds of files open at once, more than some systems allow.
+ * (missing, unreadable, or changed since its run's seal) is left out, and the page says so;
+ * `voicecap verify` names it. They're read one at a time: a site of hundreds of pages would
+ * otherwise hold hundreds of files open at once, more than some systems allow.
  */
 async function screenshotsOf(
   siteDir: string,

@@ -667,15 +667,18 @@ export const TIMELINE_TEXT = {
    */
   restartsIn: (count: number, sessions: string, reasons: string): string =>
     `${count === 0 ? "None" : count} in ${sessions}${count === 0 || reasons === "" ? "" : `: ${reasons}`}.`,
-  /** The sessions the log covers, their numbers as a list ("2 and 3"): "session 2", "sessions 2 and 3". */
+  /**
+   * The sessions the log covers, their numbers as a list ("2 and 3"): "session 2", "sessions 2
+   * and 3".
+   */
   inSessions: (list: string, several: boolean): string =>
     `${several ? "sessions" : "session"} ${list}`,
   /**
-   * A session of the run that the event log has no line of, said where its timeline would be: by the
-   * voicecap its own session used, when that kept no log (a run begun before 0.11.0 and finished on
-   * it), named as `notRecordedBy` names one ("an earlier version of voicecap" when its record doesn't
-   * say); or, of a voicecap that keeps the log, that the log has no line of it (one that couldn't be
-   * written then).
+   * A session of the run that the event log has no line of, said where its timeline would be: by
+   * the voicecap its own session used, when that kept no log (a run begun before 0.11.0 and
+   * finished on it), named as `notRecordedBy` names one ("an earlier version of voicecap" when its
+   * record doesn't say); or, of a voicecap that keeps the log, that the log has no line of it (one
+   * that couldn't be written then).
    */
   unlogged: {
     version: (session: number, version: string | null): string =>
