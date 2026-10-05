@@ -13,12 +13,13 @@ import type {
   SkipReason,
   SkippedRecord,
 } from "../model.js";
+import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { describePageUrls } from "../pages/describe.js";
 import { liveReportPath, pageDir, runReportPath } from "../run/paths.js";
 import { environmentLines, stopReasonText } from "../transcripts/format.js";
 import { REPORT_SCRIPT } from "./client.js";
 import { esc, fileHref, link, linkList, plural, shortTime } from "./html.js";
-import type { Banner, PageGroup, ReportModel, ReportRow } from "./model.js";
+import type { Banner, PageGroup, ReportInput, ReportModel, ReportRow } from "./model.js";
 import { pageName } from "./model.js";
 import { REPORT_CSS } from "./styles.js";
 
@@ -84,6 +85,19 @@ export function renderReport(model: ReportModel, paths: RenderPaths): string {
   return out.join("");
 }
 
+/**
+ * The site as the report's subtitle names it. A run that recorded its site's canonical address
+ * names the site by it, as the shareable page does: the site's name, linked to its root, whatever
+ * address voicecap read (a copy on the tester's computer, say). That root is checked again, since a
+ * record is data. Without one, the subtitle names the address voicecap read, as it always has.
+ */
+function siteLink(run: ReportInput["run"]): string {
+  const root = recordedCanonical(run.canonical);
+  return root === null
+    ? `<a href="${esc(run.site)}">${esc(run.site)}</a>`
+    : `<a href="${esc(root)}">${esc(canonicalName(root))}</a>`;
+}
+
 function header(model: ReportModel): string {
   const { run, branding, target, generatedAt } = model.input;
   const brand =
@@ -92,7 +106,7 @@ function header(model: ReportModel): string {
           branding.agency ? `<p class="agency">${esc(branding.agency)}</p>` : ""
         }</div>\n`
       : "";
-  const site = `<a href="${esc(run.site)}">${esc(run.site)}</a>`;
+  const site = siteLink(run);
   const subtitle =
     target === "live"
       ? `Live report for run <span class="mono">${esc(run.id)}</span> of ${site}, with reviews and manual sessions as of ${shortTime(generatedAt)}.`

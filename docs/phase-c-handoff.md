@@ -188,7 +188,7 @@ Deferred from the `voicecap demo` reviews (2026-09-29), each judged "can wait" o
   - A missing `demo/site/` or `404.html` makes every page a 500; a check at startup would give a clear error.
   - The 500 and 405 blocks are duplicated in both servers.
   - The default port, 4848, isn't tested, and neither is `closeAllConnections()`.
-  - Polish: temp folders from the tests aren't removed; the `listen` parameter shadows the module's function; a 405 on `/ask-a-question/` says `Allow: GET, HEAD`, without POST.
+  - Polish: temp folders from the tests aren't removed; the `listen` parameter shadows the module's function. (A third item, a 405 on `/ask-a-question/` that says `Allow: GET, HEAD`, without POST, is settled: since 0.10.0 the form sends with GET to `ask-a-question/sent.html`, and the server answers no POST, so the header is right.)
 - **Tests:**
   - No test pins that a replay run ignores `preflight`.
   - No test checks that step 3 passes the fake signals on.

@@ -20,15 +20,19 @@ import {
   verdictLine,
 } from "../src/share/html/parts.js";
 import { renderHow, renderSummary, renderTop } from "../src/share/html/top.js";
+import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import { HOW_LEAD, HOW_STEPS, WHEN_TO_RUN } from "../src/share/text.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
-import { demoModel, inputOf } from "./helpers/share-model.js";
+import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
 
 const PAT = "Pat Lee";
+
+/** Where a copy of the demo site runs on the tester's computer. */
+const READ = "http://127.0.0.1:4848";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const NV_ACCESS = "https://www.nvaccess.org/";
@@ -76,6 +80,27 @@ function richModel(): ShareModel {
 function noRunModel(): ShareModel {
   const replay = shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] });
   return buildShareModel(inputOf([replay]));
+}
+
+/**
+ * The demo site as voicecap read it on a copy on the tester's computer, named by its canonical
+ * address, with a name set for it: Pat Lee's run of one page, begun at 14:02 on 29 September 2026.
+ */
+function copyModel(overrides: Partial<ShareInput> = {}): ShareModel {
+  const run = shareRun({
+    id: "2026-09-29_1402",
+    site: READ,
+    createdAt: "2026-09-29T14:02:00-05:00",
+    sessions: [{ reviewer: PAT }],
+    pages: [{ path: "/" }],
+  });
+  const input = inputOf([run], {
+    readOrigin: READ,
+    canonical: DEMO_ROOT,
+    siteName: "The voicecap demo",
+    ...overrides,
+  });
+  return buildShareModel(input);
 }
 
 /** The model with some of the summary's six numbers changed. */
@@ -497,23 +522,97 @@ describe("the step icons", () => {
 });
 
 describe("renderTop", () => {
-  it("heads the page with the site's name, the date, and who made it", async () => {
+  it("heads the page with the site's name, the date and time it was tested, and who made it", async () => {
     const html = renderTop(richModel());
 
-    expect(html).toContain("<h1>Example Agency</h1>");
+    // The name of a site no canonical address names is the host voicecap read: its home page's
+    // title ("Example Agency" here) doesn't head the page.
+    expect(html).toContain("<h1>example.illinois.gov</h1>");
+    expect(html).not.toContain("Example Agency");
     expect(html).toContain('<div class="eyebrow">Screen reader test results</div>');
+    // Under the name, when the latest run began, as the run recorded it.
+    expect(html).toContain('<p class="mast-tested">Tested 29 September 2026, 09:00</p>');
     expect(html).toContain(
       `<p class="mast-lead">How its pages read aloud with <a href="${NV_ACCESS}">NVDA</a>, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.</p>`,
     );
     expect(html).toContain("<span>As of <b>30 September 2026</b></span>");
     expect(html).toContain(`<span>Prepared by <b>${PAT}</b></span>`);
     expect(html).toContain(`<span>Made with <a href="${GITHUB}">voicecap</a></span>`);
-    // The site's address comes last, small.
+    // The site's address comes last, small. No canonical address names this site, so it's the one
+    // voicecap read, as it was: words, with no link to a place a reader may not be able to open.
     expect(html).toContain(`<span class="addr">Site address ${SITE}</span>`);
     expect(html.indexOf("Prepared by")).toBeLessThan(html.indexOf("Site address"));
+    expect(attributes(html, "href")).not.toContain(SITE);
 
-    // The demo's runs name no title: its host heads the page.
+    // The demo's runs name no canonical address: the host they read heads the page.
     expect(renderTop(await demoModel())).toContain("<h1>127.0.0.1:4848</h1>");
+  });
+
+  it("leads with the canonical name and the date and time it was tested", () => {
+    const html = renderTop(copyModel());
+
+    expect(html).toContain("<h1>voicecap.netlify.app</h1>");
+    expect(html).toContain('<p class="mast-site">The voicecap demo</p>');
+    expect(html).toContain('<p class="mast-tested">Tested 29 September 2026, 14:02</p>');
+    // Top to bottom: the eyebrow, the name, the name set for the site, when it was tested, the
+    // plain lines, who and when, and the site's address last.
+    const order = [
+      'class="eyebrow"',
+      "<h1>",
+      'class="mast-site"',
+      'class="mast-tested"',
+      'class="mast-lead"',
+      "As of ",
+      "Prepared by ",
+      "Made with ",
+      'class="addr"',
+    ].map((marker) => html.indexOf(marker));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // The address is the canonical root, linked, small and last; the address voicecap read, which
+    // was a copy on this computer, is nowhere in it.
+    expect(html).toContain(
+      `<span class="addr">Site address <a href="${DEMO_ROOT}">${DEMO_ROOT}</a></span>`,
+    );
+    expect(html.indexOf('class="addr"')).toBeGreaterThan(html.indexOf("Made with "));
+    expect(html).not.toMatch(/127\.0\.0\.1|localhost/);
+  });
+
+  it("says the date and time as plain words in paragraphs under the name, which is the only heading", () => {
+    const html = renderTop(copyModel());
+    const words = (markup: string | undefined) => textOf(markup ?? "", "");
+    const paragraph = (className: string) =>
+      words(new RegExp(`<p class="${className}">(.*?)</p>`, "s").exec(html)?.[1]);
+    const meta = /<div class="mast-meta">(.*?)<\/div>\s*<\/header>/s.exec(html)?.[1] ?? "";
+
+    expect(words(/<h1>(.*?)<\/h1>/s.exec(html)?.[1])).toBe("voicecap.netlify.app");
+    expect(paragraph("mast-site")).toBe("The voicecap demo");
+    expect(paragraph("mast-tested")).toBe("Tested 29 September 2026, 14:02");
+    expect(
+      meta
+        .split("</span>")
+        .filter((span) => span !== "")
+        .map(words),
+    ).toEqual([
+      "As of 30 September 2026",
+      `Prepared by ${PAT}`,
+      "Made with voicecap",
+      `Site address ${DEMO_ROOT}`,
+    ]);
+    // The name is the page's one heading: what follows it is paragraphs, so the headings go down
+    // from an h1 as they did.
+    expect([...html.matchAll(/<h([1-6])[\s>]/g)].map(([, level]) => level)).toEqual(["1"]);
+  });
+
+  it("leaves out the line for the site's name when none is set, and the line for when it was tested when no run counts", () => {
+    const plain = renderTop(copyModel({ siteName: null }));
+    expect(plain).not.toContain("mast-site");
+    expect(plain).toContain('<p class="mast-tested">');
+
+    const none = renderTop(noRunModel());
+    expect(none).not.toContain("mast-tested");
+    expect(none).not.toContain("Tested ");
+    expect(none).toContain("No live run counts yet");
   });
 
   it("has the two buttons, hidden until the page's script shows them, the theme's offering light", () => {
@@ -536,18 +635,56 @@ describe("renderTop", () => {
       ...model,
       header: {
         ...model.header,
-        siteName: '<Agency> & "Co"',
+        name: '<Agency> & "Co"',
         site: "https://a.gov/?x=1&y=2",
+        siteName: "<i>Co</i> & 'Sons'",
+        testedAt: "29 <b> 2026, 09:00",
         asOf: "1 <b> 2026",
         tested: "29 <b> 2026",
       },
     });
 
     expect(html).toContain("<h1>&lt;Agency&gt; &amp; &quot;Co&quot;</h1>");
+    expect(html).toContain('<p class="mast-site">&lt;i&gt;Co&lt;/i&gt; &amp; &#39;Sons&#39;</p>');
+    expect(html).toContain('<p class="mast-tested">Tested 29 &lt;b&gt; 2026, 09:00</p>');
     expect(html).toContain("Site address https://a.gov/?x=1&amp;y=2");
     expect(html).toContain("<span>As of <b>1 &lt;b&gt; 2026</b></span>");
     expect(html).toContain("tested on 29 &lt;b&gt; 2026.");
     expect(html).not.toContain("<Agency>");
+    expect(html).not.toContain("<i>");
+  });
+
+  it("escapes the address it links to, which is a canonical root", () => {
+    const model = copyModel();
+    const html = renderTop({
+      ...model,
+      header: { ...model.header, site: 'https://a.gov/"x"/?q=1&r=<2>' },
+    });
+
+    expect(html).toContain(
+      '<a href="https://a.gov/&quot;x&quot;/?q=1&amp;r=&lt;2&gt;">https://a.gov/&quot;x&quot;/?q=1&amp;r=&lt;2&gt;</a>',
+    );
+    expect(attributes(html, "href")).toContain("https://a.gov/&quot;x&quot;/?q=1&amp;r=&lt;2&gt;");
+  });
+
+  it("links the address only when it is a web address, so no record can put a script in a link", () => {
+    const model = copyModel();
+    const withSite = (site: string) => renderTop({ ...model, header: { ...model.header, site } });
+
+    for (const site of [
+      "javascript:alert(1)",
+      "data:text/html,<b>x</b>",
+      "ftp://a.gov/",
+      "a.gov/",
+    ]) {
+      const html = withSite(site);
+
+      expect(attributes(html, "href"), site).toEqual([NV_ACCESS, GITHUB]);
+      expect(html, site).toContain(`<span class="addr">Site address ${esc(site)}</span>`);
+    }
+    // A web address is linked, in either scheme.
+    expect(attributes(withSite("http://a.gov/"), "href")).toContain("http://a.gov/");
+    expect(attributes(withSite("HTTPS://a.gov/"), "href")).toContain("HTTPS://a.gov/");
   });
 
   it("leaves out Prepared by when no name was recorded", async () => {
@@ -1210,18 +1347,22 @@ describe("the top, the summary, and how voicecap works together", () => {
   const models = async (): Promise<[string, ShareModel, number][]> => [
     ["the demo's", await demoModel(), 1],
     ["a person's run", richModel(), 1],
+    ["a copy, named by its canonical address", copyModel(), 1],
     ["no counted run", noRunModel(), 0],
   ];
 
   it("never sets a style attribute, loads nothing, and links only where it should", async () => {
     for (const [name, model] of await models()) {
       const html = pageOf(model);
+      // Where the site has a canonical address, its root is the one link to the site.
+      const root = model.header.readFrom === null ? null : model.header.site;
 
       expect(html, name).not.toMatch(/\sstyle\s*=/i);
       expect(html, name).not.toMatch(/\ssrc\s*=/i);
       expect(html, name).not.toMatch(/<(?:script|style|link|img|iframe)[\s>]/i);
       for (const href of attributes(html, "href")) {
-        const allowed = href.startsWith("#") || href === GITHUB || href === NV_ACCESS;
+        const allowed =
+          href.startsWith("#") || href === GITHUB || href === NV_ACCESS || href === root;
         expect(allowed, `${name}: ${href}`).toBe(true);
       }
     }

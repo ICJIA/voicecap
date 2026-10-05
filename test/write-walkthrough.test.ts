@@ -351,6 +351,76 @@ describe("writeWalkthrough", () => {
     expect(logger.entries).toEqual(wrote("2026-09-29_1402", "7 pages", file));
   });
 
+  // Ruling P17. A run of a copy of the site, whose folder is named for the copy's address, and the
+  // live site's own folder, both name https://example.illinois.gov/: the command the copy's shared
+  // page prints names the site by that address, and its run by its id.
+  describe("given the site's canonical address and a run", () => {
+    const CANONICAL = "https://example.illinois.gov/";
+
+    /**
+     * A home with a run of the live site (example.illinois.gov, 14 January at 09:00) and a replayed
+     * run of a copy at REPLAY_SITE that recorded the live site's address (15 January at 10:00).
+     */
+    async function homeWithACopy() {
+      const dir = await newFolder();
+      const live = await runAudit(
+        runOptions(dir, new ScriptedDriver(sitePages()), {
+          now: () => new Date(2027, 0, 14, 9, 0),
+        }),
+      );
+      const copy = await runAudit({
+        ...runOptions(dir, undefined, {
+          now: () => new Date(2027, 0, 15, 10, 0),
+          canonical: CANONICAL,
+        }),
+        site: REPLAY_SITE,
+        pages: fixture("pages.json"),
+        replayFrom: fixture("replay-run"),
+      });
+      expect([live.outcome, copy.outcome]).toEqual(["completed", "completed"]);
+      expect([live.runId, copy.runId]).toEqual(["2027-01-14_0900", "2027-01-15_1000"]);
+      return { dir, live, copy };
+    }
+
+    it("writes the copy's run from the copy's folder, though the live site's folder is named for the address", async () => {
+      const { dir, copy } = await homeWithACopy();
+      const file = path.join(dir, "walkthrough.json");
+      const { options } = writing(dir, file, { site: CANONICAL, run: copy.runId });
+
+      const result = await writeWalkthrough(options);
+
+      expect(result.runId).toBe(copy.runId);
+      const written = await writtenIn(file);
+      expect(written.original).toMatchObject({ run: copy.runId, replayed: true });
+      // It repeats where the run read: the copy.
+      expect(written.site).toBe(REPLAY_SITE);
+    });
+
+    it("writes the live site's run from its own folder", async () => {
+      const { dir, live } = await homeWithACopy();
+      const file = path.join(dir, "walkthrough.json");
+      const { options } = writing(dir, file, { site: SITE, run: live.runId });
+
+      await writeWalkthrough(options);
+
+      const written = await writtenIn(file);
+      expect(written.original.run).toBe(live.runId);
+      expect(written.site).toBe(SITE);
+    });
+
+    it("names the run and the folders it looked in when none holds it, and writes nothing", async () => {
+      const { dir } = await homeWithACopy();
+      const file = path.join(dir, "out", "walkthrough.json");
+      const { options } = writing(dir, file, { site: CANONICAL, run: "2027-01-16_0900" });
+      const home = path.join(dir, "transcripts");
+
+      expect(await refusal(writeWalkthrough(options))).toBe(
+        `There's no run 2027-01-16_0900 in ${path.join(home, "example.illinois.gov")} or ${path.join(home, "127.0.0.1_4747")}.`,
+      );
+      expect(existsSync(path.dirname(file))).toBe(false);
+    });
+  });
+
   it("makes the file's folder when it's missing, and gives the full path of a file named relative to where it's run", async () => {
     const { dir, run } = await homeWithRun();
     const relative = path.join("reports", "2027", "walkthrough.json");

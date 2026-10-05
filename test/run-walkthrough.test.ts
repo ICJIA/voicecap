@@ -597,6 +597,16 @@ describe("a run repeated from its walkthrough file", () => {
     expect(replayed.run.settings.replayFrom).toBe(run.runDir.split(path.sep).join("/"));
   });
 
+  it("allows --canonical, which names the site in the record and changes nothing that's read", async () => {
+    const { dir } = await original();
+    const named = await runAudit(
+      repeating(dir, new ScriptedDriver(sitePages()), NAME, { canonical: "dvfr.illinois.gov" }),
+    );
+    expect(named.outcome).toBe("completed");
+    expect(named.run.canonical).toBe("https://dvfr.illinois.gov/");
+    expect(named.run.site).toBe(SITE);
+  });
+
   it("resumes an interrupted repeat", async () => {
     const { dir } = await original();
     const controller = new AbortController();

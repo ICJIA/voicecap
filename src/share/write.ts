@@ -21,7 +21,7 @@ import type { Logger } from "../util/log.js";
 import { renderWordCopy } from "./docx.js";
 import { fontFaceCss } from "./fonts.js";
 import { renderSharePage } from "./html/document.js";
-import { loadShareInput } from "./load.js";
+import { loadShareInput, type ShareInput } from "./load.js";
 import { buildShareModel, type ShareModel } from "./model.js";
 
 export interface WriteShareFilesOptions {
@@ -73,7 +73,8 @@ function heldCode(error: unknown): string | null {
  * what couldn't be done, with its code, when that happens, and what to do, ending with the exact
  * command to run then. A bare `voicecap report` isn't it: it refuses in a home of several sites
  * without `--site`, and it looks in the default home, not one that `--out` gave. So the command
- * names the site, and the home that the site's folder is in.
+ * names the site by the address voicecap read, as terminal output does, which finds the site's
+ * folder, and the home that the folder is in.
  */
 function heldReason(code: string, site: string, siteDir: string): string {
   const command = formatCommand(["report", "--site", site, "--out", path.dirname(siteDir)]);
@@ -92,10 +93,12 @@ function heldReason(code: string, site: string, siteDir: string): string {
  */
 export async function writeShareFiles(options: WriteShareFilesOptions): Promise<ShareFiles | null> {
   const { siteDir, config, logger, now, rename } = options;
+  let input: ShareInput;
   let model: ShareModel;
   try {
     if ((await listRuns(siteDir)).length === 0) return null;
-    model = buildShareModel(await loadShareInput({ siteDir, config, now }));
+    input = await loadShareInput({ siteDir, config, now });
+    model = buildShareModel(input);
   } catch (error) {
     // Neither file was tried, so no file of Word's was refused: the reason is all there is to say.
     logger.warn(pageNotUpdated(error));
@@ -103,7 +106,7 @@ export async function writeShareFiles(options: WriteShareFilesOptions): Promise<
     return { page: null, word: null };
   }
   const page = await writePage(model, siteDir, rename, logger);
-  const word = await writeWord(model, siteDir, rename, logger);
+  const word = await writeWord(model, input.readOrigin, siteDir, rename, logger);
   return { page, word };
 }
 
@@ -125,9 +128,13 @@ async function writePage(
   }
 }
 
-/** The Word copy, made and written: its path, or null with a warning. */
+/**
+ * The Word copy, made and written: its path, or null with a warning. `readOrigin` is the address
+ * voicecap read the site at, which the warning's command names.
+ */
 async function writeWord(
   model: ShareModel,
+  readOrigin: string,
   siteDir: string,
   rename: WriteShareFilesOptions["rename"],
   logger: Logger,
@@ -140,9 +147,7 @@ async function writeWord(
   } catch (error) {
     const held = heldCode(error);
     logger.warn(
-      wordNotUpdated(
-        held === null ? errorMessage(error) : heldReason(held, model.header.site, siteDir),
-      ),
+      wordNotUpdated(held === null ? errorMessage(error) : heldReason(held, readOrigin, siteDir)),
     );
     return null;
   }

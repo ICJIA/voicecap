@@ -15,6 +15,11 @@ export interface ScriptedPage {
   contentType?: string;
   /** The title openPage reports (default: none, reported as null). */
   title?: string;
+  /**
+   * The address of the page's canonical tag, as the browser reports it (always absolute): what
+   * openPage reports (default: no tag, reported as null).
+   */
+  canonical?: string;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -132,6 +137,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
         status: page.status ?? 200,
         contentType: page.contentType ?? "text/html; charset=utf-8",
         title: page.title ?? null,
+        canonical: page.canonical ?? null,
       };
     });
   }

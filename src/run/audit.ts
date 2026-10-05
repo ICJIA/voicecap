@@ -19,6 +19,7 @@ import {
   type RunSettings,
   type SessionRecord,
 } from "../model.js";
+import { chooseCanonicalRoot, normalizeCanonical } from "../pages/canonical.js";
 import { compilePattern } from "../pages/filter.js";
 import {
   pageSourceFor,
@@ -111,6 +112,16 @@ export interface RunAuditOptions {
   out?: string;
   runName?: string | null;
   /**
+   * The address people visit, for reports to name the site by (--canonical): normalized to a root
+   * (see normalizeCanonical) before anything starts, so a bad one is a usage error, and the record
+   * never holds an unnormalized one. Default: the root most of the inner pages' own canonical tags
+   * name, and the home page's only when no inner page's names one (see chooseCanonicalRoot), and
+   * none when no page names one. It isn't one of the run's settings, so it doesn't change which run
+   * resumes: the value given to the session that completes the run is the one recorded. A replayed
+   * run reads no tags, so its root comes only from this.
+   */
+  canonical?: string | null;
+  /**
    * Who is running this session, recorded with it. Default: VOICECAP_REVIEWER, then
    * `git config user.name`, then the config's reviewer; with none of them, the session records none.
    */
@@ -200,6 +211,12 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
   const logger = options.logger ?? createConsoleLogger();
   const now = options.now ?? (() => new Date());
   const signal = options.signal ?? new AbortController().signal;
+
+  // A bad --canonical is refused before anything is read, loaded, or touched.
+  const canonical =
+    options.canonical === undefined || options.canonical === null
+      ? null
+      : normalizeCanonical(options.canonical);
 
   // A repeat is read first: everything it's refused for is refused here, before the config is
   // loaded, the readiness is checked, or a folder is touched.
@@ -338,6 +355,7 @@ export async function runAudit(options: RunAuditOptions): Promise<RunAuditResult
       loaded,
       outDir,
       site,
+      canonical,
       logger,
       signal,
       now,
@@ -428,6 +446,8 @@ interface ExecuteContext {
   loaded: LoadedConfig;
   outDir: string;
   site: URL;
+  /** The root --canonical gave, already normalized; null when none was given. */
+  canonical: string | null;
   logger: Logger;
   signal: AbortSignal;
   now: () => Date;
@@ -714,6 +734,10 @@ async function complete(ctx: ExecuteContext): Promise<void> {
   run.status = "completed";
   run.completedAt = isoLocal(now());
   run.compareTo = base?.id ?? null;
+  // The site's canonical root: --canonical's, else the root the pages' tags name, counting pages
+  // read in any session. Left out when there's none, so the record is as an older run's is.
+  const canonical = chooseCanonicalRoot(run.pages, ctx.canonical);
+  if (canonical !== null) run.canonical = canonical;
   // Sealed last, once every other field is final: the seal covers every field, so none may change
   // after this. The sealed run.json itself is written below, after the snapshot.
   run.seal = sealOf(run);
@@ -776,6 +800,8 @@ function applyOutcome(
   // A page that has been tried always gets a title, null when there is none to record. Absent means
   // the page is pending, or the run is from before titles were recorded.
   page.title = outcome.title ?? null;
+  // The same for the page's canonical tag: null for a page that wasn't read, or had none.
+  page.canonical = outcome.canonical ?? null;
   if (outcome.skip) page.skip = outcome.skip;
   else delete page.skip;
 }

@@ -2,19 +2,22 @@
  * A transcripts home with reports shared in it, for the website's tests: the demo runs voicecap 0.4.1
  * recorded (test/fixtures/share/demo-2026-09-29), shared twice, a second site whose one report is
  * written by hand, and the demo's own folder, shared once. Each share is the real `voicecap share`
- * (a scripted run's records, no screen reader and no Word), on a fixed day. Nothing here reads the
- * machine's own transcripts home, Git name, or config.
+ * (a scripted run's records, no screen reader and no Word), on a fixed day. The runs read the demo
+ * at an IP address and recorded no canonical address, so each share names it by report.canonical,
+ * as a config would (scripts/readme-screenshots.ts does the same): with no name, voicecap would
+ * refuse to share it. Nothing here reads the machine's own transcripts home, Git name, or config.
  */
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveConfig, type LoadedConfig } from "../../src/config/load.js";
 import { DEMO_OUT } from "../../src/demo/words.js";
 import type { SharedFile } from "../../src/model.js";
 import { shareDir, sharesPath } from "../../src/run/paths.js";
 import { shareReport } from "../../src/share/share.js";
-import { sealOf, sha256 } from "../../src/util/hash.js";
+import { hashJson, sealOf, sha256 } from "../../src/util/hash.js";
 import { silentLogger } from "../../src/util/log.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -22,7 +25,15 @@ const FIXTURE_HOME = path.join(ROOT, "test", "fixtures", "share", "demo-2026-09-
 
 /** The fixture's site folder, which the home shares twice, and which the demo's folder holds a copy of. */
 export const FIXTURE_FOLDER = "127.0.0.1_4848";
-const FIXTURE_SITE = "http://127.0.0.1:4848";
+/** The address the fixture's runs read: the site that `voicecap share` is asked to share. */
+export const FIXTURE_SITE = "http://127.0.0.1:4848";
+/** The demo's canonical address, which each share names the fixture's site by. */
+export const FIXTURE_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+/**
+ * The fixture site's canonical name: what its shares name their files after, and the website heads
+ * its reports with.
+ */
+export const FIXTURE_NAME = "voicecap.netlify.app";
 /** The site whose one report is written by hand. */
 export const EXAMPLE_FOLDER = "example.illinois.gov";
 /** The name its page and its Word copy have, without the extension. */
@@ -85,16 +96,27 @@ export async function writeRecord(siteDir: string, shares: unknown[]): Promise<v
 }
 
 /**
+ * The settings of a share of the fixture's site: what a config with only report.canonical, the
+ * demo's canonical address, gives.
+ */
+function namingTheDemo(): LoadedConfig {
+  const config = resolveConfig({ report: { canonical: FIXTURE_CANONICAL } });
+  return { config, file: null, sha256: hashJson(config) };
+}
+
+/**
  * A new home. With no `at`, it's `transcripts` in a folder of its own that this makes in the
  * machine's temporary folder: the caller takes `path.dirname(home)` away. With `at`, it's made there,
  * and the folder it's in is the caller's.
  *
- * - The fixture site's folder, shared twice on the same day (`_2027-01-15` and `_2027-01-15-2`), each
- *   share a page, its Word copy, and the walkthrough file of each of the two runs that count.
+ * - The fixture site's folder, shared twice on the same day, named by the demo's canonical address
+ *   (`voicecap.netlify.app_2027-01-15` and `voicecap.netlify.app_2027-01-15-2`), each share a page,
+ *   its Word copy, and the walkthrough file of each of the two runs that count.
  * - `example.illinois.gov/`, with a date folder, and a record sealed by hand of one report made on
  *   13 January: a small page and a Word copy, which are in its share/ folder.
  * - `voicecap-demo/127.0.0.1_4848/`, a copy of the fixture's site folder, shared once on 16 January
- *   with `out: <home>/voicecap-demo`, as `voicecap demo` and `voicecap share --out voicecap-demo` do.
+ *   with `out: <home>/voicecap-demo`, as `voicecap demo` and `voicecap share --out voicecap-demo` do,
+ *   named by the demo's canonical address too.
  */
 export async function homeWithShares(at?: string): Promise<string> {
   const home =
@@ -105,14 +127,16 @@ export async function homeWithShares(at?: string): Promise<string> {
   const root = path.dirname(home);
   await cp(FIXTURE_HOME, home, { recursive: true });
 
+  const config = namingTheDemo();
   const share = (out: string, now: Date, reviewer: string) =>
     shareReport({
       out,
       site: FIXTURE_SITE,
       reviewer,
       now,
+      config,
       logger: silentLogger,
-      // The folder the home is in has no config, and no environment is read.
+      // No config file is read, nor any environment.
       cwd: root,
       env: {},
     });

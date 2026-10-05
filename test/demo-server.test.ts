@@ -10,6 +10,7 @@ import {
   DEMO_PAGES,
   DEMO_PORT,
   listenWithFallback,
+  sitemapXml,
   startDemoServer,
   type DemoServer,
 } from "../src/demo/server.js";
@@ -34,7 +35,7 @@ async function stubSite(): Promise<string> {
   await writeFile(path.join(site, "ask-a-question", "index.html"), "<!doctype html><form>");
   await writeFile(
     path.join(site, "ask-a-question", "sent.html"),
-    "<!doctype html><title>Nothing was sent: this is a demo</title>",
+    "<!doctype html><title>Practice form</title><h1>This is a practice form, so no one will answer it.</h1>",
   );
   return site;
 }
@@ -116,6 +117,21 @@ describe("the demo server", () => {
     );
   });
 
+  it("writes the same sitemap for any address it's given, one with a path too", () => {
+    // The website's copy of the demo is at a path of its own.
+    expect(sitemapXml("https://voicecap.netlify.app/demo-site")).toBe(
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        ...DEMO_PAGES.map(
+          (page) => `  <url><loc>https://voicecap.netlify.app/demo-site${page}</loc></url>`,
+        ),
+        "</urlset>",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("names the sitemap in /robots.txt", async () => {
     const response = await fetch(`${server.origin}/robots.txt`);
     expect(response.headers.get("content-type")).toMatch(/^text\/plain/);
@@ -133,19 +149,28 @@ describe("the demo server", () => {
     expect(style.headers.get("content-type")).toMatch(/^text\/css/);
   });
 
-  it("answers the question form's POST with its page", async () => {
-    const response = await fetch(`${server.origin}/ask-a-question/`, {
-      method: "POST",
-      body: new URLSearchParams({ question: "Is this sent anywhere?" }),
-    });
+  // The form is a GET to sent.html, a file, so that the page works as the website serves it too: a
+  // static host can't answer a post.
+  it("answers the question form's GET with its page, as it serves any file", async () => {
+    const query = new URLSearchParams({ name: "Pat", question: "Is this sent anywhere?" });
+    const response = await fetch(`${server.origin}/ask-a-question/sent.html?${query}`);
+
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Nothing was sent: this is a demo");
+    expect(response.headers.get("content-type")).toMatch(/^text\/html/);
+    expect(await response.text()).toContain("This is a practice form, so no one will answer it.");
   });
 
-  it("refuses a POST anywhere else", async () => {
-    const response = await fetch(`${server.origin}/`, { method: "POST", body: "x" });
-    expect(response.status).toBe(405);
-    expect(response.headers.get("allow")).toBe("GET, HEAD");
+  it("refuses a POST, the question form's page too, which it no longer answers", async () => {
+    for (const where of ["/", "/ask-a-question/", "/ask-a-question/sent.html"]) {
+      const response = await fetch(`${server.origin}${where}`, {
+        method: "POST",
+        body: new URLSearchParams({ question: "Is this sent anywhere?" }),
+      });
+
+      expect(response.status, where).toBe(405);
+      expect(response.headers.get("allow"), where).toBe("GET, HEAD");
+      expect(await response.text(), where).not.toContain("practice form");
+    }
   });
 
   it("gives its 404 page for a page that isn't there, and for a path outside the site", async () => {

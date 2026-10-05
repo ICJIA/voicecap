@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { PASS_NAMES } from "../model.js";
+import { normalizeCanonical } from "../pages/canonical.js";
+import { UsageError } from "../util/errors.js";
 
 const passName = z.enum(PASS_NAMES);
 const positiveInt = z.number().int().positive();
@@ -142,10 +144,32 @@ export const configSchema = z.strictObject({
     title: z.string().min(1),
     agency: z.string().min(1).nullable(),
     /**
-     * The site's name, the shareable page's headline. Without it, the page uses the home page's
-     * title as the latest run recorded it, and without that, the site's host name.
+     * The site's name as a line under the shareable page's headline, which is its canonical name
+     * (see `canonical`). Without it, the page has no such line.
      */
     siteName: z.string().min(1).nullable(),
+    /**
+     * The site's canonical address, as people visit it: the page and its Word copy name the site by
+     * its host, and show each page on it, whatever address voicecap read (a copy on `localhost`, say).
+     * It's kept as its root, with a scheme and a `/` on the end: `dvfr.illinois.gov` is
+     * `https://dvfr.illinois.gov/`. It beats the root every run recorded, so it names every site
+     * the config is used with: keep one config per site, as with `siteName`. Without it, the page
+     * uses the root the latest run recorded, and without that, the address voicecap read. An IP
+     * address or a local address is refused, since neither is a site's name.
+     */
+    canonical: z
+      .string()
+      .nullable()
+      .transform((address, ctx): string | null => {
+        if (address === null) return null;
+        try {
+          return normalizeCanonical(address);
+        } catch (error) {
+          if (!(error instanceof UsageError)) throw error;
+          ctx.addIssue({ code: "custom", message: error.message });
+          return z.NEVER;
+        }
+      }),
     /** An inline image, e.g. "data:image/png;base64,..." (the report has no external assets). */
     logo: z
       .string()

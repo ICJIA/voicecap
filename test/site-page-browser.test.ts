@@ -39,7 +39,8 @@ function longContent(): SiteContent {
     demo: null,
     sites: [
       {
-        folder,
+        name: folder,
+        folders: [folder],
         reports: [
           {
             folder,
@@ -72,7 +73,7 @@ function manyContent(): SiteContent {
         files: [published("page", folder, `${folder}_2026-10-${day(index)}.html`, 100)],
         notPublished: [],
       };
-      return { folder, reports: [report] };
+      return { name: folder, folders: [folder], reports: [report] };
     }),
   };
 }
@@ -342,15 +343,36 @@ describe("the site's page", () => {
     }
   });
 
+  it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
+    const page = await open(files.page, { width: 1600 });
+
+    // Both start where the main part's words do, so their widths say where their lines end.
+    const width = await page.evaluate(() => {
+      const widest = (selector: string): number =>
+        Math.max(
+          ...[...document.querySelectorAll(selector)].map(
+            (element) => element.getBoundingClientRect().width,
+          ),
+        );
+      return { notes: widest("p.note"), footer: widest("footer > p") };
+    });
+
+    // The footer's smaller text keeps the notes' measure, so a line of it is no longer to read: its
+    // 80 characters are as wide as their 72. Where a character's width is rounded to a whole pixel,
+    // as in Chromium on Linux, the footer's can come out up to 2% short of theirs, but never wider.
+    expect(width.footer).toBeLessThanOrEqual(width.notes + 1);
+    expect(width.footer).toBeGreaterThanOrEqual(width.notes * 0.98);
+  });
+
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.page, { width: 1100, height: 500 });
-    // The skip link, the bar's three links and its button, each file's link, each report's page by
-    // date, and the footer's link.
+    // The skip link, the bar's three links and its button, the link to the demo's pages, each file's
+    // link, each report's page by date, and the footer's link.
     const stops = await page.evaluate(
       (selector) => document.querySelectorAll(selector).length,
       STOPS,
     );
-    expect(stops).toBe(1 + 3 + 1 + filesOf(CONTENT).length + reportsOf(CONTENT).length + 1);
+    expect(stops).toBe(1 + 3 + 1 + 1 + filesOf(CONTENT).length + reportsOf(CONTENT).length + 1);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(1500);
 
     expect(await stopsUnderTheBar(page)).toEqual([]);

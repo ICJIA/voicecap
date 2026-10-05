@@ -71,6 +71,12 @@ export interface PageOutcome {
    * none. Left out when that attempt never got the page to load.
    */
   title?: string | null;
+  /**
+   * The address the page's canonical tag gave on the first load of its last attempt, null when it
+   * gave none. Left out unless the page was read (status "done"): a page that failed or was skipped
+   * may be an error page or another site's, so its tag says nothing about this site.
+   */
+  canonical?: string | null;
   skip?: SkippedRecord;
 }
 
@@ -89,6 +95,8 @@ interface Loaded {
   httpStatus?: number | null;
   /** From the attempt's first load, like finalUrl and httpStatus. */
   title?: string | null;
+  /** From the attempt's first load too: the address of the page's canonical tag. */
+  canonical?: string | null;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -150,6 +158,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(result.finalUrl !== undefined ? { finalUrl: result.finalUrl } : {}),
     ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
     ...(result.title !== undefined ? { title: result.title } : {}),
+    ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
   for (let attempt = 1; ; attempt++) {
@@ -236,6 +245,7 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         loaded.finalUrl = info.finalUrl;
         loaded.httpStatus = info.status;
         loaded.title = info.title;
+        loaded.canonical = info.canonical;
         const skip = skipFor(ctx, info);
         if (skip) return { ...loaded, kind: "skipped", skip };
         if (info.status !== null && info.status >= 500) {

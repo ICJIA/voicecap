@@ -8,8 +8,10 @@
  *   pnpm share:fixture <folder>     # writes <folder>/demo.html and <folder>/demo.docx, and prints
  *                                   # their paths
  *
- * The page has no fonts, which are the same in every copy of it. The folder is made when it isn't
- * there. Keep it outside the repository.
+ * The demo is named by its canonical address, as report.canonical names it when it's shared: its
+ * runs read it at an IP address and recorded no canonical address, and voicecap shares no site by
+ * an IP address. The page has no fonts, which are the same in every copy of it. The folder is made
+ * when it isn't there. Keep it outside the repository.
  */
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -17,19 +19,19 @@ import { pathToFileURL } from "node:url";
 import { renderWordCopy } from "../src/share/docx.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { writeFileAtomic } from "../src/util/atomic-write.js";
-import { demoModel } from "../test/helpers/share-model.js";
+import { DEMO_ROOT, demoModel } from "../test/helpers/share-model.js";
 
 /** Write the demo's page to `folder`/demo.html, and return its path. */
 export async function writeDemoPage(folder: string): Promise<string> {
   const file = path.join(path.resolve(folder), "demo.html");
-  await writeFileAtomic(file, renderSharePage(await demoModel(), { fontCss: "" }));
+  await writeFileAtomic(file, renderSharePage(await demoModel(DEMO_ROOT), { fontCss: "" }));
   return file;
 }
 
 /** Write the demo's Word copy to `folder`/demo.docx, and return its path. */
 export async function writeDemoWordCopy(folder: string): Promise<string> {
   const file = path.join(path.resolve(folder), "demo.docx");
-  await writeFileAtomic(file, await renderWordCopy(await demoModel()));
+  await writeFileAtomic(file, await renderWordCopy(await demoModel(DEMO_ROOT)));
   return file;
 }
 

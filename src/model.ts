@@ -315,6 +315,13 @@ export interface PageRecord extends PageRef {
    */
   title?: string | null;
   /**
+   * The address the page's `<link rel="canonical">` tag gave, as the browser resolved it, on the
+   * page's first load in its last attempt: null when the page was read without one, and when it
+   * wasn't read (it failed or was skipped, so its tag says nothing about the site). Absent while
+   * the page is pending, and in runs from before voicecap 0.10.0 recorded it.
+   */
+  canonical?: string | null;
+  /**
    * Every failed attempt at the page, across every session, oldest first: those a later attempt
    * made good, and the last of a page that failed. Each is added, and written to run.json, as it
    * ends, before anything is restarted, and is never replaced or removed: a page that failed in one
@@ -396,7 +403,16 @@ export interface RunJson {
   status: "incomplete" | "completed";
   createdAt: string;
   completedAt: string | null;
+  /** The address voicecap read, which stays as it was whatever `canonical` says. */
   site: string;
+  /**
+   * The root of the site's canonical address, the one people visit, such as
+   * "https://dvfr.illinois.gov/": what --canonical gave the session that completed the run, else
+   * the root most of the inner pages' own tags name, and the home page's only when no inner page's
+   * names one (see chooseCanonicalRoot). Set at completion, so the seal covers it. Absent when
+   * neither gave one, and in runs from before voicecap 0.10.0.
+   */
+  canonical?: string;
   settings: RunSettings;
   settingsHash: string;
   configSha256: string;
@@ -472,6 +488,13 @@ export interface ShareEntry {
   at: string;
   /** Who made them. */
   by: string;
+  /**
+   * The root of the site the copies name it by, which their file names are made from: its canonical
+   * address ("https://dvfr.illinois.gov/"), and with none known, the address voicecap read, with a
+   * "/" on the end ("http://127.0.0.1:4848/"). Sealed with the rest. Absent on entries recorded
+   * before 0.10.0, whose copies are named for the site's folder.
+   */
+  site?: string;
   /** The ids of the runs the copies drew on, oldest first. */
   runs: string[];
   /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */

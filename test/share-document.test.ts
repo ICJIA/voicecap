@@ -467,7 +467,7 @@ describe("renderSharePage", () => {
 
     const model = await demoModel();
     const named = renderSharePage(
-      { ...model, header: { ...model.header, siteName: '<Agency> & "Co"' } },
+      { ...model, header: { ...model.header, name: '<Agency> & "Co"' } },
       { fontCss: "" },
     );
     expect(named).toContain(

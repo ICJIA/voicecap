@@ -2,9 +2,11 @@
  * What the website reads of the transcripts home: each site folder's share/shares.json, the record
  * of what `voicecap share` sent, and the demo's (the site folders of voicecap-demo/). The site
  * publishes files from these, and a record is a file a person can edit, so it's read as untrusted:
- * an entry is kept only when its seal holds and its fields are as voicecap records them, and one of
- * its files only when its name is one voicecap would give. What isn't kept is left out and named,
- * and never stops the rest, whatever a record holds. No file an entry lists is read here: the build
+ * an entry is kept only when its seal holds and its seq, at, by, and files are as voicecap records
+ * them, and one of its files only when its name is one voicecap would give. Its site, which names the
+ * site's heading on the website (see siteName in ./build.ts) and nothing else, is read as none when
+ * it isn't a root: an entry is published all the same. What isn't kept is left out and named, and
+ * never stops the rest, whatever a record holds. No file an entry lists is read here: the build
  * checks each one against its recorded size and SHA-256.
  */
 import { stat } from "node:fs/promises";
@@ -12,12 +14,19 @@ import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
+import { isWebRoot } from "../pages/canonical.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
 import { longDate } from "../share/format.js";
-import { describeShare, isPlainName, isSeq, readShares, recordedFiles } from "../share/shares.js";
+import {
+  describeShare,
+  isPlainName,
+  isSeq,
+  readShares,
+  recordedFiles,
+  sealHolds,
+} from "../share/shares.js";
 import { isRunId } from "../share/walkthrough.js";
-import { sealOf } from "../util/hash.js";
 
 /** An entry of a shares.json the site can publish from: its seal holds, and its fields are readable. */
 export interface SiteEntry {
@@ -29,6 +38,14 @@ export interface SiteEntry {
   /** As recorded: a local ISO date and time. */
   at: string;
   by: string;
+  /**
+   * The root of the site the entry's copies name, as it records it (from 0.10.0): the site's
+   * canonical address, or, for a share made with none known, the address voicecap read
+   * ("http://127.0.0.1:4848/"), which names the site to no reader: a heading takes only a canonical
+   * address (see `recordedCanonical`). Null for an entry from before 0.10.0, and for one whose
+   * `site` isn't an http(s) root (see `isWebRoot`): it's published all the same.
+   */
+  site: string | null;
   /**
    * The files whose names voicecap would give, in the record's order: at least one, and a run on
    * one is a run id.
@@ -211,6 +228,9 @@ async function readEntries(
       seq: fields.seq,
       at: fields.at,
       by: fields.by,
+      // Not one of the fields an entry needs to be published: an entry from before 0.10.0 has none,
+      // and a site that isn't a root names nothing, so the entry is read with none.
+      site: isWebRoot(entry.site) ? entry.site : null,
       files,
     });
   }
@@ -236,19 +256,6 @@ export function printable(text: string): string {
  */
 export function leaveOut(leftOut: string[], line: string): void {
   leftOut.push(printable(line));
-}
-
-/**
- * Whether an entry's seal holds. An entry nested too deep for sealOf, which reads it by recursion,
- * can't be sealed as voicecap seals one, so its seal doesn't hold: it's one that changed, and the
- * read goes on. One that lost its seal was changed, just like one that no longer matches it.
- */
-function sealHolds(entry: Record<string, unknown>): boolean {
-  try {
-    return entry.seal === sealOf(entry);
-  } catch {
-    return false;
-  }
 }
 
 /** An entry's seq, at, by, and files as voicecap records them, or the first of them that isn't. */

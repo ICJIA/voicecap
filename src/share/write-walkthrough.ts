@@ -14,7 +14,7 @@ import path from "node:path";
 import type { RunJson } from "../model.js";
 import { plural } from "../report/html.js";
 import { resolveHome } from "../run/paths.js";
-import { chooseSiteDir } from "../run/site-dir.js";
+import { chooseSiteDir, chooseSiteDirOfRun } from "../run/site-dir.js";
 import { listRuns } from "../run/store.js";
 import { formatCommand } from "../util/command-line.js";
 import { errorMessage, UsageError } from "../util/errors.js";
@@ -30,7 +30,11 @@ import {
 export interface WriteWalkthroughOptions {
   /** Where to write it, resolved against `cwd`. Never overwritten. */
   file: string;
-  /** Any URL on the site. Default: the home's only site. */
+  /**
+   * Any URL on the site, or the site's canonical address (see chooseSiteDir). With `run`, a
+   * canonical address is looked for in every folder it names, and the one that holds the run is
+   * taken (see chooseSiteDirOfRun). Default: the home's only site.
+   */
   site?: string | null;
   /**
    * The run to write it from, by its id. It has to have completed. Default: the latest completed
@@ -64,9 +68,16 @@ export async function writeWalkthrough(
   const env = options.env ?? process.env;
   const logger = options.logger ?? createConsoleLogger();
   const home = resolveHome({ out: options.out, env, cwd });
-  const siteDir = await chooseSiteDir({ home, site: options.site ?? null });
+  const runId = options.run ?? null;
+  const site = options.site ?? null;
+  // A run named with a canonical address is looked for in each folder the address names: the
+  // command the shareable page prints names the site so.
+  const siteDir =
+    runId === null
+      ? await chooseSiteDir({ home, site })
+      : await chooseSiteDirOfRun({ home, site, run: runId });
 
-  const run = chooseRun(await listRuns(siteDir), options.run ?? null, siteDir);
+  const run = chooseRun(await listRuns(siteDir), runId, siteDir);
   // A run that didn't complete is refused here, in walkthroughOf's words.
   const walkthrough = walkthroughOf(run);
   // The config allows runs that a file can't hold: never write one that voicecap would refuse.

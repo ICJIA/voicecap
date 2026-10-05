@@ -50,6 +50,6 @@ export function wordProperties(model: ShareModel): WordProperties {
   return {
     title: documentTitle(header),
     author: header.preparedBy ?? WORD_TEXT.document.author,
-    footer: WORD_TEXT.document.footer(header.siteName, header.asOf),
+    footer: WORD_TEXT.document.footer(header.name, header.asOf),
   };
 }

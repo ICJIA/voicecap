@@ -44,8 +44,9 @@ export const THEME_CSS = `:root {
  *   pixels (closer columns, no dots, smaller type), so nothing in it is cut off at the box's edge;
  * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
  *   be in (paragraphs, list items, headings, a fold's line, terms and what they mean, captions, the
- *   command that verifies the records, the site's name and address, the footer's file names) breaks
- *   it where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
+ *   command that verifies the records, the site's name, the name set for it, when it was tested,
+ *   and its address, the footer's file names) breaks it where it must (`overflow-wrap: anywhere`),
+ *   rather than run out of its box or the window;
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
@@ -82,6 +83,8 @@ code { overflow-wrap: anywhere; }
 .mast-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 0.92rem; }
 .mast-meta b { color: var(--fg); font-weight: 500; }
 .mast-lead { font-size: 1.1rem; color: var(--muted); margin: 0; max-width: 60ch; }
+.mast-site { font: 500 1.3rem/1.3 var(--display); margin: 0; max-width: 60ch; overflow-wrap: anywhere; }
+.mast-tested { font-size: 1rem; color: var(--muted); margin: 0; overflow-wrap: anywhere; }
 .mast-meta .addr { font-family: var(--mono); font-size: 0.8rem; align-self: center; overflow-wrap: anywhere; }
 .file { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
 .file span { border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel); }
@@ -195,6 +198,8 @@ dl.spec dt { color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tx .scroll { max-height: 280px; overflow: auto; }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; }
+/* A line of the footer is no longer to read than the page's own text: 80 characters of its smaller text are as wide as the page's 72. */
+footer > * { max-width: 80ch; }
 footer .mono { overflow-wrap: anywhere; }
 /* collapsed parts: a line that says what's inside, opened with a click (or all at once, or for printing) */
 details.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }

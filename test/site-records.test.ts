@@ -132,6 +132,7 @@ describe("readSiteRecords", () => {
               seq: 1,
               at: JAN_15,
               by: "Pat Lee",
+              site: null,
               files: copies("alpha.illinois.gov_2027-01-15"),
             },
           ],
@@ -145,6 +146,7 @@ describe("readSiteRecords", () => {
               seq: 1,
               at: JAN_16,
               by: "Sam Ortiz",
+              site: null,
               files: copies("zeta.illinois.gov_2027-01-16"),
             },
             {
@@ -153,6 +155,7 @@ describe("readSiteRecords", () => {
               seq: 2,
               at: JAN_15,
               by: "Sam Ortiz",
+              site: null,
               files: copies("zeta.illinois.gov_2027-01-15"),
             },
           ],
@@ -164,6 +167,7 @@ describe("readSiteRecords", () => {
         seq: 2,
         at: JAN_17,
         by: "Pat Lee",
+        site: null,
         files: copies("127.0.0.1_4848_2027-01-17"),
       },
       leftOut: [],
@@ -209,6 +213,97 @@ describe("readSiteRecords", () => {
     ]);
     // The run comes last, as voicecap records it.
     expect(Object.keys(files![1]!)).toEqual(["name", "bytes", "sha256", "run"]);
+  });
+
+  // 0.10.0: an entry records the root of the site its copies are named for. An entry from before
+  // has none, and is read with none: the site is no part of what's published.
+  describe("the site an entry records", () => {
+    const CANONICAL = "https://dvfr.illinois.gov/";
+
+    it("reads the root an entry records as its site, and null for an entry that records none", async () => {
+      const dir = await siteFolder("example.illinois.gov");
+      const files = copies("example.illinois.gov_2027-01-15");
+      await record(dir, [
+        sealed(1, JAN_15, files, { site: CANONICAL }),
+        // An entry from before 0.10.0 has no site, and is published all the same.
+        sealed(2, JAN_16, files),
+        sealed(3, JAN_17, files, { site: "https://voicecap.netlify.app/demo-site/" }),
+      ]);
+
+      const { sites, leftOut } = await readSiteRecords(home);
+
+      expect(kept(sites).map(({ seq, site }) => [seq, site])).toEqual([
+        [1, CANONICAL],
+        [2, null],
+        [3, "https://voicecap.netlify.app/demo-site/"],
+      ]);
+      expect(leftOut).toEqual([]);
+    });
+
+    // A share of a site with no canonical address records the address voicecap read: a root, as
+    // far as the record can tell. Whether it can head a site isn't for the record to say.
+    it("reads the address a copy was read at as it's recorded, since it is a root", async () => {
+      const dir = await siteFolder("127.0.0.1_4848");
+      await record(dir, [
+        sealed(1, JAN_15, copies("127.0.0.1_4848_2027-01-15"), { site: "http://127.0.0.1:4848/" }),
+      ]);
+
+      const { sites } = await readSiteRecords(home);
+
+      expect(kept(sites).map(({ site }) => site)).toEqual(["http://127.0.0.1:4848/"]);
+    });
+
+    it.each<[string, unknown]>([
+      ["text that isn't an address", "example.illinois.gov"],
+      ["an address with another scheme", "ftp://example.illinois.gov/"],
+      ["an address with no slash on the end", "https://example.illinois.gov"],
+      ["the address of a page", "https://example.illinois.gov/about"],
+      ["an address with a query", "https://example.illinois.gov/?x=1"],
+      ["empty", ""],
+      ["a number", 7],
+      ["null", null],
+      ["a list", [CANONICAL]],
+      ["an object", { url: CANONICAL }],
+    ])("keeps an entry whose site is %s, and reads it with no site", async (_what, site) => {
+      const dir = await siteFolder("example.illinois.gov");
+      const files = copies("example.illinois.gov_2027-01-15");
+      await record(dir, [sealed(1, JAN_15, files, { site })]);
+
+      const { sites, leftOut } = await readSiteRecords(home);
+
+      // Its report is published all the same: only the name it would give the site is left out.
+      expect(kept(sites)).toEqual([expect.objectContaining({ seq: 1, files, site: null })]);
+      expect(leftOut).toEqual([]);
+    });
+
+    it("leaves out an entry whose site was changed after it was sealed, as any change is", async () => {
+      const dir = await siteFolder("example.illinois.gov");
+      const files = copies("example.illinois.gov_2027-01-15");
+      await record(dir, [
+        { ...sealed(1, JAN_15, files, { site: CANONICAL }), site: "https://other.example.org/" },
+      ]);
+
+      const { sites, leftOut } = await readSiteRecords(home);
+
+      expect(sites).toEqual([]);
+      expect(leftOut).toEqual([
+        `${EXAMPLE_RECORD}: share 1 (${JAN_15}) changed since it was recorded`,
+      ]);
+    });
+
+    it("reads the demo's latest entry's site as any entry's", async () => {
+      const demo = await siteFolder("127.0.0.1_4848", demoRoot());
+      await record(demo, [
+        sealed(1, JAN_15, copies("127.0.0.1_4848_2027-01-15"), {
+          site: "https://voicecap.netlify.app/demo-site/",
+        }),
+      ]);
+
+      expect((await readSiteRecords(home)).demo).toMatchObject({
+        seq: 1,
+        site: "https://voicecap.netlify.app/demo-site/",
+      });
+    });
   });
 
   it("leaves out an entry whose seal no longer holds, and names it", async () => {

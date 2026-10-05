@@ -88,6 +88,11 @@ export function clock(iso: string): string {
   return `${hour}:${minute}`;
 }
 
+/** A moment as a reader is told it: "29 September 2026, 14:02", in the offset it was recorded in. */
+export function dateAndTime(iso: string): string {
+  return `${longDate(iso)}, ${clock(iso)}`;
+}
+
 /**
  * A recorded time's offset from UTC, as a reader writes it: "UTC−05:00", with a minus sign, not a
  * hyphen, and "UTC+00:00" for a time recorded in UTC ("Z").
@@ -103,6 +108,13 @@ export function utcOffset(iso: string): string {
 export function seconds(ms: number): string {
   return `${(Math.round(Math.max(0, ms) / 100) / 10).toFixed(1)} s`;
 }
+
+/**
+ * An address as the report shows it: a page of the site is on the site's canonical address, and an
+ * address elsewhere, or any address when the site has none, is as it was (see `toCanonical`). The
+ * records keep the address voicecap read.
+ */
+export type Shown = (url: string) => string;
 
 /** A page's address without the site's: its path, and its query if it has one ("/about/"). */
 export function pagePath(url: string): string {

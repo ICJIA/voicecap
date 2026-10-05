@@ -69,7 +69,15 @@ jobs:
           grep -q "^3 of 3 pages sound the same\." repeat.txt
           home="$RUNNER_TEMP/site-home"
           cp -R test/fixtures/share/demo-2026-09-29 "$home"
-          node dist/cli.js share --out "$home" --reviewer CI
+          # The demo's runs read it at an IP address and recorded no canonical address, and voicecap
+          # won't share a site by one: a config in a folder of the demo's own names it, as the README
+          # says to, and the share is run from there.
+          named="$RUNNER_TEMP/demo-share"
+          mkdir -p "$named"
+          printf '%s\n' '{ "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }' > "$named/voicecap.config.json"
+          cli="$PWD/dist/cli.js"
+          (cd "$named" && node "$cli" share --out "$home" --reviewer CI)
+          ls "$home/127.0.0.1_4848/share" | grep '^voicecap\.netlify\.app_[0-9-]*\.html$' > /dev/null
           node dist/cli.js site --home "$home" --out "$home/_site"
           test -f "$home/_site/index.html"
           grep -q "^/index.html$" "$home/_site/_headers"

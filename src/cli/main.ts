@@ -10,6 +10,7 @@ import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
 import { addManualSession } from "../manual-add.js";
 import { PASS_NAMES, REVIEW_STATUSES, type PassName, type ReviewStatus } from "../model.js";
+import { normalizeCanonical } from "../pages/canonical.js";
 import { InterruptedError } from "../passes/steps.js";
 import { offerLiveTest } from "../readiness/guided.js";
 import type { PlatformReadiness } from "../readiness/model.js";
@@ -60,6 +61,7 @@ export interface CliContext {
 
 interface RunOptions {
   site?: string;
+  canonical?: string;
   sitemap?: string;
   pages?: string;
   page: string[];
@@ -129,6 +131,10 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
 
   program
     .option("--site <url>", "the site's URL; pages must be on its origin")
+    .option(
+      "--canonical <address>",
+      "the address people visit, for reports to name the site by, such as https://dvfr.illinois.gov (default: the one the pages' canonical tags name, and none for a replay, which reads no tags)",
+    )
     .option(
       "--sitemap <url>",
       "take pages from this sitemap (<urlset> or <sitemapindex>): a full URL, or a name or path on the site (from its root), such as sitemap.xml",
@@ -361,7 +367,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .option("--run <run-id>", "the run reviewed (default: the latest run with the page)")
     .option(
       "--site <url>",
-      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+      "the site's address, or its canonical address (default: the site of a full --page URL, else the home's only site)",
     )
     .option("--out <dir>", OUT_HELP)
     .action(
@@ -411,7 +417,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     )
     .option(
       "--site <url>",
-      "the site's URL (default: the site of a full --page URL, else the home's only site)",
+      "the site's address, or its canonical address (default: the site of a full --page URL, else the home's only site)",
     )
     .option("--out <dir>", OUT_HELP)
     .action(
@@ -460,7 +466,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "show this run instead of the latest completed one (it may be incomplete)",
     )
     .option("--compare <run>", 'compare with a run id, or "previous"')
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--out <dir>", OUT_HELP)
     .action(async (options: { run?: string; compare?: string; site?: string; out?: string }) => {
       const home = resolveHome({ out: options.out, env: ctx.env, cwd: ctx.cwd });
@@ -486,7 +495,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .description(
       "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
     )
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--out <dir>", OUT_HELP)
     .option(
       "--reviewer <name>",
@@ -510,7 +522,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "write a run's walkthrough file: its pages, in order, and its settings, so anyone can repeat the run",
     )
     .argument("<file>", "the file to write (never overwritten)")
-    .option("--site <url>", "the site's URL (default: the home's only site)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: the home's only site)",
+    )
     .option("--run <id>", "the run to write it from (default: the latest completed run)")
     .option("--out <dir>", OUT_HELP)
     .action(async (file: string, options: { site?: string; run?: string; out?: string }) => {
@@ -553,7 +568,10 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("verify")
     .description("check that the records voicecap wrote still match their hashes and seals")
-    .option("--site <url>", "the site's URL (default: every site in the home)")
+    .option(
+      "--site <url>",
+      "the site's address, or its canonical address (default: every site in the home)",
+    )
     .option("--out <dir>", OUT_HELP)
     .addHelpText(
       "after",
@@ -693,11 +711,15 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
     );
   }
   checkUrlOptions(options);
+  // A bad --canonical is a usage error here, before anything starts. runAudit normalizes it too,
+  // for a caller of its own.
+  const canonical = options.canonical === undefined ? null : normalizeCanonical(options.canonical);
   const controller = new AbortController();
   const unhook = ctx.signal ? () => {} : handleInterrupts(controller, logger);
   try {
     const result = await runAudit({
       site: options.site,
+      canonical,
       sitemap: options.sitemap ?? null,
       pages: options.pages ?? null,
       ...(options.page.length > 0 ? { pageUrls: options.page } : {}),

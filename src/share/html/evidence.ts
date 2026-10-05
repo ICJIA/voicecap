@@ -49,6 +49,7 @@ import {
   evidenceGist,
   generatedLine,
   inRun,
+  readCopyNote,
   runTitle,
   timelineDay,
   unreadableNote,
@@ -258,8 +259,9 @@ function leftOutPanel(leftOut: ShareModel["leftOut"]): string {
 
 /**
  * "The evidence behind these results": how many runs, that each completed and was sealed, and the
- * fingerprint of the flag rules; what a fingerprint is, and the check the page runs; a fold for each
- * run, the latest first; and the runs it left out.
+ * fingerprint of the flag rules; that the runs read a copy of the site, when they did; what a
+ * fingerprint is, and the check the page runs; a fold for each run, the latest first; and the runs
+ * it left out.
  *
  * The check's data is the model's own: the records and transcripts as recorded. With no run that
  * counts there is nothing to check, and the section says so, with what it left out.
@@ -269,12 +271,15 @@ export function renderEvidence(model: ShareModel): string {
   const [latest] = evidence;
   const heading = `<h2 id="ev-h">${esc(EVIDENCE_TEXT.title)}</h2>`;
   const gist = `<p class="gist">${lineHtml(evidenceGist(model))}</p>`;
+  const note = readCopyNote(model);
+  const copy = note === null ? "" : `<p class="gist">${esc(note)}</p>`;
   const parts =
     latest === undefined
       ? [heading, gist, leftOutPanel(leftOut)]
       : [
           heading,
           gist,
+          copy,
           checkBox(model, latest.verify),
           `<script type="application/json" id="fp-data">${checkDataJson(model.check)}</script>`,
           `<div class="folds">${evidence.map(runFold).join("")}</div>`,

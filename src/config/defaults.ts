@@ -117,6 +117,7 @@ export const DEFAULT_CONFIG: VoicecapConfig = {
     title: "NVDA transcript report",
     agency: null,
     siteName: null,
+    canonical: null,
     logo: null,
   },
 };

@@ -6,8 +6,8 @@
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts),
  * which is plain words, and so does each line worked out from the model (../words.ts), through
  * `lineHtml`. No `style` attribute is set (bars and pictures are SVG, sized and colored by
- * attributes and classes), and the only links are to voicecap's GitHub page, NV Access, and the
- * page's own sections.
+ * attributes and classes), and the only links are to voicecap's GitHub page, NV Access, the site's
+ * canonical address (when it has one), and the page's own sections.
  *
  * Where the mockup is sample data, nothing of it is here. Where it set a style attribute, the
  * page's style block gives the same look instead: the second line under the summary's sentence
@@ -37,6 +37,7 @@ import {
   numbersOf,
   resultsCaption,
   spokenDuration,
+  testedLine,
   topLead,
   type NumberTile,
 } from "../words.js";
@@ -46,24 +47,45 @@ import { bar, count, lineHtml, notRecorded, track } from "./parts.js";
 // The top.
 
 /**
- * The page's header: the site's name as the headline, two plain lines on what the page is, who
- * and when, the site's address, and the two buttons the page's script wires up.
+ * The site's address, last and small in the line of who and when. A site with a canonical address
+ * shows its root, as a link a reader can open (a root is always a web address, and only one is
+ * linked). Without one it shows the address voicecap read, as it was and as words only: it may be a
+ * copy on the tester's computer, which a reader can't open, and it comes from a record, which can
+ * hold any text.
+ */
+function siteAddress({ site, readFrom }: ShareModel["header"]): string {
+  const address = esc(site);
+  const linked = readFrom !== null && /^https?:\/\//i.test(site);
+  const shown = linked ? `<a href="${address}">${address}</a>` : address;
+  return `<span class="addr">${esc(TOP_TEXT.siteAddress)} ${shown}</span>`;
+}
+
+/**
+ * The page's header, top to bottom: the line above the name, with the two buttons the page's script
+ * wires up; the site's canonical name as the headline (the host voicecap read, for a site with no
+ * canonical address); the name set for the site, when one is; the date and time the latest run
+ * began; two plain lines on what the page is; who and when; and the site's address, last and small.
+ *
+ * The name set for the site and when it was tested are paragraphs, not headings: the name is the
+ * page's one `h1`. The date and time are plain words, as every time on the page is.
  *
  * The buttons do nothing without the script, so they start hidden and the script shows them. The
  * theme's says what it switches to ("Light version", then "Dark version"), so it has no pressed
  * state: one that changed with its words would say "pressed" of the theme it no longer names.
  *
- * When no run counts there is no date to give, so the lead says so (topLead).
+ * When no run counts there is no date to give, so there is no line for when it was tested, and the
+ * lead says so (topLead).
  */
 export function renderTop(model: ShareModel): string {
   const { header } = model;
+  const tested = testedLine(header);
   const meta = [
     `<span>${esc(TOP_TEXT.asOf)} <b>${esc(header.asOf)}</b></span>`,
     ...(header.preparedBy === null
       ? []
       : [`<span>${esc(TOP_TEXT.preparedBy)} <b>${esc(header.preparedBy)}</b></span>`]),
     `<span>${esc(TOP_TEXT.madeWith)} <a href="${esc(TOP_TEXT.github)}">${esc(TOP_TEXT.madeWithLink)}</a></span>`,
-    `<span class="addr">${esc(TOP_TEXT.siteAddress)} ${esc(header.site)}</span>`,
+    siteAddress(header),
   ];
   return [
     `<header class="mast">`,
@@ -71,7 +93,9 @@ export function renderTop(model: ShareModel): string {
     `    <div class="eyebrow">${esc(TOP_TEXT.eyebrow)}</div>`,
     `    <div class="chips"><button class="theme" id="open-all" type="button" hidden>Open every section</button><button class="theme" id="theme-toggle" type="button" hidden>Light version</button></div>`,
     `  </div>`,
-    `  <h1>${esc(header.siteName)}</h1>`,
+    `  <h1>${esc(header.name)}</h1>`,
+    ...(header.siteName === null ? [] : [`  <p class="mast-site">${esc(header.siteName)}</p>`]),
+    ...(tested === null ? [] : [`  <p class="mast-tested">${esc(tested)}</p>`]),
     `  <p class="mast-lead">${lineHtml(topLead(header))}</p>`,
     `  <div class="mast-meta">${meta.join("")}</div>`,
     `</header>`,

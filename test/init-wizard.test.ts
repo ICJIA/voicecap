@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPrompter, InputEndedError } from "../src/init/prompt.js";
 import { runWizard, type WizardDeps, type WizardResult } from "../src/init/wizard.js";
 import { InterruptedError } from "../src/passes/steps.js";
-import { realSitesFetch } from "./helpers/real-sites.js";
+import { realSitesFetch, redirectedTo } from "./helpers/real-sites.js";
 
 const NOT_WINDOWS =
   "voicecap runs NVDA, which only runs on Windows. Run this command on a Windows computer.";
@@ -23,6 +23,10 @@ const DVFR_SITEMAP_COMMAND =
 const R = " --reviewer icjia";
 const REVIEWER_QUESTION = "Reviewer, recorded with the run";
 const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the default.";
+const CANONICAL_QUESTION =
+  "This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
+const CANONICAL_NEEDED =
+  "A report has to name the site. Enter the address people visit, such as https://dvfr.illinois.gov.";
 
 let tmp: string;
 
@@ -762,5 +766,338 @@ describe("runWizard", () => {
     await expect(
       session(["i2i.illinois.gov"], { fetch: waitsForAbort, signal: controller.signal }),
     ).rejects.toThrow(InterruptedError);
+  });
+});
+
+describe("runWizard, for the site's canonical address", () => {
+  /** A copy of dvfr.illinois.gov at `address`, whose home page has `head` between its <head> tags. */
+  function copyAt(address: string, head = ""): typeof fetch {
+    return realSitesFetch({
+      [`${address}/`]: () =>
+        new Response(
+          `<!doctype html><html><head><title>DVFR</title>${head}</head><body><h1>DVFR</h1></body></html>`,
+          { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+        ),
+    });
+  }
+  const tag = (href: string) => `<link rel="canonical" href="${href}">`;
+  /** What init composes for the copy at http://localhost:3000 with one page: no sitemap is found. */
+  const LOCAL = "npx @icjia/voicecap --site http://localhost:3000";
+  const LOCAL_PAGE = "--page http://localhost:3000/ --reviewer icjia";
+  const LOCAL_ANSWERS = ["http://localhost:3000", "dvfr.illinois.gov", "", "", "", ""];
+
+  it("asks for the address people visit when the site is at a local address", async () => {
+    const { result, screen } = await session(
+      ["http://localhost:3000", "https://dvfr.illinois.gov", "", "", "", ""],
+      { fetch: copyAt("http://localhost:3000") },
+    );
+
+    expect(screen).toContain(
+      "Website: http://localhost:3000\n" +
+        "Checking http://localhost:3000…\n" +
+        "  → http://localhost:3000 (it answers)\n" +
+        `${CANONICAL_QUESTION}: https://dvfr.illinois.gov\n` +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(result.args).toEqual([
+      "--site",
+      "http://localhost:3000",
+      "--canonical",
+      "https://dvfr.illinois.gov/",
+      "--page",
+      "http://localhost:3000/",
+      "--reviewer",
+      "icjia",
+    ]);
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it.each([
+    "http://127.0.0.1:4848",
+    "http://192.168.1.10:8080",
+    "http://[::1]:3000",
+    "http://app.localhost:3000",
+  ])("asks about a copy at %s, as it does at localhost", async (address) => {
+    const { result, screen } = await session([address, "dvfr.illinois.gov", "", "", "", ""], {
+      fetch: copyAt(address),
+    });
+
+    expect(screen).toContain(`${CANONICAL_QUESTION}: dvfr.illinois.gov\n`);
+    expect(result.args.slice(0, 4)).toEqual([
+      "--site",
+      address,
+      "--canonical",
+      "https://dvfr.illinois.gov/",
+    ]);
+  });
+
+  it("asks about a site typed the short way, with its port", async () => {
+    const fetch = realSitesFetch({
+      "https://localhost:3000/": () =>
+        new Response("<!doctype html><title>DVFR</title>", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    const { result } = await session(["localhost:3000", "dvfr.illinois.gov", "", "", "", ""], {
+      fetch,
+    });
+
+    expect(result.args.slice(0, 4)).toEqual([
+      "--site",
+      "https://localhost:3000",
+      "--canonical",
+      "https://dvfr.illinois.gov/",
+    ]);
+  });
+
+  it("says what the home page names, and asks nothing, when its tag names the host's own root", async () => {
+    const { result, screen } = await session(["http://localhost:3000", "", "", "", ""], {
+      fetch: copyAt("http://localhost:3000", tag("https://dvfr.illinois.gov/")),
+    });
+
+    expect(screen).toContain(
+      "  → http://localhost:3000 (it answers)\n" +
+        "The site names its canonical address: https://dvfr.illinois.gov/. Reports will name it so.\n" +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    // Init reads the home page only. The run reads every page and goes by its inner pages' tags
+    // first, so the command leaves the address to it.
+    expect(result.args).not.toContain("--canonical");
+    expect(result.command).toBe(`${LOCAL} ${LOCAL_PAGE}`);
+  });
+
+  it("says what the home page names for a site at a public address too", async () => {
+    const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
+      fetch: copyAt("https://dvfr.illinois.gov", tag("https://www.dvfr.illinois.gov/")),
+    });
+
+    expect(screen).toContain(
+      "  → https://dvfr.illinois.gov (it answers)\n" +
+        "The site names its canonical address: https://www.dvfr.illinois.gov/. Reports will name it so.\n" +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(result.args).not.toContain("--canonical");
+  });
+
+  it("asks nothing for a site at a public address", async () => {
+    const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""]);
+
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    expect(screen).not.toContain("canonical");
+    expect(result.args).not.toContain("--canonical");
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+  });
+
+  it("asks when the home page's tag names a root with a path, as it names none", async () => {
+    // At "/", a tag that names another page fits, as its path ends in "/", so a root with a path
+    // might be that page's address. Init counts only the host's own root, and asks, offering the
+    // root the tag gives, which the answer typed beats.
+    const { result, screen } = await session(LOCAL_ANSWERS, {
+      fetch: copyAt("http://localhost:3000", tag("https://x.org/about/")),
+    });
+
+    expect(screen).toContain(
+      `${CANONICAL_QUESTION} Its home page names https://x.org/about/: press Enter to use that. [https://x.org/about/]: dvfr.illinois.gov\n`,
+    );
+    expect(screen).not.toContain("The site names its canonical address");
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  // Ruling P21. The demo's home page names https://voicecap.netlify.app/demo-site/, which init sets
+  // aside (a root with a path) but offers: an answer of the host alone would beat the inner pages'
+  // tags, and name every page on the wrong path.
+  describe("when the home page names a root with a path", () => {
+    const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
+    const OFFER = `${CANONICAL_QUESTION} Its home page names ${DEMO_ROOT}: press Enter to use that. [${DEMO_ROOT}]: `;
+    const demoCopy = () => copyAt("http://localhost:3000", tag(DEMO_ROOT));
+
+    it("offers it, and takes it for Enter", async () => {
+      const { result, screen } = await session(["http://localhost:3000", "", "", "", "", ""], {
+        fetch: demoCopy(),
+      });
+
+      expect(screen).toContain(
+        "  → http://localhost:3000 (it answers)\n" +
+          `${OFFER}\n` +
+          "Looking for the site's sitemap…\n",
+      );
+      expect(screen).not.toContain(CANONICAL_NEEDED);
+      expect(result.args.slice(0, 4)).toEqual([
+        "--site",
+        "http://localhost:3000",
+        "--canonical",
+        DEMO_ROOT,
+      ]);
+      expect(result.command).toBe(`${LOCAL} --canonical ${DEMO_ROOT} ${LOCAL_PAGE}`);
+    });
+
+    it("takes an answer typed in its place", async () => {
+      const { result, screen } = await session(LOCAL_ANSWERS, { fetch: demoCopy() });
+
+      expect(screen).toContain(`${OFFER}dvfr.illinois.gov\n`);
+      expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+    });
+
+    it("still explains an answer it refuses, and asks again with the offer", async () => {
+      const { result, screen } = await session(
+        ["http://localhost:3000", "http://127.0.0.1:4848", "", "", "", "", ""],
+        { fetch: demoCopy() },
+      );
+
+      expect(screen).toContain(
+        `${OFFER}http://127.0.0.1:4848\n` +
+          `"http://127.0.0.1:4848" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.\n` +
+          `${OFFER}\n`,
+      );
+      expect(result.command).toBe(`${LOCAL} --canonical ${DEMO_ROOT} ${LOCAL_PAGE}`);
+    });
+
+    it("asks nothing at a public address, where the run decides", async () => {
+      const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
+        fetch: copyAt("https://dvfr.illinois.gov", tag(DEMO_ROOT)),
+      });
+
+      expect(screen).not.toContain(CANONICAL_QUESTION);
+      expect(result.args).not.toContain("--canonical");
+    });
+  });
+
+  it("says nothing and asks nothing at a public address whose home page's tag names a root with a path", async () => {
+    // The run decides, from every page it reads, with its inner pages' tags first.
+    const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
+      fetch: copyAt("https://dvfr.illinois.gov", tag("https://x.org/about/")),
+    });
+
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    expect(screen).not.toContain("canonical");
+    expect(result.args).not.toContain("--canonical");
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+  });
+
+  it.each([
+    ["names this computer", tag("http://localhost:3000/")],
+    ["names another page", tag("https://dvfr.illinois.gov/about")],
+    ["is relative", tag("/")],
+    ["has another scheme", tag("ftp://dvfr.illinois.gov/")],
+  ])("asks anyway when the home page's tag %s", async (_what, head) => {
+    const { result, screen } = await session(LOCAL_ANSWERS, {
+      fetch: copyAt("http://localhost:3000", head),
+    });
+
+    expect(screen).toContain(`${CANONICAL_QUESTION}: dvfr.illinois.gov\n`);
+    expect(screen).not.toContain("The site names its canonical address");
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it("explains an answer it refuses, and asks again", async () => {
+    const { result, screen } = await session(
+      [
+        "http://localhost:3000",
+        "http://localhost:3000",
+        "ftp://dvfr.illinois.gov",
+        "not a url",
+        "dvfr.illinois.gov",
+        "",
+        "",
+        "",
+        "",
+      ],
+      { fetch: copyAt("http://localhost:3000") },
+    );
+
+    expect(screen).toContain(
+      `${CANONICAL_QUESTION}: http://localhost:3000\n` +
+        `"http://localhost:3000" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.\n` +
+        `${CANONICAL_QUESTION}: ftp://dvfr.illinois.gov\n` +
+        `"ftp://dvfr.illinois.gov" isn't a web address, such as https://dvfr.illinois.gov.\n` +
+        `${CANONICAL_QUESTION}: not a url\n` +
+        `"not a url" isn't a web address, such as https://dvfr.illinois.gov.\n` +
+        `${CANONICAL_QUESTION}: dvfr.illinois.gov\n` +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it("refuses an empty answer, since a report has to name the site", async () => {
+    const { result, screen } = await session(
+      ["http://localhost:3000", "", "dvfr.illinois.gov", "", "", "", ""],
+      { fetch: copyAt("http://localhost:3000") },
+    );
+
+    expect(screen).toContain(
+      `${CANONICAL_QUESTION}: \n` +
+        `${CANONICAL_NEEDED}\n` +
+        `${CANONICAL_QUESTION}: dvfr.illinois.gov\n` +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it("writes the root with its path, as the command gives it", async () => {
+    const { result } = await session(
+      ["http://localhost:3000", "voicecap.netlify.app/demo-site", "", "", "", ""],
+      { fetch: copyAt("http://localhost:3000") },
+    );
+
+    expect(result.command).toBe(
+      `${LOCAL} --canonical https://voicecap.netlify.app/demo-site/ ${LOCAL_PAGE}`,
+    );
+  });
+
+  it("asks about a site that doesn't answer once it's used anyway", async () => {
+    const refused = realSitesFetch({
+      "http://localhost:3000/": () => {
+        throw new TypeError("fetch failed", {
+          cause: new Error("connect ECONNREFUSED 127.0.0.1:3000"),
+        });
+      },
+    });
+    const { result, screen } = await session(
+      ["http://localhost:3000", "y", "dvfr.illinois.gov", "", "", "", ""],
+      { fetch: refused },
+    );
+
+    expect(screen).toContain(
+      "  → http://localhost:3000 doesn't answer (connect ECONNREFUSED 127.0.0.1:3000).\n" +
+        "Use it anyway? [y/N]: y\n" +
+        `${CANONICAL_QUESTION}: dvfr.illinois.gov\n` +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  it("asks about the site it ends up with, not one it turned down", async () => {
+    const refused = realSitesFetch({
+      "http://localhost:3000/": () => new Response("Forbidden", { status: 403 }),
+    });
+    const { result, screen } = await session(
+      ["http://localhost:3000", "n", "dvfr.illinois.gov", "", "", "", ""],
+      { fetch: refused },
+    );
+
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+  });
+
+  it("goes by the address the site answers from, after any redirect", async () => {
+    const fetch = realSitesFetch({
+      "http://localhost:3000/": () => redirectedTo("https://dvfr.illinois.gov/", "<html></html>"),
+    });
+    const { result, screen } = await session(["http://localhost:3000", "", "", "", ""], { fetch });
+
+    expect(screen).toContain(
+      "  → https://dvfr.illinois.gov (http://localhost:3000 redirects there)\n" +
+        "Looking for the site's sitemap…\n",
+    );
+    expect(screen).not.toContain(CANONICAL_QUESTION);
+    expect(result.command).toBe(DVFR_SITEMAP_COMMAND + R);
+  });
+
+  it("stops when the answer to the question doesn't come", async () => {
+    await expect(
+      session(["http://localhost:3000"], { fetch: copyAt("http://localhost:3000") }),
+    ).rejects.toThrow(InputEndedError);
   });
 });

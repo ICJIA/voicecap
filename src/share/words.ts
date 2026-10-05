@@ -34,6 +34,7 @@ import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
 import type { Summary } from "./summary.js";
 import {
+  EVIDENCE_TEXT,
   HOW_LEAD,
   HOW_TEXT,
   ISSUES_URL,
@@ -72,11 +73,20 @@ export function topLead(header: ShareModel["header"]): Line {
 }
 
 /**
- * What the document is called, in the page's tab and in the Word copy's properties: the site's
- * name, and what the report shows. "127.0.0.1:4848: how its pages read aloud with NVDA".
+ * When the site was tested, as the top says it under the site's name: the date and time the latest
+ * run began. "Tested 29 September 2026, 14:02". Null when no run counts, so there is no date and
+ * time to give (the lead says so).
  */
-export function documentTitle({ siteName, screenReader }: ShareModel["header"]): string {
-  return `${siteName}: how its pages read aloud with ${screenReader}`;
+export function testedLine({ testedAt }: ShareModel["header"]): string | null {
+  return testedAt === null ? null : `${TOP_TEXT.tested} ${testedAt}`;
+}
+
+/**
+ * What the document is called, in the page's tab and in the Word copy's properties: the site's
+ * name, and what the report shows. "dvfr.illinois.gov: how its pages read aloud with NVDA".
+ */
+export function documentTitle({ name, screenReader }: ShareModel["header"]): string {
+  return `${name}: how its pages read aloud with ${screenReader}`;
 }
 
 // The summary.
@@ -680,6 +690,19 @@ export function evidenceGist(model: ShareModel): Line {
 }
 
 /**
+ * That the runs read a copy of the site, when they did: said under the evidence's opening line, on
+ * the computer that ran them or at another address, and never which address (a copy's means nothing
+ * to a reader). None when they read the site itself, when the site has no canonical address to
+ * compare with (it is named by the address voicecap read, so there is no copy to speak of), and when
+ * no run is shown, since there are then no "these runs".
+ */
+export function readCopyNote({ header, evidence }: ShareModel): string | null {
+  const { readFrom } = header;
+  if (readFrom === null || readFrom === "same" || evidence.length === 0) return null;
+  return EVIDENCE_TEXT.readCopy[readFrom];
+}
+
+/**
  * The transcripts the check leaves out because they couldn't be read here, by page, so its "21 of
  * 21" never reads as complete when a file is missing from it. None when every one could be read.
  */
@@ -738,7 +761,7 @@ export function timelineDay(date: string, lastYear: string | null): string {
 
 /**
  * The moment the copies were made, with its offset from UTC: "30 September 2026 at 09:00
- * (UTC−05:00)". The footer's line says it, and the Word copy says it under its title.
+ * (UTC−05:00)". The footer's line says it, in both copies.
  */
 export function generatedStamp({ generatedAt }: ShareModel["footer"]): string {
   return `${longDate(generatedAt)} at ${clock(generatedAt)} (${utcOffset(generatedAt)})`;

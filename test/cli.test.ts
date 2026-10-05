@@ -31,7 +31,7 @@ import { writeShareFiles } from "../src/share/write.js";
 import { formatCommand } from "../src/util/command-line.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type OutputStream } from "../src/util/log.js";
-import { unzipDocx } from "./helpers/docx.js";
+import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
@@ -496,6 +496,60 @@ describe("--page", () => {
     ]);
     expect(run.code).toBe(0);
     expect(run.out).toContain("[2/2]");
+  });
+});
+
+describe("--canonical", () => {
+  const replay = [
+    "--site",
+    SITE,
+    "--pages",
+    fixture("pages.json"),
+    "--replay-from",
+    fixture("replay-run"),
+  ];
+
+  /** The run.json of the run a command made in `cwd`'s home. */
+  async function recordIn(cwd: string): Promise<RunJson> {
+    const out = path.join(cwd, "transcripts", "127.0.0.1_4747");
+    const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
+    return JSON.parse(await readFile(path.join(runDir(out, runId), "run.json"), "utf8")) as RunJson;
+  }
+
+  it("is in the help", async () => {
+    expect((await cli(["--help"])).out).toContain("--canonical <address>");
+  });
+
+  it("records the address it gives as the run's root, and leaves the site as it was read", async () => {
+    const run = await cli([...replay, "--canonical", "dvfr.illinois.gov"]);
+    expect(run.code).toBe(0);
+    const record = await recordIn(run.cwd);
+    expect(record.canonical).toBe("https://dvfr.illinois.gov/");
+    expect(record.site).toBe(SITE);
+    // The terminal says nothing new about it.
+    expect(run.out).not.toMatch(/canonical/i);
+  });
+
+  it("leaves a replay run without a root when it isn't given, as a replay learns none", async () => {
+    const run = await cli(replay);
+    expect(run.code).toBe(0);
+    expect(await recordIn(run.cwd)).not.toHaveProperty("canonical");
+  });
+
+  it.each([
+    [
+      "ftp://dvfr.illinois.gov",
+      `"ftp://dvfr.illinois.gov" isn't a web address, such as https://dvfr.illinois.gov.`,
+    ],
+    [
+      "http://localhost:3000",
+      `"http://localhost:3000" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
+    ],
+  ])("refuses %s as a usage error, before anything runs", async (value, message) => {
+    const run = await cli([...replay, "--canonical", value]);
+    expect(run.code).toBe(1);
+    expect(run.err).toContain(message);
+    expect(existsSync(path.join(run.cwd, "transcripts"))).toBe(false);
   });
 });
 
@@ -1191,12 +1245,19 @@ describe("voicecap share", () => {
     const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
     expect(shares).toHaveLength(1);
     const entry = shares[0]!;
-    expect(entry).toMatchObject({ seq: 1, prev: null, by: "Pat Lee" });
+    // The site's scripted pages name no canonical address, so the entry records the address voicecap
+    // read, as a root.
+    expect(entry).toMatchObject({
+      seq: 1,
+      prev: null,
+      by: "Pat Lee",
+      site: "https://example.illinois.gov/",
+    });
     const page = entry.files[0]!;
     const word = entry.files[1]!;
     const walkthrough = entry.files[2]!;
-    // Named for the site's folder and the day, as the page, then its Word copy, then the run's
-    // walkthrough file, whole on disk.
+    // Named for the site (here by the host voicecap read) and the day, as the page, then its Word
+    // copy, then the run's walkthrough file, whole on disk.
     const day = entry.at.slice(0, 10);
     expect([page.name, word.name, walkthrough.name]).toEqual([
       `example.illinois.gov_${day}.html`,
@@ -1252,6 +1313,26 @@ describe("voicecap share", () => {
     expect(existsSync(sharesPath(site))).toBe(false);
   });
 
+  // Ruling P13a. The demo runs voicecap 0.4.1 recorded read http://127.0.0.1:4848, and named no
+  // canonical address.
+  it("exits 1, says how to name the site, and writes nothing, for a site read at an IP address with no canonical address", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const home = path.join(root, "transcripts");
+    await cp(fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url)), home, {
+      recursive: true,
+    });
+    const before = await readdir(root, { recursive: true });
+
+    const share = await cli(["share", "--out", home, "--reviewer", "Pat Lee"], root);
+
+    expect(share.code).toBe(1);
+    expect(share.out).toBe("");
+    expect(share.err).toBe(
+      "Error: voicecap won't share a site by an IP address or a local address (127.0.0.1:4848). Give it the address people visit: set report.canonical in a voicecap config in a folder of the site's own, and share from that folder; or run it again with --canonical <address>.\n",
+    );
+    expect(await readdir(root, { recursive: true })).toEqual(before);
+  });
+
   it("is listed in the help, with what it does", async () => {
     const help = await cli(["--help"]);
 
@@ -1269,7 +1350,9 @@ describe("voicecap share", () => {
     expect(said).toContain(
       "make a dated copy of the shareable page, its Word copy, and each run's walkthrough file to send, and record them",
     );
-    expect(said).toContain("--site <url> the site's URL (default: the home's only site)");
+    expect(said).toContain(
+      "--site <url> the site's address, or its canonical address (default: the home's only site)",
+    );
     expect(said).toContain(
       "--out <dir> transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
     );
@@ -1445,13 +1528,327 @@ describe("voicecap walkthrough", () => {
     expect(said).toContain(
       "write a run's walkthrough file: its pages, in order, and its settings, so anyone can repeat the run",
     );
-    expect(said).toContain("--site <url> the site's URL (default: the home's only site)");
+    expect(said).toContain(
+      "--site <url> the site's address, or its canonical address (default: the home's only site)",
+    );
     expect(said).toContain(
       "--run <id> the run to write it from (default: the latest completed run)",
     );
     expect(said).toContain(
       "--out <dir> transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)",
     );
+  });
+});
+
+describe("--site takes a site's canonical address", () => {
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  /** The address people visit, which the run on the copy at SITE recorded. */
+  const ROOT = "https://dvfr.illinois.gov/";
+  /** The folder the copy's records are in: named after the address voicecap read. */
+  const FOLDER = "127.0.0.1_4747";
+  /** The folder the canonical name would have, which nothing here should make. */
+  const NAMED = "dvfr.illinois.gov";
+
+  /**
+   * A home (the default one, in the folder this gives) with one replayed run of the copy at SITE,
+   * which recorded `root` as the site's canonical address.
+   */
+  async function homeOfTheCopy(root = ROOT): Promise<string> {
+    const run = await cli([
+      "--site",
+      SITE,
+      "--pages",
+      fixture("pages.json"),
+      "--replay-from",
+      fixture("replay-run"),
+      "--canonical",
+      root,
+    ]);
+    expect(run.code).toBe(0);
+    return run.cwd;
+  }
+
+  it.each([
+    [["review"], "the site of a full --page URL, else the home's only site"],
+    [["manual", "add"], "the site of a full --page URL, else the home's only site"],
+    [["report"], "the home's only site"],
+    [["verify"], "every site in the home"],
+  ])("is said in the help of %s", async (command, fallback) => {
+    const help = await cli([...command, "--help"]);
+
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      `--site <url> the site's address, or its canonical address (default: ${fallback})`,
+    );
+  });
+
+  it("finds the folder whose run recorded it, for report", async () => {
+    const cwd = await homeOfTheCopy();
+
+    const report = await cli(["report", "--site", ROOT], cwd);
+
+    expect(report.err).toBe("");
+    expect(report.code).toBe(0);
+    expect(report.out).toContain(`Report: ${path.join(cwd, "transcripts", FOLDER, "report.html")}`);
+    expect(existsSync(path.join(cwd, "transcripts", NAMED))).toBe(false);
+  });
+
+  it("finds the run to write the walkthrough of, as the page's command asks", async () => {
+    const cwd = await homeOfTheCopy();
+    const runId = (
+      await readFile(path.join(cwd, "transcripts", FOLDER, "latest.txt"), "utf8")
+    ).trim();
+    const file = path.join(cwd, "walkthrough.json");
+
+    // The command the shareable page shows for the run: walkthrough --site <canonical> --run <id>.
+    const walkthrough = await cli(["walkthrough", "--site", ROOT, "--run", runId, file], cwd);
+
+    expect(walkthrough.err).toBe("");
+    expect(walkthrough.code).toBe(0);
+    expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(runId);
+    expect(existsSync(path.join(cwd, "transcripts", NAMED))).toBe(false);
+  });
+
+  // Ruling P17. The demo runs voicecap 0.4.1 recorded named no canonical address, so the demo is
+  // named by report.canonical when it's shared, in a config of a folder of its own, as the README
+  // says to. The Word copy prints each run's command, which then finds the run by the root the
+  // share recorded.
+  it("runs the command a shared Word copy prints for each run's walkthrough file, when report.canonical named the site", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const home = path.join(root, "transcripts");
+    await cp(fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url)), home, {
+      recursive: true,
+    });
+    const named = path.join(root, "demo-share");
+    await mkdir(named);
+    await writeFile(
+      path.join(named, "voicecap.config.json"),
+      '{ "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }\n',
+    );
+    const share = await cli(["share", "--out", home, "--reviewer", "Pat Lee"], named);
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const siteDir = path.join(home, "127.0.0.1_4848");
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    const word = shares[0]!.files[1]!;
+    expect(word.name).toMatch(/^voicecap\.netlify\.app_\d{4}-\d{2}-\d{2}\.docx$/);
+
+    // The commands, as the Word copy prints them: one for each run the copy draws on, the latest
+    // first.
+    const { document } = await unzipDocx(await readFile(path.join(shareDir(siteDir), word.name)));
+    const commands = paragraphsOf(document)
+      .map(({ text }) => text)
+      .filter((text) => text.startsWith("npx @icjia/voicecap walkthrough "));
+    expect(commands).toEqual(
+      ["2026-09-29_1402", "2026-09-29_1315"].map(
+        (run) =>
+          `npx @icjia/voicecap walkthrough --site https://voicecap.netlify.app/demo-site/ --run ${run} voicecap.netlify.app_${run}_walkthrough.json`,
+      ),
+    );
+
+    // Each is run as printed, in a folder of its own, with the home a person has set.
+    const work = path.join(root, "work");
+    await mkdir(work);
+    for (const command of commands) {
+      const args = command.split(" ").slice(2);
+      const run = args[args.indexOf("--run") + 1]!;
+      const written = await cli(args, work, { VOICECAP_TRANSCRIPTS: home });
+
+      expect(written.err).toBe("");
+      expect(written.code).toBe(0);
+      const file = path.join(work, args.at(-1)!);
+      expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(run);
+    }
+    // Nothing was made in the folder the canonical name would have.
+    expect(existsSync(path.join(home, "voicecap.netlify.app"))).toBe(false);
+  });
+
+  it("finds the folder to check, for verify", async () => {
+    const cwd = await homeOfTheCopy();
+
+    const verify = await cli(["verify", "--site", ROOT], cwd);
+
+    expect(verify.err).toBe("");
+    expect(verify.code).toBe(0);
+    expect(verify.out).toBe(
+      `${FOLDER}: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.\n`,
+    );
+
+    // An address no run recorded has no folder, as before.
+    const none = await cli(["verify", "--site", "https://i2i.illinois.gov/"], cwd);
+    expect(none.code).toBe(1);
+    expect(none.err).toBe(
+      `Error: ${path.join(cwd, "transcripts")} has no i2i.illinois.gov folder, so there's nothing to check.\n`,
+    );
+  });
+
+  it("passes over an empty folder named after the address, as a stopped first attempt leaves one", async () => {
+    const cwd = await homeOfTheCopy();
+    // A first attempt at the live address that stopped before it recorded anything.
+    await mkdir(path.join(cwd, "transcripts", NAMED));
+
+    const verify = await cli(["verify", "--site", ROOT], cwd);
+    const report = await cli(["report", "--site", ROOT], cwd);
+
+    // Each is of the copy's records, not of the empty folder, which would be checked, or stopped at.
+    expect(verify.err).toBe("");
+    expect(verify.code).toBe(0);
+    expect(verify.out).toBe(
+      `${FOLDER}: 1 run (0 incomplete), 0 manual sessions, 0 reviews, 0 shares checked: everything matches.\n`,
+    );
+    expect(report.err).toBe("");
+    expect(report.code).toBe(0);
+    expect(report.out).toContain(`Report: ${path.join(cwd, "transcripts", FOLDER, "report.html")}`);
+  });
+
+  it("finds a root with a path by what its run recorded, though a folder is named after its host", async () => {
+    const root = "https://voicecap.netlify.app/demo-site/";
+    const cwd = await homeOfTheCopy(root);
+    // The website itself was run once: its folder holds records, and folders are named by host.
+    await mkdir(path.join(cwd, "transcripts", "voicecap.netlify.app", "2026-09-28"), {
+      recursive: true,
+    });
+    const runId = (
+      await readFile(path.join(cwd, "transcripts", FOLDER, "latest.txt"), "utf8")
+    ).trim();
+    const file = path.join(cwd, "walkthrough.json");
+
+    // The command the shareable page shows for a run of the demo.
+    const walkthrough = await cli(["walkthrough", "--site", root, "--run", runId, file], cwd);
+
+    expect(walkthrough.err).toBe("");
+    expect(walkthrough.code).toBe(0);
+    expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(runId);
+  });
+
+  it("finds the folder to share, for share", async () => {
+    const { dir, siteDir } = await homeWithCountedRun(undefined, { canonical: ROOT });
+
+    const share = await cli(["share", "--site", ROOT, "--reviewer", "Pat Lee"], dir);
+
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    // The terminal names the folder, the address voicecap read, as it always did.
+    expect(share.out).toMatch(/^Shared example\.illinois\.gov, as of /);
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    expect(shares).toHaveLength(1);
+    // The copies and their record name the site as the page does: by its canonical address.
+    const entry = shares[0]!;
+    expect(entry.site).toBe(ROOT);
+    expect(entry.files[0]?.name).toBe(`${NAMED}_${entry.at.slice(0, 10)}.html`);
+    expect(existsSync(path.join(dir, "transcripts", NAMED))).toBe(false);
+  });
+
+  it("files a review under the address its run read, for review", async () => {
+    const cwd = await homeOfTheCopy();
+    const site = path.join(cwd, "transcripts", FOLDER);
+
+    const review = await cli(
+      [
+        "review",
+        "--site",
+        ROOT,
+        "--page",
+        "/flawed/",
+        "--status",
+        "issue",
+        "--note",
+        "Unlabeled button",
+        "--reviewer",
+        "Pat Reviewer",
+      ],
+      cwd,
+    );
+
+    expect(review.err).toBe("");
+    expect(review.code).toBe(0);
+    // A path is a page of the copy the run read, which is where the folder's records are.
+    const { pages } = JSON.parse(
+      await readFile(path.join(site, "reviews.json"), "utf8"),
+    ) as ReviewsFile;
+    expect(Object.keys(pages)).toEqual([`${SITE}/flawed`]);
+    expect(existsSync(path.join(cwd, "transcripts", NAMED))).toBe(false);
+    expect((await cli(["verify"], cwd)).code).toBe(0);
+  });
+
+  it("files a manual session under the address its run read, for manual add", async () => {
+    const cwd = await homeOfTheCopy();
+    const site = path.join(cwd, "transcripts", FOLDER);
+
+    const manual = await cli(
+      [
+        "manual",
+        "add",
+        fixture("manual", "nvda-io-log.txt"),
+        "--site",
+        ROOT,
+        "--page",
+        "/",
+        "--redact-typing",
+        "--reviewer",
+        "Pat Reviewer",
+        "--date",
+        "2026-09-25",
+      ],
+      cwd,
+    );
+
+    expect(manual.err).not.toContain("Error:");
+    expect(manual.code).toBe(0);
+    const sessions = await listManualSessions(site);
+    expect(sessions.map((session) => session.json.page.url)).toEqual([`${SITE}/`]);
+    expect(existsSync(path.join(cwd, "transcripts", NAMED))).toBe(false);
+    // Filed where its page's own address puts it, so verify finds it in place.
+    const verify = await cli(["verify"], cwd);
+    expect(verify.out).toBe(
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 0 reviews, 0 shares checked: everything matches.\n`,
+    );
+    expect(verify.code).toBe(0);
+  });
+
+  it("refuses a page given on the canonical address, and files nothing", async () => {
+    const cwd = await homeOfTheCopy();
+    const home = path.join(cwd, "transcripts");
+    const before = await contents(home);
+
+    const review = await cli(
+      [
+        "review",
+        "--site",
+        ROOT,
+        "--page",
+        `${ROOT}flawed/`,
+        "--status",
+        "issue",
+        "--reviewer",
+        "Pat Reviewer",
+      ],
+      cwd,
+    );
+    const manual = await cli(
+      [
+        "manual",
+        "add",
+        fixture("manual", "nvda-io-log.txt"),
+        "--site",
+        ROOT,
+        "--page",
+        ROOT,
+        "--redact-typing",
+        "--reviewer",
+        "Pat Reviewer",
+        "--date",
+        "2026-09-25",
+      ],
+      cwd,
+    );
+
+    expect([review.code, manual.code]).toEqual([1, 1]);
+    expect(review.err).toContain(`--page ${ROOT}flawed/ is on ${NAMED}, but --site is`);
+    expect(manual.err).toContain(`--page ${ROOT} is on ${NAMED}, but --site is`);
+    expect(await contents(home)).toEqual(before);
   });
 });
 
@@ -1972,24 +2369,29 @@ describe("voicecap init", () => {
       );
     };
 
+    // The site is at an IP address, so init asks for the address people visit, and writes it into
+    // the command as --canonical.
     const run = await cli(
       ["init"],
       dir,
       {},
       {
-        stdin: linesStream([SITE, "", "", "", "", "y"]),
+        stdin: linesStream([SITE, "https://dvfr.illinois.gov", "", "", "", "", "y"]),
         fetch: fetchHomeOnly,
         platformReadiness: () => Promise.resolve(READY),
       },
     );
 
     expect(run.code).toBe(0);
+    expect(run.out).toContain(`--site ${SITE} --canonical https://dvfr.illinois.gov/ --page`);
     const out = path.join(dir, "transcripts", "127.0.0.1_4747");
     const runId = (await readFile(path.join(out, "latest.txt"), "utf8")).trim();
     const runJson = JSON.parse(
       await readFile(path.join(runDir(out, runId), "run.json"), "utf8"),
     ) as RunJson;
     expect(runJson.status).toBe("completed");
+    // The run took the address from the command it was given.
+    expect(runJson.canonical).toBe("https://dvfr.illinois.gov/");
   });
 
   it("never starts init again from the command it runs, even in a terminal", async () => {

@@ -47,10 +47,11 @@ function noRunModel(): ShareModel {
   return buildShareModel(inputOf([shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] })]));
 }
 
-/** One run of one page, which Pat Lee ran, under a site name set to `siteName`. */
-function patsModel(siteName: string | null = null): ShareModel {
+/** One run of one page, which Pat Lee ran, under `name` when one is given, else the site's own. */
+function patsModel(name: string | null = null): ShareModel {
   const run = shareRun({ id: "r1", sessions: [{ reviewer: "Pat Lee" }], pages: [{ path: "/" }] });
-  return buildShareModel(inputOf([run], { siteName }));
+  const model = buildShareModel(inputOf([run]));
+  return name === null ? model : { ...model, header: { ...model.header, name } };
 }
 
 /** The level 1 headings among the blocks, as their words, in order. */
@@ -221,13 +222,17 @@ describe("renderWordCopy", () => {
     const parts = await unzipDocx(await renderWordCopy(model));
 
     expect(XMLValidator.validate(parts.document)).toBe(true);
+    // The title, the site's name, and when it was tested and the copy made, first: no address.
     expect(paragraphsOf(parts.document).slice(0, 3)).toEqual([
       { style: "Title", text: "Screen reader test results" },
-      { style: "", text: "30 September 2026 at 09:00 (UTC−05:00)" },
-      { style: "", text: "Site address http://127.0.0.1:4848." },
+      { style: "", text: "127.0.0.1:4848" },
+      {
+        style: "",
+        text: "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
+      },
     ]);
     expect(propertyOf(parts.core, "dc:title")).toBe(
-      `${model.header.siteName}: how its pages read aloud with NVDA`,
+      `${model.header.name}: how its pages read aloud with NVDA`,
     );
     expect(tablesOf(parts.document).length).toBeGreaterThan(10);
     expect(
@@ -299,10 +304,9 @@ describe("renderWordCopy", () => {
     expect(XMLValidator.validate(parts.document)).toBe(true);
     expect(parts.core).toContain("Smith &amp; Sons&apos; &quot;Grants&quot; &lt;portal&gt;");
     expect(propertyOf(parts.core, "dc:title")).toBe(`${name}: how its pages read aloud with NVDA`);
-    expect(paragraphsOf(parts.document)[2]).toEqual({
-      style: "",
-      text: `${name}. Site address ${SITE}.`,
-    });
+    expect(paragraphsOf(parts.document)[1]).toEqual({ style: "", text: name });
+    // Its address is the last line of the top, after who made it.
+    expect(paragraphsOf(parts.document)[5]).toEqual({ style: "", text: `Site address ${SITE}.` });
     expect(footerWords(parts.footer)[0]).toBe(`${name}, as of 30 September 2026. Page `);
   });
 

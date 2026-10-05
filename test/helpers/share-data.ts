@@ -98,6 +98,16 @@ export interface ShareSessionSpec {
 
 export interface ShareRunSpec {
   id: string;
+  /**
+   * The address the run read, as its `site`, which its pages' paths are on. Default: SITE. A copy
+   * on the tester's computer is `http://127.0.0.1:4848`.
+   */
+  site?: string;
+  /**
+   * The root of the site's canonical address the run recorded, as its `canonical`. Default: none,
+   * as in a run from before voicecap 0.10.0.
+   */
+  canonical?: string;
   /** Default "2026-09-26T14:05:00-05:00". */
   createdAt?: string;
   /** Default "completed". */
@@ -179,7 +189,8 @@ export function shareRun(spec: ShareRunSpec): RunJson {
   const source = spec.source ?? PAGE_LIST;
   // null is an answer of its own here, so `??` would lose it.
   const runEnd = spec.endReason === undefined ? DEFAULT_END[status] : spec.endReason;
-  const pages = spec.pages.map(sharePage);
+  const site = spec.site ?? SITE;
+  const pages = spec.pages.map((page) => sharePage(page, site));
   const base = environment({ pageSource: source, runId: spec.id, runStartedAt: createdAt });
   const sessionEnvironment =
     spec.voicecapVersion === undefined
@@ -193,9 +204,10 @@ export function shareRun(spec: ShareRunSpec): RunJson {
     status,
     createdAt,
     completedAt: status === "completed" ? createdAt : null,
-    site: SITE,
+    site,
+    ...(spec.canonical === undefined ? {} : { canonical: spec.canonical }),
     settings: {
-      site: SITE,
+      site,
       source,
       passes: spec.passes ?? ["read", "headings", "tab"],
       include: [],
@@ -259,8 +271,8 @@ export function shareRun(spec: ShareRunSpec): RunJson {
   return (spec.sealed ?? status === "completed") ? { ...run, seal: sealOf(run) } : run;
 }
 
-function sharePage(page: SharePageSpec): PageRecord {
-  const url = new URL(page.path, SITE).href;
+function sharePage(page: SharePageSpec, site: string): PageRecord {
+  const url = new URL(page.path, site).href;
   const key = canonicalKey(url);
   const status = page.status ?? "done";
   const failed = page.failedAttempts?.length ?? 0;

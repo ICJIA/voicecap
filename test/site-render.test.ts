@@ -11,6 +11,7 @@ import vm from "node:vm";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
@@ -41,6 +42,8 @@ import {
 } from "./helpers/site-content.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
+/** Where the build publishes the demo's own pages, from the site's top: a relative link goes there. */
+const DEMO_PAGES_HREF = "demo-site/";
 
 const NO_FONTS = { fontCss: "" };
 
@@ -136,8 +139,8 @@ function linksOf(html: string): { href: string; download: boolean }[] {
 /** The text of each file's item in a report, as a reader gets it. */
 const filesIn = (article: string): string[] => textsOf(article, "li");
 
-/** The folders of a list of reports by date, as the list gives them. */
-function foldersByDate(html: string): (string | undefined)[] {
+/** The sites' names in a list of reports by date, as the list gives them. */
+function namesByDate(html: string): (string | undefined)[] {
   return textsOf(sectionOf(html, "by-date"), "li").map((item) => item.split(", ")[2]);
 }
 
@@ -153,11 +156,18 @@ function reportAt(folder: string, at: string, by = "Pat Lee"): PublishedReport {
   };
 }
 
-/** A content of one site with one report each of these folders, which were shared at these times. */
+/**
+ * A content of one site with one report each of these folders, which were shared at these times.
+ * Each site is named for its folder, as a site with no canonical address is.
+ */
 function sitesAt(...shared: [folder: string, at: string][]): SiteContent {
   return {
     demo: null,
-    sites: shared.map(([folder, at]) => ({ folder, reports: [reportAt(folder, at)] })),
+    sites: shared.map(([folder, at]) => ({
+      name: folder,
+      folders: [folder],
+      reports: [reportAt(folder, at)],
+    })),
   };
 }
 
@@ -208,11 +218,11 @@ describe("renderSiteIndex", () => {
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("links only to its files, its own anchors, and voicecap's GitHub page", () => {
+  it("links only to its files, its own anchors, the demo's pages, and voicecap's GitHub page", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
-    const allowed = [...anchors, GITHUB, ...files.map(({ href }) => href)];
+    const allowed = [...anchors, DEMO_PAGES_HREF, GITHUB, ...files.map(({ href }) => href)];
 
     expect(links.filter(({ href }) => !allowed.includes(href))).toEqual([]);
     // Each anchor lands on something in the page, and each published file is offered.
@@ -281,6 +291,67 @@ describe("renderSiteIndex", () => {
     expect(html.match(/\saria-label=/g)).toHaveLength(1);
   });
 
+  it("heads a site by its name, which needn't be a folder's, and makes its section's id from the name", () => {
+    const page = renderSiteIndex(
+      {
+        demo: null,
+        sites: [
+          {
+            name: "voicecap.netlify.app",
+            folders: ["127.0.0.1_4848"],
+            reports: [reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00")],
+          },
+          {
+            // A name with a port: its id is made as a folder's name is, with "_" for the colon.
+            name: "dvfr.illinois.gov:8443",
+            folders: ["localhost_3000"],
+            reports: [reportAt("localhost_3000", "2026-10-02T10:00:00-05:00")],
+          },
+        ],
+      },
+      NO_FONTS,
+    );
+
+    expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([
+      "voicecap.netlify.app",
+      "dvfr.illinois.gov:8443",
+    ]);
+    for (const [id, name] of [
+      ["site-voicecap.netlify.app", "voicecap.netlify.app"],
+      ["site-dvfr.illinois.gov_8443", "dvfr.illinois.gov:8443"],
+    ] as const) {
+      expect(textsOf(sectionOf(page, id), "h3")[0], id).toBe(name);
+    }
+    // No section is made from a folder's name. A folder's name is only where its files are.
+    expect(page).not.toContain('id="site-127.0.0.1_4848"');
+    expect(page).not.toContain('id="site-localhost_3000"');
+    expect(linksOf(sectionOf(page, "site-voicecap.netlify.app")).map(({ href }) => href)).toEqual([
+      "127.0.0.1_4848/127.0.0.1_4848_page.html",
+    ]);
+  });
+
+  it("shows the reports of a site's folders under the site's one heading, as it was given them", () => {
+    const folders = ["127.0.0.1_4848", DVFR];
+    const reports = [
+      { ...reportAt(DVFR, "2026-10-04T10:00:00-05:00"), id: `report-${DVFR}-2` },
+      reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00"),
+      reportAt(DVFR, "2026-10-02T10:00:00-05:00"),
+    ];
+    const page = renderSiteIndex(
+      { demo: null, sites: [{ name: DVFR, folders, reports }] },
+      NO_FONTS,
+    );
+
+    expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([DVFR]);
+    const site = sectionOf(page, `site-${DVFR}`);
+    expect([...articlesOf(site).keys()]).toEqual(reports.map(({ id }) => id));
+    expect(textsOf(site, "p")[0]).toBe("3 reports");
+    // Each report's files are at its own folder's address.
+    expect(linksOf(site).map(({ href }) => href)).toEqual(
+      reports.map(({ folder }) => `${folder}/${folder}_page.html`),
+    );
+  });
+
   it("gives every id once, whatever the sites are named", () => {
     const page = renderSiteIndex(
       {
@@ -302,6 +373,36 @@ describe("renderSiteIndex", () => {
     const named = [...page.matchAll(/\saria-labelledby="([^"]*)"/g)].map(([, id = ""]) => id);
     expect(named).toHaveLength(3);
     for (const id of named) expect(ids, id).toContain(id);
+  });
+
+  it("gives each site an id of its own when two names are the same once made safe", () => {
+    // "example.gov:8080" is made safe as "example.gov_8080", which is the name of the folder a run
+    // of that site makes, and a name can end in "-2" too.
+    const names = ["example.gov:8080", "example.gov_8080", "example.gov_8080-2"];
+    const page = renderSiteIndex(
+      {
+        demo: null,
+        sites: names.map((name, index) => ({
+          name,
+          folders: [`folder-${index}`],
+          reports: [reportAt(`folder-${index}`, "2026-10-03T10:00:00-05:00")],
+        })),
+      },
+      NO_FONTS,
+    );
+
+    const sites = [...page.matchAll(/<section class="site" id="([^"]*)">/g)].map(
+      ([, id = ""]) => id,
+    );
+    expect(sites).toEqual([
+      "site-example.gov_8080",
+      "site-example.gov_8080-2",
+      "site-example.gov_8080-2-2",
+    ]);
+    // Each leads to the site it was made for.
+    expect(sites.map((id) => textsOf(sectionOf(page, id), "h3")[0])).toEqual(names);
+    const ids = [...page.matchAll(/\sid="([^"]*)"/g)].map(([, id = ""]) => id);
+    expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
   });
 
   it("lists each report's files with their labels, sizes, and fingerprints", () => {
@@ -375,7 +476,8 @@ describe("renderSiteIndex", () => {
           demo: null,
           sites: [
             {
-              folder: DVFR,
+              name: DVFR,
+              folders: [DVFR],
               reports: [
                 {
                   ...DVFR_NEWEST,
@@ -408,7 +510,7 @@ describe("renderSiteIndex", () => {
       notPublished: [{ name: `${DVFR}_2026-09-29.html`, reason: "changed" }],
     };
     const page = renderSiteIndex(
-      { demo: null, sites: [{ folder: DVFR, reports: [empty] }] },
+      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [empty] }] },
       NO_FONTS,
     );
     const article = articleOf(page, empty.id);
@@ -445,7 +547,10 @@ describe("renderSiteIndex", () => {
       ...reportAt(DVFR, "2026-10-03T10:00:00-05:00"),
       id: `report-${DVFR}-${index + 1}`,
     }));
-    const many = renderSiteIndex({ demo: null, sites: [{ folder: DVFR, reports }] }, NO_FONTS);
+    const many = renderSiteIndex(
+      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] },
+      NO_FONTS,
+    );
     expect(textsOf(sectionOf(many, `site-${DVFR}`), "p")[0]).toBe("1,204 reports");
   });
 
@@ -464,6 +569,39 @@ describe("renderSiteIndex", () => {
     expect(list).not.toContain("Sam Demo");
   });
 
+  it("lists reports by date with their sites' names, as the headings give them, not their folders'", () => {
+    const page = renderSiteIndex(
+      {
+        demo: null,
+        sites: [
+          // One site, whose reports are in two folders: a copy on a tester's computer, and the site's own.
+          {
+            name: DVFR,
+            folders: ["127.0.0.1_4848", DVFR],
+            reports: [
+              reportAt("127.0.0.1_4848", "2026-10-03T14:05:00-05:00"),
+              reportAt(DVFR, "2026-10-01T09:00:00-05:00"),
+            ],
+          },
+          {
+            name: EXAMPLE,
+            folders: ["localhost_3000"],
+            reports: [reportAt("localhost_3000", "2026-10-02T09:30:00-05:00", "Sam Rivera")],
+          },
+        ],
+      },
+      NO_FONTS,
+    );
+    const list = sectionOf(page, "by-date");
+
+    expect([...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(([, inner = ""]) => inner)).toEqual([
+      `<time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time>, ${DVFR}, prepared by Pat Lee: <a href="127.0.0.1_4848/127.0.0.1_4848_page.html">127.0.0.1_4848_page.html</a>`,
+      `<time datetime="2026-10-02T09:30:00-05:00">2 October 2026, 09:30</time>, ${EXAMPLE}, prepared by Sam Rivera: <a href="localhost_3000/localhost_3000_page.html">localhost_3000_page.html</a>`,
+      `<time datetime="2026-10-01T09:00:00-05:00">1 October 2026, 09:00</time>, ${DVFR}, prepared by Pat Lee: <a href="${DVFR}/${DVFR}_page.html">${DVFR}_page.html</a>`,
+    ]);
+    expect(namesByDate(page)).toEqual([DVFR, EXAMPLE, DVFR]);
+  });
+
   it("orders them by the moment each names, not by the text of its time", () => {
     // The clocks read 03:00, 00:30, and 23:00 the day before. In UTC they are 01:00, 05:30, and 04:00.
     const page = renderSiteIndex(
@@ -475,7 +613,7 @@ describe("renderSiteIndex", () => {
       NO_FONTS,
     );
 
-    expect(foldersByDate(page)).toEqual(["b.example.gov", "c.example.gov", "a.example.gov"]);
+    expect(namesByDate(page)).toEqual(["b.example.gov", "c.example.gov", "a.example.gov"]);
   });
 
   it("keeps the order it was given for reports of the same moment", () => {
@@ -488,7 +626,7 @@ describe("renderSiteIndex", () => {
       NO_FONTS,
     );
 
-    expect(foldersByDate(page)).toEqual(["a.example.gov", "b.example.gov", "c.example.gov"]);
+    expect(namesByDate(page)).toEqual(["a.example.gov", "b.example.gov", "c.example.gov"]);
   });
 
   it("says a report's page isn't here, in its place by date, when it isn't published", () => {
@@ -498,7 +636,7 @@ describe("renderSiteIndex", () => {
       notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
     };
     const page = renderSiteIndex(
-      { demo: null, sites: [{ folder: DVFR, reports: [wordOnly] }] },
+      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }] },
       NO_FONTS,
     );
 
@@ -509,6 +647,24 @@ describe("renderSiteIndex", () => {
     expect(textOf(item?.[1] ?? "")).toContain("its page isn't here");
   });
 
+  it("links the demo view to the demo's own pages, with a relative link named by their address", () => {
+    const demo = sectionOf(html, "demo");
+    const [lead] = [...demo.matchAll(/<p>([\s\S]*?)<\/p>/g)];
+
+    // The build publishes them in demo-site/, beside this page: a link from the page's own address.
+    expect(lead?.[1]).toBe(
+      `voicecap&#39;s report on its own small demo site, as an example of what it makes. The site&#39;s pages are at <a href="${DEMO_PAGES_HREF}">voicecap.netlify.app/demo-site/</a>.`,
+    );
+    expect(linksOf(demo).filter(({ href }) => href === DEMO_PAGES_HREF)).toEqual([
+      { href: DEMO_PAGES_HREF, download: false },
+    ]);
+    // Only the demo view has it, and the link's words are its address: the demo's canonical one.
+    expect(linksOf(html).filter(({ href }) => href === DEMO_PAGES_HREF)).toHaveLength(1);
+    expect(textsOf(demo, "a")[0]).toBe("voicecap.netlify.app/demo-site/");
+    expect(`https://${textsOf(demo, "a")[0]}`).toBe(DEMO_CANONICAL);
+    expect(demo).not.toMatch(/\shref="(?:[a-z][a-z0-9+.-]*:|\/)/i);
+  });
+
   it("has no demo view, and no link to one, without a demo", () => {
     const page = renderSiteIndex({ ...CONTENT, demo: null }, NO_FONTS);
     const barOf = (markup: string) => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
@@ -517,6 +673,7 @@ describe("renderSiteIndex", () => {
     expect(page).not.toContain('href="#demo"');
     expect(page).not.toContain("The demo");
     expect(page).not.toContain("report-demo");
+    expect(page).not.toContain("demo-site");
     // The bar's links go to the views that are there.
     expect(textsOf(barOf(page), "a")).toEqual(["The sites", "Every report, by date"]);
     expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
@@ -566,13 +723,16 @@ describe("renderSiteIndex", () => {
       ],
       notPublished: [{ name: "<script>x</script>.docx", reason: "changed" }],
     };
+    // A site's name is text, and its section's id too: made safe, as a folder's name is.
+    const name = 'a"b&c<s>x</s>';
     const page = renderSiteIndex(
-      { demo: null, sites: [{ folder: 'a"b&c', reports: [report] }] },
+      { demo: null, sites: [{ name, folders: ['a"b&c'], reports: [report] }] },
       NO_FONTS,
     );
 
     const markup = markupOf(page);
     expect(markup).not.toContain("<img");
+    expect(markup).not.toContain("<s>");
     expect(markup).toContain("Prepared by &lt;img src=x onerror=alert(1)&gt;");
     expect(markup).toContain("prepared by &lt;img src=x onerror=alert(1)&gt;");
     // A name, an address, a fingerprint, and a run, in text and in an attribute.
@@ -581,16 +741,17 @@ describe("renderSiteIndex", () => {
     expect(markup).toContain("<code>&lt;b&gt;0&lt;/b&gt;</code>");
     expect(markup).toContain("The walkthrough file of run &lt;u&gt;run&lt;/u&gt;");
     expect(markup).toContain("&lt;script&gt;x&lt;/script&gt;.docx isn&#39;t here");
-    // A folder, an id, and a time, which are attributes and text too.
+    // A site's name, an id, and a time, which are attributes and text too.
     expect(markup).toContain('id="report-&quot;&gt;&lt;b&gt;x&lt;/b&gt;"');
-    expect(markup).toMatch(/<section\b[^>]*\bid="site-a&quot;b&amp;c"/);
+    expect(markup).toContain("<h3>a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;</h3>");
+    expect(markup).toMatch(/<section\b[^>]*\bid="site-a_b_c_s_x__s_"/);
     expect(markup).toContain(
       'datetime="2026-10-03T14:05:00-05:00&quot; onmouseover=&quot;alert(1)"',
     );
-    expect(markup).toContain(", a&quot;b&amp;c, prepared by");
+    expect(markup).toContain(", a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, prepared by");
     // Nothing the record holds became markup: no element it names, and no attribute it adds.
     const { elements, attributes } = namesIn(markup);
-    expect(elements.filter((element) => ["img", "b", "u", "i"].includes(element))).toEqual([]);
+    expect(elements.filter((element) => ["img", "b", "u", "i", "s"].includes(element))).toEqual([]);
     expect(attributes.filter((name) => /^(?:on|style$|src)/.test(name))).toEqual([]);
   });
 
@@ -600,7 +761,7 @@ describe("renderSiteIndex", () => {
     expect(sentences).toEqual(
       expect.arrayContaining([
         "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
-        "voicecap's report on its own small demo site, as an example of what it makes.",
+        "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.netlify.app/demo-site/.",
         "Each site's reports, the newest first.",
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",

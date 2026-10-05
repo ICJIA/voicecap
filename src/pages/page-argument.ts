@@ -1,3 +1,6 @@
+import path from "node:path";
+
+import { siteFolder } from "../run/paths.js";
 import { readLatestRunId, listRuns, readRunJson } from "../run/store.js";
 import { UsageError } from "../util/errors.js";
 import { assertNotRewritten } from "../util/git-bash.js";
@@ -16,7 +19,9 @@ export interface PageArgument {
  * resolvePageUrl tests it) or a root-relative path. With --site (`site`), a path resolves against
  * its origin, and the page must be on that origin, so a record can't be filed under the wrong
  * site. Without it, a path resolves against the site of the latest run in `outDir`, a site's
- * folder, and must stay on that site too.
+ * folder, and must stay on that site too. A --site that gave its canonical address, and found
+ * `outDir` by what its runs recorded (see chooseSiteDir), counts as the address those runs read
+ * (see siteOfPages).
  */
 export async function resolvePageArgument(
   value: string,
@@ -25,7 +30,7 @@ export async function resolvePageArgument(
 ): Promise<PageArgument> {
   assertNotRewritten("--page", value);
   const trimmed = value.trim();
-  const given = site === undefined || site === null ? null : parseSiteUrl(site);
+  const given = site === undefined || site === null ? null : await siteOfPages(site, outDir);
   let url: URL | null;
   if (hasScheme(trimmed)) {
     url = URL.canParse(trimmed) ? resolvePageUrl(trimmed, new URL(trimmed)) : null;
@@ -55,6 +60,20 @@ export async function resolvePageArgument(
   }
   const key = canonicalKey(url);
   return { url: url.href, key, slug: pageSlug(key) };
+}
+
+/**
+ * The site whose pages `site`, given as --site, means: its own origin, unless `outDir`, the folder
+ * chosen for it, isn't the one named after that origin. Then `site` was a canonical address that
+ * found `outDir` by what its runs recorded (see chooseSiteDir), and its pages are on the address
+ * those runs read: that is where the folder's records are filed, and where `voicecap verify` looks
+ * for them.
+ */
+async function siteOfPages(site: string, outDir: string): Promise<URL> {
+  const named = parseSiteUrl(site);
+  if (path.basename(outDir) === siteFolder(named)) return named;
+  const read = await latestSite(outDir);
+  return read === null ? named : parseSiteUrl(read);
 }
 
 async function latestSite(outDir: string): Promise<string | null> {

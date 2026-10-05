@@ -1,0 +1,253 @@
+import { UsageError } from "../util/errors.js";
+import { withScheme } from "./url.js";
+
+/** `value` as a URL, or null when it isn't one. */
+function parseUrl(value: string): URL | null {
+  return URL.canParse(value) ? new URL(value) : null;
+}
+
+/** Whether `url` is an http or https address. */
+function isWebAddress(url: URL): boolean {
+  return url.protocol === "http:" || url.protocol === "https:";
+}
+
+/** The origin of `value`, or null when it isn't a URL. */
+function originOf(value: string): string | null {
+  return parseUrl(value)?.origin ?? null;
+}
+
+/**
+ * The root a record names as its site's canonical address, checked again, since a record is data
+ * that something other than voicecap may have written: null for one that isn't a site's name (an IP
+ * address, a local address, another kind of address, text that isn't an address, or something that
+ * isn't text at all). A root that fits comes back as `normalizeCanonical` has it.
+ */
+export function recordedCanonical(recorded: unknown): string | null {
+  if (typeof recorded !== "string") return null;
+  try {
+    return normalizeCanonical(recorded);
+  } catch (error) {
+    if (error instanceof UsageError) return null;
+    throw error;
+  }
+}
+
+/**
+ * Whether `value` is the root of a web site as a share's record gives it: text that is an http or
+ * https address written as `URL` writes one, with a path that ends in `/` and no query, hash, or
+ * credentials (`https://dvfr.illinois.gov/`, `https://voicecap.netlify.app/demo-site/`). It is what
+ * `normalizeCanonical` gives, except that its host may be an IP address or a local address: a share
+ * of a site with no canonical address records the address voicecap read (`http://127.0.0.1:4848/`),
+ * which no reader knows the site by, but which is a root all the same.
+ */
+export function isWebRoot(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const url = parseUrl(value);
+  return (
+    url !== null &&
+    isWebAddress(url) &&
+    url.pathname.endsWith("/") &&
+    value === `${url.origin}${url.pathname}`
+  );
+}
+
+/**
+ * Whether a host name has an empty label: it starts or ends with a dot, or has two together
+ * (`.example.com`, `a..b.org`, `example.com.`). `URL` lets each through, but none is a name to call
+ * a site by: copies named `.example.com_<day>.html` would be hidden on a Mac, and left off the
+ * website.
+ */
+function hasEmptyLabel(hostname: string): boolean {
+  return hostname.split(".").includes("");
+}
+
+/**
+ * The root of the site at the canonical address `input`: its scheme, host, and path, with a `/` on
+ * the end and without any query, hash, or credentials. An address typed the short way gets
+ * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.
+ * Throws a `UsageError` when `input` isn't an http(s) web address (a host with an empty label, such
+ * as `.example.com`, isn't one), and when it's an IP address or a local address (see
+ * `isLocalHost`), since neither is a site's name.
+ */
+export function normalizeCanonical(input: string): string {
+  const url = parseUrl(withScheme(input.trim()));
+  if (url === null || !isWebAddress(url) || hasEmptyLabel(url.hostname)) {
+    throw new UsageError(`"${input}" isn't a web address, such as https://dvfr.illinois.gov.`);
+  }
+  if (isLocalHost(url.hostname)) {
+    throw new UsageError(
+      `"${input}" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.`,
+    );
+  }
+  const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
+  return `${url.origin}${path}`;
+}
+
+/**
+ * The root of the site that a page's `<link rel="canonical">` tag names, or null when the tag gives
+ * none. `pageUrl` is the page as voicecap read it, and `declared` is the tag's address, which must
+ * be an absolute http(s) URL (null for a page with no tag). The tag's path has to end with the
+ * page's own path, and its host has to be one people visit (not an `isLocalHost` one). The root is
+ * the tag's address up to the page's path, with a `/` on the end: `http://127.0.0.1:4848/about/`
+ * with the tag `https://voicecap.netlify.app/demo-site/about/` gives
+ * `https://voicecap.netlify.app/demo-site/`. A tag that names another page gives null, and the
+ * tag's query and hash don't count.
+ */
+export function canonicalRootFrom(pageUrl: string, declared: string | null): string | null {
+  if (declared === null) return null;
+  const page = parseUrl(pageUrl);
+  const tag = parseUrl(declared);
+  if (page === null || tag === null) return null;
+  if (!isWebAddress(page) || !isWebAddress(tag) || isLocalHost(tag.hostname)) return null;
+  if (!tag.pathname.endsWith(page.pathname)) return null;
+  // The root is the tag's path up to the page's own, keeping the slash that path starts with.
+  const rootPath = tag.pathname.slice(0, tag.pathname.length - page.pathname.length + 1);
+  return `${tag.origin}${rootPath}`;
+}
+
+/** What a page's record says about its address and its tag: all `chooseCanonicalRoot` reads. */
+export interface TaggedPage {
+  /** The address voicecap asked for. */
+  url: string;
+  /** Where the page ended up, after redirects: the address its tag has to fit. */
+  finalUrl?: string;
+  /** The tag's address as the browser gave it. Null or absent: no tag, or the page wasn't read. */
+  canonical?: string | null;
+}
+
+/**
+ * The root of the canonical address a run records for its site. It's `given` when there is one (the
+ * address --canonical gave, already normalized), whatever the pages say. Otherwise it's what the
+ * pages' tags name, each read by `canonicalRootFrom` at the address its page ended at:
+ * - the root most inner pages' tags give, an inner page being any page whose path isn't "/", and
+ *   the first such page in `pages` deciding a tie. An inner page's tag fits only if it ends with
+ *   that page's own path, which is strong evidence;
+ * - else the root the first home page's tag gives, a home page being one whose path is "/". Its
+ *   path fits any tag that ends in "/", so a home page's tag that names another page gives a wrong
+ *   root, and this comes last for that reason;
+ * - else null.
+ */
+export function chooseCanonicalRoot(
+  pages: readonly TaggedPage[],
+  given: string | null,
+): string | null {
+  if (given !== null) return given;
+  // The roots the inner pages give, each with its page count, in the order they first appear.
+  const votes = new Map<string, number>();
+  let home: string | null = null;
+  for (const page of pages) {
+    const address = page.finalUrl ?? page.url;
+    const root = canonicalRootFrom(address, page.canonical ?? null);
+    if (root === null) continue;
+    if (parseUrl(address)?.pathname === "/") home ??= root;
+    else votes.set(root, (votes.get(root) ?? 0) + 1);
+  }
+  let chosen: string | null = null;
+  let most = 0;
+  for (const [root, count] of votes) {
+    if (count > most) {
+      chosen = root;
+      most = count;
+    }
+  }
+  return chosen ?? home;
+}
+
+/**
+ * The address to show readers for `url`. An address on `readOrigin`, the origin voicecap read, is
+ * shown on the canonical `root` (which ends in `/`): the root, then the address's path without its
+ * leading `/`, then its query, and not its hash. So the read site's home page is the root itself.
+ * A root with a path is never doubled: an address whose path already starts with the root's path
+ * (the site that has the root, read itself, or a copy with the live site's paths) keeps its path,
+ * and only its origin becomes the root's. The root's path without its closing `/` is the root too.
+ * With no `root`, or for an address on another origin (a link off the site, a redirect away),
+ * `url` comes back as it was.
+ */
+export function toCanonical(url: string, readOrigin: string, root: string | null): string {
+  if (root === null) return url;
+  const address = parseUrl(url);
+  if (address === null || address.origin !== originOf(readOrigin)) return url;
+  const base = new URL(root);
+  if (base.pathname !== "/" && carriesPath(address.pathname, base.pathname)) {
+    return `${base.origin}${address.pathname}${address.search}`;
+  }
+  return `${root}${address.pathname.slice(1)}${address.search}`;
+}
+
+/**
+ * Whether `pathname` already starts with `rootPath`, which ends in `/`: it's the root's path, the
+ * same without its closing `/`, or a path under it. `/researchhub-old/` doesn't start with
+ * `/researchhub/`, though its letters do.
+ */
+function carriesPath(pathname: string, rootPath: string): boolean {
+  return pathname.startsWith(rootPath) || pathname === rootPath.slice(0, -1);
+}
+
+/**
+ * The name readers know a site by: the host of its canonical `root`, with its port if it has one.
+ */
+export function canonicalName(root: string): string {
+  return new URL(root).host;
+}
+
+/** Whether `name` is four dotted decimal numbers, each from 0 to 255. */
+function isIpv4(name: string): boolean {
+  const parts = name.split(".");
+  return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+}
+
+/**
+ * Whether `host` is this computer or an IP address, neither of which readers can visit by name:
+ * `localhost` or a name under it, an IPv4 address, or an IPv6 address (bracketed or not). `host`
+ * can have a port, capital letters, and a trailing dot, and an IPv4 address written another way
+ * (`127.1`) counts as the address `URL` reads it as. A name people visit, such as
+ * `dvfr.illinois.gov`, isn't one, and neither is `localhost.example.org`.
+ */
+export function isLocalHost(host: string): boolean {
+  // An IPv6 address needs its brackets for `URL`, so one given without them is tried with them.
+  const url = parseUrl(`http://${host}/`) ?? parseUrl(`http://[${host}]/`);
+  if (url === null) return false;
+  const name = url.hostname.endsWith(".") ? url.hostname.slice(0, -1) : url.hostname;
+  return (
+    name === "localhost" || name.endsWith(".localhost") || name.startsWith("[") || isIpv4(name)
+  );
+}
+
+/**
+ * Whether `hostname`, as `URL` writes it, is the computer's own, by a loopback address: `localhost`
+ * or a name under it, an IPv4 address from 127.0.0.0 to 127.255.255.255, or the IPv6 address
+ * `[::1]`. Any other IP address is another computer's, such as a server on the network.
+ */
+function isLoopback(hostname: string): boolean {
+  const name = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+  if (name === "localhost" || name.endsWith(".localhost") || name === "[::1]") return true;
+  return isIpv4(name) && name.startsWith("127.");
+}
+
+/** `hostname` without a `www.` at its start. */
+function withoutWww(hostname: string): string {
+  return hostname.startsWith("www.") ? hostname.slice("www.".length) : hostname;
+}
+
+/**
+ * Where a run read the site, compared with its canonical `root`. "same" when `readOrigin` is the
+ * site itself: the root's own origin, or the same but for the scheme (http or https) or a `www.` at
+ * the start of either host. "local" for a copy on the computer that ran them, at a loopback address
+ * (see isLoopback). "elsewhere" for a copy at any other address, another computer's IP address
+ * among them.
+ */
+export function readLocation(readOrigin: string, root: string): "same" | "local" | "elsewhere" {
+  const read = parseUrl(readOrigin);
+  const site = parseUrl(root);
+  if (read === null || !isWebAddress(read)) return "elsewhere";
+  if (
+    site !== null &&
+    (read.origin === site.origin ||
+      (isWebAddress(site) &&
+        read.port === site.port &&
+        withoutWww(read.hostname) === withoutWww(site.hostname)))
+  ) {
+    return "same";
+  }
+  return isLoopback(read.hostname) ? "local" : "elsewhere";
+}

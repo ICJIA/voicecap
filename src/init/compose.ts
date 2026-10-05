@@ -5,12 +5,15 @@ export type PageChoice =
   | { kind: "page"; url: string };
 
 /**
- * `init`'s answers, ready to become a run's command-line arguments. `home` is the transcripts
- * home to write with `--out`; null means it matches the home already in effect, so `--out` is
- * left out. `reviewer` is the name each session of the run records.
+ * `init`'s answers, ready to become a run's command-line arguments. `canonical` is the root of the
+ * address people visit, when `init` had to ask for it, to write with `--canonical`; null leaves
+ * `--canonical` out, and the run takes the address from the site's own pages. `home` is the
+ * transcripts home to write with `--out`; null means it matches the home already in effect, so
+ * `--out` is left out. `reviewer` is the name each session of the run records.
  */
 export interface InitAnswers {
   site: string;
+  canonical: string | null;
   pages: PageChoice;
   limit: number | null;
   home: string | null;
@@ -18,12 +21,14 @@ export interface InitAnswers {
 }
 
 /**
- * Turn `init`'s answers into the run options that reproduce them: `--site`, the page source
- * (`--sitemap`, `--pages`, or `--page`), `--limit` when a number was given, `--out` when `home`
- * isn't null, and `--reviewer` last, where it's easy to find and change for someone else.
+ * Turn `init`'s answers into the run options that reproduce them: `--site`, `--canonical` when
+ * `canonical` isn't null, the page source (`--sitemap`, `--pages`, or `--page`), `--limit` when a
+ * number was given, `--out` when `home` isn't null, and `--reviewer` last, where it's easy to find
+ * and change for someone else.
  */
 export function composeArgs(answers: InitAnswers): string[] {
   const args = ["--site", answers.site];
+  if (answers.canonical !== null) args.push("--canonical", answers.canonical);
   switch (answers.pages.kind) {
     case "sitemap":
       args.push("--sitemap", answers.pages.url);

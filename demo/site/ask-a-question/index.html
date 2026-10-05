@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ask a question | voicecap demo</title>
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="canonical" href="https://voicecap.netlify.app/demo-site/ask-a-question/" />
+    <link rel="stylesheet" href="../style.css" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to main content</a>
@@ -13,15 +14,18 @@
     </header>
     <nav aria-label="Tour">
       <ul>
-        <li><a href="/the-report/">Previous: The report</a></li>
-        <li><a href="/common-mistakes/">Next: Common mistakes (on purpose)</a></li>
+        <li><a href="../the-report/">Previous: The report</a></li>
+        <li><a href="../common-mistakes/">Next: Common mistakes (on purpose)</a></li>
       </ul>
     </nav>
     <main id="main">
       <h1>Ask a question</h1>
       <p>This form is built well, so a screen reader can say what each field is for.</p>
-      <p>Nothing you type is sent anywhere: this is a demo.</p>
-      <form method="post" action="/ask-a-question/">
+      <p>
+        This is a practice form: sending it only shows a thank-you page, so don't type anything
+        private.
+      </p>
+      <form method="get" action="sent.html">
         <p>
           <label for="name">Your name</label>
           <input id="name" name="name" type="text" autocomplete="name" />
@@ -57,7 +61,7 @@
       </form>
     </main>
     <footer>
-      <p>This demo site comes with voicecap, and runs only on this computer.</p>
+      <p>This demo site comes with voicecap, for trying it out.</p>
     </footer>
   </body>
 </html>

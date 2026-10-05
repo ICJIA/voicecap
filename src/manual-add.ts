@@ -26,8 +26,9 @@ export interface AddManualSessionOptions {
   noRaw?: boolean;
   reviewer?: string | null;
   /**
-   * The site's URL: a path page resolves against it, and a full URL must be on it. Default: the
-   * page's site when it's a full URL, else the home's only site.
+   * The site's URL: a path page resolves against it, and a full URL must be on it. Or the site's
+   * canonical address (see chooseSiteDir), whose pages are on the address its runs read. Default:
+   * the page's site when it's a full URL, else the home's only site.
    */
   site?: string | null;
   /** The transcripts home. Default: VOICECAP_TRANSCRIPTS, else "transcripts". */

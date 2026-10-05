@@ -9,14 +9,15 @@
  * are for lines with a name, a date, or a count in them.
  */
 import { plural } from "../report/html.js";
-import { clock, longDate } from "../share/format.js";
+import { dateAndTime } from "../share/format.js";
 import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
 
 /**
- * A sentence of the page: plain words, and commands, which the page sets in the fixed-width font.
- * It holds no markup, and nothing in it is escaped: the page escapes each piece as it draws it.
+ * A sentence of the page: plain words, commands, which the page sets in the fixed-width font, and
+ * links, each with the words it's made of and where it goes. It holds no markup, and nothing in it
+ * is escaped: the page escapes each piece as it draws it.
  */
-export type Sentence = (string | { code: string })[];
+export type Sentence = (string | { code: string } | { link: string; href: string })[];
 
 export const SITE_TEXT = {
   /** The page's title, and its one heading of the first level. */
@@ -29,7 +30,13 @@ export const SITE_TEXT = {
   views: {
     demo: {
       title: "The demo",
-      lead: "voicecap's report on its own small demo site, as an example of what it makes.",
+      // The build publishes the demo's own pages in demo-site/, beside the page: the link is
+      // relative, and its words are the demo's canonical address, which names the same place.
+      lead: [
+        "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at ",
+        { link: "voicecap.netlify.app/demo-site/", href: "demo-site/" },
+        ".",
+      ] satisfies Sentence,
     },
     sites: { title: "The sites", lead: "Each site's reports, the newest first." },
     byDate: {
@@ -42,7 +49,7 @@ export const SITE_TEXT = {
   /** A site's count of reports: "1 report", "3 reports". */
   reports: (count: number): string => plural(count, "report"),
   /** A report's line, which heads it: "3 October 2026, 14:05". */
-  reportLine: (at: string): string => `${longDate(at)}, ${clock(at)}`,
+  reportLine: (at: string): string => dateAndTime(at),
   /** Under a report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
   /** In a line of the list by date, after the site: "prepared by Pat Lee". */

@@ -90,6 +90,51 @@ export interface HeaderRule {
   headers: [name: string, value: string][];
 }
 
+/** The header that carries a Content Security Policy. */
+export const POLICY_HEADER = "Content-Security-Policy";
+
+/**
+ * The Content Security Policy of the demo's own pages, which the build publishes in demo-site/ (see
+ * demoSiteRules). Unlike a report's it holds no hash: the pages have a style sheet beside them and a
+ * form that goes to a page of their own, and no script, no style block, and no style attribute
+ * (test/demo-site.test.ts keeps it so). It allows images from the pages' own address and as data:
+ * URIs, though they have none.
+ */
+export const DEMO_SITE_POLICY =
+  "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/**
+ * The rules of _headers for the demo's own pages, which the build publishes in `folder`
+ * (demo-site/): each page has DEMO_SITE_POLICY at every address it answers at. `files` are the
+ * paths of the files published there, from the folder and with "/" between names, and the rules are
+ * made from them, so no page that is published can be left without one. A page is a file whose
+ * name ends with .html; the style sheet and the sitemap are none. A page answers at its own
+ * address and at the same without ".html", which is how Netlify serves it too (as for a report's
+ * page, see rulesFor in ./build.ts), and a page in a folder (index.html) answers at the folder's
+ * own address as well, as the site's own page answers at / and at /index.html. The rules come in
+ * the order of their addresses.
+ *
+ * Netlify's documentation doesn't say whether a path that ends with /* also matches the folder's
+ * own address, so no rule has a wildcard: each address is written out.
+ */
+export function demoSiteRules(folder: string, files: readonly string[]): HeaderRule[] {
+  const addresses = new Set<string>();
+  for (const file of files) {
+    if (!file.endsWith(".html")) continue;
+    addresses.add(`/${folder}/${file}`);
+    addresses.add(`/${folder}/${file.slice(0, -".html".length)}`);
+    if (file === "index.html" || file.endsWith("/index.html")) {
+      addresses.add(`/${folder}/${file.slice(0, -"index.html".length)}`);
+    }
+  }
+  return [...addresses]
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((address): HeaderRule => ({
+      path: address,
+      headers: [[POLICY_HEADER, DEMO_SITE_POLICY]],
+    }));
+}
+
 /**
  * _headers as Netlify reads it: HEADERS_FIRST_LINE, then each rule as a blank line, its path on a
  * line of its own, and each of its headers on a line, indented.

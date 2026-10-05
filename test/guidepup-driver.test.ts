@@ -285,6 +285,29 @@ describe("opening a page", () => {
     expect(desktop.events.filter((event) => event.startsWith("key:"))).toEqual([]);
   });
 
+  it("reports the address of the page's canonical tag, and null when it has none", async () => {
+    const tagged = "https://dvfr.illinois.gov/";
+    const { driver } = setup({ pages: { [URL_HOME]: { canonical: tagged } } });
+    await driver.start();
+    expect((await driver.openPage(URL_HOME)).canonical).toBe(tagged);
+    expect((await driver.openPage(`${URL_HOME}duplicates/`)).canonical).toBeNull();
+  });
+
+  it("reports no title or tag for a response that isn't HTML, whatever the browser holds", async () => {
+    const pdf = "http://127.0.0.1:4747/files/report.pdf";
+    const { driver } = setup({
+      pages: {
+        [pdf]: {
+          contentType: "application/pdf",
+          title: "Annual report",
+          canonical: "https://dvfr.illinois.gov/files/report.pdf",
+        },
+      },
+    });
+    await driver.start();
+    expect(await driver.openPage(pdf)).toMatchObject({ title: null, canonical: null });
+  });
+
   // The core's open timeout restarts the driver and retries the page; a shorter limit of the
   // driver's own would fail a slow page instead.
   it("leaves a slow load to the core's open timeout", async () => {

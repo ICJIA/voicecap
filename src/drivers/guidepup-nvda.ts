@@ -120,6 +120,11 @@ export interface BrowserSession {
   load(url: string, timeoutMs: number): Promise<LoadResult>;
   waitUntilReady(readiness: VoicecapConfig["readiness"]): Promise<void>;
   pageTitle(): Promise<string>;
+  /**
+   * The address the page's first `<link rel="canonical">` tag gives, as the browser resolved it
+   * (absolute), or null when the page has no such tag or the tag has no address.
+   */
+  pageCanonical(): Promise<string | null>;
   /** Set the page's title (the window title follows it); returns a function that restores it. */
   setTitle(title: string): Promise<() => Promise<void>>;
   /**
@@ -551,13 +556,14 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.inDocument = true;
     // No time limit of the driver's own: the core's open timeout restarts and retries.
     const loaded = await session.load(url, 0);
-    if (!isHtmlContentType(loaded.contentType)) return { ...loaded, title: null };
+    if (!isHtmlContentType(loaded.contentType)) return { ...loaded, title: null, canonical: null };
     await session.waitUntilReady(this.options.config.readiness);
     const title = await session.pageTitle();
+    const canonical = await session.pageCanonical();
     await this.bringToFront(page);
     await this.press(page, "exitFocusMode", { capture: false });
     await this.press(page, "toTop");
-    return { ...loaded, title: title === "" ? null : title };
+    return { ...loaded, title: title === "" ? null : title, canonical };
   }
 
   nextLine(): Promise<Speech> {

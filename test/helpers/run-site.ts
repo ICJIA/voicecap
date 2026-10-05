@@ -133,14 +133,16 @@ export const outDir = (dir: string) => path.join(dir, "transcripts", siteFolder(
 /**
  * A home with one completed, sealed, live run of the scripted site: the kind of run that counts for
  * the shareable page. It's made in `existing`, a folder from `setup` that the caller has already
- * made (and so can take away afterwards), or in a new one. Gives that folder, which holds the home
- * (its transcripts/), and SITE's folder in the home.
+ * made (and so can take away afterwards), or in a new one. `extra` changes the run's options (a
+ * `canonical` address, say). Gives that folder, which holds the home (its transcripts/), and SITE's
+ * folder in the home.
  */
 export async function homeWithCountedRun(
   existing?: string,
+  extra: Partial<RunAuditOptions> = {},
 ): Promise<{ dir: string; siteDir: string; run: RunAuditResult }> {
   const dir = existing ?? (await setup());
-  const run = await runAudit(options(dir, new ScriptedDriver(sitePages())));
+  const run = await runAudit(options(dir, new ScriptedDriver(sitePages()), extra));
   expect(run.outcome).toBe("completed");
   return { dir, siteDir: outDir(dir), run };
 }

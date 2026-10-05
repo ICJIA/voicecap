@@ -25,6 +25,7 @@ import {
   type StepRecord,
   type TranscriptJson,
 } from "../model.js";
+import { recordedCanonical } from "../pages/canonical.js";
 import { readReviews } from "../reviews/store.js";
 import { homeFolder } from "../run/failure.js";
 import { pageDir, runJsonPath } from "../run/paths.js";
@@ -46,8 +47,18 @@ export interface TranscriptStore {
 }
 
 export interface ShareInput {
-  /** The site's address, as its latest run recorded it. */
-  site: string;
+  /**
+   * The address voicecap read the site at, as its latest run recorded it ("http://127.0.0.1:4848"):
+   * the latest counted run's, else the newest run's. It's the address of a copy when the site's own
+   * is `canonical`, and then no page leads with it or shows it for a page.
+   */
+  readOrigin: string;
+  /**
+   * The root of the site's canonical address, which the page names the site by, and shows each page
+   * on ("https://dvfr.illinois.gov/"): `resolveCanonical`'s. Null when none is known, and the page
+   * names the site by `readOrigin`.
+   */
+  canonical: string | null;
   /**
    * Every run in the site's folder, oldest first. The pages the page shows or compares carry flags
    * computed from their transcripts with the current rules, as the design says flags are; every
@@ -97,6 +108,21 @@ export interface ShareInput {
 }
 
 /**
+ * The root of the canonical address a site's page names it by: the root `configCanonical` gives
+ * (report.canonical, which the config has checked), else the root `latest`, the latest counted run,
+ * recorded, else none: the site is then named by the address voicecap read. A recorded root is
+ * checked again (`recordedCanonical`), since a record is data: one that isn't a site's name (an IP
+ * address, say) names nothing.
+ */
+export function resolveCanonical(input: {
+  configCanonical: string | null;
+  latest: RunJson | null;
+}): string | null {
+  if (input.configCanonical !== null) return input.configCanonical;
+  return recordedCanonical(input.latest?.canonical);
+}
+
+/**
  * Read everything a site's page is made from. A site folder with no run has nothing to share. A
  * transcript that can't be read is left out (the store gives null for it), and the page says so
  * where it would have shown it.
@@ -126,7 +152,11 @@ export async function loadShareInput(options: {
   ]);
   const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
-    site: (standing.latest ?? newest).site,
+    readOrigin: (standing.latest ?? newest).site,
+    canonical: resolveCanonical({
+      configCanonical: config.report.canonical,
+      latest: standing.latest,
+    }),
     runs: records.map((record) =>
       withFlagsFromTranscripts(record, read, config.flags, (slug) =>
         flagsAsRecorded.push({ run: record.id, slug }),

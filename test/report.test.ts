@@ -478,6 +478,77 @@ describe("generateReport", () => {
     expect(findPage(run, "/").slug).toBe("home");
   });
 
+  describe("its subtitle", () => {
+    /**
+     * The subtitle of the live report, or the snapshot, of a run of one page that `change` has
+     * changed in memory (the record in the folder is as it was written).
+     */
+    async function subtitleOf(
+      change: (run: RunJson) => RunJson,
+      target: "live" | "snapshot" = "live",
+    ): Promise<string> {
+      const outDir = await tempOutDir();
+      const run = await writeSyntheticRun(outDir, {
+        id: "2026-09-26_1405",
+        pages: [{ path: "/" }],
+        // A snapshot is written just before the run is sealed, so run.json on disk is incomplete.
+        sealed: target === "live",
+      });
+      const { file } = await generateReport({ outDir, run: change(run), target, config });
+      const html = await readFile(file, "utf8");
+      return /<p class="subtitle">(.*?)<\/p>/s.exec(html)?.[1] ?? "";
+    }
+
+    it("names the canonical address in its subtitle, and links its root, when the run recorded one", async () => {
+      // The run read a copy on the tester's computer: its subtitle never names that address.
+      const copy = (run: RunJson): RunJson => ({
+        ...run,
+        site: "http://127.0.0.1:4848",
+        canonical: "https://voicecap.netlify.app/demo-site/",
+      });
+      const live = await subtitleOf(copy);
+      const snapshot = await subtitleOf(copy, "snapshot");
+
+      expect(live).toMatch(
+        /^Live report for run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.netlify\.app\/demo-site\/">voicecap\.netlify\.app<\/a>, with reviews and manual sessions as of <time /,
+      );
+      expect(snapshot).toMatch(
+        /^Snapshot of run <span class="mono">2026-09-26_1405<\/span> of <a href="https:\/\/voicecap\.netlify\.app\/demo-site\/">voicecap\.netlify\.app<\/a>, taken when the run completed \(<time /,
+      );
+      expect(live).not.toMatch(/127\.0\.0\.1|localhost/);
+      expect(snapshot).not.toMatch(/127\.0\.0\.1|localhost/);
+    });
+
+    it("names the site by the address the run read, as before, when it recorded no canonical address", async () => {
+      const subtitle = await subtitleOf((run) => run);
+
+      expect(subtitle).toContain(
+        `of <a href="https://example.illinois.gov/">https://example.illinois.gov/</a>, with reviews and manual sessions as of`,
+      );
+    });
+
+    // A record is data: one that isn't a site's name never names the site, nor becomes a link.
+    it.each([
+      ["an IP address", "http://127.0.0.1:4848/"],
+      ["a local address", "http://localhost:3000/"],
+      ["another kind of address", "javascript:alert(1)"],
+      ["something that isn't an address", "not an address"],
+      ["nothing", ""],
+      ["something that isn't text", 42],
+    ])("ignores a recorded canonical address that is %s", async (_, recorded) => {
+      const subtitle = await subtitleOf((run) => ({
+        ...run,
+        canonical: recorded as unknown as string,
+      }));
+
+      expect(subtitle).toContain(
+        `of <a href="https://example.illinois.gov/">https://example.illinois.gov/</a>, with reviews`,
+      );
+      expect(subtitle).not.toContain("javascript");
+      expect(subtitle).not.toContain("localhost");
+    });
+  });
+
   it("renders 2,000 pages quickly", async () => {
     const outDir = await tempOutDir();
     const template = await writeSyntheticRun(outDir, {
