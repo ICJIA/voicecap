@@ -1299,7 +1299,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: The event log, screenshots, and NVDA's own log, recorded at the PC.",
+        "Windows PC, with NVDA: NVDA's own log, checked against the transcripts, recorded at the PC.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });
