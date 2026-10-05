@@ -1322,7 +1322,7 @@ An address is kept as its root: a scheme, a host, and a path that ends in `/`. `
 
 **Where the name shows:**
 
-- the page's headline and title, and every page address it shows, which is the page on the canonical address: the demo's `/before-you-start/` is `voicecap.netlify.app/demo-site/before-you-start/`;
+- the page's headline and title, and every page address it shows, which is the page on the canonical address: the demo's `/before-you-start/` is `voicecap.netlify.app/demo-site/before-you-start/`. A page whose path already starts with the root's path keeps it, so a site that lives under a path isn't doubled when it's read itself, or on a copy with the same paths: with the root `https://icjia.illinois.gov/researchhub/`, `/researchhub/x/` is `icjia.illinois.gov/researchhub/x/`;
 - the Word copy, in the same places;
 - the commands they show, such as `voicecap walkthrough --site <canonical address> …`, since `--site` takes it (see [Other commands](#other-commands));
 - the names of the dated copies and of the walkthrough files (see [Sending it: `voicecap share`](#sending-it-voicecap-share));

@@ -146,6 +146,9 @@ export function chooseCanonicalRoot(
  * The address to show readers for `url`. An address on `readOrigin`, the origin voicecap read, is
  * shown on the canonical `root` (which ends in `/`): the root, then the address's path without its
  * leading `/`, then its query, and not its hash. So the read site's home page is the root itself.
+ * A root with a path is never doubled: an address whose path already starts with the root's path
+ * (the site that has the root, read itself, or a copy with the live site's paths) keeps its path,
+ * and only its origin becomes the root's. The root's path without its closing `/` is the root too.
  * With no `root`, or for an address on another origin (a link off the site, a redirect away),
  * `url` comes back as it was.
  */
@@ -153,7 +156,20 @@ export function toCanonical(url: string, readOrigin: string, root: string | null
   if (root === null) return url;
   const address = parseUrl(url);
   if (address === null || address.origin !== originOf(readOrigin)) return url;
+  const base = new URL(root);
+  if (base.pathname !== "/" && carriesPath(address.pathname, base.pathname)) {
+    return `${base.origin}${address.pathname}${address.search}`;
+  }
   return `${root}${address.pathname.slice(1)}${address.search}`;
+}
+
+/**
+ * Whether `pathname` already starts with `rootPath`, which ends in `/`: it's the root's path, the
+ * same without its closing `/`, or a path under it. `/researchhub-old/` doesn't start with
+ * `/researchhub/`, though its letters do.
+ */
+function carriesPath(pathname: string, rootPath: string): boolean {
+  return pathname.startsWith(rootPath) || pathname === rootPath.slice(0, -1);
 }
 
 /**

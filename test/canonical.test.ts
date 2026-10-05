@@ -396,6 +396,75 @@ describe("toCanonical", () => {
       "https://voicecap.netlify.app/demo-site/a/",
     );
   });
+
+  // Ruling P18: a root with a path is never doubled. A page whose path already starts with the
+  // root's path keeps it, on the root's origin; any other page is put under the root.
+  describe("for a root with a path", () => {
+    const hubRoot = "https://icjia.illinois.gov/researchhub/";
+
+    it("keeps a page's path when the site that has the root was read itself", () => {
+      expect(
+        toCanonical(
+          "https://icjia.illinois.gov/researchhub/articles/x/",
+          "https://icjia.illinois.gov",
+          hubRoot,
+        ),
+      ).toBe("https://icjia.illinois.gov/researchhub/articles/x/");
+      // Its home page is the root itself, and a query stays with its page.
+      expect(
+        toCanonical(
+          "https://icjia.illinois.gov/researchhub/",
+          "https://icjia.illinois.gov",
+          hubRoot,
+        ),
+      ).toBe(hubRoot);
+      expect(
+        toCanonical(
+          "https://icjia.illinois.gov/researchhub/x/?page=2#top",
+          "https://icjia.illinois.gov",
+          hubRoot,
+        ),
+      ).toBe("https://icjia.illinois.gov/researchhub/x/?page=2");
+    });
+
+    it("moves a copy's page to the root's origin when the copy has the live site's paths", () => {
+      expect(
+        toCanonical("http://localhost:3000/researchhub/x/", "http://localhost:3000", hubRoot),
+      ).toBe("https://icjia.illinois.gov/researchhub/x/");
+    });
+
+    it("takes the root's path without its closing slash for the root", () => {
+      expect(
+        toCanonical(
+          "https://icjia.illinois.gov/researchhub",
+          "https://icjia.illinois.gov",
+          hubRoot,
+        ),
+      ).toBe("https://icjia.illinois.gov/researchhub");
+    });
+
+    it("puts the page of a copy that has its own paths under the root, as the demo's are", () => {
+      expect(toCanonical("http://127.0.0.1:4848/before-you-start/", demoOrigin, demoRoot)).toBe(
+        "https://voicecap.netlify.app/demo-site/before-you-start/",
+      );
+    });
+
+    it("keeps the published demo's pages as they are when it was read itself", () => {
+      expect(
+        toCanonical(
+          "https://voicecap.netlify.app/demo-site/before-you-start/",
+          "https://voicecap.netlify.app",
+          demoRoot,
+        ),
+      ).toBe("https://voicecap.netlify.app/demo-site/before-you-start/");
+    });
+
+    it("puts a page whose path only starts with the same letters under the root", () => {
+      expect(
+        toCanonical("http://localhost:3000/researchhub-old/", "http://localhost:3000", hubRoot),
+      ).toBe("https://icjia.illinois.gov/researchhub/researchhub-old/");
+    });
+  });
 });
 
 describe("canonicalName", () => {
