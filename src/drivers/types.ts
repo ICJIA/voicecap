@@ -17,10 +17,12 @@ export type Speech = string;
 
 /**
  * Where a driver reports what it does to the screen reader and the browser, as it does it, for the
- * run's event log (events.jsonl). The log stamps each event with when it was recorded.
+ * run's event log (events.jsonl). The log stamps each event with when it was recorded, or with `at`,
+ * the moment it happened, when the driver knows that was earlier: a start that's recorded only once
+ * the start's own process id has been looked up, say. Lines stay in the order they were recorded.
  */
 export interface EventRecorder {
-  record(event: NewRunEvent): void;
+  record(event: NewRunEvent, at?: Date): void;
 }
 
 /** A recorder that records nothing: what a driver reports to until a run gives it a real one. */

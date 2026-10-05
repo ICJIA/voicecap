@@ -558,6 +558,30 @@ describe("openEventLog", () => {
     ]);
   });
 
+  it("stamps an event with the moment it happened, when it's given one, and keeps the lines in the order recorded", async () => {
+    const file = await logFile();
+    const log = openEventLog(file, { now: () => NOW, logger: createMemoryLogger() });
+    const earlier = new Date(2026, 8, 27, 11, 1, 59, 7);
+    log.record({ type: "screen-reader-lock-taken" });
+    // Recorded after the lock, but it happened two seconds before.
+    log.record({ type: "own-screen-reader-closed", pids: [4321] }, earlier);
+    log.record({ type: "computer-locked" });
+
+    expect(readFileSync(file, "utf8")).toBe(
+      `{"at":"${STAMP}","type":"screen-reader-lock-taken"}\n` +
+        `{"at":"${isoLocalMs(earlier)}","type":"own-screen-reader-closed","pids":[4321]}\n` +
+        LOCKED,
+    );
+  });
+
+  it("stamps an event with now when the moment it's given isn't one", async () => {
+    const file = await logFile();
+    const log = openEventLog(file, { now: () => NOW, logger: createMemoryLogger() });
+    log.record({ type: "computer-locked" }, new Date(Number.NaN));
+
+    expect(readFileSync(file, "utf8")).toBe(LOCKED);
+  });
+
   it("makes no file until there's an event to write", async () => {
     const file = await logFile();
     openEventLog(file, { now: () => NOW, logger: createMemoryLogger() });

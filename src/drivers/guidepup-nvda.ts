@@ -29,7 +29,10 @@
  *   it off), or as the process exits.
  * - What it does to NVDA, the browsers, the person's own NVDA, and the NVDA lock goes to the run's
  *   event log (setEventRecorder) as it's done, in the order it's done, and only once it's done: a
- *   browser that wouldn't close isn't recorded as closed. The exit hook (abandon) records nothing.
+ *   browser that wouldn't close isn't recorded as closed. An event recorded after the fact is
+ *   stamped with when it happened: NVDA's start with when it finished, before the lookup of its
+ *   process id, and the person's own NVDA's shutdown with when the start began. The exit hook
+ *   (abandon) records nothing.
  * - When another window has the foreground, it looks up which program has it, once, as the loss is
  *   found. The log gets the program and the window's title (foreground-lost), and the
  *   ForegroundError names the program only: a title can hold private text. Not knowing the program
@@ -225,6 +228,11 @@ export interface GuidepupDriverDeps {
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** A short random token for the window-title check. */
   marker: () => string;
+  /**
+   * The time now: when NVDA's start began and finished, which the event log stamps the events of
+   * the start with, since they're recorded only after it (see startUp).
+   */
+  now: () => Date;
 }
 
 /** The driver with the real Guidepup, browser, and Windows behind it. Nothing starts until start(). */
@@ -260,6 +268,7 @@ export function createGuidepupNvdaDriver(
     keepAwake,
     sleep: (ms, signal) => delay(ms, undefined, { signal }),
     marker: randomMarker,
+    now: () => new Date(),
   });
   return driver;
 }
@@ -392,14 +401,18 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       // again would restart it.
       this.ownNvdaExes = ownNvdaExes;
       this.syncExitHook();
-      await this.startNvda(nvda, generation);
+      const { began, finished } = await this.startNvda(nvda, generation);
       // Recorded before the check for a stop: NVDA has started, and a stop that came meanwhile shuts
-      // it down next, which the log shows as the stop of that start.
+      // it down next, which the log shows as the stop of that start. Each is stamped when it
+      // happened, not when it's recorded: the computer's own NVDA closed as the start began (it's
+      // the first thing Guidepup's start does), and voicecap's NVDA was running once the start
+      // finished, before the lookup of its process id, a start of PowerShell that takes a second or
+      // more.
       if (running.length > 0) {
-        this.events.record({ type: "own-screen-reader-closed", pids: [...running] });
+        this.events.record({ type: "own-screen-reader-closed", pids: [...running] }, began);
       }
       this.nvdaPid = await this.startedNvdaPid();
-      this.events.record({ type: "screen-reader-started", pid: this.nvdaPid });
+      this.events.record({ type: "screen-reader-started", pid: this.nvdaPid }, finished);
       this.checkLive(generation);
       const settings = nvda.settings();
       // Launching the browser now checks that it works before any page is tried.
@@ -433,10 +446,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.events.record({ type: "screen-reader-lock-taken" });
   }
 
-  private async startNvda(nvda: NvdaControl, generation: number): Promise<void> {
+  /** Start NVDA, and say when the start began and when it finished, for the event log. */
+  private async startNvda(
+    nvda: NvdaControl,
+    generation: number,
+  ): Promise<{ began: Date; finished: Date }> {
     this.nvda = nvda;
     this.nvdaOwner = generation;
     this.setNvdaState("starting");
+    const began = this.deps.now();
     try {
       await nvda.start({
         capture: this.options.config.capture,
@@ -449,7 +467,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         failure: "screen-reader-stopped",
       });
     }
+    const finished = this.deps.now();
     this.setNvdaState("running");
+    return { began, finished };
   }
 
   stop(options: { restarting?: boolean } = {}): Promise<void> {

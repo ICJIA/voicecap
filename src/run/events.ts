@@ -27,6 +27,10 @@ export interface EventLog extends EventRecorder {
  * run's log is added to, and when its last line was cut short (a window closed as it was written)
  * the next event starts on a new line, so the cut line is left alone and the lines after it read.
  *
+ * Each event is stamped with `now()` as it's recorded, or with the moment it happened, when the
+ * recorder is given one (a moment that isn't one is left for now's). Either way it's written at the
+ * end: the lines are in the order they were recorded, never sorted by their times.
+ *
  * A write that fails is warned of once and never stops the run: the log is evidence about the run,
  * not part of its work. A write that fails later is tried again with the next event.
  */
@@ -37,10 +41,11 @@ export function openEventLog(file: string, options: { now: () => Date; logger: L
   // write that failed, which may have left a line cut short.
   let checkEnd = true;
   return {
-    record(event) {
+    record(event, at) {
       if (closed) return;
       try {
-        const line = `${JSON.stringify({ at: isoLocalMs(options.now()), ...event })}\n`;
+        const when = at instanceof Date && Number.isFinite(at.getTime()) ? at : options.now();
+        const line = `${JSON.stringify({ at: isoLocalMs(when), ...event })}\n`;
         const newLine = checkEnd && endsMidLine(file) ? "\n" : "";
         appendFileSync(file, newLine + line, { flush: true });
         checkEnd = false;

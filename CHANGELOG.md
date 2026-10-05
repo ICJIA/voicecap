@@ -18,6 +18,7 @@ Each run records an event log, which names the program that took the screen, and
 - **Screenshots on the shareable page and in its Word copy.** Each page's card and its entry in the appendix show its screenshot, with alt text, and the Word copy has the picture in the appendix. A screenshot that's missing, or isn't the file its run recorded, isn't shown, and the page says so.
 - **Programmatic API,** all optional, so code that uses voicecap as before works as before:
   - `ScreenReaderDriver.setEventRecorder(recorder)`, which a run calls with an `EventRecorder` before it first starts the driver, for a driver to report what it does to the screen reader and the browser;
+  - `EventRecorder.record(event, at)`'s optional `at`, the `Date` an event happened, for one a driver records after the fact: the log stamps it with `at` in place of the time it's recorded, and keeps its lines in the order they were recorded. The NVDA driver stamps NVDA's start with the moment it finished, before it looks up NVDA's process id, and the computer's own NVDA's shutdown with the moment the start began;
   - `PageInfo.screenshot`, a `PageScreenshot` (`{ jpeg }`, or `{ error }`) that a driver gives for a page it has loaded;
   - `ForegroundError`'s `program`, the name of the program that took the screen, given as `{ program }` in its second argument;
   - `RunJson.files`, `PageRecord.screenshot` (a `ScreenshotRecord`), and `AttemptRecord.program`;

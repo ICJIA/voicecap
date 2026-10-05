@@ -10,8 +10,10 @@ import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { NewRunEvent } from "../src/model.js";
+import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
+import { isoLocalMs } from "../src/util/time.js";
 import { FakeDesktop, FakeNvda, FakeSession, Gate, type FakePage } from "./helpers/fake-desktop.js";
 
 const temps: string[] = [];
@@ -121,6 +123,7 @@ function setup(options: Setup = {}) {
     // Waits end on the next turn of the event loop, after anything already settled.
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
     marker: () => "k3m9x2",
+    now: () => new Date(),
   };
   const config = { ...DEFAULT_CONFIG, ...options.config };
   const driver = new GuidepupNvdaDriver({ config, logger }, deps);
@@ -1422,6 +1425,50 @@ describe("reporting to the run's event log", () => {
       { type: "screen-reader-lock-taken" },
       { type: "screen-reader-started", pid: nvda.pid },
       { type: "browser-launched", pid: desktop.session.pid },
+    ]);
+  });
+
+  it("stamps the computer's own NVDA closed as its start began, and its own started as the start finished, before the pid lookup", async () => {
+    const { driver, desktop, deps, nvda } = setup({ running: [4321] });
+    let clock = new Date(2026, 9, 5, 10, 0, 0, 0).getTime();
+    const now = () => new Date(clock);
+    deps.now = now;
+    const dir = mkdtempSync(path.join(os.tmpdir(), "voicecap-driver-log-"));
+    temps.push(dir);
+    const file = path.join(dir, "events.jsonl");
+    driver.setEventRecorder(openEventLog(file, { now, logger: createMemoryLogger() }));
+    desktop.ownNvda = [OWN_NVDA];
+    desktop.ownNvdaGate = new Gate();
+    nvda.startGate = new Gate();
+    const looking = new Gate();
+    deps.screenReaderPid = async () => {
+      await looking.wait();
+      return nvda.pid;
+    };
+
+    const start = driver.start();
+    // The lock is taken at 10:00:00; the start begins a second later, and takes two seconds.
+    await until(() => (desktop.ownNvdaGate?.waiting ?? 0) > 0);
+    clock += 1_000;
+    desktop.ownNvdaGate.open();
+    await until(() => desktop.events.includes("nvda:start"));
+    clock += 2_000;
+    nvda.startGate.open();
+    // The pid lookup, a start of PowerShell, takes a second and a half more.
+    await until(() => looking.waiting > 0);
+    clock += 1_500;
+    looking.open();
+    await start;
+
+    const at = (seconds: number, ms = 0) => isoLocalMs(new Date(2026, 9, 5, 10, 0, seconds, ms));
+    // In the order recorded, each stamped when it happened.
+    expect(
+      readEventLog(readFileSync(file, "utf8")).events.map(({ at: time, type }) => [type, time]),
+    ).toEqual([
+      ["screen-reader-lock-taken", at(0)],
+      ["own-screen-reader-closed", at(1)],
+      ["screen-reader-started", at(3)],
+      ["browser-launched", at(4, 500)],
     ]);
   });
 
