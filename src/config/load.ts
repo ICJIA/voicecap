@@ -39,7 +39,7 @@ export async function loadConfig(
   const file = options.file ? path.resolve(cwd, options.file) : findConfigFile(cwd);
   const user = file ? await readConfigFile(file) : {};
   const config = resolveConfig(user, file);
-  return { config, file, sha256: hashJson(config) };
+  return { config, file, sha256: configSha256(config) };
 }
 
 /**
@@ -48,7 +48,18 @@ export async function loadConfig(
  */
 export function defaultConfig(): LoadedConfig {
   const config = resolveConfig({});
-  return { config, file: null, sha256: hashJson(config) };
+  return { config, file: null, sha256: configSha256(config) };
+}
+
+/**
+ * The SHA-256 of the effective config, which every run records. report.canonical came in 0.10.0,
+ * null by default: a null one is left out, so a config that doesn't set it hashes as it did in
+ * 0.9.x, and runs on either side of the upgrade don't differ for it. One that's set is hashed.
+ */
+function configSha256(config: VoicecapConfig): string {
+  if (config.report.canonical !== null) return hashJson(config);
+  const { canonical: _canonical, ...report } = config.report;
+  return hashJson({ ...config, report });
 }
 
 /** Merge a user config over the defaults and validate the result. */
