@@ -82,6 +82,26 @@ describe("normalizeCanonical", () => {
     }
   });
 
+  // Ruling P22: a host with an empty label would name the copies `.example.com_<day>.html`, which
+  // a Mac hides and the website leaves out.
+  it("refuses a host that starts with a dot or has an empty label, as no web address", () => {
+    for (const input of [
+      "https://.example.com",
+      ".example.com",
+      "https://a..b.org",
+      "a..b.org/agency/",
+      "https://example.com./",
+    ]) {
+      const refusal = refusalOf(input);
+      expect(refusal, input).toBeInstanceOf(UsageError);
+      expect(errorMessage(refusal), input).toBe(
+        `"${input}" isn't a web address, such as https://dvfr.illinois.gov.`,
+      );
+    }
+    // And a record that holds one names nothing.
+    expect(recordedCanonical("https://.example.com/")).toBeNull();
+  });
+
   it("refuses an IP address or a local address, saying so", () => {
     for (const input of [
       "http://localhost:3000",

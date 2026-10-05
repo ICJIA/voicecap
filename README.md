@@ -1318,7 +1318,7 @@ The shareable page, its Word copy, the dated copies, and the website name a site
 3. **The site's own pages.** A run reads each page's `<link rel="canonical">` tag when it loads the page, and records the root that most of the inner pages' tags name (an inner page is any page but the home page). The home page's tag counts only when no inner page gives one. A tag counts only when it names the page it's on: its path has to end with the page's own path. A tag for another page, a local address, or an address that isn't on the web is ignored. A copy of a site keeps the tags of the site it copies, so a run on a copy learns the real address.
 4. **None of these.** The site is named by the address voicecap read: its host, and its port if it has one. For a copy on the tester's own computer, that is an IP address or `localhost`, so give such a site its address with `--canonical` or `report.canonical`.
 
-An address is kept as its root: a scheme, a host, and a path that ends in `/`. `dvfr.illinois.gov` becomes `https://dvfr.illinois.gov/`, and a site that lives under a path keeps it: the demo's is `https://voicecap.netlify.app/demo-site/`. An IP address or a local address, such as `http://localhost:3000`, is refused, since neither is a site's name.
+An address is kept as its root: a scheme, a host, and a path that ends in `/`. `dvfr.illinois.gov` becomes `https://dvfr.illinois.gov/`, and a site that lives under a path keeps it: the demo's is `https://voicecap.netlify.app/demo-site/`. An IP address or a local address, such as `http://localhost:3000`, is refused, since neither is a site's name, and so is a host with an empty label, such as `https://.example.com`, which isn't a web address.
 
 **Where the name shows:**
 

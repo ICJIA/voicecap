@@ -52,15 +52,26 @@ export function isWebRoot(value: unknown): value is string {
 }
 
 /**
+ * Whether a host name has an empty label: it starts or ends with a dot, or has two together
+ * (`.example.com`, `a..b.org`, `example.com.`). `URL` lets each through, but none is a name to call
+ * a site by: copies named `.example.com_<day>.html` would be hidden on a Mac, and left off the
+ * website.
+ */
+function hasEmptyLabel(hostname: string): boolean {
+  return hostname.split(".").includes("");
+}
+
+/**
  * The root of the site at the canonical address `input`: its scheme, host, and path, with a `/` on
  * the end and without any query, hash, or credentials. An address typed the short way gets
  * `https://` (`dvfr.illinois.gov` is `https://dvfr.illinois.gov/`), by the rule of `withScheme`.
- * Throws a `UsageError` when `input` isn't an http(s) web address, and when it's an IP address or a
- * local address (see `isLocalHost`), since neither is a site's name.
+ * Throws a `UsageError` when `input` isn't an http(s) web address (a host with an empty label, such
+ * as `.example.com`, isn't one), and when it's an IP address or a local address (see
+ * `isLocalHost`), since neither is a site's name.
  */
 export function normalizeCanonical(input: string): string {
   const url = parseUrl(withScheme(input.trim()));
-  if (url === null || !isWebAddress(url)) {
+  if (url === null || !isWebAddress(url) || hasEmptyLabel(url.hostname)) {
     throw new UsageError(`"${input}" isn't a web address, such as https://dvfr.illinois.gov.`);
   }
   if (isLocalHost(url.hostname)) {
