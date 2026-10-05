@@ -1313,7 +1313,7 @@ The shareable page, its Word copy, the dated copies, and the website name a site
 
 **How a site gets one,** from the strongest way to the weakest:
 
-1. **`report.canonical` in the config** (see [Configuration](#configuration)). It names the site whenever the page, its Word copy, or a share is made, and it beats the address any run recorded, past or to come. So it names every site the config is used with: keep one config per site, as with `report.siteName`.
+1. **`report.canonical` in the config** (see [Configuration](#configuration)). It names the site whenever the page, its Word copy, or a share is made, and it beats the address any run recorded, past or to come. So it names every site the config is used with: keep one config per site, as with `report.siteName`. A command reads the config in the folder it runs from, so a config with `report.canonical` goes in a folder of its own, never in the transcripts home, which holds many sites.
 2. **`--canonical <address>` on a run** (see [Run an audit](#run-an-audit)). The session that completes the run records it. It isn't one of the settings a run resumes by, so adding it when you run again doesn't start a new run. `voicecap init` asks for it when it's needed, and puts it in the command it prints (see [Quick start](#quick-start)).
 3. **The site's own pages.** A run reads each page's `<link rel="canonical">` tag when it loads the page, and records the root that most of the inner pages' tags name (an inner page is any page but the home page). The home page's tag counts only when no inner page gives one. A tag counts only when it names the page it's on: its path has to end with the page's own path. A tag for another page, a local address, or an address that isn't on the web is ignored. A copy of a site keeps the tags of the site it copies, so a run on a copy learns the real address.
 4. **None of these.** The site is named by the address voicecap read: its host, and its port if it has one. For a copy on the tester's own computer, that is an IP address or `localhost`, so give such a site its address with `--canonical` or `report.canonical`.
@@ -1525,10 +1525,31 @@ git push
 **The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/` and committing that, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
 1. Run `npx @icjia/voicecap demo`. It's a guided tour of about 9 minutes that starts NVDA for real, so follow its steps and keep your hands off the keyboard when it says to (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)). Use a Windows PC: on a Mac, the tour stops before the audit. Its files go in `voicecap-demo/`, in the current folder: the home.
-2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does. The demo's pages name their own address, `https://voicecap.netlify.app/demo-site/`, so a demo run made by this voicecap learns it, and the report and its copies name the demo `voicecap.netlify.app`, such as `voicecap.netlify.app_2026-10-02.html`. A demo run made before 0.10.0 learned no address, since its pages had no tags: run the demo again, or give `report.canonical` that address in a config in the folder you share from.
+2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does. The demo's pages name their own address, `https://voicecap.netlify.app/demo-site/`, so a demo run made by this voicecap learns it, and the report and its copies name the demo `voicecap.netlify.app`, such as `voicecap.netlify.app_2026-10-02.html`.
 3. Commit and push, as above. `voicecap-demo/` goes with the rest.
 
 To update the demo, do the three steps again: the site shows the latest share.
+
+**A demo run made before 0.10.0** has no address in its record, since the pages it read had no canonical tags, so a share of it names the demo by the address voicecap read. Run the demo again: update it as above, with `npx @icjia/voicecap@latest demo` in step 1, so that `npx` uses the newest voicecap, not an older one it kept. The new run records the address from the demo's own tags, and the share names the demo by what its latest run recorded.
+
+If you can't run the demo again, give the share the address in a config instead. **Keep that config out of the transcripts home.** `share`, `report`, `review`, `manual add`, and every run read the config in the folder they run from, so a `report.canonical` in the home would name every site in it after the demo, in shares that are never deleted (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). Put it in a folder of its own, and run `share` from there:
+
+1. Make a folder outside the transcripts home, such as `C:\Users\cschw\code\demo-share`.
+2. In that folder, make a file named `voicecap.config.json` with this in it:
+
+   ```json
+   { "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }
+   ```
+
+3. In PowerShell, go to that folder and share the demo from there, with the demo's folder in the transcripts home as `--out`. As every share does, it needs a name for who is sharing.
+
+   ```powershell
+   cd C:\Users\cschw\code\demo-share
+   npx @icjia/voicecap share --out "$env:VOICECAP_TRANSCRIPTS\voicecap-demo"
+   ```
+
+   If you haven't set `VOICECAP_TRANSCRIPTS`, type the transcripts home's folder in its place. The share names the demo `voicecap.netlify.app`, such as `voicecap.netlify.app_2026-10-02.html`.
+4. Go back to the transcripts home (`cd $env:VOICECAP_TRANSCRIPTS`), then commit and push, as above. Leave the config in its own folder, or take the folder away.
 
 </details>
 
