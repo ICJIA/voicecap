@@ -287,7 +287,8 @@ export interface AttemptRecord {
   message: string;
   /**
    * For "foreground" only: the program that took the foreground from the browser, by its name
-   * ("Microsoft Teams"), or null when Windows didn't say. Its window's title isn't kept here, as it
+   * ("Microsoft Teams"), or null when it isn't known: Windows didn't say, or the foreground was
+   * back in the browser itself when it was looked up. Its window's title isn't kept here, as it
    * can hold private text. Absent for the other causes, for a driver that didn't look, and in
    * records from before voicecap 0.11.0.
    */
@@ -452,7 +453,8 @@ export type NewRunEvent =
   | { type: "computer-locked" }
   /**
    * Another window took the foreground from the browser: the program's name and the window's
-   * title, each null when Windows didn't say. A title can hold private text, such as an email's
+   * title, each null when it isn't known: Windows didn't say, or the foreground was back in the
+   * browser itself when it was looked up. A title can hold private text, such as an email's
    * subject, so no report shows it.
    */
   | { type: "foreground-lost"; program: string | null; title: string | null };

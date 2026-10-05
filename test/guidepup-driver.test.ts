@@ -1612,7 +1612,9 @@ describe("reporting to the run's event log", () => {
 });
 
 // Another window taking the foreground is looked up once, and its program named: in the event log,
-// with the window's title, and on the error, by its name only.
+// with the window's title, and on the error, by its name only. The lookup comes a moment after the
+// loss, so the window in front may be voicecap's own browser again: no program took the foreground
+// then, and the answer is "not known".
 describe("the program that took the foreground", () => {
   const OUTLOOK: NewRunEvent = {
     type: "foreground-lost",
@@ -1753,5 +1755,110 @@ describe("the program that took the foreground", () => {
       { type: "computer-locked" },
     ]);
     expect(lookups(desktop)).toBe(0);
+  });
+
+  /** A lookup that finds a window of the process `pid`, whatever its program is called. */
+  const finding =
+    (pid: number): GuidepupDriverDeps["foregroundWindow"] =>
+    () =>
+      Promise.resolve({ pid, program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+  const TEAMS: NewRunEvent = {
+    type: "foreground-lost",
+    program: "Microsoft Teams",
+    title: "Chat | Microsoft Teams",
+  };
+
+  it("isn't named when the window in front is the browser voicecap uses, whatever it says it is", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    // The process that owns the window decides, not the program's name.
+    deps.foregroundWindow = finding(desktop.session.pid);
+    desktop.front = "other";
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({ failure: "foreground", program: null });
+    expect(only(recorder.events, "foreground-lost")).toEqual([NOT_KNOWN]);
+  });
+
+  it("isn't named when the window in front is the browser of a later page, which each page gets afresh", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.openPage(URL_HOME);
+    const [first, second] = desktop.sessions.map((session) => session.pid);
+    expect(second).not.toBe(first);
+    deps.foregroundWindow = finding(second!);
+    desktop.front = "other";
+    await expect(driver.nextLine()).rejects.toMatchObject({ failure: "foreground", program: null });
+    expect(only(recorder.events, "foreground-lost")).toEqual([NOT_KNOWN]);
+  });
+
+  it("keeps the program and the title of a window another process owns, even one next to the browser's", async () => {
+    for (const offset of [-1, 1]) {
+      const { driver, desktop, deps, recorder } = recording();
+      await driver.start();
+      await driver.openPage(URL_HOME);
+      deps.foregroundWindow = finding(desktop.session.pid + offset);
+      desktop.front = "other";
+      const step = driver.nextLine();
+      await expect(step, String(offset)).rejects.toMatchObject({
+        failure: "foreground",
+        program: "Microsoft Teams",
+      });
+      expect(only(recorder.events, "foreground-lost"), String(offset)).toEqual([TEAMS]);
+    }
+  });
+
+  it("isn't named when another window came and went before the lookup, and the browser is in front again", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.speech = () => {
+      desktop.front = "other";
+      desktop.front = "browser";
+      return "Inbox - Outlook, window. 3 unread messages";
+    };
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({ failure: "foreground", program: null });
+    // The lookup was made, once, and the browser answered it.
+    expect(lookups(desktop)).toBe(1);
+    expect(only(recorder.events, "foreground-lost")).toEqual([NOT_KNOWN]);
+  });
+
+  it("isn't named when the browser can't be brought to the front, and the window in front is its own", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    deps.foregroundWindow = () =>
+      Promise.resolve({
+        pid: desktop.session.pid,
+        program: "Google Chrome",
+        title: "voicecap check k3m9x2 - Google Chrome",
+      });
+    await driver.start();
+    desktop.front = "other";
+    desktop.raiseWorks = false;
+    const open = driver.openPage(URL_HOME);
+    await expect(open).rejects.toBeInstanceOf(ForegroundError);
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program: null });
+    expect(only(recorder.events, "foreground-lost")).toEqual([NOT_KNOWN]);
+  });
+
+  it("keeps the answer when the browser has no process id to tell its windows by", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    const launch = deps.launchBrowser;
+    deps.launchBrowser = async (signal) => {
+      const session = await launch(signal);
+      Object.defineProperty(session, "pid", { value: undefined });
+      return session;
+    };
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    // The process the first browser would have had: with no pid to match it against, it's named.
+    deps.foregroundWindow = finding(6001);
+    desktop.front = "other";
+    const step = driver.nextLine();
+    await expect(step).rejects.toMatchObject({ failure: "foreground", program: "Microsoft Teams" });
+    expect(only(recorder.events, "foreground-lost")).toEqual([TEAMS]);
   });
 });

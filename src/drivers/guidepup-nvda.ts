@@ -33,7 +33,8 @@
  * - When another window has the foreground, it looks up which program has it, once, as the loss is
  *   found. The log gets the program and the window's title (foreground-lost), and the
  *   ForegroundError names the program only: a title can hold private text. Not knowing the program
- *   (the lookup fails, or Windows doesn't say) changes nothing else about the failure.
+ *   (the lookup fails, Windows doesn't say, or the foreground has come back to the page's own
+ *   browser, which took it from no one) changes nothing else about the failure.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -201,9 +202,10 @@ export interface GuidepupDriverDeps {
   /** Whether Windows is locked (null when it doesn't say). */
   sessionLocked: () => Promise<boolean | null>;
   /**
-   * The window in front, by its program and title, for the event log; null when Windows doesn't
-   * say. Asked once each time another window is found to have the foreground, and a lookup that
-   * fails counts as null. It must answer in good time: the step that lost the foreground waits.
+   * The window in front, by its process, program, and title; null when Windows doesn't say. The
+   * log keeps the program and the title, and the process tells the page's own browser's window from
+   * another's. Asked once each time another window is found to have the foreground, and a lookup
+   * that fails counts as null. It must answer in good time: the step that lost the foreground waits.
    */
   foregroundWindow: () => Promise<ForegroundWindow | null>;
   /** Keep Windows from sleeping or turning the screen off (and locking because of either). */
@@ -663,7 +665,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const { nvda, session } = page;
     const before = await session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost();
+    if (!before.focused) throw await this.foregroundLost(session);
     let speech: Speech;
     if (this.firstTab) {
       this.firstTab = false;
@@ -685,7 +687,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.inDocument = false;
       return speech;
     }
-    throw await this.foregroundLost();
+    throw await this.foregroundLost(session);
   }
 
   focusInDocument(): Promise<boolean> {
@@ -711,13 +713,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   ): Promise<Speech> {
     const before = await page.session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost();
+    if (!before.focused) throw await this.foregroundLost(page.session);
     const said = await this.command(() => page.nvda.press(key, options));
     // Only speech that was captured says anything about NVDA and Windows.
     const speech = options?.capture === false ? said : await this.heard(page, said);
     const after = await page.session.focusState();
     this.checkLive(page.generation);
-    if (!after.focused || lostFocusBetween(before, after)) throw await this.foregroundLost();
+    if (!after.focused || lostFocusBetween(before, after)) {
+      throw await this.foregroundLost(page.session);
+    }
     return speech;
   }
 
@@ -752,7 +756,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       );
       throw new ForegroundError(
         "The browser window couldn't be brought to the front, so keystrokes would have gone to another window. Keep the computer free while voicecap runs: close dialogs, and don't use other windows.",
-        { program: await this.foregroundTakenBy() },
+        { program: await this.foregroundTakenBy(session) },
       );
     } finally {
       await restore();
@@ -794,26 +798,33 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     return speech;
   }
 
-  /** The page lost focus: to another window, or to the lock screen (checked on real Windows). */
-  private async foregroundLost(): Promise<Error> {
+  /**
+   * The page of the browser `session` lost focus: to another window, or to the lock screen (checked
+   * on real Windows).
+   */
+  private async foregroundLost(session: BrowserSession): Promise<Error> {
     return (await this.deps.sessionLocked()) === true
       ? this.computerLocked()
-      : lostForeground(await this.foregroundTakenBy());
+      : lostForeground(await this.foregroundTakenBy(session));
   }
 
   /**
    * Another window has the foreground: which program has it is looked up, once, and recorded as the
-   * error is made. Gives the program's name, null when it isn't known: the lookup failed, or
-   * Windows didn't say. The error gets the name only, as the window's title, which the log keeps,
-   * can hold private text. Not knowing mustn't change what the step fails with.
+   * error is made. Gives the program's name, null when it isn't known: the lookup failed, Windows
+   * didn't say, or the window in front is the page's own browser (`session`, told by its process
+   * id). The lookup comes a moment after the loss, and the foreground may have come back to the
+   * browser by then: no program took it. A browser with no process id can't be told from another
+   * program's window, so the answer stands. The error gets the name only, as the window's title,
+   * which the log keeps, can hold private text. Not knowing mustn't change what the step fails with.
    */
-  private async foregroundTakenBy(): Promise<string | null> {
+  private async foregroundTakenBy(session: BrowserSession): Promise<string | null> {
     let front: ForegroundWindow | null = null;
     try {
       front = await this.deps.foregroundWindow();
     } catch {
       // Counts as not known.
     }
+    if (front !== null && front.pid === session.pid) front = null;
     this.events.record({
       type: "foreground-lost",
       program: front?.program ?? null,

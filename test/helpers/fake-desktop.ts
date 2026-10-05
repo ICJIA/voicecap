@@ -42,7 +42,8 @@ export class Gate {
  */
 export class FakeDesktop {
   private frontWindow: "browser" | "other" = "browser";
-  /** The other window's program, as Windows names it: its file's description. */
+  /** The process that owns the other window, and its program: the name is its file's description. */
+  otherPid = 7001;
   otherProgram = "Microsoft Outlook";
   otherTitle = "Inbox - Outlook";
   /** Whether asking the browser window to come forward works. */
@@ -131,13 +132,23 @@ export class FakeDesktop {
       : this.otherTitle;
   }
 
-  /** The driver's foregroundWindow(): the program and the title of the window in front. */
-  foregroundWindow(): Promise<ForegroundWindow> {
+  /**
+   * The driver's foregroundWindow(): the process, program, and title of the window in front, which
+   * is the newest browser's when the browser is in front. None where no browser has started.
+   */
+  foregroundWindow(): Promise<ForegroundWindow | null> {
     this.events.push("foreground:look");
-    return Promise.resolve({
-      program: this.front === "browser" ? "Google Chrome" : this.otherProgram,
-      title: this.frontTitle,
-    });
+    if (this.front === "other") {
+      return Promise.resolve({
+        pid: this.otherPid,
+        program: this.otherProgram,
+        title: this.otherTitle,
+      });
+    }
+    const browser = this.frontBrowser;
+    return Promise.resolve(
+      browser ? { pid: browser.pid, program: "Google Chrome", title: this.frontTitle } : null,
+    );
   }
 
   /** Whether the window in front keeps NVDA talking. */

@@ -144,7 +144,8 @@ export class ForegroundError extends Error {
   readonly failure = "foreground";
   /**
    * The program that took the foreground, by its name ("Microsoft Teams"): null when the driver
-   * looked and Windows didn't say, and absent when it didn't look. The page's record keeps it.
+   * looked and couldn't name one (Windows didn't say, or the foreground had come back to the
+   * browser itself), and absent when it didn't look. The page's record keeps it.
    */
   readonly program?: string | null;
 

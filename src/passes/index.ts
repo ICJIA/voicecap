@@ -25,7 +25,7 @@ export interface PassFailure {
   command: DriverCommand | null;
   /**
    * For "foreground" only, from a driver that looked: the program that took the foreground, or
-   * null when Windows didn't say. Absent for the rest, and when the driver didn't look.
+   * null when it isn't known. Absent for the rest, and when the driver didn't look.
    */
   program?: string | null;
   /**

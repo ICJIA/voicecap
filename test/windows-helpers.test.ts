@@ -373,10 +373,12 @@ describe("Windows helpers (what PowerShell says)", () => {
   });
 
   // What the lookup of the window in front prints: one line of JSON, from ConvertTo-Json.
-  it("read the program and the title of the window in front from PowerShell's answer", () => {
+  it("read the process, the program, and the title of the window in front from PowerShell's answer", () => {
     expect(
-      parseForegroundWindow('{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n'),
-    ).toEqual({ program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+      parseForegroundWindow(
+        '{"pid":4242,"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n',
+      ),
+    ).toEqual({ pid: 4242, program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
   });
 
   it("read no window in front from an answer that's empty, null, or isn't an object", () => {
@@ -388,7 +390,7 @@ describe("Windows helpers (what PowerShell says)", () => {
       "true",
       '"Microsoft Teams"',
       "[]",
-      '[{"program":"Microsoft Teams","title":"Chat"}]',
+      '[{"pid":4242,"program":"Microsoft Teams","title":"Chat"}]',
       "Add-Type : Cannot add type. Compilation errors occurred.",
     ];
     for (const answer of answers) expect(parseForegroundWindow(answer), answer).toBeNull();
@@ -405,31 +407,58 @@ describe("Windows helpers (what PowerShell says)", () => {
       '{"name":"Teams"}',
     ];
     for (const program of programs) {
-      const answer = `{"program":${program},"title":"Chat | Microsoft Teams"}`;
+      const answer = `{"pid":4242,"program":${program},"title":"Chat | Microsoft Teams"}`;
       expect(parseForegroundWindow(answer), answer).toBeNull();
     }
-    expect(parseForegroundWindow('{"title":"Chat | Microsoft Teams"}')).toBeNull();
+    expect(parseForegroundWindow('{"pid":4242,"title":"Chat | Microsoft Teams"}')).toBeNull();
     expect(parseForegroundWindow("{}")).toBeNull();
   });
 
+  it("read no window in front when the process isn't a whole number above zero, or is missing", () => {
+    // Zero is what Windows gives when it can't name the window's owner.
+    const ids = ["0", "-1", "-4242", "0.5", "4242.5", '"4242"', "null", "true", "[4242]", "{}"];
+    for (const id of ids) {
+      const answer = `{"pid":${id},"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}`;
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+    const missing = '{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}';
+    expect(parseForegroundWindow(missing)).toBeNull();
+  });
+
+  it("read the smallest and the largest process id, a DWORD", () => {
+    for (const pid of [1, 4, 4_294_967_295]) {
+      const answer = `{"pid":${pid},"program":"Microsoft Teams","title":"Chat"}`;
+      expect(parseForegroundWindow(answer)).toEqual({
+        pid,
+        program: "Microsoft Teams",
+        title: "Chat",
+      });
+    }
+  });
+
   it("read a window in front with no title as one with an empty title", () => {
-    const none = { program: "Microsoft Teams", title: "" };
-    expect(parseForegroundWindow('{"program":"Microsoft Teams"}')).toEqual(none);
-    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":null}')).toEqual(none);
-    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":""}')).toEqual(none);
-    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":7}')).toEqual(none);
+    const none = { pid: 4242, program: "Microsoft Teams", title: "" };
+    const answer = (title: string) => `{"pid":4242,"program":"Microsoft Teams"${title}}`;
+    expect(parseForegroundWindow(answer(""))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":null'))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":""'))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":7'))).toEqual(none);
   });
 
   it("leave out the spaces round a program's name and a window's title", () => {
-    expect(parseForegroundWindow('{"program":"  Microsoft Teams ","title":" Chat "}')).toEqual({
+    const answer = '{"pid":4242,"program":"  Microsoft Teams ","title":" Chat "}';
+    expect(parseForegroundWindow(answer)).toEqual({
+      pid: 4242,
       program: "Microsoft Teams",
       title: "Chat",
     });
   });
 
   it("read the characters JSON's escapes stand for, as PowerShell writes an apostrophe as \\u0027", () => {
-    const answer = '{"program":"Pat\\u0027s \\"Notes\\"","title":"Caf\\u00e9 \\u2013 menu"}';
+    const answer =
+      '{"pid":4242,"program":"Pat\\u0027s \\"Notes\\"","title":"Caf\\u00e9 \\u2013 menu"}';
     expect(parseForegroundWindow(answer)).toEqual({
+      pid: 4242,
       program: 'Pat\'s "Notes"',
       title: "Café – menu",
     });
@@ -439,9 +468,15 @@ describe("Windows helpers (what PowerShell says)", () => {
     const asked: string[] = [];
     const found = await foregroundWindow((script) => {
       asked.push(script);
-      return Promise.resolve('{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n');
+      return Promise.resolve(
+        '{"pid":4242,"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n',
+      );
     });
-    expect(found).toEqual({ program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+    expect(found).toEqual({
+      pid: 4242,
+      program: "Microsoft Teams",
+      title: "Chat | Microsoft Teams",
+    });
     expect(asked).toHaveLength(1);
   });
 
@@ -459,6 +494,8 @@ describe("Windows helpers (what PowerShell says)", () => {
     expect(script).toContain(".FileDescription");
     // The process name, when the file says nothing.
     expect(script).toContain("Get-Process");
+    // The process that owns the window is in the answer: the driver tells its own browser by it.
+    expect(script).toContain("pid = $id");
     // It asks for the program and the title, not for what the program was told to open.
     expect(script).not.toMatch(/CommandLine|Win32_Process/i);
   });
@@ -471,7 +508,9 @@ describe("Windows helpers (what PowerShell says)", () => {
       },
       () => Promise.resolve(""),
       () => Promise.resolve("Add-Type : Cannot add type."),
-      () => Promise.resolve('{"program":null,"title":"Program Manager"}'),
+      () => Promise.resolve('{"pid":6048,"program":null,"title":"Program Manager"}'),
+      // A window Windows can't name an owner for: Get-Process finds an Idle process for pid 0.
+      () => Promise.resolve('{"pid":0,"program":"Idle","title":""}'),
     ];
     for (const answer of answers) expect(await foregroundWindow(answer)).toBeNull();
   });
@@ -500,10 +539,10 @@ describe("Windows helpers (what PowerShell says)", () => {
     try {
       const lookup = foregroundWindow(async () => {
         await new Promise((resolve) => setTimeout(resolve, 9_000));
-        return '{"program":"Microsoft Teams","title":"Chat"}';
+        return '{"pid":4242,"program":"Microsoft Teams","title":"Chat"}';
       });
       await vi.advanceTimersByTimeAsync(9_000);
-      expect(await lookup).toEqual({ program: "Microsoft Teams", title: "Chat" });
+      expect(await lookup).toEqual({ pid: 4242, program: "Microsoft Teams", title: "Chat" });
       // A timer left running would keep voicecap from exiting for the rest of the 10 seconds.
       expect(vi.getTimerCount()).toBe(0);
     } finally {

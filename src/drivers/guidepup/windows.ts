@@ -238,8 +238,13 @@ export function parseSessionState(answer: string): boolean | null {
   return state === "locked" ? true : state === "unlocked" ? false : null;
 }
 
-/** The window in front, as the event log keeps it. */
+/**
+ * The window in front: the process that owns it, the program that process runs, and the window's
+ * title. The event log keeps the program and the title.
+ */
 export interface ForegroundWindow {
+  /** The id of the process that owns the window, a whole number above zero. */
+  pid: number;
   /** The program that owns the window, by the name Windows gives it: "Microsoft Teams". */
   program: string;
   /**
@@ -251,12 +256,13 @@ export interface ForegroundWindow {
 
 /**
  * Finds the window in front and answers as one line of JSON (see parseForegroundWindow): user32's
- * GetForegroundWindow gives the window, GetWindowThreadProcessId the process that owns it, and
- * GetWindowText its title. The program's name is its executable's file description ("Microsoft
- * Teams"), else the process's name. The executable's path comes from QueryFullProcessImageName
- * with only the limited query right, as NVDA_PROCESSES asks for it: a program running at a higher
- * integrity level than voicecap refuses more. A program whose file can't be read has the process's
- * name too. It answers nothing when no window is in front. The C# is compiled on every call.
+ * GetForegroundWindow gives the window, GetWindowThreadProcessId the process that owns it (the
+ * answer's pid, which is 0 when Windows can't say), and GetWindowText its title. The program's
+ * name is its executable's file description ("Microsoft Teams"), else the process's name. The
+ * executable's path comes from QueryFullProcessImageName with only the limited query right, as
+ * NVDA_PROCESSES asks for it: a program running at a higher integrity level than voicecap refuses
+ * more. A program whose file can't be read has the process's name too. It answers nothing when no
+ * window is in front. The C# is compiled on every call.
  */
 const FOREGROUND_WINDOW = [
   "Add-Type -Namespace Voicecap -Name Front -MemberDefinition '",
@@ -280,7 +286,7 @@ const FOREGROUND_WINDOW = [
   "[void][Voicecap.Front]::CloseHandle($handle) }",
   "if ($path -ne '') { try { $program = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path).FileDescription } catch {} }",
   "if (-not $program -or -not $program.Trim()) { $program = (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName }",
-  "[pscustomobject]@{ program = $program; title = $title.ToString() } | ConvertTo-Json -Compress }",
+  "[pscustomobject]@{ pid = $id; program = $program; title = $title.ToString() } | ConvertTo-Json -Compress }",
 ].join(" ");
 
 /** How long finding the window in front may take: a step waits for it. */
@@ -310,9 +316,10 @@ export async function foregroundWindow(
 }
 
 /**
- * The window in front from FOREGROUND_WINDOW's JSON: its program and its title, with the spaces
- * round them left off. A window with no title has "". Null when there's no answer, it isn't a JSON
- * object, or it names no program.
+ * The window in front from FOREGROUND_WINDOW's JSON: its process, its program, and its title, with
+ * the spaces round the last two left off. A window with no title has "". Null when there's no
+ * answer, it isn't a JSON object, it names no program, or its process isn't a whole number above
+ * zero (0 is what Windows gives for a window it can't name an owner for).
  */
 export function parseForegroundWindow(answer: string): ForegroundWindow | null {
   let data: unknown;
@@ -321,9 +328,10 @@ export function parseForegroundWindow(answer: string): ForegroundWindow | null {
   } catch {
     return null;
   }
-  const { program, title } = (data ?? {}) as Record<string, unknown>;
+  const { pid, program, title } = (data ?? {}) as Record<string, unknown>;
+  const id = positiveInteger(pid);
   const name = text(program);
-  return name === null ? null : { program: name, title: text(title) ?? "" };
+  return id === null || name === null ? null : { pid: id, program: name, title: text(title) ?? "" };
 }
 
 /**
@@ -681,6 +689,11 @@ function text(value: unknown): string | null {
 /** A number above zero; null for anything else. */
 function positive(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** A whole number above zero, such as a process id; null for anything else. */
+function positiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
 
 /** A display's refresh rate, 2 to 1000 Hz; null for anything else, Windows's sentinels included. */
