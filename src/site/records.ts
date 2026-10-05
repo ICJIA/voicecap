@@ -3,10 +3,11 @@
  * of what `voicecap share` sent, and the demo's (the site folders of voicecap-demo/). The site
  * publishes files from these, and a record is a file a person can edit, so it's read as untrusted:
  * an entry is kept only when its seal holds and its seq, at, by, and files are as voicecap records
- * them, and one of its files only when its name is one voicecap would give. Its site, which is no
- * part of what's published, is read as none when it isn't a root. What isn't kept is left out and
- * named, and never stops the rest, whatever a record holds. No file an entry lists is read here:
- * the build checks each one against its recorded size and SHA-256.
+ * them, and one of its files only when its name is one voicecap would give. Its site, which names the
+ * site's heading on the website (see siteName in ./build.ts) and nothing else, is read as none when
+ * it isn't a root: an entry is published all the same. What isn't kept is left out and named, and
+ * never stops the rest, whatever a record holds. No file an entry lists is read here: the build
+ * checks each one against its recorded size and SHA-256.
  */
 import { stat } from "node:fs/promises";
 import path from "node:path";
