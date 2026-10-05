@@ -56,6 +56,7 @@
     "test:nvda": "tsx scripts/capture-fixture.ts",
     "share:fixture": "tsx scripts/share-fixture.ts",
     "site:fixture": "tsx scripts/site-fixture.ts",
+    "readme:screenshots": "tsx scripts/readme-screenshots.ts",
     "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
