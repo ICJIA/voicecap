@@ -354,6 +354,18 @@ export const PROBLEMS_TEXT = {
   /** The title of the stack an unexpected error left: where in voicecap's code it happened. */
   stack: "Where in voicecap's code it happened",
   /**
+   * What a problem says its run didn't record, each where it matters, before "not recorded" and the
+   * voicecap the run used: the step and the key (an error from a pass's step, written as text), the
+   * program in front (a foreground loss), the event log and NVDA's own log together (a voicecap that
+   * kept neither), or NVDA's own log alone (one that keeps the event log).
+   */
+  unrecorded: {
+    stepAndKey: "The step and the key",
+    program: "Which program came to the front",
+    logs: "The event log and NVDA's own log",
+    nvdaLog: "NVDA's own log",
+  },
+  /**
    * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
    * after what happened: its name, never its window's title, or that Windows didn't say. A run of
    * 0.11.0 or later whose screen reader driver didn't look says so where the problem says what the
@@ -620,6 +632,19 @@ export const TIMELINE_TEXT = {
   /** The line of the fold that holds a session's table of events. */
   fold: (count: string): string => `Every event, to the millisecond (${count})`,
   head: ["Time", "Event"],
+  /**
+   * A session, as the names a screen reader hears of its parts say it (a box's name, a table's
+   * caption, the chart's title, which the page sets apart for a screen reader alone): its run, and,
+   * where the run's sessions are named, its number. So no two parts on the page are named alike.
+   */
+  which: (run: string, session: number | null): string =>
+    session === null ? `run ${run}` : `run ${run}, session ${session}`,
+  /** The chart's title, which names the image ("Minute by minute, run …"), and its box's name. */
+  chartTitle: (which: string): string => `${EVIDENCE_TEXT.parts.timeline}, ${which}`,
+  chartBox: (title: string): string => `${title}, chart`,
+  /** The table of a session's events: its caption, and its box's name. */
+  eventsCaption: (which: string): string => `Every event, ${which}`,
+  eventsBox: (which: string): string => `Every event, ${which}, table`,
   /** Said under the last table, when the log has lines that couldn't be read. */
   unreadable: (count: number): string =>
     `${count} ${count === 1 ? "line" : "lines"} of the event log couldn't be read.`,

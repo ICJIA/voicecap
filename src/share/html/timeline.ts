@@ -20,7 +20,7 @@
  */
 import { esc, idFragment } from "../../report/html.js";
 import { count } from "../format.js";
-import { EVIDENCE_TEXT, TIMELINE_TEXT } from "../text.js";
+import { TIMELINE_TEXT } from "../text.js";
 import type { SessionTimeline, Span, UnloggedSession } from "../timeline.js";
 import { recordTime, sessionLine } from "../words.js";
 import { notRecorded, scroll } from "./parts.js";
@@ -211,8 +211,8 @@ function eventsFold(timeline: SessionTimeline, which: string): string {
     ({ time, text, kind }) =>
       `<tr class="ev-${esc(kind)}"><td class="mono">${esc(recordTime(time))}</td><td>${esc(text)}</td></tr>`,
   );
-  const table = `<table class="plain"><caption class="sr">${esc(`Every event, ${which}`)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
-  const box = `<div class="events" tabindex="0" role="region" aria-label="${esc(`Every event, ${which}, table`)}">${table}</div>`;
+  const table = `<table class="plain"><caption class="sr">${esc(TIMELINE_TEXT.eventsCaption(which))}</caption><thead><tr>${head}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
+  const box = `<div class="events" tabindex="0" role="region" aria-label="${esc(TIMELINE_TEXT.eventsBox(which))}">${table}</div>`;
   return `<details class="log"><summary>${esc(TIMELINE_TEXT.fold(count(timeline.rows.length)))}</summary>${box}</details>`;
 }
 
@@ -230,19 +230,19 @@ function sessionOf(
   unlogged: UnloggedSession[],
 ): string {
   const named = sessionLine(timelines, timeline, unlogged);
-  const which = named === null ? `run ${run}` : `run ${run}, session ${timeline.session}`;
+  const which = TIMELINE_TEXT.which(run, named === null ? null : timeline.session);
   const id = `tl-${idFragment(run)}-${timeline.session}`;
   const summary =
     timeline.summary.length === 0
       ? ""
       : `<p class="t-sum" id="${esc(id)}-sum">${esc(timeline.summary.join(" "))}</p>`;
   const lanes = lanesOf(timeline, sr);
-  const title = { id: `${id}-title`, text: `${EVIDENCE_TEXT.parts.timeline}, ${which}` };
+  const title = { id: `${id}-title`, text: TIMELINE_TEXT.chartTitle(which) };
   const labelledBy = summary === "" ? title.id : `${title.id} ${id}-sum`;
   const chart =
     lanes.length === 0
       ? ""
-      : scroll(`${title.text}, chart`, chartOf(timeline, lanes, title, labelledBy));
+      : scroll(TIMELINE_TEXT.chartBox(title.text), chartOf(timeline, lanes, title, labelledBy));
   const unreadable =
     timeline.unreadable > 0 ? `<p>${esc(TIMELINE_TEXT.unreadable(timeline.unreadable))}</p>` : "";
   const heading = named === null ? "" : `<h4>${esc(named)}</h4>`;

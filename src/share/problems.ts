@@ -798,10 +798,11 @@ function keepsEarlierAttempts(version: string | null): boolean {
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
+  const { unrecorded } = PROBLEMS_TEXT;
   const keeps = keepsEventLog(version);
   const program =
     failure.fields.kind === "foreground" && failure.fields.program === undefined
-      ? [keeps ? PROBLEMS_TEXT.program.notLooked : notRecorded("Which program came to the front")]
+      ? [keeps ? PROBLEMS_TEXT.program.notLooked : notRecorded(unrecorded.program)]
       : [];
   const eventLog = failure.logged
     ? []
@@ -809,11 +810,11 @@ function notRecordedOf(failure: Failure, version: string | null): string[] {
       ? null
       : [failure.gap ?? TIMELINE_TEXT.noLinesOfAttempt];
   return [
-    ...(failure.unnamedStep ? [notRecorded("The step and the key")] : []),
+    ...(failure.unnamedStep ? [notRecorded(unrecorded.stepAndKey)] : []),
     ...program,
     ...(eventLog === null
-      ? [notRecorded("The event log and NVDA's own log")]
-      : [...eventLog, notRecorded("NVDA's own log")]),
+      ? [notRecorded(unrecorded.logs)]
+      : [...eventLog, notRecorded(unrecorded.nvdaLog)]),
   ];
 }
 
