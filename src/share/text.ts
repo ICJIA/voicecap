@@ -449,6 +449,11 @@ export const EVIDENCE_TEXT = {
   rowsHead: ["What", "What the run recorded"],
   /** The heads of the table of a run's files. */
   filesHead: ["Page", "File", "Size", "SHA-256"],
+  /**
+   * What that table says in its Page column of a file of the run's own, which its record lists
+   * beside its pages' (RunJson.files): its event log.
+   */
+  theRun: "The run",
   /** Said in place of that table, for a run whose record lists no files. */
   noFiles: "This run's record lists no files.",
   /** Before the command that checks a run's files against its record. */

@@ -72,10 +72,12 @@ import {
   downloadOf,
   fileBytes,
   inputOf,
+  LOG_HASH,
   picturesOf,
   STEP_LIMIT_PROBLEM,
   TRANSCRIPTS,
   withNestedSettings,
+  withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -1533,6 +1535,61 @@ describe("buildShareModel", () => {
         value: `Part of the time. Asked as the session ended, and answered at 16:20 by ${PAT}.`,
       },
     ]);
+  });
+
+  describe("lists every file the run's record lists", () => {
+    it("the run's own first, its event log, as the run's, then each page's, each with its size and fingerprint", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", files: ["read.txt"], screenshot: TINY_RECORD }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [evidence] = buildShareModel(inputOf([run])).evidence;
+
+      expect(evidence?.fingerprints).toEqual([
+        { page: "The run", file: "events.jsonl", ...LOG_HASH },
+        { page: "/", file: "read.txt", bytes: 1, sha256: "0".repeat(64) },
+        {
+          page: "/",
+          file: "screenshot.jpg",
+          bytes: TINY_RECORD.bytes,
+          sha256: TINY_RECORD.sha256,
+        },
+      ]);
+    });
+
+    it("the run's own when no page lists one, as for a run whose pages were all skipped", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", status: "skipped" }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [evidence] = buildShareModel(inputOf([run])).evidence;
+
+      expect(evidence?.fingerprints).toEqual([
+        { page: "The run", file: "events.jsonl", ...LOG_HASH },
+      ]);
+    });
+
+    it("only what the record has as a file's fingerprint, among the run's own", () => {
+      const run = withOwnFiles(shareRun({ id: "r1", pages: [{ path: "/" }] }), {
+        "events.jsonl": LOG_HASH,
+        "notes.txt": "not a fingerprint",
+        "other.txt": { sha256: 42, bytes: 1 },
+        "empty.txt": null,
+      });
+      const [evidence] = buildShareModel(inputOf([run])).evidence;
+
+      expect(evidence?.fingerprints).toEqual([
+        { page: "The run", file: "events.jsonl", ...LOG_HASH },
+      ]);
+    });
   });
 });
 

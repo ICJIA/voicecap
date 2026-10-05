@@ -46,10 +46,12 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  LOG_HASH,
   loggedModel,
   loggedRun,
   storeOf,
   TRANSCRIPTS,
+  withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -622,6 +624,41 @@ describe("renderEvidence", () => {
         `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
         `/ | screenshot.jpg | ${plural(TINY_RECORD.bytes, "byte")} | ${TINY_RECORD.sha256}`,
       ]);
+    });
+
+    it("lists the run's own files first, its event log as the run's, with its size and fingerprint", () => {
+      const run = withOwnFiles(
+        shareRun({ id: "r1", pages: [{ path: "/", files: ["read.txt"] }] }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [fold = ""] = runFolds(renderEvidence(buildShareModel(inputOf([run]))));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${plural(LOG_HASH.bytes, "byte")} | ${LOG_HASH.sha256}`,
+        `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
+      ]);
+      expect(part).toContain(`<td><code>${LOG_HASH.sha256}</code></td>`);
+    });
+
+    it("shows the run's own files, never that its record lists none, when no page lists one", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", status: "skipped" }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [fold = ""] = runFolds(renderEvidence(buildShareModel(inputOf([run]))));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${plural(LOG_HASH.bytes, "byte")} | ${LOG_HASH.sha256}`,
+      ]);
+      expect(textOf(part)).not.toContain("lists no files");
     });
 
     it("puts each table in a box that a keyboard can reach and scroll, named for its run", async () => {

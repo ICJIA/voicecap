@@ -9,7 +9,14 @@ import os from "node:os";
 import path from "node:path";
 
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { NewRunEvent, PassName, ReviewsFile, RunEvent, RunJson } from "../../src/model.js";
+import type {
+  FileHash,
+  NewRunEvent,
+  PassName,
+  ReviewsFile,
+  RunEvent,
+  RunJson,
+} from "../../src/model.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../../src/share/load.js";
 import {
   buildShareModel,
@@ -18,6 +25,7 @@ import {
   type WalkthroughDownload,
 } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
+import { sealOf } from "../../src/util/hash.js";
 import { TINY_JPEG } from "./jpeg.js";
 import { SITE } from "./report-data.js";
 import { failedAttempt, settingsNested, shareRun } from "./share-data.js";
@@ -117,6 +125,19 @@ export function picturesOf(runs: RunJson[]): Map<string, Uint8Array> {
     ),
   );
 }
+
+/**
+ * The run with `files` as the files of its own that its record lists beside its pages
+ * (RunJson.files, which holds its event log from voicecap 0.11.0), sealed again when it was sealed.
+ */
+export function withOwnFiles(run: RunJson, files: Record<string, unknown>): RunJson {
+  const { seal: _seal, ...unsealed } = run;
+  const listed = { ...unsealed, files: files as Record<string, FileHash> };
+  return run.seal === undefined ? listed : { ...listed, seal: sealOf(listed) };
+}
+
+/** The fingerprint of an event log as a run's record lists it, for a run built in memory. */
+export const LOG_HASH: FileHash = { sha256: "e".repeat(64), bytes: 10_240 };
 
 /** The run with its read pass's step limit set to `limit`. */
 export function withStepLimit(run: RunJson, limit: number): RunJson {

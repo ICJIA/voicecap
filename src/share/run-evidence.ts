@@ -23,6 +23,7 @@ import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import { keepsEventLog } from "./problems.js";
+import { isFileHash } from "./records.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
 import {
@@ -85,8 +86,10 @@ export interface RunEvidence {
   /** Evidence C, NVDA's own log checked against the transcripts: no version records it yet. */
   nvdaLog: { notRecorded: string };
   /**
-   * Every file the run's record lists, page by page: its size and SHA-256. A page's transcripts,
-   * then its screenshot, where its record has the file's fingerprint.
+   * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
+   * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
+   * then page by page, a page's transcripts, then its screenshot, where its record has the file's
+   * fingerprint.
    */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
@@ -190,19 +193,37 @@ export function evidenceOf(input: {
       timeline,
       screenReader: words.screenReader,
       nvdaLog: { notRecorded },
-      fingerprints: run.pages.flatMap((page) => [
-        ...Object.entries(page.files).map(([file, hash]) => ({
-          page: pagePath(page.url),
-          file,
-          bytes: hash.bytes,
-          sha256: hash.sha256,
-        })),
-        ...screenshotFile(page),
-      ]),
+      fingerprints: [
+        ...ownFiles(run),
+        ...run.pages.flatMap((page) => [
+          ...Object.entries(page.files).map(([file, hash]) => ({
+            page: pagePath(page.url),
+            file,
+            bytes: hash.bytes,
+            sha256: hash.sha256,
+          })),
+          ...screenshotFile(page),
+        ]),
+      ],
       verify: formatCommand(["verify"]),
       walkthrough: walkthroughFor(record, site),
     };
   });
+}
+
+/**
+ * The files a run's record lists beside its pages (RunJson.files: its event log), each as the run's.
+ * Only an entry that is a file's fingerprint as voicecap writes one: `voicecap verify` reads a record
+ * with any other as not voicecap's, and the page shows no size or fingerprint it doesn't have.
+ */
+function ownFiles(run: RunJson): RunEvidence["fingerprints"] {
+  const files: unknown = run.files;
+  if (typeof files !== "object" || files === null) return [];
+  return Object.entries(files).flatMap(([file, hash]: [string, unknown]) =>
+    isFileHash(hash)
+      ? [{ page: EVIDENCE_TEXT.theRun, file, bytes: hash.bytes, sha256: hash.sha256 }]
+      : [],
+  );
 }
 
 /**

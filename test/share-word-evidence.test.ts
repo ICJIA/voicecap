@@ -56,11 +56,13 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  LOG_HASH,
   loggedModel,
   loggedRun,
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
 import {
@@ -593,6 +595,22 @@ describe("wordEvidence", () => {
       ]);
     });
 
+    it("lists the run's own files first, its event log as the run's, as the page does", () => {
+      const run = withOwnFiles(
+        shareRun({ id: "r1", pages: [{ path: "/", files: ["read.txt"] }] }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const part = partOf(runParts(buildShareModel(inputOf([run]))), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${byteCount(LOG_HASH.bytes)} | ${LOG_HASH.sha256}`,
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+      ]);
+      expect(files?.rows[0]?.[3]).toEqual(monoCell(LOG_HASH.sha256));
+    });
+
     it("gives each run its own fingerprints, never the other's", async () => {
       const parts = runParts(await demoModel());
       const latest = "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe";
@@ -816,6 +834,27 @@ describe("wordEvidence", () => {
         EVIDENCE_TEXT.rowsHead,
         EVIDENCE_TEXT.rowsHead,
       ]);
+    });
+
+    it("but that lists its own, shows those, never that it lists none, as for a run whose pages were all skipped", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", status: "skipped" }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [part = []] = runParts(buildShareModel(inputOf([run])));
+      const inside = under(part, "Fingerprints (SHA-256) in run r1");
+
+      expect(wordsOf(inside)).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${byteCount(LOG_HASH.bytes)} | ${LOG_HASH.sha256}`,
+        EVIDENCE_TEXT.verify,
+        "npx @icjia/voicecap verify",
+      ]);
+      expect(saysOf(inside)).not.toContain("lists no files");
     });
   });
 
