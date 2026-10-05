@@ -4,6 +4,7 @@ import type {
   NvdaControl,
   NvdaKey,
 } from "../../src/drivers/guidepup-nvda.js";
+import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
 
 /** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
@@ -35,11 +36,14 @@ export class Gate {
  *
  * - keys pressed through NVDA go to whichever window is in front;
  * - NVDA+T reports the title of the window in front;
+ * - Windows names the program that owns the window in front, and gives its title;
  * - Chrome reports that its page has focus until its window has really been in front at least
  *   once, even while another window is in front.
  */
 export class FakeDesktop {
   private frontWindow: "browser" | "other" = "browser";
+  /** The other window's program, as Windows names it: its file's description. */
+  otherProgram = "Microsoft Outlook";
   otherTitle = "Inbox - Outlook";
   /** Whether asking the browser window to come forward works. */
   raiseWorks = true;
@@ -118,6 +122,22 @@ export class FakeDesktop {
     if (this.frontWindow === "browser" && value === "other") this.frontBrowser?.loseFocus();
     this.frontWindow = value;
     this.changed();
+  }
+
+  /** The title of the window in front, as NVDA+T reports it and Windows gives it. */
+  get frontTitle(): string {
+    return this.front === "browser"
+      ? `${this.frontBrowser?.title ?? ""} - Google Chrome`
+      : this.otherTitle;
+  }
+
+  /** The driver's foregroundWindow(): the program and the title of the window in front. */
+  foregroundWindow(): Promise<ForegroundWindow> {
+    this.events.push("foreground:look");
+    return Promise.resolve({
+      program: this.front === "browser" ? "Google Chrome" : this.otherProgram,
+      title: this.frontTitle,
+    });
   }
 
   /** Whether the window in front keeps NVDA talking. */
@@ -291,13 +311,7 @@ export class FakeNvda implements NvdaControl {
         this.silencing.add(command);
       });
     }
-    if (key === "reportTitle") {
-      const title =
-        this.desktop.front === "browser"
-          ? `${this.desktop.frontBrowser?.title ?? ""} - Google Chrome`
-          : this.desktop.otherTitle;
-      return options.capture === false ? "" : title;
-    }
+    if (key === "reportTitle") return options.capture === false ? "" : this.desktop.frontTitle;
     const spoken = this.desktop.deliver(key);
     return options.capture === false ? "" : spoken;
   }

@@ -6,12 +6,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
-import type { RunEvent } from "../src/model.js";
+import type { AttemptRecord, RunEvent } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
 import { EVENT_LOG, openEventLog, readEventLog } from "../src/run/events.js";
 import { eventLogFile } from "../src/run/paths.js";
 import { listRuns, readRunJson } from "../src/run/store.js";
 import { fileHash } from "../src/transcripts/write.js";
+import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
@@ -434,6 +435,91 @@ describe("a run's event log", () => {
       "page-finished",
       "run-ended",
     ]);
+  });
+});
+
+// The driver names the program that took the screen in the log (as foreground-lost) and on the
+// error it throws. The run keeps the name, and only the name, in the record of the failed attempt.
+describe("the program that took the screen, in a failed attempt's record", () => {
+  /** A driver whose first Down Arrow fails with `error`, and no other step does. */
+  function failingOnce(error: Error): ScriptedDriver {
+    let lines = 0;
+    return new ScriptedDriver(sitePages(), {
+      fail: (command) => (command === "nextLine" && ++lines === 1 ? error : null),
+    });
+  }
+
+  /** What run.json keeps of the one attempt at the run's one page that failed. */
+  async function kept(dir: string, runId: string): Promise<AttemptRecord> {
+    const attempts = (await readRunJson(outDir(dir), runId)).pages[0]?.failedAttempts;
+    expect(attempts).toHaveLength(1);
+    return attempts![0]!;
+  }
+
+  it("keeps the program a step lost the foreground to", async () => {
+    const dir = await setup(["/about"]);
+    const taken = new ForegroundError(LOST, { program: "Microsoft Teams" });
+    const result = await runAudit(options(dir, failingOnce(taken)));
+    expect(result.outcome).toBe("completed");
+    expect(await kept(dir, result.runId)).toMatchObject({
+      n: 1,
+      pass: "read",
+      command: "nextLine",
+      cause: "foreground",
+      message: LOST,
+      program: "Microsoft Teams",
+    });
+  });
+
+  it("keeps the program a page that couldn't be opened lost the foreground to", async () => {
+    const dir = await setup(["/about"]);
+    const taken = new ForegroundError(LOST, { program: "Microsoft Teams" });
+    const driver = new ScriptedDriver(
+      sitePages({ about: { openError: taken, openErrorTimes: 1 } }),
+    );
+    const result = await runAudit(options(dir, driver));
+    expect(result.outcome).toBe("completed");
+    expect(await kept(dir, result.runId)).toMatchObject({
+      n: 1,
+      command: "openPage",
+      cause: "foreground",
+      program: "Microsoft Teams",
+    });
+  });
+
+  it("keeps null when Windows didn't say which program it was", async () => {
+    const dir = await setup(["/about"]);
+    const result = await runAudit(
+      options(dir, failingOnce(new ForegroundError(LOST, { program: null }))),
+    );
+    const attempt = await kept(dir, result.runId);
+    expect(attempt).toMatchObject({ cause: "foreground", program: null });
+  });
+
+  it("keeps no program for a lost foreground that no program was looked up for", async () => {
+    const dir = await setup(["/about"]);
+    const result = await runAudit(options(dir, failingOnce(new ForegroundError(LOST))));
+    const attempt = await kept(dir, result.runId);
+    expect(attempt).toMatchObject({ cause: "foreground" });
+    expect(attempt).not.toHaveProperty("program");
+    // Nor in the run's record in memory, though JSON would write it without a program anyway.
+    expect(result.run.pages[0]?.failedAttempts?.[0]).not.toHaveProperty("program");
+  });
+
+  it("keeps no program for a failure of another kind", async () => {
+    const failures = [
+      new EnvironmentError("Windows is locked.", { failure: "locked" }),
+      new Error("NVDA went away"),
+      // Not a ForegroundError, whatever it carries.
+      Object.assign(new Error(LOST), { failure: "foreground", program: "Microsoft Teams" }),
+    ];
+    for (const error of failures) {
+      const dir = await setup(["/about"]);
+      const result = await runAudit(options(dir, failingOnce(error)));
+      const attempt = await kept(dir, result.runId);
+      expect(attempt, error.message).not.toHaveProperty("program");
+      expect(result.run.pages[0]?.failedAttempts?.[0], error.message).not.toHaveProperty("program");
+    }
   });
 });
 

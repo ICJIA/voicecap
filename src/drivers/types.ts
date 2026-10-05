@@ -142,9 +142,15 @@ export interface EnvironmentInfo {
 export class ForegroundError extends Error {
   /** The failure code a page's record keeps for this error (see causeOf in src/run/failure.ts). */
   readonly failure = "foreground";
+  /**
+   * The program that took the foreground, by its name ("Microsoft Teams"): null when the driver
+   * looked and Windows didn't say, and absent when it didn't look. The page's record keeps it.
+   */
+  readonly program?: string | null;
 
-  constructor(message: string) {
+  constructor(message: string, options?: { program?: string | null }) {
     super(message);
     this.name = "ForegroundError";
+    this.program = options?.program;
   }
 }

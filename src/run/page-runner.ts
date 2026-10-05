@@ -328,8 +328,9 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
 
 /**
  * What the record of a failed pass, or of a page that couldn't be opened for it (command
- * "openPage"), says went wrong. An unexpected error's stack is kept with the home folder replaced,
- * so the record doesn't name the account that ran voicecap. Its message is kept word for word: the
+ * "openPage"), says went wrong. The program that took the foreground is kept when the driver named
+ * one (or said it couldn't). An unexpected error's stack is kept with the home folder replaced, so
+ * the record doesn't name the account that ran voicecap. Its message is kept word for word: the
  * report replaces the home folder where it shows one.
  */
 function problemOf(
@@ -344,6 +345,7 @@ function problemOf(
     command,
     cause: failure.cause,
     message: failure.message,
+    ...(failure.program !== undefined ? { program: failure.program } : {}),
     ...(failure.stack !== undefined
       ? {
           stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),

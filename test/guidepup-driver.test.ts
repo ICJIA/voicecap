@@ -110,6 +110,7 @@ function setup(options: Setup = {}) {
       lockChecks.push(desktop.locked);
       return Promise.resolve(desktop.locked);
     },
+    foregroundWindow: () => desktop.foregroundWindow(),
     cleanupOrphans: () => {
       orphanCleanups.push("cleaned");
       return Promise.resolve(["Closed 2 browser processes left by an earlier run."]);
@@ -165,6 +166,10 @@ async function until(condition: () => boolean): Promise<void> {
 
 const keysSent = (desktop: FakeDesktop) =>
   desktop.events.filter((event) => event.startsWith("key:"));
+
+/** How many times the driver has asked Windows which window is in front. */
+const lookups = (desktop: FakeDesktop) =>
+  desktop.events.filter((event) => event === "foreground:look").length;
 
 describe("starting the Guidepup NVDA driver", () => {
   it("refuses to start anywhere but Windows", async () => {
@@ -1603,5 +1608,150 @@ describe("reporting to the run's event log", () => {
     expect(logger.text("warn")).toContain("handed over");
     expect(nvda.started).toBe(false);
     expect(desktop.restarts).toEqual([OWN_NVDA]);
+  });
+});
+
+// Another window taking the foreground is looked up once, and its program named: in the event log,
+// with the window's title, and on the error, by its name only.
+describe("the program that took the foreground", () => {
+  const OUTLOOK: NewRunEvent = {
+    type: "foreground-lost",
+    program: "Microsoft Outlook",
+    title: "Inbox - Outlook",
+  };
+  const NOT_KNOWN: NewRunEvent = { type: "foreground-lost", program: null, title: null };
+
+  it("is named in the event log, with its window's title, and on the error by its name only", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.front = "other";
+    const step = driver.nextLine();
+    await expect(step).rejects.toBeInstanceOf(ForegroundError);
+    await expect(step).rejects.toMatchObject({
+      failure: "foreground",
+      program: "Microsoft Outlook",
+    });
+    // The title is for the log: nothing the error says tells what the window showed.
+    await expect(step).rejects.not.toThrow(/Outlook|Inbox/);
+    expect(only(recorder.events, "foreground-lost")).toEqual([OUTLOOK]);
+  });
+
+  it("is looked up once for each loss, however the driver finds it", async () => {
+    type Loss = (desktop: FakeDesktop, driver: GuidepupNvdaDriver) => Promise<unknown>;
+    const losses: [string, Loss][] = [
+      [
+        "before a step",
+        (desktop, driver) => {
+          desktop.front = "other";
+          return driver.nextLine();
+        },
+      ],
+      [
+        "during a step",
+        (desktop, driver) => {
+          desktop.speech = () => {
+            desktop.front = "other";
+            return "Inbox - Outlook, window. 3 unread messages";
+          };
+          return driver.nextLine();
+        },
+      ],
+      [
+        "before a Tab",
+        (desktop, driver) => {
+          desktop.front = "other";
+          return driver.nextFocusable();
+        },
+      ],
+      [
+        "during a Tab",
+        async (desktop, driver) => {
+          await driver.nextFocusable();
+          desktop.beforeKey = () => {
+            desktop.front = "other";
+          };
+          return driver.nextFocusable();
+        },
+      ],
+    ];
+    for (const [when, lose] of losses) {
+      const { driver, desktop, recorder } = recording();
+      await driver.start();
+      await driver.openPage(URL_HOME);
+      expect(lookups(desktop), when).toBe(0);
+      await expect(lose(desktop, driver), when).rejects.toMatchObject({
+        failure: "foreground",
+        program: "Microsoft Outlook",
+      });
+      expect(lookups(desktop), when).toBe(1);
+      expect(only(recorder.events, "foreground-lost"), when).toEqual([OUTLOOK]);
+    }
+  });
+
+  // A lookup that finds nothing and one that fails say the same: Windows didn't say.
+  const unanswered: [string, GuidepupDriverDeps["foregroundWindow"]][] = [
+    ["finds nothing", () => Promise.resolve(null)],
+    ["fails", () => Promise.reject(new Error("PowerShell didn't answer"))],
+  ];
+
+  it("is named null when the lookup doesn't answer, and the step still fails as a lost foreground", async () => {
+    for (const [how, lookup] of unanswered) {
+      const { driver, desktop, deps, recorder } = recording();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      await driver.openPage(URL_HOME);
+      desktop.front = "other";
+      const step = driver.nextLine();
+      await expect(step, how).rejects.toBeInstanceOf(ForegroundError);
+      await expect(step, how).rejects.toMatchObject({ failure: "foreground", program: null });
+      expect(only(recorder.events, "foreground-lost"), how).toEqual([NOT_KNOWN]);
+    }
+  });
+
+  it("is named when the browser can't be brought to the front, as a page is opened", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    desktop.front = "other";
+    desktop.raiseWorks = false;
+    const open = driver.openPage(URL_HOME);
+    await expect(open).rejects.toBeInstanceOf(ForegroundError);
+    await expect(open).rejects.toMatchObject({
+      failure: "foreground",
+      program: "Microsoft Outlook",
+    });
+    await expect(open).rejects.not.toThrow(/Outlook|Inbox/);
+    expect(only(recorder.events, "foreground-lost")).toEqual([OUTLOOK]);
+    // Once, though the browser was raised three times: the page is given up on after the last.
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
+    expect(lookups(desktop)).toBe(1);
+  });
+
+  it("is named null when the lookup doesn't answer for a page that wouldn't come to the front", async () => {
+    for (const [how, lookup] of unanswered) {
+      const { driver, desktop, deps, recorder } = recording();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      desktop.front = "other";
+      desktop.raiseWorks = false;
+      const open = driver.openPage(URL_HOME);
+      await expect(open, how).rejects.toBeInstanceOf(ForegroundError);
+      await expect(open, how).rejects.toMatchObject({ failure: "foreground", program: null });
+      expect(only(recorder.events, "foreground-lost"), how).toEqual([NOT_KNOWN]);
+      expect(desktop.strayKeys, how).toEqual([]);
+    }
+  });
+
+  it("isn't looked up when Windows is locked: that's recorded as the lock, and the lock screen is no program", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.locked = true;
+    desktop.front = "other"; // the lock screen
+    await expect(driver.nextLine()).rejects.toMatchObject({ failure: "locked" });
+    expect(only(recorder.events, "computer-locked", "foreground-lost")).toEqual([
+      { type: "computer-locked" },
+    ]);
+    expect(lookups(desktop)).toBe(0);
   });
 });

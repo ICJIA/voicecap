@@ -285,6 +285,13 @@ export interface AttemptRecord {
   command: DriverCommand | "openPage" | null;
   cause: FailureCause;
   message: string;
+  /**
+   * For "foreground" only: the program that took the foreground from the browser, by its name
+   * ("Microsoft Teams"), or null when Windows didn't say. Its window's title isn't kept here, as it
+   * can hold private text. Absent for the other causes, for a driver that didn't look, and in
+   * records from before voicecap 0.11.0.
+   */
+  program?: string | null;
   /** For "unexpected" only: the stack, with the home folder replaced. */
   stack?: string;
   /**

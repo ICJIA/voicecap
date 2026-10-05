@@ -30,6 +30,10 @@
  * - What it does to NVDA, the browsers, the person's own NVDA, and the NVDA lock goes to the run's
  *   event log (setEventRecorder) as it's done, in the order it's done, and only once it's done: a
  *   browser that wouldn't close isn't recorded as closed. The exit hook (abandon) records nothing.
+ * - When another window has the foreground, it looks up which program has it, once, as the loss is
+ *   found. The log gets the program and the window's title (foreground-lost), and the
+ *   ForegroundError names the program only: a title can hold private text. Not knowing the program
+ *   (the lookup fails, or Windows doesn't say) changes nothing else about the failure.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -53,6 +57,7 @@ import {
 } from "./guidepup/paths.js";
 import {
   cleanupOrphans,
+  foregroundWindow,
   listProcesses,
   keepAwake,
   nvdaLanguage,
@@ -64,6 +69,7 @@ import {
   startedNvda,
   titleMatches,
   windowsSystemInfo,
+  type ForegroundWindow,
 } from "./guidepup/windows.js";
 import {
   ForegroundError,
@@ -194,6 +200,12 @@ export interface GuidepupDriverDeps {
   cleanupOrphans: () => Promise<string[]>;
   /** Whether Windows is locked (null when it doesn't say). */
   sessionLocked: () => Promise<boolean | null>;
+  /**
+   * The window in front, by its program and title, for the event log; null when Windows doesn't
+   * say. Asked once each time another window is found to have the foreground, and a lookup that
+   * fails counts as null. It must answer in good time: the step that lost the foreground waits.
+   */
+  foregroundWindow: () => Promise<ForegroundWindow | null>;
   /** Keep Windows from sleeping or turning the screen off (and locking because of either). */
   keepAwake: () => { release(): void };
   /** Wait; an abort ends the wait early (it may reject). */
@@ -231,6 +243,7 @@ export function createGuidepupNvdaDriver(
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),
     sessionLocked,
+    foregroundWindow,
     keepAwake,
     sleep: (ms, signal) => delay(ms, undefined, { signal }),
     marker: randomMarker,
@@ -739,6 +752,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       );
       throw new ForegroundError(
         "The browser window couldn't be brought to the front, so keystrokes would have gone to another window. Keep the computer free while voicecap runs: close dialogs, and don't use other windows.",
+        { program: await this.foregroundTakenBy() },
       );
     } finally {
       await restore();
@@ -782,7 +796,30 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
 
   /** The page lost focus: to another window, or to the lock screen (checked on real Windows). */
   private async foregroundLost(): Promise<Error> {
-    return (await this.deps.sessionLocked()) === true ? this.computerLocked() : lostForeground();
+    return (await this.deps.sessionLocked()) === true
+      ? this.computerLocked()
+      : lostForeground(await this.foregroundTakenBy());
+  }
+
+  /**
+   * Another window has the foreground: which program has it is looked up, once, and recorded as the
+   * error is made. Gives the program's name, null when it isn't known: the lookup failed, or
+   * Windows didn't say. The error gets the name only, as the window's title, which the log keeps,
+   * can hold private text. Not knowing mustn't change what the step fails with.
+   */
+  private async foregroundTakenBy(): Promise<string | null> {
+    let front: ForegroundWindow | null = null;
+    try {
+      front = await this.deps.foregroundWindow();
+    } catch {
+      // Counts as not known.
+    }
+    this.events.record({
+      type: "foreground-lost",
+      program: front?.program ?? null,
+      title: front?.title ?? null,
+    });
+    return front?.program ?? null;
   }
 
   /** Windows was found locked: recorded, as the error that says so is made. */
@@ -1016,9 +1053,10 @@ function windowsLocked(): EnvironmentError {
   );
 }
 
-function lostForeground(): ForegroundError {
+function lostForeground(program: string | null): ForegroundError {
   return new ForegroundError(
     "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
+    { program },
   );
 }
 

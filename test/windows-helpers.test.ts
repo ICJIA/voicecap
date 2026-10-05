@@ -5,16 +5,18 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { chromium } from "playwright";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
+  foregroundWindow,
   keepAwake,
   listProcesses,
   nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
+  parseForegroundWindow,
   parseNvdaProcesses,
   parseWindowsMachine,
   personsNvda,
@@ -368,6 +370,145 @@ describe("Windows helpers (what PowerShell says)", () => {
       OWN_NVDA,
       "D:\\nvda-portable\\nvda.exe",
     ]);
+  });
+
+  // What the lookup of the window in front prints: one line of JSON, from ConvertTo-Json.
+  it("read the program and the title of the window in front from PowerShell's answer", () => {
+    expect(
+      parseForegroundWindow('{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n'),
+    ).toEqual({ program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+  });
+
+  it("read no window in front from an answer that's empty, null, or isn't an object", () => {
+    const answers = [
+      "",
+      " \r\n",
+      "null",
+      "7",
+      "true",
+      '"Microsoft Teams"',
+      "[]",
+      '[{"program":"Microsoft Teams","title":"Chat"}]',
+      "Add-Type : Cannot add type. Compilation errors occurred.",
+    ];
+    for (const answer of answers) expect(parseForegroundWindow(answer), answer).toBeNull();
+  });
+
+  it("read no window in front when the program is missing, empty, or not a name", () => {
+    const programs = [
+      '""',
+      '"   "',
+      "null",
+      "7",
+      "true",
+      '["Microsoft Teams"]',
+      '{"name":"Teams"}',
+    ];
+    for (const program of programs) {
+      const answer = `{"program":${program},"title":"Chat | Microsoft Teams"}`;
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+    expect(parseForegroundWindow('{"title":"Chat | Microsoft Teams"}')).toBeNull();
+    expect(parseForegroundWindow("{}")).toBeNull();
+  });
+
+  it("read a window in front with no title as one with an empty title", () => {
+    const none = { program: "Microsoft Teams", title: "" };
+    expect(parseForegroundWindow('{"program":"Microsoft Teams"}')).toEqual(none);
+    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":null}')).toEqual(none);
+    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":""}')).toEqual(none);
+    expect(parseForegroundWindow('{"program":"Microsoft Teams","title":7}')).toEqual(none);
+  });
+
+  it("leave out the spaces round a program's name and a window's title", () => {
+    expect(parseForegroundWindow('{"program":"  Microsoft Teams ","title":" Chat "}')).toEqual({
+      program: "Microsoft Teams",
+      title: "Chat",
+    });
+  });
+
+  it("read the characters JSON's escapes stand for, as PowerShell writes an apostrophe as \\u0027", () => {
+    const answer = '{"program":"Pat\\u0027s \\"Notes\\"","title":"Caf\\u00e9 \\u2013 menu"}';
+    expect(parseForegroundWindow(answer)).toEqual({
+      program: 'Pat\'s "Notes"',
+      title: "Café – menu",
+    });
+  });
+
+  it("ask PowerShell once which window is in front, and give what it answers", async () => {
+    const asked: string[] = [];
+    const found = await foregroundWindow((script) => {
+      asked.push(script);
+      return Promise.resolve('{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n');
+    });
+    expect(found).toEqual({ program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("find the window in front through user32, and name its program by its file's description", async () => {
+    const asked: string[] = [];
+    await foregroundWindow((script) => {
+      asked.push(script);
+      return Promise.resolve("");
+    });
+    const script = asked[0] ?? "";
+    for (const call of ["GetForegroundWindow", "GetWindowThreadProcessId", "GetWindowText"]) {
+      expect(script, call).toContain(call);
+    }
+    expect(script).toContain("[System.Diagnostics.FileVersionInfo]::GetVersionInfo");
+    expect(script).toContain(".FileDescription");
+    // The process name, when the file says nothing.
+    expect(script).toContain("Get-Process");
+    // It asks for the program and the title, not for what the program was told to open.
+    expect(script).not.toMatch(/CommandLine|Win32_Process/i);
+  });
+
+  it("find no window in front when PowerShell fails, or says nothing that is one", async () => {
+    const answers = [
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+      () => {
+        throw new Error("spawn powershell.exe ENOENT");
+      },
+      () => Promise.resolve(""),
+      () => Promise.resolve("Add-Type : Cannot add type."),
+      () => Promise.resolve('{"program":null,"title":"Program Manager"}'),
+    ];
+    for (const answer of answers) expect(await foregroundWindow(answer)).toBeNull();
+  });
+
+  // The lookup is part of a step: a PowerShell that's slow to start mustn't hold the step up.
+  it("find no window in front once PowerShell has taken 10 seconds, and not before", async () => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const lookup = foregroundWindow(() => new Promise<string>(() => {})).then((found) => {
+        settled = true;
+        return found;
+      });
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
+      expect(await lookup).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("give the answer of a PowerShell that answered in time, and leave no timer running", async () => {
+    vi.useFakeTimers();
+    try {
+      const lookup = foregroundWindow(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 9_000));
+        return '{"program":"Microsoft Teams","title":"Chat"}';
+      });
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(await lookup).toEqual({ program: "Microsoft Teams", title: "Chat" });
+      // A timer left running would keep voicecap from exiting for the rest of the 10 seconds.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("name the computer by maker and model, leaving out a part Windows doesn't give", () => {

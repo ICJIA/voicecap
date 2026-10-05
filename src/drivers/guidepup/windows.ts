@@ -1,6 +1,6 @@
 /**
- * Windows details for the Guidepup driver: processes, the OS version, NVDA's language, and this
- * computer's details for a run's record.
+ * Windows details for the Guidepup driver: processes, the window in front, the OS version, NVDA's
+ * language, and this computer's details for a run's record.
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
@@ -236,6 +236,94 @@ export async function sessionLocked(): Promise<boolean | null> {
 export function parseSessionState(answer: string): boolean | null {
   const state = answer.trim();
   return state === "locked" ? true : state === "unlocked" ? false : null;
+}
+
+/** The window in front, as the event log keeps it. */
+export interface ForegroundWindow {
+  /** The program that owns the window, by the name Windows gives it: "Microsoft Teams". */
+  program: string;
+  /**
+   * The window's title, "" when it has none. It can hold private text, such as an email's subject:
+   * the event log keeps it, and no report shows it.
+   */
+  title: string;
+}
+
+/**
+ * Finds the window in front and answers as one line of JSON (see parseForegroundWindow): user32's
+ * GetForegroundWindow gives the window, GetWindowThreadProcessId the process that owns it, and
+ * GetWindowText its title. The program's name is its executable's file description ("Microsoft
+ * Teams"), else the process's name. The executable's path comes from QueryFullProcessImageName
+ * with only the limited query right, as NVDA_PROCESSES asks for it: a program running at a higher
+ * integrity level than voicecap refuses more. A program whose file can't be read has the process's
+ * name too. It answers nothing when no window is in front. The C# is compiled on every call.
+ */
+const FOREGROUND_WINDOW = [
+  "Add-Type -Namespace Voicecap -Name Front -MemberDefinition '",
+  '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+  '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);',
+  '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int max);',
+  '[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);',
+  '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool QueryFullProcessImageName(IntPtr process, int flags, System.Text.StringBuilder name, ref int size);',
+  '[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);',
+  "';",
+  "$window = [Voicecap.Front]::GetForegroundWindow();",
+  "if ($window -ne [IntPtr]::Zero) {",
+  "$id = [uint32]0; [void][Voicecap.Front]::GetWindowThreadProcessId($window, [ref]$id);",
+  "$title = New-Object Text.StringBuilder 1024; [void][Voicecap.Front]::GetWindowText($window, $title, $title.Capacity);",
+  "$path = ''; $program = $null;",
+  // PROCESS_QUERY_LIMITED_INFORMATION
+  "$handle = [Voicecap.Front]::OpenProcess(0x1000, $false, $id);",
+  "if ($handle -ne [IntPtr]::Zero) {",
+  "$name = New-Object Text.StringBuilder 32768; $size = $name.Capacity;",
+  "if ([Voicecap.Front]::QueryFullProcessImageName($handle, 0, $name, [ref]$size)) { $path = $name.ToString() }",
+  "[void][Voicecap.Front]::CloseHandle($handle) }",
+  "if ($path -ne '') { try { $program = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path).FileDescription } catch {} }",
+  "if (-not $program -or -not $program.Trim()) { $program = (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName }",
+  "[pscustomobject]@{ program = $program; title = $title.ToString() } | ConvertTo-Json -Compress }",
+].join(" ");
+
+/** How long finding the window in front may take: a step waits for it. */
+const FOREGROUND_LOOKUP_MS = 10_000;
+
+/**
+ * The window in front: the program that owns it and its title, which a lost foreground is named
+ * by. Null when no window is in front or Windows doesn't say: PowerShell failing, answering
+ * something else, or taking longer than 10 seconds all count. `ask` runs the script; tests replace
+ * it.
+ */
+export async function foregroundWindow(
+  ask: (script: string) => Promise<string> = powershell,
+): Promise<ForegroundWindow | null> {
+  let timer: NodeJS.Timeout | undefined;
+  const unanswered = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(""), FOREGROUND_LOOKUP_MS);
+  });
+  try {
+    // An answer that comes after the limit finds the race settled, and is dropped.
+    return parseForegroundWindow(await Promise.race([ask(FOREGROUND_WINDOW), unanswered]));
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The window in front from FOREGROUND_WINDOW's JSON: its program and its title, with the spaces
+ * round them left off. A window with no title has "". Null when there's no answer, it isn't a JSON
+ * object, or it names no program.
+ */
+export function parseForegroundWindow(answer: string): ForegroundWindow | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(answer);
+  } catch {
+    return null;
+  }
+  const { program, title } = (data ?? {}) as Record<string, unknown>;
+  const name = text(program);
+  return name === null ? null : { program: name, title: text(title) ?? "" };
 }
 
 /**
