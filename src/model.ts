@@ -408,8 +408,9 @@ export interface RunJson {
   /**
    * The root of the site's canonical address, the one people visit, such as
    * "https://dvfr.illinois.gov/": what --canonical gave the session that completed the run, else
-   * the root most of the pages' own tags name. Set at completion, so the seal covers it. Absent
-   * when neither gave one, and in runs from before voicecap 0.10.0.
+   * the root most of the inner pages' own tags name, and the home page's only when no inner page's
+   * names one (see chooseCanonicalRoot). Set at completion, so the seal covers it. Absent when
+   * neither gave one, and in runs from before voicecap 0.10.0.
    */
   canonical?: string;
   settings: RunSettings;

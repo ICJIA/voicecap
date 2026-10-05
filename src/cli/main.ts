@@ -133,7 +133,7 @@ function buildProgram(ctx: CliContext, logger: Logger, setExit: (code: number) =
     .option("--site <url>", "the site's URL; pages must be on its origin")
     .option(
       "--canonical <address>",
-      "the address people visit, for reports to name the site by, such as https://dvfr.illinois.gov (default: the one the pages' canonical tags name)",
+      "the address people visit, for reports to name the site by, such as https://dvfr.illinois.gov (default: the one the pages' canonical tags name, and none for a replay, which reads no tags)",
     )
     .option(
       "--sitemap <url>",

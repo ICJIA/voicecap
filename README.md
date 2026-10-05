@@ -26,6 +26,10 @@ Everything goes into one record that voicecap never rewrites, summed up in an ac
 
 voicecap makes screen reader testing faster, repeatable, and documented: https://github.com/ICJIA/voicecap
 
+Here is the top of that report for voicecap's own demo site, as NVDA read it on 29 September 2026. The demo's pages are at [voicecap.netlify.app/demo-site/](https://voicecap.netlify.app/demo-site/), and every screenshot in this README is of the demo's report, or of the website built from it. The page leads with the site's name, `voicecap.netlify.app`, and when it was tested. Its summary opens with the result in one sentence, "NVDA read all 7 pages. 1 page has flags worth a closer listen." Then come six numbers (7 pages in scope, 7 transcribed, 1 with flags, 0 heard live by a person, 204 lines NVDA spoke, and 12 minutes 34 seconds of NVDA time) and four panels: what needs attention, how complete the test was, what's still to do, and when and how it was run.
+
+![The top of the demo's shareable page, in its dark theme: the site's name, voicecap.netlify.app, and "Tested 29 September 2026, 14:02"; the summary sentence, "NVDA read all 7 pages. 1 page has flags worth a closer listen."; six number tiles; and four panels.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-top.png)
+
 > **Status: what works where.**
 >
 > - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
@@ -140,10 +144,13 @@ The first lines NVDA said on the demo site's home page, in each pass:
 ```
 read (Down Arrow)   banner landmark, voicecap demo
                     Tour, navigation landmark, list, with 1 item, link, Next: Before you start
+                    out of list, main landmark, heading, level 1, Welcome to the voicecap demo
 headings (H)        main landmark, Welcome to the voicecap demo, heading, level 1
                     The tour's pages, heading, level 2
+                    no next heading
 tab (Tab)           Skip to main content, same page, link
                     Tour, navigation landmark, list, with 1 item, Next: Before you start, link
+                    main landmark, list, with 6 items, Before you start, link
 ```
 
 The details are in [What voicecap does on each page](#what-voicecap-does-on-each-page).
@@ -182,6 +189,7 @@ The details are in [What voicecap does on each page](#what-voicecap-does-on-each
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
 - [The shareable page](#the-shareable-page)
+  - [A site's name: its canonical address](#a-sites-name-its-canonical-address)
   - [The Word copy](#the-word-copy)
   - [Sending it: voicecap share](#sending-it-voicecap-share)
   - [What was sent: shares.json](#what-was-sent-sharesjson)
@@ -272,6 +280,7 @@ Test NVDA now? [y/N]: n
 Website: i2i.illinois.gov
 Checking https://i2i.illinois.gov…
   → https://i2i.illinois.gov (it answers)
+The site names its canonical address: https://i2i.illinois.gov/. Reports will name it so.
 Looking for the site's sitemap…
 Where are the pages?
   1. The site's sitemap, listed in robots.txt: https://i2i.illinois.gov/sitemap-index.xml
@@ -295,6 +304,8 @@ Run it now? [y/N]:
 ```
 
 `init` offers every sitemap the site has: each one its `robots.txt` lists, then `/sitemap.xml`. A site with one sitemap shows just "The site's sitemap". "A sitemap at another address" asks for `Sitemap (a full URL, or a name like sitemap.xml)`. A name is read on the site, and an address typed without `https://` gets it added.
+
+**The site's name.** `init` reads the site's home page when it checks the website. When the page names the site's own address as its canonical address, as i2i.illinois.gov's does above, `init` says so and goes on. When the website is at an IP address or a local address, such as `http://localhost:3000`, and its home page names none, `init` asks for the address people visit, and writes the answer into the command it prints as `--canonical`. The reports then name the site by it (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)).
 
 **The reviewer** is recorded with each session of the run, and the report shows it. Enter takes the quick default, `icjia`; type a person's name to record who ran it. The command ends with `--reviewer`, so it's easy to change for someone else. To make your own name the default, set `VOICECAP_REVIEWER` once: in PowerShell, `setx VOICECAP_REVIEWER "Your Name"`, then open a new window (on a Mac, add `export VOICECAP_REVIEWER="Your Name"` to `~/.zshrc`). `voicecap review` records the same name.
 
@@ -396,7 +407,7 @@ npm may say it skipped `ffmpeg-static`'s install script, or it may download ffmp
 <details>
 <summary>The tour's seven steps, where its files go, and what it does on a Mac</summary>
 
-`npx @icjia/voicecap demo` is a guided first run, about 9 minutes, against a small demo site that comes with voicecap. The site runs only on this computer, and only while the tour needs it: nothing is downloaded, and nothing is sent anywhere. The tour goes one step at a time, and each step waits for Enter. Ctrl+C at any of them stops the tour, with nothing left running.
+`npx @icjia/voicecap demo` is a guided first run, about 9 minutes, against a small demo site that comes with voicecap. The site runs only on this computer, and only while the tour needs it: nothing is downloaded, and nothing is sent anywhere. Its pages name their own address, [voicecap.netlify.app/demo-site/](https://voicecap.netlify.app/demo-site/), where ICJIA publishes the same pages (see [The website](#the-website-voicecap-site)), so the demo's report names the demo by that address, not by the one on your computer. The tour goes one step at a time, and each step waits for Enter. Ctrl+C at any of them stops the tour, with nothing left running.
 
 1. **Welcome:** what voicecap does, and what the tour will do.
 2. **Checking this computer:** the checks `init` starts with. On their own, they're `npx @icjia/voicecap preflight`.
@@ -628,6 +639,7 @@ npx @icjia/voicecap --walkthrough <file> [options]
 | Option | Meaning |
 | --- | --- |
 | `--site <url>` | The site. Pages must be on its origin. Required, except with `--walkthrough`, which takes the site from its file. |
+| `--canonical <address>` | The address people visit, for the reports to name the site by, such as `https://dvfr.illinois.gov`. A bare name works (`dvfr.illinois.gov`), and the run keeps the address as a root with a `/` on the end. Default: the one the pages' canonical tags name, and none for a replay, which reads no tags. An IP address or a local address is refused, since neither is a site's name. The run records it (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). |
 | `--sitemap <url>` | Take pages from a sitemap: a `<urlset>` or a `<sitemapindex>` (child sitemaps are read too; gzip is fine). Give its full URL, or its name or path on the site, from its root (`sitemap.xml`, `/sitemaps/pages.xml`). |
 | `--pages <file>` | Take pages from a page list: `.csv` or `.json` (see [Page sources](#page-sources)). |
 | `--page <url>` | Take this page: a full URL, or a path like `/faq/`, resolved against `--site` (repeatable). |
@@ -681,9 +693,11 @@ voicecap demo      # a guided first run against a demo site that comes with voic
 
 Wherever a command takes a page, give a full URL or a root-relative path (`/about`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder in the transcripts home (see [The audit record](#the-audit-record)): give `--site`, or a full URL with `--page`, or, when the home has only one site's folder so far, nothing at all. With more than one and neither given, voicecap stops and names them.
 
-**`share` takes three options:** `--site <url>`, the site (default: the home's only site); `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--reviewer <name>`, who is sharing (default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config). With no name it stops, as `review` does: a share is recorded with who made it. What it makes and prints is under [Sending it: `voicecap share`](#sending-it-voicecap-share).
+**`--site` takes the address voicecap read, or the site's canonical address,** on these five commands and on `verify` (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). `--site https://dvfr.illinois.gov` finds the folder named for that address when the folder holds records, and otherwise the one folder whose newest completed run recorded it as the site's canonical address, such as a run on a copy of the site on the tester's own computer. When two folders recorded it, voicecap stops, names both, and asks for the address it read. A run's own `--site` is still the address to read.
 
-**`walkthrough` takes the file to write, and three options:** `--site <url>`, the site (default: the home's only site); `--run <id>`, the run to write it from (default: the site's latest completed run); and `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). It never overwrites a file, and it needs no screen reader. What it writes is under [Writing the file: `voicecap walkthrough`](#writing-the-file-voicecap-walkthrough).
+**`share` takes three options:** `--site <url>`, the site's address or its canonical address (default: the home's only site); `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--reviewer <name>`, who is sharing (default: `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config). With no name it stops, as `review` does: a share is recorded with who made it. What it makes and prints is under [Sending it: `voicecap share`](#sending-it-voicecap-share).
+
+**`walkthrough` takes the file to write, and three options:** `--site <url>`, the site's address or its canonical address (default: the home's only site); `--run <id>`, the run to write it from (default: the site's latest completed run); and `--out <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`). It never overwrites a file, and it needs no screen reader. What it writes is under [Writing the file: `voicecap walkthrough`](#writing-the-file-voicecap-walkthrough).
 
 **`site` takes two options:** `--home <dir>`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`); and `--out <dir>`, the folder to build the website in (default: `_site` in the home). **Here `--out` isn't the home.** In every other command that takes it, `--out` is the transcripts home, and `site` takes the home as `--home`. It reads every site's folder in the home, so it takes no `--site`, and it needs no screen reader. What it builds and prints is under [The website: `voicecap site`](#the-website-voicecap-site).
 
@@ -856,6 +870,10 @@ With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL p
 
 ## What voicecap does on each page
 
+voicecap takes NVDA through each page three ways: line by line (Down Arrow), heading by heading (H), and control by control (Tab). The report's "Heard on" panel shows the first three lines NVDA said in each way on the demo site's home page, and how long each line took: 1.3 seconds. The same lines are in text, under [How voicecap works](#how-voicecap-works).
+
+![The "Heard on" panel of the demo's report: three columns, one for each way NVDA goes through the page (Down Arrow, line by line; H, heading by heading; Tab, control by control), each with its first three lines on the home page and how long each took, 1.3 seconds.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-heard.png)
+
 <details>
 <summary>How each page is loaded, and how voicecap captures everything NVDA says</summary>
 
@@ -952,16 +970,19 @@ voicecap can keep a permanent, non-destructive record of every run and every man
 
 The home's folders are shown under [The transcripts folder](#the-transcripts-folder). A site's folder is its host name, lowercased, plus `_<port>` when the URL has one, with anything other than `a-z 0-9 . -` replaced by `_` (`https://dvfr.illinois.gov` → `dvfr.illinois.gov`; `http://127.0.0.1:4747` → `127.0.0.1_4747`). `review`, `manual add`, `report`, `share`, and `walkthrough` work in one site's folder at a time (see [Other commands](#other-commands) for how they pick it).
 
+A site's folder is named for the address voicecap read, whatever the site's canonical address is. What readers meet, the shareable page, its Word copy, the dated copies, and the website, names the site by its canonical address instead (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)).
+
 The home's top can also hold your own files and folders, notes for example. A folder there is a site's folder only when it holds a date folder, `reviews.json`, `latest.txt`, or `report.html`; any other is left alone, and `review`, `manual add`, `report`, `share`, `walkthrough`, `verify`, and `site` never take it for a site.
 
 ### What each run records
 
 <details>
-<summary>Page titles, every failed attempt and its code, the reviewer and whether NVDA was heard, and the computer's details</summary>
+<summary>Page titles, the site's canonical address, every failed attempt and its code, the reviewer and whether NVDA was heard, and the computer's details</summary>
 
 Beyond its transcripts, each run's `run.json` records:
 
 - **Each page's title**, as the browser reports it. A page with no title, or one that never loaded, has none (`null`), and so does every page of a replayed run.
+- **The site's canonical address,** when the run learned one: the root `--canonical` gave, or the one the pages' tags name (`canonical` in `run.json`, set when the run completes, so its seal covers it). Each page's record keeps the address its own tag gave, as the browser resolved it, or `null` for a page with no tag and a page that wasn't read (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). A run from before voicecap 0.10.0 has neither.
 - **Every failed attempt at a page**, in every session of the run, including those a later attempt made good. Each is written to `run.json` as it happens, before the screen reader and browser are started again, so Ctrl+C, a closed window, or a crash doesn't lose it, and a later session adds its own after it. Each attempt's record keeps:
   - its number, counted across the sessions, and when it started and ended (local time, to the millisecond);
   - the pass, the step, and the command it sent (`nextLine`, say, or `openPage` for a page that didn't open);
@@ -1000,6 +1021,10 @@ Once the run completes, its seal covers all of this.
 
 ### Checking the record: `voicecap verify`
 
+Two checks look at the record. `voicecap verify` checks the files in the transcripts home against their seals and fingerprints. The shareable page checks itself too, in the browser, with no network: its "Check the fingerprints" button checks every transcript the page shows against the fingerprint in its run's sealed record, and checks each run's seal and each review's (see [The shareable page](#the-shareable-page)). On the demo's page, the result reads, in green: "Checked just now, in this browser. 21 of 21 transcripts match their fingerprints, and both runs' seals check out." Under it, a fold lists every file checked, and says how many matched.
+
+![The fingerprint check in the demo's report, after a click on "Check the fingerprints". The result, in green: "Checked just now, in this browser. 21 of 21 transcripts match their fingerprints, and both runs' seals check out." Under it, a closed fold, "Every file checked: 23 checked, 0 not matching".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-fingerprints.png)
+
 <details>
 <summary>How seals and the review chain work, what <code>voicecap verify</code> checks, and what it can't catch</summary>
 
@@ -1009,9 +1034,9 @@ voicecap verify [--site <url>] [--out <dir>]
 
 Every record voicecap finishes writing is sealed: a completed run's `run.json`, each manual session's `session.json`, each review entry, and each entry in `share/shares.json` carry a `seal`, a SHA-256 of the record itself. Review entries, and share entries, also chain to the one before them (`seq`, `prev`). A reordered review entry, or a deleted entry that a later entry follows, breaks the chain; an edited one no longer matches its own seal, including the newest entry, which no later entry points to yet.
 
-`verify` checks every site folder in the home, or one with `--site`: each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; the whole review chain; and what was shared (see below). It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
+`verify` checks every site folder in the home, or one with `--site` (the address voicecap read, or the site's canonical address): each run's seal and the SHA-256 of every file it recorded; each manual session's seal, its transcript, and its raw copy when one was kept; the whole review chain; and what was shared (see below). It prints one line per problem it finds, then a summary for each site, and exits **0** when everything matches and **3** when something doesn't. An incomplete run (still running, or interrupted) is listed, not counted as a problem, and a missing raw NVDA log isn't either: `.gitignore` keeps those out of Git on purpose (see below), so a clone of the home never has them.
 
-**What it checks of the shares:** `share/shares.json`'s seals and chain; each copy the record names, which is a problem when it's missing, or has changed since it was recorded; and any other file or folder in `share/` that nothing records, such as a dated copy that `shares.json` doesn't name. It passes over `current.html` and `current.docx` (voicecap writes them again from the records, so `verify` checks the records), names that start with a dot, the files an operating system adds, and Word's lock files (`~$…`, which Word keeps beside a document it has open: a sent copy that someone is reading has one). When it says a copy is `not recorded in shares.json`, move the copy out of `share/` if you kept it by hand, or delete it if a share was interrupted and it was never sent.
+**What it checks of the shares:** `share/shares.json`'s seals and chain; the site each entry records (from 0.10.0), which has to be the root of a web address, such as `https://dvfr.illinois.gov/`, as voicecap writes one; each copy the record names, which is a problem when it's missing, or has changed since it was recorded; and any other file or folder in `share/` that nothing records, such as a dated copy that `shares.json` doesn't name. It passes over `current.html` and `current.docx` (voicecap writes them again from the records, so `verify` checks the records), names that start with a dot, the files an operating system adds, and Word's lock files (`~$…`, which Word keeps beside a document it has open: a sent copy that someone is reading has one). When it says a copy is `not recorded in shares.json`, move the copy out of `share/` if you kept it by hand, or delete it if a share was interrupted and it was never sent.
 
 The summary line says what it checked: `dvfr.illinois.gov: 3 runs (1 incomplete), 2 manual sessions, 4 reviews, 1 share checked: everything matches.` When something doesn't match, the line ends with the number of problems in place of "everything matches".
 
@@ -1223,7 +1248,7 @@ This is a different question from `voicecap verify` (see [The audit record](#the
 <details>
 <summary>What the report shows, when it's regenerated, and how <code>--compare</code> marks changes</summary>
 
-Open a site's `report.html` in a browser: `transcripts/dvfr.illinois.gov/report.html`, say, or the path a run prints when it completes. It's a single self-contained file (no external assets) and is itself accessible.
+Open a site's `report.html` in a browser: `transcripts/dvfr.illinois.gov/report.html`, say, or the path a run prints when it completes. It's a single self-contained file (no external assets) and is itself accessible. Its subtitle names the site by its canonical name, linked to its address, when the run recorded one, and by the address voicecap read when it didn't (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)).
 
 - **Summary**: the page source (curated list, full sitemap, or walkthrough file), driver and capture mode, and counts: pages, transcribed, reviewed, changed since review, manually tested, open issues, errors, skipped URLs. Banners mark replayed output ("not a live NVDA session"), incomplete runs, and environment changes.
 - **Pages table**: one row per page with its template, run status, step counts and stop reasons per pass, heuristic flags, current review status (with reviewer and date), number of review entries, a "changed since review" marker, manual sessions, and links to every transcript. With `--compare`, a column marks changed pages and links to the text diffs.
@@ -1237,6 +1262,10 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 </details>
 
 ## The shareable page
+
+The shareable page folds its detail under lines that say what's inside. This is one of its sections, "What the flags found", with its fold open. The demo's flags are all on one page, "Common mistakes (on purpose)", which breaks three rules on purpose (see [Heuristic flags](#heuristic-flags)): `generic-link-text`, since 3 links say only "click here"; `unlabeled`, since 2 items have no names, so NVDA says only "button" and "edit"; and `headings`, since its first heading is level 2, not 1. For each rule, the page quotes what NVDA said.
+
+!["What the flags found" in the demo's report, with its fold open: the one flagged page, with 5 flags from 3 rules. A table gives each rule (generic-link-text, unlabeled, headings), what NVDA showed, and NVDA's own words, quoted.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-flags.png)
 
 <details>
 <summary>What the page is, how voicecap writes it, which runs count, its sections, the fingerprint check, and what to know before you send it</summary>
@@ -1271,7 +1300,38 @@ Its sections, in order:
 
 **Before you send it:** the page carries its runs' sealed records exactly as voicecap wrote them, for the fingerprint check, and those can include file paths with your account name in them (a page list's, say), which the page itself never shows. The walkthrough files it offers hold no folder names: a page list's file is kept by its name only. Each walkthrough file carries the pages' labels, templates, and notes from your page list, as the records do. **Everything on the website is public to anyone with its address,** so all of this holds there too, for every page, Word copy, and walkthrough file that has been shared (see [The website: `voicecap site`](#the-website-voicecap-site)).
 
-**The site's name,** the page's headline, is `report.siteName` in the config (see [Configuration](#configuration)), else the home page's title as the latest run recorded it, else the site's host name. The setting names every site the config is used with, so give each site its own config when they need different names.
+**The site's name,** the page's headline, is its canonical name, such as `dvfr.illinois.gov`. Under it, the page says when the site was tested, such as "Tested 29 September 2026, 14:02": the day and time the latest run began (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). `report.siteName` in the config (see [Configuration](#configuration)) adds a line of its own under the name, such as the site's full title. Without it the page has no such line, and the home page's title is no longer a headline. The setting names every site the config is used with, so give each site its own config when they need different names.
+
+</details>
+
+### A site's name: its canonical address
+
+The shareable page, its Word copy, the dated copies, and the website name a site by its **canonical address**: the address people visit, such as `https://dvfr.illinois.gov/`. Its **canonical name** is that address's host, `dvfr.illinois.gov`. The page and its Word copy lead with it, and with when the site was tested. A site that voicecap read on a copy on the tester's own computer is named the same way once its canonical address is known, so nothing a reader meets leads with an IP address or `localhost`, which mean nothing to a reader. The fold below says how voicecap learns the address.
+
+<details>
+<summary>How a site gets its canonical address, where its name shows, what keeps the address voicecap read, and what a site with none is called</summary>
+
+**How a site gets one,** from the strongest way to the weakest:
+
+1. **`report.canonical` in the config** (see [Configuration](#configuration)). It names the site whenever the page, its Word copy, or a share is made, and it beats the address any run recorded, past or to come. So it names every site the config is used with: keep one config per site, as with `report.siteName`.
+2. **`--canonical <address>` on a run** (see [Run an audit](#run-an-audit)). The session that completes the run records it. It isn't one of the settings a run resumes by, so adding it when you run again doesn't start a new run. `voicecap init` asks for it when it's needed, and puts it in the command it prints (see [Quick start](#quick-start)).
+3. **The site's own pages.** A run reads each page's `<link rel="canonical">` tag when it loads the page, and records the root that most of the inner pages' tags name (an inner page is any page but the home page). The home page's tag counts only when no inner page gives one. A tag counts only when it names the page it's on: its path has to end with the page's own path. A tag for another page, a local address, or an address that isn't on the web is ignored. A copy of a site keeps the tags of the site it copies, so a run on a copy learns the real address.
+4. **None of these.** The site is named by the address voicecap read: its host, and its port if it has one. For a copy on the tester's own computer, that is an IP address or `localhost`, so give such a site its address with `--canonical` or `report.canonical`.
+
+An address is kept as its root: a scheme, a host, and a path that ends in `/`. `dvfr.illinois.gov` becomes `https://dvfr.illinois.gov/`, and a site that lives under a path keeps it: the demo's is `https://voicecap.netlify.app/demo-site/`. An IP address or a local address, such as `http://localhost:3000`, is refused, since neither is a site's name.
+
+**Where the name shows:**
+
+- the page's headline and title, and every page address it shows, which is the page on the canonical address: the demo's `/before-you-start/` is `voicecap.netlify.app/demo-site/before-you-start/`;
+- the Word copy, in the same places;
+- the commands they show, such as `voicecap walkthrough --site <canonical address> …`, since `--site` takes it (see [Other commands](#other-commands));
+- the names of the dated copies and of the walkthrough files (see [Sending it: `voicecap share`](#sending-it-voicecap-share));
+- the website's headings and lists (see [The website: `voicecap site`](#the-website-voicecap-site));
+- the run report's subtitle (see [Reading the report](#reading-the-report)).
+
+**What keeps the address voicecap read.** The records are as they were written: the run's `site`, the site's folder, the walkthrough file, the terminal's output, a problem's record word for word, and the data the page carries for its fingerprint check. When the address voicecap read isn't the canonical one, the page's evidence says so, and names no address: "These runs read a copy of the site on the computer that ran them." (or "These runs read a copy of the site at another address.").
+
+**Older records.** A run from before 0.10.0 recorded no canonical address, and a share from before it recorded no site. Their site is named by the address voicecap read, or by `report.canonical` when it's set, and nothing already written is changed.
 
 </details>
 
@@ -1282,7 +1342,7 @@ Its sections, in order:
 
 `share/current.docx`, beside the page, is the page's Word copy. voicecap writes it with the page, from the same records, so it has the same sections and the same numbers. It's made for paper and for Word's navigation pane.
 
-- **A title and a date first.** It opens with "Screen reader test results" and the date and time it was made, such as "30 September 2026 at 09:00 (UTC−05:00)". Then comes the site: its name, when it has one beyond its address, and its address. A reader meets what the document is and when it was made before any web address.
+- **A title, the site's name, and when it was tested first.** It opens with "Screen reader test results", then the site's canonical name, then the line `report.siteName` sets, when there is one, then "Tested 29 September 2026, 14:02. This copy was made 30 September 2026." Then come how the pages were read and who prepared it, and the site's address last. A reader meets what the document is, which site it's about, and when it was tested before any web address.
 - **The same sections, in the same order.** The page's ten sections, then a last heading, "About this report", over the footer's lines: what voicecap is, when the report was made, and the names of the file and of its web page. The page's footer names its Word copy the same way, so each copy tells its reader where the other is.
 - **Nothing is folded.** What the page keeps behind a fold is open in the Word copy, written out in full.
 - **Tables where the page has charts.** The page's tiles and bars are tables, and its cards for every page are one table, with the same numbers in them.
@@ -1305,7 +1365,7 @@ On Windows, voicecap can't replace `current.docx` while Word has it open. A run,
 npx @icjia/voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
 ```
 
-**The copies are dated.** The page and its Word copy are named for the site's folder and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `dvfr.illinois.gov_2026-10-02.docx`, and they go in the site's `share/` folder. A second share the same day takes `-2` (`dvfr.illinois.gov_2026-10-02-2.html`), then `-3`, and so on. A copy is never overwritten, and a name that `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
+**The copies are dated.** The page and its Word copy are named for the site's canonical name and the day, such as `dvfr.illinois.gov_2026-10-02.html` and `dvfr.illinois.gov_2026-10-02.docx`, and they go in the site's `share/` folder. The name is the canonical address's host, and its port if it has one, made safe for a file name as a site's folder is (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). A site with no canonical address is named by the address voicecap read, as its folder is, which is how copies shared before 0.10.0 were named. A second share the same day takes `-2` (`dvfr.illinois.gov_2026-10-02-2.html`), then `-3`, and so on. A copy is never overwritten, and a name that `shares.json` records is never used again, even when the copy with that name has been deleted. Each copy's footer names the other by its dated name.
 
 **Each run's walkthrough file** goes beside them, the oldest run first. It's the file the page offers to download, byte for byte, named for the share and the run, such as `dvfr.illinois.gov_2026-10-02_2026-09-26_1405_walkthrough.json`. It's recorded with its run, and never overwritten, as the other copies are. A run whose file can't be made gets a warning, such as `Warning: Run 2026-09-26_1405's walkthrough file can't be made, so it isn't shared: <why>`, and the share goes on without it. The website offers these files (see [The website: `voicecap site`](#the-website-voicecap-site)).
 
@@ -1338,6 +1398,7 @@ To paste into the email that sends the page and its Word copy:
 
 - `seq` and `prev`: its number in the chain, and the seal of the entry before it (`null` for the first);
 - `at`, when the copies were made, in local time, and `by`, who shared;
+- `site`, from 0.10.0: the root of the site the copies name, which their file names are made from. That's the canonical address, such as `https://dvfr.illinois.gov/`, or, for a site with none, the address voicecap read. A share made before 0.10.0 has none;
 - `runs`: the ids of the runs the copies drew on, oldest first;
 - `files`: the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `name`, `bytes`, and `sha256`, and a walkthrough file's `run`, the id of its run;
 - `seal`: a SHA-256 of the entry itself.
@@ -1358,11 +1419,17 @@ npx @icjia/voicecap site [--home <dir>] [--out <dir>]
 
 **What's on the site,** in three views, with a bar of links to them:
 
-- **The demo:** voicecap's report on its own small demo site, as an example of what it makes. It's there only when the home has a share of the demo (see [Publishing it, and the demo](#publishing-it-and-the-demo)).
-- **The sites:** each site, by its folder's name (its host, such as `dvfr.illinois.gov`), with its reports, the newest first.
-- **Every report, by date:** every site's reports, the newest first, each with a link to its page. The demo isn't in it: it's an example, not a site.
+- **The demo:** voicecap's report on its own small demo site, as an example of what it makes. It's there only when the home has a share of the demo (see [Publishing it, and the demo](#publishing-it-and-the-demo)). Its lead links to the demo's own pages, the ones NVDA read. Every build publishes them in `demo-site/`, so on ICJIA's site they're at [voicecap.netlify.app/demo-site/](https://voicecap.netlify.app/demo-site/), the demo's canonical address.
+- **The sites:** each site, headed by its canonical name (such as `dvfr.illinois.gov`, from its newest share), with its reports, the newest first. Folders whose shares name one site are one site, with their reports together. A site whose shares name no canonical address is headed by its folder's name (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)).
+- **Every report, by date:** every site's reports, the newest first, each with its site's name and a link to its page. The demo isn't in it: it's an example, not a site.
 
 Each report shows when it was shared and who prepared it, then its files: the page, to open; and its Word copy and the walkthrough file of each run it draws on, to download. Each file shows its size and its SHA-256 fingerprint, as `shares.json` recorded them. To check a copy against its fingerprint, run `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac. A report shared before voicecap shared walkthrough files says that none was shared with it.
+
+Here is the top of the site for the demo's report, in the dark theme it opens in, then in the light one a reader can pick. The bar links to "The demo", "The sites", and "Every report, by date", and holds the button that switches themes. Under "The demo" are the link to the demo's pages and the report, shared on 30 September 2026 at 09:00 by Demo Reviewer. The report lists its page to open, its Word copy, and the walkthrough file of each of the two runs it draws on, each with its size and SHA-256 fingerprint.
+
+![The website in its dark theme, from its bar through the demo's report: the bar's links (The demo, The sites, Every report, by date) and its "Light version" button, the heading "Screen reader test results", the link to the demo's pages, and the report shared on 30 September 2026, 09:00, by Demo Reviewer, with its four files and their fingerprints.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/website-dark.png)
+
+![The same part of the website in its light theme, after the reader picks "Light version". The button now reads "Dark version".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/website-light.png)
 
 The site's page follows the shareable page's rules. It's one self-contained file, dark at first, with a button for a light version, and light in print. It's complete without JavaScript, and voicecap's tests run axe on it, in both themes. A reader's choice of theme carries between the site and its reports.
 
@@ -1375,7 +1442,7 @@ The site's page follows the shareable page's rules. It's one self-contained file
 <details>
 <summary>What it reads, what it publishes, what it leaves out and says so, and the folders it builds into</summary>
 
-**What it reads:** only the record of what was shared. That's each site folder's `share/shares.json`, and the latest share in the home's `voicecap-demo/` folder, which it publishes under `demo/`. It never reads a run.
+**What it reads:** only the record of what was shared. That's each site folder's `share/shares.json`, and the latest share in the home's `voicecap-demo/` folder, which it publishes under `demo/`. It never reads a run. Beside the records, it copies the demo site's own pages from voicecap itself, into `demo-site/` (see [The files it writes, and the headers](#the-files-it-writes-and-the-headers)).
 
 **What it publishes:** each file that an entry names, when the entry's seal still holds and the file is still a regular file whose size and SHA-256 are the recorded ones. It copies the file byte for byte, so a file on the site is exactly the file that was shared, and its fingerprint matches.
 
@@ -1384,12 +1451,12 @@ The site's page follows the shareable page's rules. It's one self-contained file
 - **An entry whose seal no longer holds,** or whose fields aren't what voicecap records, and a `shares.json` that can't be read. The site shows nothing of it. Only the build's output names it.
 - **A copy that has changed since it was shared, is missing, can't be read, or isn't a regular file** (a link or a folder, say). The report's other files are still published, and under the report the site says that `<name> isn't here`, and why.
 - **A name voicecap never gives.** Only files whose names end in a lower-case `.html`, `.docx`, or `.json` are published, and only when they and their folder are named as voicecap names them: letters, digits, `.`, `_`, and `-` (lower case for a site's folder), with no dot at the start or end of a file's name. A file named `index.html` is left out too, since Netlify would serve it at its site folder's own address, where it would have no Content Security Policy. A name that holds a path, such as `../notes.txt`, is never read.
-- **A site folder named `demo`,** which would take the demo's place on the site. One named `index.html`, `robots.txt`, or `_headers` is left out too: it would take the place of the site's own file.
+- **A site folder named `demo`,** which would take the demo's place on the site. One named `demo-site`, `index.html`, `robots.txt`, or `_headers` is left out too: it would take the place of the site's own folder or file.
 - **A `voicecap-demo` that isn't a folder.** Git for Windows checks a committed link out as a plain file, so a file can be where the folder should be. The site is built without a demo.
 
 **The folder it builds into** is emptied first, so voicecap builds only into a folder it can be sure of. That's a folder that's new or empty, or one an earlier build made: its `_headers` starts with voicecap's own line.
 
-It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest.
+It stops at an earlier build's folder that holds a name starting with a dot (a repository's `.git`, say) or a folder inside a folder. A build writes neither, so they aren't voicecap's to delete. The one exception is `demo-site/`, the demo's own pages, which has a folder for each page: it counts as a build's when it holds only the paths this voicecap writes there. If `voicecap site` refuses a folder it built because `demo-site/` holds a file this voicecap doesn't write (a demo page that a later voicecap removed, say), delete the folder and build again. The files an operating system adds to a folder you open (`.DS_Store`, `Thumbs.db`, and `desktop.ini`) don't count against a folder an earlier build made, and are emptied with the rest.
 
 It also refuses the transcripts home itself, a folder that holds the home, and anything inside a site's folder or inside `voicecap-demo/`. It goes by where each folder really is, so a link, a short name, or another letter case doesn't get past it. On Windows, it also refuses a folder whose name ends with a dot or a space, which Windows drops: a folder made with one can't be opened or removed there. Every refusal comes before anything is touched. The build says why, and exits with code 1:
 
@@ -1407,10 +1474,12 @@ Error: voicecap site won't build into C:\Users\cschw\code\voicecap-transcripts\n
 **In the output folder,** every build writes:
 
 - **`index.html`:** the site's page.
-- **A folder for each site, and `demo/`,** holding the files of their reports, with the names they were shared under.
+- **A folder for each site, and `demo/`,** holding the files of their reports, with the names they were shared under. A report's files stay in the folder they were shared in, so two folders that name one site can hold files of one name, and neither takes the other's place.
+- **`demo-site/`:** the demo site's own pages and style sheet, copied from voicecap byte for byte, with a folder for each page, and a `sitemap.xml` that lists the pages at their canonical address. Every build writes it, whether or not the home has a share of the demo.
 - **`robots.txt`:** `User-agent: *` and `Disallow: /`, which turns every crawler away.
 - **`_headers`:** Netlify's file of headers, with a rule for each path.
   - Each page gets its own Content Security Policy, made from the SHA-256 of that page's own style and script: `default-src 'none'; script-src 'sha256-…'; style-src 'sha256-…'; img-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. The page's own code runs, and nothing else does. It loads nothing from outside, makes no connection, and can't be put in a frame. Each page was made by the voicecap that shared it, so each is hashed from its own bytes.
+  - Each of the demo's own pages gets a policy of its own, at every address it answers at: `default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`. The pages have a style sheet beside them and a form that goes to a page of their own, and no script.
   - Each Word copy and walkthrough file gets `Content-Disposition: attachment`, so a browser downloads it.
   - Its first line, `# Made by voicecap site. Each build empties this folder and writes it again.`, is how a later build knows the folder is one it made.
 
@@ -1456,7 +1525,7 @@ git push
 **The demo on the site** is the latest share in the home's `voicecap-demo/` folder. This is the one case where the demo's files belong in the home: they're committed with the records, so deleting `voicecap-demo/` and committing that, then pushing, takes the demo off the site at the next build. To put one there, in PowerShell, in the transcripts home's folder:
 
 1. Run `npx @icjia/voicecap demo`. It's a guided tour of about 9 minutes that starts NVDA for real, so follow its steps and keep your hands off the keyboard when it says to (see [Try it first](#try-it-first-npx-icjiavoicecap-demo)). Use a Windows PC: on a Mac, the tour stops before the audit. Its files go in `voicecap-demo/`, in the current folder: the home.
-2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does.
+2. Run `npx @icjia/voicecap share --out voicecap-demo`. The `--out` makes `share` work in the demo's folder, in place of the transcripts home, so it shares the demo's report. It needs a name for who is sharing, as every share does. The demo's pages name their own address, `https://voicecap.netlify.app/demo-site/`, so a demo run made by this voicecap learns it, and the report and its copies name the demo `voicecap.netlify.app`, such as `voicecap.netlify.app_2026-10-02.html`. A demo run made before 0.10.0 learned no address, since its pages had no tags: run the demo again, or give `report.canonical` that address in a config in the folder you share from.
 3. Commit and push, as above. `voicecap-demo/` goes with the rest.
 
 To update the demo, do the three steps again: the site shows the latest share.
@@ -1568,7 +1637,7 @@ To repeat the run: npx @icjia/voicecap --walkthrough 'C:\Users\cschw\walkthrough
 - **It never writes a file that voicecap would refuse to read.** For example, a run with more than 10,000 pages, a step limit above 100,000, or a file that would be over 8 MB can't be written. voicecap says why, writes nothing, and exits with code 1.
 - **The shareable page offers each run's file too.** In the evidence behind its results, each run the page draws on has a link that downloads its walkthrough file, with the command that repeats the run.
   - The link says "Download the walkthrough file" and the file's size, and names its run for a screen reader.
-  - The file is the one `voicecap walkthrough` writes for that run, saved as `<site folder>_<run id>_walkthrough.json`, such as `dvfr.illinois.gov_2026-09-26_1405_walkthrough.json`. It's carried inside the page as text, so each file adds about a third more than its size to the page.
+  - The file is the one `voicecap walkthrough` writes for that run, saved as `<site name>_<run id>_walkthrough.json`, such as `dvfr.illinois.gov_2026-09-26_1405_walkthrough.json`. The site's name is its canonical name, made safe for a file name as a site's folder is, or the address voicecap read when the site has no canonical address (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). It's carried inside the page as text, so each file adds about a third more than its size to the page.
   - The Word copy can't carry a file, so it says to get it from the web page, or with `voicecap walkthrough --site <site> --run <id> <file>`, and gives the command that repeats the run.
   - A run whose file can't be made says why, in the page and in the Word copy.
 
@@ -1687,6 +1756,7 @@ export default defineConfig({
   report: {
     title: "NVDA transcripts: dvfr.illinois.gov",
     agency: "Illinois Criminal Justice Information Authority",
+    canonical: "https://dvfr.illinois.gov",
     logo: "data:image/png;base64,iVBORw0KGgo...",
   },
 });
@@ -1719,7 +1789,8 @@ export default defineConfig({
 | `manual.focusKeys` | `["tab", "shift+tab", "enter", …]` | NVDA key names that move focus (redaction). |
 | `reviewer` | `null` | Default reviewer name. |
 | `report.title`, `report.agency`, `report.logo` | `"NVDA transcript report"`, `null`, `null` | Report branding; the logo must be a `data:image/…` URI. |
-| `report.siteName` | `null` | The site's name, the headline of the shareable page (see [The shareable page](#the-shareable-page)). It names every site the config is used with, so use a config per site for different names. Without it, the headline is the home page's title as the latest run recorded it, else the site's host name. |
+| `report.siteName` | `null` | A name of your own for the site, such as its full title: a line under the site's name on the shareable page and in its Word copy (see [The shareable page](#the-shareable-page)). It isn't the headline, which is the site's canonical name. It names every site the config is used with, so use a config per site for different names. Without it, the page has no such line. |
+| `report.canonical` | `null` | The site's canonical address, the one people visit, such as `"https://dvfr.illinois.gov"`: a bare name works, and it's kept as a root with a `/` on the end. When the shareable page, its Word copy, or a share is made, it names the site, and it beats the address every run recorded. So it names every site the config is used with: use a config per site. An IP address or a local address is refused. Without it, the page uses the address the latest run that counts recorded, and without that, the address voicecap read (see [A site's name: its canonical address](#a-sites-name-its-canonical-address)). |
 
 Unknown settings are errors, to catch typos. The SHA-256 of the effective config is recorded with every run. For a repeat, that's this computer's config: what the repeat took from the file is in the run's settings. A repeat from a walkthrough file takes `passes`, `capture`, `stepCaps`, and `readiness` from the file instead of the config, except that a file with no readiness settings leaves the config's (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)).
 
@@ -1767,13 +1838,15 @@ console.log(written.file, written.runId);
 const repeat = await runAudit({ walkthrough: written.file });
 ```
 
-`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`, `SharesFile`) are exported as TypeScript types.
+`runAudit` accepts every CLI option, with `--page`'s values as `pageUrls` (an array of full URLs or root-relative paths), plus `signal` (an `AbortSignal` that interrupts the run like Ctrl+C), `logger`, `config`, `driver` (any object implementing `ScreenReaderDriver`), and `askListener` (a function called when a session that read pages ends, however it ends, but never for a replay, and given `{ screenReader, pagesRead }`: the screen reader's name and how many pages the session went through; it asks whether the person heard the screen reader speaking, and resolves to `"all"`, `"part"`, or `"no"`, or to `null` for no answer; without it, nothing is asked). `generateReport`'s `outDir` is a site's folder in the transcripts home, not the home itself; `runAudit`'s result gives you one as `siteDir`, and `addReview` and `addManualSession` find theirs the same way `review` and `manual add` do (`--site`, or a full page URL, or the home's only site). To find one yourself, `siteDirFor(resolveHome({ env: process.env, cwd: process.cwd() }), site)` gives a site's folder, and `chooseSiteDir` picks one as those commands do, and takes a site's canonical address as well as the address voicecap read; `siteFolder` names it. The data formats (`RunJson`, `TranscriptJson`, `ReviewsFile`, `ManualSessionJson`, `SharesFile`) are exported as TypeScript types.
 
-`generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated copies to send, as `voicecap share` does: the page, its Word copy, and each run's walkthrough file. It takes `site`, `out`, and `reviewer`, plus `logger` and `config`, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `path`, `name`, `bytes`, and `sha256`, and a walkthrough file's `run`; and `pasteLine`, the line for the email that sends the page and its Word copy. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read.
+`generateReport`, `addReview`, and `addManualSession` write the Word copy, `share/current.docx`, as well as the shareable page, as the commands do (`addReview` and `addManualSession` write neither when `regenerateReport` is `false`). `shareReport` makes the dated copies to send, as `voicecap share` does: the page, its Word copy, and each run's walkthrough file. It takes `site` (any URL on the site, or its canonical address), `out`, and `reviewer`, plus `logger` and `config`, whose `report.canonical` names the site, and says what it made to its `logger` as the command does. It gives back `siteDir`; `entry`, as `share/shares.json` holds it; `files`, the page, then its Word copy, then each run's walkthrough file (the oldest run first), each with its `path`, `name`, `bytes`, and `sha256`, and a walkthrough file's `run`; and `pasteLine`, the line for the email that sends the page and its Word copy. It throws a `UsageError`, with nothing written, when there's no name for who is sharing, no run that counts, or a `shares.json` it can't read.
 
-`readShares(siteDir)` reads a site's `share/shares.json`, and gives back a `SharesAsRead`: `{ schemaVersion: 1, shares }`. It checks only that each share is an object, since a person can edit the file, so each share is typed as a `Record<string, unknown>`, and a caller checks each field it uses. It was typed as a `SharesFile`, with every field known, which promised more than it checks. So it's a compile-time change: code that reads a field of a share, such as `files`, now needs to check it first. `SharesAsRead` is exported, so a caller can name the type. `SharesFile` is still exported too, and describes what `voicecap share` writes. `SharedFile` has a new, optional `run`: the run that a walkthrough file is of.
+`readShares(siteDir)` reads a site's `share/shares.json`, and gives back a `SharesAsRead`: `{ schemaVersion: 1, shares }`. It checks only that each share is an object, since a person can edit the file, so each share is typed as a `Record<string, unknown>`, and a caller checks each field it uses. It was typed as a `SharesFile`, with every field known, which promised more than it checks. So it's a compile-time change: code that reads a field of a share, such as `files`, now needs to check it first. `SharesAsRead` is exported, so a caller can name the type. `SharesFile` is still exported too, and describes what `voicecap share` writes. `SharedFile` has a new, optional `run`: the run that a walkthrough file is of. A `ShareEntry` has a new, optional `site` (from 0.10.0): the root of the site its copies name.
 
-`buildSite` builds the website as `voicecap site` does (see [The website: `voicecap site`](#the-website-voicecap-site)). It takes `home`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`), and `out`, the folder to build in (default: `_site` in the home), plus `cwd`, `env`, and `logger`, and says what it wrote and what it left out to its `logger` as the command does. It gives back `out`, the full path of the folder it built in; `content`, what it published, as a `SiteContent`; and `leftOut`, each thing it left out, worded as the build's output words it. A `SiteContent` has `demo`, a `PublishedReport` or `null`, and `sites`, each with its `folder` and its `reports`, the newest first. A `PublishedReport` has its `folder`, `id` (its anchor on the page), `at`, `by`, its `files`, and `notPublished`: the files its record names that aren't published, each with its `name` and a `reason`, `"changed"` or `"missing"`. A `PublishedFile` has its `kind` (`"page"`, `"word"`, `"walkthrough"`, or `"other"`), `name`, `href`, `bytes`, `sha256`, and `run` (the run a walkthrough file is of, else `null`). A copy that has changed, or is missing, doesn't make it throw: it's left out, and named in `leftOut`. It throws a `UsageError`, before anything is changed, when the home isn't a folder, and when the folder to build in is one it mustn't empty. The types `BuildSiteOptions`, `BuildSiteResult`, `SiteContent`, `PublishedReport`, and `PublishedFile` are exported.
+The run's records have new, optional fields from 0.10.0, which leave code that reads them as it was: `RunJson.canonical`, the root of the site's canonical address, and `PageRecord.canonical`, the address a page's own tag gave. `PageInfo`, which a driver gives back for each page it opens, has a new, required `canonical`: the address of the page's first `<link rel="canonical">` tag, as the browser resolved it, or `null` when the page has none or the driver can't read tags. It's a compile-time change for a custom driver, which now has to return the field. At run time, a driver that leaves it out works as one that returns `null`.
+
+`buildSite` builds the website as `voicecap site` does (see [The website: `voicecap site`](#the-website-voicecap-site)). It takes `home`, the transcripts home (default: `VOICECAP_TRANSCRIPTS`, else `./transcripts`), and `out`, the folder to build in (default: `_site` in the home), plus `cwd`, `env`, and `logger`, and says what it wrote and what it left out to its `logger` as the command does. It gives back `out`, the full path of the folder it built in; `content`, what it published, as a `SiteContent`; and `leftOut`, each thing it left out, worded as the build's output words it. A `SiteContent` has `demo`, a `PublishedReport` or `null`, and `sites`, each with its `name` (the heading the site shows: its canonical name, or its folder's name), its `folders` (the site folders its reports are in, more than one when folders name one site), and its `reports`, the newest first. A site had a `folder` in place of `name` and `folders`, so it's a compile-time change for code that reads one: `name` is the heading, and each of `folders` is where files are. A `PublishedReport` has its `folder`, `id` (its anchor on the page), `at`, `by`, its `files`, and `notPublished`: the files its record names that aren't published, each with its `name` and a `reason`, `"changed"` or `"missing"`. A `PublishedFile` has its `kind` (`"page"`, `"word"`, `"walkthrough"`, or `"other"`), `name`, `href`, `bytes`, `sha256`, and `run` (the run a walkthrough file is of, else `null`). A copy that has changed, or is missing, doesn't make it throw: it's left out, and named in `leftOut`. It throws a `UsageError`, before anything is changed, when the home isn't a folder, and when the folder to build in is one it mustn't empty. The types `BuildSiteOptions`, `BuildSiteResult`, `SiteContent`, `PublishedReport`, and `PublishedFile` are exported.
 
 `writeWalkthrough` writes a run's walkthrough file as `voicecap walkthrough` does (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)), and never overwrites one. It takes `file`, plus `site`, `run`, and `out`, and `logger`, and says what it wrote to its `logger` as the command does. It gives back `file`, the full path it wrote; `runId`; and `walkthrough`, what the file holds. It throws a `UsageError`, with nothing written, when the site has no completed run, when the run named isn't there or didn't complete, when voicecap's own reader would refuse the file, and when something is at `file` already. `runAudit`'s `walkthrough` is the path of a walkthrough file to repeat: the pages, passes, step limits, capture mode, and readiness settings come from it (the config's readiness settings, when the file has none), `site` becomes optional, and `sitemap`, `pages`, `pageUrls`, `limit`, `include`, `exclude`, `passes`, and `maxSteps` are refused with it. `parseWalkthrough(text, file)` reads a walkthrough file's text as a repeat does, strictly, and gives back a `Walkthrough`, or throws a `UsageError` that names the file (`file` is its name, for that message) and says what's wrong. `walkthroughOf(run)` builds the `Walkthrough` of a completed run's record, `walkthroughJson(walkthrough)` is the text a file holds, and `walkthroughProblem(walkthrough)` is why `parseWalkthrough` would refuse a `Walkthrough`, or `null`. The types `Walkthrough`, `WalkthroughPage`, `WalkthroughSettings`, `WalkthroughOrigin`, `WriteWalkthroughOptions`, and `WriteWalkthroughResult` are exported.
 
@@ -1858,6 +1931,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 | `pnpm fixture:reviews` | Rebuilds `fixture/reviews.json` from the recorded run. |
 | `pnpm share:fixture <folder>` | Writes the demo's shareable page and its Word copy into a folder, to look at a change to either. Needs no screen reader. |
 | `pnpm site:fixture <folder>` | Builds the website from the demo fixture, to look at a change to it: makes a transcripts home with reports shared in it at `<folder>/home` (which must not be there yet), builds the site in `<folder>/_site`, and prints the path of its `index.html`. Needs no screen reader. |
+| `pnpm readme:screenshots [folder]` | Makes the README's six screenshots, of the demo's shareable page and of the website built from its report, in `assets/screenshots` (or the folder given), from a temporary home. Needs Playwright's Chromium, and no screen reader. It refuses to write a shot that shows an IP address or `localhost`. Run it when the page's or the site's design changes, and commit what it writes. |
 
 `fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, and a run recorded with real NVDA that the replay driver plays back; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
 

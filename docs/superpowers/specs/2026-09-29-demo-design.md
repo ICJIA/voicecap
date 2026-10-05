@@ -24,7 +24,7 @@ Success:
 | Question | Decision |
 | --- | --- |
 | The command | `npx @icjia/voicecap demo`. |
-| Self-contained | The demo site ships inside the npm package and is served on this computer. Nothing is hosted or downloaded. |
+| Self-contained | The demo site ships inside the npm package and is served on this computer. Nothing is hosted or downloaded. **Amended 2026-10-04 (0.10.0):** `voicecap site` also publishes the pages on the website, at https://voicecap.netlify.app/demo-site/, the demo's canonical address. The tour still serves them on this computer. |
 | Approach | **One process.** The tour reuses what `init`, `doctor` and runs already use: the preflight, the live test, `runAudit`, and the live report. At each step it shows the equivalent command, so people learn the real ones. |
 | Pacing | **Step by step.** Seven steps, each explained, each waiting for Enter. Ctrl+C at any pause ends the tour cleanly. |
 | The site | Seven pages whose text narrates the tour. Six are well built. One, "Common mistakes (on purpose)", has mistakes voicecap flags. `/sitemap.xml` and `/robots.txt` sit at the root. |
@@ -133,7 +133,7 @@ Seven pages. Their text is the tour's narration: as the screen reader reads each
 | `/how-a-run-works/` | The three passes (read, headings, tab), each under its own heading. |
 | `/reading-transcripts/` | What's in a page's folder, with a short example. |
 | `/the-report/` | Coverage, flags, and reviews. |
-| `/ask-a-question/` | A well-built form: labeled fields, a required field with a hint (`aria-describedby`), a radio group in a `fieldset` with a `legend`, and a submit button. Nothing is ever sent: the server answers a submission with a short "Nothing was sent: this is a demo" page, which isn't in the sitemap. |
+| `/ask-a-question/` | A well-built form: labeled fields, a required field with a hint (`aria-describedby`), a radio group in a `fieldset` with a `legend`, and a submit button. Its note says it's a practice form: sending it only shows a thank-you page, so don't type anything private. **Amended 2026-10-04 (0.10.0):** the form sends with GET to `ask-a-question/sent.html`, a page like any other, which isn't in the sitemap and says it's a practice form, so no one will answer it. A POST answered with "Nothing was sent: this is a demo" before. A static site, which the website is, can't answer a POST, so the demo's own server answers none either (405). |
 | `/common-mistakes/` | Titled "Common mistakes (on purpose)". Its first heading is level 2, which raises voicecap's `headings` flag. A search box with no label and an icon button with no name raise `unlabeled`. Three "click here" links raise `generic-link-text`. After each mistake, one sentence says what's wrong and what the screen reader said. |
 
 **Every page except the last is built well:**
@@ -156,7 +156,7 @@ The pages' wording, and the flags, assume NVDA's English interface, as voicecap'
 | Unit | Does | Built on |
 | --- | --- | --- |
 | `demo/site/` | The seven pages and the stylesheet. `package.json`'s `files` adds `demo`, so they ship. `publish.sh`'s packed-files check already allows it. | Plain HTML and CSS. |
-| `src/demo/server.ts` | Serves `demo/site/` on 127.0.0.1: port 4848 if it's free, else any free port. It generates `/sitemap.xml` and `/robots.txt`, answers a form submission, gives a 404 page, and stops when asked. | Node's `http`, like `scripts/serve-fixture.ts`. The fixture server may reuse its static-file part instead of keeping two copies. |
+| `src/demo/server.ts` | Serves `demo/site/` on 127.0.0.1: port 4848 if it's free, else any free port. It generates `/sitemap.xml` and `/robots.txt`, gives a 404 page, and stops when asked. It answers no POST (405): the form's answer is a page like any other (amended 2026-10-04). | Node's `http`, like `scripts/serve-fixture.ts`. The fixture server may reuse its static-file part instead of keeping two copies. |
 | `src/demo/tour.ts` | The seven steps and their wording. The platform's readiness, the prompter, the run, the file opener, and the clock are injected, so tests fake them all. | `loadPlatformReadiness`, `runPreflight` and the renderers for step 2; the platform's `liveTest` for step 3; `runAudit` for step 4, with the demo's origin, `sitemap: "sitemap.xml"`, `out: "voicecap-demo"`, `fresh: true`, step 2's `preflight`, voicecap's default `config`, and `again: "npx @icjia/voicecap demo"` (in place of the run's resume advice); the run folder and the live report for steps 5 and 6. |
 | Step 4's run | The run doesn't repeat the checks step 2 has just done. | A `runAudit` option, or an equivalent the plan settles. |
 | The demo flag | A WARN check line added by the tour on a platform whose preflight can pass while `cannotRunYet` is set. | The readiness model (`Check`). It's the tour's own line, not a platform check. |
@@ -196,7 +196,7 @@ The demo site always stops when the tour ends, however it ends. **Amended 2026-0
   - it takes port 4848 when free, and falls back when it isn't;
   - `/sitemap.xml` lists the seven pages with the real origin;
   - `/robots.txt` names the sitemap;
-  - it answers a POST, and gives a 404;
+  - it answers no POST (405), the question form's page too, and gives a 404 (amended 2026-10-04: it answered a POST);
   - it's stopped after `close()`.
 - **The site,** with axe in Chromium, using the setup `test/report-a11y.test.ts` already uses in CI:
   - every page in the sitemap exists;
@@ -215,7 +215,7 @@ The demo site always stops when the tour ends, however it ends. **Amended 2026-0
 ## Not included
 
 - A recorded replay for the Mac (considered; the owner chose to wait for the VoiceOver driver).
-- Hosting the demo site publicly.
+- Hosting the demo site publicly. **Amended 2026-10-04 (0.10.0):** the website publishes the demo's pages at the demo's canonical address (see the shareable page's design, "The website"). The tour never needs it.
 - A `--quick` mode (the owner chose step by step).
 - Running the tour from a script: it needs a terminal.
 - VoiceOver phrasing for the flags. That's part of the VoiceOver driver work.

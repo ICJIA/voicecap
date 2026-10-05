@@ -152,9 +152,10 @@ export const configSchema = z.strictObject({
      * The site's canonical address, as people visit it: the page and its Word copy name the site by
      * its host, and show each page on it, whatever address voicecap read (a copy on `localhost`, say).
      * It's kept as its root, with a scheme and a `/` on the end: `dvfr.illinois.gov` is
-     * `https://dvfr.illinois.gov/`. Without it, the page uses the root the latest run recorded, and
-     * without that, the address voicecap read. An IP address or a local address is refused, since
-     * neither is a site's name.
+     * `https://dvfr.illinois.gov/`. It beats the root every run recorded, so it names every site
+     * the config is used with: keep one config per site, as with `siteName`. Without it, the page
+     * uses the root the latest run recorded, and without that, the address voicecap read. An IP
+     * address or a local address is refused, since neither is a site's name.
      */
     canonical: z
       .string()
