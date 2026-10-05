@@ -9,6 +9,7 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { generateReport } from "../src/report/index.js";
 import { liveCompareDir } from "../src/run/paths.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
+import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { LOGO, buildRichFixture, tempOutDir } from "./helpers/report-data.js";
 
 const CANONICAL = "https://dvfr.illinois.gov/";
@@ -164,5 +165,71 @@ describe("report accessibility (axe-core in Chromium)", () => {
     await expect(page.locator("#filters").isVisible()).resolves.toBe(false);
     expect(await visibleRows(page)).toBe(totalRows);
     expect(await violations(page)).toEqual([]);
+  });
+});
+
+describe("the report's footer", () => {
+  const FOOTER = ".page-footer";
+
+  /** The report laid out as a reader has it, in a window 1280 pixels wide, and not unclipped for axe. */
+  async function openAsRead(): Promise<Page> {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.goto(reportUrl);
+    return page;
+  }
+
+  it("puts the footer at the window's bottom when the page is shorter than the window", async () => {
+    const page = await openAsRead();
+
+    const { long, short } = await footerInTwoWindows(page, FOOTER);
+
+    expect(short.scrolls).toBe(false);
+    expect(
+      Math.abs(short.gapBelow - long.gapBelow),
+      `${short.gapBelow} px below the footer in a window taller than the page, ${long.gapBelow} px in one shorter`,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps the header, the main part, and the footer as wide as the window", async () => {
+    const page = await openAsRead();
+
+    const { across, ...parts } = await page.evaluate(() => {
+      const widthOf = (part: string): number =>
+        document.querySelector(part)?.getBoundingClientRect().width ?? NaN;
+      return {
+        across: document.documentElement.clientWidth,
+        header: widthOf("header.page-header"),
+        main: widthOf("main"),
+        footer: widthOf("footer.page-footer"),
+      };
+    });
+
+    // Each is as wide as the window, which is narrower than the 110rem a part is held to.
+    expect(parts).toEqual({ header: across, main: across, footer: across });
+  });
+
+  it("leaves a long page's footer after its content", async () => {
+    const page = await openAsRead();
+
+    const { scrolls } = await footerPlacement(page, FOOTER);
+    const { mainBottom, footerTop } = await page.evaluate(
+      (footer) => ({
+        mainBottom: document.querySelector("main")?.getBoundingClientRect().bottom ?? NaN,
+        footerTop: document.querySelector(footer)?.getBoundingClientRect().top ?? NaN,
+      }),
+      FOOTER,
+    );
+
+    expect(scrolls).toBe(true);
+    expect(footerTop).toBeGreaterThanOrEqual(mainBottom);
+  });
+
+  it("prints as before: the page is no flex column in print", async () => {
+    const page = await openAsRead();
+
+    await page.emulateMedia({ media: "print" });
+
+    expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe("flex");
   });
 });

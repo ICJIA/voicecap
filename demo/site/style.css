@@ -89,6 +89,20 @@ main {
   padding: 1rem 1.5rem 2rem;
 }
 
+/* On screen, a page shorter than the window ends at its bottom: the main part grows, so the footer sits there. */
+@media screen {
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  main {
+    flex: 1 0 auto;
+  }
+}
+
 pre {
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;

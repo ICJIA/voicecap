@@ -898,11 +898,12 @@ describe("SITE_CSS", () => {
     );
     // An em in a media query is the reader's own text size, so the bar sticks only where it fits on
     // one line at that size. A width in pixels would stick it where a larger size makes it wrap, and
-    // grow taller than the space kept clear for it.
+    // grow taller than the space kept clear for it. The one other is no width at all: `screen`, for
+    // the footer at the window's bottom, which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );
-    expect(queries).toEqual(["print", "(min-width: 40em)"]);
+    expect(queries).toEqual(["print", "(min-width: 40em)", "screen"]);
   });
 });
 

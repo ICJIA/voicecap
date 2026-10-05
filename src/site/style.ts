@@ -17,7 +17,10 @@
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
  * - the files of a report are a grid whose columns are no wider than their own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
- *   reflow rule is measured.
+ *   reflow rule is measured;
+ * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
+ *   body is a column at least as tall as the window, and the main part grows, keeping its measure.
+ *   In print the page is laid out as it was.
  */
 import { THEME_CSS } from "../share/html/style.js";
 
@@ -81,4 +84,9 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-block: 18px 40px; display: grid; gap: 6px; }
 /* A line of the footer is no longer to read than a note's: 80 characters of its smaller text are as wide as the notes' 72. */
 footer > * { min-width: 0; max-width: 80ch; }
+/* On screen, a page shorter than the window ends at its bottom: the main part grows, keeping its measure, so the footer sits there. */
+@media screen {
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  main { flex: 1 0 auto; width: 100%; }
+}
 `;

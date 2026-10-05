@@ -29,6 +29,7 @@ import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
+import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
@@ -625,6 +626,63 @@ describe("the footer", () => {
     // doesn't, can differ by up to 2%.
     expect(lines).toHaveLength(3);
     for (const { width, eighty } of lines) expect(width).toBeLessThanOrEqual(eighty * 1.02);
+  });
+
+  it("puts the footer at the window's bottom when the page is shorter than the window", async () => {
+    const page = await open(pages.demo);
+
+    const { long, short } = await footerInTwoWindows(page);
+
+    expect(short.scrolls).toBe(false);
+    expect(
+      Math.abs(short.gapBelow - long.gapBelow),
+      `${short.gapBelow} px below the footer in a window taller than the page, ${long.gapBelow} px in one shorter`,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps the sections together at the top when the page is shorter than the window", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.evaluate(async () => {
+      await Promise.all([...document.fonts].map((face) => face.load()));
+    });
+    // Where each section starts, and how tall it is.
+    const sections = (): Promise<number[][]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll("main > *")].map((section) => {
+          const box = section.getBoundingClientRect();
+          return [Math.round(box.top + window.scrollY), Math.round(box.height)];
+        }),
+      );
+    const before = await sections();
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+
+    await page.setViewportSize({ width: 1280, height: height + 400 });
+
+    expect(before.length).toBeGreaterThan(5);
+    expect(await sections()).toEqual(before);
+  });
+
+  it("leaves a long page's footer after its content", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const { scrolls } = await footerPlacement(page);
+    const { mainBottom, footerTop } = await page.evaluate(() => ({
+      mainBottom: document.querySelector("main")?.getBoundingClientRect().bottom ?? NaN,
+      footerTop: document.querySelector("footer")?.getBoundingClientRect().top ?? NaN,
+    }));
+
+    expect(scrolls).toBe(true);
+    expect(footerTop).toBeGreaterThanOrEqual(mainBottom);
+  });
+
+  it("prints as before: the page is no flex column in print", async () => {
+    const page = await open(pages.demo);
+
+    await page.emulateMedia({ media: "print" });
+
+    expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe("flex");
   });
 });
 

@@ -50,16 +50,25 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
- * - the folds' triangle is drawn but not read aloud.
+ * - the folds' triangle is drawn but not read aloud;
+ * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
+ *   body is a column at least as tall as the window, and the page's middle row grows. In print the
+ *   page is laid out as it was.
  *
  * Nothing from the mockup's samples (`.mock`) is here.
  */
 export const SHARE_CSS = `/* Layout: an instrument panel for evidence — the verdict band first, then every page, then the run's own proof. */
 ${THEME_CSS}
-body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); padding-inline: 16px; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); margin: 0; padding: 8px 24px; box-sizing: border-box; }
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
 main { display: grid; gap: 56px; }
+/* On screen, a page shorter than the window ends at its bottom: the body is a column at least as tall as the window (its 8px margin is padding, so it adds no height), and the page's rows grow, so the footer sits there. */
+@media screen {
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  .wrap { flex: 1 0 auto; width: 100%; grid-template-rows: auto 1fr auto; }
+  main { align-content: start; }
+}
 /* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead, the verify command, and the footer's file names do the same, where they are. */
 main :where(p, li, h3, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
