@@ -436,7 +436,10 @@ export class ChromeSession implements BrowserSession {
     });
   }
 
-  /** The browser's process id, which the Mac live test raises through System Events. */
+  /**
+   * The browser's process id: the run's event log keeps it, and the Mac live test raises it
+   * through System Events.
+   */
   get pid(): number | undefined {
     return this.child.pid;
   }

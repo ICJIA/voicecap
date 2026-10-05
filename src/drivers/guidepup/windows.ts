@@ -108,6 +108,19 @@ export function personsNvda(processes: NvdaProcess[], guidepupExe: string): Nvda
 }
 
 /**
+ * The process id of the NVDA voicecap started, among the running nvda.exe: the one run from
+ * Guidepup's executable, with its path compared as personsNvda compares it. Null when none runs
+ * from there; a process Windows gives no path for is never taken for it, as Guidepup's NVDA runs as
+ * the person running voicecap, so its path is always given. Should more than one run from there,
+ * the first listed.
+ */
+export function startedNvda(processes: NvdaProcess[], guidepupExe: string): number | null {
+  const guidepups = samePath(guidepupExe);
+  const started = processes.find((nvda) => nvda.path !== null && samePath(nvda.path) === guidepups);
+  return started?.pid ?? null;
+}
+
+/**
  * Where the person's own running NVDA was started from, each path once, so voicecap can start it
  * again after Guidepup's NVDA has shut it down. One whose path Windows doesn't give is left out:
  * it can't be started again. Throws "PowerShell didn't answer" when it can't tell.

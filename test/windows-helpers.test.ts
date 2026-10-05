@@ -23,6 +23,7 @@ import {
   restartAfterScript,
   restartNvda,
   sessionLocked,
+  startedNvda,
   startProcessScript,
   windowsMachineProbe,
   windowsSystemInfo,
@@ -329,6 +330,30 @@ describe("Windows helpers (what PowerShell says)", () => {
       { pid: 3, path: OWN_NVDA },
       { pid: 4, path: null },
     ]);
+  });
+
+  it("find Guidepup's NVDA among the person's, whatever the spelling of its path", () => {
+    const running = [
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+      {
+        pid: 2,
+        path: "c:/users/PAT/appdata/local/GUIDEPUP/nvda/all/0.2.1-2026.2/extracted/NVDA.EXE",
+      },
+    ];
+    expect(startedNvda(running, install.nvdaExe)).toBe(2);
+    // Should two run from that path, it's the first listed.
+    expect(startedNvda([{ pid: 1, path: install.nvdaExe }, ...running], install.nvdaExe)).toBe(1);
+  });
+
+  it("find no started NVDA when none runs from Guidepup's path, or none runs", () => {
+    // A process whose path Windows doesn't give isn't taken for it.
+    const persons = [
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+    ];
+    expect(startedNvda(persons, install.nvdaExe)).toBeNull();
+    expect(startedNvda([], install.nvdaExe)).toBeNull();
   });
 
   it("list where to start the person's own NVDA again from: each path once, none unknown", async () => {

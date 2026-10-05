@@ -165,6 +165,8 @@ export class FakeDesktop {
 
 export class FakeNvda implements NvdaControl {
   readonly build = "0.2.1-2026.2";
+  /** The process id Windows gives Guidepup's NVDA once it has started. */
+  readonly pid = 5150;
   started = false;
   startOptions: { capture: CaptureMode; settings: Record<string, unknown> } | null = null;
   forceQuits = 0;
@@ -326,6 +328,8 @@ export interface FakePage {
 export class FakeSession implements BrowserSession {
   readonly name = "Chrome";
   readonly version: string;
+  /** The browser's process id: each browser launched has its own, counting up from 6001. */
+  readonly pid: number;
   title = "";
   /** The loaded page's canonical tag: null when it has none. */
   canonical: string | null = null;
@@ -357,6 +361,7 @@ export class FakeSession implements BrowserSession {
   ) {
     this.activated = desktop.front === "browser";
     this.version = desktop.browserVersion;
+    this.pid = 6001 + desktop.sessions.length;
   }
 
   load(url: string, timeoutMs: number): Promise<LoadResult> {

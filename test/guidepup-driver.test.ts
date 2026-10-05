@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
-import { ForegroundError } from "../src/drivers/types.js";
+import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
+import type { NewRunEvent } from "../src/model.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { FakeDesktop, FakeNvda, FakeSession, Gate, type FakePage } from "./helpers/fake-desktop.js";
@@ -86,6 +87,8 @@ function setup(options: Setup = {}) {
       desktop.events.push("tasklist");
       return Promise.resolve(options.running ?? []);
     },
+    // Guidepup's NVDA has a process only once it has started.
+    screenReaderPid: () => Promise.resolve(nvda.started ? nvda.pid : null),
     lockFile,
     system: () => ({
       os: "Windows 11 Pro 25H2 (10.0.26200)",
@@ -122,6 +125,31 @@ function setup(options: Setup = {}) {
   const driver = new GuidepupNvdaDriver({ config, logger }, deps);
   drivers.push(driver);
   return { driver, desktop, nvda, logger: memory, deps, orphanCleanups, lockChecks, awake };
+}
+
+/** A recorder that keeps what it's given. */
+function keepEvents(): EventRecorder & { events: NewRunEvent[]; types(): string[] } {
+  const events: NewRunEvent[] = [];
+  return {
+    events,
+    record: (event) => {
+      events.push(event);
+    },
+    types: () => events.map((event) => event.type),
+  };
+}
+
+/** setup(), with a recorder given to the driver, as a run gives it. */
+function recording(options: Setup = {}) {
+  const made = setup(options);
+  const recorder = keepEvents();
+  made.driver.setEventRecorder(recorder);
+  return { ...made, recorder };
+}
+
+/** The events of these types, in the order they were recorded. */
+function only(events: NewRunEvent[], ...types: NewRunEvent["type"][]): NewRunEvent[] {
+  return events.filter((event) => types.includes(event.type));
 }
 
 const URL_HOME = "http://127.0.0.1:4747/";
@@ -1247,5 +1275,317 @@ describe("cleaning up after a crashed run", () => {
     await first.driver.start();
     const second = setup({ lockFile: first.deps.lockFile });
     await expect(second.driver.start()).rejects.toThrow(first.deps.lockFile);
+  });
+});
+
+// What the driver tells the run's event log, as it does each thing, in the order it does it.
+describe("reporting to the run's event log", () => {
+  it("records its start, a page, and its stop, in order", async () => {
+    const { driver, desktop, nvda, recorder } = recording({ running: [4321, 4322] });
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.stop();
+    const browser = desktop.session.pid;
+    expect(recorder.events).toEqual([
+      { type: "screen-reader-lock-taken" },
+      { type: "own-screen-reader-closed", pids: [4321, 4322] },
+      { type: "screen-reader-started", pid: nvda.pid },
+      { type: "browser-launched", pid: browser },
+      // NVDA stops before the browsers close, and the computer's own NVDA starts after both.
+      { type: "screen-reader-stopped", pid: nvda.pid, restarting: false },
+      { type: "browser-closed", pid: browser },
+      { type: "own-screen-reader-restarted", ok: true },
+      { type: "screen-reader-lock-released" },
+    ]);
+  });
+
+  it("launches each page's browser before closing the last page's", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.openPage(URL_HOME);
+    const [first, second] = desktop.sessions.map((session) => session.pid);
+    expect(only(recorder.events, "browser-launched", "browser-closed")).toEqual([
+      { type: "browser-launched", pid: first },
+      { type: "browser-launched", pid: second },
+      { type: "browser-closed", pid: first },
+    ]);
+  });
+
+  it("records a restart's stop and start", async () => {
+    const { driver, desktop, nvda, recorder } = recording();
+    await driver.start();
+    const before = recorder.events.length;
+    await driver.stop({ restarting: true });
+    await driver.start();
+    const [first, second] = desktop.sessions.map((session) => session.pid);
+    expect(recorder.events.slice(before)).toEqual([
+      { type: "screen-reader-stopped", pid: nvda.pid, restarting: true },
+      { type: "browser-closed", pid: first },
+      { type: "screen-reader-lock-released" },
+      { type: "screen-reader-lock-taken" },
+      { type: "screen-reader-started", pid: nvda.pid },
+      { type: "browser-launched", pid: second },
+    ]);
+  });
+
+  it("records the computer's own NVDA closing once, and starting again once, across a restart", async () => {
+    const options: Setup = { running: [4321] };
+    const { driver, desktop, recorder } = recording(options);
+    desktop.ownNvda = [OWN_NVDA];
+    const closed: NewRunEvent = { type: "own-screen-reader-closed", pids: [4321] };
+    await driver.start();
+    options.running = []; // voicecap's NVDA shut it down
+    await driver.stop({ restarting: true });
+    await driver.start();
+    // It stays off through the restart, which neither closes it again nor starts it.
+    expect(only(recorder.events, "own-screen-reader-closed")).toEqual([closed]);
+    expect(recorder.types()).not.toContain("own-screen-reader-restarted");
+    await driver.stop();
+    expect(
+      only(recorder.events, "own-screen-reader-closed", "own-screen-reader-restarted"),
+    ).toEqual([closed, { type: "own-screen-reader-restarted", ok: true }]);
+  });
+
+  it("records its start once it has the pid, before it launches the browser", async () => {
+    const { driver, desktop, deps, nvda, recorder } = recording();
+    const looking = new Gate();
+    deps.screenReaderPid = async () => {
+      await looking.wait();
+      return nvda.pid;
+    };
+    const start = driver.start();
+    await until(() => looking.waiting > 0);
+    expect(nvda.started).toBe(true);
+    expect(recorder.types()).toEqual(["screen-reader-lock-taken"]);
+    expect(desktop.sessions).toEqual([]);
+    looking.open();
+    await start;
+    expect(recorder.events).toEqual([
+      { type: "screen-reader-lock-taken" },
+      { type: "screen-reader-started", pid: nvda.pid },
+      { type: "browser-launched", pid: desktop.session.pid },
+    ]);
+  });
+
+  it("records a pid it can't find as null", async () => {
+    // The lookup fails, and it finds nothing: neither stops NVDA from starting.
+    const lookups: GuidepupDriverDeps["screenReaderPid"][] = [
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+      () => Promise.resolve(null),
+    ];
+    for (const lookup of lookups) {
+      const { driver, deps, nvda, recorder } = recording();
+      deps.screenReaderPid = lookup;
+      await driver.start();
+      expect(nvda.started).toBe(true);
+      await driver.openPage(URL_HOME);
+      await driver.stop();
+      expect(only(recorder.events, "screen-reader-started", "screen-reader-stopped")).toEqual([
+        { type: "screen-reader-started", pid: null },
+        { type: "screen-reader-stopped", pid: null, restarting: false },
+      ]);
+    }
+  });
+
+  it("records the lock when cleanupStale() takes it, and not again when start() finds it held", async () => {
+    const { driver, recorder } = recording();
+    await driver.cleanupStale();
+    expect(recorder.types()).toEqual(["screen-reader-lock-taken"]);
+    await driver.start();
+    await driver.stop();
+    expect(
+      only(recorder.events, "screen-reader-lock-taken", "screen-reader-lock-released"),
+    ).toEqual([{ type: "screen-reader-lock-taken" }, { type: "screen-reader-lock-released" }]);
+  });
+
+  it("records no lock that another voicecap holds, and releases none it never took", async () => {
+    const first = setup();
+    await first.driver.start();
+    const { driver, recorder } = recording({ lockFile: first.deps.lockFile });
+    await expect(driver.cleanupStale()).rejects.toThrow(/process \d+/);
+    await expect(driver.start()).rejects.toThrow(/process \d+/);
+    await driver.stop();
+    expect(recorder.events).toEqual([]);
+  });
+
+  it("records the computer found locked", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.locked = true; // NVDA says nothing
+    const step = driver.nextLine();
+    await expect(step).rejects.toMatchObject({ failure: "locked" });
+    // Recorded as the error was made: it's there as the step fails, and only once.
+    expect(only(recorder.events, "computer-locked")).toEqual([{ type: "computer-locked" }]);
+  });
+
+  it("records the computer found locked when the lock screen has taken the page's focus too", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.locked = true;
+    desktop.front = "other"; // the lock screen
+    await expect(driver.nextLine()).rejects.toMatchObject({ failure: "locked" });
+    await expect(driver.nextFocusable()).rejects.toMatchObject({ failure: "locked" });
+    expect(only(recorder.events, "computer-locked")).toHaveLength(2);
+  });
+
+  it("doesn't record the computer locked when another window has only come forward", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.front = "other";
+    await expect(driver.nextLine()).rejects.toBeInstanceOf(ForegroundError);
+    expect(only(recorder.events, "computer-locked")).toEqual([]);
+  });
+
+  it("records the computer's own NVDA closing, though it can't start it again when its path is unknown", async () => {
+    const { driver, desktop, recorder } = recording({ running: [4321] });
+    await driver.start();
+    await driver.stop();
+    expect(
+      only(recorder.events, "own-screen-reader-closed", "own-screen-reader-restarted"),
+    ).toEqual([{ type: "own-screen-reader-closed", pids: [4321] }]);
+    expect(desktop.restarts).toEqual([]);
+  });
+
+  it("records nothing of the computer's own NVDA when none was running", async () => {
+    const { driver, recorder } = recording();
+    await driver.start();
+    await driver.stop();
+    expect(
+      only(recorder.events, "own-screen-reader-closed", "own-screen-reader-restarted"),
+    ).toEqual([]);
+  });
+
+  it("records no closing of the computer's own NVDA when voicecap's NVDA doesn't start", async () => {
+    const { driver, desktop, nvda, recorder } = recording({ running: [4321] });
+    desktop.ownNvda = [OWN_NVDA];
+    nvda.startFails = true;
+    await expect(driver.start()).rejects.toThrow(/NVDA didn't start/);
+    // No start, no stop of an NVDA that never ran, and no closing: just the lock it took.
+    expect(recorder.events).toEqual([{ type: "screen-reader-lock-taken" }]);
+  });
+
+  it("records the computer's own NVDA not coming back", async () => {
+    const { driver, desktop, recorder } = recording();
+    desktop.ownNvda = [OWN_NVDA];
+    desktop.restartFails = true;
+    await driver.start();
+    await driver.stop();
+    expect(only(recorder.events, "own-screen-reader-restarted")).toEqual([
+      { type: "own-screen-reader-restarted", ok: false },
+    ]);
+    // The lock is let go all the same, after.
+    expect(recorder.types().slice(-2)).toEqual([
+      "own-screen-reader-restarted",
+      "screen-reader-lock-released",
+    ]);
+  });
+
+  it("records a start's NVDA shut down again after the start failed, as a stop that isn't a restart's", async () => {
+    const { driver, deps, nvda, recorder } = recording();
+    deps.launchBrowser = () => Promise.reject(new Error("Chrome didn't start"));
+    await expect(driver.start()).rejects.toThrow(/Chrome didn't start/);
+    expect(recorder.events).toEqual([
+      { type: "screen-reader-lock-taken" },
+      { type: "screen-reader-started", pid: nvda.pid },
+      { type: "screen-reader-stopped", pid: nvda.pid, restarting: false },
+    ]);
+  });
+
+  it("records a start that a restart's stop overtook, and the stop as the restart's", async () => {
+    const { driver, desktop, nvda, recorder } = recording();
+    nvda.startGate = new Gate();
+    const start = driver.start();
+    start.catch(() => {});
+    await until(() => desktop.events.includes("nvda:start"));
+    const stopping = driver.stop({ restarting: true });
+    nvda.startGate.open();
+    await stopping;
+    await expect(start).rejects.toThrow(/stopped/);
+    expect(recorder.events).toEqual([
+      { type: "screen-reader-lock-taken" },
+      { type: "screen-reader-started", pid: nvda.pid },
+      { type: "screen-reader-stopped", pid: nvda.pid, restarting: true },
+      { type: "screen-reader-lock-released" },
+    ]);
+  });
+
+  it("records the close of a browser it won't go on with, which had updated itself", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    desktop.browserVersion = "154.0.8100.10";
+    await expect(driver.openPage(URL_HOME)).rejects.toMatchObject({ failure: "browser" });
+    const [first, second] = desktop.sessions.map((session) => session.pid);
+    expect(only(recorder.events, "browser-launched", "browser-closed")).toEqual([
+      { type: "browser-launched", pid: first },
+      { type: "browser-launched", pid: second },
+      { type: "browser-closed", pid: second },
+    ]);
+  });
+
+  it("records no close for a browser that failed to close", async () => {
+    const { driver, desktop, logger, recorder } = recording();
+    await driver.start();
+    desktop.session.close = () => Promise.reject(new Error("the window won't close"));
+    await driver.stop();
+    expect(logger.text("warn")).toContain("Closing the browser failed: the window won't close");
+    expect(only(recorder.events, "browser-launched", "browser-closed")).toEqual([
+      { type: "browser-launched", pid: desktop.session.pid },
+    ]);
+  });
+
+  it("records a browser's pid as null when it has none to give", async () => {
+    const { driver, deps, recorder } = recording();
+    const launch = deps.launchBrowser;
+    deps.launchBrowser = async (signal) => {
+      const session = await launch(signal);
+      Object.defineProperty(session, "pid", { value: undefined });
+      return session;
+    };
+    await driver.start();
+    await driver.stop();
+    expect(only(recorder.events, "browser-launched", "browser-closed")).toEqual([
+      { type: "browser-launched", pid: null },
+      { type: "browser-closed", pid: null },
+    ]);
+  });
+
+  it("records a hand-over", () => {
+    const { driver, logger, recorder } = recording();
+    const notice = "Chrome handed over to a new copy of itself as it started.";
+    driver.relaunched(notice);
+    expect(logger.text("warn")).toBe(notice);
+    expect(recorder.events).toEqual([{ type: "browser-handed-over" }]);
+  });
+
+  it("records nothing as the process exits", async () => {
+    const { driver, desktop, recorder } = recording({ running: [4321] });
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    const before = [...recorder.events];
+    driver.abandon();
+    expect(desktop.restarts).toEqual([OWN_NVDA]); // it did what it does
+    expect(recorder.events).toEqual(before);
+  });
+
+  it("records nothing, and works, without a recorder", async () => {
+    // As for doctor's live check and fixture capture, which run it with none.
+    const { driver, desktop, nvda, logger } = setup({ running: [4321] });
+    desktop.ownNvda = [OWN_NVDA];
+    await driver.cleanupStale();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    await driver.nextLine();
+    driver.relaunched("Chrome handed over to a new copy of itself as it started.");
+    await driver.stop();
+    expect(logger.text("warn")).toContain("handed over");
+    expect(nvda.started).toBe(false);
+    expect(desktop.restarts).toEqual([OWN_NVDA]);
   });
 });
