@@ -35,6 +35,13 @@ import { closeBrowsersUsing } from "./windows.js";
 const SCREENSHOT_QUALITY = 60;
 /** It's taken at half the page's CSS size. */
 const SCREENSHOT_SCALE = 0.5;
+/**
+ * The screen's pixels for each CSS pixel can be no fewer than this, and no more than the next: from
+ * a screen at 50% to one at 400%, beyond any Windows scaling voicecap's window is likely to meet. A
+ * ratio past them is taken as the nearer, so no reading can make a picture huge, or a speck.
+ */
+const LEAST_PIXEL_RATIO = 0.5;
+const MOST_PIXEL_RATIO = 4;
 /** How long the browser gets to answer before the screenshot is given up. */
 const SCREENSHOT_TIMEOUT_MS = 5_000;
 
@@ -545,9 +552,12 @@ export class ChromeSession implements BrowserSession {
   }
 
   private async capture(): Promise<Uint8Array> {
-    // The window's visible page: its viewport (without scrollbars), where the page is scrolled to.
-    const { cssLayoutViewport: view } = await this.cdp.send("Page.getLayoutMetrics");
-    const ratio = await this.pixelRatio();
+    // The window's visible page: its viewport (without scrollbars), where the page is scrolled to,
+    // in CSS pixels, and the same viewport in the screen's own pixels, which Chromium still gives
+    // though it calls them deprecated: one it no longer gives is taken as unscaled.
+    const metrics = await this.cdp.send("Page.getLayoutMetrics");
+    const view = metrics.cssLayoutViewport;
+    const onScreen = (metrics as { layoutViewport?: { clientWidth?: unknown } }).layoutViewport;
     const { data } = await this.cdp.send("Page.captureScreenshot", {
       format: "jpeg",
       quality: SCREENSHOT_QUALITY,
@@ -559,23 +569,11 @@ export class ChromeSession implements BrowserSession {
         // The scale counts the screen's own pixels: at a scale of 1, a screen at 200% gives 2 pixels
         // for each CSS pixel. Dividing by the screen's ratio keeps the picture at half the page's CSS
         // size on a scaled display, as at 100% (where the ratio is 1).
-        scale: SCREENSHOT_SCALE / ratio,
+        scale: SCREENSHOT_SCALE / pixelRatio(onScreen?.clientWidth, view.clientWidth),
       },
       captureBeyondViewport: false,
     });
     return Buffer.from(data, "base64");
-  }
-
-  /**
-   * The screen's pixels for each CSS pixel of the page: 1 at 100%, 1.5 at 150%. 1 when the page
-   * doesn't say.
-   */
-  private async pixelRatio(): Promise<number> {
-    const { result } = await this.cdp.send("Runtime.evaluate", {
-      expression: "window.devicePixelRatio",
-      returnByValue: true,
-    });
-    return typeof result.value === "number" && result.value > 0 ? result.value : 1;
   }
 
   async setTitle(title: string): Promise<() => Promise<void>> {
@@ -722,6 +720,21 @@ export class ChromeSession implements BrowserSession {
 
 function axString(value: AxValue | undefined): string | null {
   return typeof value?.value === "string" ? value.value : null;
+}
+
+/**
+ * The screen's pixels for each CSS pixel of the page, 1 at 100% and 1.5 at 150%: the viewport's
+ * width in the screen's pixels (`screen`, the layout metrics' own) over its width in CSS pixels
+ * (`css`), as the browser reports them. Never the page's `devicePixelRatio`, which the page's own
+ * script can change. 1 when the browser gives no width to go by, and kept between the least and the
+ * most a screen has (LEAST_PIXEL_RATIO, MOST_PIXEL_RATIO).
+ */
+function pixelRatio(screen: unknown, css: unknown): number {
+  const width = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  const [onScreen, inCss] = [width(screen), width(css)];
+  if (onScreen === null || inCss === null) return 1;
+  return Math.min(MOST_PIXEL_RATIO, Math.max(LEAST_PIXEL_RATIO, onScreen / inCss));
 }
 
 /**

@@ -287,6 +287,26 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(2);
       expectHalf(await session.screenshot(), await viewportOf(session));
     });
+
+    // A page's own script can say anything of its pixel ratio. The screenshot's size never follows
+    // it: a tiny ratio would make the picture huge, and a large one would make it a speck.
+    it("takes it at half the page's size, whatever the page's script says its pixel ratio is", async () => {
+      for (const scale of [1, 2]) {
+        const session = await launch([`--force-device-scale-factor=${scale}`]);
+        await session.load(server.url, 15_000);
+        const viewport = await viewportOf(session);
+        for (const said of [0.0001, 1000, scale === 1 ? 2 : 1]) {
+          await session["page"].evaluate((value) => {
+            Object.defineProperty(window, "devicePixelRatio", {
+              get: () => value,
+              configurable: true,
+            });
+          }, said);
+          expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(said);
+          expectHalf(await session.screenshot(), viewport);
+        }
+      }
+    });
   });
 
   it("starts with nothing focused, and its first Tab reaches the skip link", async () => {
@@ -813,16 +833,29 @@ describe("a browser that closes or crashes mid-page", () => {
 // asks for. The real browser's pictures are checked above.
 describe("a screenshot's DevTools commands", () => {
   const picture = Uint8Array.of(0xff, 0xd8, 1, 2, 3);
+  /** The viewport in CSS pixels, as the layout metrics give it. */
+  const CSS_VIEWPORT = { pageX: 40, pageY: 120, clientWidth: 1265, clientHeight: 849 };
+  /**
+   * What `Page.getLayoutMetrics` answers on a screen of `ratio` pixels for each CSS pixel: the
+   * viewport in the screen's pixels too, or, for `null`, with no width in them.
+   */
+  const metricsAt = (ratio: number | null, width?: unknown) => ({
+    layoutViewport:
+      ratio === null
+        ? {
+            pageX: 0,
+            pageY: 0,
+            clientHeight: 849,
+            ...(width === undefined ? {} : { clientWidth: width }),
+          }
+        : { pageX: 40, pageY: 120, clientWidth: 1265 * ratio, clientHeight: 849 * ratio },
+    cssLayoutViewport: CSS_VIEWPORT,
+  });
   /** What each command answers: a function is called to answer, and so can fail or never answer. */
   const answers: Record<string, unknown> = {
-    "Page.getLayoutMetrics": {
-      cssLayoutViewport: { pageX: 40, pageY: 120, clientWidth: 1265, clientHeight: 849 },
-    },
-    "Runtime.evaluate": { result: { type: "number", value: 1 } },
+    "Page.getLayoutMetrics": metricsAt(1),
     "Page.captureScreenshot": { data: Buffer.from(picture).toString("base64") },
   };
-  /** What `Runtime.evaluate` answers with the page's device pixel ratio, or without one. */
-  const pixelRatio = (value: unknown) => ({ result: { type: typeof value, value } });
 
   /**
    * A session whose DevTools connection answers as `changed` says, in place of `answers`, and the
@@ -856,12 +889,9 @@ describe("a screenshot's DevTools commands", () => {
   it("asks for a JPEG of what shows in the window at half its size, and for nothing else", async () => {
     const { session, sent } = withDevTools();
     expect([...(await session.screenshot())]).toEqual([...picture]);
+    // Nothing runs in the page: what the page's own script says of itself has no say.
     expect(sent).toEqual([
       { method: "Page.getLayoutMetrics" },
-      {
-        method: "Runtime.evaluate",
-        params: { expression: "window.devicePixelRatio", returnByValue: true },
-      },
       {
         method: "Page.captureScreenshot",
         params: {
@@ -874,17 +904,37 @@ describe("a screenshot's DevTools commands", () => {
     ]);
   });
 
-  it("allows for the pixels of a scaled display, so the picture stays half the page's size", async () => {
-    const { session, sent } = withDevTools({ "Runtime.evaluate": pixelRatio(1.5) });
-    await session.screenshot();
-    expect(scaleOf(sent)).toBeCloseTo(0.5 / 1.5, 10);
+  it("allows for the pixels of a scaled display, as the browser's own metrics give them, so the picture stays half the page's size", async () => {
+    for (const ratio of [1.25, 1.5, 2]) {
+      const { session, sent } = withDevTools({ "Page.getLayoutMetrics": metricsAt(ratio) });
+      await session.screenshot();
+      expect(scaleOf(sent), String(ratio)).toBeCloseTo(0.5 / ratio, 10);
+    }
   });
 
-  it("takes the display as unscaled when the page doesn't say what its pixel ratio is", async () => {
-    for (const unsaid of [{ result: { type: "undefined" } }, pixelRatio(0), pixelRatio("2")]) {
-      const { session, sent } = withDevTools({ "Runtime.evaluate": unsaid });
+  it("takes the display as unscaled when the browser gives no width in the screen's pixels", async () => {
+    for (const width of [undefined, 0, -1265, "1897", Number.NaN]) {
+      const { session, sent } = withDevTools({ "Page.getLayoutMetrics": metricsAt(null, width) });
       await session.screenshot();
-      expect(scaleOf(sent)).toBe(0.5);
+      expect(scaleOf(sent), String(width)).toBe(0.5);
+    }
+    const { session, sent } = withDevTools({
+      "Page.getLayoutMetrics": { cssLayoutViewport: CSS_VIEWPORT },
+    });
+    await session.screenshot();
+    expect(scaleOf(sent)).toBe(0.5);
+  });
+
+  it("keeps the ratio between a screen at 50% and one at 400%, so no reading makes the picture huge or a speck", async () => {
+    for (const [ratio, kept] of [
+      [0.0001, 0.5],
+      [0.5, 0.5],
+      [4, 4],
+      [1000, 4],
+    ] as const) {
+      const { session, sent } = withDevTools({ "Page.getLayoutMetrics": metricsAt(ratio) });
+      await session.screenshot();
+      expect(scaleOf(sent), String(ratio)).toBeCloseTo(0.5 / kept, 10);
     }
   });
 
