@@ -117,9 +117,11 @@ export interface ShareModel {
     /** The screen reader the results come from, by name: "NVDA". */
     screenReader: string;
     /**
-     * Where the runs read the site, against its canonical address: at that address ("same"), at a
-     * copy on this computer ("local"), or at a copy at another address ("elsewhere"). Null when the
-     * site has no canonical address, so there's no copy to speak of. No address is ever said.
+     * Where the runs read the site, against its canonical address (see readLocation): at that
+     * address, or the same but for http or https or a www. ("same"), at a copy on the computer that
+     * ran them, at a loopback address ("local"), or at a copy at another address, another
+     * computer's IP address among them ("elsewhere"). Null when the site has no canonical address,
+     * so there's no copy to speak of. No address is ever said.
      */
     readFrom: "same" | "local" | "elsewhere" | null;
   };

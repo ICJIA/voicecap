@@ -214,13 +214,40 @@ export function isLocalHost(host: string): boolean {
 }
 
 /**
- * Where a run read the site, compared with its canonical `root`: "same" when `readOrigin` is the
- * root's own origin, "local" when it's a copy on this computer (a host `isLocalHost` accepts), and
- * "elsewhere" for a copy at any other address.
+ * Whether `hostname`, as `URL` writes it, is the computer's own, by a loopback address: `localhost`
+ * or a name under it, an IPv4 address from 127.0.0.0 to 127.255.255.255, or the IPv6 address
+ * `[::1]`. Any other IP address is another computer's, such as a server on the network.
+ */
+function isLoopback(hostname: string): boolean {
+  const name = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+  if (name === "localhost" || name.endsWith(".localhost") || name === "[::1]") return true;
+  return isIpv4(name) && name.startsWith("127.");
+}
+
+/** `hostname` without a `www.` at its start. */
+function withoutWww(hostname: string): string {
+  return hostname.startsWith("www.") ? hostname.slice("www.".length) : hostname;
+}
+
+/**
+ * Where a run read the site, compared with its canonical `root`. "same" when `readOrigin` is the
+ * site itself: the root's own origin, or the same but for the scheme (http or https) or a `www.` at
+ * the start of either host. "local" for a copy on the computer that ran them, at a loopback address
+ * (see isLoopback). "elsewhere" for a copy at any other address, another computer's IP address
+ * among them.
  */
 export function readLocation(readOrigin: string, root: string): "same" | "local" | "elsewhere" {
   const read = parseUrl(readOrigin);
-  if (read === null) return "elsewhere";
-  if (read.origin === originOf(root)) return "same";
-  return isLocalHost(read.hostname) ? "local" : "elsewhere";
+  const site = parseUrl(root);
+  if (read === null || !isWebAddress(read)) return "elsewhere";
+  if (
+    site !== null &&
+    (read.origin === site.origin ||
+      (isWebAddress(site) &&
+        read.port === site.port &&
+        withoutWww(read.hostname) === withoutWww(site.hostname)))
+  ) {
+    return "same";
+  }
+  return isLoopback(read.hostname) ? "local" : "elsewhere";
 }

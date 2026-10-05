@@ -555,22 +555,65 @@ describe("isLocalHost", () => {
 });
 
 describe("readLocation", () => {
+  const dvfr = "https://dvfr.illinois.gov/";
+
   it("is same when the run read the canonical site itself", () => {
-    expect(readLocation("https://dvfr.illinois.gov", "https://dvfr.illinois.gov/")).toBe("same");
+    expect(readLocation("https://dvfr.illinois.gov", dvfr)).toBe("same");
     expect(readLocation("https://voicecap.netlify.app", demoRoot)).toBe("same");
   });
 
-  it("is local for a copy on this computer", () => {
-    expect(readLocation("http://127.0.0.1:4848", demoRoot)).toBe("local");
+  // Ruling P20: the sentence the page says of a copy has to be true. The site over http, or with or
+  // without its www., is the site itself.
+  it("is same when only the scheme, or a www. at the start of either host, differs", () => {
+    expect(readLocation("http://dvfr.illinois.gov", dvfr)).toBe("same");
+    expect(readLocation("https://www.dvfr.illinois.gov", dvfr)).toBe("same");
+    expect(readLocation("http://www.dvfr.illinois.gov", dvfr)).toBe("same");
+    expect(readLocation("https://dvfr.illinois.gov", "https://www.dvfr.illinois.gov/")).toBe(
+      "same",
+    );
+    expect(readLocation("http://voicecap.netlify.app", demoRoot)).toBe("same");
+  });
+
+  it("is elsewhere when the port, or more than a www. of the host, differs", () => {
+    expect(readLocation("https://dvfr.illinois.gov:8443", dvfr)).toBe("elsewhere");
+    expect(readLocation("https://dvfr.illinois.gov", "https://dvfr.illinois.gov:8443/")).toBe(
+      "elsewhere",
+    );
+    expect(readLocation("https://staging.dvfr.illinois.gov", dvfr)).toBe("elsewhere");
+    expect(readLocation("https://wwwdvfr.illinois.gov", dvfr)).toBe("elsewhere");
+    expect(readLocation("https://www.www.dvfr.illinois.gov", dvfr)).toBe("elsewhere");
+  });
+
+  it("is local for a copy on the computer that ran them: a loopback address", () => {
+    for (const read of [
+      "http://127.0.0.1:4848",
+      "http://127.8.9.10",
+      "http://localhost:3000",
+      "http://LOCALHOST:3000",
+      "http://app.localhost:3000",
+      "http://[::1]:4848",
+    ]) {
+      expect(readLocation(read, demoRoot), read).toBe("local");
+    }
+  });
+
+  it("is elsewhere for a copy at any other IP address, which is another computer", () => {
+    for (const read of [
+      "http://10.0.0.5",
+      "http://192.168.1.20:8080",
+      "http://203.0.113.5",
+      "http://128.0.0.1",
+      "http://[2001:db8::1]:8080",
+    ]) {
+      expect(readLocation(read, dvfr), read).toBe("elsewhere");
+    }
   });
 
   it("is elsewhere for a copy at another address", () => {
-    expect(readLocation("https://staging.example.org", "https://dvfr.illinois.gov/")).toBe(
-      "elsewhere",
-    );
+    expect(readLocation("https://staging.example.org", dvfr)).toBe("elsewhere");
   });
 
   it("is elsewhere for a read origin that isn't an address", () => {
-    expect(readLocation("not a url", "https://dvfr.illinois.gov/")).toBe("elsewhere");
+    expect(readLocation("not a url", dvfr)).toBe("elsewhere");
   });
 });

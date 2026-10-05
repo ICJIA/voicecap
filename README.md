@@ -1329,7 +1329,7 @@ An address is kept as its root: a scheme, a host, and a path that ends in `/`. `
 - the website's headings and lists (see [The website: `voicecap site`](#the-website-voicecap-site));
 - the run report's subtitle (see [Reading the report](#reading-the-report)).
 
-**What keeps the address voicecap read.** The records are as they were written: the run's `site`, the site's folder, the walkthrough file, the terminal's output, a problem's record word for word, and the data the page carries for its fingerprint check. When the address voicecap read isn't the canonical one, the page's evidence says so, and names no address: "These runs read a copy of the site on the computer that ran them." (or "These runs read a copy of the site at another address.").
+**What keeps the address voicecap read.** The records are as they were written: the run's `site`, the site's folder, the walkthrough file, the terminal's output, a problem's record word for word, and the data the page carries for its fingerprint check. When the address voicecap read isn't the canonical one, the page's evidence says so, and names no address: "These runs read a copy of the site on the computer that ran them." for a copy at `localhost` or another of the computer's own addresses (`127.0.0.1`, say), and "These runs read a copy of the site at another address." for any other, such as a server on the network. The site itself over `http` in place of `https`, or with or without `www.`, is the site, and gets no such sentence.
 
 **Older records.** A run from before 0.10.0 recorded no canonical address, and a share from before it recorded no site. Their site is named by the address voicecap read, or by `report.canonical` when it's set, and nothing already written is changed.
 
