@@ -544,8 +544,11 @@ describe("buildSite", () => {
 
     const published = path.join(out, DEMO_PAGES);
     // Every file of the demo that ships in the package, but its 404 page, which only the server
-    // gives; and the sitemap.
-    const shipped = await filesUnder(DEMO_SITE_DIR);
+    // gives; and the sitemap. A file an operating system adds to the folder, as one does in a
+    // checkout opened in Finder or Explorer, is no part of the demo (see site-demo-litter.test.ts).
+    const shipped = (await filesUnder(DEMO_SITE_DIR)).filter(
+      (file) => !OS_LITTER.has(path.posix.basename(file)),
+    );
     expect(shipped).toContain("404.html");
     const copied = shipped.filter((file) => file !== "404.html");
     expect([...copied, "sitemap.xml"].sort()).toEqual(DEMO_FILES);
@@ -1488,27 +1491,29 @@ describe("buildSite", () => {
       // Names with a line separator in them, which ends a line: braced escapes, so that this file
       // holds no raw control character. The message writes it as a backslash, "u", and four digits.
       const written = "\\" + "u2028";
+      const ownFolder = `. Give a folder of its own, such as "${path.join(home, "_site")}".`;
+      const buildAgain = ": delete the folder and build again.";
       const cases: [more: Record<string, string | null>, said: string][] = [
         // A name with a dot first, in the folder itself.
-        [{ ".\u{2028}x": "a file" }, `.${written}x, which a build never writes`],
+        [{ ".\u{2028}x": "a file" }, `.${written}x, which a build never writes${ownFolder}`],
         // The same in a folder of files, whose own name has one too.
         [
           { "a\u{2028}site/.\u{2028}x": "a file" },
-          `a${written}site/.${written}x, which a build never writes`,
+          `a${written}site/.${written}x, which a build never writes${ownFolder}`,
         ],
         // A folder in a folder.
         [
           { "a\u{2028}site/in\u{2028}side": null },
-          `a${written}site/in${written}side, a folder inside a folder, which a build never writes`,
+          `a${written}site/in${written}side, a folder inside a folder, which a build never writes${ownFolder}`,
         ],
         // In the demo's own pages' folder, and in a folder of it: a file, and a folder.
         [
           { "demo-site/a\u{2028}b.txt": "a file" },
-          `demo-site/a${written}b.txt, which a build never writes`,
+          `demo-site/a${written}b.txt, which this voicecap's build doesn't write (it may be from another voicecap)${buildAgain}`,
         ],
         [
           { "demo-site/the-report/in\u{2028}side": null },
-          `demo-site/the-report/in${written}side, a folder inside a folder, which a build never writes`,
+          `demo-site/the-report/in${written}side, which this voicecap's build doesn't write (it may be from another voicecap)${buildAgain}`,
         ],
       ];
       for (const [index, [more, said]] of cases.entries()) {
@@ -1516,9 +1521,7 @@ describe("buildSite", () => {
 
         const message = await refusalOf(build(home, { out }));
 
-        expect(message).toBe(
-          `voicecap site won't build into ${out}: it holds ${said}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
-        );
+        expect(message).toBe(`voicecap site won't build into ${out}: it holds ${said}`);
         expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
       }
     });
@@ -1750,20 +1753,42 @@ describe("buildSite", () => {
       };
       const never = "which a build never writes";
       const inAFolder = `a folder inside a folder, ${never}`;
+      /**
+       * What it says of a file or a folder in demo-site/ that another voicecap's build may have
+       * written there, such as a demo page that a later voicecap removed: and that the folder,
+       * which a build made, can be deleted, and built again.
+       */
+      const another = "which this voicecap's build doesn't write (it may be from another voicecap)";
+      const buildAgain = ": delete the folder and build again.";
+      const ownFolder = `. Give a folder of its own, such as "${path.join(home, "_site")}".`;
       const cases: [change: (dir: string) => Promise<void>, why: string][] = [
-        // More than a build writes in demo-site/, and in a folder of it.
-        [put("demo-site/notes.txt"), `it holds demo-site/notes.txt, ${never}`],
-        [put("demo-site/.env"), `it holds demo-site/.env, ${never}`],
-        // A folder named as a file the system adds is somebody's folder, not one of those files.
-        [put("demo-site/.DS_Store/mine.txt"), `it holds demo-site/.DS_Store, ${inAFolder}`],
-        [put("demo-site/extra/page.html"), `it holds demo-site/extra, ${inAFolder}`],
+        // More than this voicecap's build writes in demo-site/, and in a folder of it: what another
+        // voicecap's build may have written, a file or a folder of files.
+        [put("demo-site/notes.txt"), `it holds demo-site/notes.txt, ${another}${buildAgain}`],
+        [put("demo-site/extra/page.html"), `it holds demo-site/extra, ${another}${buildAgain}`],
         [
           put("demo-site/the-report/notes.txt"),
-          `it holds demo-site/the-report/notes.txt, ${never}`,
+          `it holds demo-site/the-report/notes.txt, ${another}${buildAgain}`,
         ],
         [
           put("demo-site/the-report/nested/mine.txt"),
-          `it holds demo-site/the-report/nested, ${inAFolder}`,
+          `it holds demo-site/the-report/nested, ${another}${buildAgain}`,
+        ],
+        // A name with a dot first is no build's, whichever voicecap's: somebody's, as anywhere else.
+        [put("demo-site/.env"), `it holds demo-site/.env, ${never}${ownFolder}`],
+        // A folder named as a file the system adds is somebody's folder, not one of those files.
+        [
+          put("demo-site/.DS_Store/mine.txt"),
+          `it holds demo-site/.DS_Store, ${inAFolder}${ownFolder}`,
+        ],
+        // A folder that holds what no build writes, a name with a dot first or a link, is somebody's.
+        [put("demo-site/extra/.env"), `it holds demo-site/extra, ${inAFolder}${ownFolder}`],
+        [
+          async (dir) => {
+            await mkdir(path.join(dir, "demo-site", "extra"));
+            await linkToFolder(precious, path.join(dir, "demo-site", "extra", "a-link"));
+          },
+          `it holds demo-site/extra, ${inAFolder}${ownFolder}`,
         ],
         // The wrong kind of thing where a build writes a folder, a file, or neither.
         [
@@ -1771,51 +1796,64 @@ describe("buildSite", () => {
             await rm(path.join(dir, "demo-site", "the-report"), { recursive: true });
             await writeFile(path.join(dir, "demo-site", "the-report"), "my own file");
           },
-          `it holds demo-site/the-report, ${never}`,
+          `it holds demo-site/the-report, ${another}${buildAgain}`,
         ],
         [
           async (dir) => {
             await rm(path.join(dir, "demo-site", "style.css"));
             await mkdir(path.join(dir, "demo-site", "style.css"));
           },
-          `it holds demo-site/style.css, ${inAFolder}`,
+          `it holds demo-site/style.css, ${another}${buildAgain}`,
         ],
         // A link, by a name a build doesn't write and by one it does: it's no file of a build's.
         [
           (dir) => linkToFolder(precious, path.join(dir, "demo-site", "a-link")),
-          `it holds demo-site/a-link, ${never}`,
+          `it holds demo-site/a-link, ${never}${ownFolder}`,
         ],
         [
           async (dir) => {
             await rm(path.join(dir, "demo-site", "style.css"));
             await linkToFolder(precious, path.join(dir, "demo-site", "style.css"));
           },
-          `it holds demo-site/style.css, ${never}`,
+          `it holds demo-site/style.css, ${never}${ownFolder}`,
+        ],
+        // A folder that holds a link anywhere isn't one to tell a person to delete, though a build
+        // would remove the link alone: not every way of deleting a folder leaves what a link leads
+        // to. What another voicecap's build may have written is said as anything else is.
+        [
+          async (dir) => {
+            await put("demo-site/notes.txt")(dir);
+            await linkToFolder(precious, path.join(dir, "a-link"));
+          },
+          `it holds demo-site/notes.txt, ${never}${ownFolder}`,
         ],
         // The exception is for demo-site/ at the top, and nothing else: a good demo-site/ doesn't
         // excuse a folder inside a folder elsewhere, one named demo-site/ in a site's folder, or
         // one laid out as it is, with another name.
         [
           put(`${FIXTURE_FOLDER}/nested/mine.txt`),
-          `it holds ${FIXTURE_FOLDER}/nested, ${inAFolder}`,
+          `it holds ${FIXTURE_FOLDER}/nested, ${inAFolder}${ownFolder}`,
         ],
         [
           put(`${FIXTURE_FOLDER}/demo-site/index.html`),
-          `it holds ${FIXTURE_FOLDER}/demo-site, ${inAFolder}`,
+          `it holds ${FIXTURE_FOLDER}/demo-site, ${inAFolder}${ownFolder}`,
         ],
-        [put("demo-pages/the-report/index.html"), `it holds demo-pages/the-report, ${inAFolder}`],
+        [
+          put("demo-pages/the-report/index.html"),
+          `it holds demo-pages/the-report, ${inAFolder}${ownFolder}`,
+        ],
         // A folder voicecap didn't build is refused, demo-site/ or not.
         [
           async (dir) => {
             await writeFile(path.join(dir, "_headers"), "/*\n  X-Their-Header: yes\n");
           },
-          "it isn't empty, and voicecap site didn't build it",
+          `it isn't empty, and voicecap site didn't build it${ownFolder}`,
         ],
         [
           async (dir) => {
             await rm(path.join(dir, "_headers"));
           },
-          "it isn't empty, and voicecap site didn't build it",
+          `it isn't empty, and voicecap site didn't build it${ownFolder}`,
         ],
       ];
       const folders: [out: string, why: string][] = [];
@@ -1830,7 +1868,7 @@ describe("buildSite", () => {
 
       for (const [out, why] of folders) {
         expect(await refusalOf(build(home, { out })), out).toBe(
-          `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, "_site")}".`,
+          `voicecap site won't build into ${out}: ${why}`,
         );
       }
 

@@ -114,10 +114,11 @@ export interface RunAuditOptions {
   /**
    * The address people visit, for reports to name the site by (--canonical): normalized to a root
    * (see normalizeCanonical) before anything starts, so a bad one is a usage error, and the record
-   * never holds an unnormalized one. Default: the root most of the pages' own canonical tags name
-   * (see chooseCanonicalRoot), and none when no page names one. It isn't one of the run's settings,
-   * so it doesn't change which run resumes: the value given to the session that completes the run
-   * is the one recorded. A replayed run reads no tags, so its root comes only from this.
+   * never holds an unnormalized one. Default: the root most of the inner pages' own canonical tags
+   * name, and the home page's only when no inner page's names one (see chooseCanonicalRoot), and
+   * none when no page names one. It isn't one of the run's settings, so it doesn't change which run
+   * resumes: the value given to the session that completes the run is the one recorded. A replayed
+   * run reads no tags, so its root comes only from this.
    */
   canonical?: string | null;
   /**

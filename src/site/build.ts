@@ -29,6 +29,9 @@
  * a folder (a site folder of someone's own), holds more than a build wrote, and is never emptied.
  * The one folder in a folder is the demo's own pages, demo-site/, which has a folder for each page:
  * it's taken for a build's when it holds only the paths a build writes there (see moreThanTheDemo).
+ * When it holds a file or a folder that this voicecap's build doesn't write, such as a demo page
+ * that a later voicecap removed, the refusal says so, and, when nothing in the folder is anyone's,
+ * to delete the folder and build again (see holdsOnlyABuilds).
  * The files an operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini)
  * hold nothing of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes
  * before anything is touched. The records are read before the folder is emptied, so an earlier
@@ -192,11 +195,13 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   // The demo's own pages are read from the package before the folder is looked at: the guard takes
   // exactly their paths for a build's, and they're written from these same bytes.
   const demoFiles = await readDemoSite();
-  const why = await whyNotBuiltInto(home, out, treeOfDemoSite(demoFiles));
-  if (why !== null) {
+  const refusal = await whyNotBuiltInto(home, out, treeOfDemoSite(demoFiles));
+  if (refusal !== null) {
     // The path is in quotes, so that the sentence's period isn't taken for part of it.
     throw new UsageError(
-      `voicecap site won't build into ${out}: ${why}. Give a folder of its own, such as "${path.join(home, SITE_DIR)}".`,
+      refusal.buildAgain
+        ? `voicecap site won't build into ${out}: ${refusal.why}: delete the folder and build again.`
+        : `voicecap site won't build into ${out}: ${refusal.why}. Give a folder of its own, such as "${path.join(home, SITE_DIR)}".`,
     );
   }
 
@@ -429,8 +434,19 @@ async function realOf(target: string): Promise<string> {
 }
 
 /**
- * Why the site can't be built into `out`, in words that finish "won't build into <out>: ...", or
- * null when it can. Nothing is touched: it's only looked at. The checks, in order:
+ * Why the site isn't built into a folder, and what to do. `why` is in words that finish "won't build
+ * into <out>: ...". With `buildAgain`, the folder is one an earlier build made, which holds nothing
+ * of anyone's, so it can be deleted and built again; otherwise, the person is to give a folder of
+ * its own.
+ */
+interface Refusal {
+  why: string;
+  buildAgain: boolean;
+}
+
+/**
+ * Why the site can't be built into `out`, or null when it can. Nothing is touched: it's only looked
+ * at. The checks, in order:
  *
  * - on Windows, its name ends with a dot or a space (see ENDS_WITH_DOT_OR_SPACE);
  * - `out` is a file, not a folder;
@@ -441,6 +457,11 @@ async function realOf(target: string): Promise<string> {
  * - it's one a build made, and holds more than a build writes (see moreThanABuild), the paths
  *   `demoSite` has for the demo's own pages being among those a build writes.
  *
+ * Each of these is for a folder of its own, but one: a folder a build made whose demo-site/ holds a
+ * file or a folder of files that this voicecap's build doesn't write, which another voicecap's build
+ * may have (a demo page that a later voicecap removed), when the folder holds nothing of anyone's
+ * at all (see holdsOnlyABuilds). It can be deleted and built again, and the refusal says so.
+ *
  * What's left is a folder that isn't there, one with nothing in it, or one an earlier build made and
  * nothing else has been put in.
  */
@@ -448,12 +469,13 @@ async function whyNotBuiltInto(
   home: string,
   out: string,
   demoSite: DemoSiteTree,
-): Promise<string | null> {
+): Promise<Refusal | null> {
+  const refuse = (why: string): Refusal => ({ why, buildAgain: false });
   if (process.platform === "win32" && ENDS_WITH_DOT_OR_SPACE.test(path.basename(out))) {
-    return "its name ends with a dot or a space, which Windows drops";
+    return refuse("its name ends with a dot or a space, which Windows drops");
   }
   const found = await kindOf(out);
-  if (found === "file") return "it's a file, not a folder";
+  if (found === "file") return refuse("it's a file, not a folder");
 
   const sites = await siteFolders(home);
   const demo = path.join(home, DEMO_OUT);
@@ -461,7 +483,7 @@ async function whyNotBuiltInto(
     { home, sites: sites.map((folder) => path.join(home, folder)), demo },
     out,
   );
-  if (byName !== null) return byName;
+  if (byName !== null) return refuse(byName);
   // A site's folder is a folder, not a link, so it's in the home's real place.
   const realHome = await realOf(home);
   const byPlace = whyAmongTheRecords(
@@ -472,11 +494,19 @@ async function whyNotBuiltInto(
     },
     await realOf(out),
   );
-  if (byPlace !== null) return byPlace;
+  if (byPlace !== null) return refuse(byPlace);
 
   if (found === "folder" && (await readdir(out)).length > 0) {
-    if (!(await builtBefore(out))) return "it isn't empty, and voicecap site didn't build it";
-    return moreThanABuild(out, demoSite);
+    if (!(await builtBefore(out)))
+      return refuse("it isn't empty, and voicecap site didn't build it");
+    const more = await moreThanABuild(out, demoSite);
+    if (more === null) return null;
+    // A person is told to delete the folder only when that can lose nothing of anyone's, whatever
+    // they delete it with.
+    if (more.ofAnotherBuild !== null && (await holdsOnlyABuilds(out))) {
+      return { why: more.ofAnotherBuild, buildAgain: true };
+    }
+    return refuse(more.why);
   }
   return null;
 }
@@ -500,22 +530,32 @@ function isOsLitter(entry: Dirent): boolean {
 }
 
 /**
- * Why a folder that a build made is more than that, in words that finish "won't build into <out>:
- * ...", or null when it holds only what a build writes. A build writes files, in its folder and in
- * each folder it makes, and no name that starts with a dot. A name with a dot first (a repository's
- * .git), or a folder in a folder (a site folder of someone's own, with its date folder and its
- * record), is somebody's, and emptying the folder would lose it. The one exception is the folder at
- * the top that's named DEMO_FOLDER: the demo's own pages, which a build writes with a folder for each
- * page, and which holds nothing else (see moreThanTheDemo). A link isn't looked into: when the
- * folder is emptied it's removed, and what it leads to isn't. The files an operating system adds
- * (see isOsLitter) are no one's, at the folder's top, one folder down, and in each folder of the
- * demo's pages, and aren't counted.
+ * What a folder a build made holds more than a build writes. `why` is in words that finish "won't
+ * build into <out>: ...". `ofAnotherBuild` is what's said instead when that's a file or a folder in
+ * demo-site/ that another voicecap's build may have written, and null for anything else.
  */
-async function moreThanABuild(folder: string, demoSite: DemoSiteTree): Promise<string | null> {
+interface More {
+  why: string;
+  ofAnotherBuild: string | null;
+}
+
+/**
+ * What a folder that a build made holds more than that (see More), or null when it holds only what a
+ * build writes. A build writes files, in its folder and in each folder it makes, and no name that
+ * starts with a dot. A name with a dot first (a repository's .git), or a folder in a folder (a site
+ * folder of someone's own, with its date folder and its record), is somebody's, and emptying the
+ * folder would lose it. The one exception is the folder at the top that's named DEMO_FOLDER: the
+ * demo's own pages, which a build writes with a folder for each page, and which holds nothing else
+ * (see moreThanTheDemo). A link isn't looked into: when the folder is emptied it's removed, and what
+ * it leads to isn't. The files an operating system adds (see isOsLitter) are no one's, at the
+ * folder's top, one folder down, and in each folder of the demo's pages, and aren't counted.
+ */
+async function moreThanABuild(folder: string, demoSite: DemoSiteTree): Promise<More | null> {
+  const somebodys = (why: string): More => ({ why, ofAnotherBuild: null });
   for (const entry of await entriesOf(folder)) {
     if (isOsLitter(entry)) continue;
     if (entry.name.startsWith(".")) {
-      return `it holds ${printable(entry.name)}, which a build never writes`;
+      return somebodys(`it holds ${printable(entry.name)}, which a build never writes`);
     }
     if (!entry.isDirectory()) continue;
     if (entry.name === DEMO_FOLDER) {
@@ -526,9 +566,11 @@ async function moreThanABuild(folder: string, demoSite: DemoSiteTree): Promise<s
     for (const inner of await entriesOf(path.join(folder, entry.name))) {
       if (isOsLitter(inner)) continue;
       const where = printable(`${entry.name}/${inner.name}`);
-      if (inner.name.startsWith(".")) return `it holds ${where}, which a build never writes`;
+      if (inner.name.startsWith(".")) {
+        return somebodys(`it holds ${where}, which a build never writes`);
+      }
       if (inner.isDirectory()) {
-        return `it holds ${where}, a folder inside a folder, which a build never writes`;
+        return somebodys(`it holds ${where}, a folder inside a folder, which a build never writes`);
       }
     }
   }
@@ -536,20 +578,21 @@ async function moreThanABuild(folder: string, demoSite: DemoSiteTree): Promise<s
 }
 
 /**
- * Why a demo-site/ folder that a build made is more than that, in words that finish "won't build
- * into <out>: ...", or null when it holds only what a build writes there: each file at a path the
- * demo's pages have (see DemoSiteTree), in a folder they have, and nothing else. A name with a dot
- * first, a file or a folder of any other name, a folder where a file goes, a file where a folder
- * goes, and a link, are somebody's, or at best a build's of another voicecap, and emptying the
- * folder would lose them. The files an operating system adds (see isOsLitter) aren't counted. A
- * folder is looked into only when the pages have it, so the walk goes no deeper than they do.
- * `dir` is the folder, and `inside` its path from demo-site/ ("" for demo-site/ itself).
+ * What a demo-site/ folder that a build made holds more than that (see More), or null when it holds
+ * only what this voicecap's build writes there: each file at a path the demo's pages have (see
+ * DemoSiteTree), in a folder they have, and nothing else. A name with a dot first, a file or a folder
+ * of any other name, a folder where a file goes, a file where a folder goes, and a link, are
+ * somebody's, or at best a build's of another voicecap, and emptying the folder would lose them. A
+ * file or a folder with no dot first may be another voicecap's demo page, such as one that a later
+ * voicecap removed, and is said to be. The files an operating system adds (see isOsLitter) aren't
+ * counted. A folder is looked into only when the pages have it, so the walk goes no deeper than
+ * they do. `dir` is the folder, and `inside` its path from demo-site/ ("" for demo-site/ itself).
  */
 async function moreThanTheDemo(
   dir: string,
   inside: string,
   demoSite: DemoSiteTree,
-): Promise<string | null> {
+): Promise<More | null> {
   for (const entry of await entriesOf(dir)) {
     if (isOsLitter(entry)) continue;
     const relative = inside === "" ? entry.name : `${inside}/${entry.name}`;
@@ -558,9 +601,16 @@ async function moreThanTheDemo(
       : entry.isFile() && demoSite.files.has(relative);
     if (!written) {
       const where = printable(`${DEMO_FOLDER}/${relative}`);
-      return entry.isDirectory()
-        ? `it holds ${where}, a folder inside a folder, which a build never writes`
-        : `it holds ${where}, which a build never writes`;
+      const mayBeAnotherBuilds =
+        !entry.name.startsWith(".") && (entry.isFile() || entry.isDirectory());
+      return {
+        why: entry.isDirectory()
+          ? `it holds ${where}, a folder inside a folder, which a build never writes`
+          : `it holds ${where}, which a build never writes`,
+        ofAnotherBuild: mayBeAnotherBuilds
+          ? `it holds ${where}, which this voicecap's build doesn't write (it may be from another voicecap)`
+          : null,
+      };
     }
     if (entry.isDirectory()) {
       const more = await moreThanTheDemo(path.join(dir, entry.name), relative, demoSite);
@@ -568,6 +618,24 @@ async function moreThanTheDemo(
     }
   }
   return null;
+}
+
+/**
+ * Whether everything in a folder an earlier build made, all the way down, is what a build of some
+ * voicecap writes: files; folders at its top (a site's, the demo's report's) and anywhere in
+ * demo-site/; no link, nor anything else that isn't a file or a folder; and no name with a dot
+ * first but the files an operating system adds (see isOsLitter). Only then is a person told that
+ * the folder can be deleted: however they delete it, nothing of anyone's goes with it. Some ways of
+ * deleting a folder follow a link in it, and empty what it leads to.
+ */
+async function holdsOnlyABuilds(folder: string): Promise<boolean> {
+  for (const entry of await readdir(folder, { recursive: true, withFileTypes: true })) {
+    if (isOsLitter(entry)) continue;
+    if (entry.name.startsWith(".") || !(entry.isFile() || entry.isDirectory())) return false;
+    const names = path.relative(folder, path.join(entry.parentPath, entry.name)).split(path.sep);
+    if (entry.isDirectory() && names.length > 1 && names[0] !== DEMO_FOLDER) return false;
+  }
+  return true;
 }
 
 /**
@@ -606,12 +674,14 @@ interface DemoSiteFile {
 /**
  * The files a build writes in demo-site/: every file of the demo site that comes with voicecap
  * (DEMO_SITE_DIR), but its 404 page, and a sitemap of the pages at their canonical address. Only
- * regular files are taken, so a link in the package's folder is never followed.
+ * regular files are taken, so a link in the package's folder is never followed. The files an
+ * operating system adds to a folder someone opens (OS_LITTER), as a checkout of voicecap opened in
+ * Finder or Explorer has, are no part of the demo, and are never published.
  */
 async function readDemoSite(): Promise<DemoSiteFile[]> {
   const files: DemoSiteFile[] = [];
   for (const entry of await readdir(DEMO_SITE_DIR, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile()) continue;
+    if (!entry.isFile() || OS_LITTER.has(entry.name)) continue;
     const source = path.join(entry.parentPath, entry.name);
     const relative = path.relative(DEMO_SITE_DIR, source).split(path.sep).join("/");
     if (relative === DEMO_NOT_FOUND) continue;
