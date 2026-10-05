@@ -42,6 +42,9 @@ function interruptingAt(ending: string, controller: AbortController): ScriptedDr
 
 const LOST = "The browser lost the foreground to another window";
 
+/** A line cut short: it starts as an event's does, and nothing ends it. */
+const CUT_LINE = '{"at":"2026';
+
 describe("a run's event log", () => {
   it("records a run's events in order", async () => {
     const dir = await setup(["/", "/about"]);
@@ -321,9 +324,9 @@ describe("a run's event log", () => {
     );
     expect(first.outcome).toBe("interrupted");
 
-    // A window closed as a line was being written: nothing ends it.
+    // A window closed as a line was being written.
     const log = eventLogFile(outDir(dir), first.runId);
-    await appendFile(log, '{"at":"2026');
+    await appendFile(log, CUT_LINE);
 
     const second = await runAudit(options(dir, new ScriptedDriver(sitePages())));
     expect(second).toMatchObject({ runId: first.runId, outcome: "completed" });
@@ -349,10 +352,13 @@ describe("a run's event log", () => {
       { type: "run-started", session: 1, resumed: false },
       { type: "run-started", session: 2, resumed: true },
     ]);
-    // The cut line is left as it is, and the next line starts on a line of its own.
+    // The cut line is left as it is, and the next line starts on a line of its own: each other
+    // line is an event, and the last one ends in the newline that ends the file. (The events'
+    // times come from the real clock, so nothing here goes by what they say.)
     const lines = (await readFile(log, "utf8")).split("\n");
-    expect(lines).toContain('{"at":"2026');
-    expect(lines.filter((line) => line.startsWith('{"at":"2026-'))).toHaveLength(events.length);
+    expect(lines.pop()).toBe("");
+    expect(lines).toContain(CUT_LINE);
+    expect(lines.filter((line) => line !== CUT_LINE)).toHaveLength(events.length);
 
     const home = path.join(dir, "transcripts");
     expect((await verifyHome({ home, logger: createMemoryLogger() })).problems).toBe(0);
