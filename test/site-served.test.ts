@@ -23,6 +23,7 @@ import {
   EXAMPLE_FOLDER,
   EXAMPLE_STEM,
   FIXTURE_FOLDER,
+  FIXTURE_NAME,
   homeWithShares,
   recordOf,
   sealedEntry,
@@ -200,9 +201,9 @@ describe("the site, served as Netlify serves it", () => {
     const pages = pagesOf(built.content);
     expect(pages.toSorted()).toEqual(
       [
-        `demo/${FIXTURE_FOLDER}_2027-01-16.html`,
-        `${FIXTURE_FOLDER}/${FIXTURE_FOLDER}_2027-01-15-2.html`,
-        `${FIXTURE_FOLDER}/${FIXTURE_FOLDER}_2027-01-15.html`,
+        `demo/${FIXTURE_NAME}_2027-01-16.html`,
+        `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.html`,
+        `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15.html`,
         `${EXAMPLE_FOLDER}/${EXAMPLE_STEM}.html`,
       ].toSorted(),
     );
@@ -255,7 +256,7 @@ describe("the site, served as Netlify serves it", () => {
     // Under the policy of a page written today it's blocked, so a violation would have been seen.
     const today = await visit(
       page,
-      new URL(`${FIXTURE_FOLDER}/${FIXTURE_FOLDER}_2027-01-15.html`, olderServer.url).href,
+      new URL(`${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15.html`, olderServer.url).href,
     );
     await page.route(address, async (route) => {
       const response = await route.fetch();
@@ -317,7 +318,7 @@ describe("the site, served as Netlify serves it", () => {
     expect(await theme(page)).toBe("light");
 
     // Follow a link to a report's page, as a reader does: it opens in the theme the site was left in.
-    const href = `${FIXTURE_FOLDER}/${FIXTURE_FOLDER}_2027-01-15.html`;
+    const href = `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15.html`;
     await Promise.all([
       page.waitForURL(new URL(href, server.url).href),
       page.locator(`a[href="${href}"]`).first().click(),

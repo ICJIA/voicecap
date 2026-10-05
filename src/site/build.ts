@@ -13,7 +13,10 @@
  * folder's own name (see siteName). Site folders that have one name are one site, their reports
  * listed together, the newest first. Only what the page shows changes: each file is still published
  * in its own folder, `<folder>/<name>`, so two folders that name one site can have files of one
- * name, and neither takes the other's place.
+ * name, and neither takes the other's place. A site headed by its folder's name when that's an IP
+ * address or a local address (its shares are from before 0.10.0, which recorded no site) is
+ * published all the same, and warned of, with what to do: share it again with its canonical
+ * address.
  *
  * Each build empties its folder, so a folder given by mistake must never be one with records, or
  * anyone's work, in it. A folder is built into only when it's new, empty, or one an earlier build
@@ -58,7 +61,7 @@ import path from "node:path";
 import { DEMO_CANONICAL, DEMO_SITE_DIR, DEMO_SITEMAP, sitemapXml } from "../demo/server.js";
 import { DEMO_OUT } from "../demo/words.js";
 import type { SharedFile } from "../model.js";
-import { canonicalName, recordedCanonical } from "../pages/canonical.js";
+import { canonicalName, isLocalHost, recordedCanonical } from "../pages/canonical.js";
 import { plural } from "../report/html.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { linkPath, resolveHome } from "../run/paths.js";
@@ -213,6 +216,8 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   // The site folders and the reports of each site, by the site's name: folders that name one site
   // are one site. The files are published folder by folder, wherever their reports are listed.
   const named = new Map<string, { folders: string[]; made: Made[] }>();
+  // The site folders headed by their own name, which is an IP address or a local address.
+  const headedByAnAddress: string[] = [];
   for (const [order, { folder, entries }] of records.sites.entries()) {
     if (OWN_FILES.has(folder)) {
       leaveOut(
@@ -234,6 +239,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     // Newest first, and the folder's newest share names its site.
     made.sort(newestFirst);
     const name = siteName(folder, made[0]?.site ?? null);
+    if (name === folder && namesAnAddress(folder)) headedByAnAddress.push(folder);
     const site = named.get(name) ?? { folders: [], made: [] };
     site.folders.push(folder);
     site.made.push(...made);
@@ -282,6 +288,15 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   }
 
   for (const line of leftOut) logger.warn(line);
+  // Shares from before 0.10.0 recorded no site: such a site is headed by its folder's name, which is
+  // the address voicecap read. The build is the last moment before the site is public.
+  for (const folder of headedByAnAddress.toSorted()) {
+    logger.warn(
+      printable(
+        `${folder}: headed by its folder's name, an IP address or a local address. Share it again with its canonical address (see report.canonical) to name it.`,
+      ),
+    );
+  }
   const reports = sites.reduce((count, site) => count + site.reports.length, 0);
   logger.info(
     `Built the site in ${out}: ${plural(reports, "report")} from ${plural(sites.length, "site")}${demo === null ? "" : ", and the demo's"}.`,
@@ -318,6 +333,17 @@ function newestFirst(a: Made, b: Made): number {
 function siteName(folder: string, site: string | null): string {
   const root = recordedCanonical(site);
   return root === null ? folder : canonicalName(root);
+}
+
+/**
+ * Whether a site folder's name is that of an IP address or a local address: the name `siteFolder`
+ * gives such a host (see isLocalHost), its port after the last "_" (`127.0.0.1_4848`,
+ * `localhost_3000`). An IPv6 address's brackets and colons are each a "_" in a folder's name, so a
+ * name that starts with one and has only those and hex digits after it is one (`___1__4848`, for
+ * `[::1]:4848`): a host people visit doesn't start with "_".
+ */
+function namesAnAddress(folder: string): boolean {
+  return isLocalHost(folder.replace(/_(\d+)$/, ":$1")) || /^_[0-9a-f_]+$/.test(folder);
 }
 
 /** What kind of thing is at a path: nothing, a folder (a link to one too), or anything else. */

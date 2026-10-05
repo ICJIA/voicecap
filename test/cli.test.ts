@@ -1313,6 +1313,26 @@ describe("voicecap share", () => {
     expect(existsSync(sharesPath(site))).toBe(false);
   });
 
+  // Ruling P13a. The demo runs voicecap 0.4.1 recorded read http://127.0.0.1:4848, and named no
+  // canonical address.
+  it("exits 1, says how to name the site, and writes nothing, for a site read at an IP address with no canonical address", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const home = path.join(root, "transcripts");
+    await cp(fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url)), home, {
+      recursive: true,
+    });
+    const before = await readdir(root, { recursive: true });
+
+    const share = await cli(["share", "--out", home, "--reviewer", "Pat Lee"], root);
+
+    expect(share.code).toBe(1);
+    expect(share.out).toBe("");
+    expect(share.err).toBe(
+      "Error: voicecap won't share a site by an IP address or a local address (127.0.0.1:4848). Give it the address people visit: set report.canonical in a voicecap config in a folder of the site's own, and share from that folder; or run it again with --canonical <address>.\n",
+    );
+    expect(await readdir(root, { recursive: true })).toEqual(before);
+  });
+
   it("is listed in the help, with what it does", async () => {
     const help = await cli(["--help"]);
 

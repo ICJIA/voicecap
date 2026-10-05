@@ -112,8 +112,9 @@ function demoConfig(canonical: string | null): LoadedConfig {
 /**
  * A transcripts home with the demo's report shared twice, as a person would share it: in the site's
  * own folder (the sites, and every report by date), and in voicecap-demo/ (the site's demo). Both
- * are named by `canonical`, the demo's canonical address unless it's null: then by the address the
- * runs read, which is what no screenshot may show. Returns the home and the shared page's path.
+ * are named by `canonical`, the demo's canonical address unless it's null: then the only name the
+ * demo has is the address the runs read, an IP address, and voicecap refuses to share it. Returns
+ * the home and the shared page's path.
  */
 export async function demoHome(
   root: string,
@@ -322,8 +323,8 @@ async function shootWebsite(browser: Browser, file: string, shoot: Shoot): Promi
 /**
  * Make the six screenshots in `out` (made when it isn't there), and give each one's path. They are
  * taken in a temporary folder first and copied to `out` once all six are, so a shot that is refused
- * leaves `out` as it was. `canonical` is what the demo is named by (see demoHome): the test of the
- * refusal gives none, so that the first shot shows the address the runs read.
+ * leaves `out` as it was. `canonical` is what the demo is named by (see demoHome): a test gives
+ * none, which voicecap refuses to share, so that nothing is written.
  */
 export async function makeScreenshots(
   out: string,

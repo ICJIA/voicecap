@@ -70,6 +70,7 @@ import {
   EXAMPLE_STYLE,
   EXAMPLE_WORD,
   FIXTURE_FOLDER,
+  FIXTURE_NAME,
   FIXTURE_SITE,
   homeWithShares,
   recordOf,
@@ -188,7 +189,7 @@ const DEMO_FILES = [
   "the-report/index.html",
 ];
 /** The first of the fixture site's two shares: its Word copy, and the line that names it. */
-const FIRST_WORD = `${FIXTURE_FOLDER}_2027-01-15.docx`;
+const FIRST_WORD = `${FIXTURE_NAME}_2027-01-15.docx`;
 const FIRST_WORD_PATH = `${FIXTURE_FOLDER}/share/${FIRST_WORD}`;
 
 /** A new, empty folder, taken away after the test. */
@@ -452,7 +453,7 @@ describe("buildSite", () => {
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
     );
-    expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+    expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
   });
 
   it("gives the content the site's page is drawn from: each site's reports newest first, and the demo's", async () => {
@@ -461,7 +462,7 @@ describe("buildSite", () => {
     const { content } = await build(home);
 
     const shared = isoLocal(SHARED_ON);
-    const fixture = content.sites[0];
+    const fixture = content.sites[1];
     // Two shares at the same moment: the later one, which has the higher seq, comes first.
     expect(fixture?.reports.map(({ id, at, by }) => ({ id, at, by }))).toEqual([
       { id: `report-${FIXTURE_FOLDER}-2`, at: shared, by: "Test Reviewer" },
@@ -470,25 +471,25 @@ describe("buildSite", () => {
     expect(fixture?.reports[0]?.files).toEqual([
       expect.objectContaining({
         kind: "page",
-        name: `${FIXTURE_FOLDER}_2027-01-15-2.html`,
-        href: `${FIXTURE_FOLDER}/${FIXTURE_FOLDER}_2027-01-15-2.html`,
+        name: `${FIXTURE_NAME}_2027-01-15-2.html`,
+        href: `${FIXTURE_FOLDER}/${FIXTURE_NAME}_2027-01-15-2.html`,
         run: null,
       }),
-      expect.objectContaining({ kind: "word", name: `${FIXTURE_FOLDER}_2027-01-15-2.docx` }),
+      expect.objectContaining({ kind: "word", name: `${FIXTURE_NAME}_2027-01-15-2.docx` }),
       expect.objectContaining({
         kind: "walkthrough",
-        name: `${FIXTURE_FOLDER}_2027-01-15-2_2026-09-29_1315_walkthrough.json`,
+        name: `${FIXTURE_NAME}_2027-01-15-2_2026-09-29_1315_walkthrough.json`,
         run: "2026-09-29_1315",
       }),
       expect.objectContaining({
         kind: "walkthrough",
-        name: `${FIXTURE_FOLDER}_2027-01-15-2_2026-09-29_1402_walkthrough.json`,
+        name: `${FIXTURE_NAME}_2027-01-15-2_2026-09-29_1402_walkthrough.json`,
         run: "2026-09-29_1402",
       }),
     ]);
     // A report of a site written by hand, as the record has it, with each file's own fingerprint.
     const page = Buffer.from(EXAMPLE_PAGE);
-    expect(content.sites[1]).toEqual({
+    expect(content.sites[0]).toEqual({
       name: EXAMPLE_FOLDER,
       folders: [EXAMPLE_FOLDER],
       reports: [
@@ -529,10 +530,10 @@ describe("buildSite", () => {
       notPublished: [],
     });
     expect(content.demo?.files.map(({ href }) => href)).toEqual([
-      `demo/${FIXTURE_FOLDER}_2027-01-16.html`,
-      `demo/${FIXTURE_FOLDER}_2027-01-16.docx`,
-      `demo/${FIXTURE_FOLDER}_2027-01-16_2026-09-29_1315_walkthrough.json`,
-      `demo/${FIXTURE_FOLDER}_2027-01-16_2026-09-29_1402_walkthrough.json`,
+      `demo/${FIXTURE_NAME}_2027-01-16.html`,
+      `demo/${FIXTURE_NAME}_2027-01-16.docx`,
+      `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1315_walkthrough.json`,
+      `demo/${FIXTURE_NAME}_2027-01-16_2026-09-29_1402_walkthrough.json`,
     ]);
   });
 
@@ -695,7 +696,7 @@ describe("buildSite", () => {
 
     const { out, content } = await build(home);
 
-    expect(content.sites[1]?.reports.map(({ files }) => files.length)).toEqual([2, 2]);
+    expect(content.sites[0]?.reports.map(({ files }) => files.length)).toEqual([2, 2]);
     const paths = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
       ([rulePath]) => rulePath,
     );
@@ -723,12 +724,12 @@ describe("buildSite", () => {
       expect(index).toContain(goneLine(FIRST_WORD, "changed"));
       expect(index).not.toContain(`href="${FIXTURE_FOLDER}/${FIRST_WORD}"`);
       // The report's other files are published, and its record says what isn't.
-      const report = content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"));
+      const report = content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"));
       expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "changed" }]);
       expect(report?.files.map(({ name }) => name)).toEqual([
-        `${FIXTURE_FOLDER}_2027-01-15.html`,
-        `${FIXTURE_FOLDER}_2027-01-15_2026-09-29_1315_walkthrough.json`,
-        `${FIXTURE_FOLDER}_2027-01-15_2026-09-29_1402_walkthrough.json`,
+        `${FIXTURE_NAME}_2027-01-15.html`,
+        `${FIXTURE_NAME}_2027-01-15_2026-09-29_1315_walkthrough.json`,
+        `${FIXTURE_NAME}_2027-01-15_2026-09-29_1402_walkthrough.json`,
       ]);
       for (const { name } of report?.files ?? []) {
         expect(existsSync(path.join(out, FIXTURE_FOLDER, name))).toBe(true);
@@ -815,7 +816,7 @@ describe("buildSite", () => {
         expect(warned(logger)).toEqual([line]);
         expect(existsSync(path.join(out, FIXTURE_FOLDER, FIRST_WORD))).toBe(false);
         // On the site it's missing, and the rest of its report is published, and every other.
-        const report = content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"));
+        const report = content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"));
         expect(report?.notPublished).toEqual([{ name: FIRST_WORD, reason: "missing" }]);
         expect(report?.files).toHaveLength(3);
         for (const { name } of report?.files ?? []) {
@@ -888,7 +889,7 @@ describe("buildSite", () => {
       expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
         goneLine(FIRST_WORD, "missing"),
       );
-      expect(content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
+      expect(content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
         { name: FIRST_WORD, reason: "missing" },
       ]);
     });
@@ -906,11 +907,11 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([line]);
       expect(warned(logger)).toEqual([line]);
       // Its site's other entry is published, and what only the left-out entry names is not.
-      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([`report-${FIXTURE_FOLDER}-2`]);
-      expect(
-        existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_FOLDER}_2027-01-15-2.html`)),
-      ).toBe(true);
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_FOLDER}_2027-01-15.html`))).toBe(
+      expect(content.sites[1]?.reports.map(({ id }) => id)).toEqual([`report-${FIXTURE_FOLDER}-2`]);
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15-2.html`))).toBe(
+        true,
+      );
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.html`))).toBe(
         false,
       );
     });
@@ -923,7 +924,7 @@ describe("buildSite", () => {
 
       const { out, content, leftOut } = await build(home);
 
-      expect(content.sites[1]?.reports).toEqual([
+      expect(content.sites[0]?.reports).toEqual([
         {
           folder: EXAMPLE_FOLDER,
           id: `report-${EXAMPLE_FOLDER}-1`,
@@ -958,7 +959,7 @@ describe("buildSite", () => {
       expect(warned(logger)).toEqual([line]);
       expect(existsSync(path.join(out, FIXTURE_FOLDER, FIRST_WORD))).toBe(false);
       // On the site it's missing: that is the nearer of its two ways to be left out.
-      expect(content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
+      expect(content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
         { name: FIRST_WORD, reason: "missing" },
       ]);
       expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
@@ -1001,7 +1002,7 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([`${FIRST_WORD_PATH}: not published: it isn't a regular file`]);
       expect(existsSync(path.join(out, FIXTURE_FOLDER, FIRST_WORD))).toBe(false);
       expect(pathsRead()).not.toContain(target);
-      expect(content.sites[0]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
+      expect(content.sites[1]?.reports.find(({ id }) => id.endsWith("-1"))?.notPublished).toEqual([
         { name: FIRST_WORD, reason: "missing" },
       ]);
     });
@@ -1092,7 +1093,7 @@ describe("buildSite", () => {
       expect(reads).not.toContain(outside);
       expect(reads.filter((read) => read.endsWith("hostname"))).toEqual([]);
       // The entry's other file is published.
-      expect(content.sites[1]?.reports[0]?.files.map(({ name }) => name)).toEqual([
+      expect(content.sites[0]?.reports[0]?.files.map(({ name }) => name)).toEqual([
         `${EXAMPLE_STEM}.html`,
       ]);
       expect(existsSync(path.join(out, EXAMPLE_FOLDER, `${EXAMPLE_STEM}.html`))).toBe(true);
@@ -1120,7 +1121,7 @@ describe("buildSite", () => {
       ]);
       expect(existsSync(path.join(out, EXAMPLE_FOLDER, "index.html"))).toBe(false);
       expect(pathsRead()).not.toContain(path.join(siteDir, "share", "index.html"));
-      expect(content.sites[1]?.reports[0]?.files.map(({ name }) => name)).toEqual([
+      expect(content.sites[0]?.reports[0]?.files.map(({ name }) => name)).toEqual([
         `${EXAMPLE_STEM}.html`,
         `${EXAMPLE_STEM}.docx`,
       ]);
@@ -1140,7 +1141,7 @@ describe("buildSite", () => {
 
       const { content, leftOut, logger } = await build(home);
 
-      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_NAME]);
       expect(leftOut).toEqual([
         `${EXAMPLE_FOLDER}/share/shares.json: not a readable record of what was shared`,
         "my site: not published: its name isn't one voicecap gives a site's folder",
@@ -1155,9 +1156,9 @@ describe("buildSite", () => {
       // second's missing, and the demo's changed. The records' line: the site written by hand has an
       // entry that changed since it was recorded.
       await changeAByte(path.join(share, FIRST_WORD));
-      await rm(path.join(share, `${FIXTURE_FOLDER}_2027-01-15-2.docx`));
+      await rm(path.join(share, `${FIXTURE_NAME}_2027-01-15-2.docx`));
       const demoShare = path.join(home, DEMO_OUT, FIXTURE_FOLDER, "share");
-      await changeAByte(path.join(demoShare, `${FIXTURE_FOLDER}_2027-01-16.docx`));
+      await changeAByte(path.join(demoShare, `${FIXTURE_NAME}_2027-01-16.docx`));
       const example = path.join(home, EXAMPLE_FOLDER);
       const [entry] = (await readShares(example)).shares;
       await writeRecord(example, [{ ...entry, by: "Someone Else" }]);
@@ -1167,8 +1168,8 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([
         `${EXAMPLE_FOLDER}/share/shares.json: share 1 (${EXAMPLE_AT}) changed since it was recorded`,
         `${FIRST_WORD_PATH}: not published: it no longer matches its fingerprint`,
-        `${FIXTURE_FOLDER}/share/${FIXTURE_FOLDER}_2027-01-15-2.docx: not published: the file is missing`,
-        `${DEMO_OUT}/${FIXTURE_FOLDER}/share/${FIXTURE_FOLDER}_2027-01-16.docx: not published: it no longer matches its fingerprint`,
+        `${FIXTURE_FOLDER}/share/${FIXTURE_NAME}_2027-01-15-2.docx: not published: the file is missing`,
+        `${DEMO_OUT}/${FIXTURE_FOLDER}/share/${FIXTURE_NAME}_2027-01-16.docx: not published: it no longer matches its fingerprint`,
       ]);
       // Each is warned, in that order, and the summary is said after them all.
       expect(warned(logger)).toEqual(leftOut);
@@ -1195,7 +1196,7 @@ describe("buildSite", () => {
 
       const { out, content, leftOut } = await build(home);
 
-      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
       expect(leftOut).toEqual(
         ["_headers", DEMO_PAGES, "index.html", "robots.txt"].map(
           (folder) =>
@@ -1235,8 +1236,8 @@ describe("buildSite", () => {
       expect(leftOut).toEqual([line]);
       expect(warned(logger)).toEqual([line]);
       expect(content.demo).toBeNull();
-      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
-      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_FOLDER}_2027-01-15.html`))).toBe(
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      expect(existsSync(path.join(out, FIXTURE_FOLDER, `${FIXTURE_NAME}_2027-01-15.html`))).toBe(
         true,
       );
       expect(existsSync(path.join(out, DEMO_SITE))).toBe(false);
@@ -1549,7 +1550,7 @@ describe("buildSite", () => {
 
       expect(out).toBe(path.join(link, "_site"));
       expect(existsSync(path.join(home, "_site", "index.html"))).toBe(true);
-      expect(content.sites.map(({ name }) => name)).toEqual([FIXTURE_FOLDER, EXAMPLE_FOLDER]);
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
     });
 
     it("empties a built folder that holds a link, and leaves what the link leads to as it was", async () => {
@@ -2575,6 +2576,55 @@ describe("buildSite", () => {
       expect(index).not.toContain(NAME);
     });
 
+    // Ruling P13a. A share from before 0.10.0 recorded no site, so a site read at an IP address or a
+    // local address is headed by its folder's name, which is that address. The build is the last
+    // moment before the website is public: it says so of each, and what to do, and builds all the
+    // same.
+    it("warns of each site it heads by its folder's name when that's an IP address or a local address, and builds all the same", async () => {
+      const home = await homeWithSites({
+        // Shared before 0.10.0, which recorded no site.
+        [COPY_FOLDER]: [JAN_15],
+        localhost_3000: [JAN_15],
+        "app.localhost_8080": [JAN_15],
+        // [::1]:4848, as a folder is named after it.
+        ___1__4848: [JAN_15],
+        // Shared with no canonical address known: the share recorded the address voicecap read.
+        "10.0.0.5": [{ at: JAN_16, site: "http://10.0.0.5/" }],
+        // Headed by a name readers know: by its newest share's canonical name, or by its folder's,
+        // which is a name people visit.
+        "127.0.0.2_8080": [{ at: JAN_16, site: ROOT }],
+        "localhost.example.org": [JAN_15],
+        "example.illinois.gov": [JAN_15],
+      });
+
+      const { out, content, leftOut, logger } = await built(home);
+
+      const warning = (folder: string) =>
+        `${folder}: headed by its folder's name, an IP address or a local address. Share it again with its canonical address (see report.canonical) to name it.`;
+      expect(leftOut).toEqual([]);
+      // In the order the page lists the sites.
+      expect(warned(logger)).toEqual(
+        ["10.0.0.5", COPY_FOLDER, "___1__4848", "app.localhost_8080", "localhost_3000"].map(
+          warning,
+        ),
+      );
+      // Every site is published all the same, and the summary comes last.
+      expect(content.sites.map(({ name }) => name)).toEqual([
+        "10.0.0.5",
+        COPY_FOLDER,
+        "___1__4848",
+        "app.localhost_8080",
+        NAME,
+        "example.illinois.gov",
+        "localhost.example.org",
+        "localhost_3000",
+      ]);
+      expect(existsSync(path.join(out, "index.html"))).toBe(true);
+      expect(logger.entries.at(-1)?.message).toBe(
+        `Built the site in ${out}: 8 reports from 8 sites.`,
+      );
+    });
+
     it("names an older site by its folder", async () => {
       // Shares from before 0.10.0 record no site.
       const home = await homeWithSites({
@@ -2784,7 +2834,8 @@ describe("buildSite", () => {
     });
 
     it("heads a site by the canonical address a share records, as `voicecap share` writes it", async () => {
-      // The fixture site's folder, with the two shares the home has, which name no canonical address.
+      // The fixture site's folder, with the two shares the home has, which name the demo's canonical
+      // address: a third, which names another, is the newest.
       const home = path.join(await newFolder(), "transcripts");
       await cp(template, home, { recursive: true });
       const config: LoadedConfig = {

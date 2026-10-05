@@ -138,13 +138,14 @@ describe("makeScreenshots", () => {
     }
   }, 120_000);
 
-  it("writes nothing when the demo is named by the address its runs read", async () => {
+  it("writes nothing when the demo has no canonical address to be named by", async () => {
     const out = path.join(await newFolder(), "screenshots");
 
-    // With no canonical address, the page leads with the address voicecap read, which is where the
-    // first shot is stopped.
+    // With none, the only name the demo has is the address its runs read, an IP address: voicecap
+    // won't share it (Ruling P13a), so no page is drawn, and no shot is taken. A shot that would
+    // show such an address is refused all the same (see "a shot of a page").
     await expect(makeScreenshots(out, null)).rejects.toThrow(
-      /^report-top\.png would show "127\.0\.0\.1"/,
+      /^voicecap won't share a site by an IP address or a local address \(127\.0\.0\.1:4848\)\./,
     );
 
     expect(existsSync(out)).toBe(false);
