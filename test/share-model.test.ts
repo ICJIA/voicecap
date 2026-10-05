@@ -73,8 +73,12 @@ import {
   fileBytes,
   inputOf,
   LOG_HASH,
+  logged,
+  loggedRun,
   picturesOf,
+  resumedLoggedRun,
   STEP_LIMIT_PROBLEM,
+  storeOf,
   TRANSCRIPTS,
   withNestedSettings,
   withOwnFiles,
@@ -1590,6 +1594,105 @@ describe("buildShareModel", () => {
         { page: "The run", file: "events.jsonl", ...LOG_HASH },
       ]);
     });
+  });
+});
+
+describe("a run whose event log doesn't cover all its sessions", () => {
+  /** The evidence of a run whose event log the page has read. */
+  function evidenceOf({ run, log }: ReturnType<typeof loggedRun>): RunEvidence {
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]) }),
+    );
+    const [evidence] = model.evidence;
+    if (evidence === undefined) throw new Error("The run has no evidence.");
+    return evidence;
+  }
+  const restarts = (evidence: RunEvidence) =>
+    evidence.facts.find(({ label }) => label === "NVDA restarts")?.value;
+  const sessionsOf = (evidence: RunEvidence) =>
+    Array.isArray(evidence.timeline) ? evidence.timeline.map(({ session }) => session) : [];
+
+  it("says, for a run begun on 0.10.0 and finished on 0.11.0, that its first session isn't recorded, and why", () => {
+    const evidence = evidenceOf(resumedLoggedRun("0.10.0"));
+
+    expect(sessionsOf(evidence)).toEqual([2]);
+    expect(evidence.unlogged).toEqual([
+      { session: 1, notRecorded: "Session 1: not recorded: it used voicecap 0.10.0." },
+    ]);
+  });
+
+  it("says which sessions its restarts are counted in, and why the others aren't", () => {
+    const resumed = resumedLoggedRun("0.10.0");
+
+    expect(restarts(evidenceOf(resumed))).toBe(
+      "None in session 2. Session 1: not recorded: it used voicecap 0.10.0.",
+    );
+    // A restart in the session the log covers is counted there, with why.
+    const restarted = logged("2026-09-28", "09:01:03.000", {
+      type: "screen-reader-restarting",
+      reason: { kind: "failed-page" },
+    });
+    const events = [...resumed.log.events, restarted].sort((a, b) => a.at.localeCompare(b.at));
+    expect(restarts(evidenceOf({ ...resumed, log: { events, unreadable: 0 } }))).toBe(
+      "1 in session 2: after a failed page. Session 1: not recorded: it used voicecap 0.10.0.",
+    );
+  });
+
+  it("says a session of a voicecap that keeps the log, which has no line of it, has none", () => {
+    const evidence = evidenceOf(resumedLoggedRun("0.11.0"));
+
+    expect(evidence.unlogged).toEqual([
+      { session: 1, notRecorded: "Session 1: not recorded: the event log has no line of it." },
+    ]);
+    expect(restarts(evidence)).toBe(
+      "None in session 2. Session 1: not recorded: the event log has no line of it.",
+    );
+  });
+
+  it("says the same of a later session the log doesn't cover, as for a run finished with an older voicecap", () => {
+    const { run, log } = loggedRun();
+    const sessions = run.sessions.map((session) =>
+      session.n === 2 && session.environment !== null
+        ? {
+            ...session,
+            environment: {
+              ...session.environment,
+              voicecap: { ...session.environment.voicecap, version: "0.10.0" },
+            },
+          }
+        : session,
+    );
+    const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
+    const evidence = evidenceOf({
+      run: { ...run, sessions },
+      log: { events: first, unreadable: 0 },
+    });
+
+    expect(sessionsOf(evidence)).toEqual([1]);
+    expect(evidence.unlogged).toEqual([
+      { session: 2, notRecorded: "Session 2: not recorded: it used voicecap 0.10.0." },
+    ]);
+    expect(restarts(evidence)).toBe(
+      "1 in session 1: to try Apply again (attempt 2 of 5). Session 2: not recorded: it used voicecap 0.10.0.",
+    );
+  });
+
+  it("says nothing more of a run whose log covers every session", () => {
+    const evidence = evidenceOf(loggedRun());
+
+    expect(sessionsOf(evidence)).toEqual([1, 2]);
+    expect(evidence.unlogged).toEqual([]);
+    expect(restarts(evidence)).toBe("1: to try Apply again (attempt 2 of 5)");
+  });
+
+  it("says nothing of sessions for a run whose log the page doesn't show, which says why once", () => {
+    const { run } = resumedLoggedRun("0.10.0");
+    const [evidence] = buildShareModel(inputOf([run])).evidence;
+
+    expect(evidence?.timeline).toEqual({
+      notRecorded: "Not recorded: this run's record lists no event log.",
+    });
+    expect(evidence?.unlogged).toEqual([]);
   });
 });
 

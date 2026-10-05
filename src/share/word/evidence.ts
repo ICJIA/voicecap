@@ -160,20 +160,29 @@ function walkthroughBlocks({ walkthrough }: RunEvidence): Block[] {
  * A run's event log, where the page has a chart and a fold for each session: each session's name,
  * when the run's sessions are named, in bold; its summary, the chart's text; its table of every
  * event, the time to the millisecond in the fixed-width font; and, after the last, how many lines of
- * the log couldn't be read. Where the page can't show the log, it says why, as the page does.
+ * the log couldn't be read. A session the log has no line of says why in its place, as the page
+ * says it. Where the page can't show the log, it says why, as the page does.
  */
-function eventLogBlocks({ timeline }: RunEvidence): Block[] {
+function eventLogBlocks({ timeline, unlogged }: RunEvidence): Block[] {
   if (!Array.isArray(timeline)) return [para(notRecordedLine(timeline.notRecorded))];
-  return timeline.flatMap((session) => {
-    const named = sessionLine(timeline, session);
-    const rows = session.rows.map(({ time, text }) => [monoCell(recordTime(time)), text]);
-    return [
-      ...(named === null ? [] : [para({ text: named, bold: true })]),
-      ...(session.summary.length === 0 ? [] : [para(session.summary.join(" "))]),
-      table(TIMELINE_TEXT.head, rows, [22, 78]),
-      ...(session.unreadable > 0 ? [para(TIMELINE_TEXT.unreadable(session.unreadable))] : []),
-    ];
-  });
+  const sessions = [
+    ...timeline.map((session) => {
+      const named = sessionLine(timeline, session, unlogged);
+      const rows = session.rows.map(({ time, text }) => [monoCell(recordTime(time)), text]);
+      const blocks = [
+        ...(named === null ? [] : [para({ text: named, bold: true })]),
+        ...(session.summary.length === 0 ? [] : [para(session.summary.join(" "))]),
+        table(TIMELINE_TEXT.head, rows, [22, 78]),
+        ...(session.unreadable > 0 ? [para(TIMELINE_TEXT.unreadable(session.unreadable))] : []),
+      ];
+      return { n: session.session, blocks };
+    }),
+    ...unlogged.map(({ session, notRecorded }) => ({
+      n: session,
+      blocks: [para(notRecordedLine(notRecorded))],
+    })),
+  ];
+  return sessions.sort((a, b) => a.n - b.n).flatMap(({ blocks }) => blocks);
 }
 
 /**

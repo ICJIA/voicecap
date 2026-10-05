@@ -46,7 +46,7 @@ import {
   TIMELINE_TEXT,
   TOP_TEXT,
 } from "./text.js";
-import type { SessionTimeline } from "./timeline.js";
+import type { SessionTimeline, UnloggedSession } from "./timeline.js";
 
 /** The first words of a section's opening line, when no run counts. */
 const NO_RUN = "No live run counts yet.";
@@ -747,14 +747,17 @@ export function unreadableNote({ appendix }: ShareModel): Line | null {
 
 /**
  * A session's name, above its chart and its table, where a run's timelines name their sessions: when
- * it has more than one, or its log begins after its first session (a run begun with a voicecap that
- * kept no log): "Session 2, 30 September 2026", the day it began. None where they don't.
+ * the run has more than one (logged, or `unlogged`, which the log has no line of), or its log begins
+ * after its first session (a run begun with a voicecap that kept no log): "Session 2, 30 September
+ * 2026", the day it began. None where they don't.
  */
 export function sessionLine(
   timelines: SessionTimeline[],
   { session, from }: SessionTimeline,
+  unlogged: readonly UnloggedSession[] = [],
 ): string | null {
-  const named = timelines.length > 1 || timelines.some((each) => each.session !== 1);
+  const named =
+    timelines.length + unlogged.length > 1 || timelines.some((each) => each.session !== 1);
   return named ? TIMELINE_TEXT.session(session, longDate(from)) : null;
 }
 

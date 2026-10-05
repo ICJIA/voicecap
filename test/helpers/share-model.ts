@@ -323,6 +323,43 @@ export function loggedRun(): { run: RunJson; log: { events: RunEvent[]; unreadab
   return { run, log: { events, unreadable: 0 } };
 }
 
+/**
+ * The logged run as if begun with voicecap `first` and resumed with 0.11.0, by default a voicecap
+ * that kept no event log (0.10.0): its first session's environment names `first`, its log has only
+ * the second session's lines, and, when `first` kept no log, its first session's failed attempt names
+ * no program, as that voicecap looked for none.
+ */
+export function resumedLoggedRun(first = "0.10.0"): ReturnType<typeof loggedRun> {
+  const { run, log } = loggedRun();
+  const older = !first.startsWith("0.11.");
+  const sessions = run.sessions.map((session) =>
+    session.n === 1 && session.environment !== null
+      ? {
+          ...session,
+          environment: {
+            ...session.environment,
+            voicecap: { ...session.environment.voicecap, version: first },
+          },
+        }
+      : session,
+  );
+  const pages = older
+    ? run.pages.map((page) =>
+        page.failedAttempts === undefined
+          ? page
+          : {
+              ...page,
+              failedAttempts: page.failedAttempts.map(({ program: _program, ...kept }) => kept),
+            },
+      )
+    : run.pages;
+  const { seal: _seal, ...unsealed } = { ...run, sessions, pages };
+  return {
+    run: { ...unsealed, seal: sealOf(unsealed) },
+    log: { events: log.events.filter((event) => event.at.startsWith(SECOND_DAY)), unreadable: 0 },
+  };
+}
+
 /** The logged run's model, with every transcript it lists readable and its event log read. */
 export function loggedModel(overrides: Partial<ShareInput> = {}): ShareModel {
   const { run, log } = loggedRun();

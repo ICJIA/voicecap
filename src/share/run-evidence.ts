@@ -30,8 +30,10 @@ import {
   isEventTime,
   restartsOf,
   timelinesOf,
+  unloggedSessions,
   type EventWords,
   type SessionTimeline,
+  type UnloggedSession,
 } from "./timeline.js";
 import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
 
@@ -81,6 +83,13 @@ export interface RunEvidence {
    * to the millisecond, or what the page says in its place (see `timelineOf`).
    */
   timeline: SessionTimeline[] | { notRecorded: string };
+  /**
+   * The run's sessions that the timelines don't cover, each with what the page says where its
+   * timeline would be: a run begun before voicecap kept the log (0.11.0) and finished with one that
+   * does, say ("Session 1: not recorded: it used voicecap 0.10.0."). None when the page has no
+   * timeline to show, since the part then says why once.
+   */
+  unlogged: UnloggedSession[];
   /** The run's screen reader, as its environment records it, which the timeline's chart names. */
   screenReader: string;
   /** Evidence C, NVDA's own log checked against the transcripts: no version records it yet. */
@@ -182,15 +191,18 @@ export function evidenceOf(input: {
     const words = input.words(run);
     const log = input.eventLog(run);
     const timeline = timelineOf(run, log, words);
-    // The restarts are the log's to count: where the page can't show the log, it says why here too.
+    const unlogged = Array.isArray(timeline) ? unloggedSessions(run, timeline) : [];
+    // The restarts are the log's to count: where the page can't show the log, it says why here too,
+    // and where the log covers only some sessions, it says which.
     const restarts = Array.isArray(timeline)
-      ? restartsOf(log ?? { events: [] }, words)
+      ? restartsOf(log ?? { events: [] }, words, { timelines: timeline, unlogged })
       : timeline.notRecorded;
     return {
       run: record,
       facts: factsOf(run, fromRun, run === before, restarts),
       environment: environmentOf(run, redact, shown),
       timeline,
+      unlogged,
       screenReader: words.screenReader,
       nvdaLog: { notRecorded },
       fingerprints: [

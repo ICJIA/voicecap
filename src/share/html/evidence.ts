@@ -224,12 +224,13 @@ function walkthroughBody({ run, walkthrough }: RunEvidence): string {
 }
 
 /**
- * A run's event log: each session's chart and table of events (./timeline.ts), or, where the page
- * can't show it, why, as the model words it.
+ * A run's event log: each session's chart and table of events (./timeline.ts), with a line in the
+ * place of each session the log has no line of, or, where the page can't show it, why, as the model
+ * words it.
  */
-function timelinePart({ run, timeline, screenReader }: RunEvidence): string {
+function timelinePart({ run, timeline, unlogged, screenReader }: RunEvidence): string {
   return Array.isArray(timeline)
-    ? renderTimelines(timeline, run.id, screenReader)
+    ? renderTimelines(timeline, run.id, screenReader, unlogged)
     : notRecorded(timeline.notRecorded);
 }
 

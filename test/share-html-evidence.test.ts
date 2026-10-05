@@ -49,6 +49,7 @@ import {
   LOG_HASH,
   loggedModel,
   loggedRun,
+  resumedLoggedRun,
   storeOf,
   TRANSCRIPTS,
   withOwnFiles,
@@ -981,9 +982,15 @@ describe("renderEvidence", () => {
 
     it("names a run's only session by its run alone", () => {
       const { run, log } = loggedRun();
+      // A run of one session: the logged run as its first session left it.
+      const single = { ...run, sessions: run.sessions.slice(0, 1) };
       const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
       const fold = loggedFold(
-        loggedModel({ events: new Map([[run.id, { events: first, unreadable: 0 }]]) }),
+        loggedModel({
+          runs: [single],
+          records: [single],
+          events: new Map([[run.id, { events: first, unreadable: 0 }]]),
+        }),
       );
 
       expect(fold).not.toContain("<h4>");
@@ -1003,6 +1010,62 @@ describe("renderEvidence", () => {
       ]);
       expect(scrollBoxes(fold)[0]).toContain(
         `aria-label="Minute by minute, run ${RUN}, session 2, chart"`,
+      );
+    });
+
+    it("says, in its place, that a session the log doesn't cover isn't recorded, and why: a run begun on 0.10.0 and finished on 0.11.0", () => {
+      const { run, log } = resumedLoggedRun("0.10.0");
+      const fold = loggedFold(
+        buildShareModel(
+          inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]) }),
+        ),
+      );
+      const part = partOf(fold, "Minute by minute");
+      const said = '<p class="not-recorded">Session 1: not recorded: it used voicecap 0.10.0.</p>';
+
+      expect(part).toContain(`<div class="t-session">${said}</div>`);
+      expect(part.indexOf(said)).toBeLessThan(
+        part.indexOf("<h4>Session 2, 28 September 2026</h4>"),
+      );
+      expect(part.match(/<svg /g)).toHaveLength(1);
+      expect(termsOf(fold)).toContainEqual([
+        "NVDA restarts",
+        "None in session 2. Session 1: not recorded: it used voicecap 0.10.0.",
+      ]);
+    });
+
+    it("names the session the log covers when another isn't, as for a run finished with an older voicecap", () => {
+      const { run, log } = loggedRun();
+      const sessions = run.sessions.map((session) =>
+        session.n === 2 && session.environment !== null
+          ? {
+              ...session,
+              environment: {
+                ...session.environment,
+                voicecap: { ...session.environment.voicecap, version: "0.10.0" },
+              },
+            }
+          : session,
+      );
+      const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
+      const fold = loggedFold(
+        buildShareModel(
+          inputOf([{ ...run, sessions }], {
+            transcripts: storeOf(),
+            events: new Map([[run.id, { events: first, unreadable: 0 }]]),
+          }),
+        ),
+      );
+      const part = partOf(fold, "Minute by minute");
+
+      expect([...part.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 1, 26 September 2026",
+      ]);
+      expect(scrollBoxes(part)[0]).toContain(
+        `aria-label="Minute by minute, run ${RUN}, session 1, chart"`,
+      );
+      expect(part.indexOf("<h4>Session 1")).toBeLessThan(
+        part.indexOf("Session 2: not recorded: it used voicecap 0.10.0."),
       );
     });
 

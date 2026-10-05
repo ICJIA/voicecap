@@ -626,6 +626,30 @@ export const TIMELINE_TEXT = {
   times: (reason: string, times: number): string =>
     times === 1 ? reason : `${reason} (${times} times)`,
   /**
+   * NVDA's restarts, as the run's facts count them, when the event log doesn't cover all the run's
+   * sessions: how many, in the sessions it covers (`inSessions`), then why, as `restarts` says it
+   * ("1 in session 2: after a failed page."). Each session it doesn't cover follows, said as its
+   * timeline says it (`unlogged`).
+   */
+  restartsIn: (count: number, sessions: string, reasons: string): string =>
+    `${count === 0 ? "None" : count} in ${sessions}${count === 0 || reasons === "" ? "" : `: ${reasons}`}.`,
+  /** The sessions the log covers, their numbers as a list ("2 and 3"): "session 2", "sessions 2 and 3". */
+  inSessions: (list: string, several: boolean): string =>
+    `${several ? "sessions" : "session"} ${list}`,
+  /**
+   * A session of the run that the event log has no line of, said where its timeline would be: by the
+   * voicecap its own session used, when that kept no log (a run begun before 0.11.0 and finished on
+   * it), named as `notRecordedBy` names one ("an earlier version of voicecap" when its record doesn't
+   * say); or, of a voicecap that keeps the log, that the log has no line of it (one that couldn't be
+   * written then).
+   */
+  unlogged: {
+    version: (session: number, version: string | null): string =>
+      `Session ${session}: not recorded: it used ${version === null ? "an earlier version of voicecap" : `voicecap ${version}`}.`,
+    noLines: (session: number): string =>
+      `Session ${session}: not recorded: the event log has no line of it.`,
+  },
+  /**
    * Why the page can't show the event log of a run whose voicecap keeps one (0.11.0 and later), the
    * same reason where the run's timeline says it (`part`) as where a problem's record says it of its
    * attempt (`problem`): the log its record lists isn't as the run recorded it (missing,

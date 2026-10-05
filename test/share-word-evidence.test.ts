@@ -59,6 +59,7 @@ import {
   LOG_HASH,
   loggedModel,
   loggedRun,
+  resumedLoggedRun,
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
@@ -943,6 +944,24 @@ describe("wordEvidence", () => {
       }
       expect(wordsOf(inside)).toContain(
         "voicecap held the NVDA lock from 14:02 to 14:06. voicecap's NVDA ran as process 65720, then 54568. The computer's own NVDA was shut down at 14:02 and started again at 14:06. 2 pages ran in order; page 2 failed at 14:04.",
+      );
+    });
+
+    it("says, in its place, that a session the log doesn't cover isn't recorded, and why: a run begun on 0.10.0 and finished on 0.11.0", () => {
+      const { run, log } = resumedLoggedRun("0.10.0");
+      const model = buildShareModel(
+        inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]) }),
+      );
+      const part = partOf(runParts(model), 0);
+      const inside = under(part, MINUTE_BY_MINUTE);
+
+      expect(inside.slice(0, 2)).toEqual([
+        para("Session 1: not recorded: it used voicecap 0.10.0."),
+        para({ text: "Session 2, 28 September 2026", bold: true }),
+      ]);
+      expect(tablesIn(inside)).toHaveLength(1);
+      expect(saysOf(part)).toContain(
+        "NVDA restarts | None in session 2. Session 1: not recorded: it used voicecap 0.10.0.",
       );
     });
 

@@ -2,9 +2,10 @@
  * A run's event log (events.jsonl) as the page and its Word copy show it: one timeline for each
  * session, since a resumed run's sessions can be days apart, each with the spans its chart draws
  * (the lock, voicecap's screen reader, the computer's own, and each attempt at a page), the
- * sentences that sum it up, and a row in the page's words for every event; the restarts the run's
- * facts count; and what the log says of one attempt at a page, for its problem's record. Pure: it
- * works from the events the loader read (./load.ts).
+ * sentences that sum it up, and a row in the page's words for every event; the sessions of the run
+ * the log has no line of, each with why; the restarts the run's facts count; and what the log says
+ * of one attempt at a page, for its problem's record. Pure: it works from the events the loader read
+ * (./load.ts).
  *
  * voicecap wrote the log as the run went, but a line is checked only for its time and its type as
  * it's read (readEventLog), and a later voicecap may write fields this one doesn't know. So every
@@ -19,7 +20,7 @@
  */
 import type { NewRunEvent, RunEvent, RunJson } from "../model.js";
 import { clock, names } from "./format.js";
-import { kindOfCause, PHRASES } from "./problems.js";
+import { keepsEventLog, kindOfCause, PHRASES } from "./problems.js";
 import { EVENT_TEXT, TIMELINE_TEXT } from "./text.js";
 
 /** What an event's words need of its run. */
@@ -483,11 +484,47 @@ function oneAfterAnother(list: string[]): string {
   return list.length === 0 ? "" : list.reduce((first, next) => TIMELINE_TEXT.then(first, next));
 }
 
+/** A session of a run that its event log has no line of, with what the page says in its place. */
+export interface UnloggedSession {
+  /** The session's number in the run, from 1. */
+  session: number;
+  /** "Session 1: not recorded: it used voicecap 0.10.0." (TIMELINE_TEXT.unlogged). */
+  notRecorded: string;
+}
+
+/**
+ * The sessions of a run that its log's timelines don't cover, in order, each with why, so the page
+ * leaves no session out without a word: a run begun with a voicecap that kept no log (before 0.11.0)
+ * and finished with one that does, or finished with an older one. The reason is its own session's
+ * voicecap, as its environment records it: one that kept no log is named; one that keeps the log has
+ * no line in it (it couldn't be written then).
+ */
+export function unloggedSessions(run: RunJson, timelines: SessionTimeline[]): UnloggedSession[] {
+  const logged = new Set(timelines.map(({ session }) => session));
+  return run.sessions
+    .filter(({ n }) => !logged.has(n))
+    .map(({ n, environment }) => {
+      const version = environment?.voicecap.version ?? null;
+      return {
+        session: n,
+        notRecorded: keepsEventLog(version)
+          ? TIMELINE_TEXT.unlogged.noLines(n)
+          : TIMELINE_TEXT.unlogged.version(n, version),
+      };
+    });
+}
+
 /**
  * The run's restarts of its screen reader, as its facts say them: how many the log has, then why,
- * each reason once, with how often when more than once.
+ * each reason once, with how often when more than once. Where the log doesn't cover all the run's
+ * sessions (`sessions`: the timelines and the sessions they leave out), it says which sessions it
+ * counts, then why each other session isn't counted, as its timeline does.
  */
-export function restartsOf(log: { events: RunEvent[] }, said: EventWords): string {
+export function restartsOf(
+  log: { events: RunEvent[] },
+  said: EventWords,
+  sessions?: { timelines: SessionTimeline[]; unlogged: UnloggedSession[] },
+): string {
   const restarts = log.events.filter(
     (event) => event.type === "screen-reader-restarting" && isEventTime(event.at),
   );
@@ -496,8 +533,16 @@ export function restartsOf(log: { events: RunEvent[] }, said: EventWords): strin
     const reason = restartReasonOf(fieldsOf(event).reason, said);
     if (reason !== null) reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
   }
-  const why = [...reasons].map(([reason, times]) => TIMELINE_TEXT.times(reason, times));
-  return TIMELINE_TEXT.restarts(restarts.length, names(why));
+  const why = names([...reasons].map(([reason, times]) => TIMELINE_TEXT.times(reason, times)));
+  if (sessions === undefined || sessions.unlogged.length === 0) {
+    return TIMELINE_TEXT.restarts(restarts.length, why);
+  }
+  const counted = sessions.timelines.map(({ session }) => String(session));
+  const where = TIMELINE_TEXT.inSessions(names(counted), counted.length > 1);
+  return [
+    TIMELINE_TEXT.restartsIn(restarts.length, where, why),
+    ...sessions.unlogged.map(({ notRecorded }) => notRecorded),
+  ].join(" ");
 }
 
 /** How long after a failure the record of it goes on, when no attempt followed it. */

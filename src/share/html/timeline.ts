@@ -3,7 +3,8 @@
  * approved mockup's run 1402 panel. For each session: its name, when the run's sessions are named
  * (`sessionLine`); the sentences that sum it up; its chart, an image those sentences name, in a box
  * a keyboard can reach and scroll sideways; its table of every event, to the millisecond, in a fold;
- * and, under the last, how many lines of the log couldn't be read.
+ * and, under the last, how many lines of the log couldn't be read. A session of the run the log has
+ * no line of says so, and why, in its place among them.
  *
  * The chart has the mockup's lanes, named for the run's screen reader: the lock, voicecap's screen
  * reader, the pages, and the computer's own screen reader, off while voicecap ran. A lane with
@@ -20,9 +21,9 @@
 import { esc, idFragment } from "../../report/html.js";
 import { count } from "../format.js";
 import { EVIDENCE_TEXT, TIMELINE_TEXT } from "../text.js";
-import type { SessionTimeline, Span } from "../timeline.js";
+import type { SessionTimeline, Span, UnloggedSession } from "../timeline.js";
 import { recordTime, sessionLine } from "../words.js";
-import { scroll } from "./parts.js";
+import { notRecorded, scroll } from "./parts.js";
 
 /**
  * The chart's frame, in its viewBox's units, the mockup's: its width, the right edge of its plot,
@@ -223,8 +224,9 @@ function sessionOf(
   timeline: SessionTimeline,
   run: string,
   sr: string,
+  unlogged: UnloggedSession[],
 ): string {
-  const named = sessionLine(timelines, timeline);
+  const named = sessionLine(timelines, timeline, unlogged);
   const which = named === null ? `run ${run}` : `run ${run}, session ${timeline.session}`;
   const id = `tl-${idFragment(run)}-${timeline.session}`;
   const summary =
@@ -244,7 +246,28 @@ function sessionOf(
   return `<div class="t-session">${heading}${summary}${chart}${eventsFold(timeline, which)}${unreadable}</div>`;
 }
 
-/** Each session of a run's event log, in order: `run` is the run's id, and `sr` its screen reader. */
-export function renderTimelines(timelines: SessionTimeline[], run: string, sr: string): string {
-  return timelines.map((timeline) => sessionOf(timelines, timeline, run, sr)).join("");
+/**
+ * Each session of a run, in order: `run` is the run's id, and `sr` its screen reader. A session the
+ * log has no line of (`unlogged`) says why in its place, so none is left out without a word.
+ */
+export function renderTimelines(
+  timelines: SessionTimeline[],
+  run: string,
+  sr: string,
+  unlogged: UnloggedSession[] = [],
+): string {
+  const sessions = [
+    ...timelines.map((timeline) => ({
+      n: timeline.session,
+      html: sessionOf(timelines, timeline, run, sr, unlogged),
+    })),
+    ...unlogged.map(({ session, notRecorded: said }) => ({
+      n: session,
+      html: `<div class="t-session">${notRecorded(said)}</div>`,
+    })),
+  ];
+  return sessions
+    .sort((a, b) => a.n - b.n)
+    .map(({ html }) => html)
+    .join("");
 }
