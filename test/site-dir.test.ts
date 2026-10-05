@@ -1,14 +1,15 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { runJsonPath, siteDirFor } from "../src/run/paths.js";
-import { chooseSiteDir } from "../src/run/site-dir.js";
+import { runJsonPath, shareDir, sharesPath, siteDirFor } from "../src/run/paths.js";
+import { chooseSiteDir, chooseSiteDirOfRun } from "../src/run/site-dir.js";
 import { UsageError } from "../src/util/errors.js";
 import { shareRun } from "./helpers/share-data.js";
+import { recordOf, sealedEntry, writeRecord } from "./helpers/site-home.js";
 
 /** A home named like the owner's, holding these folders, each with a dated folder in it. */
 async function makeHome(...folders: string[]): Promise<string> {
@@ -23,7 +24,12 @@ async function makeHome(...folders: string[]): Promise<string> {
 
 /** The usage error chooseSiteDir stops with. */
 async function refusal(options: Parameters<typeof chooseSiteDir>[0]): Promise<UsageError> {
-  const error: unknown = await chooseSiteDir(options).then(
+  return refused(chooseSiteDir(options));
+}
+
+/** The usage error a lookup stops with. */
+async function refused(lookup: Promise<unknown>): Promise<UsageError> {
+  const error: unknown = await lookup.then(
     () => null,
     (reason: unknown) => reason,
   );
@@ -168,6 +174,26 @@ async function recordRun(home: string, folder: string, run: RecordedRun): Promis
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, `${JSON.stringify(record, null, 2)}\n`);
   return file;
+}
+
+/**
+ * The record of what `folder` of `home` shared: a sealed entry for each of `sites`, numbered from 1
+ * in order, each recording that site as the root its copies name (none, for `undefined`, as an
+ * entry from before 0.10.0 has none).
+ */
+async function recordShares(home: string, folder: string, sites: unknown[]): Promise<void> {
+  const page = Buffer.from("<!doctype html><title>A shared page</title>");
+  await writeRecord(
+    path.join(home, folder),
+    sites.map((site, index) =>
+      sealedEntry(
+        index + 1,
+        `2026-09-30T09:0${index}:00-05:00`,
+        [recordOf(`${folder}_${index + 1}.html`, page)],
+        site === undefined ? {} : { site },
+      ),
+    ),
+  );
 }
 
 describe("chooseSiteDir, given a site's canonical address", () => {
@@ -542,5 +568,284 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     expect(await chooseSiteDir({ home: empty, site: DEMO_ROOT })).toBe(
       path.join(empty, "voicecap.netlify.app"),
     );
+  });
+
+  // Ruling P17. report.canonical names a site when a share is made, whatever its runs recorded: the
+  // demo runs voicecap 0.4.1 recorded named none. The share records the root as its site, so the
+  // commands the shared page prints find their folder by it.
+  describe("by what a folder's shares recorded", () => {
+    it("finds the folder whose newest share recorded the canonical address", async () => {
+      const home = await makeHome("i2i.illinois.gov");
+      // Its runs recorded no canonical address; its share names the demo's.
+      await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+      await recordShares(home, "127.0.0.1_4848", [DEMO_ROOT]);
+      await recordRun(home, "localhost_3000", { began: "2026-09-29 14:02", site: COPY_READ });
+      await recordShares(home, "localhost_3000", [DVFR_ROOT]);
+
+      expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(
+        path.join(home, "127.0.0.1_4848"),
+      );
+      // A root with no path, whose own folder isn't there.
+      expect(await chooseSiteDir({ home, site: "https://dvfr.illinois.gov" })).toBe(
+        path.join(home, "localhost_3000"),
+      );
+    });
+
+    it("goes by the newest share by seq, of those whose seal holds", async () => {
+      // An older share named the demo, and the newest names another site.
+      const moved = await makeHome();
+      await recordRun(moved, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+      await recordShares(moved, "127.0.0.1_4848", [DEMO_ROOT, DVFR_ROOT]);
+      expect(await chooseSiteDir({ home: moved, site: DVFR_ROOT })).toBe(
+        path.join(moved, "127.0.0.1_4848"),
+      );
+      expect(await chooseSiteDir({ home: moved, site: DEMO_ROOT })).toBe(
+        path.join(moved, "voicecap.netlify.app"),
+      );
+
+      // The record lists the entries out of order: seq decides which is newest, not the order.
+      const unordered = await makeHome();
+      await recordRun(unordered, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+      await recordShares(unordered, "127.0.0.1_4848", [DVFR_ROOT, DEMO_ROOT]);
+      const siteDir = path.join(unordered, "127.0.0.1_4848");
+      const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+        shares: unknown[];
+      };
+      await writeRecord(siteDir, shares.toReversed());
+      expect(await chooseSiteDir({ home: unordered, site: DEMO_ROOT })).toBe(siteDir);
+
+      // The newest entry was changed after it was recorded, so its seal no longer holds: it vouches
+      // for nothing, and the entry before it is the newest that counts.
+      const changed = await makeHome();
+      await recordRun(changed, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+      await recordShares(changed, "127.0.0.1_4848", [DEMO_ROOT, DEMO_ROOT]);
+      const changedDir = path.join(changed, "127.0.0.1_4848");
+      const record = JSON.parse(await readFile(sharesPath(changedDir), "utf8")) as {
+        shares: Record<string, unknown>[];
+      };
+      await writeRecord(changedDir, [record.shares[0], { ...record.shares[1], site: DVFR_ROOT }]);
+      expect(await chooseSiteDir({ home: changed, site: DEMO_ROOT })).toBe(changedDir);
+      expect(await chooseSiteDir({ home: changed, site: DVFR_ROOT })).toBe(
+        path.join(changed, "dvfr.illinois.gov"),
+      );
+    });
+
+    it("takes a share that names no site readers know it by, and a record it can't read, for none", async () => {
+      const home = await makeHome();
+      // An IP address, which a share of a site with no canonical address recorded before 0.10.0
+      // refused it; no site at all, as before 0.10.0; text that isn't a root; and a record that isn't
+      // JSON.
+      await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+      await recordShares(home, "127.0.0.1_4848", ["http://127.0.0.1:4848/"]);
+      await recordRun(home, "localhost_3000", { began: "2026-09-29 14:02", site: COPY_READ });
+      await recordShares(home, "localhost_3000", [undefined]);
+      await recordRun(home, "localhost_8080", {
+        began: "2026-09-29 14:02",
+        site: "http://localhost:8080",
+      });
+      await recordShares(home, "localhost_8080", ["voicecap.netlify.app/demo-site/"]);
+      await recordRun(home, "localhost_9090", {
+        began: "2026-09-29 14:02",
+        site: "http://localhost:9090",
+      });
+      await mkdir(shareDir(path.join(home, "localhost_9090")), { recursive: true });
+      await writeFile(sharesPath(path.join(home, "localhost_9090")), "{ not json");
+
+      // As before: the folder the address would have.
+      expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(
+        path.join(home, "voicecap.netlify.app"),
+      );
+      expect(await chooseSiteDir({ home, site: DEMO_READ })).toBe(
+        path.join(home, "127.0.0.1_4848"),
+      );
+    });
+
+    it("counts a folder once when its runs and its shares both recorded the address", async () => {
+      const home = await makeHome();
+      await recordRun(home, "127.0.0.1_4848", {
+        began: "2026-09-29 14:02",
+        site: DEMO_READ,
+        canonical: DEMO_ROOT,
+      });
+      await recordShares(home, "127.0.0.1_4848", [DEMO_ROOT]);
+
+      expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(
+        path.join(home, "127.0.0.1_4848"),
+      );
+    });
+
+    it("names both folders when one's run and the other's share recorded it", async () => {
+      const home = await makeHome();
+      await recordRun(home, "127.0.0.1_4848", {
+        began: "2026-09-29 14:02",
+        site: DEMO_READ,
+        canonical: DEMO_ROOT,
+      });
+      await recordRun(home, "localhost_3000", { began: "2026-09-28 09:00", site: COPY_READ });
+      await recordShares(home, "localhost_3000", [DEMO_ROOT]);
+
+      expect((await refusal({ home, site: DEMO_ROOT })).message).toBe(
+        `${DEMO_ROOT} is the canonical address of 127.0.0.1_4848 and localhost_3000: give --site the address voicecap read, http://127.0.0.1:4848 or http://localhost:3000.`,
+      );
+    });
+  });
+});
+
+// Ruling P17. The command the shared page and its Word copy print for a run's walkthrough file names
+// the site by its canonical address and the run by its id: the folder to write it from is the one,
+// of every folder that names the address, that holds the run.
+describe("chooseSiteDirOfRun", () => {
+  it("takes the folder that holds the run, of the live site's own and a copy's that name one root", async () => {
+    const home = await makeHome();
+    await recordRun(home, "dvfr.illinois.gov", {
+      began: "2026-09-28 09:00",
+      site: "https://dvfr.illinois.gov",
+    });
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+
+    expect(await chooseSiteDirOfRun({ home, site: DVFR_ROOT, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "localhost_3000"),
+    );
+    expect(
+      await chooseSiteDirOfRun({ home, site: "https://dvfr.illinois.gov", run: "2026-09-28_0900" }),
+    ).toBe(path.join(home, "dvfr.illinois.gov"));
+  });
+
+  it("finds a run in the folder whose share named the address, as report.canonical names the demo", async () => {
+    const home = await makeHome();
+    // The demo runs recorded no canonical address: only the share names the demo's.
+    await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 13:15", site: DEMO_READ });
+    await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+    await recordShares(home, "127.0.0.1_4848", [DEMO_ROOT]);
+    // The website's own pages were read once, in the folder named after its host.
+    await recordRun(home, "voicecap.netlify.app", {
+      began: "2026-09-28 09:00",
+      site: "https://voicecap.netlify.app",
+    });
+
+    for (const run of ["2026-09-29_1315", "2026-09-29_1402"]) {
+      expect(await chooseSiteDirOfRun({ home, site: DEMO_ROOT, run })).toBe(
+        path.join(home, "127.0.0.1_4848"),
+      );
+    }
+  });
+
+  it("names the run and the folders it looked in when none holds it", async () => {
+    const home = await makeHome();
+    await recordRun(home, "dvfr.illinois.gov", {
+      began: "2026-09-28 09:00",
+      site: "https://dvfr.illinois.gov",
+    });
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+    await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+    await recordShares(home, "127.0.0.1_4848", [DVFR_ROOT]);
+
+    expect(
+      (await refused(chooseSiteDirOfRun({ home, site: DVFR_ROOT, run: "2026-09-30_0900" })))
+        .message,
+    ).toBe(
+      `There's no run 2026-09-30_0900 in ${path.join(home, "dvfr.illinois.gov")}, ${path.join(home, "127.0.0.1_4848")}, or ${path.join(home, "localhost_3000")}.`,
+    );
+  });
+
+  it("names the folders that hold it, and asks for the address voicecap read, when several do", async () => {
+    const home = await makeHome();
+    // Two copies, each with a run that began the same minute.
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+    await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+    await recordShares(home, "127.0.0.1_4848", [DVFR_ROOT]);
+
+    expect(
+      (await refused(chooseSiteDirOfRun({ home, site: DVFR_ROOT, run: "2026-09-29_1402" })))
+        .message,
+    ).toBe(
+      `Run 2026-09-29_1402 is in 127.0.0.1_4848 and localhost_3000: give --site the address voicecap read, http://127.0.0.1:4848 or http://localhost:3000.`,
+    );
+    // Each address it names finds its own folder.
+    expect(await chooseSiteDirOfRun({ home, site: DEMO_READ, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "127.0.0.1_4848"),
+    );
+    expect(await chooseSiteDirOfRun({ home, site: COPY_READ, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "localhost_3000"),
+    );
+  });
+
+  it("takes the folder named after an address with no path, which its runs read, when a copy has a run of that minute too", async () => {
+    // The address is the one voicecap read for the live site's folder, so asking for that address
+    // would ask for the one given: --site always named that folder.
+    const home = await makeHome();
+    await recordRun(home, "dvfr.illinois.gov", {
+      began: "2026-09-29 14:02",
+      site: "https://dvfr.illinois.gov",
+    });
+    await recordRun(home, "localhost_3000", {
+      began: "2026-09-29 14:02",
+      site: COPY_READ,
+      canonical: DVFR_ROOT,
+    });
+
+    expect(await chooseSiteDirOfRun({ home, site: DVFR_ROOT, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "dvfr.illinois.gov"),
+    );
+    expect(await chooseSiteDirOfRun({ home, site: COPY_READ, run: "2026-09-29_1402" })).toBe(
+      path.join(home, "localhost_3000"),
+    );
+  });
+
+  it("names both for a root with a path, whose folder named after its host is another site's", async () => {
+    const home = await makeHome();
+    await recordRun(home, "voicecap.netlify.app", {
+      began: "2026-09-29 14:02",
+      site: "https://voicecap.netlify.app",
+    });
+    await recordRun(home, "127.0.0.1_4848", {
+      began: "2026-09-29 14:02",
+      site: DEMO_READ,
+      canonical: DEMO_ROOT,
+    });
+
+    expect(
+      (await refused(chooseSiteDirOfRun({ home, site: DEMO_ROOT, run: "2026-09-29_1402" })))
+        .message,
+    ).toBe(
+      `Run 2026-09-29_1402 is in 127.0.0.1_4848 and voicecap.netlify.app: give --site the address voicecap read, http://127.0.0.1:4848 or https://voicecap.netlify.app.`,
+    );
+    expect(
+      await chooseSiteDirOfRun({
+        home,
+        site: "https://voicecap.netlify.app",
+        run: "2026-09-29_1402",
+      }),
+    ).toBe(path.join(home, "voicecap.netlify.app"));
+  });
+
+  it("goes as chooseSiteDir goes for the address voicecap read, an address no folder names, and no address", async () => {
+    const home = await makeHome();
+    await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
+
+    expect(await chooseSiteDirOfRun({ home, site: DEMO_READ, run: "2026-09-30_0900" })).toBe(
+      path.join(home, "127.0.0.1_4848"),
+    );
+    expect(await chooseSiteDirOfRun({ home, site: DVFR_ROOT, run: "2026-09-30_0900" })).toBe(
+      path.join(home, "dvfr.illinois.gov"),
+    );
+    expect(await chooseSiteDirOfRun({ home, run: "2026-09-30_0900" })).toBe(
+      path.join(home, "127.0.0.1_4848"),
+    );
+    expect(
+      (await refused(chooseSiteDirOfRun({ home, site: "dvfr.illinois.gov", run: "x" }))).message,
+    ).toMatch(/--site must be a full URL/);
   });
 });

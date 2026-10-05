@@ -145,6 +145,36 @@ export function isSeq(value: unknown): value is number {
 }
 
 /**
+ * Whether an entry's seal holds. An entry nested too deep for sealOf, which reads it by recursion,
+ * can't be sealed as voicecap seals one, so its seal doesn't hold: it's one that changed, and the
+ * read goes on. One that lost its seal was changed, just like one that no longer matches it.
+ */
+export function sealHolds(entry: Record<string, unknown>): boolean {
+  try {
+    return entry.seal === sealOf(entry);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The newest of a record's entries that can be trusted: the one with the highest seq of those whose
+ * seal holds. An entry that was changed after it was recorded vouches for nothing, and one with no
+ * usable seq has no place in the chain. Undefined for a record with none.
+ */
+export function newestSealed(
+  shares: readonly Record<string, unknown>[],
+): Record<string, unknown> | undefined {
+  let newest: { entry: Record<string, unknown>; seq: number } | undefined;
+  for (const entry of shares) {
+    const { seq } = entry;
+    if (!isSeq(seq) || !sealHolds(entry)) continue;
+    if (newest === undefined || seq > newest.seq) newest = { entry, seq };
+  }
+  return newest?.entry;
+}
+
+/**
  * "share 2 (<time>)", or "a share at <time>" for one without a seq. An entry holds whatever a
  * person left in it, so one whose time can't be made into text (an object whose toString isn't a
  * function, or a list nested too deep) is just "a share": naming an entry never stops a caller.

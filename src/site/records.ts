@@ -17,9 +17,15 @@ import { isWebRoot } from "../pages/canonical.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
 import { longDate } from "../share/format.js";
-import { describeShare, isPlainName, isSeq, readShares, recordedFiles } from "../share/shares.js";
+import {
+  describeShare,
+  isPlainName,
+  isSeq,
+  readShares,
+  recordedFiles,
+  sealHolds,
+} from "../share/shares.js";
 import { isRunId } from "../share/walkthrough.js";
-import { sealOf } from "../util/hash.js";
 
 /** An entry of a shares.json the site can publish from: its seal holds, and its fields are readable. */
 export interface SiteEntry {
@@ -249,19 +255,6 @@ export function printable(text: string): string {
  */
 export function leaveOut(leftOut: string[], line: string): void {
   leftOut.push(printable(line));
-}
-
-/**
- * Whether an entry's seal holds. An entry nested too deep for sealOf, which reads it by recursion,
- * can't be sealed as voicecap seals one, so its seal doesn't hold: it's one that changed, and the
- * read goes on. One that lost its seal was changed, just like one that no longer matches it.
- */
-function sealHolds(entry: Record<string, unknown>): boolean {
-  try {
-    return entry.seal === sealOf(entry);
-  } catch {
-    return false;
-  }
 }
 
 /** An entry's seq, at, by, and files as voicecap records them, or the first of them that isn't. */

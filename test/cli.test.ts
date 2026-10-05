@@ -31,7 +31,7 @@ import { writeShareFiles } from "../src/share/write.js";
 import { formatCommand } from "../src/util/command-line.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type OutputStream } from "../src/util/log.js";
-import { unzipDocx } from "./helpers/docx.js";
+import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
@@ -1589,6 +1589,60 @@ describe("--site takes a site's canonical address", () => {
     expect(walkthrough.code).toBe(0);
     expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(runId);
     expect(existsSync(path.join(cwd, "transcripts", NAMED))).toBe(false);
+  });
+
+  // Ruling P17. The demo runs voicecap 0.4.1 recorded named no canonical address, so the demo is
+  // named by report.canonical when it's shared, in a config of a folder of its own, as the README
+  // says to. The Word copy prints each run's command, which then finds the run by the root the
+  // share recorded.
+  it("runs the command a shared Word copy prints for each run's walkthrough file, when report.canonical named the site", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    const home = path.join(root, "transcripts");
+    await cp(fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url)), home, {
+      recursive: true,
+    });
+    const named = path.join(root, "demo-share");
+    await mkdir(named);
+    await writeFile(
+      path.join(named, "voicecap.config.json"),
+      '{ "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }\n',
+    );
+    const share = await cli(["share", "--out", home, "--reviewer", "Pat Lee"], named);
+    expect(share.err).toBe("");
+    expect(share.code).toBe(0);
+    const siteDir = path.join(home, "127.0.0.1_4848");
+    const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
+    const word = shares[0]!.files[1]!;
+    expect(word.name).toMatch(/^voicecap\.netlify\.app_\d{4}-\d{2}-\d{2}\.docx$/);
+
+    // The commands, as the Word copy prints them: one for each run the copy draws on, the latest
+    // first.
+    const { document } = await unzipDocx(await readFile(path.join(shareDir(siteDir), word.name)));
+    const commands = paragraphsOf(document)
+      .map(({ text }) => text)
+      .filter((text) => text.startsWith("npx @icjia/voicecap walkthrough "));
+    expect(commands).toEqual(
+      ["2026-09-29_1402", "2026-09-29_1315"].map(
+        (run) =>
+          `npx @icjia/voicecap walkthrough --site https://voicecap.netlify.app/demo-site/ --run ${run} voicecap.netlify.app_${run}_walkthrough.json`,
+      ),
+    );
+
+    // Each is run as printed, in a folder of its own, with the home a person has set.
+    const work = path.join(root, "work");
+    await mkdir(work);
+    for (const command of commands) {
+      const args = command.split(" ").slice(2);
+      const run = args[args.indexOf("--run") + 1]!;
+      const written = await cli(args, work, { VOICECAP_TRANSCRIPTS: home });
+
+      expect(written.err).toBe("");
+      expect(written.code).toBe(0);
+      const file = path.join(work, args.at(-1)!);
+      expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(run);
+    }
+    // Nothing was made in the folder the canonical name would have.
+    expect(existsSync(path.join(home, "voicecap.netlify.app"))).toBe(false);
   });
 
   it("finds the folder to check, for verify", async () => {
