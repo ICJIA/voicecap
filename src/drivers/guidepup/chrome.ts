@@ -31,6 +31,13 @@ import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
+/** A screenshot is a JPEG at this quality: small enough to keep with every page, and still legible. */
+const SCREENSHOT_QUALITY = 60;
+/** It's taken at half the page's CSS size. */
+const SCREENSHOT_SCALE = 0.5;
+/** How long the browser gets to answer before the screenshot is given up. */
+const SCREENSHOT_TIMEOUT_MS = 5_000;
+
 /** Browser features that would add network noise or UI surprises to a run (as Playwright disables them). */
 const DISABLED_FEATURES = [
   "Translate",
@@ -522,6 +529,55 @@ export class ChromeSession implements BrowserSession {
     );
   }
 
+  /**
+   * What shows in the window now, as a JPEG at half the page's CSS size. It uses the DevTools
+   * connection and nothing else, so it never brings the window forward or takes focus. The browser
+   * gets five seconds to answer: a call that hangs can't be stopped, so it's left behind.
+   */
+  screenshot(): Promise<Uint8Array> {
+    return this.onPage(() =>
+      withinLimit(
+        this.capture(),
+        SCREENSHOT_TIMEOUT_MS,
+        `timed out after ${formatDuration(SCREENSHOT_TIMEOUT_MS)}`,
+      ),
+    );
+  }
+
+  private async capture(): Promise<Uint8Array> {
+    // The window's visible page: its viewport (without scrollbars), where the page is scrolled to.
+    const { cssLayoutViewport: view } = await this.cdp.send("Page.getLayoutMetrics");
+    const ratio = await this.pixelRatio();
+    const { data } = await this.cdp.send("Page.captureScreenshot", {
+      format: "jpeg",
+      quality: SCREENSHOT_QUALITY,
+      clip: {
+        x: view.pageX,
+        y: view.pageY,
+        width: view.clientWidth,
+        height: view.clientHeight,
+        // The scale counts the screen's own pixels: at a scale of 1, a screen at 200% gives 2 pixels
+        // for each CSS pixel. Dividing by the screen's ratio keeps the picture at half the page's CSS
+        // size on a scaled display, as at 100% (where the ratio is 1).
+        scale: SCREENSHOT_SCALE / ratio,
+      },
+      captureBeyondViewport: false,
+    });
+    return Buffer.from(data, "base64");
+  }
+
+  /**
+   * The screen's pixels for each CSS pixel of the page: 1 at 100%, 1.5 at 150%. 1 when the page
+   * doesn't say.
+   */
+  private async pixelRatio(): Promise<number> {
+    const { result } = await this.cdp.send("Runtime.evaluate", {
+      expression: "window.devicePixelRatio",
+      returnByValue: true,
+    });
+    return typeof result.value === "number" && result.value > 0 ? result.value : 1;
+  }
+
   async setTitle(title: string): Promise<() => Promise<void>> {
     // These functions run in the page (voicecap's own code is compiled without DOM types).
     const previous = await this.onPage(() =>
@@ -666,6 +722,18 @@ export class ChromeSession implements BrowserSession {
 
 function axString(value: AxValue | undefined): string | null {
   return typeof value?.value === "string" ? value.value : null;
+}
+
+/**
+ * `work`, or a rejection with `message` once `ms` have passed without it finishing. The work isn't
+ * stopped: what it gives or throws later is ignored.
+ */
+function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }
 
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {

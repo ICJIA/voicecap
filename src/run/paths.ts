@@ -23,6 +23,9 @@ import { EVENT_LOG } from "./events.js";
  *   share/shares.json                   (what `voicecap share` sent: sealed, chained, only added to)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
  *   <date>/<time>/events.jsonl      (the run's event log, added to as the run goes, sealed with it)
+ *   <date>/<time>/pages/<slug>/screenshot.jpg   (the page as it loaded, before the screen reader
+ *                                                read it: kept beside its transcripts, and recorded
+ *                                                by the page's record, not among its files)
  *   <date>/<time>/attempts/<slug>/<n>/<pass>.{txt,json}     (an earlier attempt, kept, n = 1, 2, ...)
  *   <date>/<time>/compare/<base-id>/<slug>/<pass>.diff.txt   (diffs made when the run completed)
  *   <date>/<time>_manual_<slug>/session.{txt,json}  <date>/<time>_manual_<slug>/raw/<format>.txt

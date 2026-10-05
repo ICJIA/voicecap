@@ -33,6 +33,7 @@ import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
+import { TINY_JPEG } from "./helpers/jpeg.js";
 import { homeWithCountedRun, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -182,6 +183,95 @@ describe("verifyHome", () => {
       `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
     ]);
     expect(result.problems).toBe(3);
+  });
+
+  describe("a page's screenshot", () => {
+    const SHOT = `${RUN}/pages/home/screenshot.jpg`;
+    const TAKEN_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    const recorded = { ...fileHash(TINY_JPEG), takenAt: TAKEN_AT, width: 16, height: 12 };
+
+    /** A copy of the home, with the record of the page in folder `slug` changed, and the run sealed again. */
+    async function changingPage(slug: string, edit: (page: RunJson["pages"][number]) => void) {
+      const home = await copyOfHome();
+      await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+        edit(run.pages.find((page) => page.slug === slug)!);
+        run.seal = sealOf(run);
+      });
+      return home;
+    }
+
+    /** A copy of the home whose home page has a screenshot, in its folder and in its record. */
+    async function withScreenshot(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.screenshot = recorded;
+      });
+      await writeFile(at(home, SHOT), TINY_JPEG);
+      return home;
+    }
+
+    it("finds nothing wrong with one that's as the run recorded it", async () => {
+      expect((await verify(await withScreenshot())).lines).toEqual([MATCHES]);
+    });
+
+    it("names one that was edited, whether or not its size changed", async () => {
+      const added = await withScreenshot();
+      await appendFile(at(added, SHOT), "An added byte.");
+      expect((await verify(added)).lines).toEqual([
+        `${SHOT}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      const sameSize = await withScreenshot();
+      const bytes = await readFile(at(sameSize, SHOT));
+      bytes[bytes.length - 3] = (bytes[bytes.length - 3] ?? 0) ^ 0xff;
+      await writeFile(at(sameSize, SHOT), bytes);
+      expect((await verify(sameSize)).lines).toEqual([
+        `${SHOT}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("names one that was removed", async () => {
+      const home = await withScreenshot();
+      await rm(at(home, SHOT));
+      expect((await verify(home)).lines).toEqual([`${SHOT}: missing`, ONE_PROBLEM]);
+    });
+
+    it("names a file the run doesn't record, as it does any", async () => {
+      // A page with no screenshot in its record, and one whose record says why it has none.
+      for (const screenshot of [undefined, { error: "timed out", takenAt: TAKEN_AT }]) {
+        const home = await changingPage("home", (page) => {
+          if (screenshot) page.screenshot = screenshot;
+        });
+        await writeFile(at(home, SHOT), TINY_JPEG);
+        expect((await verify(home)).lines).toEqual([
+          `${SHOT}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.screenshot = { error: "timed out", takenAt: TAKEN_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("is filed in its own page's folder", async () => {
+      // The flawed page records one, with no file in its folder; the file is in the home page's.
+      const flawed = "flawed-68c5de39bc";
+      const home = await changingPage(flawed, (page) => {
+        page.screenshot = recorded;
+      });
+      await writeFile(at(home, SHOT), TINY_JPEG);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/pages/${flawed}/screenshot.jpg: missing`,
+        `${SHOT}: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    });
   });
 
   it("checks the event log its run recorded", async () => {

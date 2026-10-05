@@ -8,7 +8,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { chromium, errors, type Browser, type CDPSession, type Page } from "playwright";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import {
@@ -18,6 +18,7 @@ import {
   resolveBrowser,
 } from "../src/drivers/guidepup/chrome.js";
 import { EnvironmentError } from "../src/util/errors.js";
+import { jpegSize } from "../src/util/jpeg.js";
 import { startFixtureServer, type FixtureServer } from "../scripts/serve-fixture.js";
 
 // Real Chromium (Playwright's build, headless) against the fixture site. The Guidepup driver runs
@@ -38,11 +39,11 @@ afterEach(async () => {
   for (const session of sessions.splice(0)) await session.close();
 });
 
-async function launch(): Promise<ChromeSession> {
+async function launch(extraArgs: string[] = []): Promise<ChromeSession> {
   const session = await launchChrome({
     browser: { channel: "chromium", fallbackToChromium: false },
     env: process.env,
-    extraArgs: HEADLESS,
+    extraArgs: [...HEADLESS, ...extraArgs],
   });
   sessions.push(session);
   return session;
@@ -217,6 +218,74 @@ describe.skipIf(!haveChromium)("a Chrome session", () => {
       const session = await launch();
       await session.load(server.url, 15_000);
       expect(await session.pageCanonical()).toBeNull();
+    });
+  });
+
+  describe("taking a screenshot", () => {
+    /** The page's viewport, in CSS pixels and without its scrollbars: what a screenshot is half of. */
+    function viewportOf(session: ChromeSession): Promise<{ width: number; height: number }> {
+      return session["page"].evaluate(() => ({
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      }));
+    }
+
+    /** Expect `jpeg` to be a JPEG, as wide and as high as half the viewport, to within a pixel. */
+    function expectHalf(jpeg: Uint8Array, viewport: { width: number; height: number }): void {
+      expect([...jpeg.subarray(0, 2)]).toEqual([0xff, 0xd8]);
+      const size = jpegSize(jpeg);
+      expect(size).not.toBeNull();
+      expect(Math.abs((size?.width ?? 0) - viewport.width / 2)).toBeLessThanOrEqual(1);
+      expect(Math.abs((size?.height ?? 0) - viewport.height / 2)).toBeLessThanOrEqual(1);
+    }
+
+    it("takes a screenshot at half the page's size", async () => {
+      const session = await launch();
+      await session.load(server.url, 15_000);
+      expectHalf(await session.screenshot(), await viewportOf(session));
+    });
+
+    // A page taller than the window is shown as far as the window shows it, not whole.
+    it("takes only what shows in the window of a page that's taller", async () => {
+      const session = await launch();
+      const tall = `<!doctype html><title>tall</title><body style="margin:0"><div style="height:6000px">Tall</div>`;
+      await session.load(`data:text/html,${encodeURIComponent(tall)}`, 15_000);
+      const viewport = await viewportOf(session);
+      expect(viewport.height).toBeLessThan(3000);
+      expectHalf(await session.screenshot(), viewport);
+    });
+
+    // Colors say which part of the page it is: a red band, then a blue one, then a green one.
+    it("takes the part of the page that's in view", async () => {
+      const session = await launch();
+      const bands = `<!doctype html><title>bands</title><body style="margin:0"><div style="height:2000px;background:#d00"></div><div style="height:2000px;background:#00d"></div><div style="height:2000px;background:#0a0"></div>`;
+      await session.load(`data:text/html,${encodeURIComponent(bands)}`, 15_000);
+      const colorAtTop = async (jpeg: Uint8Array) =>
+        session["page"].evaluate(async (base64) => {
+          const image = new Image();
+          image.src = `data:image/jpeg;base64,${base64}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const context = canvas.getContext("2d")!;
+          context.drawImage(image, 0, 0);
+          const [red = 0, green = 0, blue = 0] = context.getImageData(10, 10, 1, 1).data;
+          return red > 150 ? "red" : blue > 150 ? "blue" : green > 120 ? "green" : "other";
+        }, Buffer.from(jpeg).toString("base64"));
+
+      expect(await colorAtTop(await session.screenshot())).toBe("red");
+      await session["page"].evaluate(() => window.scrollTo(0, 2500));
+      expect(await colorAtTop(await session.screenshot())).toBe("blue");
+    });
+
+    // Chromium counts a screenshot's scale in the screen's own pixels, so on a scaled display (a
+    // laptop at 150%, a Retina screen) half the size takes less than a scale of one half.
+    it("takes it at half the page's size on a scaled display too", async () => {
+      const session = await launch(["--force-device-scale-factor=2"]);
+      await session.load(server.url, 15_000);
+      expect(await session["page"].evaluate(() => window.devicePixelRatio)).toBe(2);
+      expectHalf(await session.screenshot(), await viewportOf(session));
     });
   });
 
@@ -666,6 +735,7 @@ describe("a browser that closes or crashes mid-page", () => {
     ["waitUntilReady", (session) => session.waitUntilReady(readiness)],
     ["pageTitle", (session) => session.pageTitle()],
     ["pageCanonical", (session) => session.pageCanonical()],
+    ["screenshot", (session) => session.screenshot()],
     ["setTitle", (session) => session.setTitle("voicecap check k3m9x2")],
     ["focusState", (session) => session.focusState()],
     ["raise", (session) => session.raise()],
@@ -736,6 +806,112 @@ describe("a browser that closes or crashes mid-page", () => {
     await expect(failingSession(unreadable).session.waitUntilReady(readiness)).rejects.toBe(
       unreadable,
     );
+  });
+});
+
+// The commands a screenshot sends to the browser, without a browser: which they are, and what each
+// asks for. The real browser's pictures are checked above.
+describe("a screenshot's DevTools commands", () => {
+  const picture = Uint8Array.of(0xff, 0xd8, 1, 2, 3);
+  /** What each command answers: a function is called to answer, and so can fail or never answer. */
+  const answers: Record<string, unknown> = {
+    "Page.getLayoutMetrics": {
+      cssLayoutViewport: { pageX: 40, pageY: 120, clientWidth: 1265, clientHeight: 849 },
+    },
+    "Runtime.evaluate": { result: { type: "number", value: 1 } },
+    "Page.captureScreenshot": { data: Buffer.from(picture).toString("base64") },
+  };
+  /** What `Runtime.evaluate` answers with the page's device pixel ratio, or without one. */
+  const pixelRatio = (value: unknown) => ({ result: { type: typeof value, value } });
+
+  /**
+   * A session whose DevTools connection answers as `changed` says, in place of `answers`, and the
+   * commands it was sent. Its page can do nothing: a screenshot may use only the connection.
+   */
+  function withDevTools(changed: Record<string, unknown> = {}) {
+    const sent: { method: string; params?: unknown }[] = [];
+    const cdp = {
+      send: (method: string, params?: unknown) => {
+        sent.push({ method, params });
+        const answer = { ...answers, ...changed }[method];
+        return typeof answer === "function" ? (answer as () => unknown)() : Promise.resolve(answer);
+      },
+    };
+    const page = { on: () => {}, isClosed: () => false };
+    const session = new ChromeSession(
+      { name: "Chrome", path: "chrome.exe" },
+      {} as ChildProcess,
+      "unused",
+      { version: () => "153.0.0.0", isConnected: () => true } as unknown as Browser,
+      page as unknown as Page,
+      cdp as unknown as CDPSession,
+    );
+    return { session, sent };
+  }
+
+  /** The scale the screenshot was asked for. */
+  const scaleOf = (sent: { params?: unknown }[]) =>
+    (sent.at(-1)?.params as { clip: { scale: number } }).clip.scale;
+
+  it("asks for a JPEG of what shows in the window at half its size, and for nothing else", async () => {
+    const { session, sent } = withDevTools();
+    expect([...(await session.screenshot())]).toEqual([...picture]);
+    expect(sent).toEqual([
+      { method: "Page.getLayoutMetrics" },
+      {
+        method: "Runtime.evaluate",
+        params: { expression: "window.devicePixelRatio", returnByValue: true },
+      },
+      {
+        method: "Page.captureScreenshot",
+        params: {
+          format: "jpeg",
+          quality: 60,
+          clip: { x: 40, y: 120, width: 1265, height: 849, scale: 0.5 },
+          captureBeyondViewport: false,
+        },
+      },
+    ]);
+  });
+
+  it("allows for the pixels of a scaled display, so the picture stays half the page's size", async () => {
+    const { session, sent } = withDevTools({ "Runtime.evaluate": pixelRatio(1.5) });
+    await session.screenshot();
+    expect(scaleOf(sent)).toBeCloseTo(0.5 / 1.5, 10);
+  });
+
+  it("takes the display as unscaled when the page doesn't say what its pixel ratio is", async () => {
+    for (const unsaid of [{ result: { type: "undefined" } }, pixelRatio(0), pixelRatio("2")]) {
+      const { session, sent } = withDevTools({ "Runtime.evaluate": unsaid });
+      await session.screenshot();
+      expect(scaleOf(sent)).toBe(0.5);
+    }
+  });
+
+  it("gives up after five seconds on a browser that doesn't answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const { session } = withDevTools({ "Page.captureScreenshot": () => new Promise(() => {}) });
+      let settled = false;
+      const taking = session.screenshot();
+      const rejected = expect(taking).rejects.toThrow("timed out after 5s");
+      taking.then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejected;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves what the browser refuses as the browser says it", async () => {
+    const refusal = new Error("Protocol error (Page.captureScreenshot): Cannot take screenshot");
+    const { session } = withDevTools({ "Page.captureScreenshot": () => Promise.reject(refusal) });
+    await expect(session.screenshot()).rejects.toBe(refusal);
   });
 });
 

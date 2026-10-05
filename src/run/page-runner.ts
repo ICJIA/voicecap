@@ -1,15 +1,19 @@
-import type { EventRecorder, PageInfo } from "../drivers/types.js";
-import type {
-  AttemptRecord,
-  EnvironmentRecord,
-  FailureKind,
-  FileHash,
-  PageRecord,
-  PassName,
-  PassSummary,
-  RunJson,
-  SkippedRecord,
-  TranscriptJson,
+import path from "node:path";
+
+import type { EventRecorder, PageInfo, PageScreenshot } from "../drivers/types.js";
+import {
+  SCREENSHOT_FILE,
+  type AttemptRecord,
+  type EnvironmentRecord,
+  type FailureKind,
+  type FileHash,
+  type PageRecord,
+  type PassName,
+  type PassSummary,
+  type RunJson,
+  type ScreenshotRecord,
+  type SkippedRecord,
+  type TranscriptJson,
 } from "../model.js";
 import {
   failureOf,
@@ -20,8 +24,10 @@ import {
 } from "../passes/index.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
 import { isHtmlContentType, sameOrigin } from "../pages/url.js";
-import { writeTranscript } from "../transcripts/write.js";
+import { fileHash, writeTranscript } from "../transcripts/write.js";
+import { writeFileAtomic } from "../util/atomic-write.js";
 import { errorMessage } from "../util/errors.js";
+import { jpegSize } from "../util/jpeg.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { keepEarlierAttempt } from "./attempts.js";
@@ -82,6 +88,12 @@ export interface PageOutcome {
    * may be an error page or another site's, so its tag says nothing about this site.
    */
   canonical?: string | null;
+  /**
+   * The screenshot the last attempt kept in the page's folder, or why it has none: taken as the page
+   * first loaded, like its title. Left out when the driver took none, and for a page the attempt
+   * didn't read (it was skipped, or the site answered with an HTTP error).
+   */
+  screenshot?: ScreenshotRecord;
   skip?: SkippedRecord;
 }
 
@@ -102,6 +114,8 @@ interface Loaded {
   title?: string | null;
   /** From the attempt's first load too: the address of the page's canonical tag. */
   canonical?: string | null;
+  /** From the attempt's first load too, once the page is to be read: its screenshot, if any. */
+  screenshot?: ScreenshotRecord;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -170,6 +184,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
     ...(result.title !== undefined ? { title: result.title } : {}),
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
+    ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
   for (let attempt = 1; ; attempt++) {
@@ -289,6 +304,10 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             ...failedWith(httpProblem(pass, info.status)),
           };
         }
+        // The page will be read: keep the picture the driver took of it as it loaded. The loads for
+        // the passes after this one are of the same page, and their pictures aren't kept.
+        const screenshot = await keepScreenshot(ctx, dir, info.screenshot);
+        if (screenshot) loaded.screenshot = screenshot;
       } else if (info.finalUrl !== loaded.finalUrl) {
         warnings.push(
           `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
@@ -324,6 +343,25 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Keep the screenshot a driver took of a page: the JPEG in the page's folder, and its record, with
+ * the picture's size and when. A picture the driver couldn't take, and bytes that aren't a JPEG
+ * voicecap can read, are recorded as the reason, with no file. Null when the driver took none.
+ */
+async function keepScreenshot(
+  ctx: PageContext,
+  dir: string,
+  screenshot: PageScreenshot | undefined,
+): Promise<ScreenshotRecord | null> {
+  if (screenshot === undefined) return null;
+  const takenAt = isoLocalMs(ctx.now());
+  if ("error" in screenshot) return { error: screenshot.error, takenAt };
+  const size = jpegSize(screenshot.jpeg);
+  if (size === null) return { error: "the picture wasn't a JPEG voicecap could read", takenAt };
+  await writeFileAtomic(path.join(dir, SCREENSHOT_FILE), screenshot.jpeg);
+  return { ...fileHash(screenshot.jpeg), takenAt, ...size };
 }
 
 /**

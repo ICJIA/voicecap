@@ -35,6 +35,10 @@
  *   ForegroundError names the program only: a title can hold private text. Not knowing the program
  *   (the lookup fails, Windows doesn't say, or the foreground has come back to the page's own
  *   browser, which took it from no one) changes nothing else about the failure.
+ * - Each HTML page's screenshot is taken through the browser's DevTools connection once the page
+ *   has loaded, before the browser is brought to the front and before any key, so it shows the page
+ *   as the screen reader finds it, and taking it doesn't move the window. One that can't be taken
+ *   is returned as the reason, and never fails the page.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -80,6 +84,7 @@ import {
   type EventRecorder,
   type FocusedElement,
   type PageInfo,
+  type PageScreenshot,
   type ScreenReaderDriver,
   type Speech,
 } from "./types.js";
@@ -141,6 +146,12 @@ export interface BrowserSession {
    * (absolute), or null when the page has no such tag or the tag has no address.
    */
   pageCanonical(): Promise<string | null>;
+  /**
+   * What shows in the window now, as a JPEG at half the page's CSS size. It goes through the
+   * browser's DevTools connection, so it never brings the window forward, and it fails when the
+   * browser hasn't answered within five seconds.
+   */
+  screenshot(): Promise<Uint8Array>;
   /** Set the page's title (the window title follows it); returns a function that restores it. */
   setTitle(title: string): Promise<() => Promise<void>>;
   /**
@@ -638,10 +649,24 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     await session.waitUntilReady(this.options.config.readiness);
     const title = await session.pageTitle();
     const canonical = await session.pageCanonical();
+    const screenshot = await this.screenshotOf(session);
     await this.bringToFront(page);
     await this.press(page, "exitFocusMode", { capture: false });
     await this.press(page, "toTop");
-    return { ...loaded, title: title === "" ? null : title, canonical };
+    return { ...loaded, title: title === "" ? null : title, canonical, screenshot };
+  }
+
+  /**
+   * The page as it looks now it has loaded: taken before the browser comes forward and before any
+   * key, so it's the page as the screen reader finds it. A picture that can't be taken is the reason
+   * instead, and never fails the page: it's evidence beside the transcripts, not part of them.
+   */
+  private async screenshotOf(session: BrowserSession): Promise<PageScreenshot> {
+    try {
+      return { jpeg: await session.screenshot() };
+    } catch (error) {
+      return { error: errorMessage(error) };
+    }
   }
 
   nextLine(): Promise<Speech> {

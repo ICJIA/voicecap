@@ -841,6 +841,9 @@ function applyOutcome(
   page.durationMs = outcome.durationMs;
   page.passes = outcome.passes;
   page.files = outcome.files;
+  // The last attempt's, like the files: an earlier attempt's screenshot was moved aside with them.
+  if (outcome.screenshot) page.screenshot = outcome.screenshot;
+  else delete page.screenshot;
   page.errors = outcome.errors;
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;

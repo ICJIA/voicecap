@@ -207,6 +207,20 @@ export interface FileHash {
   bytes: number;
 }
 
+/** A page's screenshot, in the page's folder (pages/<slug>/). */
+export const SCREENSHOT_FILE = "screenshot.jpg";
+
+/**
+ * A page's screenshot, as the page's record keeps it. A picture that was kept has the file's SHA-256
+ * and size, and the picture's size in pixels, read from the JPEG: half the browser window's width,
+ * and less than half its height, as the window's own bar takes some of that. A picture that couldn't
+ * be taken has the reason, and no file. Both have when the run recorded it (a local ISO time to the
+ * millisecond), a moment after the driver took the picture, or tried to.
+ */
+export type ScreenshotRecord =
+  | (FileHash & { takenAt: string; width: number; height: number })
+  | { error: string; takenAt: string };
+
 export interface PassSummary {
   steps: number;
   stopReason: StopReason;
@@ -346,6 +360,14 @@ export interface PageRecord extends PageRef {
   passes: Partial<Record<PassName, PassSummary>>;
   /** Transcript files in pages/<slug>/, by file name ("read.txt", "read.json", ...). */
   files: Record<string, FileHash>;
+  /**
+   * The page's screenshot, taken as the page first loaded in its last attempt, before the screen
+   * reader read it. Kept apart from `files`, which a review copies to find a page that changed since
+   * it was reviewed: a screenshot would mark every page changed. Absent when the page has none: the
+   * driver took none, the page wasn't read (it was skipped, or the site answered with an HTTP
+   * error), it's pending, or the run is from before voicecap 0.11.0.
+   */
+  screenshot?: ScreenshotRecord;
   flags: FlagResult[];
   errors: string[];
 }

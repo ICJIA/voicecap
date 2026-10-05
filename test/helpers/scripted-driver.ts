@@ -3,6 +3,7 @@ import type {
   EventRecorder,
   FocusedElement,
   PageInfo,
+  PageScreenshot,
   ScreenReaderDriver,
   Speech,
 } from "../../src/drivers/types.js";
@@ -21,6 +22,11 @@ export interface ScriptedPage {
    * openPage reports (default: no tag, reported as null).
    */
   canonical?: string;
+  /**
+   * The screenshot openPage reports with the page: a JPEG, or the reason there's none (default: no
+   * screenshot, as a driver that takes none leaves it out).
+   */
+  screenshot?: PageScreenshot;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -145,6 +151,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
         contentType: page.contentType ?? "text/html; charset=utf-8",
         title: page.title ?? null,
         canonical: page.canonical ?? null,
+        ...(page.screenshot !== undefined ? { screenshot: page.screenshot } : {}),
       };
     });
   }

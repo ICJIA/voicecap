@@ -341,6 +341,57 @@ describe("opening a page", () => {
     expect(await driver.openPage(pdf)).toMatchObject({ title: null, canonical: null });
   });
 
+  describe("taking the page's screenshot", () => {
+    // The driver hands the picture on as the browser gave it; the run is what reads it.
+    const HOME_PICTURE = Uint8Array.of(1, 2, 3);
+    const DUPLICATES = `${URL_HOME}duplicates/`;
+    const DUPLICATES_PICTURE = Uint8Array.of(4, 5, 6);
+    const pictures = {
+      [URL_HOME]: { screenshot: HOME_PICTURE },
+      [DUPLICATES]: { screenshot: DUPLICATES_PICTURE },
+    };
+
+    it("returns the browser's screenshot of the page that loaded", async () => {
+      const { driver } = setup({ pages: pictures });
+      await driver.start();
+      expect((await driver.openPage(URL_HOME)).screenshot).toEqual({ jpeg: HOME_PICTURE });
+      // Each page's own: the one of the page this load is of.
+      expect((await driver.openPage(DUPLICATES)).screenshot).toEqual({ jpeg: DUPLICATES_PICTURE });
+    });
+
+    it("takes it as the page loaded, before bringing the browser to the front or pressing a key", async () => {
+      const { driver, desktop } = setup({ pages: pictures });
+      await driver.start();
+      desktop.front = "other";
+      await driver.openPage(URL_HOME);
+      const { events } = desktop;
+      expect(events.filter((event) => event === "screenshot")).toHaveLength(1);
+      expect(events.indexOf("screenshot")).toBeLessThan(events.indexOf("raise"));
+      expect(events.indexOf("screenshot")).toBeLessThan(
+        events.findIndex((event) => event.startsWith("key:")),
+      );
+    });
+
+    it("gives the reason when the screenshot can't be taken, and the page opens all the same", async () => {
+      const failure = new Error("Protocol error (Page.captureScreenshot): Target closed");
+      const { driver, desktop } = setup({ pages: { [URL_HOME]: { screenshot: failure } } });
+      await driver.start();
+      const info = await driver.openPage(URL_HOME);
+      expect(info.screenshot).toEqual({ error: failure.message });
+      expect(info).toMatchObject({ finalUrl: URL_HOME, status: 200, title: "Fake page" });
+      expect(keysSent(desktop)).toEqual(["key:exitFocusMode", "key:toTop"]);
+    });
+
+    it("takes none of a response that isn't HTML", async () => {
+      const pdf = "http://127.0.0.1:4747/files/report.pdf";
+      const { driver, desktop } = setup({ pages: { [pdf]: { contentType: "application/pdf" } } });
+      await driver.start();
+      const info = await driver.openPage(pdf);
+      expect(info).not.toHaveProperty("screenshot");
+      expect(desktop.events).not.toContain("screenshot");
+    });
+  });
+
   // The core's open timeout restarts the driver and retries the page; a shorter limit of the
   // driver's own would fail a slow page instead.
   it("leaves a slow load to the core's open timeout", async () => {

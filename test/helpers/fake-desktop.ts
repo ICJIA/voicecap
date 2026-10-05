@@ -6,6 +6,7 @@ import type {
 } from "../../src/drivers/guidepup-nvda.js";
 import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
+import { TINY_JPEG } from "./jpeg.js";
 
 /** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
 export class Gate {
@@ -348,6 +349,11 @@ export interface FakePage {
   title?: string;
   /** The address of the page's canonical tag, as the browser reports it (default: no tag). */
   canonical?: string;
+  /**
+   * What taking a screenshot of the page gives: the JPEG's bytes, or the error the browser fails
+   * with (default: a tiny picture).
+   */
+  screenshot?: Uint8Array | Error;
 }
 
 export class FakeSession implements BrowserSession {
@@ -414,6 +420,18 @@ export class FakeSession implements BrowserSession {
 
   pageCanonical(): Promise<string | null> {
     return Promise.resolve(this.canonical);
+  }
+
+  /**
+   * A picture of the page loaded last, which is the page it takes: asked before a page has loaded,
+   * it fails. It never brings the window forward.
+   */
+  screenshot(): Promise<Uint8Array> {
+    this.desktop.events.push("screenshot");
+    const url = this.loaded.at(-1);
+    if (url === undefined) return Promise.reject(new Error("No page has loaded yet."));
+    const shot = this.pages[url]?.screenshot ?? TINY_JPEG;
+    return shot instanceof Error ? Promise.reject(shot) : Promise.resolve(shot);
   }
 
   setTitle(title: string): Promise<() => Promise<void>> {

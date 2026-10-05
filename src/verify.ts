@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { FileHash, ReviewsFile } from "./model.js";
+import { SCREENSHOT_FILE, type FileHash, type ReviewsFile } from "./model.js";
 import { isWebRoot } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
@@ -280,7 +280,11 @@ async function checkRunFiles(
   }
 }
 
-/** The files a run records, by path in pages/; null when its pages aren't as voicecap writes them. */
+/**
+ * The files a run records, by path in pages/: each page's transcripts, and its screenshot when the
+ * page's record has the file's hash (a record of why there's none has no file to check). Null when
+ * its pages aren't as voicecap writes them.
+ */
 function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | null {
   if (!Array.isArray(run.pages)) return null;
   const files = new Map<string, FileHash>();
@@ -290,6 +294,7 @@ function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | nu
       if (!isFileHash(hash)) return null;
       files.set(`${page.slug}/${name}`, hash);
     }
+    if (isFileHash(page.screenshot)) files.set(`${page.slug}/${SCREENSHOT_FILE}`, page.screenshot);
   }
   return files;
 }

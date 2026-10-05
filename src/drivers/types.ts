@@ -57,6 +57,9 @@ export interface ScreenReaderDriver {
    * On return the browse-mode cursor is at the top of the document, nothing is focused, and
    * the browser's sequential focus starting point is at the top of the document.
    * If the response isn't HTML, it returns straight after loading and the core skips the page.
+   *
+   * A driver that takes screenshots takes one of an HTML page once it has loaded, before the screen
+   * reader moves into it, and gives it in the PageInfo.
    */
   openPage(url: string): Promise<PageInfo>;
 
@@ -91,7 +94,19 @@ export interface PageInfo {
    * no address, or the response isn't HTML. A driver that can't read the page's tags gives null.
    */
   canonical: string | null;
+  /**
+   * The page as it looked once it had loaded, before the screen reader read it, for the run to keep.
+   * A driver that doesn't take screenshots leaves it out, and so does one that took none because the
+   * response isn't HTML.
+   */
+  screenshot?: PageScreenshot;
 }
+
+/**
+ * A page's screenshot: a JPEG, or the reason none could be taken. Not being able to take one never
+ * fails the page, so the reason is the answer, and the run records it.
+ */
+export type PageScreenshot = { jpeg: Uint8Array } | { error: string };
 
 export interface FocusedElement {
   /** Lowercase tag name, e.g. "a". */

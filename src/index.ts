@@ -58,6 +58,7 @@ export type {
   EventRecorder,
   FocusedElement,
   PageInfo,
+  PageScreenshot,
   ScreenReaderDriver,
   Speech,
 } from "./drivers/types.js";
