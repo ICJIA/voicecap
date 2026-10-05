@@ -472,11 +472,107 @@ Two folders whose runs recorded the root are a usage error, naming both folders 
 
 ## After execution
 
-(Rulings, review fixes, and what's carried go here, as in plans 4 and 5.)
+**How it was built (2026-10-04):**
+- Subagent-driven: one implementer per task (sonnet), each task reviewed (sonnet), with scoped re-reviews of each fix round.
+- A final whole-branch review (opus) found 0 Critical, 3 Important, and 8 Minor. One fix wave (opus) followed, then a scoped re-review: every finding addressed, none new.
+- 35 commits on the branch, including the footer fix it started from.
+- 4,282 tests pass, and 2 skip on Windows. CI is green on all six jobs at the fix wave's head, f320f5c. Two runs needed a re-run of one job: a macOS focus-timing test once, and two Windows timeouts once, each a runner stall.
+
+**Rulings** (what, why, and what it costs if wrong):
+- **P1:** Task 4 renamed the headline's uses to `header.name`, and Task 5 built the new top. *Why:* each task stays green. *If wrong:* a bigger Task 4.
+- **P2:** the page's walkthrough commands use `--site <root>` before Task 9. *Why:* nothing runs them in between. *If wrong:* none.
+- **P3:** tasks run in order.
+- **P4, P4a:** a canonical address is never an IP or local address. The refusal says `"<input>" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.` *Why:* the owner's rule. *If wrong:* a site at an IP can't be named by it.
+- **P5:** a run's root comes from the root most inner pages' tags give. The home page's root counts only when none does. *Why:* a home page's `/` fits any tag. *If wrong:* the inner pages win a disagreement.
+- **P6:** only pages that were read vote. *If wrong:* a run whose tagged pages all failed learns no root.
+- **P7:** in `init`, a home page's root with a path counts as no tag. *Why:* init sees no inner page. *If wrong:* a sub-path site is asked once.
+- **P8:** init's question says `This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)`.
+- **P9:** a shared copy's stem is `siteFolder(new URL(<root, or the read origin>))_<day>`. *Why:* the plan's stem didn't type-check.
+- **P10:** the Word copy's top keeps "Site address <root>." last, and the run report's link text is the canonical name.
+- **P11:** the "local" sentence is `These runs read a copy of the site on the computer that ran them.` It supersedes this plan's Task 5 text (`on this computer`): the page travels.
+- **P12:** a website heading is the canonical name of the newest share's `site`, else the folder's name.
+- **P13, then P13a:** a share refuses to name a site by an IP or local address when no canonical root resolves, before anything is written. `voicecap site` warns for each site headed by an IP or local folder name. *Why:* shares are permanent and published, so a warning would come too late.
+- **P14, P14a:** the demo's words are true locally and on the website:
+  - every footer says `This demo site comes with voicecap, for trying it out.`;
+  - the form's note says `This is a practice form: sending it only shows a thank-you page, so don't type anything private.`;
+  - sent.html is titled `Practice form | voicecap demo` and headed `This is a practice form, so no one will answer it.`
+- **P15, P15a:** the demo's pages get their CSP as exact `_headers` rules at every address, extensionless included, with no splat. *Why:* Netlify's docs don't say whether a splat matches the folder's own address.
+- **P16:** `--site`'s step 1 needs a folder that holds site records, and a root with a path checks recorded roots first.
+- **P17:** `chooseSiteDir`'s step 2 also counts shares' recorded `site`. `walkthrough --run` takes the folder that holds the run.
+- **P18:** `toCanonical` keeps a path that already starts with the root's path, on the root's origin.
+- **P19:** a null `report.canonical` is left out of the config's hash, so default configs hash as in 0.9.x.
+- **P20:** "a copy on the computer that ran them" applies only to loopback addresses, and "the same site" ignores the scheme and a leading `www.`.
+- **P21:** init offers a home page's root with a path as the Enter default.
+- **P22:** a host with an empty label is refused.
+
+**What the final review changed:**
+- **A:** P13a.
+- **B:** P17. The page's printed `walkthrough` command now finds its run when the root came from `report.canonical`, or when a live folder and a copy's folder name one root.
+- **C:** P18.
+- **D:** P19.
+- **E:** P20.
+- **F:** P21.
+- **G:** P22.
+- **H:**
+  - the OS's litter files are skipped when the demo's pages are published;
+  - the guard's refusal says to delete the folder and build again, when that's safe;
+  - three doc errors fixed.
+- **I:** the spec, the CHANGELOG, and comments aligned. CI's smoke test shares the demo from a folder with its own config.
+
+**Carried, for later:**
+- **Helpers:**
+  - pin the strict trailing-slash fit;
+  - guard `toCanonical` against `blob:`;
+  - document that `canonicalName` takes a normalized root.
+- **Runs:**
+  - make the "every session" test able to fail;
+  - rename the tests named "another site";
+  - test resuming a pre-0.10.0 incomplete run;
+  - consider counting votes by distinct final address.
+- **init:**
+  - bound the home page read (to `</head>`, or about 1 MiB);
+  - document the tag scanner's gaps, or move it to its own module;
+  - init and a run can name different `www.` hosts.
+- **The page:**
+  - widen the guard tests' IP pattern;
+  - share the repeated inline page-name type;
+  - "No longer listed" over another scheme keeps its read address;
+  - two comments in `top.ts`;
+  - the duplicated test helpers;
+  - "copy" in two senses in the Word copy (the owner's call).
+- **Shares:**
+  - a test tying copies' names to the website's name rule;
+  - `verify.ts`'s comment about `JSON.stringify`.
+- **The website:**
+  - same-named links when merged folders shared on one day;
+  - `example.gov_8080` next to `example.gov:8080`;
+  - one site per folder is assumed;
+  - pin `demo-site` as a file or link at the top as tolerated;
+  - make `DEMO_SITE_DIR` injectable, and move the demo's code out of `build.ts`.
+- **`--site`:**
+  - a canonical page with a canonical `--site` is refused, naming the read host;
+  - `canonicalRoot` duplicates `recordedCanonical`;
+  - `report --run` and `review --run` don't look across folders;
+  - the cost of scanning every `run.json`, and a `run.json` that is `null`.
+- **README:**
+  - the screenshot guard reads drawn text only;
+  - some details are only in the pictures (the owner's call);
+  - the flags table's rule chip wraps mid-word (the page's own layout).
+- **Fix-wave residuals:**
+  - a stale `namedRoot` comment (`src/init/site.ts:19`);
+  - `current.*` print a `walkthrough` command that finds its run only once a share records the root;
+  - init's host-root path doesn't re-check an empty-label tag;
+  - a pre-0.10.0 demo share keeps its IP names, with no warning (the README says to run the demo again).
+- **Process note:** one implementer briefly ran test files through a shell (`shell: true`) in a mutation helper. Only tests ran, and it was changed.
 
 **The release (the controller, with the owner):**
 1. Merge to `main` once CI is green on the pushed branch.
 2. Run `./publish.sh --dry-run minor` in the foreground.
 3. Publish 0.10.0 with the owner's 2FA code.
 4. Commit "Release v0.10.0", tag it, push, and record it in the handoff note.
-5. Netlify rebuilds voicecap.netlify.app with `@0.9` until the owner changes `netlify.toml`'s version to `@0.10`. The release steps tell them how: one line, then push. That build publishes `demo-site/`.
+5. Set the transcripts repo's `netlify.toml` command to `@0.10`, then commit and push. This is a standing step the owner asked for on 2026-10-04. That build publishes `demo-site/` and the canonical names.
+6. Check the live site: `curl -I` the 23 demo addresses (each has its CSP, and `/demo-site` reaches `/demo-site/`).
+7. Recommended by the final review: the owner checks one real demo run with this release.
+   - `run.json` records `"canonical": "https://voicecap.netlify.app/demo-site/"`.
+   - `share --out voicecap-demo` names `voicecap.netlify.app_<day>.*`.
+   - This is the real Chrome path that no test drives.
