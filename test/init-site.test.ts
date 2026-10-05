@@ -181,6 +181,68 @@ describe("checkSite's canonical address", () => {
     expect(await canonicalOf("http://127.0.0.1:4848", tag(href))).toBeNull();
   });
 
+  // Ruling P21: init offers the root it set aside, for a person to take or not.
+  describe("the root it sets aside", () => {
+    /** What checkSite gives for the home page at `site` whose head has `head`. */
+    async function checked(site: string, head: string) {
+      const fetch = realSitesFetch({ [`${site}/`]: homePage(head) });
+      const result = await checkSite(new URL(site), fetch);
+      if (!result.ok) throw new Error(`expected ok, got reason: ${result.reason}`);
+      return { canonical: result.canonical, offered: result.offered };
+    }
+
+    it("is offered when the home page's tag names a root with a path", async () => {
+      expect(
+        await checked("http://127.0.0.1:4848", tag("https://voicecap.netlify.app/demo-site/")),
+      ).toEqual({ canonical: null, offered: "https://voicecap.netlify.app/demo-site/" });
+      expect(
+        await checked("http://localhost:3000", tag("https://dvfr.illinois.gov/about/")),
+      ).toEqual({ canonical: null, offered: "https://dvfr.illinois.gov/about/" });
+    });
+
+    it("is none when the tag names the host's own root, names none, or isn't one that fits", async () => {
+      expect(await checked("http://localhost:3000", tag("https://dvfr.illinois.gov/"))).toEqual({
+        canonical: "https://dvfr.illinois.gov/",
+        offered: null,
+      });
+      expect(await checked("http://localhost:3000", "")).toEqual({
+        canonical: null,
+        offered: null,
+      });
+      for (const head of [
+        tag("https://dvfr.illinois.gov/about"),
+        tag("http://localhost:3000/en/"),
+        tag("ftp://dvfr.illinois.gov/en/"),
+      ]) {
+        expect(await checked("http://localhost:3000", head), head).toEqual({
+          canonical: null,
+          offered: null,
+        });
+      }
+    });
+
+    it("is none for a root that isn't a site's name, which init would refuse", async () => {
+      expect(await checked("http://localhost:3000", tag("https://.example.com/about/"))).toEqual({
+        canonical: null,
+        offered: null,
+      });
+    });
+
+    it("is none when the page it read isn't at the path /, whose root counts", async () => {
+      const fetch = realSitesFetch({
+        "http://127.0.0.1:4848/": () =>
+          redirectedTo(
+            "http://127.0.0.1:4848/en/",
+            `<html><head>${tag("https://voicecap.netlify.app/demo-site/en/")}</head></html>`,
+          ),
+      });
+      const result = await checkSite(new URL("http://127.0.0.1:4848"), fetch);
+      if (!result.ok) throw new Error(`expected ok, got reason: ${result.reason}`);
+      expect(result.canonical).toBe("https://voicecap.netlify.app/demo-site/");
+      expect(result.offered).toBeNull();
+    });
+  });
+
   it("keeps a root with a path when the page it read isn't at the path /", async () => {
     // The home page redirects to /en/, so its tag has to end with that path, which is stronger.
     const fetch = realSitesFetch({

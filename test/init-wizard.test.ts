@@ -892,14 +892,76 @@ describe("runWizard, for the site's canonical address", () => {
 
   it("asks when the home page's tag names a root with a path, as it names none", async () => {
     // At "/", a tag that names another page fits, as its path ends in "/", so a root with a path
-    // might be that page's address. Init counts only the host's own root, and asks.
+    // might be that page's address. Init counts only the host's own root, and asks, offering the
+    // root the tag gives, which the answer typed beats.
     const { result, screen } = await session(LOCAL_ANSWERS, {
       fetch: copyAt("http://localhost:3000", tag("https://x.org/about/")),
     });
 
-    expect(screen).toContain(`${CANONICAL_QUESTION}: dvfr.illinois.gov\n`);
+    expect(screen).toContain(
+      `${CANONICAL_QUESTION} Its home page names https://x.org/about/: press Enter to use that. [https://x.org/about/]: dvfr.illinois.gov\n`,
+    );
     expect(screen).not.toContain("The site names its canonical address");
     expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+  });
+
+  // Ruling P21. The demo's home page names https://voicecap.netlify.app/demo-site/, which init sets
+  // aside (a root with a path) but offers: an answer of the host alone would beat the inner pages'
+  // tags, and name every page on the wrong path.
+  describe("when the home page names a root with a path", () => {
+    const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
+    const OFFER = `${CANONICAL_QUESTION} Its home page names ${DEMO_ROOT}: press Enter to use that. [${DEMO_ROOT}]: `;
+    const demoCopy = () => copyAt("http://localhost:3000", tag(DEMO_ROOT));
+
+    it("offers it, and takes it for Enter", async () => {
+      const { result, screen } = await session(["http://localhost:3000", "", "", "", "", ""], {
+        fetch: demoCopy(),
+      });
+
+      expect(screen).toContain(
+        "  → http://localhost:3000 (it answers)\n" +
+          `${OFFER}\n` +
+          "Looking for the site's sitemap…\n",
+      );
+      expect(screen).not.toContain(CANONICAL_NEEDED);
+      expect(result.args.slice(0, 4)).toEqual([
+        "--site",
+        "http://localhost:3000",
+        "--canonical",
+        DEMO_ROOT,
+      ]);
+      expect(result.command).toBe(`${LOCAL} --canonical ${DEMO_ROOT} ${LOCAL_PAGE}`);
+    });
+
+    it("takes an answer typed in its place", async () => {
+      const { result, screen } = await session(LOCAL_ANSWERS, { fetch: demoCopy() });
+
+      expect(screen).toContain(`${OFFER}dvfr.illinois.gov\n`);
+      expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
+    });
+
+    it("still explains an answer it refuses, and asks again with the offer", async () => {
+      const { result, screen } = await session(
+        ["http://localhost:3000", "http://127.0.0.1:4848", "", "", "", "", ""],
+        { fetch: demoCopy() },
+      );
+
+      expect(screen).toContain(
+        `${OFFER}http://127.0.0.1:4848\n` +
+          `"http://127.0.0.1:4848" is an IP address or a local address, not a site's name; give the address people visit, such as https://dvfr.illinois.gov.\n` +
+          `${OFFER}\n`,
+      );
+      expect(result.command).toBe(`${LOCAL} --canonical ${DEMO_ROOT} ${LOCAL_PAGE}`);
+    });
+
+    it("asks nothing at a public address, where the run decides", async () => {
+      const { result, screen } = await session(["https://dvfr.illinois.gov", "", "", "", ""], {
+        fetch: copyAt("https://dvfr.illinois.gov", tag(DEMO_ROOT)),
+      });
+
+      expect(screen).not.toContain(CANONICAL_QUESTION);
+      expect(result.args).not.toContain("--canonical");
+    });
   });
 
   it("says nothing and asks nothing at a public address whose home page's tag names a root with a path", async () => {

@@ -68,6 +68,9 @@ const CANONICAL_QUESTION =
   "This address is an IP address or a local address, so reports need the address people visit. What is it? (for example, https://dvfr.illinois.gov)";
 const CANONICAL_HINT =
   "A report has to name the site. Enter the address people visit, such as https://dvfr.illinois.gov.";
+/** What the canonical question adds when the home page names a root with a path, for Enter to take. */
+const canonicalOffer = (root: string): string =>
+  `Its home page names ${root}: press Enter to use that.`;
 const HOME_TIP =
   'Tip: set VOICECAP_TRANSCRIPTS to keep every run in one place. See "The audit record" in the README.';
 /** The reviewer's quick default, for Enter; a person's name can be typed instead. */
@@ -87,8 +90,8 @@ const REVIEWER_TIP = "Tip: set VOICECAP_REVIEWER to make your own name the defau
 export async function runWizard(deps: WizardDeps): Promise<WizardResult> {
   const { prompter } = deps;
   prompter.say("");
-  const { site, named } = await askSite(deps);
-  const canonical = await askCanonical(deps, site, named);
+  const { site, named, offered } = await askSite(deps);
+  const canonical = await askCanonical(deps, site, named, offered);
   const pages = await askPages(deps, site);
   const limit = pages.kind === "page" ? null : await askLimit(deps);
   const home = await askHome(deps, site);
@@ -129,11 +132,16 @@ function dependsOnFolder(pages: PageChoice, home: string | null, env: NodeJS.Pro
   return !path.isAbsolute(home ?? (fromEnv ? fromEnv : DEFAULT_OUT_DIR));
 }
 
-/** The website `askSite` settled on, and the host's own root, if its home page names that. */
+/**
+ * The website `askSite` settled on, the host's own root, if its home page names that, and the root
+ * with a path it names instead, if it does (see `SiteCheck`).
+ */
 interface AskedSite {
   site: URL;
   /** Null when the home page names no such root (see `SiteCheck`), or the site didn't answer. */
   named: string | null;
+  /** Null when the home page names no root with a path, or the site didn't answer. */
+  offered: string | null;
 }
 
 /**
@@ -141,7 +149,8 @@ interface AskedSite {
  * any redirect (a run keeps to --site's origin, so it must be the one the pages are on), or the
  * origin given when it doesn't answer and "Use it anyway?" gets a yes; a no asks again. Each check
  * can take up to 15 seconds, so it's announced. With the origin comes the canonical address the
- * site's home page names, when it names the host's own root (see `SiteCheck`).
+ * site's home page names, when it names the host's own root, and the root with a path it names
+ * instead (see `SiteCheck`).
  */
 async function askSite(deps: WizardDeps): Promise<AskedSite> {
   const { prompter } = deps;
@@ -158,10 +167,12 @@ async function askSite(deps: WizardDeps): Promise<AskedSite> {
           ? `  → ${check.site.origin} (${given.origin} redirects there)`
           : `  → ${check.site.origin} (it answers)`,
       );
-      return { site: check.site, named: check.canonical };
+      return { site: check.site, named: check.canonical, offered: check.offered };
     }
     prompter.say(`  → ${given.origin} doesn't answer (${check.reason}).`);
-    if (await prompter.confirm("Use it anyway?", false)) return { site: given, named: null };
+    if (await prompter.confirm("Use it anyway?", false)) {
+      return { site: given, named: null, offered: null };
+    }
   }
 }
 
@@ -170,14 +181,18 @@ async function askSite(deps: WizardDeps): Promise<AskedSite> {
  * root (`named`) settles it: that's said, nothing is asked, and the command leaves --canonical out.
  * That's the home page's word alone: the run reads every page's tag and goes by its inner pages'
  * first, so it can choose another root. Otherwise a site at an IP address or a local address is
- * asked for the address people visit, until an answer `normalizeCanonical` accepts; a wrong answer,
- * or none, is explained and asked again. Returns the root asked for, for --canonical, or null when
- * none was: any other site is left to the run.
+ * asked for the address people visit, until an answer `normalizeCanonical` accepts; a wrong answer
+ * is explained and asked again. When the home page names a root with a path (`offered`), the
+ * question names it, and Enter takes it: a host alone, typed in its place, would beat the inner
+ * pages' tags and put every page on the wrong path. With none, an empty answer is explained and
+ * asked again. Returns the root asked for, for --canonical, or null when none was: any other site
+ * is left to the run.
  */
 async function askCanonical(
   deps: WizardDeps,
   site: URL,
   named: string | null,
+  offered: string | null,
 ): Promise<string | null> {
   const { prompter } = deps;
   if (named !== null) {
@@ -185,7 +200,13 @@ async function askCanonical(
     return null;
   }
   if (!isLocalHost(site.hostname)) return null;
-  const answer = await prompter.ask(CANONICAL_QUESTION, { check: canonicalProblem });
+  const answer =
+    offered === null
+      ? await prompter.ask(CANONICAL_QUESTION, { check: canonicalProblem })
+      : await prompter.ask(`${CANONICAL_QUESTION} ${canonicalOffer(offered)}`, {
+          default: offered,
+          check: canonicalProblem,
+        });
   return normalizeCanonical(answer);
 }
 

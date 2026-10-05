@@ -1,4 +1,4 @@
-import { canonicalRootFrom } from "../pages/canonical.js";
+import { canonicalRootFrom, recordedCanonical } from "../pages/canonical.js";
 import { isHtmlContentType, withScheme } from "../pages/url.js";
 import { InterruptedError } from "../passes/steps.js";
 import { errorMessage } from "../util/errors.js";
@@ -16,11 +16,19 @@ export type Check = { ok: true } | { ok: false; reason: string };
  * differs from the one given. `canonical` is the root of the address the home page's
  * `<link rel="canonical">` tag names (see `canonicalRootFrom`), when that's the host's own root, the
  * one with the path `/`; it's null when the page has no tag, isn't HTML, can't be read, names no
- * address people visit, or names a root with a path (see `namedRoot`).
+ * address people visit, or names a root with a path (see `namedRoot`). `offered` is that root with a
+ * path, which `canonical` sets aside, for init to offer when it asks for the address people visit:
+ * null when the tag gives none, or one that isn't a site's name (see `recordedCanonical`).
  */
 export type SiteCheck =
-  | { ok: true; site: URL; moved: boolean; canonical: string | null }
+  | { ok: true; site: URL; moved: boolean; canonical: string | null; offered: string | null }
   | { ok: false; site: URL; reason: string };
+
+/** What a home page's tag gives init: the root it counts, and the one it sets aside (see SiteCheck). */
+interface NamedRoots {
+  canonical: string | null;
+  offered: string | null;
+}
 
 /**
  * Normalize `init`'s website answer: trims it, adds `https://` when it has no scheme (see
@@ -80,37 +88,41 @@ export async function checkSite(
     ok: true,
     site: new URL(`${finalOrigin}/`),
     moved: finalOrigin !== site.origin,
-    canonical: await namedRoot(response, pageUrl, signal),
+    ...(await namedRoots(response, pageUrl, signal)),
   };
 }
 
 /**
  * The root of the canonical address the home page `response` names, read from its HTML at
- * `pageUrl`, or null (see `SiteCheck`). A body that errors on its own (e.g. one that already timed
- * out) names none, and must not fail a check whose status is already known. Rejects with
- * `InterruptedError` when `signal` is why the body failed.
+ * `pageUrl`, and the root it sets aside (see `SiteCheck`): none of either when it names none. A body
+ * that errors on its own (e.g. one that already timed out) names none, and must not fail a check
+ * whose status is already known. Rejects with `InterruptedError` when `signal` is why the body
+ * failed.
  *
  * A page at the path `/` counts only when its tag names the host's own root. Its path ends any tag
  * path that ends in `/`, so a tag that names another page (`https://x.org/about/`) would give that
  * page's address as the root. The run weighs its inner pages' tags before the home page's (see
- * `chooseCanonicalRoot`), so init leaves a root with a path to it. A page that ended at another
- * path, such as `/en/`, has to match that path, which is stronger, so its root counts.
+ * `chooseCanonicalRoot`), so init leaves a root with a path to it, and offers it to the person
+ * when it asks for the address people visit: they can tell the demo's
+ * `https://voicecap.netlify.app/demo-site/` from another page's address. A page that ended at
+ * another path, such as `/en/`, has to match that path, which is stronger, so its root counts.
  */
-async function namedRoot(
+async function namedRoots(
   response: Response,
   pageUrl: string,
   signal?: AbortSignal,
-): Promise<string | null> {
+): Promise<NamedRoots> {
+  const none: NamedRoots = { canonical: null, offered: null };
   if (!isHtmlContentType(response.headers.get("content-type"))) {
     await response.body?.cancel().catch(() => {});
-    return null;
+    return none;
   }
   let html: string;
   try {
     html = await response.text();
   } catch {
     if (signal?.aborted) throw new InterruptedError();
-    return null;
+    return none;
   }
   const href = canonicalLinkHref(html);
   // A tag's address can be relative to its page, which is how a browser reads it.
@@ -118,9 +130,10 @@ async function namedRoot(
     href !== null && URL.canParse(href, pageUrl) ? new URL(href, pageUrl).href : null;
   const root = canonicalRootFrom(pageUrl, declared);
   if (root !== null && new URL(pageUrl).pathname === "/" && new URL(root).pathname !== "/") {
-    return null;
+    // Offered only when init would take it as an answer: a site's name.
+    return { canonical: null, offered: recordedCanonical(root) };
   }
-  return root;
+  return { canonical: root, offered: null };
 }
 
 /** HTML's space characters. */
