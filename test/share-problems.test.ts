@@ -2104,6 +2104,99 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
+  describe("names each program that came to the front, and how often", () => {
+    /**
+     * A run of voicecap 0.11.0 in which each page fails once as another window takes the screen,
+     * naming the program given (null when voicecap couldn't tell, undefined when the run didn't
+     * record it), and a later run that reads them all.
+     */
+    const takenBy = (programs: (string | null | undefined)[], voicecapVersion = "0.11.0") => {
+      const failed = shareRun({
+        id: "failed",
+        voicecapVersion,
+        pages: programs.map((program, index) => ({
+          path: `/${index}`,
+          status: "failed" as const,
+          failedAttempts: [
+            failedAttempt({
+              n: 1,
+              startedAt: at(index),
+              endedAt: at(index, 5),
+              ...(program === undefined ? {} : { program }),
+            }),
+          ],
+        })),
+      });
+      const after = shareRun({
+        id: "after",
+        createdAt: "2026-09-27T09:30:00-05:00",
+        voicecapVersion,
+        pages: programs.map((_, index) => ({ path: `/${index}` })),
+      });
+      return problemsFor(failed, after).line;
+    };
+
+    it("names one program, and how often", () => {
+      expect(takenBy(["Microsoft Teams"])).toBe(
+        `1 problem, outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (once). It didn't happen again. It wasn't an unexpected error, ${NOT_VOICECAP}`,
+      );
+      expect(takenBy(["Microsoft Teams", "Microsoft Teams"])).toBe(
+        `2 problems, both outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (2 times). Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`,
+      );
+    });
+
+    it("names two programs, each with how often, the most often first", () => {
+      expect(takenBy(["Microsoft Outlook", "Microsoft Teams", "Microsoft Teams"])).toBe(
+        `3 problems, all outside voicecap: another window took the screen. Which programs came to the front: Microsoft Teams (2 times), and Microsoft Outlook (once). None happened again. None was an unexpected error, ${NOT_VOICECAP}`,
+      );
+      // Two as often as each other: the first to come to the front first.
+      expect(takenBy(["Slack", "Microsoft Teams"])).toContain(
+        "Which programs came to the front: Slack (once), and Microsoft Teams (once).",
+      );
+    });
+
+    it("counts, without a name, those it couldn't name or the run didn't record", () => {
+      expect(takenBy(["Microsoft Teams", null, "Microsoft Teams"])).toContain(
+        "another window took the screen. Which program came to the front: Microsoft Teams (2 times); for the other, it isn't known. None happened again.",
+      );
+      expect(takenBy(["Microsoft Teams", null, undefined, "Microsoft Outlook"])).toContain(
+        "Which programs came to the front: Microsoft Teams (once), and Microsoft Outlook (once); for the other 2, it isn't known.",
+      );
+    });
+
+    it("counts only the problems of another window taking the screen", () => {
+      const [failed, after] = failing(["foreground", "step-timeout"]);
+      const named = (run: RunJson | undefined): RunJson[] =>
+        run === undefined
+          ? []
+          : [
+              {
+                ...run,
+                pages: run.pages.map((page) => ({
+                  ...page,
+                  failedAttempts: page.failedAttempts?.map((attempt) => ({
+                    ...attempt,
+                    program: "Microsoft Teams",
+                  })),
+                })),
+              },
+            ];
+
+      expect(problemsFor(...named(failed), ...named(after)).line).toBe(
+        `2 problems: another window took the screen (1), and a step took too long (1). Which program came to the front: Microsoft Teams (once). Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`,
+      );
+    });
+
+    it("keeps today's line where no problem names a program, as for a run from before 0.11.0", () => {
+      const today = `2 problems, both outside voicecap: another window took the screen. Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`;
+
+      expect(takenBy([undefined, undefined], "0.10.0")).toBe(today);
+      expect(takenBy([null, null])).toBe(today);
+      // The demo runs of 29 September, from voicecap 0.4.1, wrote their errors as text.
+      expect(problemsFor(demoRun("1315"), demoRun("1402")).line).not.toContain("Which program");
+    });
+  });
+
   it("points to an unexpected error, which could mean a problem in voicecap itself", () => {
     const one = problemsFor(...failing(["foreground", "unexpected"]));
     const two = problemsFor(...failing(["unexpected", "foreground", "unexpected"]));

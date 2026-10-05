@@ -874,7 +874,31 @@ function lineOf(problems: Problem[], standing: Standing): string {
       : unexpected === 1
         ? `1 was an unexpected error, ${itself}: see its record.`
         : `${unexpected} were unexpected errors, ${itself}: see their records.`;
-  return `${count}${whose}: ${named}. ${again}. ${closing}`;
+  const programs = programsLine(problems);
+  return `${count}${whose}: ${named}.${programs === null ? "" : ` ${programs}`} ${again}. ${closing}`;
+}
+
+/**
+ * The verdict line's sentence on which programs came to the front: each program the problems of
+ * another window taking the screen name, with how often, the most often first (among those as often
+ * as each other, the first to come to the front first), then how many of those problems name none
+ * (voicecap couldn't tell, or the run didn't record it). None when no problem names a program, as
+ * in every run from before voicecap 0.11.0, whose line stays as it was.
+ */
+function programsLine(problems: Problem[]): string | null {
+  const counts = new Map<string, number>();
+  let unnamed = 0;
+  for (const { kind, program } of problems) {
+    if (kind !== "foreground") continue;
+    if (typeof program === "string") counts.set(program, (counts.get(program) ?? 0) + 1);
+    else unnamed++;
+  }
+  if (counts.size === 0) return null;
+  // The sort is stable, so programs as often as each other stay in the order they came.
+  const often = [...counts]
+    .sort(([, more], [, fewer]) => fewer - more)
+    .map(([program, times]) => PROBLEMS_TEXT.programs.often(program, times));
+  return PROBLEMS_TEXT.programs.line(joinList(often), counts.size, unnamed);
 }
 
 /**

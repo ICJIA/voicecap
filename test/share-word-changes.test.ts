@@ -1465,6 +1465,17 @@ describe("wordProblems", () => {
       expect(tableAt(part, 1).head).toEqual(PROBLEMS_TEXT.record.head);
     });
 
+    it("names the program that came to the front, and how often, in the section's verdict line", () => {
+      const [, verdict] = wordProblems(loggedModel());
+
+      expect(verdict && wordsOf([verdict])).toEqual([
+        "1 problem, outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (once). It didn't happen again. It wasn't an unexpected error, the kind that could mean a problem in voicecap itself.",
+      ]);
+      expect(verdict?.kind === "para" ? boldIn(verdict.line) : []).toEqual([
+        "1 problem, outside voicecap: another window took the screen.",
+      ]);
+    });
+
     it("has the event log's lines too, by time, each from events.jsonl", () => {
       const part = firstProblem(loggedModel());
       const rows = wordsOf([tableAt(part, 1)]);

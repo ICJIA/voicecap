@@ -1194,6 +1194,17 @@ describe("renderProblems", () => {
       expect(textOf(fold)).not.toContain("Which program came to the front: not recorded");
     });
 
+    it("names the program that came to the front, and how often, in the verdict line", () => {
+      const model = loggedModel();
+
+      expect(model.problems.line).toBe(
+        "1 problem, outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (once). It didn't happen again. It wasn't an unexpected error, the kind that could mean a problem in voicecap itself.",
+      );
+      expect(renderProblems(model)).toContain(
+        '<p class="prob-verdict"><b>1 problem, outside voicecap: another window took the screen.</b> Which program came to the front: Microsoft Teams (once). It didn&#39;t happen again. It wasn&#39;t an unexpected error, the kind that could mean a problem in voicecap itself.</p>',
+      );
+    });
+
     it("shows the event log's lines in the record, each from events.jsonl", () => {
       const [fold = ""] = foldsIn(renderProblems(loggedModel()));
       const rows = rowsOf(tableOf(fold, "logtable"));

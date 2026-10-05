@@ -358,6 +358,26 @@ export const PROBLEMS_TEXT = {
       "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
   },
   /**
+   * The verdict line's sentence on the programs that came to the front, said when its problems name
+   * any (runs of 0.11.0 on): the list of them, each with how often (`often`), and, when some of the
+   * problems of another window taking the screen name none (voicecap couldn't tell, or the run
+   * didn't record it), how many. `programs` is how many programs the list names.
+   */
+  programs: {
+    line: (list: string, programs: number, unnamed: number): string => {
+      const which = programs === 1 ? "Which program" : "Which programs";
+      const others =
+        unnamed === 0
+          ? ""
+          : unnamed === 1
+            ? "; for the other, it isn't known"
+            : `; for the other ${unnamed}, it isn't known`;
+      return `${which} came to the front: ${list}${others}.`;
+    },
+    often: (program: string, times: number): string =>
+      `${program} (${times === 1 ? "once" : `${times} times`})`,
+  },
+  /**
    * The table of kinds of problem: its title, what its line says is in it (the number of kinds is
    * the table's), and the heads of its columns.
    */
