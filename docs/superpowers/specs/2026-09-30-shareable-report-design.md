@@ -312,10 +312,11 @@ Everything below goes in the run's folder. Each file's SHA-256 is recorded in `r
   - **The foreground program:** when the browser loses the foreground, the event names the program that took it (for example, "Microsoft Teams") and keeps its window title.
     - The shared page shows only the program, never the title, which can hold private text such as an email subject.
   - Event types are general ("screen reader started", "browser closed"). The NVDA details stay in the NVDA driver, and the VoiceOver driver will record its own.
+  - The page calls the screen reader voicecap runs "voicecap's NVDA", and the one it shuts down "the computer's own NVDA". It never names Guidepup, as the mockup's sample did.
 - **B. Screenshots.** One per page, `pages/<slug>/screenshot.jpg`:
   - taken as the page finishes loading, before NVDA reads it;
   - taken through the browser's DevTools connection, so it never takes focus;
-  - 640 × 480 (half the 1280 × 960 window), JPEG, about 25 KB.
+  - 640 × 480 (half the 1280 × 960 window), JPEG, about 25 KB. In practice it's the visible page at half its size. The window's own bar takes some of its height, so a screenshot is 640 wide and a little less than 480 high. The record keeps its true size.
 - **C. NVDA's own log.** While voicecap runs NVDA, NVDA logs everything it says. voicecap keeps a copy per NVDA session (`nvda-log/<session>.txt`) and compares its speech with the transcripts, line by line.
   - The page shows how many lines agree and lists any that don't, in either direction.
   - The parsing builds on voicecap's NVDA-log import for manual sessions (`src/manual/nvda-log.ts`).
@@ -434,6 +435,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
 - every chart with a text equivalent (a summary, or its numbers as a table), and alt text on every screenshot;
 - complete without JavaScript. Its only scripts are the theme button, "Open every section", opening every fold for printing, opening a fold a link points into, and "Check the fingerprints". Without them, every fold still opens by hand;
 - dark by default, light when switched, and light in print;
+- the footer at the window's bottom on a page shorter than the window, and after the content on a longer one. It isn't pinned while scrolling. The owner set this on 2026-10-05 for every page voicecap makes: the page and its shared copies, the run report, the website, and the demo site's pages;
 - folds as "What's open at first, and what's folded" describes;
 - the fonts embedded: IBM Plex Sans, Sans Condensed, and Mono, Latin subsets, openly licensed (SIL Open Font License, whose text ships with voicecap), about 200 KB;
 - axe run on the generated file in the tests: zero violations.
@@ -544,8 +546,10 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
    - evidence D with page titles, E without the program in front, and F.
 
    Built and tested without a screen reader, so it can be done remotely. It merges to `main` when done, because it only adds.
-2. **Stage 2:** evidence A (the event log and the foreground program, which also fills E's program), B (screenshots), and C (NVDA's own log and the cross-check). Built, then checked with real runs at the PC.
-3. **Release as 0.6.0** once both stages pass.
+2. **Stage 2,** in two parts, each built and then checked with real runs at the PC:
+   - **Plan 6, for 0.11.0:** evidence A (the event log and the foreground program, which also fills E's program) and B (screenshots).
+   - **Plan 6c:** evidence C (NVDA's own log and the cross-check). It's written once the facts below are settled at the PC and a real log is kept.
+3. **Releases:** Stage 1 shipped across 0.6.0 to 0.10.0, and each part of stage 2 ships when it passes.
 
 ## Facts to confirm at the PC
 
@@ -560,6 +564,12 @@ Before stage 2's C:
 - **Where Guidepup's portable NVDA writes its log,** and whether each NVDA restart starts a new one.
 - **Whether logging at that level changes NVDA's timing** enough to change transcripts, by comparing a run with it on and off on the demo site.
 - **The foreground program's lookup:** the Windows call that names the program behind the window in front, checked against a real window taking the foreground.
+
+What Guidepup 0.34.0's source shows, read on 2026-10-05 for plan 6:
+- It starts NVDA with only `--config-path`, and has no option for NVDA's log.
+- Its `settings` reach NVDA's own configuration with no list of allowed keys. So `general.loggingLevel` is the supported way to turn the log on. Its NVDA has that at `OFF`.
+- NVDA writes `%TEMP%\nvda.log`, and moves the last one to `nvda-old.log` at every start, including the start of the computer's own NVDA after a run. So a run's copy has to be taken as soon as its NVDA quits.
+- At the input/output level, NVDA logs every key pressed and any window's speech, so a copy can hold private text. Plan 6c decides what's kept, and where.
 
 ## Not included
 
