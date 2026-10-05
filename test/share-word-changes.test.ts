@@ -1407,7 +1407,7 @@ describe("wordProblems", () => {
         "What happened | During the read pass, at step 12 (Down Arrow), another window took the screen. Which program came to the front: Microsoft Teams.",
       );
       expect(happened(null)).toBe(
-        "What happened | During the read pass, at step 12 (Down Arrow), another window took the screen. Windows didn't say which program came to the front.",
+        "What happened | During the read pass, at step 12 (Down Arrow), another window took the screen. voicecap couldn't tell which program came to the front.",
       );
       // A run that didn't look says so with what it didn't record, as before.
       const older = firstProblem(

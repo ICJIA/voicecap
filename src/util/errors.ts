@@ -70,9 +70,10 @@ export function errorMessage(error: unknown): string {
 
 /**
  * The program that took the foreground, from the ForegroundError that says so: its name, or null
- * when Windows didn't say. Undefined for a ForegroundError whose driver didn't look, and for every
- * other error, whatever properties it has: as causeOf takes a code only from voicecap's own errors,
- * this takes a program only from this one.
+ * when voicecap couldn't tell which it was (Windows didn't say, or the window in front by the time
+ * voicecap looked was its own browser's). Undefined for a ForegroundError whose driver didn't look,
+ * and for every other error, whatever properties it has: as causeOf takes a code only from
+ * voicecap's own errors, this takes a program only from this one.
  */
 export function programOf(error: unknown): string | null | undefined {
   return error instanceof ForegroundError ? error.program : undefined;

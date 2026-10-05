@@ -2244,7 +2244,7 @@ describe("problemsOf: the program that took the screen", () => {
     expect(problem?.notRecorded.join(" ")).not.toContain("Which program");
   });
 
-  it("keeps that Windows didn't say which program it was", () => {
+  it("keeps that voicecap couldn't tell which program it was", () => {
     const [problem] = problemsWith(failedAttempt({ n: 1, program: null }));
 
     expect(problem).toHaveProperty("program", null);

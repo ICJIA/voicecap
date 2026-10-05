@@ -367,13 +367,14 @@ export const PROBLEMS_TEXT = {
   },
   /**
    * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
-   * after what happened: its name, never its window's title, or that Windows didn't say. A run of
-   * 0.11.0 or later whose screen reader driver didn't look says so where the problem says what the
-   * run didn't record (`notLooked`); an older run's voicecap didn't look at all.
+   * after what happened: its name, never its window's title, or that voicecap couldn't tell (Windows
+   * didn't say, or by the time voicecap looked, its own browser was in front again). A run of 0.11.0
+   * or later whose screen reader driver didn't look says so where the problem says what the run
+   * didn't record (`notLooked`); an older run's voicecap didn't look at all.
    */
   program: {
     named: (program: string): string => `Which program came to the front: ${program}.`,
-    unknown: "Windows didn't say which program came to the front.",
+    unknown: "voicecap couldn't tell which program came to the front.",
     notLooked:
       "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
   },

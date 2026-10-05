@@ -570,8 +570,8 @@ export function sentence(text: string): string {
 
 /**
  * Which program came to the front, for a foreground loss whose run recorded it (`Problem.program`):
- * its name, or that Windows didn't say. None for a problem that has no program to say: a run that
- * didn't record one says so among what it didn't record.
+ * its name, or that voicecap couldn't tell. None for a problem that has no program to say: a run
+ * that didn't record one says so among what it didn't record.
  */
 export function programLine({ program }: Problem): string | null {
   if (program === undefined) return null;

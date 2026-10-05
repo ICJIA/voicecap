@@ -1178,7 +1178,7 @@ describe("renderProblems", () => {
       expect(textOf(fold)).not.toContain("The step and the key");
     });
 
-    it("says which program came to the front after what happened, or that Windows didn't say", () => {
+    it("says which program came to the front after what happened, or that voicecap couldn't tell", () => {
       const happened = (program: string | null) =>
         termsOf(foldsIn(renderProblems(failedModel([{ ...attempt, program }])))[0] ?? "")[0];
 
@@ -1188,7 +1188,7 @@ describe("renderProblems", () => {
       ]);
       expect(happened(null)).toEqual([
         "What happened",
-        "During the read pass, at step 12 (Down Arrow), another window took the screen. Windows didn't say which program came to the front.",
+        "During the read pass, at step 12 (Down Arrow), another window took the screen. voicecap couldn't tell which program came to the front.",
       ]);
       const [fold = ""] = foldsIn(renderProblems(failedModel([{ ...attempt, program: null }])));
       expect(textOf(fold)).not.toContain("Which program came to the front: not recorded");

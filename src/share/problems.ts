@@ -76,8 +76,8 @@ export interface Problem {
   message: string;
   /**
    * For a foreground loss, the program that came to the front, by its name, with the home folder
-   * replaced; null when Windows didn't say. Absent when the run didn't record it: before voicecap
-   * 0.11.0, or a driver that didn't look. Never the window's title.
+   * replaced; null when voicecap couldn't tell. Absent when the run didn't record it: before
+   * voicecap 0.11.0, or a driver that didn't look. Never the window's title.
    */
   program?: string | null;
   stack: string | null;
@@ -393,7 +393,7 @@ interface Failure {
 /**
  * A failed attempt from its record, with what the run's event log says of it (`events`, see
  * EventRows) among the record's own lines, by time. Its program, for a foreground loss, is as the
- * record keeps it: a name, or null when Windows didn't say.
+ * record keeps it: a name, or null when voicecap couldn't tell.
  */
 function failureOfRecord(
   attempt: AttemptRecord,
@@ -446,8 +446,8 @@ function failureOfRecord(
 
 /**
  * The program a foreground loss's record names: its name, with the home folder replaced, or null
- * when Windows didn't say. Absent when the record has none to give (a run from before 0.11.0, or a
- * driver that didn't look), or a value no voicecap writes.
+ * when voicecap couldn't tell. Absent when the record has none to give (a run from before 0.11.0,
+ * or a driver that didn't look), or a value no voicecap writes.
  */
 function programOf(
   program: AttemptRecord["program"],
