@@ -1514,6 +1514,22 @@ describe("reporting to the run's event log", () => {
     ]);
   });
 
+  it("records a restart's stop as a final one when the final stop joins it before NVDA has stopped", async () => {
+    const { driver, desktop, deps, nvda, recorder } = recording();
+    const settle = deps.sleep;
+    deps.sleep = (ms, signal) => (signal ? new Promise(() => {}) : settle(ms)); // no time limit runs out
+    await driver.start();
+    nvda.stopHangs = true; // Guidepup's stop doesn't finish until it's told to
+    const restartStop = driver.stop({ restarting: true });
+    await until(() => desktop.events.includes("nvda:stop"));
+    const finalStop = driver.stop();
+    nvda.finishStop();
+    await Promise.all([restartStop, finalStop]);
+    expect(only(recorder.events, "screen-reader-stopped")).toEqual([
+      { type: "screen-reader-stopped", pid: nvda.pid, restarting: false },
+    ]);
+  });
+
   it("records the close of a browser it won't go on with, which had updated itself", async () => {
     const { driver, desktop, recorder } = recording();
     await driver.start();
