@@ -1,7 +1,8 @@
 /**
  * What the shareable page is made from, read from a site's folder in the transcripts home: its
- * runs, reviews, and manual sessions, and the transcripts the page shows or compares. Every read is
- * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
+ * runs, reviews, and manual sessions, the transcripts the page shows or compares, and the event logs
+ * of the runs it draws on. Every read is here; buildShareModel (./model.ts) works from what this
+ * gives it, and reads nothing itself.
  */
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -21,15 +22,18 @@ import {
   type PageRecord,
   type PassName,
   type ReviewsFile,
+  type RunEvent,
   type RunJson,
   type StepRecord,
   type TranscriptJson,
 } from "../model.js";
 import { recordedCanonical } from "../pages/canonical.js";
 import { readReviews } from "../reviews/store.js";
+import { EVENT_LOG, readEventLog } from "../run/events.js";
 import { homeFolder } from "../run/failure.js";
-import { pageDir, runJsonPath } from "../run/paths.js";
+import { eventLogFile, pageDir, runJsonPath } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
+import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
 import { runBefore, standingOf, type Standing } from "./standing.js";
@@ -77,6 +81,13 @@ export interface ShareInput {
    * sounds different in the latest run (the page compares them line by line).
    */
   transcripts: TranscriptStore;
+  /**
+   * The event log (events.jsonl) of each run the page draws on, by run id, as readEventLog reads
+   * it: its events, and how many of its lines couldn't be read. Only a log its run's record lists,
+   * whose file is as recorded there (its size and SHA-256), so the page shows only what the run's
+   * seal covers: a run without one isn't in it.
+   */
+  events: Map<string, { events: RunEvent[]; unreadable: number }>;
   /**
    * The pages read here whose flags couldn't be computed afresh, since a JSON transcript of theirs
    * couldn't be read: each keeps the flags its record has, by run id and slug.
@@ -145,10 +156,11 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns] = await Promise.all([
+  const [reviews, manual, unreadableRuns, events] = await Promise.all([
     readReviews(siteDir),
     listManualSessions(siteDir),
     runsNotRead(siteDir, records),
+    eventLogsOf(siteDir, standing.drawnOn),
   ]);
   const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
@@ -168,6 +180,7 @@ export async function loadShareInput(options: {
     reviews,
     manual,
     transcripts: storeOf(read),
+    events,
     siteName: config.report.siteName,
     flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
@@ -233,6 +246,29 @@ async function readPage(
     }),
   );
   return read;
+}
+
+/**
+ * The event log of each run, by run id: one its record lists (from voicecap 0.11.0), whose file is
+ * there and is as its record has it. A log that isn't (missing, unreadable, or changed since its
+ * run's seal) is left out, and the page says so; `voicecap verify` names it.
+ */
+async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput["events"]> {
+  const logs: ShareInput["events"] = new Map();
+  for (const run of runs) {
+    const recorded = run.files?.[EVENT_LOG];
+    if (recorded === undefined) continue;
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(eventLogFile(siteDir, run.id));
+    } catch {
+      continue;
+    }
+    const { sha256, bytes: size } = fileHash(bytes);
+    if (sha256 !== recorded.sha256 || size !== recorded.bytes) continue;
+    logs.set(run.id, readEventLog(bytes.toString("utf8")));
+  }
+  return logs;
 }
 
 /** A file's text, exactly: UTF-8, with a byte-order mark and line endings kept. */

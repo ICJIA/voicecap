@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { PassName } from "../src/model.js";
+import type { PassName, RunEvent, RunJson } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { longDate, sizeWords } from "../src/share/format.js";
@@ -22,6 +22,7 @@ import {
 import type { ShareInput, TranscriptStore } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
+import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
@@ -44,6 +45,8 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  loggedModel,
+  loggedRun,
   storeOf,
   TRANSCRIPTS,
   withStepLimit,
@@ -856,6 +859,200 @@ describe("renderEvidence", () => {
     });
   });
 
+  describe("a run's event log, minute by minute and to the millisecond", () => {
+    const RUN = "2026-09-26_1402";
+
+    /** The logged run's fold: everything from its opening tag, its folds of events with it. */
+    function loggedFold(model = loggedModel()): string {
+      const html = renderEvidence(model);
+      return html.slice(html.indexOf('<details class="fold" id="run-'));
+    }
+
+    /** The logged run's timelines, as the model has them. */
+    function timelinesOf(model: ShareModel): SessionTimeline[] {
+      const timeline = model.evidence[0]?.timeline;
+      if (!Array.isArray(timeline)) throw new Error("The run has no timeline.");
+      return timeline;
+    }
+
+    /** The element whose id is `id`, as text. */
+    function textById(html: string, id: string): string {
+      const found = new RegExp(`<([a-z0-9]+)\\b[^>]*\\sid="${id}"[^>]*>(.*?)</\\1>`, "s").exec(
+        html,
+      );
+      if (found === null) throw new Error(`Nothing has the id ${id}`);
+      return textOf(found[2] ?? "");
+    }
+
+    it("draws a chart of each session: an image named by its summary, in a box a keyboard can reach and scroll", () => {
+      const model = loggedModel();
+      const fold = loggedFold(model);
+      const charts = [...fold.matchAll(/(<div class="scroll"[^>]*>)(<svg [^>]*>)/g)].map(
+        ([, box = "", svg = ""]) => ({ box, svg }),
+      );
+
+      expect(charts).toHaveLength(2);
+      for (const [index, { box, svg }] of charts.entries()) {
+        const session = index + 1;
+        expect(attributes(svg, "class")).toEqual(["timeline"]);
+        expect(attributes(svg, "role")).toEqual(["img"]);
+        expect(attributes(svg, "aria-labelledby")).toEqual([
+          `tl-${RUN}-${session}-title tl-${RUN}-${session}-sum`,
+        ]);
+        expect(textById(fold, `tl-${RUN}-${session}-title`)).toBe(
+          `Minute by minute, run ${RUN}, session ${session}`,
+        );
+        // Its summary is a paragraph above it, whose words are the model's.
+        expect(textById(fold, `tl-${RUN}-${session}-sum`)).toBe(
+          timelinesOf(model)[index]?.summary.join(" "),
+        );
+        expect(fold.indexOf(`id="tl-${RUN}-${session}-sum"`)).toBeLessThan(fold.indexOf(svg));
+        expect(box).toBe(
+          `<div class="scroll" tabindex="0" role="region" aria-label="Minute by minute, run ${RUN}, session ${session}, chart">`,
+        );
+      }
+      expect(textById(fold, `tl-${RUN}-1-sum`)).toBe(
+        "voicecap held the NVDA lock from 14:02 to 14:06. voicecap's NVDA ran as process 65720, then 54568. The computer's own NVDA was shut down at 14:02 and started again at 14:06. 2 pages ran in order; page 2 failed at 14:04.",
+      );
+    });
+
+    it("names each session by its number and its day, when the run has more than one", () => {
+      const fold = loggedFold();
+
+      expect([...fold.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 1, 26 September 2026",
+        "Session 2, 28 September 2026",
+      ]);
+    });
+
+    it("names a run's only session by its run alone", () => {
+      const { run, log } = loggedRun();
+      const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { events: first, unreadable: 0 }]]) }),
+      );
+
+      expect(fold).not.toContain("<h4>");
+      expect(scrollBoxes(fold)[0]).toContain(`aria-label="Minute by minute, run ${RUN}, chart"`);
+      expect(textById(fold, `tl-${RUN}-1-title`)).toBe(`Minute by minute, run ${RUN}`);
+    });
+
+    it("names a run's only logged session by its number when it isn't the first, as for a run begun before voicecap kept the log", () => {
+      const { run, log } = loggedRun();
+      const second = log.events.filter((event) => event.at.startsWith("2026-09-28"));
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { events: second, unreadable: 0 }]]) }),
+      );
+
+      expect([...fold.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 2, 28 September 2026",
+      ]);
+      expect(scrollBoxes(fold)[0]).toContain(
+        `aria-label="Minute by minute, run ${RUN}, session 2, chart"`,
+      );
+    });
+
+    it("folds a table of every event of each session, a row for each, marked with its kind", () => {
+      const model = loggedModel();
+      const fold = loggedFold(model);
+      const logs = fold.split('<details class="log">').slice(1);
+
+      expect(logs).toHaveLength(2);
+      for (const [index, timeline] of timelinesOf(model).entries()) {
+        const log = logs[index]?.split("</details>")[0] ?? "";
+        const session = index + 1;
+        expect(log).toMatch(
+          new RegExp(
+            `^<summary>Every event, to the millisecond \\(${timeline.rows.length}\\)</summary>`,
+          ),
+        );
+        expect(log).toContain(
+          `<div class="events" tabindex="0" role="region" aria-label="Every event, run ${RUN}, session ${session}, table">`,
+        );
+        expect(rowsOf(log)).toEqual([
+          "Time | Event",
+          ...timeline.rows.map(({ time, text }) => `${time.slice(11, 23)} | ${text}`),
+        ]);
+        expect([...log.matchAll(/<tr class="([^"]*)">/g)].map(([, kind]) => kind)).toEqual(
+          timeline.rows.map(({ kind }) => `ev-${kind}`),
+        );
+      }
+      // The first session's 26 events and the second's 12, each closed.
+      expect(summariesIn(fold).filter((line) => line.startsWith("Every event"))).toEqual([
+        "Every event, to the millisecond (26)",
+        "Every event, to the millisecond (12)",
+      ]);
+      expect(fold).not.toMatch(/<details class="log" open/);
+    });
+
+    it("says how many lines of the log couldn't be read, under the last table", () => {
+      const { run, log } = loggedRun();
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { ...log, unreadable: 3 }]]) }),
+      );
+
+      expect(fold).toContain("<p>3 lines of the event log couldn&#39;t be read.</p>");
+      expect(fold.indexOf("couldn&#39;t be read")).toBeGreaterThan(
+        fold.lastIndexOf('<details class="log">'),
+      );
+      expect(loggedFold()).not.toContain("couldn&#39;t be read");
+    });
+
+    it("counts NVDA's restarts in the run's facts, with why each was", () => {
+      const model = loggedModel();
+
+      expect(termsOf(loggedFold(model))).toContainEqual([
+        "NVDA restarts",
+        "1: to try Apply again (attempt 2 of 5)",
+      ]);
+    });
+
+    it("says what the event log can't show of a run of 0.11.0 whose log isn't there to read", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const timelineOf = (record: RunJson) =>
+        partOf(
+          runFolds(renderEvidence(buildShareModel(inputOf([record])))).at(0) ?? "",
+          "Minute by minute",
+        );
+
+      // Its record lists a log, which the page couldn't read as it was recorded.
+      expect(timelineOf(listed)).toContain(
+        '<p class="not-recorded">Not shown: the event log isn&#39;t as the run recorded it; voicecap verify names it.</p>',
+      );
+      // Its record lists none.
+      expect(timelineOf(run)).toContain(
+        '<p class="not-recorded">Not recorded: this run&#39;s record lists no event log.</p>',
+      );
+      expect(renderEvidence(buildShareModel(inputOf([run])))).not.toContain('class="timeline"');
+    });
+
+    it("escapes what an event says: a type it doesn't know, and a program's name", () => {
+      const { run, log } = loggedRun();
+      const hostile = '<img src=x onerror="alert(1)">';
+      const events: RunEvent[] = log.events.map((event) =>
+        event.type === "foreground-lost" ? { ...event, program: hostile } : event,
+      );
+      const last = events.at(-1)?.at ?? "";
+      events.push({ at: last, type: hostile } as unknown as RunEvent);
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+      );
+
+      expect(fold).not.toContain("<img");
+      expect(fold).toContain(`<td>Another window came to the front: ${esc(hostile)}</td>`);
+      expect(fold).toContain(`<td>${esc(hostile)}</td>`);
+    });
+
+    it("leaves the demo's runs, from 0.4.1, as they were: no chart, no table", async () => {
+      const html = renderEvidence(await demoModel());
+
+      expect(html).not.toContain('class="timeline"');
+      expect(html).not.toContain('class="log"');
+      expect(html).not.toContain('class="events"');
+    });
+  });
+
   describe("the runs it left out", () => {
     it("lists them last, as a list", async () => {
       const model = await demoModel();
@@ -966,6 +1163,7 @@ describe("renderEvidence", () => {
       unreadableModel(THREE_UNREADABLE),
       modelOf([{ path: "/" }]),
       noRunModel(),
+      loggedModel(),
     ]) {
       const html = withoutData(renderEvidence(model));
 

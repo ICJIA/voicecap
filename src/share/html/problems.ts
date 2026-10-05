@@ -11,10 +11,11 @@
  * attribute is set. The model has already replaced the home folder in every message, entry, and
  * stack. The only link is to where an error voicecap didn't expect can be reported.
  *
- * The mockup showed this with two sample problems (and sample event lines from a log that voicecap
- * doesn't record yet, which are never here). Where it had nothing to say (the record of a problem
- * with no time, the stack, how the kind was decided), the words are new, and use the mockup's own
- * classes.
+ * The mockup showed this with two sample problems, and sample lines of an event log. A run records
+ * its own event log from voicecap 0.11.0, and a problem's record has the log's lines of its attempt
+ * among its own, by time, from events.jsonl. Where the mockup had nothing to say (the record of a
+ * problem with no time, the stack, how the kind was decided), the words are new, and use the
+ * mockup's own classes.
  */
 import { esc, idFragment } from "../../report/html.js";
 import type { ShareModel } from "../model.js";
@@ -22,6 +23,7 @@ import { KIND_ROWS, type Problem } from "../problems.js";
 import { PROBLEMS_TEXT } from "../text.js";
 import {
   decidedFrom,
+  happenedLine,
   kindMeaning,
   kindTitle,
   problemTime,
@@ -43,11 +45,14 @@ const AGAIN_KIND: Record<Problem["again"], string> = {
 /** A question of a problem, and its answer, which is HTML, already escaped. */
 const row = (label: string, said: string): string => `<dt>${esc(label)}</dt><dd>${said}</dd>`;
 
-/** What happened, what voicecap did, whether it happened again, and the effect on the results. */
+/**
+ * What happened (with which program came to the front, for a foreground loss whose run recorded
+ * it), what voicecap did, whether it happened again, and the effect on the results.
+ */
 function questions(problem: Problem): string {
   const labels = PROBLEMS_TEXT.questions;
   const rows = [
-    row(labels.happened, esc(sentence(problem.happened))),
+    row(labels.happened, esc(happenedLine(problem))),
     ...(problem.fromWording ? [row(labels.decided, esc(decidedFrom(problem.kind)))] : []),
     row(labels.did, esc(sentence(problem.did))),
     row(labels.again, esc(sentence(problem.verdict))),

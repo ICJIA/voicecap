@@ -39,7 +39,11 @@ export const THEME_CSS = `:root {
  * - colors axe needs: a solid background behind "When to run voicecap", a darker green for chips
  *   in the light theme, and red, not green, behind the words a removed line lost;
  * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches), and in
- *   print no box scrolls or cuts anything short, since paper can't scroll;
+ *   print no box scrolls or cuts anything short, since paper can't scroll: a session's chart of
+ *   its event log narrows to the paper, and its table of events shows every row;
+ * - a session of the event log (`.t-session`), and the kinds of its events' rows (`.ev-*`): the
+ *   lock's, the screen readers', the browser's, and a failure's each in a color of their own (the
+ *   row's words say what each is), and the run's own in bold;
  * - long words in tables wrap at a phone's width, and the timeline's table fits its box down to 320
  *   pixels (closer columns, no dots, smaller type), so nothing in it is cut off at the box's edge;
  * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
@@ -182,9 +186,14 @@ td.said code { display: inline-block; background: var(--panel-2); border: 1px so
 .timeline .b-lock { fill: var(--accent); } .timeline .b-nvda { fill: var(--ok); } .timeline .b-page { fill: var(--muted); } .timeline .b-fail { fill: var(--bad); } .timeline .b-own { fill: var(--panel-2); stroke: var(--muted); stroke-dasharray: 3 3; }
 .timeline .fail-line { stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 4 4; }
 details.log > summary, details.tx-page > summary { cursor: pointer; }
+/* A session of a run's event log: its name, its summary, its chart, and its folded table of events, each the mockup's. */
+.t-session { display: grid; gap: 10px; } .t-session + .t-session { margin-top: 18px; }
+.t-session > p, .t-session > h4 { margin: 0; } .t-session > h4 { font: 600 0.95rem var(--display); }
+details.log > .events { margin-top: 8px; }
 .events { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
-.events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; }
+.events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; } .events td.mono { white-space: nowrap; }
 .ev-fail td { color: var(--bad); } .ev-own td { color: var(--warn); } .ev-lock td { color: var(--accent); }
+.ev-screen-reader td { color: var(--ok); } .ev-browser td { color: var(--muted); } .ev-run td { font-weight: 600; }
 .cross { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
 .cross div { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
 .cross .big { font: 700 1.8rem/1 var(--display); }
@@ -311,6 +320,6 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 /* At a phone's width, down to 320 pixels, the timeline's three columns fit their box: closer together, inside it, without the dots, and in smaller type. */
 @media (max-width: 400px) { table.tracks { border-spacing: 4px 6px; margin: 4px 0 10px; font-size: 0.86rem; } table.tracks caption { padding: 0 0 2px; } table.tracks thead th { padding: 4px 4px 0; letter-spacing: 0.02em; } table.tracks tbody th { padding: 8px 4px; font-size: 0.74rem; } table.tracks tbody th::before { display: none; } table.tracks td { padding: 8px 6px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
-/* Paper doesn't scroll: in print, every box shows all it holds. After the rules that limit the boxes, so it wins. */
-@media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } }
+/* Paper doesn't scroll: in print, every box shows all it holds, and a chart narrows to the paper. After the rules that limit the boxes, so it wins. */
+@media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } .timeline { min-width: 0; } }
 `;

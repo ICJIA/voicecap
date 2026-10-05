@@ -1,7 +1,8 @@
 /**
  * The problems during the runs: every failed attempt in the runs a standing draws on, each with
  * its kind, what voicecap did, whether it happened again, what it did to the results, and the
- * record of it. Pure: it works from run records already read, and reads no files.
+ * record of it. Pure: it works from run records already read, and reads no files. The lines a run's
+ * event log has of an attempt come from whoever read the log (see `EventRows`).
  */
 import {
   PASS_NAMES,
@@ -27,9 +28,21 @@ export type ProblemKind =
 
 export interface ProblemRecordRow {
   time: string | null;
-  source: "run.json" | "stack";
+  /** The page's record in run.json, the run's event log, or the stack an unexpected error left. */
+  source: "run.json" | "events.jsonl" | "stack";
   entry: string;
 }
+
+/**
+ * What a run's event log says of an attempt at a page: each of its events from the attempt's start
+ * until the next attempt's, or until 10 seconds after it ended when none followed, as its time and
+ * its words. Null for a run whose log the page doesn't have.
+ */
+export type EventRows = (
+  run: RunJson,
+  page: PageRecord,
+  attempt: AttemptRecord,
+) => { time: string; entry: string }[] | null;
 
 export interface Problem {
   run: string;
@@ -46,6 +59,12 @@ export interface Problem {
   command: string | null;
   /** The message with the home folder replaced. */
   message: string;
+  /**
+   * For a foreground loss, the program that came to the front, by its name, with the home folder
+   * replaced; null when Windows didn't say. Absent when the run didn't record it: before voicecap
+   * 0.11.0, or a driver that didn't look. Never the window's title.
+   */
+  program?: string | null;
   stack: string | null;
   /** "What happened", in plain words. */
   happened: string;
@@ -170,6 +189,14 @@ const KIND_OF_CAUSE: Record<FailureCause, ProblemKind> = {
   "page-timeout": "timeout",
   unexpected: "unexpected",
 };
+
+/**
+ * The kind of a cause code. A code this version doesn't know (a newer voicecap's) is an unexpected
+ * error, as the spec says of any other: it's shown as possibly voicecap's own.
+ */
+export function kindOfCause(cause: string): ProblemKind {
+  return Object.hasOwn(KIND_OF_CAUSE, cause) ? KIND_OF_CAUSE[cause as FailureCause] : "unexpected";
+}
 
 /**
  * Each kind in plain words, as the verdict line and the verdicts name it, and as the summary names
@@ -335,17 +362,40 @@ interface Failure {
     | "step"
     | "command"
     | "message"
+    | "program"
     | "stack"
     | "record"
   >;
+  /** Whether the record has the event log's lines of the attempt. */
+  logged: boolean;
 }
 
-function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => string): Failure {
+/**
+ * A failed attempt from its record, with what the run's event log says of it (`events`, or null
+ * when the page doesn't have the log) among the record's own lines, by time. Its program, for a
+ * foreground loss, is as the record keeps it: a name, or null when Windows didn't say.
+ */
+function failureOfRecord(
+  attempt: AttemptRecord,
+  redact: (text: string) => string,
+  events: { time: string; entry: string }[] | null,
+): Failure {
   const message = redact(attempt.message);
   // A cause code this version doesn't know (a newer voicecap's) is an unexpected error, as the
   // spec says of any other: it's shown as possibly voicecap's own, with its stack.
-  const kind = KIND_OF_CAUSE[attempt.cause] ?? "unexpected";
+  const kind = kindOfCause(attempt.cause);
   const stack = kind === "unexpected" && attempt.stack !== undefined ? redact(attempt.stack) : null;
+  const program = kind === "foreground" ? programOf(attempt.program, redact) : undefined;
+  const own: ProblemRecordRow[] = [
+    { time: attempt.startedAt, source: "run.json", entry: `Attempt ${attempt.n} started` },
+    { time: attempt.endedAt, source: "run.json", entry: `Failed: ${attempt.cause}: ${message}` },
+    ...(stack === null ? [] : [{ time: attempt.endedAt, source: "stack" as const, entry: stack }]),
+  ];
+  const logged = (events ?? []).map(({ time, entry }): ProblemRecordRow => ({
+    time,
+    source: "events.jsonl",
+    entry,
+  }));
   return {
     attempt: attempt.n,
     next: attempt.n + 1,
@@ -354,6 +404,7 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
     recorded: true,
     unnamedStep: false,
     at: Date.parse(attempt.startedAt) || 0,
+    logged: logged.length > 0,
     fields: {
       n: attempt.n,
       startedAt: attempt.startedAt,
@@ -364,20 +415,39 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
       step: attempt.step,
       command: attempt.command,
       message,
+      ...(program === undefined ? {} : { program }),
       stack,
-      record: [
-        { time: attempt.startedAt, source: "run.json", entry: `Attempt ${attempt.n} started` },
-        {
-          time: attempt.endedAt,
-          source: "run.json",
-          entry: `Failed: ${attempt.cause}: ${message}`,
-        },
-        ...(stack === null
-          ? []
-          : [{ time: attempt.endedAt, source: "stack" as const, entry: stack }]),
-      ],
+      record: byTime([...own, ...logged]),
     },
   };
+}
+
+/**
+ * The program a foreground loss's record names: its name, with the home folder replaced, or null
+ * when Windows didn't say. Absent when the record has none to give (a run from before 0.11.0, or a
+ * driver that didn't look), or a value no voicecap writes.
+ */
+function programOf(
+  program: AttemptRecord["program"],
+  redact: (text: string) => string,
+): string | null | undefined {
+  if (program === null) return null;
+  return typeof program === "string" ? redact(program) : undefined;
+}
+
+/**
+ * A record's lines in the order they were recorded: by time, and, where a line of the event log has
+ * the same time as one of the record's own (the attempt began, then its page; it failed, then its
+ * page), the record's first, as they're given first and the sort keeps their order. A line whose
+ * time can't be read leaves every line where it was.
+ */
+function byTime(rows: ProblemRecordRow[]): ProblemRecordRow[] {
+  const times = rows.map((row) => (row.time === null ? NaN : Date.parse(row.time)));
+  if (!times.every(Number.isFinite)) return rows;
+  return rows
+    .map((row, index) => ({ row, at: times[index] ?? 0 }))
+    .sort((a, b) => a.at - b.at)
+    .map(({ row }) => row);
 }
 
 function failureOfEntry(entry: string, index: number, redact: (text: string) => string): Failure {
@@ -390,6 +460,8 @@ function failureOfEntry(entry: string, index: number, redact: (text: string) => 
     recorded: false,
     unnamedStep: parsed.inStep,
     at: 0,
+    // Runs that wrote their errors as text recorded no event log.
+    logged: false,
     fields: {
       n: parsed.n,
       startedAt: null,
@@ -412,22 +484,27 @@ interface PageContext {
   run: RunJson;
   page: PageRecord;
   redact: (text: string) => string;
+  eventRows: EventRows;
 }
 
 /**
  * The problems of the runs a standing draws on: each failed attempt in their pages, from the
  * page's attempt records when it has them, and otherwise from its errors, whose kind comes from
  * the wording voicecap wrote them in. Oldest first, by when each attempt began; the problems
- * written as text, which don't say, go by run, then page order.
+ * written as text, which don't say, go by run, then page order. `eventRows` gives what a run's
+ * event log says of an attempt, for its record; without it, no run has a log.
  */
 export function problemsOf(
   standing: Standing,
-  options: { home: string; platform: NodeJS.Platform },
+  options: { home: string; platform: NodeJS.Platform; eventRows?: EventRows },
 ): ProblemsSection {
   const redact = (text: string) => redactHome(text, options.home, options.platform);
+  const eventRows = options.eventRows ?? (() => null);
   const problems: Problem[] = [];
   for (const run of standing.drawnOn) {
-    const found = run.pages.flatMap((page) => problemsOfPage({ standing, run, page, redact }));
+    const found = run.pages.flatMap((page) =>
+      problemsOfPage({ standing, run, page, redact, eventRows }),
+    );
     // The sort is stable. What's written as text says nothing of when (0 here), so it stays in page
     // order, and a page's own attempts stay as its record lists them, oldest first.
     found.sort((a, b) => a.at - b.at);
@@ -445,7 +522,9 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
   const records = page.failedAttempts ?? [];
   const failures =
     records.length > 0
-      ? records.map((attempt) => failureOfRecord(attempt, redact))
+      ? records.map((attempt) =>
+          failureOfRecord(attempt, redact, ctx.eventRows(run, page, attempt)),
+        )
       : page.errors.map((entry, index) => failureOfEntry(entry, index, redact));
   if (failures.length === 0) return [];
 
@@ -671,16 +750,18 @@ function keepsEarlierAttempts(version: string | null): boolean {
 /**
  * What a run didn't record, said where it matters. An error from a pass's step, written as text,
  * doesn't give the step that failed or the key it pressed. The program in front is for a foreground
- * loss only, and the event log and NVDA's own log are for every problem.
+ * loss only, when the record has none (a run that recorded one, or that Windows didn't say, says so
+ * after what happened). The event log and NVDA's own log are for every problem: NVDA's own alone
+ * once the record has the event log's lines of the attempt.
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
   return [
     ...(failure.unnamedStep ? [notRecorded("The step and the key")] : []),
-    ...(failure.fields.kind === "foreground"
+    ...(failure.fields.kind === "foreground" && failure.fields.program === undefined
       ? [notRecorded("Which program came to the front")]
       : []),
-    notRecorded("The event log and NVDA's own log"),
+    notRecorded(failure.logged ? "NVDA's own log" : "The event log and NVDA's own log"),
   ];
 }
 

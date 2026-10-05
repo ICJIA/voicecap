@@ -15,7 +15,7 @@
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
-import type { PassName } from "../model.js";
+import type { PassName, SessionRecord } from "../model.js";
 import type { OnlyInOnePage } from "./changes.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
@@ -324,6 +324,14 @@ export const PROBLEMS_TEXT = {
   /** The title of the stack an unexpected error left: where in voicecap's code it happened. */
   stack: "Where in voicecap's code it happened",
   /**
+   * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
+   * after what happened: its name, never its window's title, or that Windows didn't say.
+   */
+  program: {
+    named: (program: string): string => `Which program came to the front: ${program}.`,
+    unknown: "Windows didn't say which program came to the front.",
+  },
+  /**
    * The table of kinds of problem: its title, what its line says is in it (the number of kinds is
    * the table's), and the heads of its columns.
    */
@@ -447,6 +455,136 @@ export const EVIDENCE_TEXT = {
     lead: "These runs aren't counted in any result on this page.",
     why: "A run counts only when it completed, was sealed, and wasn't a replay.",
   },
+};
+
+/**
+ * Each event of a run's event log (events.jsonl), in the words its row of the table says, and the
+ * problems' records quote. `sr` is the run's screen reader as its environment records it ("NVDA");
+ * `name` is a page as the page names it, and `n` its number in the run. The screen reader voicecap
+ * runs is "voicecap's", and the one it shuts down while it runs is "the computer's own". A window's
+ * title, which the log keeps, is never said: only the program's name.
+ */
+export const EVENT_TEXT = {
+  runStarted: "The run started",
+  runResumed: (session: number): string => `The run resumed (session ${session})`,
+  runEnded: (reason: string): string => `The run ended: ${reason}`,
+  /** Why a session ended, as the session's record says it, in words that follow `runEnded`. */
+  endReasons: {
+    completed: "complete",
+    interrupted: "stopped by the person running it",
+    "environment-failure": "stopped by a problem on the computer",
+    error: "stopped by an unexpected error",
+  } satisfies Record<NonNullable<SessionRecord["endReason"]>, string>,
+  lockTaken: (sr: string): string => `voicecap took the ${sr} lock`,
+  lockReleased: (sr: string): string => `voicecap released the ${sr} lock`,
+  /** voicecap's screen reader started, with its process, when the log has it. */
+  started: (sr: string, pid: number | null): string =>
+    `voicecap's ${sr} started${pid === null ? "" : `: process ${pid}`}`,
+  /** voicecap's screen reader stopped, with its process, and whether it starts again at once. */
+  stopped: (sr: string, pid: number | null, restarting: boolean): string =>
+    `voicecap's ${sr} stopped${pid === null ? "" : `: process ${pid}`}${restarting ? ", to restart" : ""}`,
+  restarted: (sr: string, reason: string): string => `voicecap restarted ${sr}: ${reason}`,
+  /** Why voicecap started the screen reader and the browser again, in words that follow `restarted`. */
+  restartReasons: {
+    every: (pages: number): string =>
+      pages === 1 ? "after every page" : `after every ${pages} pages`,
+    failedPage: "after a failed page",
+    retry: (name: string, attempt: number, of: number): string =>
+      `to try ${name} again (attempt ${attempt} of ${of})`,
+  },
+  /**
+   * The computer's own screen reader was shut down, with its processes when the log has them, as a
+   * list ("4321, 4322"), or "" for none.
+   */
+  ownClosed: (sr: string, pids: string): string =>
+    `The computer's own ${sr} was shut down while voicecap ran${pids === "" ? "" : `: process ${pids}`}`,
+  ownRestarted: (sr: string): string => `The computer's own ${sr} was started again`,
+  ownNotRestarted: (sr: string): string => `The computer's own ${sr} couldn't be started again`,
+  browserLaunched: (pid: number | null): string =>
+    `The browser started${pid === null ? "" : `: process ${pid}`}`,
+  browserClosed: (pid: number | null): string =>
+    `The browser closed${pid === null ? "" : `: process ${pid}`}`,
+  browserHandedOver: "The browser handed over to a new copy of itself to finish an update",
+  /** An attempt at a page began: the page's attempt number after its first. */
+  pageStarted: (n: number, name: string, attempt: number): string =>
+    `Page ${n} started: ${name}${attempt > 1 ? ` (attempt ${attempt})` : ""}`,
+  pageDone: (n: number, name: string): string => `Page ${n} read in full: ${name}`,
+  pageSkipped: (n: number, name: string): string => `Page ${n} skipped: ${name}`,
+  /** An attempt at a page failed: its kind, as the problems name it ("another window took the screen"). */
+  pageFailed: (n: number, kind: string): string => `Page ${n} failed: ${kind}`,
+  locked: "The computer was locked",
+  /** Another window took the screen: the program's name, when Windows said it. Never the title. */
+  foreground: (program: string | null): string =>
+    `Another window came to the front${program === null ? "" : `: ${program}`}`,
+};
+
+/**
+ * "Minute by minute": what each session's chart and table say around the events' own words. The
+ * summary's sentences, from the chart's spans, each where it applies; the lanes of the chart, and
+ * the words in it; the line of the fold that holds the table, and the heads of the table; the line
+ * on lines of the log that couldn't be read; the line that names a session, when a run has more
+ * than one; NVDA's restarts, as the run's facts count them; and what the part says when the page
+ * can't show a run's log.
+ */
+export const TIMELINE_TEXT = {
+  /** One of a list of times or processes, then the next: "from 14:00 to 14:01, then from 14:03…". */
+  then: (first: string, next: string): string => `${first}, then ${next}`,
+  /** The lock's sentence: each time voicecap held it (`held`), one after another (`then`). */
+  lock: (sr: string, held: string): string => `voicecap held the ${sr} lock ${held}.`,
+  held: (from: string, to: string): string => `from ${from} to ${to}`,
+  /**
+   * voicecap's screen reader's processes, one after another ("65720, then 54568"), or, with no
+   * process id known, "", and it only ran.
+   */
+  ran: (sr: string, processes: string): string =>
+    processes === "" ? `voicecap's ${sr} ran.` : `voicecap's ${sr} ran as process ${processes}.`,
+  /** The computer's own screen reader: shut down, and started again where the log says so. */
+  own: (sr: string, at: string, again: string | null): string =>
+    again === null
+      ? `The computer's own ${sr} was shut down at ${at}.`
+      : `The computer's own ${sr} was shut down at ${at} and started again at ${again}.`,
+  /** The pages, then each that failed, with when (`failedAt`, one after another, or ""). */
+  pages: (count: number, failed: string): string =>
+    `${count} ${count === 1 ? "page" : "pages"} ran in order${failed}.`,
+  failedAt: (n: number, at: string): string => `; page ${n} failed at ${at}`,
+  /** The chart's lanes: the lock, voicecap's screen reader, the pages, and the computer's own. */
+  lanes: {
+    lock: (sr: string): string => `${sr} lock`,
+    screenReader: (sr: string): string => `voicecap's ${sr}`,
+    pages: "Pages",
+    own: (sr: string): string => `The computer's own ${sr}`,
+  },
+  /** Inside the chart: a process, the computer's own screen reader's lane, and a failed page. */
+  process: (pid: number): string => `process ${pid}`,
+  off: "off while voicecap ran",
+  failed: (n: number): string => `page ${n} failed`,
+  /** The line of the fold that holds a session's table of events. */
+  fold: (count: string): string => `Every event, to the millisecond (${count})`,
+  head: ["Time", "Event"],
+  /** Said under the last table, when the log has lines that couldn't be read. */
+  unreadable: (count: number): string =>
+    `${count} ${count === 1 ? "line" : "lines"} of the event log couldn't be read.`,
+  /** A session of a run that has more than one, or that isn't its first: "Session 2, 30 September 2026". */
+  session: (n: number, day: string): string => `Session ${n}, ${day}`,
+  /**
+   * The run's facts: how many times NVDA was restarted, then why, each reason once ("after every 10
+   * pages (3 times)"), as a list: "4: after every 10 pages (3 times), and after a failed page".
+   */
+  restarts: (count: number, reasons: string): string =>
+    count === 0 ? "None" : reasons === "" ? String(count) : `${count}: ${reasons}`,
+  times: (reason: string, times: number): string =>
+    times === 1 ? reason : `${reason} (${times} times)`,
+  /**
+   * What the part says when the page can't show a run's log: its record lists one, and the file
+   * isn't as recorded (missing, unreadable, or changed); its record lists none, from a voicecap that
+   * records one; and a log with no line that could be read. A run from before voicecap recorded the
+   * log says so as every part does (notRecordedBy).
+   */
+  notShown: "Not shown: the event log isn't as the run recorded it; voicecap verify names it.",
+  noLog: "Not recorded: this run's record lists no event log.",
+  noEvents: "Not shown: no line of the event log could be read.",
+  /** What a run whose environment names no screen reader calls it. */
+  someScreenReader: "screen reader",
 };
 
 /**

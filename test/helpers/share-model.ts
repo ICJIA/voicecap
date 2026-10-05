@@ -1,14 +1,15 @@
 /**
  * What the shareable page's tests build models from: the input of runs built in memory
- * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), and transcripts held in
- * memory (`storeOf`). The tests that render the page, and the one that builds its model, share
- * them, so each file says only what it adds.
+ * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
+ * memory (`storeOf`), and a run with its event log held in memory (`loggedRun`). The tests that
+ * render the page, and the one that builds its model, share them, so each file says only what it
+ * adds.
  */
 import os from "node:os";
 import path from "node:path";
 
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
-import type { PassName, ReviewsFile, RunJson } from "../../src/model.js";
+import type { NewRunEvent, PassName, ReviewsFile, RunEvent, RunJson } from "../../src/model.js";
 import { loadShareInput, type ShareInput, type TranscriptStore } from "../../src/share/load.js";
 import {
   buildShareModel,
@@ -18,7 +19,7 @@ import {
 } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { SITE } from "./report-data.js";
-import { settingsNested } from "./share-data.js";
+import { failedAttempt, settingsNested, shareRun } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
 
 /** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
@@ -84,6 +85,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     reviews: NO_REVIEWS,
     manual: [],
     transcripts: NO_TRANSCRIPTS,
+    events: new Map(),
     flagsAsRecorded: [],
     unreadableRuns: [],
     siteName: null,
@@ -153,4 +155,139 @@ export function demoModel(canonical: string | null = null): Promise<ShareModel> 
     demos.set(canonical, model);
   }
   return model;
+}
+
+/** An event of a log: when it was recorded, on a day as `day` gives it, and what happened. */
+export function logged(day: string, time: string, event: NewRunEvent): RunEvent {
+  return { at: `${day}T${time}-05:00`, ...event };
+}
+
+/** The days of the logged run's two sessions. */
+const FIRST_DAY = "2026-09-26";
+const SECOND_DAY = "2026-09-28";
+
+/** What the driver's error said when another window took the screen. */
+const LOST_FOREGROUND =
+  "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.";
+
+/** The title of the window that took the screen, which the log keeps and no report shows. */
+export const PRIVATE_TITLE = "Re: salary review - Inbox";
+
+/**
+ * A run of voicecap 0.11.0, its record and its event log, in two sessions two days apart: on 26
+ * September, Home is read, then another window (Microsoft Teams, whose title is PRIVATE_TITLE) takes
+ * the screen from Apply, and voicecap starts NVDA and the browser again and reads it on its second
+ * attempt; the person stops the run there. On 28 September the run is resumed, and Contact is read.
+ * The log is what the NVDA driver and the run record: the lock, the computer's own NVDA, voicecap's
+ * NVDA, each browser, and each page.
+ */
+export function loggedRun(): { run: RunJson; log: { events: RunEvent[]; unreadable: number } } {
+  const first = (time: string, event: NewRunEvent) => logged(FIRST_DAY, time, event);
+  const second = (time: string, event: NewRunEvent) => logged(SECOND_DAY, time, event);
+  const home = `${SITE}`;
+  const apply = `${SITE}apply/`;
+  const contact = `${SITE}contact/`;
+  const run = shareRun({
+    id: "2026-09-26_1402",
+    createdAt: `${FIRST_DAY}T14:02:51-05:00`,
+    voicecapVersion: "0.11.0",
+    sessions: [
+      {
+        reviewer: "Pat Lee",
+        startedAt: `${FIRST_DAY}T14:02:51-05:00`,
+        endedAt: `${FIRST_DAY}T14:06:30-05:00`,
+        endReason: "interrupted",
+      },
+      {
+        reviewer: "Pat Lee",
+        startedAt: `${SECOND_DAY}T09:00:00-05:00`,
+        endedAt: `${SECOND_DAY}T09:02:10-05:00`,
+        endReason: "completed",
+      },
+    ],
+    pages: [
+      { path: "/", label: "Home", files: TRANSCRIPTS, passes: LINES, session: 1 },
+      {
+        path: "/apply/",
+        label: "Apply",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        session: 1,
+        attempts: 2,
+        failedAttempts: [
+          failedAttempt({
+            n: 1,
+            startedAt: `${FIRST_DAY}T14:03:56.000-05:00`,
+            endedAt: `${FIRST_DAY}T14:04:41.300-05:00`,
+            message: LOST_FOREGROUND,
+            program: "Microsoft Teams",
+            restarted: true,
+          }),
+        ],
+      },
+      { path: "/contact/", label: "Contact", files: TRANSCRIPTS, passes: LINES, session: 2 },
+    ],
+  });
+  const events: RunEvent[] = [
+    first("14:02:51.307", { type: "run-started", session: 1, resumed: false }),
+    first("14:02:51.320", { type: "screen-reader-lock-taken" }),
+    first("14:02:56.418", { type: "own-screen-reader-closed", pids: [55892] }),
+    first("14:02:56.681", { type: "screen-reader-started", pid: 65720 }),
+    first("14:02:58.102", { type: "browser-launched", pid: 7001 }),
+    first("14:03:00.000", { type: "page-started", page: home, attempt: 1 }),
+    first("14:03:55.000", { type: "page-finished", page: home, attempt: 1, status: "done" }),
+    first("14:03:55.400", { type: "browser-launched", pid: 7002 }),
+    first("14:03:55.900", { type: "browser-closed", pid: 7001 }),
+    first("14:03:56.000", { type: "page-started", page: apply, attempt: 1 }),
+    first("14:04:41.250", {
+      type: "foreground-lost",
+      program: "Microsoft Teams",
+      title: PRIVATE_TITLE,
+    }),
+    first("14:04:41.300", {
+      type: "page-failed",
+      page: apply,
+      attempt: 1,
+      cause: "foreground",
+      message: LOST_FOREGROUND,
+    }),
+    first("14:04:41.350", {
+      type: "screen-reader-restarting",
+      reason: { kind: "retry", page: apply, attempt: 2, of: 5 },
+    }),
+    first("14:04:43.900", { type: "screen-reader-stopped", pid: 65720, restarting: true }),
+    first("14:04:44.100", { type: "browser-closed", pid: 7002 }),
+    first("14:04:44.150", { type: "screen-reader-lock-released" }),
+    first("14:04:44.160", { type: "screen-reader-lock-taken" }),
+    first("14:04:45.729", { type: "screen-reader-started", pid: 54568 }),
+    first("14:04:47.000", { type: "browser-launched", pid: 7003 }),
+    first("14:04:48.000", { type: "page-started", page: apply, attempt: 2 }),
+    first("14:05:40.000", { type: "page-finished", page: apply, attempt: 2, status: "done" }),
+    first("14:06:28.174", { type: "screen-reader-stopped", pid: 54568, restarting: false }),
+    first("14:06:28.300", { type: "browser-closed", pid: 7003 }),
+    first("14:06:29.965", { type: "own-screen-reader-restarted", ok: true }),
+    first("14:06:29.966", { type: "screen-reader-lock-released" }),
+    first("14:06:30.000", { type: "run-ended", session: 1, reason: "interrupted" }),
+    second("09:00:00.120", { type: "run-started", session: 2, resumed: true }),
+    second("09:00:00.130", { type: "screen-reader-lock-taken" }),
+    second("09:00:05.002", { type: "own-screen-reader-closed", pids: [61234] }),
+    second("09:00:05.310", { type: "screen-reader-started", pid: 40400 }),
+    second("09:00:06.800", { type: "browser-launched", pid: 7101 }),
+    second("09:00:08.000", { type: "page-started", page: contact, attempt: 1 }),
+    second("09:01:02.000", { type: "page-finished", page: contact, attempt: 1, status: "done" }),
+    second("09:02:05.500", { type: "screen-reader-stopped", pid: 40400, restarting: false }),
+    second("09:02:05.700", { type: "browser-closed", pid: 7101 }),
+    second("09:02:09.900", { type: "own-screen-reader-restarted", ok: true }),
+    second("09:02:09.910", { type: "screen-reader-lock-released" }),
+    second("09:02:10.000", { type: "run-ended", session: 2, reason: "completed" }),
+  ];
+  return { run, log: { events, unreadable: 0 } };
+}
+
+/** The logged run's model, with every transcript it lists readable and its event log read. */
+export function loggedModel(overrides: Partial<ShareInput> = {}): ShareModel {
+  const { run, log } = loggedRun();
+  return buildShareModel(
+    inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]), ...overrides }),
+  );
 }

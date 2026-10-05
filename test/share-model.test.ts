@@ -4,7 +4,7 @@
  * case; site folders written as voicecap writes them, and runs built in memory, cover the rest.
  */
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
@@ -19,11 +19,14 @@ import type {
   FlagResult,
   MachineRecord,
   PageSource,
+  RunEvent,
   RunJson,
 } from "../src/model.js";
 import { describeChanges } from "../src/report/compare.js";
+import { runAudit } from "../src/run/audit.js";
+import { readEventLog } from "../src/run/events.js";
 import { redactHome } from "../src/run/failure.js";
-import { pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
+import { eventLogFile, pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type RunEvidence, type ShareModel } from "../src/share/model.js";
@@ -47,6 +50,8 @@ import {
   writeSyntheticRun,
   type SyntheticRun,
 } from "./helpers/report-data.js";
+import { options as runOptions, setup as setupSite, sitePages } from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
 import {
@@ -249,6 +254,63 @@ describe("loadShareInput", () => {
     await expect(loadShareInput({ siteDir, config: DEFAULT_CONFIG })).rejects.toThrow(
       `There's no run in ${siteDir} yet, so there's nothing to share.`,
     );
+  });
+
+  describe("each run's event log", () => {
+    /** A site folder with one run of the scripted site, which recorded its event log. */
+    async function loggedSite(): Promise<{ siteDir: string; runId: string }> {
+      const dir = await setupSite(["/", "/about"]);
+      const result = await runAudit(runOptions(dir, new ScriptedDriver(sitePages())));
+      expect(result.outcome).toBe("completed");
+      return { siteDir: result.siteDir, runId: result.runId };
+    }
+
+    it("reads the log of each run the page draws on, as the run's record lists it", async () => {
+      const { siteDir, runId } = await loggedSite();
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+      const onDisk = readEventLog(await readFile(eventLogFile(siteDir, runId), "utf8"));
+
+      expect([...input.events.keys()]).toEqual([runId]);
+      expect(input.events.get(runId)).toEqual(onDisk);
+      expect(onDisk.events.map((event) => event.type)).toEqual([
+        "run-started",
+        "page-started",
+        "page-finished",
+        "page-started",
+        "page-finished",
+        "run-ended",
+      ]);
+    });
+
+    it("leaves out a log that isn't as its run recorded it, and the page says so", async () => {
+      const { siteDir, runId } = await loggedSite();
+      await appendFile(
+        eventLogFile(siteDir, runId),
+        '{"at":"2026-09-26T14:05:00.000-05:00","type":"computer-locked"}\n',
+      );
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+      expect(input.events.has(runId)).toBe(false);
+      expect(buildShareModel(input).evidence[0]?.timeline).toEqual({
+        notRecorded:
+          "Not shown: the event log isn't as the run recorded it; voicecap verify names it.",
+      });
+    });
+
+    it("leaves out a log its run's record doesn't list, as one dropped into an older run's folder", async () => {
+      const siteDir = path.join(await tempOutDir(), path.basename(DEMO_SITE));
+      await cp(DEMO_SITE, siteDir, { recursive: true });
+      await writeFile(
+        eventLogFile(siteDir, "2026-09-29_1402"),
+        '{"at":"2026-09-29T14:02:51.307-05:00","type":"run-started","session":1,"resumed":false}\n',
+      );
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+
+      expect(input.events.size).toBe(0);
+      expect(
+        (await loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG })).events.size,
+      ).toBe(0);
+    });
   });
 });
 
@@ -1235,6 +1297,26 @@ describe("buildShareModel", () => {
     // No run counts: no run's times to speak of.
     const replayed = shareRun({ id: "r3", replayed: true, pages: [{ path: "/" }] });
     expect(buildShareModel(inputOf([replayed])).footer.offsets).toEqual([]);
+  });
+
+  it("names the UTC offsets of the events its runs' logs recorded, for the footer", () => {
+    // A run that went on past the end of daylight saving time: its log's later events are an hour
+    // behind its record's times. A line whose time isn't a time names no offset.
+    const run = shareRun({
+      id: "r1",
+      createdAt: "2026-11-01T01:40:00-05:00",
+      pages: [{ path: "/" }],
+    });
+    const events = [
+      { at: "2026-11-01T01:40:00.000-05:00", type: "run-started", session: 1, resumed: false },
+      { at: "2026-11-01T01:05:00.000-06:00", type: "screen-reader-lock-released" },
+      { at: "sometime-03:30", type: "computer-locked" },
+    ] as RunEvent[];
+
+    expect(
+      buildShareModel(inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }))
+        .footer.offsets,
+    ).toEqual(["UTC−05:00", "UTC−06:00"]);
   });
 
   it("says what each run recorded: when, its pages, who ran it, what they said, and the computer", () => {

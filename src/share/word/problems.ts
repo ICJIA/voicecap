@@ -18,6 +18,7 @@ import { KIND_ROWS, type Problem } from "../problems.js";
 import { PROBLEMS_TEXT, WORD_TEXT } from "../text.js";
 import {
   decidedFrom,
+  happenedLine,
   kindMeaning,
   kindTitle,
   notRecordedLine,
@@ -49,14 +50,15 @@ function problemLine(problem: Problem): string {
 }
 
 /**
- * A problem's questions and answers as a table: what happened; how its kind was decided, for an older
- * run's wording; what voicecap did; whether it happened again; the effect on the results; and, for
- * an error voicecap didn't expect, where to report it, the address a link.
+ * A problem's questions and answers as a table: what happened (with which program came to the
+ * front, for a foreground loss whose run recorded it); how its kind was decided, for an older run's
+ * wording; what voicecap did; whether it happened again; the effect on the results; and, for an
+ * error voicecap didn't expect, where to report it, the address a link.
  */
 function questionsTable(problem: Problem): Block {
   const labels = PROBLEMS_TEXT.questions;
   const rows: (string | Line)[][] = [
-    [labels.happened, sentence(problem.happened)],
+    [labels.happened, happenedLine(problem)],
     ...(problem.fromWording ? [[labels.decided, decidedFrom(problem.kind)]] : []),
     [labels.did, sentence(problem.did)],
     [labels.again, sentence(problem.verdict)],

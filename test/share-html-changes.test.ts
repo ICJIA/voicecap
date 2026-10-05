@@ -34,7 +34,14 @@ import {
   termsOf,
   textOf,
 } from "./helpers/share-html.js";
-import { demoModel, inputOf, storeOf, TRANSCRIPTS, type Lines } from "./helpers/share-model.js";
+import {
+  demoModel,
+  inputOf,
+  loggedModel,
+  storeOf,
+  TRANSCRIPTS,
+  type Lines,
+} from "./helpers/share-model.js";
 
 const ISSUES = "https://github.com/ICJIA/voicecap/issues";
 
@@ -1169,6 +1176,39 @@ describe("renderProblems", () => {
         "Which program came to the front: not recorded: this run used voicecap 0.6.0.",
       );
       expect(textOf(fold)).not.toContain("The step and the key");
+    });
+
+    it("says which program came to the front after what happened, or that Windows didn't say", () => {
+      const happened = (program: string | null) =>
+        termsOf(foldsIn(renderProblems(failedModel([{ ...attempt, program }])))[0] ?? "")[0];
+
+      expect(happened("Microsoft Teams")).toEqual([
+        "What happened",
+        "During the read pass, at step 12 (Down Arrow), another window took the screen. Which program came to the front: Microsoft Teams.",
+      ]);
+      expect(happened(null)).toEqual([
+        "What happened",
+        "During the read pass, at step 12 (Down Arrow), another window took the screen. Windows didn't say which program came to the front.",
+      ]);
+      const [fold = ""] = foldsIn(renderProblems(failedModel([{ ...attempt, program: null }])));
+      expect(textOf(fold)).not.toContain("Which program came to the front: not recorded");
+    });
+
+    it("shows the event log's lines in the record, each from events.jsonl", () => {
+      const [fold = ""] = foldsIn(renderProblems(loggedModel()));
+      const rows = rowsOf(tableOf(fold, "logtable"));
+
+      expect(rows).toContain(
+        "14:04:41.250 | events.jsonl | Another window came to the front: Microsoft Teams",
+      );
+      expect(rows.slice(0, 3)).toEqual([
+        "Time | From | What was recorded",
+        "14:03:56.000 | run.json | Attempt 1 started",
+        "14:03:56.000 | events.jsonl | Page 2 started: Apply",
+      ]);
+      expect(textOf(fold)).toContain(
+        "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+      );
     });
 
     it("says each line the model has of what the run didn't record, and no box when it has none", () => {

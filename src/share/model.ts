@@ -4,9 +4,11 @@
  * works from what loadShareInput (./load.ts) read, and reads nothing itself.
  *
  * Each section's parts come from their own modules: the standing, the problems, the changes since
- * the run before, the human review and the summary, the page cards (./cards.ts), and each run's
- * evidence (./run-evidence.ts). This puts them together, and works out the top, the sample of what
- * NVDA said, what the results cover, the appendix of transcripts, and the fingerprint check's data.
+ * the run before, the human review and the summary, the page cards (./cards.ts), each run's
+ * evidence (./run-evidence.ts), and each run's event log (./timeline.ts), whose events the evidence
+ * and the problems' records say in the same words. This puts them together, and works out the top,
+ * the sample of what NVDA said, what the results cover, the appendix of transcripts, and the
+ * fingerprint check's data.
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
  * problems' in problemsOf, the evidence's in evidenceOf. The run records and transcripts the page
@@ -52,11 +54,18 @@ import {
   type Shown,
 } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
-import { problemsOf, type ProblemsSection } from "./problems.js";
+import { problemsOf, type EventRows, type ProblemsSection } from "./problems.js";
 import { reviewOf } from "./review.js";
 import { evidenceOf, leftOutOf, runEnd, runStart, type RunEvidence } from "./run-evidence.js";
 import { runBefore, standingOf, type PageStanding, type Standing } from "./standing.js";
 import { summaryOf, type Summary } from "./summary.js";
+import {
+  attemptEvents,
+  eventText,
+  eventWordsOf,
+  isEventTime,
+  type EventWords,
+} from "./timeline.js";
 
 export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
 export type {
@@ -177,7 +186,30 @@ export function buildShareModel(input: ShareInput): ShareModel {
     input.manual,
     input.generatedAt,
   );
-  const problems = problemsOf(standing, { home: input.home, platform: input.platform });
+  // A run's event log, and its events in the page's words: each page as the page names it.
+  const eventLog = (run: RunJson) => input.events.get(run.id) ?? null;
+  const said = new Map<RunJson, EventWords>();
+  const wordsFor = (run: RunJson): EventWords => {
+    const known = said.get(run);
+    if (known !== undefined) return known;
+    const words = eventWordsOf(run, nameOf, redact);
+    said.set(run, words);
+    return words;
+  };
+  const eventRows: EventRows = (run, page, attempt) => {
+    const log = eventLog(run);
+    if (log === null) return null;
+    const words = wordsFor(run);
+    return attemptEvents(log, page.url, attempt).map((event) => ({
+      time: event.at,
+      entry: eventText(event, words),
+    }));
+  };
+  const problems = problemsOf(standing, {
+    home: input.home,
+    platform: input.platform,
+    eventRows,
+  });
   const { latest } = standing;
   const before = latest && runBefore(standing.counted, latest);
   const compared =
@@ -217,7 +249,15 @@ export function buildShareModel(input: ShareInput): ShareModel {
     changes,
     problems,
     coverage: coverageOf(standing, redact, shown),
-    evidence: evidenceOf({ standing, recordOf, site: header.site, shown, redact }),
+    evidence: evidenceOf({
+      standing,
+      recordOf,
+      site: header.site,
+      shown,
+      redact,
+      eventLog,
+      words: wordsFor,
+    }),
     leftOut: leftOutOf(standing, input.unreadableRuns),
     appendix: appendixOf(standing, input.transcripts, nameOf),
     // What the fingerprint check checks: the records of the runs drawn on and the transcripts shown,
@@ -236,7 +276,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
       generatedAt: input.generatedAt,
       fileName: input.fileName,
       wordName: input.wordName,
-      offsets: offsetsOf(standing.drawnOn),
+      offsets: offsetsOf(standing.drawnOn, input.events),
     },
   };
 }
@@ -351,9 +391,10 @@ function resultsFrom(standing: Standing, latest: RunJson): RunJson[] {
 
 /**
  * Each UTC offset the runs recorded their times in, once, in the order met: their starts, ends,
- * sessions, listeners' answers, and failed attempts, the times the page shows.
+ * sessions, listeners' answers, failed attempts, and the events of their logs, the times the page
+ * shows.
  */
-function offsetsOf(runs: RunJson[]): string[] {
+function offsetsOf(runs: RunJson[], logs: ShareInput["events"]): string[] {
   const times = runs.flatMap((run) => [
     run.createdAt,
     run.completedAt,
@@ -365,6 +406,7 @@ function offsetsOf(runs: RunJson[]): string[] {
     ...run.pages.flatMap((page) =>
       (page.failedAttempts ?? []).flatMap((attempt) => [attempt.startedAt, attempt.endedAt]),
     ),
+    ...(logs.get(run.id)?.events ?? []).map((event) => event.at).filter(isEventTime),
   ]);
   const recorded = times.filter((time): time is string => typeof time === "string");
   return [...new Set(recorded.filter((time) => OFFSET.test(time)).map(utcOffset))];

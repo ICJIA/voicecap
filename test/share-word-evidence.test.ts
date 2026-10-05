@@ -35,6 +35,7 @@ import {
   WORTH_KNOWING,
   type TimelineRow,
 } from "../src/share/text.js";
+import type { SessionTimeline } from "../src/share/timeline.js";
 import {
   byteCount,
   evidenceGist,
@@ -54,6 +55,8 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  loggedModel,
+  loggedRun,
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
@@ -839,6 +842,93 @@ describe("wordEvidence", () => {
       expect(runParts(model)).toHaveLength(1);
       expect(leftOutPart(model)).toBeUndefined();
       expect(saysOf(wordEvidence(model))).not.toContain("Runs left out");
+    });
+  });
+
+  describe("a run's event log", () => {
+    const RUN = "2026-09-26_1402";
+    const MINUTE_BY_MINUTE = `${EVIDENCE_TEXT.parts.timeline} ${inRun(RUN)}`;
+
+    /** The logged run's timelines, as the model has them. */
+    function timelinesOf(model: ShareModel): SessionTimeline[] {
+      const timeline = model.evidence[0]?.timeline;
+      if (!Array.isArray(timeline)) throw new Error("The run has no timeline.");
+      return timeline;
+    }
+
+    it("says each session's day, its summary, and its table of Time and Event, under the run's own heading", () => {
+      const model = loggedModel();
+      const inside = under(partOf(runParts(model), 0), MINUTE_BY_MINUTE);
+      const timelines = timelinesOf(model);
+
+      expect(inside.map(({ kind }) => kind)).toEqual([
+        "para",
+        "para",
+        "table",
+        "para",
+        "para",
+        "table",
+      ]);
+      expect(inside[0]).toEqual(para({ text: "Session 1, 26 September 2026", bold: true }));
+      expect(inside[3]).toEqual(para({ text: "Session 2, 28 September 2026", bold: true }));
+      for (const [index, timeline] of timelines.entries()) {
+        expect(inside[index * 3 + 1]).toEqual(para(timeline.summary.join(" ")));
+        const table = tableAt(inside, index);
+        expect(table.head).toEqual(["Time", "Event"]);
+        expect(wordsOf([table])).toEqual([
+          "Time | Event",
+          ...timeline.rows.map(({ time, text }) => `${time.slice(11, 23)} | ${text}`),
+        ]);
+        // Each time in the fixed-width font, as the page sets it.
+        expect(table.rows.map((row) => row[0]?.mono)).toEqual(timeline.rows.map(() => true));
+      }
+      expect(wordsOf(inside)).toContain(
+        "voicecap held the NVDA lock from 14:02 to 14:06. voicecap's NVDA ran as process 65720, then 54568. The computer's own NVDA was shut down at 14:02 and started again at 14:06. 2 pages ran in order; page 2 failed at 14:04.",
+      );
+    });
+
+    it("says the lines of the log it couldn't read, after the last table", () => {
+      const { run, log } = loggedRun();
+      const model = loggedModel({ events: new Map([[run.id, { ...log, unreadable: 1 }]]) });
+      const inside = under(partOf(runParts(model), 0), MINUTE_BY_MINUTE);
+
+      expect(inside.at(-1)).toEqual(para("1 line of the event log couldn't be read."));
+    });
+
+    it("counts NVDA's restarts in the run's facts, with why each was", () => {
+      expect(saysOf(partOf(runParts(loggedModel()), 0))).toContain(
+        "NVDA restarts | 1: to try Apply again (attempt 2 of 5)",
+      );
+    });
+
+    it("keeps the run's five parts, each in its place", () => {
+      expect(outlineOf(partOf(runParts(loggedModel()), 0))).toEqual([
+        `2 Run ${RUN}`,
+        `3 Minute by minute in run ${RUN}`,
+        `3 NVDA's own log, checked against the transcripts in run ${RUN}`,
+        `3 Test environment in run ${RUN}`,
+        `3 Fingerprints (SHA-256) in run ${RUN}`,
+        `3 Walkthrough file in run ${RUN}`,
+      ]);
+    });
+
+    it("says what the page's timeline says: each session's day and summary, every event, and the lines it couldn't read", () => {
+      const { run, log } = loggedRun();
+      const model = loggedModel({ events: new Map([[run.id, { ...log, unreadable: 2 }]]) });
+      const html = renderEvidence(model);
+      const fold = html.slice(html.indexOf('<details class="fold" id="run-'));
+      const part = fold.slice(0, fold.indexOf("<h3>NVDA&#39;s own log"));
+      const said = [
+        ...[...part.matchAll(/<h4>(.*?)<\/h4>/gs)].map(([, words = ""]) => textOf(words, "")),
+        ...[...part.matchAll(/<p\b[^>]*>(.*?)<\/p>/gs)].map(([, words = ""]) => textOf(words, "")),
+        ...[...part.matchAll(/<table class="plain">.*?<\/table>/gs)].flatMap(([table]) =>
+          rowsOf(table),
+        ),
+      ];
+      const words = wordsOf(under(partOf(runParts(model), 0), MINUTE_BY_MINUTE));
+
+      expect(said.length).toBeGreaterThan(40);
+      for (const line of said) expect(words, line).toContain(line);
     });
   });
 

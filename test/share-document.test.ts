@@ -36,6 +36,7 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  loggedModel,
   storeOf,
   TRANSCRIPTS,
   withNestedSettings,
@@ -262,8 +263,8 @@ const library = vm.runInNewContext(CHECK_LIBRARY + ";({ sha256Hex, checkAll })",
 describe("renderSharePage", () => {
   let fontCss: string;
   /**
-   * The page of each model: the demo's, one built in memory, and one where no run counts, with how
-   * many runs each draws on.
+   * The page of each model: the demo's, one built in memory, one where no run counts, and one with a
+   * run's event log, with how many runs each draws on.
    */
   let pages: { name: string; html: string; runs: number }[];
   let demoPage: string;
@@ -274,6 +275,7 @@ describe("renderSharePage", () => {
       ["the demo", await demoModel()],
       ["runs built in memory", richModel()],
       ["no run that counts", noRunModel()],
+      ["a run with its event log", loggedModel()],
     ];
     pages = models.map(([name, model]) => ({
       name,
@@ -769,6 +771,8 @@ describe("the page's script, in Chromium", () => {
   let browser: Browser;
   let folder: string;
   let url: string;
+  /** A page with a run's event log on it: a chart and a folded table of events for each session. */
+  let loggedUrl: string;
   const contexts: BrowserContext[] = [];
   /** What each open page reported going wrong: errors thrown, and errors written to its console. */
   const problems = new WeakMap<Page, string[]>();
@@ -780,9 +784,13 @@ describe("the page's script, in Chromium", () => {
   beforeAll(async () => {
     browser = await launchBrowser();
     folder = await mkdtemp(path.join(tmpdir(), "voicecap-page-"));
+    const fontCss = await fontFaceCss();
     const file = path.join(folder, "current.html");
-    await writeFile(file, renderSharePage(await demoModel(), { fontCss: await fontFaceCss() }));
+    await writeFile(file, renderSharePage(await demoModel(), { fontCss }));
     url = pathToFileURL(file).href;
+    const logged = path.join(folder, "logged.html");
+    await writeFile(logged, renderSharePage(loggedModel(), { fontCss }));
+    loggedUrl = pathToFileURL(logged).href;
   });
 
   afterEach(async () => {
@@ -794,8 +802,13 @@ describe("the page's script, in Chromium", () => {
     await rm(folder, { recursive: true, force: true });
   });
 
-  /** The page, open; `before` runs in it first, ahead of the page's own script. */
-  async function open(options: { scripts?: boolean; before?: string } = {}): Promise<Page> {
+  /**
+   * The page, open: the demo's, or the one at `address`. `before` runs in it first, ahead of the
+   * page's own script.
+   */
+  async function open(
+    options: { scripts?: boolean; before?: string; address?: string } = {},
+  ): Promise<Page> {
     const context = await browser.newContext({ javaScriptEnabled: options.scripts ?? true });
     contexts.push(context);
     if (options.before !== undefined) await context.addInitScript(options.before);
@@ -806,7 +819,7 @@ describe("the page's script, in Chromium", () => {
       if (message.type() === "error") found.push(message.text());
     });
     problems.set(page, found);
-    await page.goto(url);
+    await page.goto(options.address ?? url);
     return page;
   }
 
@@ -852,25 +865,41 @@ describe("the page's script, in Chromium", () => {
     expect(problems.get(page)).toEqual([]);
   });
 
-  it("prints every transcript and table whole, with nothing left in a box to scroll", async () => {
-    const page = await open();
-    // The boxes a keyboard scrolls on screen that hold more than they show, by their names.
-    const cutShort = (): Promise<(string | null)[]> =>
-      page.evaluate(() =>
-        [...document.querySelectorAll(".scroll")]
-          .filter((box) => box.scrollHeight > box.clientHeight || box.scrollWidth > box.clientWidth)
-          .map((box) => box.getAttribute("aria-label")),
-      );
-    // About the width a printed A4 page gives, inside Chromium's margins.
-    await page.setViewportSize({ width: 718, height: 1000 });
+  it("prints every transcript, table, and chart whole, with nothing left in a box to scroll", async () => {
+    for (const [name, address] of [
+      ["the demo", url],
+      ["a run with its event log", loggedUrl],
+    ] as const) {
+      const page = await open({ address });
+      // The boxes a keyboard scrolls on screen that hold more than they show, by their names.
+      const cutShort = (): Promise<(string | null)[]> =>
+        page.evaluate(() =>
+          [...document.querySelectorAll(".scroll, .events")]
+            .filter(
+              (box) => box.scrollHeight > box.clientHeight || box.scrollWidth > box.clientWidth,
+            )
+            .map((box) => box.getAttribute("aria-label")),
+        );
+      // About the width a printed A4 page gives, inside Chromium's margins.
+      await page.setViewportSize({ width: 718, height: 1000 });
 
-    await page.emulateMedia({ media: "print" });
-    await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
-    expect(await closedFolds(page)).toBe(0);
-    expect(await cutShort()).toEqual([]);
-    // On screen the same boxes scroll: the longest transcripts are taller than their boxes.
-    await page.emulateMedia({ media: "screen" });
-    expect((await cutShort()).length).toBeGreaterThan(0);
+      await page.emulateMedia({ media: "print" });
+      await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
+      expect(await closedFolds(page), name).toBe(0);
+      expect(await cutShort(), name).toEqual([]);
+      // On screen the same boxes scroll: the longest transcripts are taller than their boxes, a
+      // chart is wider than its box, and a session's events are more than their box shows.
+      await page.emulateMedia({ media: "screen" });
+      expect((await cutShort()).length, name).toBeGreaterThan(0);
+      if (address === loggedUrl) {
+        expect(await cutShort()).toEqual(
+          expect.arrayContaining([
+            "Minute by minute, run 2026-09-26_1402, session 1, chart",
+            "Every event, run 2026-09-26_1402, session 1, table",
+          ]),
+        );
+      }
+    }
   });
 
   it("still switches when the browser won't store anything", async () => {
