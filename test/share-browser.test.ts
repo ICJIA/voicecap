@@ -1059,6 +1059,71 @@ describe("Open every section, and printing", () => {
     expect(await foldStates(page)).toEqual(byHand);
   });
 
+  // Every picture is loaded lazily, and most sit in folds that only printing opens: printing opens
+  // them first (beforeprint), and each picture still reaches the paper.
+  it("prints every screenshot, those in folds that printing opens too", async () => {
+    // Thirteen pages, each with a picture of its own: a real JPEG of a color of its own, 32 by 24.
+    const maker = await (await newContext()).newPage();
+    await maker.setViewportSize({ width: 64, height: 64 });
+    const jpegs: Buffer[] = [];
+    for (let index = 0; index < 13; index++) {
+      await maker.setContent(
+        `<body style="margin:0;background:hsl(${index * 27} 70% 45%)"><b>${index}</b></body>`,
+      );
+      jpegs.push(
+        await maker.screenshot({ type: "jpeg", clip: { x: 0, y: 0, width: 32, height: 24 } }),
+      );
+    }
+    // The first two have flags, so their cards are in the open; the other 11 have nothing to note,
+    // so theirs are in a fold. Every page's entry in the appendix is in a fold of its own.
+    const flag = {
+      rule: "generic-link-text",
+      pass: "read" as const,
+      count: 1,
+      found: [{ text: "click here", count: 1 }],
+      message: 'Generic link text announced 1 time in the read pass: "click here" ×1.',
+    };
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: jpegs.map((jpeg, index) => ({
+        path: `/page-${index + 1}`,
+        ...(index < 2 ? { flags: [flag] } : {}),
+        screenshot: {
+          ...fileHash(jpeg),
+          takenAt: "2026-09-26T14:05:03.120-05:00",
+          width: 32,
+          height: 24,
+        },
+      })),
+    });
+    const model = buildShareModel(
+      inputOf([run], {
+        screenshots: new Map(run.pages.map((page, index) => [`r1/${page.slug}`, jpegs[index]!])),
+      }),
+    );
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-print-"));
+    folders.push(folder);
+    const file = path.join(folder, "print.html");
+    await writeFile(file, renderSharePage(model, { fontCss: "" }));
+
+    const page = await open(file);
+    // As written, only the two flagged pages' pictures are in the open: the other 24 are folded.
+    expect(
+      await page.evaluate(
+        () => [...document.images].filter((image) => image.closest("details:not([open])")).length,
+      ),
+    ).toBe(24);
+    const before = await foldStates(page);
+    const pdf = await page.pdf();
+
+    // Each picture's own JPEG is in the printed file: none was left out by its fold or its loading.
+    const missing = jpegs.flatMap((jpeg, index) => (pdf.includes(jpeg) ? [] : [index + 1]));
+    expect(missing).toEqual([]);
+    // Printing puts every fold back as it was.
+    expect(await foldStates(page)).toEqual(before);
+  });
+
   it("opens every fold for printing, and puts each back as it was afterwards", async () => {
     const page = await open(pages.demo);
     await page.locator("#tx-home > summary").click();
