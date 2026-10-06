@@ -18,7 +18,7 @@ voicecap already keeps an audit record that can be checked (`2026-09-27-audit-re
 
 Success:
 - The owner can send one file, a web page or a Word document, that a non-technical reader understands at a glance and an auditor can check to the byte.
-- The page shows the person's review: that they listened, what they found, and what they fixed.
+- The page shows the person's review: that they heard NVDA, what they found, and what they fixed.
 - Every problem during a run is explained with its record, and a reader can tell an interruption from a problem in voicecap.
 - Every run records enough evidence to show it happened: who ran it, on what, minute by minute, with what was on screen, and NVDA's own record of what it said.
 
@@ -44,35 +44,34 @@ The mockup shows this order. Each section's first sentence is its point.
    - NVDA links to https://www.nvaccess.org/.
    - Two buttons: "Open every section" and the theme.
 2. **Summary**, written for a non-technical manager who reads nothing else. It's in plain words, with no jargon, all computed from the records, in this order:
-   - **The result in one sentence**, leading with the person's review. For example: "Christopher Schweda listened as NVDA read all 7 pages, and reviewed every transcript. 1 page has problems a screen reader user would hear." Each part appears only as far as the records show it (see "The human review").
+   - **The result in one sentence**, leading with the person's review. For example: "Christopher Schweda heard NVDA speaking as it read all 7 pages, and reviewed every transcript. 1 page has an issue a screen reader user would hear, found in review." Before any review: "NVDA read all 32 pages, run by Christopher Schweda. 1 problem needs attention, on 32 pages." Each part appears only as far as the records show it (see "The human review"). The problems are the cards under "What needs attention" that come from flags no one has decided on, and the pages are the pages those cards name (see "What needs attention: a card for each problem").
    - **A second line:** "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the listening, the reading, and the deciding." It describes the method, so it claims no listening or review the records may not show.
-   - **Six numbers:**
+   - **Five numbers:**
      - **pages in scope;**
      - **pages transcribed:** with transcripts in the standing;
      - **pages with flags,** and how many rules raised them;
-     - **pages listened to live by a person;**
      - **lines NVDA spoke:** every step of every pass in the transcripts shown;
      - **NVDA time:** the total time the runs the standing draws on held NVDA, from their records.
    - **Four panels:**
-     - **What needs attention:** each page with flags, failures, or issues a reviewer found, in one plain line about what a listener hears. For example: "Common mistakes: a search box and a button have no names, so NVDA says only 'edit' and 'button'; three links say only 'click here'; its first heading is level 2, not 1."
+     - **What needs attention:** how many problems there are and the pages they're on, then each problem's title, linked to its card in the section of that name (item 3). For example: "1 problem, on 32 pages: The i2i logo is read as "Unlabeled graphic": its alt text, "i2i Logo", is too generic for Chrome." With none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person."
      - **How complete the test was:** pages read, out of pages in scope; the problems during the runs in one line (how many, of what kind, and whether a later try made each good); whether any was an unexpected error, the kind that could mean a problem in voicecap itself; and pages that couldn't be read after every attempt.
      - **What's still to do:** the real tasks: issues found and not yet fixed, pages that couldn't be read, and flagged pages with no decision recorded.
      - **When and how:** the date, who ran it, the screen reader, browser, and operating system.
    - **Three bars:**
      - each page's latest result: no flags, flags, or never transcribed;
      - flags by rule: how many times each rule was raised, across pages and passes (each flag once: a flag's own count means something different for each rule);
-     - the human review: pages listened to live, transcripts reviewed, and issues fixed, each out of its total.
+     - the human review: transcripts reviewed, and issues fixed, each out of its total.
    - **Read the full report:** links to each section below.
 
    The Word copy puts the same summary on its first page.
-3. **How voicecap works.** Six steps, and a sample of what NVDA said on this site (see "Fixed text").
-4. **Every page.** One card per page:
+3. **What needs attention.** A card for each problem, across every page it's on: what NVDA says and where, the likely cause, why it matters, the fix in the code, what NVDA should say after it, and the path forward (see "What needs attention: a card for each problem"). It replaces "What the flags found", which gave the same words one page and one rule at a time.
+4. **How voicecap works.** Six steps, and a sample of what NVDA said on this site (see "Fixed text").
+5. **Every page.** One card per page:
    - the page's screenshot, its path, and its title;
-   - its status, flags, and the person's review ("Listened to live", "Reviewed, no issues", "Issue found", "Fixed"), each a chip that says it in words;
+   - its status, flags, and the person's review ("Heard live by <name>", "Reviewed, no issues", "Issue found", "Fixed"), each a chip that says it in words. A page marked "Reviewed, no issues" after the run that raised its flags shows them as checked: "Checked by <name>, <date>: not an issue";
    - the pass counts (read lines, headings, Tab stops) and the page's time;
    - its spoken-line strip: one bar per line NVDA spoke, as wide as the line took and as tall as the square root of its length;
    - a link to its transcripts.
-5. **What the flags found.** For each flagged page, one row per rule: what the rule found, and NVDA's own words quoted from the transcripts.
 6. **What changed since the last run.** The pages that sound different from the run before, each with its changes (see "What changed since the last run").
 7. **Problems during the runs.** Every failed attempt, explained (see "Problems during the runs").
 8. **What these results cover.** Two panels:
@@ -115,19 +114,73 @@ The mockup shows this order. Each section's first sentence is its point.
 
 voicecap speeds up a person's review. The page shows that review as the records show it, in three parts:
 
-- **Listening, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, voicecap asks: "Did you listen as NVDA read these pages?" The answers are "Yes, all of them", "Part of them", and "No".
+- **Hearing NVDA, live:** the listener's statement (evidence F, new). When a session that read pages ends at a terminal, voicecap asks: "Did you hear NVDA speaking as it read these pages?" The answers are "Yes, the whole time", "Part of the time", and "No".
   - It's asked however the session ends: completed, after Ctrl+C, stopped after too many failed pages in a row, or ended by an error. After an error, one line says why the session stopped before the question, and the full explanation follows the answer.
   - Only an answer typed after the question appears counts: keys typed during the run, which wait in the terminal's input, are discarded before the question shows.
   - The session's end is written before the question. The session's record keeps the answer, and when voicecap asked and when it was answered, beside the session's reviewer (recorded from 0.5.0). The run's seal covers it.
   - It isn't asked without a terminal (a script, CI), or with the output redirected (to a file, say). Ctrl+C at the question (after an interrupted run, a second Ctrl+C) and a closed window give no answer. The page then says "not recorded".
   - On a Mac, it asks about VoiceOver.
-- **Reading the transcripts, and deciding:** `voicecap review`'s entries, as today: "Reviewed, no issues", "Issue found" with its note, and "Fixed".
+- **Reading the transcripts, and deciding:** `voicecap review`'s entries, as today: "Reviewed, no issues", "Issue found" with its note, and "Fixed". A decision made after the run that raised a page's flags settles them: "Reviewed, no issues" takes the page off "What needs attention", and "Issue found" turns its flags into that page's issue (see "What needs attention: a card for each problem").
 - **Fixing:** the "Fixed" entries, with their notes.
 
 The page:
-- says a person listened only where the statement says so: "Listened to live by <name>" for pages read in a session answered "Yes, all of them", and "<name> listened to part of this session" for "Part of them";
+- says a person heard NVDA only where the statement says so: "Heard live by <name>" for pages read in a session answered "Yes, the whole time", and "<name> heard part of this session" for "Part of the time";
+- has no count of pages heard live. The owner took it out of the summary's numbers and its human-review bar on 2026-10-06: a run started without a terminal can't ask, and a count of 0 read as though no one had heard NVDA. The statement stays in each run's evidence, and the page's chips above;
 - leads with what the person did, never with what they haven't done. What's left appears once, as tasks, under "What's still to do";
 - shows each count out of its total, so nothing looks complete that isn't.
+
+## What needs attention: a card for each problem
+
+The owner asked on 2026-10-06 for "What needs attention" to show, for each problem, what it is, the suggested fix in the code and in speech, and a path forward: so a manager can see what's wrong and what's next, and the person fixing the site can act on it. The list is meant to reach zero.
+
+**What makes a card.** A card is one problem, across every page it's on:
+- **a kind of flag:** its rule and what it found ("unlabeled graphic", "button", "click here"), on the pages whose latest transcripts raise it and that have no review decision since the run that raised it;
+- **a page the latest run couldn't read,** or whose read pass stopped before the page's end;
+- **an issue a reviewer found** that no one has marked fixed: one card for each page, with the reviewer's note;
+- **a page whose transcripts changed since its review.**
+
+A kind of flag splits into one card for each thing NVDA named, where the words name different things: two graphics with different names are two cards, and the same name in different capitals ("i2i Logo", "i2i logo") is one. Cards are ordered by how many pages each is on, the most first.
+
+**What a card says,** in this order, all from the records (what NVDA said, where, and on which pages):
+1. **Its title:** what NVDA says, and the likely cause in a few words. For example: "The i2i logo is read as "Unlabeled graphic": its alt text, "i2i Logo", is too generic for Chrome."
+2. **How many pages, and how many times;** then NVDA's words, quoted from the transcripts, with where on the page it was (the landmark NVDA named, such as "in the header", and the pass). Words that are the same on every page are quoted once.
+3. **Why it matters,** in one or two plain sentences.
+4. **The fix in the code:** a short example, for the case NVDA's words show.
+5. **What NVDA should say** once it's fixed.
+6. **The path forward:** fix it (and where one change covers many pages, such as a shared header, say so); run voicecap again on one page (`--page`), then on every page; and share again, which leaves the card off. When it isn't a problem: mark the pages "Reviewed, no issues" in `voicecap review`.
+7. **The pages,** each linked to its card under "Every page": open when there are 3 or fewer, and folded behind a line that counts them when there are more.
+
+The fix comes from what NVDA said, never from the page's code: voicecap doesn't read or keep a page's HTML (the owner chose this on 2026-10-06). The example is the usual fix for the case NVDA's words show, and the person reviewing decides whether it fits.
+
+**The advice for each kind.** The page's own words are in `src/share/text.ts`; this is what each says.
+
+| Kind, and what NVDA says | Likely cause | The fix in the code | What NVDA should say then |
+|---|---|---|---|
+| "unlabeled graphic", with no name | Missing alt text | `alt="what it shows"`; or `alt=""` when it's decorative, or inside a link or button that names it | What it shows, then "graphic"; or the link's or button's own words |
+| "Unlabeled graphic", then a name ("i 2i Logo") | Alt text that's too generic for Chrome. Chrome splits the alt text at spaces, punctuation, and digits, drops words of one or two letters and common words such as "logo" and "image", and treats fewer than three letters left as no name: so it says "Unlabeled graphic" and offers to describe the image (Chromium's `ax_image_annotator.cc` and `ax_image_stopwords.cc`, checked 2026-10-06). NVDA reads the alt text, and isn't at fault | Inside a link or button that has words of its own (the Tab pass hears the graphic and those words at one stop): `alt=""`. Elsewhere: a name in words, such as `alt="Institute 2 Innovate"` | The link's own words ("INSTITUTE 2 INNOVATE, link"); or the name, with "graphic" |
+| "button", with no name | An icon button with no name | Visible text, or `aria-label="Close menu"` | "Close menu, button" |
+| "edit", "combo box", "check box", or "radio button", with no name | A form field with no `<label>` | `<label for="email">Email</label>` before `<input id="email">`, or `aria-label` | "Email, edit" |
+| "link", with no name | An image link with no alt text, or an icon link with no text | Alt text or `aria-label` that says where it goes | Where it goes, then "link" |
+| "Read more", "Click here", and the other phrases the rule lists | Link text that doesn't say where it goes | "Read more about the 2026 grants"; or the short words kept, and the rest in visually hidden text | "Read more about the 2026 grants, link" |
+| The first heading isn't level 1 | A missing `<h1>` | The page's main title as its `<h1>` | "heading, level 1", then the title |
+| Many Tab stops before the main content, and no skip link | A missing skip link | `<a href="#main">Skip to main content</a>` as the first stop, and `<main id="main">` | "Skip to main content, link", at the first Tab |
+| Tab reached nothing | Controls made of `<div>` or `<span>` | Real `<a href>` and `<button>` elements | Each control's name and role, at each Tab |
+| A phrase repeated many times in a row | A focus trap, or content repeated | Check that Tab and Down Arrow move past it, and hide the repeat from screen readers | The phrase once |
+| The read stopped before the page's end; a page that couldn't be read | Not a fix in the code | Run the page again with `--page`, hands off; for a very long page, raise its step limit | |
+| An issue a reviewer found | The reviewer's note | Fix it, then mark it "Fixed" in `voicecap review` | |
+| A page that reads differently since its review | Its transcripts changed after the review | Review it again in `voicecap review` | |
+| A custom rule | Its description | None built in | |
+
+**How a card clears.** A card leaves the list when nothing on it is left:
+- a flag, when a later run of the page doesn't raise it, or when the page is marked "Reviewed, no issues" after the run that raised it. It comes back if the page's transcripts change after that review;
+- a page that couldn't be read, when a later run reads it;
+- an issue, when it's marked "Fixed".
+
+With no card left, the section says "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", and the summary's panel says the same.
+
+**The Word copy** has the same cards: each title a heading, the quotes and the code in the fixed-width font, and the pages as a list.
+
+**Where it's built:** the cards' model (grouping, the likely cause, and the advice chosen for each) is pure, in `src/share/attention.ts` beside today's attention lines, from the flags' quotes the model already gathers; the words are in `src/share/text.ts`; and the page and the Word copy render it.
 
 ## What changed since the last run
 
@@ -201,7 +254,7 @@ The page is long, so most of it starts folded. Nothing is left out: every fold o
   - "What these results cover", the verdict line of the problems, and the verify command.
 - **Folded, each behind a line that says what's inside:**
   - pages with nothing to note, when there are more than 12 pages ("The other 88 pages: nothing to note, all read in full"). Pages that need attention always show;
-  - each flagged page's quotes, when more than 3 pages have flags;
+  - each card under "What needs attention", when there are more than 5 cards (its title stays, as the fold's line), and a card's pages, when there are more than 3;
   - each page that sounds different from the run before;
   - each problem, and the table of kinds;
   - each run's evidence, and within it the event table;
@@ -444,7 +497,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
 - voicecap is always a person's review with a real screen reader, sped up, never "automated testing" or an "automated checker".
   - What it does on its own is press the screen reader's keys and move from page to page.
   - Everything in the results is what the screen reader said, or what a person decided.
-- The page says a person listened, reviewed, or fixed something only where the records say so, and it never leads with what a person hasn't done.
+- The page says a person heard NVDA, reviewed, or fixed something only where the records say so, and it never leads with what a person hasn't done.
 - Coverage is claimed for the list: every page on the list is accounted for. It's never "every page on the site", unless the list is the site's whole sitemap.
 - Every page in scope appears. Failures appear with their reasons and their records, never hidden or softened.
 - A problem's kind comes from its cause code or from voicecap's own wording, never from a guess. An error voicecap didn't expect is shown as possibly voicecap's own, with its stack trace.
@@ -452,6 +505,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
 - Unfinished, unsealed, and replayed runs never count toward the standing, and the page says what it left out.
 - A run recorded before a kind of evidence existed says so in that place ("Not recorded: this run used voicecap 0.5.0"). It never leaves a silent gap or a blank that looks like a pass.
 - Plain wording. Flags are rules that point a person to pages worth a closer listen, and the person reviewing decides what they mean.
+- A card's fix under "What needs attention" is the usual fix for the case NVDA's words show: a suggestion, and the person reviewing decides whether it fits. Its likely cause never blames NVDA or the site for what a browser adds, and says which one added it.
 - No claim of conformance (such as "meets WCAG") that the evidence doesn't show, and only technical limits.
 - Stand-in data, as in the mockup, never appears in a real report.
 
@@ -503,7 +557,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
   - "Show a change being caught" names the changed copy's file, and leaves the page as it was;
   - the built-in SHA-256 gives Node's results on test vectors.
 - The folds, in headless Chromium:
-  - which parts start folded, at 12 and 13 pages, and at 3 and 4 flagged pages;
+  - which parts start folded, at 12 and 13 pages, at 5 and 6 cards, and at 3 and 4 pages on a card;
   - no heading inside a summary line;
   - "Open every section", printing, and a link each opening what they should.
 - What changed since the last run:
@@ -535,6 +589,17 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
 - A real NVDA log captured at the PC, kept as a fixture, for the parser and the cross-check: lines that agree, and lines only on one side.
 - Real runs at the PC, with the owner's OK and the hands-off warning: the demo site first, then one page of a real site. They check each kind of evidence, and the page built from it.
 
+**What needs attention (0.12.0):**
+- The cards, from fixture records:
+  - a kind of flag on many pages is one card; things NVDA names differently are separate cards, and capitals alone don't split one; cards come most pages first;
+  - each kind in the advice table gets its likely cause, its fix, and what NVDA should say then;
+  - i2i's case, from the transcripts of the run of 6 October 2026: a graphic whose alt text Chrome counts as missing, inside a link with words of its own, in the header of every page, is one card with `alt=""`; the same graphic standing alone gets a name in words; and a graphic with no name at all is "missing alt text";
+  - a page that couldn't be read, a read that stopped early, an open issue with its note, and a page changed since its review, each as its own card.
+- A review: "Reviewed, no issues" after the run that raised a page's flags takes the page off its card and out of the summary's count, and its card under "Every page" says "Checked by <name>, <date>: not an issue"; a later change to its transcripts brings it back; "Issue found" moves it to an issue card, and "Fixed" clears that.
+- No card left: the line for none, in the section and in the summary's panel.
+- The summary: five numbers; the human-review bar without "heard live"; and the sentence's count of problems and pages.
+- The Word copy's cards, and axe with zero violations with the cards open and with them folded.
+
 ## Stages and release
 
 1. **Stage 1:**
@@ -550,6 +615,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
    - **Plan 6, for 0.11.0:** evidence A (the event log and the foreground program, which also fills E's program) and B (screenshots).
    - **Plan 6c:** evidence C (NVDA's own log and the cross-check). It's written once the facts below are settled at the PC and a real log is kept.
 3. **Releases:** Stage 1 shipped across 0.6.0 to 0.10.0, and each part of stage 2 ships when it passes.
+4. **0.12.0, What needs attention:** a card for each problem, a review settling flags, and five numbers, from the owner's requests of 2026-10-06. It's built on its own branch from `main` while plan 6c waits after its Task 2, and released before 6c, which then ships as 0.13.0. After the release, the i2i v3 report (v3--i2i.netlify.app) is shared again with 0.12.0, with no new run: the cards come from the transcripts already recorded.
 
 ## Facts to confirm at the PC
 
