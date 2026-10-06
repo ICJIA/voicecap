@@ -243,9 +243,16 @@ export function parseSessionState(answer: string): boolean | null {
  * title. The event log keeps the program and the title.
  */
 export interface ForegroundWindow {
-  /** The id of the process that owns the window, a whole number above zero. */
+  /**
+   * The id of the process that owns the window, a whole number above zero. A Store app's window
+   * belongs to a frame host, ApplicationFrameHost.exe: this is its process, not the app's.
+   */
   pid: number;
-  /** The program that owns the window, by the name Windows gives it: "Microsoft Teams". */
+  /**
+   * The program that owns the window, by the name Windows gives it: "Microsoft Teams". A Store app
+   * is named by the app it hosts ("Calculator"), not by its frame host ("Application Frame Host"),
+   * and a name that's only a file's name has no ".exe": "Notepad".
+   */
   program: string;
   /**
    * The window's title, "" when it has none. It can hold private text, such as an email's subject:
@@ -263,29 +270,57 @@ export interface ForegroundWindow {
  * NVDA_PROCESSES asks for it: a program running at a higher integrity level than voicecap refuses
  * more. A program whose file can't be read has the process's name too. It answers nothing when no
  * window is in front. The C# is compiled on every call.
+ *
+ * A Store app's window belongs to a frame host instead, ApplicationFrameHost.exe ("Application Frame
+ * Host"), which names nothing of the app: the app's own process owns a window inside it. For such a
+ * window, HostedProcess walks its child windows (EnumChildWindows) and gives the process of the
+ * first one that isn't the frame host's, and the program is named from that process, the same way.
+ * The answer's pid stays the window's own, the frame host's: the driver tells its own browser's
+ * window by it. A frame host with no such window, or whose app can't be named, keeps its own name.
  */
 const FOREGROUND_WINDOW = [
   "Add-Type -Namespace Voicecap -Name Front -MemberDefinition '",
   '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
   '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);',
   '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int max);',
+  '[DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent, EnumChildProc callback, IntPtr state);',
+  "public delegate bool EnumChildProc(IntPtr window, IntPtr state);",
+  // The process of the first window inside `frame` that isn't `hostPid`'s: 0 when there's none. A
+  // null `frame` has none: EnumChildWindows takes a null parent for every top-level window. The C#
+  // is joined onto one line, so it can't hold a // comment.
+  "public static uint HostedProcess(IntPtr frame, uint hostPid) {",
+  "uint found = 0;",
+  "if (frame == IntPtr.Zero) { return 0; }",
+  "EnumChildWindows(frame, (child, state) => {",
+  "uint owner; GetWindowThreadProcessId(child, out owner);",
+  "if (owner != 0 && owner != hostPid) { found = owner; return false; }",
+  "return true; }, IntPtr.Zero);",
+  "return found; }",
   '[DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);',
   '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool QueryFullProcessImageName(IntPtr process, int flags, System.Text.StringBuilder name, ref int size);',
   '[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);',
   "';",
-  "$window = [Voicecap.Front]::GetForegroundWindow();",
-  "if ($window -ne [IntPtr]::Zero) {",
-  "$id = [uint32]0; [void][Voicecap.Front]::GetWindowThreadProcessId($window, [ref]$id);",
-  "$title = New-Object Text.StringBuilder 1024; [void][Voicecap.Front]::GetWindowText($window, $title, $title.Capacity);",
+  // A process's executable path ('' when Windows doesn't say) and its program's name, as above.
+  "function ProgramOf($owner) {",
   "$path = ''; $program = $null;",
   // PROCESS_QUERY_LIMITED_INFORMATION
-  "$handle = [Voicecap.Front]::OpenProcess(0x1000, $false, $id);",
+  "$handle = [Voicecap.Front]::OpenProcess(0x1000, $false, $owner);",
   "if ($handle -ne [IntPtr]::Zero) {",
   "$name = New-Object Text.StringBuilder 32768; $size = $name.Capacity;",
   "if ([Voicecap.Front]::QueryFullProcessImageName($handle, 0, $name, [ref]$size)) { $path = $name.ToString() }",
   "[void][Voicecap.Front]::CloseHandle($handle) }",
   "if ($path -ne '') { try { $program = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path).FileDescription } catch {} }",
-  "if (-not $program -or -not $program.Trim()) { $program = (Get-Process -Id $id -ErrorAction SilentlyContinue).ProcessName }",
+  "if (-not $program -or -not $program.Trim()) { $program = (Get-Process -Id $owner -ErrorAction SilentlyContinue).ProcessName }",
+  "[pscustomobject]@{ path = $path; program = $program } }",
+  "$window = [Voicecap.Front]::GetForegroundWindow();",
+  "if ($window -ne [IntPtr]::Zero) {",
+  "$id = [uint32]0; [void][Voicecap.Front]::GetWindowThreadProcessId($window, [ref]$id);",
+  "$title = New-Object Text.StringBuilder 1024; [void][Voicecap.Front]::GetWindowText($window, $title, $title.Capacity);",
+  "$front = ProgramOf $id; $program = $front.program;",
+  // -ilike ignores letter case, and the backslash makes it the executable's whole file name.
+  "if ($front.path -ilike '*\\ApplicationFrameHost.exe') {",
+  "$hosted = [Voicecap.Front]::HostedProcess($window, $id);",
+  "if ($hosted -gt 0) { $app = (ProgramOf $hosted).program; if ($app) { $program = $app } } }",
   "[pscustomobject]@{ pid = $id; program = $program; title = $title.ToString() } | ConvertTo-Json -Compress }",
 ].join(" ");
 
@@ -317,9 +352,11 @@ export async function foregroundWindow(
 
 /**
  * The window in front from FOREGROUND_WINDOW's JSON: its process, its program, and its title, with
- * the spaces round the last two left off. A window with no title has "". Null when there's no
- * answer, it isn't a JSON object, it names no program, or its process isn't a whole number above
- * zero (0 is what Windows gives for a window it can't name an owner for).
+ * the spaces round the last two left off. A program that's named by its file has its ".exe" left
+ * off too ("Notepad.exe" is "Notepad"). A window with no title has "". Null when there's no answer,
+ * it isn't a JSON object, it names no program (one that's only ".exe" names none), or its process
+ * isn't a whole number above zero (0 is what Windows gives for a window it can't name an owner
+ * for).
  */
 export function parseForegroundWindow(answer: string): ForegroundWindow | null {
   let data: unknown;
@@ -330,8 +367,18 @@ export function parseForegroundWindow(answer: string): ForegroundWindow | null {
   }
   const { pid, program, title } = (data ?? {}) as Record<string, unknown>;
   const id = positiveInteger(pid);
-  const name = text(program);
+  const name = programName(program);
   return id === null || name === null ? null : { pid: id, program: name, title: text(title) ?? "" };
+}
+
+/**
+ * A program's name as the lookup gives it: trimmed, and without a ".exe" ending in any letter case.
+ * The Windows 11 Notepad is a packaged app, and its file's description is its file's name,
+ * "Notepad.exe". Null when no name is left.
+ */
+function programName(value: unknown): string | null {
+  const name = text(value);
+  return name === null ? null : text(name.replace(/\.exe$/i, ""));
 }
 
 /**

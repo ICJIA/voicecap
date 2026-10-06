@@ -83,19 +83,32 @@ function startStandInNvda(
   return { pid: child.pid, exe, child };
 }
 
-/** Runs a script as voicecap's PowerShell helpers do; resolves when it's done, with its errors. */
-function runPowershell(script: string): Promise<{ stderr: string; at: number }> {
+/**
+ * Runs a script as voicecap's PowerShell helpers do; resolves when it's done, with what it printed
+ * and its errors.
+ */
+function runPowershell(script: string): Promise<{ stdout: string; stderr: string; at: number }> {
   return new Promise((resolve, reject) => {
     execFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
       { windowsHide: true, timeout: 60_000 },
-      (error, _stdout, stderr) => {
+      (error, stdout, stderr) => {
         if (error?.killed) reject(new Error("PowerShell didn't finish within a minute"));
-        else resolve({ stderr, at: Date.now() });
+        else resolve({ stdout, stderr, at: Date.now() });
       },
     );
   });
+}
+
+/** The script foregroundWindow() has PowerShell run, which nothing here runs against the desktop. */
+async function foregroundScript(): Promise<string> {
+  let script = "";
+  await foregroundWindow((asked) => {
+    script = asked;
+    return Promise.resolve("");
+  });
+  return script;
 }
 
 /**
@@ -175,6 +188,32 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);
   });
+
+  // The lookup of the window in front is checked for real only at the PC, and a typo in it would
+  // fail every lookup: each lost foreground would read as one voicecap couldn't name the program of.
+  // These two read no window and never ask which one is in front.
+  it("compile the C# the lookup of the window in front uses, and ask it about no window", async () => {
+    // The script's first statement is its Add-Type, with the C# in single quotes (it has none of its
+    // own). HostedProcess is asked about the null window, which it must take for no window: user32's
+    // EnumChildWindows takes a null parent for every top-level window, those of the desktop.
+    const compile = /^Add-Type [^']*'[^']*';/.exec(await foregroundScript())?.[0] ?? "";
+    expect(compile).not.toBe("");
+    const answer = await runPowershell(
+      `${compile} [Voicecap.Front]::HostedProcess([IntPtr]::Zero, 0)`,
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("0");
+  }, 60_000);
+
+  it("parse the script of the lookup of the window in front as PowerShell, and run none of it", async () => {
+    const answer = await runPowershell(
+      [
+        "$errors = $null;",
+        `[void][System.Management.Automation.Language.Parser]::ParseInput(${powershellString(await foregroundScript())}, [ref]$null, [ref]$errors);`,
+        "$errors | ForEach-Object { $_.Message }; 'parsed'",
+      ].join(" "),
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("parsed");
+  }, 60_000);
 
   it("read the path of an nvda.exe whose memory Windows won't let voicecap read, as for an installed NVDA", async () => {
     const nvda = startStandInNvda("voicecap-nvda-test-");
@@ -452,6 +491,65 @@ describe("Windows helpers (what PowerShell says)", () => {
       program: "Microsoft Teams",
       title: "Chat",
     });
+  });
+
+  // The Windows 11 Notepad is a packaged app, and its file's description is its file's name.
+  it("leave the .exe off a program that's named by its file, whatever its letter case", () => {
+    const front = (program: string) =>
+      parseForegroundWindow(JSON.stringify({ pid: 4242, program, title: "Untitled - Notepad" }));
+    expect(front("Notepad.exe")).toEqual({
+      pid: 4242,
+      program: "Notepad",
+      title: "Untitled - Notepad",
+    });
+    expect(front("NOTEPAD.EXE")?.program).toBe("NOTEPAD");
+    expect(front("Notepad.Exe")?.program).toBe("Notepad");
+    // The spaces round it, and between the name and the .exe, go too.
+    expect(front("  Notepad.exe ")?.program).toBe("Notepad");
+    expect(front("Windows Notepad .exe")?.program).toBe("Windows Notepad");
+    // Only the ending goes, and only once.
+    expect(front("notepad.exe.exe")?.program).toBe("notepad.exe");
+  });
+
+  it("keep a program's name that doesn't end in .exe, and a title that does", () => {
+    const names = [
+      "Microsoft Teams",
+      "Application Frame Host",
+      "Windows Explorer",
+      "Notepad",
+      "exe",
+      "Notepadexe",
+      "Notepad.exe Viewer",
+      "Notepad.exe.config",
+    ];
+    for (const program of names) {
+      const answer = JSON.stringify({ pid: 4242, program, title: "Chat" });
+      expect(parseForegroundWindow(answer)?.program, program).toBe(program);
+    }
+    const title = "setup.exe - Properties";
+    const answer = JSON.stringify({ pid: 4242, program: "Notepad.exe", title });
+    expect(parseForegroundWindow(answer)).toEqual({ pid: 4242, program: "Notepad", title });
+  });
+
+  it("read no window in front when the program is only an .exe, whatever its case or spaces", () => {
+    for (const program of [".exe", ".EXE", ".Exe", " .exe ", "  .exe"]) {
+      const answer = JSON.stringify({ pid: 4242, program, title: "Untitled - Notepad" });
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+  });
+
+  it("look for the app a Store app's window hosts, and still answer with the window's own process", async () => {
+    const script = await foregroundScript();
+    // A Store app's window belongs to the frame host, ApplicationFrameHost.exe, and the app's own
+    // process owns a window below it.
+    expect(script).toContain("EnumChildWindows");
+    expect(script).toContain("HostedProcess");
+    expect(script).toContain("ApplicationFrameHost.exe");
+    // The answer's process is still the window's own, the frame host's: the driver tells its own
+    // browser's window by it.
+    expect(script).toContain("pid = $id");
+    // Still no asking what the program was told to open.
+    expect(script).not.toMatch(/CommandLine|Win32_Process/i);
   });
 
   it("read the characters JSON's escapes stand for, as PowerShell writes an apostrophe as \\u0027", () => {
