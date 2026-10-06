@@ -761,3 +761,27 @@ Real runs check A and B before the release, and settle the facts plan 6c needs.
 - a session line without a heading.
 
 **At "Prepare 0.11.0":** name `SCREENSHOT_FILE` in the CHANGELOG's API line, and fix the CHANGELOG's compare links (`[Unreleased]` compares from v0.7.0, and 0.8.0 to 0.10.0 have none).
+
+**At the PC (2026-10-06, with the owner's "go"):**
+- **The setup:**
+  - runs from a fresh build, with `package.json` set to `0.11.0-rc.0` for the session only (voicecap reads its version at run time), then restored;
+  - the demo site served from the built `startDemoServer`;
+  - every run with `--out` in a scratch folder.
+- **Run 1, the demo as shipped:**
+  - All seven pages were read in full.
+  - `events.jsonl` held 62 events in order: the lock, NVDA started (a real process id), three browsers a page, each page started and finished, NVDA stopped, the lock released, and the run's end.
+  - Screenshots were 16–22 KB each, 633 × 433 at 110% display scaling (625 wide with a scrollbar). Each showed its page fully drawn before NVDA read it.
+  - `run.files` was sealed, the canonical address came from the pages' tags, and `verify` found everything matching.
+- **Run 2, the program in front** (the owner was away and asked the controller to bring the windows forward; a script did it without a key press):
+  - Notepad was caught in about 2.7 s. It was recorded as `foreground` on the tab pass, step 4, with a restart, then read in full on attempt 2.
+  - The Calculator was caught in about 2.8 s, the same way.
+  - Both runs' event logs kept the titles, and the page showed only the programs.
+  - **Found:** a Store app was named "Application Frame Host", and the packaged Notepad "Notepad.exe". Fixed in c0f35b2: a Store app is named by its hosted program, and a bare file name loses ".exe". It's reviewed, and a Windows-only test compiles and parses the script without reading a window. **Rechecked** with real windows: "Calculator" and "Notepad".
+- **Run 3, NVDA's own log at the input/output level, for plan 6c:**
+  - `nvdaSettings.general.loggingLevel: "IO"`, set through Guidepup's settings, works. The log is `%TEMP%\nvda.log`, moved to `nvda-old.log` at every NVDA start: 114 KB and 1,651 lines for the seven pages, with 392 `Speaking` and 267 `Input` entries.
+  - All 21 of the demo's passes were word for word the same as run 1's, and each page took the same time to within a second. Logging changes neither NVDA's timing nor its speech.
+  - voicecap's own keys appear as `Input: kb(desktop):…` lines: down arrow, Tab, NVDA+T, H, Ctrl+Home, Escape, and Ctrl+End.
+  - The log also caught the window that was in front before the run ("Calculator window, Display is 0") and NVDA's own messages ("Connected as controlled computer"), and its setup lines carry the account name in paths.
+  - A copy is kept for plan 6c's fixture, once the owner has looked it over.
+- **Across four of the runs,** every page and pass read the same words, including the pages retried after a window took the screen.
+- **Not checked:** a Chrome window closed mid-page (optional, from 0.6.0's list).
