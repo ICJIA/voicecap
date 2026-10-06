@@ -42,6 +42,13 @@
  *   has loaded, before the browser is brought to the front and before any key, so it shows the page
  *   as the screen reader finds it, and taking it doesn't move the window. One that can't be taken
  *   is returned as the reason, and never fails the page.
+ * - NVDA's own log is turned on at the input/output level, through Guidepup's settings (a
+ *   general.loggingLevel the config sets itself wins). Each time voicecap's NVDA has quit, the driver
+ *   reads that log, cleans it (./guidepup/nvda-log.ts), and hands the copy to the run's recorder,
+ *   before anything starts NVDA again: NVDA moves the last log aside to nvda-old.log whenever it
+ *   starts, as the person's own NVDA does when the final stop starts it again. It reads nothing
+ *   for a recorder that keeps no copies, and a log it can't have is recorded as no copy, with why:
+ *   it never stops a stop.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -50,11 +57,13 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import type { VoicecapConfig } from "../config/schema.js";
 import { isHtmlContentType } from "../pages/url.js";
+import { redactHome } from "../run/failure.js";
 import { EnvironmentError, errorMessage } from "../util/errors.js";
 import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
 import { launchChrome } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
+import { cleanNvdaLog } from "./guidepup/nvda-log.js";
 import {
   guidepupInstall,
   nvdaLockFile,
@@ -71,6 +80,7 @@ import {
   nvdaLanguage,
   nvdaProcesses,
   ownNvdaPaths,
+  readNvdaLog,
   restartNvda,
   restartNvdaDetached,
   sessionLocked,
@@ -208,6 +218,17 @@ export interface GuidepupDriverDeps {
    * once Guidepup's NVDA has quit.
    */
   restartNvdaDetached: (exe: string) => void;
+  /**
+   * NVDA's own log as NVDA left it (the decoded text of nvda.log in the temp folder), or null when
+   * there is no such file. Rejects when it can't be read (another program has it locked, say). Asked
+   * once each time voicecap's NVDA has quit, and only for a recorder that keeps copies of it.
+   */
+  readNvdaLog: () => Promise<string | null>;
+  /**
+   * The account's home folder, which a copy of NVDA's log writes as %USERPROFILE%, and so does the
+   * reason a log couldn't be had, which is kept with the run.
+   */
+  home: string;
   /** The machine-wide lock: only one voicecap drives NVDA at a time. */
   lockFile: string;
   system: () => SystemInfo;
@@ -260,6 +281,8 @@ export function createGuidepupNvdaDriver(
     ownNvda: () => ownNvdaPaths(install),
     restartNvda,
     restartNvdaDetached: (exe) => restartNvdaDetached(exe, install.nvdaExe),
+    readNvdaLog: () => readNvdaLog(os.tmpdir()),
+    home: os.homedir(),
     lockFile: nvdaLockFile(process.env, os.homedir()),
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),
@@ -458,7 +481,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     try {
       await nvda.start({
         capture: this.options.config.capture,
-        settings: this.options.config.nvdaSettings,
+        settings: withNvdaLog(this.options.config.nvdaSettings),
       });
     } catch (error) {
       this.setNvdaState("stopped");
@@ -1029,6 +1052,42 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const restarting = this.stopping !== null && !this.finalStop;
     this.events.record({ type: "screen-reader-stopped", pid: this.nvdaPid, restarting });
     this.nvdaPid = null;
+    await this.keepNvdaLog();
+  }
+
+  /**
+   * NVDA has quit: read its log, clean it, and hand the copy to the run's recorder, which keeps it
+   * (EventRecorder.screenReaderLog). It's read here, by whoever stopped NVDA, because NVDA moves the
+   * last log aside to nvda-old.log whenever it starts, which the next start does, and so does the
+   * person's own NVDA when the final stop starts it again. Only an NVDA that this driver ran and
+   * has just quit has a log to read: one that never started has none of this run's. A recorder that
+   * keeps no copies is given none, and nothing is read, as doctor's live check and fixture capture
+   * run the driver with none. A log that can't be had (no file, an empty one, or one that can't be
+   * read) is recorded as no copy, with why, and never stops the stop that was under way. So is any
+   * log, unread, when the account's home folder isn't known: a copy says it has the home folder
+   * written as %USERPROFILE%, and the account's name in a path would stay in it.
+   */
+  private async keepNvdaLog(): Promise<void> {
+    const recorder = this.events;
+    if (recorder.screenReaderLog === undefined) return;
+    const { home, platform } = this.deps;
+    let reason: string;
+    if (home.trim() === "") {
+      reason = "The account's home folder isn't known, so NVDA's log couldn't be cleaned of it.";
+    } else {
+      try {
+        const raw = await this.deps.readNvdaLog();
+        if (raw !== null && raw.trim() !== "") {
+          recorder.screenReaderLog(cleanNvdaLog(raw, { home, platform }));
+          return;
+        }
+        reason = "NVDA's log wasn't there.";
+      } catch (error) {
+        // The run keeps the reason, and a path in an error's message names the account.
+        reason = redactHome(errorMessage(error), home, platform);
+      }
+    }
+    recorder.record({ type: "screen-reader-log", file: null, reason });
   }
 
   private async stopNvda(nvda: NvdaControl): Promise<void> {
@@ -1123,6 +1182,18 @@ function describeError(error: unknown): string {
   return cause && !message.includes(cause)
     ? `${message} (${cause.split("\n")[0] ?? cause})`
     : message;
+}
+
+/**
+ * The settings NVDA starts with: the config's own, with NVDA's log turned on at the input/output
+ * level, which holds what NVDA says and every key pressed, for the run to keep a cleaned copy of
+ * (see keepNvdaLog). The config's own settings win, a general.loggingLevel among them (one left
+ * undefined counts as none), and the rest of its general settings stay. The config's object, which
+ * the run records, is left as it is.
+ */
+function withNvdaLog(settings: Record<string, unknown>): Record<string, unknown> {
+  const general = section(settings, "general");
+  return { ...settings, general: { ...general, loggingLevel: general.loggingLevel ?? "IO" } };
 }
 
 function section(settings: Record<string, unknown>, name: string): Record<string, unknown> {

@@ -23,6 +23,8 @@ import { EVENT_LOG } from "./events.js";
  *   share/shares.json                   (what `voicecap share` sent: sealed, chained, only added to)
  *   <date>/<time>/run.json  <date>/<time>/report.html  <date>/<time>/pages/<slug>/<pass>.{txt,json}
  *   <date>/<time>/events.jsonl      (the run's event log, added to as the run goes, sealed with it)
+ *   <date>/<time>/nvda-log/<session>-<n>.txt   (NVDA's own log, cleaned, one for each time voicecap's
+ *                                               NVDA quit: sealed with the run, as the event log is)
  *   <date>/<time>/pages/<slug>/screenshot.jpg   (the page as it loaded, before the screen reader
  *                                                read it: kept beside its transcripts, and recorded
  *                                                by the page's record, not among its files)

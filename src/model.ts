@@ -479,7 +479,15 @@ export type NewRunEvent =
    * browser itself when it was looked up. A title can hold private text, such as an email's
    * subject, so no report shows it.
    */
-  | { type: "foreground-lost"; program: string | null; title: string | null };
+  | { type: "foreground-lost"; program: string | null; title: string | null }
+  /**
+   * The screen reader's own log of one of its sessions: kept as a cleaned copy in the run's folder
+   * (`file`, its path from the run folder, written with "/": "nvda-log/1-2.txt" is the second copy
+   * of session 1, and `reason` is null), or not kept (`file` is null, and `reason` says why: the log
+   * wasn't there, or couldn't be read or written). A copy is recorded as the screen reader's session
+   * ends, so a restart's copy comes before the next start.
+   */
+  | { type: "screen-reader-log"; file: string | null; reason: string | null };
 
 /**
  * A line of the event log: an event, and when it was recorded, as a local ISO time to the
@@ -519,8 +527,10 @@ export interface RunJson {
   pages: PageRecord[];
   /**
    * The run's own evidence files, beside its pages': each one's SHA-256 and size, by its path from
-   * the run's folder, written with "/". Today that's "events.jsonl", the run's event log. Each
-   * session's end sets them, so the seal covers every file, and `voicecap verify` checks each one.
+   * the run's folder, written with "/". Those are "events.jsonl", the run's event log (from voicecap
+   * 0.11.0), and, from 0.12.0, each cleaned copy of the screen reader's own log that a session kept
+   * ("nvda-log/<session>-<n>.txt"). Each session's end sets them, so the seal covers every file, and
+   * `voicecap verify` checks each one, and reports an event log or a copy that the run doesn't list.
    * Absent in runs from before voicecap 0.11.0, and while a run has no file to record.
    */
   files?: Record<string, FileHash>;

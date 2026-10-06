@@ -89,6 +89,12 @@ export class FakeDesktop {
   restartGate: Gate | null = null;
   /** Every path the driver started the person's own NVDA again from, either way, failures included. */
   readonly restarts: string[] = [];
+  /**
+   * NVDA's log as its file in the temp folder holds it (the text the driver reads and cleans): null
+   * when there is no such file, or the error that reading it fails with. NVDA starts a new log
+   * whenever it starts, so a test sets the log of the NVDA session it's about to stop.
+   */
+  nvdaLog: string | Error | null = null;
 
   /** The driver's ownNvda(): the person's own NVDA copies running now. */
   async findOwnNvda(): Promise<string[]> {
@@ -113,6 +119,14 @@ export class FakeDesktop {
     this.events.push(`own-nvda:restart-detached:${exe}`);
     if (this.restartFails) throw new Error("spawn EINVAL");
     this.ownNvda.push(exe);
+  }
+
+  /** The driver's readNvdaLog(): NVDA's log as it is now. Every read is in `events`. */
+  readNvdaLog(): Promise<string | null> {
+    this.events.push("nvda-log:read");
+    return this.nvdaLog instanceof Error
+      ? Promise.reject(this.nvdaLog)
+      : Promise.resolve(this.nvdaLog);
   }
 
   /** Which window is in front. The browser's page sees every switch away as a focus loss. */

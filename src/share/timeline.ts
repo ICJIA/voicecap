@@ -109,6 +109,7 @@ const KINDS: Record<NewRunEvent["type"], EventKind> = {
   "screen-reader-started": "screen-reader",
   "screen-reader-stopped": "screen-reader",
   "screen-reader-restarting": "screen-reader",
+  "screen-reader-log": "screen-reader",
   "own-screen-reader-closed": "own",
   "own-screen-reader-restarted": "own",
   "browser-launched": "browser",

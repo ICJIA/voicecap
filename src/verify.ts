@@ -6,7 +6,7 @@ import { SCREENSHOT_FILE, type FileHash, type ReviewsFile } from "./model.js";
 import { isWebRoot } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
-import { EVENT_LOG } from "./run/events.js";
+import { EVENT_LOG, NVDA_LOG_FOLDER } from "./run/events.js";
 import {
   DATE_FOLDER,
   linkPath,
@@ -171,10 +171,10 @@ async function checkDateFolder(home: string, dateDir: string, site: SiteTally): 
 
 /**
  * A run. A sealed one is checked in full: its seal, where it's filed, each file it records beside
- * its pages (its event log, from 0.11.0) and any event log it doesn't, and every file in pages/,
- * recorded or not. An unsealed one is a completed run from before seals, which can't be checked, or
- * an incomplete run, which must look as voicecap writes one and be where voicecap puts it, and is
- * then listed rather than checked.
+ * its pages (its event log, from 0.11.0, and its copies of NVDA's log, from 0.12.0) and any event
+ * log or copy it doesn't, and every file in pages/, recorded or not. An unsealed one is a completed
+ * run from before seals, which can't be checked, or an incomplete run, which must look as voicecap
+ * writes one and be where voicecap puts it, and is then listed rather than checked.
  */
 async function checkRun(home: string, dir: string, site: SiteTally): Promise<void> {
   const file = path.join(dir, "run.json");
@@ -236,8 +236,10 @@ function runBelongsAt(home: string, run: Record<string, unknown>): string | null
 
 /**
  * The files a completed run records beside its pages (run.files): each one that's missing or
- * changed, and an event log the run doesn't record, which someone put in a folder that had none.
- * The problems come in the order of the files' paths.
+ * changed, an event log the run doesn't record, which someone put in a folder that had none, and
+ * any file in nvda-log/ that the run doesn't record, at any depth: a copy of NVDA's log that nothing
+ * vouches for. The files an operating system leaves in a folder aren't counted, as in pages/. The
+ * problems come in the order of the files' paths.
  */
 async function checkOwnFiles(
   home: string,
@@ -247,6 +249,12 @@ async function checkOwnFiles(
 ): Promise<void> {
   const names = new Set(recorded.keys());
   if (existsSync(path.join(dir, EVENT_LOG))) names.add(EVENT_LOG);
+  const copies = path.join(dir, NVDA_LOG_FOLDER);
+  for (const file of await filesIn(copies)) {
+    if (!OS_LITTER.has(path.basename(file))) {
+      names.add(`${NVDA_LOG_FOLDER}/${linkPath(copies, file)}`);
+    }
+  }
   for (const name of [...names].sort()) {
     const file = path.join(dir, ...name.split("/"));
     const hash = recorded.get(name);
