@@ -1,0 +1,1334 @@
+# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key and every typed word, and wrote %USERPROFILE% for the home folder.
+WARNING - synthDriverHandler.SynthDriver.loadSettings (08:08:13.530) - MainThread (44960):
+Invalid voice: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens\MSTTS_V110_enGB_GeorgeM
+WARNING - logging.Logger.warn (08:08:14.054) - Thread-5_connector_loop (15208):
+Skipping certificate verification for localhost:6837
+IO - speech.speech.speak (08:08:14.104) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:14.140) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:14.147) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:14.237) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Connected as controlled computer']
+ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection (08:08:14.435) - Thread-4 (run) (58244):
+Error accepting connection
+Traceback (most recent call last):
+  File "_remoteClient\server.pyc", line 385, in acceptNewConnection
+  File "ssl.pyc", line 1418, in accept
+  File "ssl.pyc", line 455, in wrap_socket
+  File "ssl.pyc", line 1076, in _create
+  File "ssl.pyc", line 1372, in do_handshake
+ssl.SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)
+WARNING - logging.Logger.warn (08:08:14.442) - Thread-5_connector_loop (15208):
+Received message with unhandled type: protocol_version {'version': 2, 'origin': 2}
+IO - speech.speech.speak (08:08:17.494) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lzquyq - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:17.498) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lzquyq', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:17.501) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:18.366) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:08:18.368) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lzquyq - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:08:19.385) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:08:19.645) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:08:19.648) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:20.924) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:08:20.926) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:08:22.201) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:08:22.204) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:23.484) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:23.488) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:08:24.767) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:24.770) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 1 item', 'link', 'Next: Before you start']
+IO - inputCore.InputManager.executeGesture (08:08:26.047) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:26.050) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Welcome to the voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:08:27.330) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:27.333) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This small site shows how voicecap works, one page at a time.']
+IO - inputCore.InputManager.executeGesture (08:08:28.606) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:28.608) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'As voicecap runs, a screen reader reads each page, and voicecap saves every word.']
+IO - inputCore.InputManager.executeGesture (08:08:29.886) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:29.889) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', "The tour's pages"]
+IO - inputCore.InputManager.executeGesture (08:08:31.167) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:31.171) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'list', 'with 6 items', '1. ', 'link', 'Before you start']
+IO - inputCore.InputManager.executeGesture (08:08:32.449) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:32.452) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), '2. ', 'link', 'How a run works']
+IO - inputCore.InputManager.executeGesture (08:08:33.729) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:33.732) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), '3. ', 'link', 'Reading transcripts']
+IO - inputCore.InputManager.executeGesture (08:08:35.011) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:35.014) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), '4. ', 'link', 'The report']
+IO - inputCore.InputManager.executeGesture (08:08:36.290) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:36.292) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), '5. ', 'link', 'Ask a question']
+IO - inputCore.InputManager.executeGesture (08:08:37.569) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:37.572) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), '6. ', 'link', 'Common mistakes (on purpose)']
+IO - inputCore.InputManager.executeGesture (08:08:38.850) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:38.855) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:08:40.128) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:40.131) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:08:41.405) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:41.410) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:08:42.686) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:08:42.689) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:08:44.214) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:44.237) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:44.245) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:45.780) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vntwfw - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:45.785) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vntwfw', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:45.788) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:46.671) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:08:46.674) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vntwfw - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:08:47.687) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:08:47.950) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:08:47.954) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:49.228) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:08:49.232) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Welcome to the voicecap demo', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:08:50.513) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:08:50.516) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "The tour's pages", 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:08:51.796) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:08:51.800) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:08:53.322) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:53.342) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:53.349) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:54.904) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xmdayk - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:54.908) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xmdayk', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:08:54.910) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:08:55.796) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:08:55.799) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xmdayk - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:08:56.816) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:08:57.078) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:08:57.081) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:08:58.397) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:08:59.676) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:08:59.730) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 1 item', 'Next: Before you start', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:01.003) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:01.047) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'list', 'with 6 items', 'Before you start', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:02.323) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:02.367) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'How a run works', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:03.638) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:03.686) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Reading transcripts', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:04.964) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:05.009) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The report', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:06.279) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:06.324) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Ask a question', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:07.605) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:07.649) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Common mistakes (on purpose)', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:08.932) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:08.955) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Welcome | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:08.965) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:09:10.400) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:09:10.403) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check spifvc - Google Chrome']
+IO - speech.speech.speak (08:09:11.944) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:11.964) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:11.970) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:13.513) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check eyxriu - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:13.518) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check eyxriu', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:13.520) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:14.401) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:09:14.404) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check eyxriu - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:09:15.418) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:09:15.679) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:09:15.683) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:16.961) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:09:16.964) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:09:18.246) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:09:18.250) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:19.522) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:19.525) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:09:20.796) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:20.799) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'link', 'Previous: Welcome']
+IO - inputCore.InputManager.executeGesture (08:09:22.083) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:22.087) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Next: How a run works']
+IO - inputCore.InputManager.executeGesture (08:09:23.368) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:23.370) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Before you start']
+IO - inputCore.InputManager.executeGesture (08:09:24.645) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:24.648) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Two commands get a computer ready for voicecap, and keep it that way.']
+IO - inputCore.InputManager.executeGesture (08:09:25.922) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:25.926) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'voicecap setup']
+IO - inputCore.InputManager.executeGesture (08:09:27.202) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:27.205) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Setup installs what voicecap needs on this computer.']
+IO - inputCore.InputManager.executeGesture (08:09:28.484) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:28.488) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "On Windows, that includes voicecap's own copy of NVDA, so yours stays as it is."]
+IO - inputCore.InputManager.executeGesture (08:09:29.759) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:29.763) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'On a Mac, setup also walks you through the permissions macOS asks for.']
+IO - inputCore.InputManager.executeGesture (08:09:31.038) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:31.042) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'voicecap doctor']
+IO - inputCore.InputManager.executeGesture (08:09:32.313) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:32.316) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Doctor checks the screen reader, the browser, and anything else that could stop a run.']
+IO - inputCore.InputManager.executeGesture (08:09:33.592) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:33.595) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Then it starts the screen reader for a 20-second live test.']
+IO - inputCore.InputManager.executeGesture (08:09:34.873) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:34.875) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The tour ran the same checks, and the live test, in steps 2 and 3.']
+IO - inputCore.InputManager.executeGesture (08:09:36.152) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:36.155) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:09:37.431) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:37.435) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:09:38.712) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:38.715) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:09:39.990) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:09:39.993) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:09:41.537) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:41.565) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:41.573) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:43.090) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pintio - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:43.095) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pintio', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:43.099) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:43.979) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:09:43.982) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pintio - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:09:44.997) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:09:45.263) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:09:45.267) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:46.539) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:09:46.543) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Before you start', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:09:47.814) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:09:47.818) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap setup', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:09:49.091) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:09:49.095) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap doctor', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:09:50.369) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:09:50.373) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:09:51.887) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:51.905) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:51.912) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:53.464) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lupyin - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:53.468) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lupyin', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:09:53.470) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:09:54.362) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:09:54.365) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lupyin - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:09:55.381) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:09:55.673) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:09:55.677) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:09:56.992) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:58.264) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:58.313) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'Previous: Welcome', 'link']
+IO - inputCore.InputManager.executeGesture (08:09:59.587) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:09:59.633) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Next: How a run works', 'link']
+IO - inputCore.InputManager.executeGesture (08:10:00.908) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:10:00.930) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Before you start | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:00.939) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:10:02.374) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:02.377) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check ktthyc - Google Chrome']
+IO - speech.speech.speak (08:10:03.900) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:03.919) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:03.927) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:05.434) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oduzdi - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:05.439) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oduzdi', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:05.442) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:06.320) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:06.322) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check oduzdi - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:10:07.338) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:10:07.598) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:10:07.600) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:08.883) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:10:08.886) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:10:10.170) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:10:10.173) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:11.443) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:11.446) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:10:12.721) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:12.724) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'link', 'Previous: Before you start']
+IO - inputCore.InputManager.executeGesture (08:10:14.000) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:14.004) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Next: Reading transcripts']
+IO - inputCore.InputManager.executeGesture (08:10:15.278) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:15.281) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'How a run works']
+IO - inputCore.InputManager.executeGesture (08:10:16.556) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:16.559) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap opens each page and goes through it three times.']
+IO - inputCore.InputManager.executeGesture (08:10:17.834) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:17.837) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Each time is a pass, and each pass gets its own transcript.']
+IO - inputCore.InputManager.executeGesture (08:10:19.107) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:19.110) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'The read pass']
+IO - inputCore.InputManager.executeGesture (08:10:20.382) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:20.384) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The screen reader reads the page from top to bottom, one line at a time.']
+IO - inputCore.InputManager.executeGesture (08:10:21.654) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:21.659) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'The headings pass']
+IO - inputCore.InputManager.executeGesture (08:10:22.935) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:22.939) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "It jumps from heading to heading, to hear the page's outline."]
+IO - inputCore.InputManager.executeGesture (08:10:24.215) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:24.218) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'The tab pass']
+IO - inputCore.InputManager.executeGesture (08:10:25.500) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:25.504) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'It presses Tab from link to link and field to field, as a keyboard user does.']
+IO - inputCore.InputManager.executeGesture (08:10:26.774) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:26.777) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:10:28.057) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:28.060) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:10:29.344) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:29.346) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:10:30.624) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:10:30.627) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:10:32.126) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:32.159) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:32.166) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:33.685) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jmbjdu - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:33.689) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jmbjdu', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:33.692) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:34.582) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:34.584) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check jmbjdu - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:10:35.596) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:10:35.858) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:10:35.862) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:37.143) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:10:37.147) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'How a run works', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:10:38.418) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:10:38.420) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The read pass', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:10:39.690) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:10:39.694) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The headings pass', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:10:40.968) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:10:40.971) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The tab pass', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:10:42.247) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:10:42.249) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:10:43.738) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:43.757) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:43.764) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:45.264) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tnpibd - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:45.269) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tnpibd', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:45.272) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:46.158) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:46.161) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tnpibd - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:10:47.177) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:10:47.439) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:10:47.442) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:10:48.754) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:10:50.028) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:10:50.078) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'Previous: Before you start', 'link']
+IO - inputCore.InputManager.executeGesture (08:10:51.351) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:10:51.395) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Next: Reading transcripts', 'link']
+IO - inputCore.InputManager.executeGesture (08:10:52.674) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:10:52.697) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'How a run works | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:52.707) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:10:54.156) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:54.158) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check elghdv - Google Chrome']
+IO - speech.speech.speak (08:10:55.700) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:55.721) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:55.727) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:57.230) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check satslr - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:57.234) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check satslr', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:10:57.237) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:10:58.124) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:10:58.128) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check satslr - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:10:59.146) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:10:59.411) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:10:59.414) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:00.700) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:11:00.704) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:11:01.975) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:11:01.979) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:03.250) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:03.254) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:11:04.529) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:04.533) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'link', 'Previous: How a run works']
+IO - inputCore.InputManager.executeGesture (08:11:05.806) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:05.810) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Next: The report']
+IO - inputCore.InputManager.executeGesture (08:11:07.080) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:07.083) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Reading transcripts']
+IO - inputCore.InputManager.executeGesture (08:11:08.356) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:08.360) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Each page gets a folder, with read.txt, headings.txt, and tab.txt in it.']
+IO - inputCore.InputManager.executeGesture (08:11:09.634) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:09.637) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Each line of a transcript is what the screen reader said after one key press.']
+IO - inputCore.InputManager.executeGesture (08:11:10.909) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:10.912) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'An example']
+IO - inputCore.InputManager.executeGesture (08:11:12.188) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:12.191) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "This page's headings.txt starts like this:"]
+IO - inputCore.InputManager.executeGesture (08:11:13.465) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:13.468) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark, Reading transcripts, heading, level 1\n']
+IO - inputCore.InputManager.executeGesture (08:11:14.745) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:14.749) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'An example, heading, level 2']
+IO - inputCore.InputManager.executeGesture (08:11:16.023) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:16.026) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'What a line tells you']
+IO - inputCore.InputManager.executeGesture (08:11:17.305) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:17.308) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "A heading gives its text and its level, and a link says that it's a link."]
+IO - inputCore.InputManager.executeGesture (08:11:18.585) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:18.588) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'A form field gives its label, if it has one, and what kind of field it is.']
+IO - inputCore.InputManager.executeGesture (08:11:19.860) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:19.863) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:11:21.138) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:21.141) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:11:22.422) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:22.425) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:11:23.699) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:23.702) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:11:25.220) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:25.239) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:25.245) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:26.770) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check sjqqpl - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:26.774) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check sjqqpl', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:26.777) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:27.658) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:11:27.660) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check sjqqpl - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:11:28.678) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:11:28.940) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:11:28.944) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:30.222) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:11:30.226) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Reading transcripts', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:11:31.497) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:11:31.500) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'An example', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:11:32.775) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:11:32.778) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'What a line tells you', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:11:34.055) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:11:34.057) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:11:35.587) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:35.608) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:35.615) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:37.145) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xgidpn - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:37.149) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xgidpn', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:37.151) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:38.024) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:11:38.026) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xgidpn - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:11:39.047) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:11:39.312) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:11:39.316) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:11:40.630) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:11:41.912) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:11:41.960) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'Previous: How a run works', 'link']
+IO - inputCore.InputManager.executeGesture (08:11:43.232) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:11:43.275) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Next: The report', 'link']
+IO - inputCore.InputManager.executeGesture (08:11:44.544) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:11:44.566) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Reading transcripts | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:44.576) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:11:46.012) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:11:46.014) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gznpxm - Google Chrome']
+IO - speech.speech.speak (08:11:47.545) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:47.565) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:47.572) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:49.096) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check fwbskd - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:49.101) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check fwbskd', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:11:49.103) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:49.977) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:11:49.980) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check fwbskd - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:11:51.000) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:11:51.259) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:11:51.263) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:52.543) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:11:52.548) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:11:53.820) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:11:53.824) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:11:55.092) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:55.096) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:11:56.370) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:56.374) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'link', 'Previous: Reading transcripts']
+IO - inputCore.InputManager.executeGesture (08:11:57.645) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:57.648) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Next: Ask a question']
+IO - inputCore.InputManager.executeGesture (08:11:58.927) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:11:58.930) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'The report']
+IO - inputCore.InputManager.executeGesture (08:12:00.205) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:00.208) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'After the last page, voicecap builds a report, report.html, about every page.']
+IO - inputCore.InputManager.executeGesture (08:12:01.488) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:01.491) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Coverage']
+IO - inputCore.InputManager.executeGesture (08:12:02.767) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:02.770) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'For each page, the report shows what each pass captured, and where it stopped.']
+IO - inputCore.InputManager.executeGesture (08:12:04.043) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:04.047) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Flags']
+IO - inputCore.InputManager.executeGesture (08:12:05.319) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:05.322) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Flags point to pages worth a closer listen, such as a field with no name.']
+IO - inputCore.InputManager.executeGesture (08:12:06.597) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:06.600) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'A flag never fails a page: a person listens, and decides.']
+IO - inputCore.InputManager.executeGesture (08:12:07.871) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:07.875) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 2', 'Reviews']
+IO - inputCore.InputManager.executeGesture (08:12:09.152) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:09.156) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'A reviewer records what they found, and voicecap keeps every review.']
+IO - inputCore.InputManager.executeGesture (08:12:10.430) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:10.432) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:12:11.711) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:11.714) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:12:12.988) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:12.992) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:12:14.265) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:14.269) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:12:16.335) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'pane', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:16.350) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:16.354) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:16.361) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:18.180) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vkrrae - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:18.185) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vkrrae', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:18.189) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:19.075) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:12:19.078) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check vkrrae - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:12:20.092) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:12:20.354) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:12:20.359) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:21.630) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:12:21.633) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'The report', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:12:22.907) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:12:22.910) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Coverage', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:12:24.179) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:12:24.182) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Flags', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:12:25.455) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:12:25.459) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Reviews', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:12:26.733) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:12:26.736) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:12:28.243) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:28.263) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:28.270) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:29.804) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bkkdnz - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:29.807) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bkkdnz', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:29.810) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:30.698) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:12:30.700) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check bkkdnz - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:12:31.711) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:12:31.970) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:12:31.974) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:12:33.280) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:12:34.552) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:12:34.601) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'Previous: Reading transcripts', 'link']
+IO - inputCore.InputManager.executeGesture (08:12:35.873) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:12:35.916) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Next: Ask a question', 'link']
+IO - inputCore.InputManager.executeGesture (08:12:37.196) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:12:37.217) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The report | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:37.227) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:12:38.675) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:12:38.678) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check xkwqsa - Google Chrome']
+IO - speech.speech.speak (08:12:40.193) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:40.213) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:40.220) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:41.743) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check rprhgo - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:41.747) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check rprhgo', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:12:41.750) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:42.623) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:12:42.625) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check rprhgo - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:12:43.643) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:12:43.904) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:12:43.908) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:45.182) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:12:45.185) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:12:46.463) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:12:46.467) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:12:47.738) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:47.741) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:12:49.018) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:49.021) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'link', 'Previous: The report']
+IO - inputCore.InputManager.executeGesture (08:12:50.292) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:50.295) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'link', 'Next: Common mistakes (on purpose)']
+IO - inputCore.InputManager.executeGesture (08:12:51.568) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:51.572) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 1', 'Ask a question']
+IO - inputCore.InputManager.executeGesture (08:12:52.843) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:52.846) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This form is built well, so a screen reader can say what each field is for.']
+IO - inputCore.InputManager.executeGesture (08:12:54.124) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:54.128) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), "This is a practice form: sending it only shows a thank-you page, so don't type anything private."]
+IO - inputCore.InputManager.executeGesture (08:12:55.397) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:55.401) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'section', 'Your name', 'edit', ' ']
+IO - inputCore.InputManager.executeGesture (08:12:56.682) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:56.685) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Your question (required)']
+IO - inputCore.InputManager.executeGesture (08:12:57.965) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:57.969) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'edit', 'required', 'multi line']
+IO - inputCore.InputManager.executeGesture (08:12:59.245) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:12:59.249) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of edit', 'Ask anything about voicecap, or about this tour.']
+IO - inputCore.InputManager.executeGesture (08:13:00.528) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:00.531) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'grouping', 'How did you hear about voicecap?']
+IO - inputCore.InputManager.executeGesture (08:13:01.811) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:01.815) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'radio button', 'not checked', 'From a colleague']
+IO - inputCore.InputManager.executeGesture (08:13:03.086) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:03.090) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'radio button', 'not checked', 'From its README']
+IO - inputCore.InputManager.executeGesture (08:13:04.365) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:04.368) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'radio button', 'not checked', 'Somewhere else']
+IO - inputCore.InputManager.executeGesture (08:13:05.642) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:05.646) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of grouping', 'button', 'Send your question']
+IO - inputCore.InputManager.executeGesture (08:13:06.921) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:06.925) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of section', 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:13:08.200) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:08.204) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:13:09.481) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:09.485) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:13:10.757) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:10.760) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:13:12.268) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:12.288) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:12.295) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:13.845) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hgaktc - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:13.849) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hgaktc', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:13.852) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:14.733) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:13:14.737) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check hgaktc - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:13:15.756) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:13:16.021) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:13:16.024) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:17.298) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:13:17.301) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Ask a question', 'heading', 'level 1']
+IO - inputCore.InputManager.executeGesture (08:13:18.574) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:13:18.577) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:13:20.079) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:20.099) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:20.105) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:21.652) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gictak - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:21.656) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gictak', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:21.660) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:22.542) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:13:22.544) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check gictak - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:13:23.554) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:13:23.819) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:13:23.823) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:13:25.146) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:13:26.429) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:26.480) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 2 items', 'Previous: The report', 'link']
+IO - inputCore.InputManager.executeGesture (08:13:27.756) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:27.800) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Next: Common mistakes (on purpose)', 'link']
+IO - inputCore.InputManager.executeGesture (08:13:29.064) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:29.121) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:29.124) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'form landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:29.132) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Your name', 'edit', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:13:30.404) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:30.446) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Your question (required)', 'edit', 'required', 'multi line', 'Ask anything about voicecap, or about this tour.', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:13:31.725) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:31.763) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'How did you hear about voicecap?', 'grouping', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:31.767) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'From a colleague', 'radio button', 'not checked', '1 of 3', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:13:33.049) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:33.084) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Send your question', 'button']
+IO - inputCore.InputManager.executeGesture (08:13:34.356) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:13:34.378) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Ask a question | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:34.387) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:13:35.822) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:13:35.825) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check icplje - Google Chrome']
+IO - speech.speech.speak (08:13:37.362) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:37.381) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:37.388) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:38.889) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tpdksc - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:38.894) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tpdksc', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:13:38.896) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:39.782) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:13:39.785) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check tpdksc - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:13:40.799) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:13:41.063) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:13:41.067) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:42.341) - winInputHook (54288):
+Input: kb(desktop):control+end
+IO - speech.speech.speak (08:13:42.344) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:13:43.617) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:13:43.620) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:13:44.895) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:44.898) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'banner landmark', 'voicecap demo']
+IO - inputCore.InputManager.executeGesture (08:13:46.174) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:46.178) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 1 item', 'link', 'Previous: Ask a question']
+IO - inputCore.InputManager.executeGesture (08:13:47.446) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:47.449) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'out of list', 'main landmark', 'heading', 'level 2', 'Common mistakes (on purpose)']
+IO - inputCore.InputManager.executeGesture (08:13:48.721) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:48.724) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This page makes three kinds of mistakes on purpose, so voicecap has some to flag.']
+IO - inputCore.InputManager.executeGesture (08:13:50.001) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:50.004) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Its first heading is level 2, not 1, so the screen reader says "heading, level 2".']
+IO - inputCore.InputManager.executeGesture (08:13:51.278) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:51.282) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 3', 'A search box with no label']
+IO - inputCore.InputManager.executeGesture (08:13:52.555) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:52.558) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'edit']
+IO - inputCore.InputManager.executeGesture (08:13:53.828) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:53.831) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The box above has no label, so the screen reader says only "edit".']
+IO - inputCore.InputManager.executeGesture (08:13:55.104) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:55.110) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 3', 'A button with no name']
+IO - inputCore.InputManager.executeGesture (08:13:56.378) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:56.381) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'button']
+IO - inputCore.InputManager.executeGesture (08:13:57.654) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:57.658) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'The button above shows only an icon, so the screen reader says only "button".']
+IO - inputCore.InputManager.executeGesture (08:13:58.936) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:13:58.940) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'heading', 'level 3', 'Links that say "click here"']
+IO - inputCore.InputManager.executeGesture (08:14:00.216) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:00.220) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'To see how a run works, ', 'link', 'click here', '.']
+IO - inputCore.InputManager.executeGesture (08:14:01.496) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:01.502) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'To read about transcripts, ', 'link', 'click here', '.']
+IO - inputCore.InputManager.executeGesture (08:14:02.773) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:02.777) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'To learn about the report, ', 'link', 'click here', '.']
+IO - inputCore.InputManager.executeGesture (08:14:04.057) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:04.060) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Listed on their own, as screen readers can list links, each says only "click here".']
+IO - inputCore.InputManager.executeGesture (08:14:05.340) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:05.345) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'content info landmark', 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:14:06.620) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:06.623) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:14:07.899) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:07.903) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - inputCore.InputManager.executeGesture (08:14:09.182) - winInputHook (54288):
+Input: kb(desktop):downArrow
+IO - speech.speech.speak (08:14:09.185) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'This demo site comes with voicecap, for trying it out.']
+IO - speech.speech.speak (08:14:10.707) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:10.725) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:10.732) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:12.252) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check wllmcj - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:12.256) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check wllmcj', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:12.259) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:14:13.144) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:14:13.146) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check wllmcj - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:14:14.165) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:14:14.429) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:14:14.433) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:14:15.702) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:14:15.705) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', 'Common mistakes (on purpose)', 'heading', 'level 2']
+IO - inputCore.InputManager.executeGesture (08:14:16.987) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:14:16.990) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'A search box with no label', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (08:14:18.261) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:14:18.264) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'A button with no name', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (08:14:19.536) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:14:19.539) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Links that say "click here"', 'heading', 'level 3']
+IO - inputCore.InputManager.executeGesture (08:14:20.813) - winInputHook (54288):
+Input: kb(desktop):h
+IO - speech.speech.speak (08:14:20.816) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'no next heading']
+IO - speech.speech.speak (08:14:22.327) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:22.347) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Calculator', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:22.354) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Display is 0', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:23.914) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pgybir - Google Chrome', 'window', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:23.917) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pgybir', 'document', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:23.919) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - inputCore.InputManager.executeGesture (08:14:24.795) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:14:24.798) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check pgybir - Google Chrome']
+IO - inputCore.InputManager.executeGesture (08:14:25.811) - winInputHook (54288):
+Input: kb(desktop):escape
+IO - inputCore.InputManager.executeGesture (08:14:26.073) - winInputHook (54288):
+Input: kb(desktop):control+home
+IO - speech.speech.speak (08:14:26.076) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'same page', 'link', 'Skip to main content']
+IO - speech.speech.speak (08:14:27.389) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'same page', 'link']
+IO - inputCore.InputManager.executeGesture (08:14:28.663) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:28.715) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tour', 'navigation landmark', 'list', 'with 1 item', 'Previous: Ask a question', 'link']
+IO - inputCore.InputManager.executeGesture (08:14:29.984) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:30.032) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'main landmark', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:30.039) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'edit', CancellableSpeech (still valid), 'blank']
+IO - inputCore.InputManager.executeGesture (08:14:31.318) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:31.352) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'button']
+IO - inputCore.InputManager.executeGesture (08:14:32.624) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:32.677) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'click here', 'link']
+IO - inputCore.InputManager.executeGesture (08:14:33.947) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:33.987) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'click here', 'link']
+IO - inputCore.InputManager.executeGesture (08:14:35.257) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:35.296) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'click here', 'link']
+IO - inputCore.InputManager.executeGesture (08:14:36.565) - winInputHook (54288):
+Input: kb(desktop):tab
+IO - speech.speech.speak (08:14:36.587) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Common mistakes (on purpose) | voicecap demo - Google Chrome', 'region', CancellableSpeech (still valid)]
+IO - speech.speech.speak (08:14:36.597) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'Tab search', 'button', 'collapsed', CancellableSpeech (still valid)]
+IO - inputCore.InputManager.executeGesture (08:14:38.029) - winInputHook (54288):
+Input: kb(desktop):NVDA+t
+IO - speech.speech.speak (08:14:38.031) - MainThread (44960):
+Speaking [LangChangeCommand ('en_US'), 'voicecap check lqjjcx - Google Chrome']

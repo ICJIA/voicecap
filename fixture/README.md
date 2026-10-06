@@ -1,6 +1,6 @@
 # voicecap test fixture
 
-A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, and manual-session captures.
+A tiny fictional agency site plus everything voicecap needs to test itself without NVDA: page lists, a run to replay, sample reviews, manual-session captures, and a run with NVDA's own log, cleaned.
 
 The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 2026.2 with Chrome 153 on Windows 11, captured with `pnpm fixture:capture`. Its environment record says exactly what produced it. Everything on the site itself is fictional.
 
@@ -22,8 +22,25 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 | `reviews.json` | A sample review history for that run, built by `pnpm fixture:reviews`. The home page goes reviewed → issue → fixed. The flawed page has an open issue. The duplicates page was reviewed against an earlier, fictional run, so it shows as changed since review. |
 | `manual/speech-viewer.txt` | A real Speech Viewer capture of the home page read with Down Arrow, from Ctrl+Home through the first repeat of the last line, read from NVDA's Speech Viewer window by `pnpm fixture:capture`. Windows line endings. |
 | `manual/nvda-io-log.txt` | An NVDA log excerpt at Input/output level, written by hand in NVDA's log format, for manual-session import. It includes log noise, typing into the search field, and a session that crosses midnight. Windows line endings. |
+| `nvda-io-run/` | A real run made with NVDA's own log turned on, and that log, **cleaned**. `run/` is the run as voicecap wrote it, without its screenshots and `report.html`: `run.json`, `events.jsonl`, and `pages/<slug>/{read,headings,tab}.{txt,json}`. `nvda-log/1-1.txt` is NVDA's log of the run's one session, cleaned as a run keeps it (see below). |
 
 `.gitattributes` marks the CRLF and Windows-1252 files `-text`, so Git never converts them.
+
+## NVDA's own log, cleaned
+
+`nvda-io-run/` is a real run of the demo's seven pages (NVDA 2026.2 with Chrome 154 on Windows 11, 2026-10-06), made with NVDA's own log turned on at the input/output level. The run is from before voicecap kept that log, so its `run.json` doesn't list it. The log sits beside the run as `nvda-log/1-1.txt`: session 1, copy 1, the name a run gives it.
+
+The log in the fixture is the **cleaned copy**, the only copy voicecap keeps, made by `cleanNvdaLog` (`src/drivers/guidepup/nvda-log.ts`). It keeps these entries of NVDA's log, whole and in order:
+
+- NVDA's speech: the 392 `Speaking [...]` entries;
+- the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`);
+- NVDA's warnings and errors, with their tracebacks.
+
+It leaves out every other key, every typed word, and NVDA's INFO and debugging entries, and it writes `%USERPROFILE%` for the home folder. Its first line says so, and its lines end with `\n`.
+
+The speech includes what NVDA said outside voicecap's steps: the window in front before the run started (`Calculator`), `Connected as controlled computer`, and the speech after each page's title check.
+
+The raw log isn't in the repository, and Git ignores `*.log` files: it holds the account's name, and whatever was typed while it was written. So the copy can't be made again here. It is the fixture, and `test/nvda-log-clean.test.ts` checks it: its counts, that it holds no account name and no key but voicecap's, and that cleaning it again changes nothing.
 
 ## Serving the site
 

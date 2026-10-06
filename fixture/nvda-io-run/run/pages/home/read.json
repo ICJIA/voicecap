@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0-rc.0",
+  "replayed": false,
+  "run": "2026-10-06_0808",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/",
+    "key": "http://127.0.0.1:4848/",
+    "slug": "home",
+    "finalUrl": "http://127.0.0.1:4848/"
+  },
+  "capturedAt": "2026-10-06T08:08:43-05:00",
+  "durationMs": 23041,
+  "stepCount": 18,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.11.0-rc.0",
+      "configSha256": "5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8"
+    },
+    "runId": "2026-10-06_0808",
+    "runStartedAt": "2026-10-06T08:08:08-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0-rc.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1270,
+      "offsetMs": 1270
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1282,
+      "offsetMs": 2552
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1286,
+      "offsetMs": 3837
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
+      "durationMs": 1279,
+      "offsetMs": 5116
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, Welcome to the voicecap demo",
+      "durationMs": 1281,
+      "offsetMs": 6397
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "This small site shows how voicecap works, one page at a time.",
+      "durationMs": 1279,
+      "offsetMs": 7676
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "As voicecap runs, a screen reader reads each page, and voicecap saves every word.",
+      "durationMs": 1280,
+      "offsetMs": 8957
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "heading, level 2, The tour's pages",
+      "durationMs": 1279,
+      "offsetMs": 10235
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "list, with 6 items, 1., link, Before you start",
+      "durationMs": 1282,
+      "offsetMs": 11518
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "2., link, How a run works",
+      "durationMs": 1280,
+      "offsetMs": 12798
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "3., link, Reading transcripts",
+      "durationMs": 1281,
+      "offsetMs": 14079
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "4., link, The report",
+      "durationMs": 1280,
+      "offsetMs": 15359
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "5., link, Ask a question",
+      "durationMs": 1280,
+      "offsetMs": 16640
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "6., link, Common mistakes (on purpose)",
+      "durationMs": 1279,
+      "offsetMs": 17918
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "out of list, content info landmark, This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1278,
+      "offsetMs": 19197
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1279,
+      "offsetMs": 20476
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1278,
+      "offsetMs": 21754
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1287,
+      "offsetMs": 23041
+    }
+  ]
+}

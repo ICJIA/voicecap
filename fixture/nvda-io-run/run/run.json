@@ -1,0 +1,761 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-10-06_0808",
+  "name": null,
+  "status": "completed",
+  "createdAt": "2026-10-06T08:08:08-05:00",
+  "completedAt": "2026-10-06T08:14:43-05:00",
+  "site": "http://127.0.0.1:4848",
+  "settings": {
+    "site": "http://127.0.0.1:4848",
+    "source": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "passes": [
+      "read",
+      "headings",
+      "tab"
+    ],
+    "include": [],
+    "exclude": [],
+    "limit": null,
+    "driver": "guidepup",
+    "replayFrom": null,
+    "capture": "complete",
+    "stepCaps": {
+      "read": 400,
+      "headings": 200,
+      "tab": 300
+    },
+    "nvdaSettings": {
+      "general": {
+        "loggingLevel": "IO"
+      }
+    },
+    "browser": {
+      "channel": "chrome",
+      "fallbackToChromium": true
+    },
+    "readiness": {
+      "readySelector": null,
+      "settleMs": 500,
+      "networkIdleTimeoutMs": 15000
+    }
+  },
+  "settingsHash": "cf258459fbeb8792b98fc450fe0585f6774831175040a29cbaca20d69ecee585",
+  "configSha256": "5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8",
+  "flagRulesSha256": "d7c89563e02717f67c43b76fb918e1b9c8e681e1c3841d210eb7ca18c2ce96c1",
+  "replayed": false,
+  "source": {
+    "kind": "sitemap",
+    "listed": 7,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": [],
+    "sitemaps": [
+      {
+        "url": "http://127.0.0.1:4848/sitemap.xml",
+        "urls": 7,
+        "sha256": "1eec317b01d1ccc487845b3f8cb316a1be2c4b612508da25f04ecbd78ae79481"
+      }
+    ]
+  },
+  "compareTo": null,
+  "sessions": [
+    {
+      "n": 1,
+      "startedAt": "2026-10-06T08:08:08-05:00",
+      "reviewer": {
+        "name": "Christopher Schweda",
+        "source": "git"
+      },
+      "endedAt": "2026-10-06T08:14:43-05:00",
+      "endReason": "completed",
+      "pagesDone": 7,
+      "environment": {
+        "driver": {
+          "name": "guidepup",
+          "version": "0.34.0"
+        },
+        "screenReader": {
+          "name": "NVDA",
+          "version": "2026.2",
+          "build": "0.2.1-2026.2",
+          "language": "en-US"
+        },
+        "capture": "complete",
+        "browser": {
+          "name": "Chrome",
+          "version": "154.0.8037.95"
+        },
+        "os": "Windows 11 Pro 25H2 (10.0.26200)",
+        "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+          "speech": {
+            "synth": "oneCore",
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
+          },
+          "documentFormatting": {},
+          "virtualBuffers": {
+            "autoSayAllOnPageLoad": false
+          },
+          "keyboard": {},
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "IO",
+            "preventDisplayTurningOff": true
+          }
+        },
+        "pageSource": {
+          "kind": "sitemap",
+          "url": "http://127.0.0.1:4848/sitemap.xml"
+        },
+        "voicecap": {
+          "version": "0.11.0-rc.0",
+          "configSha256": "5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8"
+        },
+        "runId": "2026-10-06_0808",
+        "runStartedAt": "2026-10-06T08:08:08-05:00",
+        "machine": {
+          "os": {
+            "name": "Windows 11 Pro 25H2",
+            "build": "10.0.26200.9550",
+            "arch": "x64"
+          },
+          "cpu": {
+            "name": "Intel(R) Core(TM) Ultra 7 265F",
+            "baseMhz": 2400,
+            "physicalCores": 20,
+            "logicalProcessors": 20
+          },
+          "memoryBytes": 34043850752,
+          "display": {
+            "width": 3440,
+            "height": 1440,
+            "refreshHz": 59,
+            "scalePercent": 110
+          },
+          "browserWindow": {
+            "width": 1280,
+            "height": 960
+          },
+          "timeZone": "America/Chicago",
+          "utcOffset": "-05:00",
+          "language": "en-US",
+          "software": {
+            "node": "24.19.0",
+            "voicecap": "0.11.0-rc.0",
+            "guidepup": "0.34.0",
+            "playwright": "1.63.0"
+          }
+        }
+      }
+    }
+  ],
+  "skipped": [],
+  "pages": [
+    {
+      "url": "http://127.0.0.1:4848/",
+      "key": "http://127.0.0.1:4848/",
+      "slug": "home",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 23041,
+          "contentSha256": "94b21de27d8040c3061d179b60e3111cad5043452d010e4ece2d6424de0329ad",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3847,
+          "contentSha256": "f25737d875a0fb8adce76dcb4b58aaeceaff394e31aa8331ea802038ce4959f5",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 9,
+          "stopReason": "left-document",
+          "durationMs": 13329,
+          "contentSha256": "9e5dfa88178dbb57b22030ca9d40e0258a85fa4e356703c7504e68a27f9cc89f",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "1156dff8cbbdcb3fbf3bed0088dc35c6cd69fdef6c98ce343892761296afc089",
+          "bytes": 2246
+        },
+        "read.json": {
+          "sha256": "15fc09d24f72b4f9b75f1aa54ff45cf0d5aa640b41b921017edc93fdb6e90476",
+          "bytes": 5976
+        },
+        "headings.txt": {
+          "sha256": "f687958715e4e79ac1299d07d7618c2c3590a70463faf8fb07ab96ba21046fea",
+          "bytes": 1424
+        },
+        "headings.json": {
+          "sha256": "a5f27014045a2dc96d47aed5382503b5ed4bee16c203d38cffc75730a780ba6e",
+          "bytes": 3307
+        },
+        "tab.txt": {
+          "sha256": "9b015cf43b8917fadb7595ac34556725d9e8e768df74953095fd374162492ad1",
+          "bytes": 1678
+        },
+        "tab.json": {
+          "sha256": "37547073737314bf6a48f3fe7c449669917c2bf22ca49d956d02c9bfb7673d96",
+          "bytes": 5964
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:08:15-05:00",
+      "durationMs": 55441,
+      "screenshot": {
+        "sha256": "6453dae79a008c4915fc3ff7fb4bfeb16fda735b27d1c609f618028d1f6e329e",
+        "bytes": 16093,
+        "takenAt": "2026-10-06T08:08:20.657-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/",
+      "httpStatus": 200,
+      "title": "Welcome | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/before-you-start/",
+      "key": "http://127.0.0.1:4848/before-you-start",
+      "slug": "before-you-start-345e0f5b6a",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 19,
+          "stopReason": "end-reached",
+          "durationMs": 24300,
+          "contentSha256": "b48a47f44d564bf9613138459d6c7bccd3c892de230cfa1c47575b7ff7a76bf0",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5107,
+          "contentSha256": "72aafa491818e33d7b27fd9cb637c985b7e118a32b0bb6c3658bd89e56b421d4",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6699,
+          "contentSha256": "6f5b1e18db7b4d702779919a5ca4bee504f5fe3010b8f8e9977d0097cda7f675",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "0c7150c6796c4f5cc8dede1c90f7d49a11b2a9f96f66d12cc21eacefdb775786",
+          "bytes": 2468
+        },
+        "read.json": {
+          "sha256": "6a20dbf32cb00f10efa730850e6a7131f600d72bb1dea51971adf634c07bb092",
+          "bytes": 6363
+        },
+        "headings.txt": {
+          "sha256": "6f858ca0b472cc522a1dc6107f9e6d5956a53bf4c77b027370a48895c836c5ea",
+          "bytes": 1478
+        },
+        "headings.json": {
+          "sha256": "b16081ea4a4b41a188c8ef695d2cd023ea1f68b0fdda9bccef2792804871b476",
+          "bytes": 3527
+        },
+        "tab.txt": {
+          "sha256": "901879754db368e9c37620c04752a9e070fda0d9a45de1fe14f0c444ac41f131",
+          "bytes": 1565
+        },
+        "tab.json": {
+          "sha256": "c5ae5489c6b419e90d799272e5acec6f3f0a4c34d09edb2bcb3228006d2760a0",
+          "bytes": 4263
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:09:11-05:00",
+      "durationMs": 51962,
+      "screenshot": {
+        "sha256": "ca0fb8547a88c4bc05b4a7e3e805b34026e45d255d2b8895881250449c4691b7",
+        "bytes": 21613,
+        "takenAt": "2026-10-06T08:09:16.694-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/before-you-start/",
+      "httpStatus": 200,
+      "title": "Before you start | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/before-you-start/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/how-a-run-works/",
+      "key": "http://127.0.0.1:4848/how-a-run-works",
+      "slug": "how-a-run-works-fd116f9328",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 23018,
+          "contentSha256": "a4d00b652fa25afb94689d084b45360a121e1715ca6c13db0ec2f2dbb5bd1570",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6375,
+          "contentSha256": "57893ab4945d8a75ab6f22051c93a7150d53232b548adbf6f05dc5225efdef3b",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6718,
+          "contentSha256": "dc142aa3e622e51ba8cef17084f9b196490ebc016168e7163165930fd69be717",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "24b8c43d1eacd3e951a3b19c7b37ec760e5c8e1aba14793d4459879f9cfcfa16",
+          "bytes": 2352
+        },
+        "read.json": {
+          "sha256": "dbaafd0abd29a70c562ef584f09058b33b37a6c28918f241ba9e7ef8c3aba25c",
+          "bytes": 6119
+        },
+        "headings.txt": {
+          "sha256": "9f40a88a8462c7a27d1f52b36c6481294232065f70cd0ccb3aa0b05ef743128b",
+          "bytes": 1507
+        },
+        "headings.json": {
+          "sha256": "d65d9124f0234cd300853c71f87e789fb35c82016fc3460b008fa4b9b422ebad",
+          "bytes": 3681
+        },
+        "tab.txt": {
+          "sha256": "5be43d63c2f626d19cb04df5e9231b95b3e1a8021bddb61405d63fa86d6329b8",
+          "bytes": 1575
+        },
+        "tab.json": {
+          "sha256": "fba59609adfa5eebb5cfabfee2795a3f703ef42b88b6dd8616b00f3f578473d6",
+          "bytes": 4305
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:10:03-05:00",
+      "durationMs": 51776,
+      "screenshot": {
+        "sha256": "3d61ad4bf5dfc9fb7e22c5e5a5de59d531076ecb6bf0b82935ad07b88aaf5e17",
+        "bytes": 18820,
+        "takenAt": "2026-10-06T08:10:08.614-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/how-a-run-works/",
+      "httpStatus": 200,
+      "title": "How a run works | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/how-a-run-works/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/reading-transcripts/",
+      "key": "http://127.0.0.1:4848/reading-transcripts",
+      "slug": "reading-transcripts-1bc29b7494",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 19,
+          "stopReason": "end-reached",
+          "durationMs": 24270,
+          "contentSha256": "1a9bf0fbad70eb628d6ee2ad5f7bf32c26160e610a47bc51d13eeeb4a2b8bce8",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5113,
+          "contentSha256": "c80618ab3537f9ebe160d0bfd050321614bb88eebbbd775f460ee326d0e351ae",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6697,
+          "contentSha256": "81bf5ffb2b2a5bfee0fc41655624ac0c950f261cbc2905966d7882e4f0742cb9",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "53b833d7f887bf107cb36fa6c0c03a04ccbec6629e308eabf21cb58b80c01ae3",
+          "bytes": 2434
+        },
+        "read.json": {
+          "sha256": "1353adec67273dc3d6f91e42c9faea25dbf6a0941e5ca17980c4aefa18135ffa",
+          "bytes": 6335
+        },
+        "headings.txt": {
+          "sha256": "9bf776b5b8aefb79076a087b0290a1bc251b701c8e874c67def7fc0259e21779",
+          "bytes": 1489
+        },
+        "headings.json": {
+          "sha256": "86d9bfeda1225e48380f82dd2fa68c4e80fd2a3dd26acf3ccc4a375aa75ade7f",
+          "bytes": 3544
+        },
+        "tab.txt": {
+          "sha256": "d5c1ab2c9c66fd518e62fc79603c3515bfdd0c07a820831f799eb1d0feb33912",
+          "bytes": 1577
+        },
+        "tab.json": {
+          "sha256": "897eae16700cce5214327b0631079790b1df2f7ee6a940dd2bf926b3303fb113",
+          "bytes": 4295
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:10:55-05:00",
+      "durationMs": 51851,
+      "screenshot": {
+        "sha256": "8beef752c2c4be225e20e973bb21cee5c548063d65a60cd53f58270fb4e0b246",
+        "bytes": 19340,
+        "takenAt": "2026-10-06T08:11:00.431-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/reading-transcripts/",
+      "httpStatus": 200,
+      "title": "Reading transcripts | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/reading-transcripts/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/the-report/",
+      "key": "http://127.0.0.1:4848/the-report",
+      "slug": "the-report-03940c2f88",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 18,
+          "stopReason": "end-reached",
+          "durationMs": 22994,
+          "contentSha256": "2db43c2545a55ffdcbc0115913277a11dedffd7afdea38346d08239a632d816d",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6381,
+          "contentSha256": "a7b10ae88c2039ae418fa1a1f3de60102cda5276e6d204d7ffd9ab9a264f8276",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 4,
+          "stopReason": "left-document",
+          "durationMs": 6706,
+          "contentSha256": "7de9bb309a98a6591b6c2927d7427be66780cad916ce97ce913259fbf947b453",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "79e3d7f5684a2eb54bf52a456750ead595162f1b8f0cd592b2c426a7ae604472",
+          "bytes": 2344
+        },
+        "read.json": {
+          "sha256": "d6041fd2e71db56a9ca7d3a58ca6604572a459df3bbb5a3be7ec88940c400f07",
+          "bytes": 6101
+        },
+        "headings.txt": {
+          "sha256": "731c5d95e3d7ae51b5da22c2c51419cf65c2a145d55608ea08c6f10ed33cbd98",
+          "bytes": 1470
+        },
+        "headings.json": {
+          "sha256": "e3316b187e81d422dd53e4d7362bcdfcb52f06ce0ea01c71803a752c22b9086d",
+          "bytes": 3634
+        },
+        "tab.txt": {
+          "sha256": "900085adcc2a06b54d3f8d64ed86a01dac8dacc10cbe9abc078042dfaef21874",
+          "bytes": 1558
+        },
+        "tab.json": {
+          "sha256": "8947d692db87486227cfe30ebb3f2c6d4c18b7c6781b8a899342765853bf46af",
+          "bytes": 4274
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:11:47-05:00",
+      "durationMs": 52650,
+      "screenshot": {
+        "sha256": "62b718a928cf9b14cf8c5fd19bfe65f834a3b9967bbaee6cdc6275c540637c23",
+        "bytes": 18698,
+        "takenAt": "2026-10-06T08:11:52.274-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/the-report/",
+      "httpStatus": 200,
+      "title": "The report | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/the-report/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/ask-a-question/",
+      "key": "http://127.0.0.1:4848/ask-a-question",
+      "slug": "ask-a-question-dec13fb322",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 21,
+          "stopReason": "end-reached",
+          "durationMs": 26844,
+          "contentSha256": "0d5fa0eeee0c6fe4bba74ec1faa362e41c7f7b69d9ee728b407ab15753dd4042",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2550,
+          "contentSha256": "c9e20062de2a9aad22b8b668a3ece0b412a6f24559f4704481d4e89e326c49c0",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 8,
+          "stopReason": "left-document",
+          "durationMs": 12000,
+          "contentSha256": "bdc4023912397466135b590d64e4cb78409eeb4dfa1c496ea93c63e7382cf092",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "05220eb53daa00aa1bee416a9ac2e9b33a75151707c12f447897e98ec3a28789",
+          "bytes": 2467
+        },
+        "read.json": {
+          "sha256": "95804cb1cfc8af79a1f5fac1518ceb88f1b3021a9d1d1bc93ce2d2ea7cc53ff6",
+          "bytes": 6611
+        },
+        "headings.txt": {
+          "sha256": "79fe10e3e3f31a5493c1c8fce3482cea25bc3e893a8dafcfb2562f5d3605043f",
+          "bytes": 1405
+        },
+        "headings.json": {
+          "sha256": "6b3bb4c549768a63418aace6a71e958515a7d897bb1a632d4f1df18c02796f71",
+          "bytes": 3196
+        },
+        "tab.txt": {
+          "sha256": "905c62546e2fd50752f4c05670a640b9471419a485237a6e3c4beb9dabee00dc",
+          "bytes": 1862
+        },
+        "tab.json": {
+          "sha256": "27783016ee0da374942f79426708c20a9a4a14433df5b903b9d85dc52067709b",
+          "bytes": 5848
+        }
+      },
+      "flags": [],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:12:39-05:00",
+      "durationMs": 57145,
+      "screenshot": {
+        "sha256": "b4ba5019e6d6d9338924a6e4017e5fa61420d26285f0cd71dc464286dd1fc771",
+        "bytes": 21014,
+        "takenAt": "2026-10-06T08:12:44.916-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/ask-a-question/",
+      "httpStatus": 200,
+      "title": "Ask a question | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/ask-a-question/"
+    },
+    {
+      "url": "http://127.0.0.1:4848/common-mistakes/",
+      "key": "http://127.0.0.1:4848/common-mistakes",
+      "slug": "common-mistakes-db8c98dbfa",
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 22,
+          "stopReason": "end-reached",
+          "durationMs": 28114,
+          "contentSha256": "a10480664de115f16f9cc515324fecd2c60c8ca411350dd84ce1413053db736b",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6388,
+          "contentSha256": "762fb33267cadd8f0b83a18f9f5c26047f5747f4ee5ca5eafd3250bc29f7c2c3",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 8,
+          "stopReason": "left-document",
+          "durationMs": 11956,
+          "contentSha256": "344e3c49b1b8c6905e230ddc13a98f615efef9fe66aed6db231d456cdc923e8a",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "7d4e03044237d2c289e1cff259547712c5a89c06003cf6082601ec3afd6af539",
+          "bytes": 2578
+        },
+        "read.json": {
+          "sha256": "b65818d9ca72c5556f8a2911d24929cf42cc7b7a25334df336eb43367afe34af",
+          "bytes": 6849
+        },
+        "headings.txt": {
+          "sha256": "1bafbc135ea855664325618ffd8c580f8fa96460fa16dfcee1fe02c15b2ba037",
+          "bytes": 1550
+        },
+        "headings.json": {
+          "sha256": "5e8cb5f6822f9f313fa92a762389b204ceaf3043b6a186fe9092959e11e27fce",
+          "bytes": 3724
+        },
+        "tab.txt": {
+          "sha256": "66cfa802c8aa280cee9b7a71d014651a8e71da93fde06ae25d612ef3170c004e",
+          "bytes": 1639
+        },
+        "tab.json": {
+          "sha256": "b378ee7f2070903ec6cc0bd8b6eddefc2f6aa9e65265ec2c5c2dde18d56572cc",
+          "bytes": 5581
+        }
+      },
+      "flags": [
+        {
+          "rule": "generic-link-text",
+          "pass": "read",
+          "count": 3,
+          "found": [
+            {
+              "text": "click here",
+              "count": 3
+            }
+          ],
+          "message": "Generic link text announced 3 times in the read pass: \"click here\" ×3."
+        },
+        {
+          "rule": "generic-link-text",
+          "pass": "tab",
+          "count": 3,
+          "found": [
+            {
+              "text": "click here",
+              "count": 3
+            }
+          ],
+          "message": "Generic link text announced 3 times in the tab pass: \"click here\" ×3."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "button",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"button\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 2,
+          "found": [
+            {
+              "text": "button",
+              "count": 1
+            },
+            {
+              "text": "edit",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"button\" ×1, \"edit\" ×1."
+        },
+        {
+          "rule": "headings",
+          "pass": "headings",
+          "message": "The first heading is level 2, not level 1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T08:13:36-05:00",
+      "durationMs": 62202,
+      "screenshot": {
+        "sha256": "a836b73466b76ea047b27399b271c10d4e5508e04e39a86d841f32c682e9ea66",
+        "bytes": 22288,
+        "takenAt": "2026-10-06T08:13:42.073-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "http://127.0.0.1:4848/common-mistakes/",
+      "httpStatus": 200,
+      "title": "Common mistakes (on purpose) | voicecap demo",
+      "canonical": "https://voicecap.netlify.app/demo-site/common-mistakes/"
+    }
+  ],
+  "files": {
+    "events.jsonl": {
+      "sha256": "516335e4c9f068080f3acfa27d47256d0c86be1e7ae740ec4ac5a9261a7b2368",
+      "bytes": 5478
+    }
+  },
+  "canonical": "https://voicecap.netlify.app/demo-site/",
+  "seal": "b9c42ca31c3ed8b2b3107558e093dbd05d914e39fa59904987e56c4ea4b99149"
+}

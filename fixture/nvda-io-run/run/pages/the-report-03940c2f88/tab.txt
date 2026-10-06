@@ -1,0 +1,29 @@
+# voicecap transcript: tab pass
+# Page: http://127.0.0.1:4848/the-report/
+# Final URL: http://127.0.0.1:4848/the-report/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_0808 (started 2026-10-06T08:08:08-05:00)
+# Captured: 2026-10-06T08:12:39-05:00
+# Steps: 4 (stopped: left the document)
+# Duration: 7s
+# Errors: none
+# Warnings: none
+# Page source: sitemap http://127.0.0.1:4848/sitemap.xml
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0-rc.0 (config sha256 5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="IO", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+Skip to main content, same page, link
+Tour, navigation landmark, list, with 2 items, Previous: Reading transcripts, link
+Next: Ask a question, link
+The report voicecap demo - Google Chrome, region. Tab search, button, collapsed

@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0-rc.0",
+  "replayed": false,
+  "run": "2026-10-06_0808",
+  "pass": "headings",
+  "page": {
+    "url": "http://127.0.0.1:4848/common-mistakes/",
+    "key": "http://127.0.0.1:4848/common-mistakes",
+    "slug": "common-mistakes-db8c98dbfa",
+    "finalUrl": "http://127.0.0.1:4848/common-mistakes/"
+  },
+  "capturedAt": "2026-10-06T08:14:21-05:00",
+  "durationMs": 6388,
+  "stepCount": 5,
+  "stopReason": "no-next-heading",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.11.0-rc.0",
+      "configSha256": "5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8"
+    },
+    "runId": "2026-10-06_0808",
+    "runStartedAt": "2026-10-06T08:08:08-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0-rc.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextHeading",
+      "spoken": "main landmark, Common mistakes (on purpose), heading, level 2",
+      "durationMs": 1283,
+      "offsetMs": 1283
+    },
+    {
+      "n": 2,
+      "command": "nextHeading",
+      "spoken": "A search box with no label, heading, level 3",
+      "durationMs": 1273,
+      "offsetMs": 2557
+    },
+    {
+      "n": 3,
+      "command": "nextHeading",
+      "spoken": "A button with no name, heading, level 3",
+      "durationMs": 1277,
+      "offsetMs": 3834
+    },
+    {
+      "n": 4,
+      "command": "nextHeading",
+      "spoken": "Links that say click here, heading, level 3",
+      "durationMs": 1276,
+      "offsetMs": 5110
+    },
+    {
+      "n": 5,
+      "command": "nextHeading",
+      "spoken": "no next heading",
+      "durationMs": 1277,
+      "offsetMs": 6388
+    }
+  ]
+}

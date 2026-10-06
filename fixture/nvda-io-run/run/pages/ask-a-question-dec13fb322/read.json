@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0-rc.0",
+  "replayed": false,
+  "run": "2026-10-06_0808",
+  "pass": "read",
+  "page": {
+    "url": "http://127.0.0.1:4848/ask-a-question/",
+    "key": "http://127.0.0.1:4848/ask-a-question",
+    "slug": "ask-a-question-dec13fb322",
+    "finalUrl": "http://127.0.0.1:4848/ask-a-question/"
+  },
+  "capturedAt": "2026-10-06T08:13:11-05:00",
+  "durationMs": 26844,
+  "stepCount": 21,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "IO",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "sitemap",
+      "url": "http://127.0.0.1:4848/sitemap.xml"
+    },
+    "voicecap": {
+      "version": "0.11.0-rc.0",
+      "configSha256": "5e5fce6a48c6bd626900b89ee2ba05b117c1ce61b1ecfa8088267d846064ada8"
+    },
+    "runId": "2026-10-06_0808",
+    "runStartedAt": "2026-10-06T08:08:08-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0-rc.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1272,
+      "offsetMs": 1272
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "same page, link, Skip to main content",
+      "durationMs": 1277,
+      "offsetMs": 2548
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "banner landmark, voicecap demo",
+      "durationMs": 1280,
+      "offsetMs": 3828
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "Tour, navigation landmark, list, with 2 items, link, Previous: The report",
+      "durationMs": 1278,
+      "offsetMs": 5106
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, Next: Common mistakes (on purpose)",
+      "durationMs": 1274,
+      "offsetMs": 6380
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "out of list, main landmark, heading, level 1, Ask a question",
+      "durationMs": 1277,
+      "offsetMs": 7658
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "This form is built well, so a screen reader can say what each field is for.",
+      "durationMs": 1279,
+      "offsetMs": 8936
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "This is a practice form: sending it only shows a thank-you page, so don't type anything private.",
+      "durationMs": 1273,
+      "offsetMs": 10209
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "section, Your name, edit, ",
+      "durationMs": 1282,
+      "offsetMs": 11492
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "Your question (required)",
+      "durationMs": 1282,
+      "offsetMs": 12774
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "edit, required, multi line",
+      "durationMs": 1283,
+      "offsetMs": 14056
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "out of edit, Ask anything about voicecap, or about this tour.",
+      "durationMs": 1282,
+      "offsetMs": 15338
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "grouping, How did you hear about voicecap?",
+      "durationMs": 1285,
+      "offsetMs": 16623
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, From a colleague",
+      "durationMs": 1276,
+      "offsetMs": 17899
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, From its README",
+      "durationMs": 1278,
+      "offsetMs": 19177
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "radio button, not checked, Somewhere else",
+      "durationMs": 1277,
+      "offsetMs": 20454
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "out of grouping, button, Send your question",
+      "durationMs": 1277,
+      "offsetMs": 21732
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "out of section, content info landmark, This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1278,
+      "offsetMs": 23010
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1282,
+      "offsetMs": 24292
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1278,
+      "offsetMs": 25570
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "This demo site comes with voicecap, for trying it out.",
+      "durationMs": 1274,
+      "offsetMs": 26844
+    }
+  ]
+}

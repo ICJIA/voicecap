@@ -62,7 +62,7 @@ export const NO_IO_ENTRIES_MESSAGE =
 /**
  * Split a log into entries: each starts with a header line (see LOG_HEADER) and its message is
  * every following line up to the next header. Lines before the first header (an excerpt that
- * starts mid-entry) are ignored.
+ * starts mid-entry, or the "# " line a cleaned copy of a log starts with) are ignored.
  */
 export function splitLogEntries(text: string): LogEntry[] {
   const entries: LogEntry[] = [];
