@@ -317,7 +317,18 @@ Everything below goes in the run's folder. Each file's SHA-256 is recorded in `r
   - taken as the page finishes loading, before NVDA reads it;
   - taken through the browser's DevTools connection, so it never takes focus;
   - 640 × 480 (half the 1280 × 960 window), JPEG, about 25 KB. In practice it's the visible page at half its size. The window's own bar takes some of its height, so a screenshot is 640 wide and a little less than 480 high. The record keeps its true size.
-- **C. NVDA's own log.** While voicecap runs NVDA, NVDA logs everything it says. voicecap keeps a copy per NVDA session (`nvda-log/<session>.txt`) and compares its speech with the transcripts, line by line.
+- **C. NVDA's own log.** While voicecap runs NVDA, NVDA logs everything it says. voicecap keeps a cleaned copy per NVDA session (`nvda-log/<session>-<n>.txt`) and compares its speech with the transcripts, line by line.
+  - **The cleaned copy** is the owner's decision (2026-10-06):
+    - **What it keeps:** NVDA's speech, the keys voicecap itself pressed, and NVDA's warnings and errors.
+    - **What it drops:** every other key, every typed word, and NVDA's other entries.
+    - **The home folder** becomes `%USERPROFILE%`.
+    - **The raw log** is never copied. The cleaned copy is sealed, and `verify` checks it, so the comparison can be rebuilt on any computer.
+  - **What the page lists:** mismatches only inside voicecap's own steps. Speech from before the first step, between pages, or in a thrown-out attempt is counted, never shown.
+  - **The facts it rests on,** settled at the PC on 2026-10-06:
+    - NVDA's log is turned on at the input/output level through Guidepup's settings (`general.loggingLevel: "IO"`);
+    - it's `%TEMP%\nvda.log`, moved to `nvda-old.log` at every NVDA start;
+    - logging changes neither NVDA's timing nor its speech;
+    - voicecap's own keys appear as `Input:` lines.
   - The page shows how many lines agree and lists any that don't, in either direction.
   - The parsing builds on voicecap's NVDA-log import for manual sessions (`src/manual/nvda-log.ts`).
   - VoiceOver keeps no such log, as far as we know. For Mac runs the page will say this check is NVDA-only; the VoiceOver driver confirms it.
