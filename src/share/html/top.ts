@@ -14,11 +14,12 @@
  * (`.verdict + .gist`) and the caption under the sample of what NVDA said (`.heard > .sub`) each
  * need a margin rule.
  */
-import { esc, idFragment } from "../../report/html.js";
+import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
+  ATTENTION_TEXT,
   CHANGES_TEXT,
   COVERAGE_TEXT,
   FLAGS_TEXT,
@@ -32,6 +33,7 @@ import {
   WHEN_TO_RUN,
 } from "../text.js";
 import {
+  attentionPanelOf,
   heardTitle,
   howLead,
   numbersOf,
@@ -125,23 +127,28 @@ const bigOf = (value: NumberTile["value"]): string =>
       ? fraction(value.part, value.whole)
       : duration(value.ms);
 
-/** The six numbers (../words.ts), each in a tile. */
+/** The five numbers (../words.ts), each in a tile. */
 function tiles(model: ShareModel): string {
   const items = numbersOf(model).map(({ tone, value, label }) => tile(tone, bigOf(value), label));
   return `<div class="tiles">${items.join("")}</div>`;
 }
 
-/** "What needs attention": each page, linked to its card, with what a listener hears on it. */
+/**
+ * "What needs attention": how many problems there are, on how many pages, then the first few by
+ * their titles, each linked to its card, and a link to the section for the rest (../words.ts); or
+ * the line that says nothing is left.
+ */
 function attentionPanel({ attention }: Summary): string {
   const title = `<h3>${esc(SUMMARY_TEXT.attention)}</h3>`;
-  if (attention.length === 0) {
-    return `<div class="panel">${title}<p>${esc(SUMMARY_TEXT.noAttention)}</p></div>`;
+  const panel = attentionPanelOf(attention);
+  if (panel === null) {
+    return `<div class="panel">${title}<p>${esc(ATTENTION_TEXT.none)}</p></div>`;
   }
-  const lines = attention.map(({ slug, name, clauses }) => {
-    const link = `<a href="#pg-${idFragment(slug)}"><b>${esc(name)}</b></a>`;
-    return `<p>${link}${clauses === "" ? "" : `: ${esc(clauses)}.`}</p>`;
-  });
-  return `<div class="panel attention">${title}${lines.join("")}</div>`;
+  const items = panel.named.map(
+    ({ id, title: words }) => `<li><a href="#${esc(id)}">${esc(words)}</a></li>`,
+  );
+  if (panel.more !== null) items.push(`<li><a href="#need-h">${esc(panel.more)}</a></li>`);
+  return `<div class="panel attention">${title}<p>${esc(panel.lead)}</p><ul>${items.join("")}</ul></div>`;
 }
 
 /**
@@ -205,11 +212,13 @@ function rulesMeter({ bars }: Summary): string {
 const tally = (part: number, whole: number): string =>
   `<span class="c"><span aria-hidden="true">${count(part)}/${count(whole)}</span><span class="sr">${count(part)} of ${count(whole)}</span></span>`;
 
-/** "The human review": each count out of its total, so nothing looks complete that isn't. */
+/**
+ * "The human review": each count out of its total, so nothing looks complete that isn't. It has no
+ * row for the pages a person heard NVDA read, which is on each page's chip.
+ */
 function reviewMeter({ bars }: Summary): string {
   const { reviewRows } = SUMMARY_TEXT;
   const rows: [string, [number, number]][] = [
-    [reviewRows.heard, bars.review.listened],
     [reviewRows.reviewed, bars.review.reviewed],
     [reviewRows.fixed, bars.review.fixed],
   ];
@@ -244,7 +253,7 @@ function contents(): string {
 
 /**
  * The Summary, written for a manager who reads nothing else: the result in a sentence, and the line
- * on what voicecap and the person each did; six numbers; four panels; three bars; and the way
+ * on what voicecap and the person each did; five numbers; four panels; three bars; and the way
  * into the rest.
  *
  * When no run counts, the summary has no pages to count: only its sentence, which says why, and

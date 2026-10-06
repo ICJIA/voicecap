@@ -6,7 +6,7 @@
  * ../words.ts, and the heads and row labels of the tables that stand in for the page's tiles and
  * bars from `WORD_TEXT`. So the two copies can't say different things.
  *
- * The Word copy folds nothing and draws no pictures: the page's six tiles are a table, each of its
+ * The Word copy folds nothing and draws no pictures: the page's five tiles are a table, each of its
  * three bars is a table of counts and shares, and the steps and the stages are tables too. It has
  * no buttons, and no links to its own sections, which follow one another. Pure.
  */
@@ -14,8 +14,17 @@ import { count } from "../format.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
-import { HOW_STEPS, HOW_TEXT, SUMMARY_TEXT, TOP_TEXT, WHEN_TO_RUN, WORD_TEXT } from "../text.js";
 import {
+  ATTENTION_TEXT,
+  HOW_STEPS,
+  HOW_TEXT,
+  SUMMARY_TEXT,
+  TOP_TEXT,
+  WHEN_TO_RUN,
+  WORD_TEXT,
+} from "../text.js";
+import {
+  attentionPanelOf,
   heardTitle,
   howLead,
   numbersOf,
@@ -104,24 +113,31 @@ function numberOf(value: NumberTile["value"]): string {
   return spokenDuration(value.ms);
 }
 
-/** The six numbers (../words.ts) as a table: how each is counted, and what it counts. */
+/** The five numbers (../words.ts) as a table: how each is counted, and what it counts. */
 function numbersTable(model: ShareModel): Block {
   const rows = numbersOf(model).map(({ value, label }) => [numberOf(value), label]);
   return table(WORD_TEXT.summary.numbersHead, rows, [30, 70]);
 }
 
 /**
- * "What needs attention": a paragraph for each page, its name in bold, with what a listener hears
- * on it; or that no page needs any.
+ * "What needs attention": how many problems there are, on how many pages, then a list of the first
+ * few by their titles and how many more there are, the same lines as the page's panel (../words.ts)
+ * but for its links, since the Word copy's sections follow one another; or the line that says
+ * nothing is left.
  */
 function attentionBlocks({ attention }: Summary): Block[] {
-  const pages =
-    attention.length === 0
-      ? [para(SUMMARY_TEXT.noAttention)]
-      : attention.map(({ name, clauses }) =>
-          para({ text: name, bold: true }, ...(clauses === "" ? [] : [`: ${clauses}.`])),
-        );
-  return [heading(2, SUMMARY_TEXT.attention), ...pages];
+  const panel = attentionPanelOf(attention);
+  const lines =
+    panel === null
+      ? [para(ATTENTION_TEXT.none)]
+      : [
+          para(panel.lead),
+          list([
+            ...panel.named.map(({ title }) => title),
+            ...(panel.more === null ? [] : [panel.more]),
+          ]),
+        ];
+  return [heading(2, SUMMARY_TEXT.attention), ...lines];
 }
 
 /**
@@ -197,13 +213,13 @@ function rulesBlocks({ bars }: Summary): Block[] {
 
 /**
  * "The human review": a line that says each count is out of its total, then each count with its
- * total and its share, so nothing looks complete that isn't.
+ * total and its share, so nothing looks complete that isn't. It has no row for the pages a person
+ * heard NVDA read, which is on each page's chip.
  */
 function reviewBlocks({ bars }: Summary): Block[] {
   const { reviewRows } = SUMMARY_TEXT;
-  const { listened, reviewed, fixed } = bars.review;
+  const { reviewed, fixed } = bars.review;
   const kinds = [
-    [reviewRows.heard, listened],
     [reviewRows.reviewed, reviewed],
     [reviewRows.fixed, fixed],
   ] as const;
@@ -222,7 +238,7 @@ function reviewBlocks({ bars }: Summary): Block[] {
 
 /**
  * The Summary, written for a manager who reads nothing else: the result in a sentence, in bold, and
- * the line on what voicecap and the person each did; the six numbers; what needs attention, how
+ * the line on what voicecap and the person each did; the five numbers; what needs attention, how
  * complete the test was, what's still to do, and when and how it was run; the three bars; and a
  * page break, so the summary has the first page to itself.
  *

@@ -67,7 +67,9 @@ export interface PageCard {
   /**
    * The person's review, as far as the records show it: "Heard live by <name>" ("Heard live" with no
    * name), "<name> heard part of this session" ("Heard part of this session" with no name),
-   * "Reviewed, no issues", "Issue found", "Fixed", and "Changed since review".
+   * "Reviewed, no issues", "Issue found", "Fixed", and "Changed since review". On a page with flags,
+   * a review of the transcripts shown (no change since) is "Checked by <name>, <date>: not an
+   * issue" in place of "Reviewed, no issues".
    */
   reviewChips: string[];
   /** The manual NVDA sessions on the page: the day each was, and who imported it. */
@@ -190,7 +192,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       status,
       statusText,
       readStopped,
-      reviewChips: reviewChips(review),
+      reviewChips: reviewChips(review, flags),
       manual: (review?.manual ?? []).map(({ json }) => ({
         // A session's local date, as its record keeps it: "2026-09-25".
         at: longDate(`${json.session.date}T00:00`),
@@ -364,8 +366,12 @@ const REVIEWED: Partial<Record<ReviewStatus, string>> = {
   fixed: "Fixed",
 };
 
-/** The person's review, leading with what they did. What they haven't done has no chip. */
-function reviewChips(review: PageReview | null): string[] {
+/**
+ * The person's review, leading with what they did. What they haven't done has no chip. A review of
+ * a page with flags, of the transcripts shown, checks them: it says who checked, and when, and
+ * that what NVDA said is not an issue ("Checked by Pat Lee, 6 October 2026: not an issue").
+ */
+function reviewChips(review: PageReview | null, flags: FlagResult[]): string[] {
   if (review === null) return [];
   const chips: string[] = [];
   const { listened, latest } = review;
@@ -378,8 +384,15 @@ function reviewChips(review: PageReview | null): string[] {
         : `${listened.name} heard part of this session`,
     );
   }
-  const decision = latest === null ? undefined : REVIEWED[latest.status];
-  if (decision !== undefined) chips.push(decision);
+  if (latest !== null) {
+    const checks = latest.status === "reviewed" && flags.length > 0 && !review.changedSinceReview;
+    const decision = REVIEWED[latest.status];
+    if (checks) {
+      chips.push(`Checked by ${latest.reviewer}, ${longDate(latest.at)}: not an issue`);
+    } else if (decision !== undefined) {
+      chips.push(decision);
+    }
+  }
   if (review.changedSinceReview) chips.push("Changed since review");
   return chips;
 }

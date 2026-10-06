@@ -20,6 +20,9 @@ import type {
   FlagResult,
   MachineRecord,
   PageSource,
+  ReviewEntry,
+  ReviewsFile,
+  ReviewStatus,
   RunEvent,
   RunJson,
   ScreenshotRecord,
@@ -29,6 +32,7 @@ import { runAudit } from "../src/run/audit.js";
 import { readEventLog } from "../src/run/events.js";
 import { redactHome } from "../src/run/failure.js";
 import { eventLogFile, pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
+import { attentionWords } from "../src/share/attention-words.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
 import {
@@ -762,6 +766,86 @@ describe("buildShareModel", () => {
     ]);
   });
 
+  it("says a review of a page with flags as a check, with who made it and when, and a clean page's as before", () => {
+    const flagged = (path: string): SharePageSpec => ({
+      path,
+      passes: { read: ["One", "Two"] },
+      flags: [LINK_FLAG],
+    });
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        flagged("/checked"),
+        flagged("/checked-by-pat"),
+        { path: "/clean", passes: { read: ["One", "Two"] } },
+        flagged("/changed"),
+        flagged("/issue"),
+        flagged("/fixed"),
+        flagged("/unreviewed"),
+      ],
+    });
+    // A review of the page as the run shows it, unless `content` says it saw other transcripts.
+    const entryOf = (
+      path: string,
+      status: ReviewStatus,
+      options: { reviewer?: string; at?: string; content?: ReviewEntry["content"] } = {},
+    ): [key: string, entry: ReviewEntry] => {
+      const page = run.pages.find((candidate) => new URL(candidate.url).pathname === path);
+      if (page === undefined) throw new Error(`No page ${path}`);
+      return [
+        page.key,
+        {
+          status,
+          reviewer: options.reviewer ?? CHRIS,
+          at: options.at ?? "2026-10-06T14:00:00-05:00",
+          note: null,
+          run: run.id,
+          url: page.url,
+          files: {},
+          content:
+            options.content ??
+            Object.fromEntries(
+              Object.entries(page.passes).map(([pass, summary]) => [pass, summary.contentSha256]),
+            ),
+        },
+      ];
+    };
+    const reviews: ReviewsFile = {
+      schemaVersion: 1,
+      pages: Object.fromEntries(
+        [
+          entryOf("/checked", "reviewed"),
+          entryOf("/checked-by-pat", "reviewed", {
+            reviewer: PAT,
+            at: "2026-10-05T09:30:00-05:00",
+          }),
+          entryOf("/clean", "reviewed"),
+          // The transcripts changed since the review: it checked other words than these.
+          entryOf("/changed", "reviewed", { content: { read: "0".repeat(64) } }),
+          entryOf("/issue", "issue"),
+          entryOf("/fixed", "fixed"),
+        ].map(([key, entry]) => [key, [entry]]),
+      ),
+    };
+
+    const { pages } = buildShareModel(
+      inputOf([run], { reviews, generatedAt: "2026-10-07T09:00:00-05:00" }),
+    );
+
+    expect(Object.fromEntries(pages.map((card) => [card.path, card.reviewChips]))).toEqual({
+      // A review after the run that raised a page's flags checks them.
+      "/checked": ["Checked by Christopher Schweda, 6 October 2026: not an issue"],
+      "/checked-by-pat": ["Checked by Pat Lee, 5 October 2026: not an issue"],
+      // Nothing to check on a page with no flags.
+      "/clean": ["Reviewed, no issues"],
+      // A review of other transcripts checks nothing of these.
+      "/changed": ["Reviewed, no issues", "Changed since review"],
+      "/issue": ["Issue found"],
+      "/fixed": ["Fixed"],
+      "/unreviewed": [],
+    });
+  });
+
   it("shows a failed page's failure beside its older transcripts, and checks those", async () => {
     const model = await demoModel();
     const card = model.pages.find((page) => page.slug === HOW);
@@ -1021,7 +1105,9 @@ describe("buildShareModel", () => {
     expect(model.pages[0]?.flags.map((flag) => flag.message)).toEqual([
       `Text noted in ${redact(notes)} (1 match in the read pass).`,
     ]);
-    expect(model.summary.attention[0]?.clauses).toContain(`As noted in ${redact(notes)}`);
+    // The issue's card carries the reviewer's note with the home folder replaced.
+    expect(model.attention[0]).toMatchObject({ kind: "issue" });
+    expect(model.attention[0]?.pages[0]?.detail).toContain(`As noted in ${redact(notes)}`);
     // Nothing the page shows holds the home folder. The records, review entries, and transcripts it
     // carries for the fingerprint check are exactly as recorded, since a seal covers every field.
     expect(stringsIn(shown(model)).filter(mentionsHome)).toEqual([]);
@@ -1119,6 +1205,31 @@ describe("buildShareModel", () => {
         said: ["main landmark, Common mistakes (on purpose), heading, level 2"],
       },
     ]);
+  });
+
+  it("gives the summary each problem's title and id from its cards, and counts their pages", async () => {
+    const model = await demoModel();
+
+    // The demo's five cards: four on /common-mistakes/, and the page the latest run couldn't read.
+    expect(model.attention.map((card) => card.id)).toEqual([
+      "need-1",
+      "need-2",
+      "need-3",
+      "need-4",
+      "need-5",
+    ]);
+    expect(model.summary.attention).toEqual({
+      problems: 5,
+      pages: 2,
+      cards: model.attention.map((card) => ({
+        id: card.id,
+        title: attentionWords(card).title,
+      })),
+    });
+    // The sentence counts the cards that come from flags: not the page that couldn't be read.
+    expect(model.summary.sentence).toBe(
+      "NVDA read all 7 pages. 4 problems need attention, on 1 page.",
+    );
   });
 
   it("counts the lines NVDA spoke, and how long the runs it draws on held NVDA", async () => {

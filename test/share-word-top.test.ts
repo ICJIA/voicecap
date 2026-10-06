@@ -32,6 +32,7 @@ import {
 import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
+import { textOf } from "./helpers/share-html.js";
 import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
 import { boldIn, hrefsOf, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
 
@@ -74,10 +75,19 @@ function withSummary(model: ShareModel, parts: Partial<Summary>): ShareModel {
   return { ...model, summary: { ...model.summary, ...parts } };
 }
 
-/** The model with some of the summary's six numbers changed. */
+/** The model with some of the summary's numbers changed. */
 function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): ShareModel {
   return withSummary(model, { numbers: { ...model.summary.numbers, ...numbers } });
 }
+
+/** The model with its summary's problems as `cards` give them, each on a page of its own. */
+function withCards(model: ShareModel, cards: { id: string; title: string }[]): ShareModel {
+  return withSummary(model, { attention: { problems: cards.length, pages: cards.length, cards } });
+}
+
+/** `count` cards as the summary has them: "need-1" titled "Problem 1", and so on. */
+const problemsOf = (count: number) =>
+  Array.from({ length: count }, (_, at) => ({ id: `need-${at + 1}`, title: `Problem ${at + 1}` }));
 
 /** The three builders' blocks, in the order the Word copy has them. */
 function topThree(model: ShareModel): Block[] {
@@ -236,12 +246,9 @@ describe("wordSummary", () => {
     expect(rows).toContain(
       `${numbers.transcribed} of ${numbers.pagesInScope} | transcribed by NVDA`,
     );
-    expect(rows).toContain(
-      `${numbers.listened} of ${numbers.transcribed} | heard live by a person`,
-    );
   });
 
-  it("says the six numbers as the page's tiles do: a count, a count out of its total, a time in words", async () => {
+  it("says the five numbers as the page's tiles do: a count, a count out of its total, a time in words", async () => {
     const numbers = tableAt(wordSummary(await demoModel()), 0);
 
     expect(wordsOf([numbers])).toEqual([
@@ -249,10 +256,12 @@ describe("wordSummary", () => {
       "7 | pages in scope",
       "7 of 7 | transcribed by NVDA",
       "1 | page with flags, 3 rules",
-      "0 of 7 | heard live by a person",
       "204 | lines NVDA spoke",
       "12 minutes 34 seconds | of NVDA time, across 2 runs",
     ]);
+    // Five rows under the heads, and none for the pages a person heard NVDA read.
+    expect(numbers.rows).toHaveLength(5);
+    expect(wordsOf([numbers]).join("\n")).not.toMatch(/heard live/i);
   });
 
   it("sets a count's thousands apart, and says a long time in words", async () => {
@@ -309,36 +318,81 @@ describe("wordSummary", () => {
     ]);
   });
 
-  it("lists each page that needs attention, its name in bold, with what a listener hears", async () => {
+  it("says how many problems there are and on how many pages, then lists each by its title", async () => {
     const model = await demoModel();
     const attention = under(wordSummary(model), "What needs attention");
 
+    expect(attention.map(({ kind }) => kind)).toEqual(["para", "list"]);
     expect(wordsOf(attention)).toEqual([
-      "http://127.0.0.1:4848/how-a-run-works/: the latest run couldn't read it (another window took the screen); its transcripts are from run 2026-09-29_1315.",
-      "http://127.0.0.1:4848/common-mistakes/: 3 links say only “click here”; 2 items have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1.",
+      "5 problems, on 2 pages:",
+      'A button is read only as "button": likely an icon button with no name',
+      'A form field is read only as "edit": likely a missing label',
+      'Links read as "click here": link text that doesn\'t say where it goes',
+      "The first heading is level 2, not 1: likely a missing <h1>",
+      "A page the latest run couldn't read",
     ]);
-    for (const [index, { name, clauses }] of model.summary.attention.entries()) {
-      expect(attention[index]).toEqual(para({ text: name, bold: true }, `: ${clauses}.`));
+    // Each title is the summary's, and none is a link: the Word copy's sections follow one another.
+    expect(wordsOf(attention).slice(1)).toEqual(
+      model.summary.attention.cards.map(({ title }) => title),
+    );
+    expect(hrefsOf(attention)).toEqual([]);
+  });
+
+  it("names five cards, then counts the rest, as the page's panel does", () => {
+    const model = withCards(cleanModel(), problemsOf(7));
+    const attention = under(wordSummary(model), "What needs attention");
+
+    expect(wordsOf(attention)).toEqual([
+      "7 problems, on 7 pages:",
+      "Problem 1",
+      "Problem 2",
+      "Problem 3",
+      "Problem 4",
+      "Problem 5",
+      "and 2 more, under What needs attention",
+    ]);
+    expect(hrefsOf(attention)).toEqual([]);
+    // Five are all named, and a site with 40 counts every problem in its lead.
+    const five = under(wordSummary(withCards(cleanModel(), problemsOf(5))), "What needs attention");
+    const forty = under(
+      wordSummary(withCards(cleanModel(), problemsOf(40))),
+      "What needs attention",
+    );
+    expect(wordsOf(five)).toHaveLength(6);
+    expect(wordsOf(five).at(-1)).toBe("Problem 5");
+    expect(wordsOf(forty)[0]).toBe("40 problems, on 40 pages:");
+    expect(wordsOf(forty).at(-1)).toBe("and 35 more, under What needs attention");
+    expect(wordsOf(forty)).toHaveLength(7);
+  });
+
+  it("says the lines the page's panel says, without its links", async () => {
+    for (const model of [await demoModel(), withCards(cleanModel(), problemsOf(7))]) {
+      const html = renderSummary(model);
+      const panel = /<div class="panel attention">.*?<\/div>/s.exec(html)?.[0] ?? "";
+      const lines = [...panel.matchAll(/<(?:p|li)>(.*?)<\/(?:p|li)>/gs)].map(([, said = ""]) =>
+        textOf(said, ""),
+      );
+
+      expect(lines.length).toBeGreaterThan(1);
+      expect(wordsOf(under(wordSummary(model), "What needs attention"))).toEqual(lines);
     }
   });
 
-  it("names a page that has nothing to say of it by its name alone", async () => {
-    const model = withSummary(await demoModel(), {
-      attention: [{ slug: "grants-1", name: "Grants", clauses: "" }],
-    });
-
-    expect(under(wordSummary(model), "What needs attention")).toEqual([
-      para({ text: "Grants", bold: true }),
-    ]);
-  });
-
-  it("says no page needs attention when none has flags or an open issue", () => {
+  it("says nothing needs attention when no problem is left", () => {
     const model = cleanModel();
 
-    expect(model.summary.attention).toEqual([]);
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, cards: [] });
     expect(under(wordSummary(model), "What needs attention")).toEqual([
-      para("No page has flags or an open issue."),
+      para(
+        "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+      ),
     ]);
+    // The page's panel says the same line.
+    expect(
+      textOf(renderSummary(model).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? ""),
+    ).toBe(
+      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+    );
   });
 
   it("lists how complete the test was, with the line on the run before last", async () => {
@@ -454,25 +508,22 @@ describe("wordSummary", () => {
   it("has the human review as counts out of their totals, so nothing looks complete that isn't", async () => {
     const model = await demoModel();
 
+    // A row for the pages reviewed and one for the issues fixed: none for the pages a person heard
+    // NVDA read.
     expect(wordsOf(under(wordSummary(model), "The human review"))).toEqual([
       "Each out of its total.",
       "What | Count | Out of | Share",
-      "Heard live | 0 | 7 | 0%",
       "Transcripts reviewed | 0 | 7 | 0%",
       "Issues fixed | 0 | 0 | nothing to count",
     ]);
     const some = withSummary(model, {
-      bars: {
-        ...model.summary.bars,
-        review: { listened: [1, 3], reviewed: [3, 3], fixed: [0, 0] },
-      },
+      bars: { ...model.summary.bars, review: { reviewed: [2, 3], fixed: [1, 1] } },
     });
     expect(wordsOf(under(wordSummary(some), "The human review"))).toEqual([
       "Each out of its total.",
       "What | Count | Out of | Share",
-      "Heard live | 1 | 3 | 33%",
-      "Transcripts reviewed | 3 | 3 | 100%",
-      "Issues fixed | 0 | 0 | nothing to count",
+      "Transcripts reviewed | 2 | 3 | 67%",
+      "Issues fixed | 1 | 1 | 100%",
     ]);
   });
 

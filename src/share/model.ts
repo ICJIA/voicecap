@@ -260,6 +260,7 @@ export function buildShareModel(input: ShareInput): ShareModel {
     problems,
     changes,
     flags: new Map(standing.pages.map((page) => [page.key, page.shown?.page.flags ?? []])),
+    attention,
     name: nameOf,
     linesSpoken: linesSpokenOf(standing),
     nvdaMs: nvdaMsOf(standing.drawnOn),

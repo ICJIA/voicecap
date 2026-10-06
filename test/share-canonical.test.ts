@@ -61,6 +61,11 @@ const on = (path: string): string => `${DEMO_ROOT}${path}`;
 /** What marks the address of a copy on this computer, wherever it shows. */
 const LOCAL_ADDRESS = /127\.0\.0\.1|localhost/i;
 
+/** Each page the cards of what needs attention are on, once, by the name the cards give it. */
+const namesOnCards = ({ attention }: ShareModel): string[] => [
+  ...new Set(attention.flatMap(({ pages }) => pages.map(({ name }) => name))),
+];
+
 /** A run written as voicecap writes one, then sealed as a completed run is, with a recorded root. */
 async function sealedRunOf(siteDir: string, spec: SyntheticRun, root: string): Promise<RunJson> {
   const run = { ...(await writeSyntheticRun(siteDir, spec)), canonical: root };
@@ -301,10 +306,8 @@ describe("the addresses a model shows", () => {
   it("maps the address in each sentence that names a page, and the sitemap the pages came from", async () => {
     const model = await demoModel(DEMO_ROOT);
 
-    expect(model.summary.attention.map(({ name }) => name)).toEqual([
-      on("how-a-run-works/"),
-      on("common-mistakes/"),
-    ]);
+    // The cards of what needs attention name each page as the page does: on the root.
+    expect(namesOnCards(model)).toEqual([on("common-mistakes/"), on("how-a-run-works/")]);
     expect(model.summary.todo).toEqual([
       `${on("how-a-run-works/")} couldn't be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.`,
       `Take a closer listen to ${on("common-mistakes/")}, where flags were raised, and record what you decide.`,
@@ -480,7 +483,7 @@ describe("every address the page shows for a page", () => {
   });
 
   it("is the page on the root in the summary: what needs attention, and what's still to do", () => {
-    expect(model.summary.attention.map(({ name }) => name)).toEqual([on("forms/"), on("broken/")]);
+    expect(namesOnCards(model)).toEqual([on("forms/"), on("broken/")]);
     expect(model.summary.todo).toEqual([
       `${on("broken/")} couldn't be read in the latest run (the website couldn't be reached). Its transcripts are from run ${EARLIER.id}. Read it again.`,
       `${on("skipped/")} was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.`,

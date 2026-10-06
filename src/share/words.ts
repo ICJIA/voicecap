@@ -34,6 +34,7 @@ import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
 import type { Summary } from "./summary.js";
 import {
+  ATTENTION_TEXT,
   EVIDENCE_TEXT,
   HOW_LEAD,
   HOW_TEXT,
@@ -93,7 +94,7 @@ export function documentTitle({ name, screenReader }: ShareModel["header"]): str
 
 // The summary.
 
-/** One of the summary's six numbers: how it's counted, and what it counts. */
+/** One of the summary's five numbers: how it's counted, and what it counts. */
 export interface NumberTile {
   /** Complete is "ok", a flag or a gap "warn", a plain count "quiet": a copy says it in words too. */
   tone: "ok" | "warn" | "quiet";
@@ -103,12 +104,12 @@ export interface NumberTile {
 }
 
 /**
- * The six numbers, in order. A count out of its total is in the tone of whether it's complete; a
- * copy says each in words, never by tone alone.
+ * The five numbers, in order. A count out of its total is in the tone of whether it's complete; a
+ * copy says each in words, never by tone alone. None counts the pages a person heard NVDA read: a
+ * run started without a terminal can't ask, and a count of 0 read as though no one had heard NVDA.
  */
 export function numbersOf(model: ShareModel): NumberTile[] {
-  const { pagesInScope, transcribed, flagged, rules, listened, linesSpoken, nvdaMs } =
-    model.summary.numbers;
+  const { pagesInScope, transcribed, flagged, rules, linesSpoken, nvdaMs } = model.summary.numbers;
   const { sessionsWithoutEnd: uncounted } = model.summary.numbers;
   const left =
     uncounted === 0
@@ -129,11 +130,6 @@ export function numbersOf(model: ShareModel): NumberTile[] {
       label: "transcribed by NVDA",
     },
     { tone: flagged > 0 ? "warn" : "quiet", value: { count: flagged }, label: flagsLabel },
-    {
-      tone: transcribed > 0 && listened === transcribed ? "ok" : "quiet",
-      value: { part: listened, whole: transcribed },
-      label: "heard live by a person",
-    },
     {
       tone: "quiet",
       value: { count: linesSpoken },
@@ -186,6 +182,43 @@ export function resultsCaption({ done, flagged, never }: Summary["bars"]["result
     .filter(([pages]) => pages > 0)
     .map(([pages, what]) => `${plural(pages, "page")} ${what}`)
     .join(", ");
+}
+
+/** The most cards the summary's panel on what needs attention names, before it counts the rest. */
+const PANEL_CARDS = 5;
+
+/** What the summary's panel on what needs attention says, in its words: see `attentionPanelOf`. */
+export interface AttentionPanel {
+  /** How many problems, on how many pages, ahead of the cards: "1 problem, on 32 pages:". */
+  lead: string;
+  /** The cards it names, the first few, each with its id (the page links its title to its card). */
+  named: { id: string; title: string }[];
+  /**
+   * How many cards it leaves out, "and 2 more, under What needs attention", which is where they all
+   * are; null when it names every one.
+   */
+  more: string | null;
+}
+
+/**
+ * What the summary's panel on what needs attention says: how many problems there are and on how
+ * many pages, over every card; the first `PANEL_CARDS` cards by their titles; and, when there are
+ * more, how many it leaves out, which both copies say beneath the cards, the page linking it to the
+ * section that has them all. Null when no card is left: the panel says `ATTENTION_TEXT.none`.
+ */
+export function attentionPanelOf({
+  problems,
+  pages,
+  cards,
+}: Summary["attention"]): AttentionPanel | null {
+  if (cards.length === 0) return null;
+  const named = cards.slice(0, PANEL_CARDS);
+  const rest = cards.length - named.length;
+  return {
+    lead: `${plural(problems, "problem")}, on ${plural(pages, "page")}:`,
+    named,
+    more: rest > 0 ? ATTENTION_TEXT.more(rest) : null,
+  };
 }
 
 // How voicecap works.

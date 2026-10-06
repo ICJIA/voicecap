@@ -48,13 +48,13 @@ export const TOP_TEXT = {
 
 /**
  * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
- * by a phrase that says what the bar counts), the line for no page that needs attention, and the
- * words for what a page's latest result can be.
+ * by a phrase that says what the bar counts), and the words for what a page's latest result can
+ * be. What its panel on what needs attention says of the cards, and of there being none, is
+ * `ATTENTION_TEXT`'s.
  */
 export const SUMMARY_TEXT = {
   title: "Summary",
   attention: "What needs attention",
-  noAttention: "No page has flags or an open issue.",
   complete: "How complete the test was",
   todo: "What's still to do",
   whenHow: "When and how",
@@ -75,8 +75,12 @@ export const SUMMARY_TEXT = {
    * as it says `rulesNote`.
    */
   reviewNote: "each out of its total",
-  /** The three counts of the human review, each out of its total. */
-  reviewRows: { heard: "Heard live", reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
+  /**
+   * The two counts of the human review, each out of its total. There is none for the pages a
+   * person heard NVDA read: a run started without a terminal can't ask, and a count of 0 read as
+   * though no one had heard NVDA. The statement is on each page's chip, and in each run's evidence.
+   */
+  reviewRows: { reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
 };
 
 /**
@@ -1052,9 +1056,9 @@ export const WORD_TEXT = {
   top: {
     made: (asOf: string): string => `This copy was made ${asOf}.`,
   },
-  /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
+  /** The Summary: the table of its five numbers, and the three tables that stand in for its bars. */
   summary: {
-    /** The heads of the table of the six numbers: the number, and what it counts. */
+    /** The heads of the table of the five numbers: the number, and what it counts. */
     numbersHead: ["Number", "What it counts"],
     /** A count out of its total, in that table: "7 of 7". */
     outOf: (part: string, whole: string): string => `${part} of ${whole}`,

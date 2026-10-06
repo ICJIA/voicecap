@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlagResult } from "../src/model.js";
-import { esc, idFragment, plural } from "../src/report/html.js";
+import { esc, plural } from "../src/report/html.js";
 import { STEP_ICONS } from "../src/share/html/icons.js";
 import {
   bar,
@@ -103,7 +103,7 @@ function copyModel(overrides: Partial<ShareInput> = {}): ShareModel {
   return buildShareModel(input);
 }
 
-/** The model with some of the summary's six numbers changed. */
+/** The model with some of the summary's numbers changed. */
 function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): ShareModel {
   return {
     ...model,
@@ -111,12 +111,38 @@ function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): S
   };
 }
 
+/** The model with its summary's problems as `cards` give them, each on a page of its own. */
+function withCards(model: ShareModel, cards: { id: string; title: string }[]): ShareModel {
+  const attention = { problems: cards.length, pages: cards.length, cards };
+  return { ...model, summary: { ...model.summary, attention } };
+}
+
+/** The model with its summary's human review as `review` gives it. */
+function withReview(model: ShareModel, review: Summary["bars"]["review"]): ShareModel {
+  const bars = { ...model.summary.bars, review };
+  return { ...model, summary: { ...model.summary, bars } };
+}
+
+/** `count` cards as the summary has them: "need-1" titled "Problem 1", and so on. */
+const problemsOf = (count: number) =>
+  Array.from({ length: count }, (_, at) => ({ id: `need-${at + 1}`, title: `Problem ${at + 1}` }));
+
+/** The summary's panel on what needs attention: its markup, and the links in it, address and words. */
+function attentionPanelOf(html: string): { panel: string; links: [string, string][] } {
+  const panel = /<div class="panel[^"]*"><h3>What needs attention<\/h3>.*?<\/div>/s.exec(html)?.[0];
+  if (panel === undefined) throw new Error("The summary has no panel on what needs attention.");
+  const links = [...panel.matchAll(/<a href="([^"]*)">(.*?)<\/a>/g)].map(
+    ([, href = "", words = ""]): [string, string] => [href, textOf(words, "")],
+  );
+  return { panel, links };
+}
+
 /** The three renderers' output, in the order the page has them. */
 function pageOf(model: ShareModel): string {
   return [renderTop(model), renderSummary(model), renderHow(model)].join("\n");
 }
 
-/** What each of the six tiles shows, and what a screen reader says of its big number. */
+/** What each of the five tiles shows, and what a screen reader says of its big number. */
 interface Tile {
   kind: string;
   /** The big number as it looks: "7/7", "12m 34s". */
@@ -768,7 +794,7 @@ describe("renderSummary", () => {
     const html = renderSummary(await demoModel());
 
     expect(html).toContain(
-      '<p class="lead verdict">NVDA read all 7 pages. 1 page has flags worth a closer listen.</p>',
+      '<p class="lead verdict">NVDA read all 7 pages. 4 problems need attention, on 1 page.</p>',
     );
     expect(html).toContain(
       '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the reading and the deciding.</p>',
@@ -776,14 +802,13 @@ describe("renderSummary", () => {
     expect(html.indexOf("lead verdict")).toBeLessThan(html.indexOf('class="gist"'));
   });
 
-  it("shows six numbers, as the model has them", async () => {
+  it("shows five numbers, as the model has them", async () => {
     const tiles = tilesOf(renderSummary(await demoModel()));
 
     expect(tiles.map(({ shown, label }) => [shown, label])).toEqual([
       ["7", "pages in scope"],
       ["7/7", "transcribed by NVDA"],
       ["1", "page with flags, 3 rules"],
-      ["0/7", "heard live by a person"],
       ["204", "lines NVDA spoke"],
       ["12m 34s", "of NVDA time, across 2 runs"],
     ]);
@@ -792,13 +817,22 @@ describe("renderSummary", () => {
       "7",
       "7 of 7",
       "1",
-      "0 of 7",
       "204",
       "12 minutes 34 seconds",
     ]);
   });
 
-  it("shows six numbers that follow the model, in other numbers and in the singular", () => {
+  it("has no tile for the pages a person heard NVDA read", () => {
+    // The person heard NVDA on all three of these pages, and no tile says so: it is on each page's
+    // chip, and in each run's evidence.
+    const html = renderSummary(richModel());
+
+    expect(tilesOf(html)).toHaveLength(5);
+    expect(html).not.toContain("heard live by a person");
+    expect(tilesOf(html).map(({ label }) => label)).not.toContain("heard live by a person");
+  });
+
+  it("shows five numbers that follow the model, in other numbers and in the singular", () => {
     const model = richModel();
     const { numbers } = model.summary;
     const tiles = tilesOf(renderSummary(model));
@@ -809,7 +843,6 @@ describe("renderSummary", () => {
       [String(numbers.pagesInScope), "pages in scope"],
       [`${numbers.transcribed}/${numbers.pagesInScope}`, "transcribed by NVDA"],
       [String(numbers.flagged), "page with flags, 1 rule"],
-      [`${numbers.listened}/${numbers.transcribed}`, "heard live by a person"],
       [String(numbers.linesSpoken), "lines NVDA spoke"],
       ["1h 5m", "of NVDA time, across 1 run"],
     ]);
@@ -822,7 +855,6 @@ describe("renderSummary", () => {
       "quiet",
       "ok",
       "warn",
-      "ok",
       "quiet",
       "quiet",
     ]);
@@ -831,42 +863,26 @@ describe("renderSummary", () => {
   it("says a tile's count out of its total when some pages weren't read", () => {
     const model = richModel();
     const tiles = tilesOf(
-      renderSummary(withNumbers(model, { transcribed: 2, listened: 0, flagged: 0, rules: 0 })),
+      renderSummary(withNumbers(model, { transcribed: 2, flagged: 0, rules: 0 })),
     );
 
-    expect(tiles.map(({ kind }) => kind)).toEqual([
-      "quiet",
-      "warn",
-      "quiet",
-      "quiet",
-      "quiet",
-      "quiet",
-    ]);
+    expect(tiles.map(({ kind }) => kind)).toEqual(["quiet", "warn", "quiet", "quiet", "quiet"]);
     expect(tiles[1]?.spoken).toBe("2 of 3");
     expect(tiles[2]?.label).toBe("pages with flags");
-    expect(tiles[3]?.spoken).toBe("0 of 2");
   });
 
   it("words each tile in the singular for one", () => {
-    const one = {
-      pagesInScope: 1,
-      transcribed: 1,
-      flagged: 1,
-      rules: 1,
-      listened: 1,
-      linesSpoken: 1,
-    };
+    const one = { pagesInScope: 1, transcribed: 1, flagged: 1, rules: 1, linesSpoken: 1 };
     const tiles = tilesOf(renderSummary(withNumbers(richModel(), one)));
 
     expect(tiles.map(({ label }) => label)).toEqual([
       "page in scope",
       "transcribed by NVDA",
       "page with flags, 1 rule",
-      "heard live by a person",
       "line NVDA spoke",
       "of NVDA time, across 1 run",
     ]);
-    expect(tiles.map(({ kind }) => kind)).toEqual(["quiet", "ok", "warn", "ok", "quiet", "quiet"]);
+    expect(tiles.map(({ kind }) => kind)).toEqual(["quiet", "ok", "warn", "quiet", "quiet"]);
     // And in the plural for a rule count that isn't one.
     expect(tilesOf(renderSummary(withNumbers(richModel(), { rules: 3 })))[2]?.label).toBe(
       "page with flags, 3 rules",
@@ -880,7 +896,6 @@ describe("renderSummary", () => {
       transcribed: 0,
       flagged: 0,
       rules: 0,
-      listened: 0,
       linesSpoken: 0,
     });
     const html = renderSummary({
@@ -891,7 +906,7 @@ describe("renderSummary", () => {
       },
     });
 
-    expect(tilesOf(html).map(({ kind }) => kind)).toEqual(Array<string>(6).fill("quiet"));
+    expect(tilesOf(html).map(({ kind }) => kind)).toEqual(Array<string>(5).fill("quiet"));
     expect(tilesOf(html)[1]?.spoken).toBe("0 of 0");
     expect(html).toContain('aria-label="No pages"');
   });
@@ -944,46 +959,94 @@ describe("renderSummary", () => {
     ]);
   });
 
-  it("links each page that needs attention to its card, with what a listener hears", async () => {
+  it("says how many problems there are and on how many pages, then links each to its card by its title", async () => {
     const model = await demoModel();
     const html = renderSummary(model);
 
-    expect(model.summary.attention.map(({ slug }) => slug)).toEqual([
-      "how-a-run-works-fd116f9328",
-      "common-mistakes-db8c98dbfa",
-    ]);
+    expect(model.summary.attention).toMatchObject({ problems: 5, pages: 2 });
     expect(html).toContain(
       '<div class="panel attention"><h3>What needs attention</h3>' +
-        '<p><a href="#pg-how-a-run-works-fd116f9328"><b>http://127.0.0.1:4848/how-a-run-works/</b></a>: the latest run couldn&#39;t read it (another window took the screen); its transcripts are from run 2026-09-29_1315.</p>' +
-        '<p><a href="#pg-common-mistakes-db8c98dbfa"><b>http://127.0.0.1:4848/common-mistakes/</b></a>: 3 links say only “click here”; 2 items have no names, so NVDA says only “button” and “edit”; its first heading is level 2, not 1.</p></div>',
+        "<p>5 problems, on 2 pages:</p><ul>" +
+        '<li><a href="#need-1">A button is read only as &quot;button&quot;: likely an icon button with no name</a></li>' +
+        '<li><a href="#need-2">A form field is read only as &quot;edit&quot;: likely a missing label</a></li>' +
+        '<li><a href="#need-3">Links read as &quot;click here&quot;: link text that doesn&#39;t say where it goes</a></li>' +
+        '<li><a href="#need-4">The first heading is level 2, not 1: likely a missing &lt;h1&gt;</a></li>' +
+        '<li><a href="#need-5">A page the latest run couldn&#39;t read</a></li></ul></div>',
     );
   });
 
-  it("links a card by its page's id fragment, and escapes the page's name", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [{ path: "/a b", label: '<script>alert("x")</script> & Co', flags: [LINK_FLAG] }],
-    });
-    const model = buildShareModel(inputOf([run]));
-    const html = renderSummary(model);
-    const [entry] = model.summary.attention;
+  it("names five cards, then counts the rest, linked to the section", () => {
+    const { panel, links } = attentionPanelOf(renderSummary(withCards(richModel(), problemsOf(7))));
 
-    expect(entry).toBeDefined();
-    expect(html).toContain(`href="#pg-${idFragment(entry?.slug ?? "")}"`);
-    expect(html).toContain("<b>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co</b>");
+    expect(panel).toContain("<p>7 problems, on 7 pages:</p>");
+    // Five by their titles, then the other two counted, with a link to every card in its section.
+    expect(links).toEqual([
+      ["#need-1", "Problem 1"],
+      ["#need-2", "Problem 2"],
+      ["#need-3", "Problem 3"],
+      ["#need-4", "Problem 4"],
+      ["#need-5", "Problem 5"],
+      ["#need-h", "and 2 more, under What needs attention"],
+    ]);
+    expect(panel).not.toContain("Problem 6");
+    expect(panel).not.toContain("#need-6");
+  });
+
+  it("names every card when there are five, and counts one more when there are six", () => {
+    const five = attentionPanelOf(renderSummary(withCards(richModel(), problemsOf(5))));
+    const six = attentionPanelOf(renderSummary(withCards(richModel(), problemsOf(6))));
+
+    expect(five.links.map(([href]) => href)).toEqual([
+      "#need-1",
+      "#need-2",
+      "#need-3",
+      "#need-4",
+      "#need-5",
+    ]);
+    expect(five.panel).not.toContain("more, under");
+    expect(six.links.at(-1)).toEqual(["#need-h", "and 1 more, under What needs attention"]);
+    expect(six.links).toHaveLength(6);
+  });
+
+  it("counts every problem and every page in its lead, however many cards it names (a site with 40)", () => {
+    const { panel, links } = attentionPanelOf(
+      renderSummary(withCards(richModel(), problemsOf(40))),
+    );
+
+    expect(panel).toContain("<p>40 problems, on 40 pages:</p>");
+    expect(links).toHaveLength(6);
+    expect(links.at(-1)).toEqual(["#need-h", "and 35 more, under What needs attention"]);
+  });
+
+  it("says a problem on one page in the singular", () => {
+    const { panel } = attentionPanelOf(renderSummary(withCards(richModel(), problemsOf(1))));
+
+    expect(panel).toContain("<p>1 problem, on 1 page:</p>");
+  });
+
+  it("escapes a card's title, and its id", () => {
+    const model = withCards(richModel(), [
+      { id: 'need-"1"', title: '<script>alert("x")</script> & Co' },
+    ]);
+    const html = renderSummary(model);
+
+    expect(html).toContain(
+      '<li><a href="#need-&quot;1&quot;">&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co</a></li>',
+    );
     expect(html).not.toContain("<script>");
   });
 
-  it("says no page needs attention when none has flags or an open issue", () => {
+  it("says nothing needs attention when no problem is left", () => {
     const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
     const model = buildShareModel(inputOf([run]));
     const html = renderSummary(model);
 
-    expect(model.summary.attention).toEqual([]);
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, cards: [] });
     expect(html).toContain(
-      '<div class="panel"><h3>What needs attention</h3><p>No page has flags or an open issue.</p></div>',
+      '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p></div>',
     );
     expect(html).not.toContain("panel attention");
+    expect(html).not.toContain("No page has flags or an open issue");
   });
 
   it("lists how complete the test was, with links to the problems and to what changed", async () => {
@@ -1058,10 +1121,12 @@ describe("renderSummary", () => {
     expect(rules.match(/<rect class="c-warn" x="0" y="0" width="100%"/g)).toHaveLength(2);
     expect(rules).toContain('<rect class="c-warn" x="0" y="0" width="50%"');
 
-    // The human review: each count out of its total, said in words to a screen reader.
+    // The human review: each count out of its total, said in words to a screen reader. It has no
+    // row for the pages a person heard NVDA read.
     expect(textOf(review.replace(/<span aria-hidden="true">.*?<\/span>/gs, ""))).toBe(
-      "The human review each out of its total Heard live 0 of 7 Transcripts reviewed 0 of 7 Issues fixed 0 of 0",
+      "The human review each out of its total Transcripts reviewed 0 of 7 Issues fixed 0 of 0",
     );
+    expect(review).not.toContain("Heard live");
   });
 
   it("draws a page never transcribed in its own segment, in words and in red", () => {
@@ -1086,11 +1151,13 @@ describe("renderSummary", () => {
   });
 
   it("gives each bar's numbers in text, and a screen reader each row once", () => {
-    const [results = "", , review = ""] = metersOf(renderSummary(richModel()));
+    const [results = "", , review = ""] = metersOf(
+      renderSummary(withReview(richModel(), { reviewed: [3, 3], fixed: [0, 0] })),
+    );
 
     expect(textOf(results)).toContain("2 no flags 1 flags 0 never transcribed");
     // A complete row is "ok", and a row with no total has nothing to fill.
-    expect(review).toContain('<span>Heard live</span><svg class="track"');
+    expect(review).toContain('<span>Transcripts reviewed</span><svg class="track"');
     expect(review).toContain('<rect class="c-ok" x="0" y="0" width="100%"');
     expect(review).toContain(
       '<span class="c"><span aria-hidden="true">3/3</span><span class="sr">3 of 3</span></span>',
@@ -1101,7 +1168,7 @@ describe("renderSummary", () => {
     // The rows' own tracks are decorative: their numbers are the text beside them.
     expect(
       review.match(/<svg class="track" width="100%" height="10" aria-hidden="true">/g),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     expect(review).not.toContain('role="img"');
   });
 
@@ -1116,25 +1183,20 @@ describe("renderSummary", () => {
   });
 
   it("colors a review row by whether it's complete", () => {
-    const model = richModel();
-    const [, , review = ""] = metersOf(
-      renderSummary({
-        ...model,
-        summary: {
-          ...model.summary,
-          bars: {
-            ...model.summary.bars,
-            review: { listened: [1, 3], reviewed: [3, 3], fixed: [0, 0] },
-          },
-        },
-      }),
-    );
-    const rows = review.split('<div class="rule">').slice(1);
+    const rowsOf = (review: Summary["bars"]["review"]) => {
+      const [, , html = ""] = metersOf(renderSummary(withReview(richModel(), review)));
+      return html.split('<div class="rule">').slice(1);
+    };
+    const part = rowsOf({ reviewed: [1, 3], fixed: [0, 0] });
+    const whole = rowsOf({ reviewed: [3, 3], fixed: [2, 2] });
 
-    expect(rows[0]).toContain('class="c-warn"');
-    expect(rows[0]).toContain('width="33.33%"');
-    expect(rows[1]).toContain('class="c-ok"');
-    expect(rows[2]).not.toContain("<rect");
+    // Two rows, the pages reviewed and the issues fixed: a person's hearing NVDA has none.
+    expect(part).toHaveLength(2);
+    expect(part[0]).toContain('class="c-warn"');
+    expect(part[0]).toContain('width="33.33%"');
+    expect(part[1]).not.toContain("<rect");
+    expect(whole[0]).toContain('class="c-ok"');
+    expect(whole[1]).toContain('class="c-ok"');
   });
 
   it("ends with links to every later section by its h2's id", () => {
@@ -1172,16 +1234,6 @@ describe("renderSummary", () => {
     expect(html).toContain('<nav class="toc"');
   });
 
-  it("names a page that has nothing to say of it by its link alone", () => {
-    const model = richModel();
-    const html = renderSummary({
-      ...model,
-      summary: { ...model.summary, attention: [{ slug: "grants-1", name: "Grants", clauses: "" }] },
-    });
-
-    expect(html).toContain('<p><a href="#pg-grants-1"><b>Grants</b></a></p>');
-  });
-
   it("escapes the sentence and the lines it's given", () => {
     const model = richModel();
     const html = renderSummary({
@@ -1189,7 +1241,7 @@ describe("renderSummary", () => {
       summary: {
         ...model.summary,
         sentence: 'A <b>bold</b> & "quoted" sentence.',
-        attention: [{ slug: "a b", name: "<N>", clauses: "<c> & d" }],
+        attention: { problems: 1, pages: 1, cards: [{ id: "need-1", title: "<N> & d" }] },
         todo: ["Fix <i>this</i>."],
         complete: ["Pages read: <3>."],
         whenHow: [{ label: "R&D", value: "<x>" }],
@@ -1198,7 +1250,7 @@ describe("renderSummary", () => {
     });
 
     expect(html).toContain("A &lt;b&gt;bold&lt;/b&gt; &amp; &quot;quoted&quot; sentence.");
-    expect(html).toContain('<p><a href="#pg-a-b"><b>&lt;N&gt;</b></a>: &lt;c&gt; &amp; d.</p>');
+    expect(html).toContain('<li><a href="#need-1">&lt;N&gt; &amp; d</a></li>');
     expect(html).toContain("<li>Fix &lt;i&gt;this&lt;/i&gt;.</li>");
     expect(html).toContain("<li>Pages read: &lt;3&gt;.</li>");
     expect(html).toContain("<li><b>R&amp;D</b>: &lt;x&gt;</li>");
