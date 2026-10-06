@@ -32,13 +32,15 @@ The run in `replay-run/` is **real**: voicecap's Guidepup driver running NVDA 20
 
 The log in the fixture is the **cleaned copy**, the only copy voicecap keeps, made by `cleanNvdaLog` (`src/drivers/guidepup/nvda-log.ts`). It keeps these entries of NVDA's log, whole and in order:
 
-- NVDA's speech: the 392 `Speaking [...]` entries;
+- NVDA's speech: the 392 `Speaking [...]` entries, kept while the last key NVDA logged was one voicecap pressed, or before any key was logged;
 - the keys voicecap pressed: the 267 `Input: kb(desktop):<gesture>` entries, every one of them a gesture in `VOICECAP_GESTURES` (`downArrow`, `h`, `tab`, `control+home`, `control+end`, `NVDA+t`, `escape`);
 - NVDA's warnings and errors, with their tracebacks.
 
-It leaves out every other key, every typed word, and NVDA's INFO and debugging entries, and it writes `%USERPROFILE%` for the home folder. Its first line says so, and its lines end with `\n`.
+It leaves out every other key, every typed word, what NVDA said after a key voicecap didn't press (NVDA speaks each character a person types), and NVDA's INFO and debugging entries, and it writes `%USERPROFILE%` for the home folder. Its first line says so, and its lines end with `\n`. Every key in this log was voicecap's, so none of its speech was left out.
 
 The speech includes what NVDA said outside voicecap's steps: the window in front before the run started (`Calculator`), `Connected as controlled computer`, and the speech after each page's title check.
+
+The run's tab passes have 41 Tab steps, and the log has 34 `tab` keys: the first Tab on each page goes to the browser, not through NVDA, so NVDA logs no key for it, and what NVDA said for it follows the key before it.
 
 The raw log isn't in the repository, and Git ignores `*.log` files: it holds the account's name, and whatever was typed while it was written. So the copy can't be made again here. It is the fixture, and `test/nvda-log-clean.test.ts` checks it: its counts, that it holds no account name and no key but voicecap's, and that cleaning it again changes nothing.
 

@@ -14,14 +14,15 @@ import {
   gestureOf,
 } from "../src/drivers/guidepup/nvda-log.js";
 import { parseNvdaLog, splitLogEntries } from "../src/manual/nvda-log.js";
-import type { DriverCommand, RunJson } from "../src/model.js";
+import type { DriverCommand, RunJson, TranscriptJson } from "../src/model.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 
-/** The first line of every cleaned copy, as the plan's Global Constraints give it. */
+/** The first line of every cleaned copy. */
 const HEADER =
   "# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, " +
   "the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other " +
-  "key and every typed word, and wrote %USERPROFILE% for the home folder.";
+  "key, every typed word, and what NVDA said after a key voicecap didn't press, and wrote " +
+  "%USERPROFILE% for the home folder.";
 
 const HOME = { home: "C:\\Users\\jane", platform: "win32" } as const;
 
@@ -118,6 +119,30 @@ const DEBUG_SPEECH = entry(
 );
 const CRITICAL = entry("CRITICAL", "core.main", "09:00:06.000", MAIN, "NVDA is shutting down");
 
+/** What NVDA logs when it speaks some text. */
+function spoken(text: string, time: string): string[] {
+  const speech = `[LangChangeCommand ('en_US'), '${text}', CancellableSpeech (still valid)]`;
+  return entry("IO", SPEECH_CODEPATH, time, MAIN, `Speaking ${speech}`);
+}
+
+/**
+ * A person typing a word, as NVDA logs it: each key, then the character it speaks, and at the end
+ * the word, and what it speaks for the word.
+ */
+function typing(word: string): string[][] {
+  const characters = [...word].flatMap((character, n) => {
+    const time = `09:01:00.${String(n * 100).padStart(3, "0")}`;
+    const key = entry("IO", KEY_CODEPATH, time, HOOK, `Input: kb(desktop):${character}`);
+    return [key, spoken(character, time)];
+  });
+  const typed = "speech.speech.speakTypedCharacters";
+  return [
+    ...characters,
+    entry("IO", typed, "09:01:01.000", MAIN, `typed word: ${word}`),
+    spoken(word, "09:01:01.010"),
+  ];
+}
+
 /** A log as a session writes it: the entries cleaning keeps among those it drops, in order. */
 const WHOLE_LOG = [
   START,
@@ -129,6 +154,7 @@ const WHOLE_LOG = [
   TYPED_A,
   TYPED_WORD,
   SHIFT_P,
+  ...typing("secret7"),
   FAILURE,
   DOWN,
   HEADING_SPEECH,
@@ -207,6 +233,7 @@ describe("cleanNvdaLog: what it drops", () => {
   it("leaves no typed word, and not the account name an INFO entry holds", () => {
     const cleaned = clean(...WHOLE_LOG);
     expect(cleaned).not.toContain("hunter2");
+    expect(cleaned).not.toContain("secret7");
     expect(cleaned).not.toContain("jane");
     expect(cleaned.split("\n")).not.toContain("Input: kb(desktop):a");
     expect(cleaned.split("\n")).not.toContain("Input: kb(desktop):shift+p");
@@ -215,6 +242,55 @@ describe("cleanNvdaLog: what it drops", () => {
   it("gives only its first line for a log with nothing to keep, or no log", () => {
     expect(clean(...DROPPED)).toBe(`${HEADER}\n`);
     expect(cleanNvdaLog("", HOME)).toBe(`${HEADER}\n`);
+  });
+});
+
+// NVDA speaks each character a person types, and what it says after a key is in answer to that
+// key, so speech counts as voicecap's only when the last key before it was voicecap's.
+describe("cleanNvdaLog: what NVDA said after a key voicecap didn't press", () => {
+  const calculator = spoken("Calculator", "09:00:00.200");
+
+  it("drops each typed character's echo, the typed word, and what NVDA said for the word", () => {
+    const typed = typing("secret7");
+    expect(typed).toHaveLength(7 * 2 + 2);
+    expect(bodyOf(clean(...typed))).toEqual([]);
+  });
+
+  it("keeps what NVDA said before any key, and again after a key voicecap pressed", () => {
+    const entries = [calculator, ...typing("secret7"), DOWN, HEADING_SPEECH];
+    expect(bodyOf(clean(...entries))).toEqual([...calculator, ...DOWN, ...HEADING_SPEECH]);
+  });
+
+  it("keeps what NVDA said after a voicecap key, up to the person's next key", () => {
+    const echo = spoken("a", "09:00:03.050");
+    expect(bodyOf(clean(DOWN, HEADING_SPEECH, TYPED_A, echo))).toEqual([
+      ...DOWN,
+      ...HEADING_SPEECH,
+    ]);
+  });
+
+  it("counts every other key as the person's, whatever its form", () => {
+    const keys = [
+      ["Input: kb(desktop):control+downArrow"], // one of voicecap's, with a modifier
+      ["Input: kb:h"], // the keyboard's generic form
+      ["Input: br(noBraille):tab"], // another device
+      ["Input: kb(desktop):tab", "something more"], // more than a key's line
+    ];
+    for (const message of keys) {
+      const person = entry("IO", KEY_CODEPATH, "09:00:03.300", HOOK, ...message);
+      expect(bodyOf(clean(DOWN, person, HEADING_SPEECH)), message.join(" / ")).toEqual(DOWN);
+    }
+  });
+
+  it("keeps NVDA's warnings and errors after any key", () => {
+    expect(bodyOf(clean(TYPED_A, FAILURE))).toEqual(FAILURE);
+  });
+
+  // A person's h can't be told from voicecap's: NVDA logs both as kb(desktop):h. The rest of the
+  // word is what NVDA said after keys that aren't voicecap's.
+  it("keeps the first letter of hunter2, which is voicecap's key for the next heading", () => {
+    const [key, echo] = typing("hunter2");
+    expect(bodyOf(clean(...typing("hunter2")))).toEqual([...key!, ...echo!]);
   });
 });
 
@@ -452,5 +528,19 @@ describe("the fixture's files", () => {
     const run = JSON.parse(read("run.json").toString("utf8")) as RunJson;
     expect(sealOf(run)).toBe(run.seal);
     expect(sha256(read("events.jsonl"))).toBe(run.files?.["events.jsonl"]?.sha256);
+  });
+
+  // The first Tab on each page goes to the browser, not through NVDA, so NVDA logs no key for it.
+  it("has one more Tab step for each page than the log has tab keys", () => {
+    const transcripts = fixtureFiles().filter((file) => file.endsWith(`${path.sep}tab.json`));
+    expect(transcripts).toHaveLength(7);
+    const steps = transcripts.flatMap(
+      (file) => (JSON.parse(readFileSync(file, "utf8")) as TranscriptJson).steps,
+    );
+    const tabSteps = steps.filter((step) => step.command === "nextFocusable").length;
+    const entries = splitLogEntries(readFixtureLog());
+    const tabKeys = entries.filter((e) => e.message === "Input: kb(desktop):tab").length;
+    expect([tabSteps, tabKeys]).toEqual([41, 34]);
+    expect(tabSteps - tabKeys).toBe(transcripts.length);
   });
 });

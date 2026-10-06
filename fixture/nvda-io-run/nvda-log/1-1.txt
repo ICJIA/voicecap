@@ -1,4 +1,4 @@
-# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key and every typed word, and wrote %USERPROFILE% for the home folder.
+# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key, every typed word, and what NVDA said after a key voicecap didn't press, and wrote %USERPROFILE% for the home folder.
 WARNING - synthDriverHandler.SynthDriver.loadSettings (08:08:13.530) - MainThread (44960):
 Invalid voice: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens\MSTTS_V110_enGB_GeorgeM
 WARNING - logging.Logger.warn (08:08:14.054) - Thread-5_connector_loop (15208):
