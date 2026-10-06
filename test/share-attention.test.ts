@@ -2,22 +2,14 @@
  * What needs attention, as a card for each problem: the model groups the pages' flags, the pages
  * the latest run couldn't read, reads that stopped, open issues, and pages changed since their
  * review into cards, each from NVDA's own words where the page has them. Pure: the pages are built
- * here, with flags computed by the default rules, and the model's own cards come from runs built in
- * memory and the demo runs of 29 September 2026.
+ * in helpers/share-attention.ts, with flags computed by the default rules, and the model's own
+ * cards come from runs built in memory and the demo runs of 29 September 2026.
  */
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { evaluateFlags, type FlagRules, type PagePasses } from "../src/flags/evaluate.js";
-import {
-  PASS_NAMES,
-  type DriverCommand,
-  type FlagResult,
-  type PassName,
-  type ReviewEntry,
-  type ReviewStatus,
-  type StopReason,
-} from "../src/model.js";
+import type { FlagResult, ReviewEntry } from "../src/model.js";
 import {
   attentionCards,
   FLAG_KINDS,
@@ -27,167 +19,27 @@ import {
   type AttentionCard,
   type AttentionPage,
 } from "../src/share/attention.js";
-import type { PageCard } from "../src/share/cards.js";
 import { buildShareModel } from "../src/share/model.js";
 import type { PageReview } from "../src/share/review.js";
-import { MAIN_COMMAND } from "../src/transcripts/format.js";
+import {
+  BIO_READ,
+  BIO_TAB,
+  HOME_READ_HEADER,
+  HOME_READ_MAIN,
+  HOME_TAB,
+  i2iPages,
+  pageFrom,
+  pageOf,
+  passesOf,
+  reviewed,
+} from "./helpers/share-attention.js";
 import { shareRun } from "./helpers/share-data.js";
 import { demoModel, inputOf, storeOf } from "./helpers/share-model.js";
 
 const rules = DEFAULT_CONFIG.flags;
 
-// What NVDA said of i2i's logo (v3--i2i.netlify.app), from the transcripts of 6 October 2026: on
-// the home page, in the header, at its link's Tab stop, and again in the main content; and on each
-// biography page, in the header and at its link's Tab stop.
-const HOME_READ_HEADER =
-  "banner landmark, same page, link, current page, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.";
-const HOME_READ_MAIN = "main landmark, Unlabeled graphic, i 2i logo";
-const HOME_TAB =
-  "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, same page, link, current page";
-const BIO_READ =
-  "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.";
-const BIO_TAB =
-  "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, link";
-
-/** The site the pages here are on. */
-const SITE = "https://v3--i2i.netlify.app";
-
-/** What NVDA said in each pass of a page, line by line. A pass not given wasn't read. */
-type Lines = Partial<Record<PassName, string[]>>;
-
-/**
- * A page's passes as a run records them, each ended as the real run ended them ("end-reached"),
- * unless `readStop` says how the read pass stopped. The read pass goes to the last line (Ctrl+End)
- * and back to the first (Ctrl+Home), then down, line by line, to the end, where its last line is
- * said again. Each Tab stop is in the page.
- */
-function passesOf(lines: Lines, readStop: StopReason = "end-reached"): PagePasses {
-  const passes: PagePasses = {};
-  for (const pass of PASS_NAMES) {
-    const said = lines[pass];
-    if (said === undefined) continue;
-    const last = said.at(-1) ?? "";
-    const steps: [DriverCommand, string][] =
-      pass === "read"
-        ? [
-            ["toBottom", last],
-            ["toTop", said[0] ?? ""],
-            ...said.slice(1).map((line): [DriverCommand, string] => ["nextLine", line]),
-            ...(readStop === "end-reached" ? [["nextLine", last] as [DriverCommand, string]] : []),
-          ]
-        : said.map((line): [DriverCommand, string] => [MAIN_COMMAND[pass], line]);
-    passes[pass] = {
-      stopReason: pass === "read" ? readStop : "end-reached",
-      steps: steps.map(([command, spoken], index) => ({
-        n: index + 1,
-        command,
-        spoken,
-        durationMs: 1000,
-        offsetMs: (index + 1) * 1000,
-        ...(pass === "tab" ? { inDocument: true } : {}),
-      })),
-    };
-  }
-  return passes;
-}
-
-/** A page's address on the site, without the site's: i2i's home page is "/". */
-function pathOf(slug: string): string {
-  if (slug === "home") return "/";
-  return slug.startsWith("bio-") ? `/biographies/${slug}/` : `/${slug}/`;
-}
-
-/** What a page is called on its card. */
-function nameOf(slug: string): string {
-  if (slug === "home") return "Home";
-  const bio = /^bio-(\d+)$/.exec(slug)?.[1];
-  return bio === undefined ? `Page ${slug}` : `Biography ${bio}`;
-}
-
-/**
- * A page as the model is given it: its card, with `flags` (by default the rules' over its passes,
- * and none for a page with no passes), its review, and its passes. Null passes: NVDA's words aren't
- * here, and the card's flags are as its record has them.
- */
-function pageFrom(
-  slug: string,
-  passes: PagePasses | null,
-  options: {
-    flags?: FlagResult[];
-    review?: PageReview;
-    card?: Partial<PageCard>;
-    rules?: FlagRules;
-  } = {},
-): AttentionPage {
-  const flags =
-    options.flags ?? (passes === null ? [] : evaluateFlags(passes, options.rules ?? rules));
-  const path = pathOf(slug);
-  const card: PageCard = {
-    key: `${SITE}${path}`,
-    slug,
-    name: nameOf(slug),
-    labeled: true,
-    path,
-    title: null,
-    status: flags.length > 0 ? "flags" : "no-flags",
-    statusText: "Transcribed",
-    readStopped: null,
-    reviewChips: [],
-    manual: [],
-    counts: null,
-    timeMs: null,
-    strip: [],
-    screenshot: { notRecorded: "Not recorded." },
-    from: null,
-    failure: null,
-    flags,
-    flagsAsRecorded: passes === null && flags.length > 0,
-    needsAttention: true,
-    ...options.card,
-  };
-  return { card, review: options.review ?? null, passes };
-}
-
-/** A page NVDA read line by line, and Tab by Tab. An empty list is a pass it didn't read. */
-function pageOf(slug: string, read: string[], tab: string[], review?: PageReview): AttentionPage {
-  const lines: Lines = {};
-  if (read.length > 0) lines.read = read;
-  if (tab.length > 0) lines.tab = tab;
-  return pageFrom(slug, passesOf(lines), { review });
-}
-
-/** A page's review, whose latest entry is `status`, of the transcripts shown unless `changed`. */
-function reviewed(
-  status: ReviewStatus,
-  options: { note?: string; changed?: boolean } = {},
-): PageReview {
-  return {
-    listened: null,
-    latest: {
-      status,
-      reviewer: "Pat Lee",
-      at: "2026-10-06T14:00:00-05:00",
-      note: options.note ?? null,
-      run: "2026-10-06_0900",
-      url: `${SITE}/`,
-      files: {},
-      content: {},
-    },
-    changedSinceReview: options.changed ?? false,
-    issueFound: status === "issue",
-    fixed: status === "fixed",
-    manual: [],
-  };
-}
-
 /** Each card's kind and subject, in the cards' order. */
 const kindsOf = (cards: AttentionCard[]) => cards.map((card) => [card.kind, card.subject]);
-
-/** i2i's home page and its 31 biography pages, as NVDA read them. */
-function i2iPages(): AttentionPage[] {
-  const bios = Array.from({ length: 31 }, (_, i) => pageOf(`bio-${i + 1}`, [BIO_READ], [BIO_TAB]));
-  return [pageOf("home", [HOME_READ_HEADER, HOME_READ_MAIN], [HOME_TAB]), ...bios];
-}
 
 describe("NVDA's speech, item by item", () => {
   it("splits NVDA's speech into items as the rules do, keeping its capitals", () => {
