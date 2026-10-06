@@ -244,7 +244,8 @@
 ### Task 2: The cards' words
 
 **Files:**
-- Modify: `src/share/text.ts`: add `ATTENTION_TEXT` and `attentionWords`.
+- Create: `src/share/attention-words.ts`: `attentionWords` and its tables (Ruling R12).
+- Modify: `src/share/text.ts`: add `ATTENTION_TEXT`'s fixed strings and its small formatters.
 - Test: `test/share-attention-words.test.ts` (new).
 
 **Interfaces:**
@@ -279,7 +280,7 @@
   - `count`: `${pl(n, "page")}, ${pl(times, "time")}`
 - **A place's lead:** "In the header", "In the main content", "In the navigation", "In the footer", "In a sidebar", or "In the search", followed by `, on ${pl(k, "page")}`. With no part, it's `On ${pl(k, "page")}`.
 - **Quote labels:** a quote's `pass` reads "Down Arrow" for read, "H" for headings, and "Tab" for tab.
-- **`unavailable`** is null, except for `recorded` cards: "NVDA's words aren't available here: this page's transcripts couldn't be read."
+- **`unavailable`** is null, except for `recorded` cards: "NVDA's words aren't available here: this page's transcripts couldn't be read." On a place with more than one page: "NVDA's words aren't available here: these pages' transcripts couldn't be read."
 - **`<subject>`** below is the card's subject, `<role>` is a `field-unlabeled` subject, and `<name>` is a `graphic-generic` subject.
 
 | Kind | Title | Likely cause | Why it matters |
@@ -302,6 +303,15 @@
 | issue | `An issue found in review: <page name>` | the note, or `No note was recorded.` when it's "" | `A person reviewing the transcripts found something a screen reader user would hear.` |
 | changed | `A page reads differently since its review` (n > 1: `Pages read differently since their review`) | `Its transcripts changed after it was reviewed.` (n > 1: `Their transcripts changed after they were reviewed.`) | `The review was of other transcripts, so it doesn't cover what NVDA says there now.` |
 
+**A page with no headings** (Ruling R13): the headings flag "The page has no headings." gives a `first-heading` card with level 0, a card of its own.
+- title: `NVDA found no headings: likely titles made of styled text, not heading tags`
+- cause: `Likely titles made of styled text, not heading tags: NVDA found no headings on the page.` (n > 1: `…on these pages.`)
+- why: `Screen reader users jump from heading to heading to find their way around a page; with none, they have to go through all of it.`
+- fix: `Mark the page's title and its section titles as headings:` with `<h1>Grant opportunities</h1>
+<h2>How to apply</h2>`, then `"heading, level 1, Grant opportunities"`.
+
+**A `recorded` card on more than one page:** its cause is `These pages' transcripts couldn't be read here, so this card shows what their runs recorded, without NVDA's words.`
+
 **The fixes** (`{ lead, code, after }`). Every other kind has none.
 - **graphic-generic,** one for each place, in place order:
   - **With `inside`:**
@@ -309,11 +319,11 @@
     - code: `<img src="…" alt="">`;
     - after: `"<words>, <role>"`.
   - **Without `inside`:**
-    - lead: `<Part>, it stands on its own, so give it a name in words, not "logo" or a file name` + (`, such as the words its link says elsewhere` when another place has `inside`) + `:`;
+    - lead: `<Part>, it stands on its own, so give it a name in words, not "logo" or a file name` + (`, such as the words its <role> says elsewhere` when another place has `inside`) + `:`;
     - code: `<img src="…" alt="<suggestion>">`;
     - after: `"graphic, <suggestion>"`.
 
-    `<suggestion>` is the other place's words, made title-like when NVDA said them all in capitals ("INSTITUTE 2 INNOVATE" becomes "Institute 2 Innovate"). With no other place, it's `What it is, in words`.
+    `<suggestion>` is the other place's words, made title-like when NVDA said two or more words, all in capitals ("INSTITUTE 2 INNOVATE" becomes "Institute 2 Innovate"). A single all-caps word stays as it is ("ICJIA"). With no other place, it's `What it is, in words`.
 - **graphic-unnamed:**
   - `Say what it shows:` with `<img src="…" alt="What it shows, in words">`, then `"graphic, what it shows"`;
   - `Or, when it's decorative, or inside a link or button that already says what it is, mark it decorative:` with `<img src="…" alt="">`, then `Nothing, for the image itself`.
@@ -331,7 +341,7 @@
 
 **The path.** `<first path>` is the card's first page's `path`.
 - **The flag kinds, except `recorded` and `read-stopped`:**
-  1. Either `Fix it in the <part>, which every page shares: one change fixes it on all <k> pages.`, when a place whose part is header, footer, or navigation is on more than one page; or `Fix it on the page.` (n = 1), or `Fix it on each page.`
+  1. Either `Fix it in the <part>, which every page shares: one change fixes it on all <k> pages.`, naming the shared place (header, footer, or navigation, on more than one page) with the most pages, ties by place order; or `Fix it on the page.` (n = 1), or `Fix it on each page.`
   2. `Run voicecap again on one page (--page <first path>), then on every page.`
   3. `Share again: once no page raises it, this card is gone.`
   4. `Not a problem? Mark the page "Reviewed, no issues" in voicecap review.` (n > 1: `the pages`)
@@ -350,7 +360,7 @@
       - place 2's lead is `In the main content, on 1 page`.
     - **The fixes:**
       - `{ lead: 'In the header, it\'s inside the link that also says "INSTITUTE 2 INNOVATE", so mark it decorative:', code: '<img src="…" alt="">', after: '"INSTITUTE 2 INNOVATE, link"' }`;
-      - `{ lead: 'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its link says elsewhere:', code: '<img src="…" alt="Institute 2 Innovate">', after: '"graphic, Institute 2 Innovate"' }`.
+      - `{ lead: 'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its <role> says elsewhere:', code: '<img src="…" alt="Institute 2 Innovate">', after: '"graphic, Institute 2 Innovate"' }`.
     - **The path's first step:** `Fix it in the header, which every page shares: one change fixes it on all 32 pages.`
     - **The path's second step:** `Run voicecap again on one page (--page /), then on every page.`
   - **"every kind has a title, a likely cause, and a reason":** one table-driven test over all 17 kinds. Each title, cause, and reason is non-empty and equal to the table's words for a fixed sample card.
@@ -388,7 +398,7 @@
 - Test: `test/share-summary.test.ts`, `test/share-words.test.ts`, `test/share-html-top.test.ts`, `test/share-word-top.test.ts`, `test/share-model.test.ts`.
 
 **Interfaces:**
-- Consumes: Task 1's `AttentionCard` and `FLAG_KINDS`; Task 2's `ATTENTION_TEXT` and `attentionWords` (for the titles).
+- Consumes: Task 1's `AttentionCard` and `FLAG_KINDS`; Task 2's `ATTENTION_TEXT` (`src/share/text.ts`) and `attentionWords` (`src/share/attention-words.ts`, for the titles).
 - Produces: `Summary.attention: { problems: number; pages: number; cards: { id: string; title: string }[] }`, and five tiles from `numbersOf`.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -431,7 +441,7 @@
   - `test/share-html-pages.test.ts` and `test/share-word-pages.test.ts`: drop the flags section's tests.
 
 **Interfaces:**
-- Consumes: `model.attention` (Task 1), `attentionWords` and `ATTENTION_TEXT` (Task 2), and `fold`, `chip`, `scroll`, and `esc` from `html/parts.ts`.
+- Consumes: `model.attention` (Task 1), `attentionWords` (`src/share/attention-words.ts`) and `ATTENTION_TEXT` (`src/share/text.ts`) (Task 2), and `fold`, `chip`, `scroll`, and `esc` from `html/parts.ts`.
 - **The page:**
   - The section is `<section aria-labelledby="need-h">`, with `<h2 id="need-h">What needs attention</h2>` and a `<p class="gist">` (the gist, or the none line).
   - Each card is a `fold`, open when there are 5 cards or fewer, with `id` set to the card's id on the `<details>`. Its summary line is `<span class="what">${i}. ${title}</span> <span class="sub">${count}</span>`, never a heading.
