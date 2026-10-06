@@ -873,6 +873,7 @@ describe("the section's own words", () => {
       "labels",
       "more",
       "none",
+      "noneSkipped",
       "sentence",
       "title",
     ]);
@@ -898,6 +899,20 @@ describe("the section's own words", () => {
     expect(ATTENTION_TEXT.sentence(1200, 3000)).toBe(
       "1,200 problems need attention, on 3,000 pages.",
     );
+  });
+
+  it("says nothing needs attention on the pages read, and how many were skipped, for the line for no problem when some were", () => {
+    expect(ATTENTION_TEXT.noneSkipped(1)).toBe(
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
+    );
+    expect(ATTENTION_TEXT.noneSkipped(2)).toBe(
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.",
+    );
+    expect(ATTENTION_TEXT.noneSkipped(1204)).toBe(
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1,204 pages were skipped, not read.",
+    );
+    // It never says every page was read, since some weren't.
+    expect(ATTENTION_TEXT.noneSkipped(3)).not.toMatch(/every page was read/);
   });
 
   it("says how many cards the summary's panel leaves out", () => {

@@ -10,10 +10,11 @@
  * This puts them together, and works out the top, the sample of what NVDA said, what the results
  * cover, the appendix of transcripts, and the fingerprint check's data.
  *
- * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
- * problems' in problemsOf, the evidence's in evidenceOf, the reason a screenshot couldn't be taken
- * in cardsOf. The run records and transcripts the page embeds for its fingerprint check are exactly
- * as recorded, since a seal covers every field.
+ * The home folder is replaced in everything the page shows: flags' and reviewers' words here, and
+ * the description of a custom rule, which names its card; the problems' in problemsOf, the
+ * evidence's in evidenceOf, the reason a screenshot couldn't be taken in cardsOf. The run records
+ * and transcripts the page embeds for its fingerprint check are exactly as recorded, since a seal
+ * covers every field.
  *
  * A site is named by its canonical address, and every address the page shows for one of its pages
  * is the page on that address: `shown`, made here, maps the address voicecap read onto it, and the
@@ -250,9 +251,18 @@ export function buildShareModel(input: ShareInput): ShareModel {
     screenReader: (run) => wordsFor(run).screenReader,
     redact,
   });
+  // A custom rule's card is named by the rule's description, which a person writes in the config
+  // and may hold the home folder: replaced here, as the flags' messages are.
+  const rules = {
+    ...input.flagRules,
+    custom: input.flagRules.custom.map((rule) => ({
+      ...rule,
+      description: redact(rule.description),
+    })),
+  };
   const attention = attentionCards(
     attentionPagesOf(standing, pages, review, input.transcripts),
-    input.flagRules,
+    rules,
   );
   const summary = summaryOf({
     standing,

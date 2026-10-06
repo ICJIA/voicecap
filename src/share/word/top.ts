@@ -14,19 +14,12 @@ import { count } from "../format.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
-import {
-  ATTENTION_TEXT,
-  HOW_STEPS,
-  HOW_TEXT,
-  SUMMARY_TEXT,
-  TOP_TEXT,
-  WHEN_TO_RUN,
-  WORD_TEXT,
-} from "../text.js";
+import { HOW_STEPS, HOW_TEXT, SUMMARY_TEXT, TOP_TEXT, WHEN_TO_RUN, WORD_TEXT } from "../text.js";
 import {
   attentionPanelOf,
   heardTitle,
   howLead,
+  noAttentionLine,
   numbersOf,
   sentence,
   shareOf,
@@ -123,13 +116,13 @@ function numbersTable(model: ShareModel): Block {
  * "What needs attention": how many problems there are, on how many pages, then a list of the first
  * few by their titles and how many more there are, the same lines as the page's panel (../words.ts)
  * but for its links, since the Word copy's sections follow one another; or the line that says
- * nothing is left.
+ * nothing is left, and how many pages weren't read when some were skipped.
  */
 function attentionBlocks({ attention }: Summary): Block[] {
   const panel = attentionPanelOf(attention);
   const lines =
     panel === null
-      ? [para(ATTENTION_TEXT.none)]
+      ? [para(noAttentionLine(attention))]
       : [
           para(panel.lead),
           list([

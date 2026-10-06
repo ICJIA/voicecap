@@ -31,11 +31,18 @@ export interface Summary {
   };
   /**
    * "What needs attention": how many problems there are (a card for each) and how many different
-   * pages they're on, over every card; and each card's id and title (its words' `title`), in the
-   * cards' order, for the panel to name and link to its card. The panel names the first few and
-   * counts the rest (`attentionPanelOf`, in words.ts).
+   * pages they're on, over every card; how many pages voicecap skipped after loading them and so
+   * never read (the sentence's "skipped, not read"), which are on no card and which the line for
+   * no problem says (`noAttentionLine`, in words.ts); and each card's id and title (its words'
+   * `title`), in the cards' order, for the panel to name and link to its card. The panel names the
+   * first few and counts the rest (`attentionPanelOf`, in words.ts).
    */
-  attention: { problems: number; pages: number; cards: { id: string; title: string }[] };
+  attention: {
+    problems: number;
+    pages: number;
+    skipped: number;
+    cards: { id: string; title: string }[];
+  };
   /** "How complete the test was". */
   complete: string[];
   /** "What's still to do". */
@@ -175,10 +182,32 @@ export function summaryOf(input: SummaryInput): Summary {
   const skipped = pages.filter((facts) => !facts.transcribed && outcomeOf(facts) === "skipped");
   // A page the latest run failed or skipped is a task whether or not an earlier run's transcripts
   // are shown: an older read doesn't settle what the latest run couldn't do.
-  const readBefore = pages.flatMap(({ name, failure }) =>
-    failure?.shownFrom ? [{ name, kind: failure.kind, shownFrom: failure.shownFrom }] : [],
-  );
+  const readBefore = pages.flatMap((facts) => {
+    const { name, failure } = facts;
+    return failure?.shownFrom
+      ? [{ facts, name, kind: failure.kind, shownFrom: failure.shownFrom }]
+      : [];
+  });
   const skippedInLatest = pages.filter((facts) => outcomeOf(facts) === "skipped");
+  // The pages on the read-stopped card: a review doesn't settle a read that stopped before the
+  // page's end, since no later run has read the page to its end. Each is a task, unless another
+  // task already names the page.
+  const stopped = new Set(
+    input.attention
+      .filter((card) => card.kind === "read-stopped")
+      .flatMap((card) => card.pages.map((page) => page.slug)),
+  );
+  const named = new Set(
+    [
+      ...withIssue,
+      ...toRecord,
+      ...unread,
+      ...readBefore.map(({ facts }) => facts),
+      ...skippedInLatest,
+      ...undecided,
+    ].map(({ page }) => page.slug),
+  );
+  const readStopped = pages.filter(({ page }) => stopped.has(page.slug) && !named.has(page.slug));
   // The sentence's problems are the cards that come from flags (a read that stopped among them), and
   // the pages on them: counted from the cards, never from `undecided`, since a page whose read
   // stopped keeps its card after a review has decided about it.
@@ -212,6 +241,7 @@ export function summaryOf(input: SummaryInput): Summary {
     attention: {
       problems: input.attention.length,
       pages: distinctPages(input.attention),
+      skipped: skipped.length,
       cards: input.attention.map((card) => ({ id: card.id, title: attentionWords(card).title })),
     },
     complete: [
@@ -228,6 +258,7 @@ export function summaryOf(input: SummaryInput): Summary {
       toRecord,
       unread,
       readBefore,
+      readStopped,
       skipped: skippedInLatest,
       undecided,
     }),
@@ -262,7 +293,7 @@ function emptySummary(): Summary {
       nvdaMs: 0,
       sessionsWithoutEnd: 0,
     },
-    attention: { problems: 0, pages: 0, cards: [] },
+    attention: { problems: 0, pages: 0, skipped: 0, cards: [] },
     complete: [],
     todo: [],
     whenHow: [],
@@ -467,6 +498,11 @@ interface Tasks {
    * name, the kind of failure in words ("" when not recorded), and the run they come from.
    */
   readBefore: { name: string; kind: string; shownFrom: string }[];
+  /**
+   * The read of the page stopped before the page's end, which a review doesn't settle, and no
+   * other task names the page.
+   */
+  readStopped: PageFacts[];
   /** The latest run skipped the page after loading it, with or without older transcripts. */
   skipped: PageFacts[];
   /** Flags no one has decided about. */
@@ -475,11 +511,20 @@ interface Tasks {
 
 /**
  * What's still to do, as a task for each issue to fix or to record the fix of, page to read again
- * (none of its runs read it, or the latest couldn't), page that was skipped, and flagged page to
- * decide about; or that nothing is left. Nothing is left only when every issue found is fixed and
- * no page is open, unread, failed or skipped in the latest run, or undecided.
+ * (none of its runs read it, the latest couldn't, or its read stopped before the page's end), page
+ * that was skipped, and flagged page to decide about; or that nothing is left. Nothing is left only
+ * when every issue found is fixed and no page is open, unread, failed or skipped in the latest run,
+ * stopped short, or undecided.
  */
-function todoOf({ withIssue, toRecord, unread, readBefore, skipped, undecided }: Tasks): string[] {
+function todoOf({
+  withIssue,
+  toRecord,
+  unread,
+  readBefore,
+  readStopped,
+  skipped,
+  undecided,
+}: Tasks): string[] {
   const todo: string[] = [];
   if (withIssue.length > 0) {
     const one = withIssue.length === 1;
@@ -498,7 +543,11 @@ function todoOf({ withIssue, toRecord, unread, readBefore, skipped, undecided }:
       `Run voicecap again on ${pageList(unread)}: ${unread.length === 1 ? "it" : "they"} couldn't be read after every attempt.`,
     );
   }
-  todo.push(...readAgainTasks(readBefore), ...skippedTasks(skipped));
+  todo.push(
+    ...readAgainTasks(readBefore),
+    ...readStoppedTasks(readStopped),
+    ...skippedTasks(skipped),
+  );
   if (undecided.length > 0) {
     todo.push(
       `Take a closer listen to ${pageList(undecided)}, where flags were raised, and record what you decide.`,
@@ -542,6 +591,20 @@ function readAgainTasks(pages: Tasks["readBefore"]): string[] {
       `${name} couldn't be read in the latest run${kind === "" ? "" : ` (${kind})`}. Its transcripts are from run ${shownFrom}. Read it again.`,
     (more) => `And ${more} more pages couldn't be read in the latest run. Read them again.`,
   );
+}
+
+/**
+ * A task, in one line, for the pages whose read stopped before the page's end: only a later run
+ * that reads each to its end takes it off the list, which a review doesn't. None when there are
+ * none.
+ */
+function readStoppedTasks(pages: PageFacts[]): string[] {
+  if (pages.length === 0) return [];
+  return [
+    pages.length === 1
+      ? `Run ${pageList(pages)} again with --page: its reading stopped before the page's end.`
+      : `Run ${pageList(pages)} again with --page: their reading stopped before each page's end.`,
+  ];
 }
 
 /**

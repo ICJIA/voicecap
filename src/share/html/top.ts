@@ -19,7 +19,6 @@ import { formatDuration } from "../../util/time.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
-  ATTENTION_TEXT,
   CHANGES_TEXT,
   COVERAGE_TEXT,
   FLAGS_TEXT,
@@ -36,6 +35,7 @@ import {
   attentionPanelOf,
   heardTitle,
   howLead,
+  noAttentionLine,
   numbersOf,
   resultsCaption,
   spokenDuration,
@@ -136,13 +136,13 @@ function tiles(model: ShareModel): string {
 /**
  * "What needs attention": how many problems there are, on how many pages, then the first few by
  * their titles, each linked to its card, and a link to the section for the rest (../words.ts); or
- * the line that says nothing is left.
+ * the line that says nothing is left, and how many pages weren't read when some were skipped.
  */
 function attentionPanel({ attention }: Summary): string {
   const title = `<h3>${esc(SUMMARY_TEXT.attention)}</h3>`;
   const panel = attentionPanelOf(attention);
   if (panel === null) {
-    return `<div class="panel">${title}<p>${esc(ATTENTION_TEXT.none)}</p></div>`;
+    return `<div class="panel">${title}<p>${esc(noAttentionLine(attention))}</p></div>`;
   }
   const items = panel.named.map(
     ({ id, title: words }) => `<li><a href="#${esc(id)}">${esc(words)}</a></li>`,

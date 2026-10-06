@@ -111,9 +111,16 @@ function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): S
   };
 }
 
-/** The model with its summary's problems as `cards` give them, each on a page of its own. */
-function withCards(model: ShareModel, cards: { id: string; title: string }[]): ShareModel {
-  const attention = { problems: cards.length, pages: cards.length, cards };
+/**
+ * The model with its summary's problems as `cards` give them, each on a page of its own, and
+ * `skipped` pages skipped and not read.
+ */
+function withCards(
+  model: ShareModel,
+  cards: { id: string; title: string }[],
+  skipped = 0,
+): ShareModel {
+  const attention = { problems: cards.length, pages: cards.length, skipped, cards };
   return { ...model, summary: { ...model.summary, attention } };
 }
 
@@ -1041,12 +1048,60 @@ describe("renderSummary", () => {
     const model = buildShareModel(inputOf([run]));
     const html = renderSummary(model);
 
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, cards: [] });
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
     expect(html).toContain(
       '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p></div>',
     );
     expect(html).not.toContain("panel attention");
     expect(html).not.toContain("No page has flags or an open issue");
+  });
+
+  it("says nothing needs attention on the pages read, and how many were skipped, when pages were skipped and nothing else needs attention", () => {
+    /** One page read, and `count` that voicecap loaded and skipped: they are on no card. */
+    const skipped = (count: number): ShareModel =>
+      buildShareModel(
+        inputOf([
+          shareRun({
+            id: "r1",
+            pages: [
+              { path: "/" },
+              ...Array.from({ length: count }, (_, at) => ({
+                path: `/file-${at + 1}/`,
+                status: "skipped" as const,
+              })),
+            ],
+          }),
+        ]),
+      );
+    const one = skipped(1);
+    const two = skipped(2);
+
+    expect(one.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 1, cards: [] });
+    expect(two.summary.attention).toMatchObject({ problems: 0, skipped: 2 });
+    expect(renderSummary(one)).toContain(
+      '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.</p></div>',
+    );
+    expect(attentionPanelOf(renderSummary(two)).panel).toContain(
+      "<p>Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.</p>",
+    );
+    // It never says every page was read, since some weren't, and it isn't the panel of problems.
+    for (const model of [one, two]) {
+      const { panel } = attentionPanelOf(renderSummary(model));
+
+      expect(panel).not.toContain("every page was read");
+      expect(panel).not.toContain("panel attention");
+    }
+  });
+
+  it("names the problems, never the line for none, when a page was skipped too", () => {
+    const { panel, links } = attentionPanelOf(
+      renderSummary(withCards(richModel(), problemsOf(2), 3)),
+    );
+
+    expect(panel).toContain("<p>2 problems, on 2 pages:</p>");
+    expect(links.map(([href]) => href)).toEqual(["#need-1", "#need-2"]);
+    expect(panel).not.toContain("Nothing needs attention");
+    expect(panel).not.toContain("skipped");
   });
 
   it("lists how complete the test was, with links to the problems and to what changed", async () => {
@@ -1241,7 +1296,12 @@ describe("renderSummary", () => {
       summary: {
         ...model.summary,
         sentence: 'A <b>bold</b> & "quoted" sentence.',
-        attention: { problems: 1, pages: 1, cards: [{ id: "need-1", title: "<N> & d" }] },
+        attention: {
+          problems: 1,
+          pages: 1,
+          skipped: 0,
+          cards: [{ id: "need-1", title: "<N> & d" }],
+        },
         todo: ["Fix <i>this</i>."],
         complete: ["Pages read: <3>."],
         whenHow: [{ label: "R&D", value: "<x>" }],

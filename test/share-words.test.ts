@@ -74,6 +74,7 @@ import {
   kindTitle,
   lineCount,
   manualLine,
+  noAttentionLine,
   notRecordedLine,
   numbersOf,
   onlyInOneLead,
@@ -388,6 +389,7 @@ describe("the summary's panel on what needs attention", () => {
   const attentionOf = (count: number): Summary["attention"] => ({
     problems: count,
     pages: count,
+    skipped: 0,
     cards: Array.from({ length: count }, (_, at) => ({
       id: `need-${at + 1}`,
       title: `Problem ${at + 1}`,
@@ -398,6 +400,7 @@ describe("the summary's panel on what needs attention", () => {
     const one = {
       problems: 1,
       pages: 32,
+      skipped: 0,
       cards: [{ id: "need-1", title: 'The graphic "i 2i Logo" is read as "Unlabeled graphic"' }],
     };
 
@@ -442,10 +445,31 @@ describe("the summary's panel on what needs attention", () => {
   });
 
   it("says nothing when no problem is left: the panel says the line for none", () => {
-    expect(attentionPanelOf({ problems: 0, pages: 0, cards: [] })).toBeNull();
+    expect(attentionPanelOf({ problems: 0, pages: 0, skipped: 0, cards: [] })).toBeNull();
     expect(ATTENTION_TEXT.none).toBe(
       "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
     );
+  });
+
+  describe("the line for no problem", () => {
+    const none = (skipped: number) =>
+      noAttentionLine({ problems: 0, pages: 0, skipped, cards: [] });
+
+    it("says every page was read, and every flag was fixed or checked, when no page was skipped", () => {
+      expect(none(0)).toBe(
+        "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+      );
+    });
+
+    it("says nothing needs attention on the pages read, and how many were skipped, when some were", () => {
+      expect(none(1)).toBe(
+        "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
+      );
+      expect(none(2)).toBe(
+        "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.",
+      );
+      expect(none(2)).toBe(ATTENTION_TEXT.noneSkipped(2));
+    });
   });
 });
 

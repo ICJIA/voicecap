@@ -221,6 +221,15 @@ export function attentionPanelOf({
   };
 }
 
+/**
+ * What the section on what needs attention and the summary's panel say when no card is left: that
+ * nothing needs attention, as every page was read; or, when some pages were skipped (they are on no
+ * card, and weren't read), that nothing does on the pages read, with how many were skipped.
+ */
+export function noAttentionLine({ skipped }: Summary["attention"]): string {
+  return skipped === 0 ? ATTENTION_TEXT.none : ATTENTION_TEXT.noneSkipped(skipped);
+}
+
 // How voicecap works.
 
 /** The lead that opens "How voicecap works", with the words that say the person reads in bold. */

@@ -80,9 +80,18 @@ function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): S
   return withSummary(model, { numbers: { ...model.summary.numbers, ...numbers } });
 }
 
-/** The model with its summary's problems as `cards` give them, each on a page of its own. */
-function withCards(model: ShareModel, cards: { id: string; title: string }[]): ShareModel {
-  return withSummary(model, { attention: { problems: cards.length, pages: cards.length, cards } });
+/**
+ * The model with its summary's problems as `cards` give them, each on a page of its own, and
+ * `skipped` pages skipped and not read.
+ */
+function withCards(
+  model: ShareModel,
+  cards: { id: string; title: string }[],
+  skipped = 0,
+): ShareModel {
+  return withSummary(model, {
+    attention: { problems: cards.length, pages: cards.length, skipped, cards },
+  });
 }
 
 /** `count` cards as the summary has them: "need-1" titled "Problem 1", and so on. */
@@ -378,10 +387,37 @@ describe("wordSummary", () => {
     }
   });
 
+  it("says nothing needs attention on the pages read, and how many were skipped, when pages were skipped", () => {
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        { path: "/" },
+        { path: "/file-1/", status: "skipped" },
+        { path: "/file-2/", status: "skipped" },
+      ],
+    });
+    const model = buildShareModel(inputOf([run]));
+    const line =
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.";
+
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 2, cards: [] });
+    expect(under(wordSummary(model), "What needs attention")).toEqual([para(line)]);
+    // The page's panel says the same line.
+    expect(
+      textOf(renderSummary(model).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? ""),
+    ).toBe(line);
+    // With problems, the pages skipped are not part of the panel.
+    const problems = under(
+      wordSummary(withCards(cleanModel(), problemsOf(2), 3)),
+      "What needs attention",
+    );
+    expect(wordsOf(problems)).toEqual(["2 problems, on 2 pages:", "Problem 1", "Problem 2"]);
+  });
+
   it("says nothing needs attention when no problem is left", () => {
     const model = cleanModel();
 
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, cards: [] });
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
     expect(under(wordSummary(model), "What needs attention")).toEqual([
       para(
         "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",

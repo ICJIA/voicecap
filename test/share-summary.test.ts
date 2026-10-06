@@ -1302,6 +1302,7 @@ describe("summaryOf: the sentence", () => {
     expect(summary.attention).toEqual({
       problems: 1,
       pages: 1,
+      skipped: 0,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     expect(summary.todo).toEqual([
@@ -1346,6 +1347,7 @@ describe("summaryOf: the problems the cards count", () => {
     expect(summary.attention).toEqual({
       problems: 1,
       pages: 32,
+      skipped: 0,
       cards: [{ id: "need-1", title: LOGO }],
     });
     expect(summary.attention.cards).toEqual(
@@ -1368,7 +1370,7 @@ describe("summaryOf: the problems the cards count", () => {
     );
     // A review settles a page's flags: the card leaves the list, and the summary's panel.
     expect(model.attention).toEqual([]);
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, cards: [] });
+    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
   });
 
   it("counts only the pages no review has settled, and the problem stays until the last is", () => {
@@ -1382,6 +1384,7 @@ describe("summaryOf: the problems the cards count", () => {
     expect(model.summary.attention).toEqual({
       problems: 1,
       pages: 1,
+      skipped: 0,
       cards: [{ id: "need-1", title: LOGO }],
     });
   });
@@ -1635,6 +1638,7 @@ describe("summaryOf: the panels", () => {
     expect(summarize({ runs: [run] }).attention).toEqual({
       problems: 3,
       pages: 1,
+      skipped: 0,
       cards: [
         { id: "need-1", title: "What the run recorded: click here" },
         { id: "need-2", title: "What the run recorded: edit" },
@@ -1675,6 +1679,7 @@ describe("summaryOf: the panels", () => {
     expect(summarize({ runs: [run], reviews }).attention).toEqual({
       problems: 3,
       pages: 3,
+      skipped: 0,
       cards: [
         { id: "need-1", title: "A page the latest run couldn't read" },
         { id: "need-2", title: "An issue found in review: Home" },
@@ -2089,6 +2094,26 @@ describe("summaryOf: pages that were skipped", () => {
     ]);
   });
 
+  it("counts the pages skipped and not read, for the line that says nothing needs attention", () => {
+    const run = withSkipped([
+      ["/files/report/", "Annual report"],
+      ["/files/other/", "Other file"],
+    ]);
+
+    // A skipped page is on no card, so with nothing else to attend to, the panel says how many
+    // weren't read: the same pages the sentence counts as "skipped, not read".
+    expect(summarize({ runs: [run] }).attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 2,
+      cards: [],
+    });
+    expect(summarize({ runs: [run] }).sentence).toMatch(/ 2 pages were skipped, not read\.$/);
+    // A page the latest run skipped but an earlier run read was read, and none was skipped.
+    expect(summarize({ runs: skippedLater(["/"]) }).attention.skipped).toBe(0);
+    expect(summarize({ runs: [sevenPages()] }).attention.skipped).toBe(0);
+  });
+
   it("says a page skipped in the latest run, with transcripts from before, without a reason when the record has none", () => {
     expect(summarize({ runs: skippedLater(["/"], null) }).todo).toEqual([
       "Home was skipped in the latest run. Its transcripts are from an earlier run. Check whether it belongs on the list.",
@@ -2222,6 +2247,7 @@ describe("summaryOf: pages the latest run couldn't read, shown from an earlier r
     expect(summary.attention).toEqual({
       problems: 1,
       pages: 1,
+      skipped: 0,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     expect(summary.todo).toEqual([
@@ -2303,6 +2329,7 @@ describe("summaryOf: pages the latest run couldn't read, shown from an earlier r
     expect(summary.attention).toEqual({
       problems: 1,
       pages: 1,
+      skipped: 0,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     // The kind of failure is the task's: the spot check's, not the full run's.
@@ -2336,6 +2363,139 @@ describe("summaryOf: pages the latest run couldn't read, shown from an earlier r
       "Run voicecap again on The report: it couldn't be read after every attempt.",
       "How a run works couldn't be read in the latest run (another window took the screen). Its transcripts are from run r1. Read it again.",
       "Home was skipped in the latest run: the site didn't answer with an HTML page. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+  });
+});
+
+describe("summaryOf: a read that stopped before the page's end", () => {
+  // The rules raise this flag when the read pass stops at its step cap, and the page's record says
+  // how the pass stopped. A review doesn't settle it: only a later run that reads the page to its
+  // end does, so it is a task however the page was reviewed.
+  const notFinished: FlagResult = {
+    rule: "read-not-finished",
+    pass: "read",
+    message:
+      "The read pass stopped at its step cap (400 steps) instead of reaching the end of the page.",
+  };
+  const HOW = "/how-a-run-works/";
+  const REPORT = "/the-report/";
+
+  /** The seven pages, the read of those `paths` names stopped at its step cap, with its flag. */
+  const stoppedAt = (...paths: string[]): RunJson =>
+    sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) =>
+        paths.includes(path) ? { stopped: { read: "step-cap" }, flags: [notFinished] } : {},
+    });
+  /** Every page of the run reviewed: no flag awaits a decision. */
+  const allReviewed = (run: RunJson) => reviewsOf(...reviewAll(run, "reviewed"));
+
+  it("is a task for a page that was reviewed, so something is left though no flag awaits a decision", () => {
+    const run = stoppedAt(HOW);
+
+    const { todo } = summarize({ runs: [run], reviews: allReviewed(run) });
+
+    expect(todo).toEqual([
+      "Run How a run works again with --page: its reading stopped before the page's end.",
+    ]);
+    expect(todo).not.toContain(NOTHING_LEFT);
+  });
+
+  it("is a task for a page whose read stopped with no flag, when the rule that flags it is off", () => {
+    // The repeat safety net stopped it, and the record says so.
+    const run = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => (path === REPORT ? { stopped: { read: "repeat-limit" } } : {}),
+    });
+
+    expect(summarize({ runs: [run] }).todo).toEqual([
+      "Run The report again with --page: its reading stopped before the page's end.",
+    ]);
+  });
+
+  it("says its pages in the plural, and keeps a long list of pages short", () => {
+    const two = stoppedAt(HOW, REPORT);
+    const five = stoppedAt("/", "/before-you-start/", HOW, "/reading-transcripts/", REPORT);
+
+    expect(summarize({ runs: [two], reviews: allReviewed(two) }).todo).toEqual([
+      "Run How a run works and The report again with --page: their reading stopped before each page's end.",
+    ]);
+    expect(summarize({ runs: [five], reviews: allReviewed(five) }).todo).toEqual([
+      "Run Home, Before you start, How a run works, and 2 more again with --page: their reading stopped before each page's end.",
+    ]);
+  });
+
+  it("names a page once: not again where another task already names it", () => {
+    const run = stoppedAt(HOW);
+    const entries = (...statuses: ReviewStatus[]) =>
+      reviewsOf(...statuses.map((status) => review(run, HOW, status)));
+
+    // No one has decided about its flag: it is named for the decision.
+    expect(summarize({ runs: [run] }).todo).toEqual([
+      "Take a closer listen to How a run works, where flags were raised, and record what you decide.",
+    ]);
+    // An issue is open on it: it is named for the fix.
+    expect(summarize({ runs: [run], reviews: entries("issue") }).todo).toEqual([
+      "Fix the issue found on How a run works, then record it as fixed.",
+    ]);
+    // Found, then reviewed again with no fix recorded: it is named to record whether it was fixed.
+    const again = reviewsOf(
+      review(run, HOW, "issue", { at: "2026-09-26T15:00:00-05:00" }),
+      review(run, HOW, "reviewed", { at: "2026-09-26T16:00:00-05:00" }),
+    );
+    expect(summarize({ runs: [run], reviews: again }).todo).toEqual([
+      "Record whether the issue found on How a run works was fixed.",
+    ]);
+  });
+
+  it("names a page once when the latest run couldn't read it, or skipped it, and an earlier run's read had stopped", () => {
+    // An earlier run read the page and its read stopped; the latest run's attempt at it came to
+    // nothing. Its transcripts, and so its stopped read, are the earlier run's.
+    const before = sevenPages({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      page: (path) => (path === HOW ? { stopped: { read: "step-cap" }, flags: [notFinished] } : {}),
+    });
+    const after = (change: Partial<SharePageSpec>) =>
+      sevenPages({
+        id: "r2",
+        createdAt: "2026-09-26T14:05:00-05:00",
+        page: (path) => (path === HOW ? change : {}),
+      });
+    const reviews = reviewsOf(review(before, HOW, "reviewed"));
+    const failed = after({ status: "failed", failedAttempts: [failedAttempt({ n: 1 })] });
+    const skipped = after({ status: "skipped" });
+
+    // Named to be read again, which is what the stopped read asks for too.
+    expect(summarize({ runs: [before, failed], reviews }).todo).toEqual([
+      "How a run works couldn't be read in the latest run (another window took the screen). Its transcripts are from run r1. Read it again.",
+    ]);
+    // Named to be checked, as every page the latest run skipped is.
+    expect(summarize({ runs: [before, skipped], reviews }).todo).toEqual([
+      "How a run works was skipped in the latest run: the site didn't answer with an HTML page. Its transcripts are from an earlier run. Check whether it belongs on the list.",
+    ]);
+  });
+
+  it("comes after the pages to read again, and before the pages skipped and those to decide about", () => {
+    const run = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => {
+        if (path === "/") return { status: "skipped" };
+        if (path === REPORT) return { status: "failed" };
+        if (path === HOW) return { stopped: { read: "step-cap" }, flags: [notFinished] };
+        return path === COMMON
+          ? { flags: [genericFlag("tab", [{ text: "read more", count: 2 }])] }
+          : {};
+      },
+    });
+
+    expect(
+      summarize({ runs: [run], reviews: reviewsOf(review(run, HOW, "reviewed")) }).todo,
+    ).toEqual([
+      "Run voicecap again on The report: it couldn't be read after every attempt.",
+      "Run How a run works again with --page: its reading stopped before the page's end.",
+      "Home was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
+      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
     ]);
   });
 });
@@ -2382,6 +2542,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     expect(attention).toEqual({
       problems: 5,
       pages: 2,
+      skipped: 0,
       cards: [
         {
           id: "need-1",
@@ -2461,7 +2622,7 @@ describe("summaryOf: no run counts yet", () => {
           nvdaMs: 0,
           sessionsWithoutEnd: 0,
         },
-        attention: { problems: 0, pages: 0, cards: [] },
+        attention: { problems: 0, pages: 0, skipped: 0, cards: [] },
         complete: [],
         todo: [],
         whenHow: [],

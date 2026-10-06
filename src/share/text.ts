@@ -274,9 +274,10 @@ export const FLAGS_TEXT = {
 };
 
 /**
- * "What needs attention": its heading, the line for no problem, the labels of a card's parts, and
- * the small sentences the summary says about the cards (`sentence`, and `more` for its panel).
- * What a card itself says is `attentionWords`, in ./attention-words.ts.
+ * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
+ * were skipped), the labels of a card's parts, and the small sentences the summary says about the
+ * cards (`sentence`, and `more` for its panel). What a card itself says is `attentionWords`, in
+ * ./attention-words.ts.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -286,8 +287,17 @@ export const ATTENTION_TEXT = {
    */
   gist: (problems: number, pages: number): string =>
     `${plural(problems, "problem")}, on ${plural(pages, "page")}. Fix each one and run voicecap again, or check it and record that in voicecap review, until nothing is left.`,
-  /** Said in place of the cards, and in the summary's panel, when no card is left. The spec pins it. */
+  /**
+   * Said in place of the cards, and in the summary's panel, when no card is left and no page was
+   * skipped. The spec pins it.
+   */
   none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+  /**
+   * Said in its place when no card is left but some pages were skipped, which are on no card and
+   * weren't read: nothing needs attention on the pages read, and how many were skipped.
+   */
+  noneSkipped: (skipped: number): string =>
+    `Nothing needs attention on the pages read: every flag was fixed or checked by a person. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
   /** The labels of a card's parts, each followed by what it labels. */
   labels: {
     cause: "Likely cause",

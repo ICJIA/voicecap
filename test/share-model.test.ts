@@ -145,6 +145,14 @@ const LINK_FLAG: FlagResult = {
   message: 'Generic link text announced 2 times in the read pass: "click here" ×2.',
 };
 
+/** The flag voicecap raises when a page's read pass stops at its step cap before the page's end. */
+const NOT_FINISHED: FlagResult = {
+  rule: "read-not-finished",
+  pass: "read",
+  message:
+    "The read pass stopped at its step cap (2 steps) instead of reaching the end of the page.",
+};
+
 /** A read pass with two links that say only "click here". */
 const CLICK_HERE_LINES = [
   "banner landmark, link, Skip to main content",
@@ -772,6 +780,13 @@ describe("buildShareModel", () => {
       passes: { read: ["One", "Two"] },
       flags: [LINK_FLAG],
     });
+    // A read that stopped at its step cap, which the rules flag, and with a flag of another rule too.
+    const stopped = (path: string, flags: FlagResult[]): SharePageSpec => ({
+      path,
+      passes: { read: ["One", "Two"] },
+      stopped: { read: "step-cap" },
+      flags,
+    });
     const run = shareRun({
       id: "r1",
       pages: [
@@ -782,6 +797,8 @@ describe("buildShareModel", () => {
         flagged("/issue"),
         flagged("/fixed"),
         flagged("/unreviewed"),
+        stopped("/stopped", [NOT_FINISHED]),
+        stopped("/stopped-and-flagged", [NOT_FINISHED, LINK_FLAG]),
       ],
     });
     // A review of the page as the run shows it, unless `content` says it saw other transcripts.
@@ -824,6 +841,8 @@ describe("buildShareModel", () => {
           entryOf("/changed", "reviewed", { content: { read: "0".repeat(64) } }),
           entryOf("/issue", "issue"),
           entryOf("/fixed", "fixed"),
+          entryOf("/stopped", "reviewed"),
+          entryOf("/stopped-and-flagged", "reviewed"),
         ].map(([key, entry]) => [key, [entry]]),
       ),
     };
@@ -843,6 +862,10 @@ describe("buildShareModel", () => {
       "/issue": ["Issue found"],
       "/fixed": ["Fixed"],
       "/unreviewed": [],
+      // A review doesn't settle a read that stopped before the page's end: a page whose only flag
+      // is that one has none to check. With another flag, the review checks that one.
+      "/stopped": ["Reviewed, no issues"],
+      "/stopped-and-flagged": ["Checked by Christopher Schweda, 6 October 2026: not an issue"],
     });
   });
 
@@ -1129,6 +1152,47 @@ describe("buildShareModel", () => {
     ]);
   });
 
+  it("replaces the home folder in the name of a custom rule's card, on a page flagged with no issue", () => {
+    const home = os.homedir();
+    const redact = (text: string) => redactHome(text, home, process.platform);
+    const notes = path.join(home, "notes.txt");
+    // The description is the person's own words in the config, and may hold the home folder.
+    const flagRules = {
+      ...DEFAULT_CONFIG.flags,
+      custom: [
+        {
+          id: "noted-text",
+          description: `Text noted in ${notes}`,
+          passes: ["read" as const],
+          pattern: "^Some text",
+          minCount: 1,
+        },
+      ],
+    };
+    const flag: FlagResult = {
+      rule: "noted-text",
+      pass: "read",
+      count: 1,
+      message: `Text noted in ${notes} (1 match in the read pass).`,
+    };
+    const lines = { read: ["Some text on the page."] };
+    const run = shareRun({ id: "r1", pages: [{ path: "/", passes: lines, flags: [flag] }] });
+
+    const model = buildShareModel(inputOf([run], { flagRules, transcripts: storeOf(() => lines) }));
+
+    // The page has the rule's card, named by its description with the home folder replaced, as the
+    // flag's message is, and the summary's panel names it so.
+    expect(model.attention.map((card) => [card.kind, card.subject])).toEqual([
+      ["custom", `Text noted in ${redact(notes)}`],
+    ]);
+    expect(model.summary.attention.cards).toEqual([
+      { id: "need-1", title: `Text noted in ${redact(notes)}` },
+    ]);
+    expect(redact(notes)).not.toBe(notes);
+    // Nothing the page shows holds the home folder.
+    expect(stringsIn(shown(model)).filter(mentionsHome)).toEqual([]);
+  });
+
   it("hears the home page three ways, with how long each line took", async () => {
     const { heard } = await demoModel();
 
@@ -1221,6 +1285,7 @@ describe("buildShareModel", () => {
     expect(model.summary.attention).toEqual({
       problems: 5,
       pages: 2,
+      skipped: 0,
       cards: model.attention.map((card) => ({
         id: card.id,
         title: attentionWords(card).title,
