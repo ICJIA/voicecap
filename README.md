@@ -8,6 +8,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 
+**voicecap has a real screen reader, NVDA, read every page of a website and saves every word it says, so one person can review a whole site the way a screen reader user hears it, and hand managers and auditors a dated record they can check to the byte.** No off-the-shelf checker does this: tools such as axe and Lighthouse inspect a page's code but can't tell you what a screen reader actually says, and checking by hand goes one page at a time and leaves no record, far too slow for the more than a dozen websites ICJIA must review before the April 2027 ADA Title II deadline for accessible digital content.
+
 ## voicecap in brief
 
 voicecap is a free, open-source tool from the Illinois Criminal Justice Information Authority (ICJIA) that captures what a screen reader user actually hears on a website.
