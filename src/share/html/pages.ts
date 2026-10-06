@@ -1,7 +1,7 @@
 /**
  * The middle and the end of the shareable page, in the approved mockup's markup and class names:
- * "Every page" (a card for each page, and the pages no longer listed), "What the flags found", and
- * "Appendix: every transcript". Each takes the model and returns HTML.
+ * "Every page" (a card for each page, and the pages no longer listed) and "Appendix: every
+ * transcript". Each takes the model and returns HTML.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
@@ -9,9 +9,8 @@
  * its transcripts in the appendix.
  *
  * Most of this starts folded, as the design says: with more than 12 pages, the cards with nothing
- * to note; with more than 3 flagged pages, each page's quotes; and each page's transcripts. A
- * section's heading is never in a fold, and a fold's summary line never holds a heading (`fold`
- * refuses both).
+ * to note; and each page's transcripts. A section's heading is never in a fold, and a fold's summary
+ * line never holds a heading (`fold` refuses both).
  *
  * Where the mockup is sample data, nothing of it is here. Where it had nothing to say (a page's
  * title, its manual sessions, the run its transcripts come from, a pass that wasn't read, a
@@ -19,14 +18,12 @@
  */
 import { PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
-import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
+import type { AppendixFile, PageCard, ShareModel } from "../model.js";
+import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
 import {
   appendixGist,
   capturedOf,
   fileFingerprint,
-  flagCount,
-  flagsGist,
   fromRun,
   lineCount,
   manualLine,
@@ -40,9 +37,6 @@ import { chip, count, fold, lineHtml, notRecorded, scroll, strip } from "./parts
 
 /** More pages than this, and the cards with nothing to note fold behind one line. */
 const MOST_PAGES_OPEN = 12;
-
-/** More flagged pages than this, and each page's quotes fold. */
-const MOST_QUOTES_OPEN = 3;
 
 /**
  * What the appendix's opening line says of its folds. The page's alone: a copy that folds nothing,
@@ -236,49 +230,6 @@ export function renderPages(model: ShareModel): string {
     ...noLongerListed(model),
   ];
   return `<section id="pages" aria-labelledby="pages-h">\n  ${parts.join("\n  ")}\n</section>`;
-}
-
-// What the flags found.
-
-/** The line a flagged page folds behind: its name, how many flags, and which rules raised them. */
-function flagSummary({ name, flags }: PageCard): string {
-  const rules = [...new Set(flags.map(({ rule }) => rule))];
-  const chips = rules.map((rule) => chip("warn", rule)).join("");
-  return `<span class="what">${esc(name)}:</span> <span class="sub">${esc(flagCount(flags.length))}</span> <span class="chips">${chips}</span>`;
-}
-
-/**
- * A row for each rule that raised a flag: the rule, what it found, and the lines NVDA spoke that
- * raised it, each in its own code, in quotes, with a stop between them that a screen reader hears.
- * A rule with no line to quote (a page with no headings, Tab reaching nothing) says so, never an
- * empty quote.
- */
-function flagBody({ card, quotes }: FlaggedPage): string {
-  const rows = quotes.map(({ rule, text, said }) => {
-    const spoken =
-      said.length === 0
-        ? `<span class="sub">${esc(FLAGS_TEXT.noLine)}</span>`
-        : said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> ');
-    return `<tr><th scope="row">${chip("warn", rule)}</th><td>${esc(text)}</td><td class="said">${spoken}</td></tr>`;
-  });
-  const head = FLAGS_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`).join("");
-  const table = `<table class="plain"><caption class="sr">Flags on ${esc(card.path)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
-  return `${fromLine(card)}${scroll(`Flags table, ${card.path}`, table)}`;
-}
-
-/**
- * "What the flags found": for each flagged page, a row for each rule, with what it found and NVDA's
- * own words. Each page's quotes are open, until more than 3 pages have flags: then each folds.
- */
-export function renderFlags(model: ShareModel): string {
-  const open = model.flagged.length <= MOST_QUOTES_OPEN;
-  const folds = model.flagged.map((page) => fold(flagSummary(page.card), flagBody(page), { open }));
-  const parts = [
-    `<h2 id="find-h">${esc(FLAGS_TEXT.title)}</h2>`,
-    `<p class="gist">${lineHtml(flagsGist(model))}</p>`,
-    ...(folds.length === 0 ? [] : [`<div class="folds">${folds.join("")}</div>`]),
-  ];
-  return `<section aria-labelledby="find-h">\n  ${parts.join("\n  ")}\n</section>`;
 }
 
 // The appendix.

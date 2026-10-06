@@ -11,7 +11,7 @@
  *
  *   report-top.png           the page's masthead, and its summary down to the end of its panels
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page
- *   report-flags.png         "What the flags found", with each fold open
+ *   report-flags.png         "What needs attention", with each fold open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the demo's report, dark
  *   website-light.png        the same, light
@@ -286,9 +286,9 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
     );
     await shoot(page, "report-heard.png", await around(page, "div.heard", PANEL_MARGIN));
 
-    const flags = "section:has(> #find-h)";
-    await openFolds(page, flags, true);
-    await shoot(page, "report-flags.png", await around(page, flags, SLICE_MARGIN));
+    const attention = "section:has(> #need-h)";
+    await openFolds(page, attention, true);
+    await shoot(page, "report-flags.png", await around(page, attention, SLICE_MARGIN));
 
     // The check as a reader meets it: after a click, with the result it gives. Its list of every
     // file checked stays folded, as it is when the result first shows.

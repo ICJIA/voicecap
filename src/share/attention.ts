@@ -7,9 +7,9 @@
  *   changed since its review. Each card says where on the page NVDA said it, in NVDA's own words:
  *   the lines of the shown transcripts that raised its flags (flagItemLines and flagQuotes), read
  *   item by item (src/flags/speech.ts).
- * - **The line for a page** (`attentionClauses` and `attentionLine`): what a listener hears on a page
- *   that needs attention, in one plain line: its flags, a failure to read it, and an issue a
- *   reviewer found.
+ * - **The clauses for a page's flags** (`attentionClauses`): what a person hears from NVDA on a page
+ *   whose flags were raised, in one plain line, which what changed since the last run says of a flag
+ *   whose count it can't compare.
  */
 import {
   flagItemLines,
@@ -470,54 +470,14 @@ export interface ReadFailure {
 
 /**
  * "<what>; <what>": a clause for each rule the page's flags raised, in the order the flags first
- * raise them, then a clause for a failure, then one for an issue. Empty when there is nothing to
- * say.
- *
- * `failure` is why the latest run couldn't read the page (see ReadFailure), and null when it read
- * it. `issueNote` is the note of the issue a reviewer found and no one has fixed, "" when the review
- * has no note, and null when the page has no open issue.
+ * raise them. Empty when there are no flags.
  *
  * A rule raised in more than one pass is one clause, since the passes hear the same page: the links
  * the read pass and the Tab pass both hear are counted once. A flag from a record that has no list
  * of what it found gives its own message.
  */
-export function attentionClauses(
-  flags: FlagResult[],
-  failure: ReadFailure | null,
-  issueNote: string | null,
-): string {
-  const clauses = new Set<string>(flags.map((flag) => flagClause(flag, flags)));
-  if (failure !== null) clauses.add(failureClause(failure));
-  if (issueNote !== null) {
-    const note = tidy(issueNote);
-    clauses.add(note === "" ? "a reviewer found an issue" : `a reviewer found an issue: ${note}`);
-  }
-  return [...clauses].join("; ");
-}
-
-/**
- * The clauses with the page's name in front, as one plain line of text: "<name>: <what>; <what>",
- * or just the name when there is nothing to say. See `attentionClauses`.
- */
-export function attentionLine(
-  name: string,
-  flags: FlagResult[],
-  failure: ReadFailure | null,
-  issueNote: string | null,
-): string {
-  const clauses = attentionClauses(flags, failure, issueNote);
-  return clauses === "" ? name : `${name}: ${clauses}`;
-}
-
-/**
- * A failure as a clause: a page no run read "couldn't be read after every attempt"; one an earlier
- * run read is said to be the latest run's failure, with the run its transcripts are from.
- */
-function failureClause({ kind, shownFrom }: ReadFailure): string {
-  const why = kind === "" ? "" : ` (${kind})`;
-  return shownFrom === null
-    ? `it couldn't be read after every attempt${why}`
-    : `the latest run couldn't read it${why}; its transcripts are from run ${shownFrom}`;
+export function attentionClauses(flags: FlagResult[]): string {
+  return [...new Set(flags.map((flag) => flagClause(flag, flags)))].join("; ");
 }
 
 function flagClause(flag: FlagResult, all: FlagResult[]): string {

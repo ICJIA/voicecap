@@ -1,5 +1,5 @@
 /**
- * The shareable page's "Every page", "What the flags found", and "Appendix: every transcript". The
+ * The shareable page's "Every page" and "Appendix: every transcript". The
  * demo runs of 29 September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs
  * built in memory, with their transcripts held in memory too, cover the rest. The tests are on the
  * markup: it is the mockup's, so its classes and its order are the contract.
@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FlagResult, PassName, RunJson } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
-import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
+import { renderAppendix, renderPages } from "../src/share/html/pages.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
@@ -720,195 +720,6 @@ describe("renderPages", () => {
   });
 });
 
-describe("renderFlags", () => {
-  it("quotes NVDA's own words for each rule of a flagged page, as the mockup's table does", async () => {
-    const model = await demoModel();
-    const html = renderFlags(model);
-    const [flagged] = model.flagged;
-
-    expect(html).toMatch(/^<section aria-labelledby="find-h">\s*<h2 id="find-h">/);
-    expect(html).toContain('<h2 id="find-h">What the flags found</h2>');
-    expect(html).toContain(
-      '<p class="gist"><b>1 page has flags, from 3 rules.</b> Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.</p>',
-    );
-    // One page: its fold is open, behind the line that names it, with its five flags and its rules.
-    expect(html).toContain(
-      '<div class="folds"><details class="fold" open><summary><span class="what">http://127.0.0.1:4848/common-mistakes/:</span> <span class="sub">5 flags</span> ' +
-        '<span class="chips"><span class="chip c-warn">generic-link-text</span><span class="chip c-warn">unlabeled</span><span class="chip c-warn">headings</span></span></summary>',
-    );
-    expect(html).toContain(
-      '<div class="scroll" tabindex="0" role="region" aria-label="Flags table, /common-mistakes/"><table class="plain"><caption class="sr">Flags on /common-mistakes/</caption>',
-    );
-    expect(textOf(/<thead>(.*?)<\/thead>/s.exec(html)?.[1] ?? "")).toBe(
-      "Rule What NVDA showed NVDA said",
-    );
-    expect(html.match(/<th scope="col">/g)).toHaveLength(3);
-
-    // A row for each rule: the rule as a chip, what it found, and the lines NVDA spoke, in the model's order.
-    const rows = [
-      ...html.matchAll(
-        /<tr><th scope="row">(.*?)<\/th><td>(.*?)<\/td><td class="said">(.*?)<\/td><\/tr>/g,
-      ),
-    ];
-    expect(flagged?.quotes).toHaveLength(3);
-    expect(rows).toHaveLength(3);
-    for (const [index, quote] of (flagged?.quotes ?? []).entries()) {
-      const [, rule = "", found = "", said = ""] = rows[index] ?? [];
-      expect(rule).toBe(`<span class="chip c-warn">${esc(quote.rule)}</span>`);
-      expect(found).toBe(esc(quote.text));
-      // Each line in quotes, and a pause between them for a screen reader.
-      expect(said).toBe(
-        quote.said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> '),
-      );
-      expect(quote.said.length).toBeGreaterThan(0);
-    }
-    expect(rows.map((row) => textOf(row[3] ?? "", ""))).toEqual([
-      "“To see how a run works,, link, click here, dot”; “To read about transcripts,, link, click here, dot”; “To learn about the report,, link, click here, dot”",
-      "“button”; “main landmark. edit, blank”",
-      "“main landmark, Common mistakes (on purpose), heading, level 2”",
-    ]);
-  });
-
-  it("folds the flag quotes at 4 flagged pages, never at 3", () => {
-    const three = renderFlags(manyPages(5, 3));
-    const four = renderFlags(manyPages(5, 4));
-
-    // At 3, no page's quotes are folded away: each is open.
-    expect(foldsIn(three)).toHaveLength(3);
-    expect(three.match(/<details class="fold" open>/g)).toHaveLength(3);
-
-    // At 4, each is folded, closed, behind its page's name and its number of flags.
-    expect(foldsIn(four)).toHaveLength(4);
-    expect(four).not.toContain(" open>");
-    expect(four.match(/<details class="fold">/g)).toHaveLength(4);
-    expect(summariesIn(four)).toEqual(
-      [1, 2, 3, 4].map(
-        (n) => `https://example.illinois.gov/page-${n}: 2 flags generic-link-text headings`,
-      ),
-    );
-    expect(four).toContain(
-      '<summary><span class="what">https://example.illinois.gov/page-1:</span> <span class="sub">2 flags</span>',
-    );
-    // The quotes are still all there, a click away, and the unflagged page isn't.
-    expect(four.match(/<table class="plain">/g)).toHaveLength(4);
-    expect(four).not.toContain("page-5");
-    expect(four).toContain("<b>4 pages have flags, from 2 rules.</b>");
-    expect(three).toContain("<b>3 pages have flags, from 2 rules.</b>");
-  });
-
-  it("counts a page's flags in the singular, and its rules once each", () => {
-    const html = renderFlags(modelOf([done("/a", { flags: [LINK_FLAG] })]));
-
-    expect(html).toContain('<span class="sub">1 flag</span>');
-    expect(html).toContain("<b>1 page has flags, from 1 rule.</b>");
-    // The same rule in two passes is one row.
-    const twice = renderFlags(
-      modelOf([done("/a", { flags: [LINK_FLAG, { ...LINK_FLAG, pass: "tab" }] })]),
-    );
-    expect(twice).toContain('<span class="sub">2 flags</span>');
-    expect(twice.match(/<tr><th scope="row">/g)).toHaveLength(1);
-  });
-
-  it("says what a rule found without a quote when it has no line to quote", () => {
-    const model = modelOf([done("/a", { flags: [LINK_FLAG, NO_STOPS_FLAG] })]);
-    const [flagged] = model.flagged;
-    const html = renderFlags(model);
-    const rows = [...html.matchAll(/<tr><th scope="row">.*?<\/tr>/g)].map((found) => found[0]);
-
-    expect(flagged?.quotes.map((quote) => quote.said.length > 0)).toEqual([true, false]);
-    expect(rows).toHaveLength(2);
-    // Tab reaching nothing: its row says what the rule found, and that there is no line to quote.
-    expect(rows[1]).toBe(
-      '<tr><th scope="row"><span class="chip c-warn">tab-no-stops</span></th><td>Tab reaches nothing on the page.</td><td class="said"><span class="sub">No line to quote</span></td></tr>',
-    );
-    // Never an empty quote.
-    expect(html).not.toContain("<code></code>");
-    expect(html).not.toContain("“”");
-  });
-
-  it("escapes the names, rules, and words it quotes", () => {
-    const custom: FlagResult = { rule: "<rule> & co", message: "It matched <b>this</b>." };
-    const run = shareRun({
-      id: "r1",
-      pages: [done("/a", { label: '<Page> & "Co"', flags: [custom, LINK_FLAG] })],
-    });
-    const html = renderFlags(
-      buildShareModel(
-        inputOf([run], {
-          transcripts: storeOf(() => ({
-            ...LINES,
-            read: ['To apply,, link, click here, dot <script>alert("x")</script> & more'],
-          })),
-        }),
-      ),
-    );
-
-    expect(html).toContain('<span class="what">&lt;Page&gt; &amp; &quot;Co&quot;:</span>');
-    expect(html).toContain('<span class="chip c-warn">&lt;rule&gt; &amp; co</span>');
-    expect(html).toContain(
-      "<code>“To apply,, link, click here, dot &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; more”</code>",
-    );
-    expect(html).not.toContain("<script");
-    expect(html).not.toContain("<rule>");
-  });
-
-  it("says which run a flagged page's transcripts are from, when it isn't the latest", async () => {
-    const model = await demoModel();
-    // The failed page, with flags as if its older transcripts had some.
-    const how = model.pages[2];
-    const older = {
-      ...model,
-      flagged: [
-        {
-          card: { ...(how as PageCard), flags: [HEADINGS_FLAG] },
-          quotes: [{ rule: "headings", text: "Its first heading is level 2, not 1.", said: [] }],
-        },
-      ],
-    };
-
-    expect(renderFlags(older)).toContain(
-      '<p class="sub">From run 2026-09-29_1315, on 29 September 2026</p>',
-    );
-    expect(renderFlags(model)).not.toContain("From run");
-  });
-
-  it("says no page has flags when none does", () => {
-    const html = renderFlags(modelOf([done("/a"), done("/b")]));
-
-    expect(html).toContain(
-      '<p class="gist"><b>No page has flags.</b> Flags point a person to pages worth a closer listen; none was raised.</p>',
-    );
-    expect(html).not.toContain("<details");
-    expect(html).not.toContain('class="folds"');
-
-    // A page that couldn't be read has no flags to speak of: the pages that were read have none.
-    const run = shareRun({
-      id: "r1",
-      pages: [
-        done("/a"),
-        { path: "/b", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
-      ],
-    });
-    expect(renderFlags(buildShareModel(inputOf([run])))).toContain("<b>No page has flags.</b>");
-  });
-
-  it("says there are no flags to show when no page has transcripts", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
-    });
-    const none = renderFlags(buildShareModel(inputOf([run])));
-
-    expect(none).toContain(
-      '<p class="gist"><b>No page has transcripts yet.</b> There are no flags to show.</p>',
-    );
-    expect(none).toContain('<h2 id="find-h">What the flags found</h2>');
-    expect(renderFlags(noRunModel())).toContain(
-      '<p class="gist"><b>No live run counts yet.</b> There are no flags to show.</p>',
-    );
-  });
-});
-
 describe("renderAppendix", () => {
   it("folds each page's transcripts behind a line that says what's inside", async () => {
     const model = await demoModel();
@@ -1036,16 +847,18 @@ describe("renderAppendix", () => {
       pages: [done("/a", { flags: [LINK_FLAG] }), done("/b", { flags: [NO_STOPS_FLAG] })],
     });
     const models = [await demoModel(), buildShareModel(inputOf([earlier, latest]))];
+    const tableCounts: number[] = [];
 
     for (const model of models) {
-      const html = [renderPages(model), renderFlags(model), renderAppendix(model)].join("\n");
+      const html = [renderPages(model), renderAppendix(model)].join("\n");
       const boxes = scrollBoxes(html);
       const tables = (html.match(/<table /g) ?? []).length;
       const transcripts = model.appendix.reduce((sum, page) => sum + page.files.length, 0);
+      tableCounts.push(tables);
 
       // A box for each table and each transcript.
       expect(boxes).toHaveLength(tables + transcripts);
-      expect(boxes.length).toBeGreaterThan(transcripts);
+      expect(transcripts).toBeGreaterThan(0);
       for (const box of boxes) {
         expect(box).toMatch(/ tabindex="0"/);
         expect(box).toMatch(/ role="region"/);
@@ -1058,6 +871,9 @@ describe("renderAppendix", () => {
       expect(html.match(/<pre>/g)).toHaveLength(transcripts);
       expect(html.match(/<div class="scroll"[^>]*><pre>/g)).toHaveLength(transcripts);
     }
+    // The pages no longer listed are a table in a box of their own, which the second model has, so
+    // this is no count of boxes that hold no table.
+    expect(tableCounts).toEqual([0, 1]);
   });
 
   it("names the passes a page's fold has, as many as it has", () => {
@@ -1256,7 +1072,7 @@ describe("the three sections together", () => {
       { path: "/b", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
     ]);
 
-  /** Each model, with its three sections as one string, in the order the page has them. */
+  /** Each model, with its two sections as one string, in the order the page has them. */
   const models = async (): Promise<[string, ShareModel][]> => [
     ["the demo's", await demoModel()],
     ["thirteen pages", manyPages(13, 5)],
@@ -1265,7 +1081,7 @@ describe("the three sections together", () => {
   ];
 
   const sectionsOf = (model: ShareModel): string =>
-    [renderPages(model), renderFlags(model), renderAppendix(model)].join("\n");
+    [renderPages(model), renderAppendix(model)].join("\n");
 
   it("never sets a style attribute, loads nothing, and links only within the page", async () => {
     for (const [name, model] of await models()) {
@@ -1289,14 +1105,14 @@ describe("the three sections together", () => {
         expect(ids, `${name}: ${href}`).toContain(href.slice(1));
       }
       // Every page with a card has its id, and the section ids the contents link to.
-      expect(ids, name).toEqual(expect.arrayContaining(["pages-h", "find-h", "app-h"]));
+      expect(ids, name).toEqual(expect.arrayContaining(["pages-h", "app-h"]));
       for (const card of model.pages) expect(ids, name).toContain(`pg-${idFragment(card.slug)}`);
     }
   });
 
   it("keeps every section's h2 outside every fold, and no heading in a summary line", async () => {
     for (const [name, model] of await models()) {
-      for (const html of [renderPages(model), renderFlags(model), renderAppendix(model)]) {
+      for (const html of [renderPages(model), renderAppendix(model)]) {
         // Each section has one h2, before any fold.
         expect(html.match(/<h2[ >]/g), name).toHaveLength(1);
         expect(html.indexOf("<h2"), name).toBeLessThan(
@@ -1365,6 +1181,8 @@ describe("the three sections together", () => {
         return {
           ...card,
           name: marked("name"),
+          // A page with a label of its own is headed by it, with its path beside it.
+          labeled: true,
           path: marked("path"),
           title: marked("title"),
           statusText: marked("status"),
@@ -1387,19 +1205,6 @@ describe("the three sections together", () => {
     return {
       ...model,
       pages: [home, failed],
-      flagged: [
-        {
-          card: home,
-          quotes: [
-            { rule: marked("rule"), text: marked("text"), said: [marked("said")] },
-            { rule: marked("rule2"), text: marked("text2"), said: [] },
-          ],
-        },
-        {
-          card: failed,
-          quotes: [{ rule: marked("rule3"), text: marked("text3"), said: [marked("said3")] }],
-        },
-      ],
       noLongerListed: [
         {
           name: marked("gone"),
@@ -1455,9 +1260,8 @@ describe("the three sections together", () => {
     const html = sectionsOf(markupModel());
     const fields = [
       ...["name", "path", "title", "status", "review", "at", "reviewer", "uri", "alt", "failure"],
-      ...["run", "date", "untitled", "shot", "flag", "flag2", "rule", "text", "said", "rule2"],
-      ...["text2", "rule3", "text3", "said3", "gone", "url", "lastRun", "lastStatus", "entry"],
-      ...["words", "sha", "entry2", "words2", "sha2", "latest"],
+      ...["run", "date", "untitled", "shot", "flag", "flag2", "gone", "url", "lastRun"],
+      ...["lastStatus", "entry", "words", "sha", "entry2", "words2", "sha2", "latest"],
       ...["fileRun", "fileSlug", "fileRun2", "fileSlug2"],
     ];
 

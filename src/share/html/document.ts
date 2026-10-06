@@ -12,10 +12,11 @@ import { esc } from "../../report/html.js";
 import { CHECK_SCRIPT } from "../check.js";
 import type { ShareModel } from "../model.js";
 import { documentTitle } from "../words.js";
+import { renderAttention } from "./attention.js";
 import { renderChanges } from "./changes.js";
 import { SHARE_SCRIPT } from "./client.js";
 import { renderCoverage, renderEvidence, renderFooter, renderStory } from "./evidence.js";
-import { renderAppendix, renderFlags, renderPages } from "./pages.js";
+import { renderAppendix, renderPages } from "./pages.js";
 import { renderProblems } from "./problems.js";
 import { SHARE_CSS } from "./style.js";
 import { renderHow, renderSummary, renderTop } from "./top.js";
@@ -23,9 +24,9 @@ import { renderHow, renderSummary, renderTop } from "./top.js";
 /** The sections inside `main`, in the design's order. */
 const SECTIONS = [
   renderSummary,
+  renderAttention,
   renderHow,
   renderPages,
-  renderFlags,
   renderChanges,
   renderProblems,
   renderCoverage,

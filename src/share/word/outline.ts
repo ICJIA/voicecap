@@ -7,10 +7,11 @@ import type { WordProperties } from "../docx.js";
 import type { ShareModel } from "../model.js";
 import { WORD_TEXT } from "../text.js";
 import { documentTitle } from "../words.js";
+import { wordAttention } from "./attention.js";
 import type { Block } from "./blocks.js";
 import { wordChanges } from "./changes.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "./evidence.js";
-import { wordAppendix, wordFlags, wordPages } from "./pages.js";
+import { wordAppendix, wordPages } from "./pages.js";
 import { wordProblems } from "./problems.js";
 import { wordHow, wordSummary, wordTop } from "./top.js";
 
@@ -23,9 +24,9 @@ import { wordHow, wordSummary, wordTop } from "./top.js";
 const SECTIONS: ((model: ShareModel) => Block[])[] = [
   wordTop,
   wordSummary,
+  wordAttention,
   wordHow,
   wordPages,
-  wordFlags,
   wordChanges,
   wordProblems,
   wordCoverage,

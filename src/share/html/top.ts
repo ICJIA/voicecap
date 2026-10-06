@@ -19,9 +19,9 @@ import { formatDuration } from "../../util/time.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
+  ATTENTION_TEXT,
   CHANGES_TEXT,
   COVERAGE_TEXT,
-  FLAGS_TEXT,
   HOW_STEPS,
   HOW_TEXT,
   PAGES_TEXT,
@@ -235,9 +235,9 @@ function reviewMeter({ bars }: Summary): string {
  * evidence and the appendix are shorter than their headings, and are the contents list's own.
  */
 const CONTENTS = [
+  ["need-h", ATTENTION_TEXT.title],
   ["how-h", HOW_TEXT.title],
   ["pages-h", PAGES_TEXT.title],
-  ["find-h", FLAGS_TEXT.title],
   ["chg-h", CHANGES_TEXT.title],
   ["prob-h", PROBLEMS_TEXT.title],
   ["lim-h", COVERAGE_TEXT.title],

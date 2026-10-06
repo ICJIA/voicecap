@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { FlagResult, PageSource, RunJson } from "../src/model.js";
 import { runJsonPath } from "../src/run/paths.js";
+import { FLAG_KINDS } from "../src/share/attention.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { loadShareInput, resolveCanonical } from "../src/share/load.js";
@@ -64,6 +65,15 @@ const LOCAL_ADDRESS = /127\.0\.0\.1|localhost/i;
 /** Each page the cards of what needs attention are on, once, by the name the cards give it. */
 const namesOnCards = ({ attention }: ShareModel): string[] => [
   ...new Set(attention.flatMap(({ pages }) => pages.map(({ name }) => name))),
+];
+
+/** The same for the cards that come from flags: the pages with flags no review has decided about. */
+const namesOnFlagCards = ({ attention }: ShareModel): string[] => [
+  ...new Set(
+    attention
+      .filter(({ kind }) => FLAG_KINDS.has(kind))
+      .flatMap(({ pages }) => pages.map(({ name }) => name)),
+  ),
 ];
 
 /** A run written as voicecap writes one, then sealed as a completed run is, with a recorded root. */
@@ -299,7 +309,7 @@ describe("the addresses a model shows", () => {
       "/common-mistakes/",
     ]);
     expect(model.appendix.map(({ name }) => name)).toEqual(model.pages.map(({ name }) => name));
-    expect(model.flagged.map(({ card }) => card.name)).toEqual([on("common-mistakes/")]);
+    expect(namesOnFlagCards(model)).toEqual([on("common-mistakes/")]);
     expect(model.heard?.page).toBe(DEMO_ROOT);
   });
 
@@ -461,9 +471,9 @@ describe("every address the page shows for a page", () => {
     ]);
   });
 
-  it("is the page on the root in the sample of what NVDA said, the flags, and the appendix", () => {
+  it("is the page on the root in the sample of what NVDA said, the cards of the flags, and the appendix", () => {
     expect(model.heard?.page).toBe(DEMO_ROOT);
-    expect(model.flagged.map(({ card }) => card.name)).toEqual([on("forms/")]);
+    expect(namesOnFlagCards(model)).toEqual([on("forms/")]);
     expect(model.appendix.map(({ name }) => name)).toEqual([
       DEMO_ROOT,
       on("apply/"),
@@ -664,7 +674,10 @@ describe("the page shows no address of a copy on this computer", () => {
 
     expect(met).toContain(on("old/"));
     expect(met.some((text) => text.includes(`Resolved: on ${on("apply/")},`))).toBe(true);
-    expect(met).toContain(`${on("forms/")}: 1 flag`);
+    // The cards of what needs attention list the page the flags are on, and the page that couldn't
+    // be read, by their names on the root.
+    expect(met).toContain(on("forms/"));
+    expect(met.some((text) => text.startsWith(`${on("broken/")}: `))).toBe(true);
     expect(met).toContain(`8 pages from the sitemap ${on("sitemap.xml")}.`);
 
     expect(met.filter((text) => LOCAL_ADDRESS.test(text))).toEqual([]);

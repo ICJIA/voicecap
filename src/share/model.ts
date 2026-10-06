@@ -40,10 +40,8 @@ import { attentionCards, type AttentionCard, type AttentionPage } from "./attent
 import {
   cardsOf,
   embeddedOf,
-  flaggedOf,
   noLongerListedOf,
   shownPasses,
-  type FlaggedPage,
   type NoLongerListed,
   type PageCard,
 } from "./cards.js";
@@ -80,7 +78,7 @@ import {
   type EventWords,
 } from "./timeline.js";
 
-export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
+export type { NoLongerListed, PageCard } from "./cards.js";
 export type {
   EvidenceRow,
   RunEvidence,
@@ -165,7 +163,6 @@ export interface ShareModel {
   } | null;
   pages: PageCard[];
   noLongerListed: NoLongerListed[];
-  flagged: FlaggedPage[];
   /** What sounds different since the run before; null when there's no run before. */
   changes: Changes | null;
   problems: ProblemsSection;
@@ -287,7 +284,6 @@ export function buildShareModel(input: ShareInput): ShareModel {
     heard: heardOf(standing.pages, input.transcripts, nameOf),
     pages,
     noLongerListed: noLongerListedOf(standing, nameOf, shown),
-    flagged: flaggedOf(standing, pages, input.transcripts, input.flagRules),
     changes,
     problems,
     coverage: coverageOf(standing, redact, shown),

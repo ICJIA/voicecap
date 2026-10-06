@@ -33,6 +33,7 @@ import { readEventLog } from "../src/run/events.js";
 import { redactHome } from "../src/run/failure.js";
 import { eventLogFile, pageDir, runJsonPath, siteFolder } from "../src/run/paths.js";
 import { attentionWords } from "../src/share/attention-words.js";
+import type { AttentionCard } from "../src/share/attention.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
 import { loadShareInput } from "../src/share/load.js";
 import {
@@ -962,7 +963,6 @@ describe("buildShareModel", () => {
       heard: null,
       changes: null,
       noLongerListed: [],
-      flagged: [],
       evidence: [],
       appendix: [],
       check: { runs: [], files: [], screenshots: [], reviews: null },
@@ -1241,33 +1241,37 @@ describe("buildShareModel", () => {
     });
   });
 
-  it("quotes NVDA's own words for each flag", async () => {
+  it("quotes NVDA's own words in each card, from the lines of the demo's transcripts that raised its flags", async () => {
     const model = await demoModel();
+    const said = ({ places }: AttentionCard) =>
+      places.flatMap((place) => place.said.map(({ pass, line }) => `${pass}: ${line}`));
 
-    expect(model.flagged.map((each) => each.card)).toEqual([
-      model.pages.find((card) => card.slug === COMMON),
+    // The demo's flags are all on the one page, and the one page that couldn't be read has a card of
+    // its own, with no line to quote.
+    expect(model.attention.map(({ pages }) => pages.map((page) => page.slug))).toEqual([
+      [COMMON],
+      [COMMON],
+      [COMMON],
+      [COMMON],
+      ["how-a-run-works-fd116f9328"],
     ]);
-    expect(model.flagged[0]?.quotes).toEqual([
-      {
-        rule: "generic-link-text",
-        text: "3 links say only “click here”.",
-        said: [
-          "To see how a run works,, link, click here, dot",
-          "To read about transcripts,, link, click here, dot",
-          "To learn about the report,, link, click here, dot",
-        ],
-      },
-      {
-        rule: "unlabeled",
-        text: "2 items have no names, so NVDA says only “button” and “edit”.",
-        // Not the browser's own "Tab search, button" after focus left the page: no rule hears it.
-        said: ["button", "main landmark. edit, blank"],
-      },
-      {
-        rule: "headings",
-        text: "Its first heading is level 2, not 1.",
-        said: ["main landmark, Common mistakes (on purpose), heading, level 2"],
-      },
+    expect(model.attention.map((card) => [card.id, card.kind, card.subject, said(card)])).toEqual([
+      // Not the browser's own "Tab search, button" after focus left the page: no rule hears it.
+      ["need-1", "button-unnamed", null, ["read: button", "tab: button"]],
+      ["need-2", "field-unlabeled", "edit", ["tab: main landmark. edit, blank"]],
+      [
+        "need-3",
+        "link-generic",
+        "click here",
+        ["read: To see how a run works,, link, click here, dot", "tab: click here, link"],
+      ],
+      [
+        "need-4",
+        "first-heading",
+        null,
+        ["headings: main landmark, Common mistakes (on purpose), heading, level 2"],
+      ],
+      ["need-5", "unread", null, []],
     ]);
   });
 

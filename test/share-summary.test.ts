@@ -21,7 +21,6 @@ import { canonicalKey } from "../src/pages/url.js";
 import { pageName } from "../src/report/model.js";
 import {
   attentionClauses,
-  attentionLine,
   type AttentionCard,
   type AttentionKind,
 } from "../src/share/attention.js";
@@ -271,52 +270,47 @@ const NOTHING_LEFT =
 const flagCommonMistakes = (path: string): Partial<SharePageSpec> =>
   path === COMMON ? { flags: COMMON_MISTAKES_FLAGS } : {};
 
-describe("attentionLine", () => {
+describe("attentionClauses", () => {
   it("joins what a listener hears on a page into one plain line", () => {
-    const line = attentionLine(
-      "Common mistakes",
-      [
-        genericFlag("read", [{ text: "click here", count: 3 }]),
-        unlabeledFlag("read", [
-          { text: "edit", count: 1 },
-          { text: "button", count: 1 },
-        ]),
-      ],
-      null,
-      null,
-    );
+    const line = attentionClauses([
+      genericFlag("read", [{ text: "click here", count: 3 }]),
+      unlabeledFlag("read", [
+        { text: "edit", count: 1 },
+        { text: "button", count: 1 },
+      ]),
+    ]);
 
     expect(line).toBe(
-      "Common mistakes: 3 links say only “click here”; 2 items have no names, so NVDA says only “edit” and “button”",
+      "3 links say only “click here”; 2 items have no names, so NVDA says only “edit” and “button”",
     );
   });
 
   it("names what was found as a list: one, two, or three or more", () => {
-    const said = (found: Found) => attentionLine("Page", [genericFlag("tab", found)], null, null);
+    const said = (found: Found) => attentionClauses([genericFlag("tab", found)]);
 
-    expect(said([{ text: "read more", count: 4 }])).toBe("Page: 4 links say only “read more”");
+    expect(said([{ text: "read more", count: 4 }])).toBe("4 links say only “read more”");
     expect(
       said([
         { text: "click here", count: 2 },
         { text: "read more", count: 1 },
       ]),
-    ).toBe("Page: 3 links say only “click here” and “read more”");
+    ).toBe("3 links say only “click here” and “read more”");
     expect(
       said([
         { text: "click here", count: 2 },
         { text: "read more", count: 1 },
         { text: "learn more", count: 1 },
       ]),
-    ).toBe("Page: 4 links say only “click here”, “read more”, and “learn more”");
+    ).toBe("4 links say only “click here”, “read more”, and “learn more”");
   });
 
   it("says one link, or one item, in the singular", () => {
-    expect(
-      attentionLine("Page", [genericFlag("tab", [{ text: "read more", count: 1 }])], null, null),
-    ).toBe("Page: 1 link says only “read more”");
-    expect(
-      attentionLine("Page", [unlabeledFlag("tab", [{ text: "edit", count: 1 }])], null, null),
-    ).toBe("Page: 1 item has no name, so NVDA says only “edit”");
+    expect(attentionClauses([genericFlag("tab", [{ text: "read more", count: 1 }])])).toBe(
+      "1 link says only “read more”",
+    );
+    expect(attentionClauses([unlabeledFlag("tab", [{ text: "edit", count: 1 }])])).toBe(
+      "1 item has no name, so NVDA says only “edit”",
+    );
   });
 
   it("says a link with no name says only what NVDA says of any link", () => {
@@ -327,9 +321,7 @@ describe("attentionLine", () => {
       ]),
     ];
 
-    expect(attentionLine("Page", flags, null, null)).toBe(
-      "Page: 3 links say only “click here” and “link”",
-    );
+    expect(attentionClauses(flags)).toBe("3 links say only “click here” and “link”");
   });
 
   it("writes one clause for a rule raised in both passes, by the most either pass found", () => {
@@ -348,8 +340,8 @@ describe("attentionLine", () => {
       ]),
     ];
 
-    expect(attentionLine("Common mistakes", flags, null, null)).toBe(
-      "Common mistakes: 4 links say only “click here” and “read more”; 2 items have no names, so NVDA says only “button” and “edit”",
+    expect(attentionClauses(flags)).toBe(
+      "4 links say only “click here” and “read more”; 2 items have no names, so NVDA says only “button” and “edit”",
     );
   });
 
@@ -359,26 +351,19 @@ describe("attentionLine", () => {
       genericFlag("tab", [{ text: "click here", count: 3 }]),
     ];
 
-    expect(attentionLine("Page", flags, null, null)).toBe(
-      "Page: 4 links say only “click here” and “read more”",
-    );
+    expect(attentionClauses(flags)).toBe("4 links say only “click here” and “read more”");
   });
 
   it("writes the headings flags as a listener would say them", () => {
     // Made by the rules themselves, so a change in the rule's wording shows up here.
-    expect(attentionLine("Page", [headingsFlag(["heading, level 2, Resources"])], null, null)).toBe(
-      "Page: its first heading is level 2, not 1",
+    expect(attentionClauses([headingsFlag(["heading, level 2, Resources"])])).toBe(
+      "its first heading is level 2, not 1",
     );
-    expect(attentionLine("Page", [headingsFlag([])], null, null)).toBe("Page: it has no headings");
+    expect(attentionClauses([headingsFlag([])])).toBe("it has no headings");
     // A message this version doesn't know is the message, in a clause.
-    expect(
-      attentionLine(
-        "Page",
-        [{ rule: "headings", message: "The headings skip a level." }],
-        null,
-        null,
-      ),
-    ).toBe("Page: the headings skip a level");
+    expect(attentionClauses([{ rule: "headings", message: "The headings skip a level." }])).toBe(
+      "the headings skip a level",
+    );
   });
 
   it("writes each of the other rules' flags", () => {
@@ -389,22 +374,17 @@ describe("attentionLine", () => {
     });
 
     expect(
-      attentionLine(
-        "Page",
-        [
-          flag("read-not-finished", "The read pass stopped at its step cap (400 steps).", "read"),
-          flag("tab-no-stops", "Tab reached no focusable elements on the page.", "tab"),
-          flag(
-            "tab-before-main",
-            "11 focus stops before main content, and the first stop isn't a skip link (possible missing skip link).",
-            "tab",
-          ),
-        ],
-        null,
-        null,
-      ),
+      attentionClauses([
+        flag("read-not-finished", "The read pass stopped at its step cap (400 steps).", "read"),
+        flag("tab-no-stops", "Tab reached no focusable elements on the page.", "tab"),
+        flag(
+          "tab-before-main",
+          "11 focus stops before main content, and the first stop isn't a skip link (possible missing skip link).",
+          "tab",
+        ),
+      ]),
     ).toBe(
-      "Page: NVDA's reading stopped before the end of the page; Tab reaches nothing on the page; Tab stops before the main content, and the first stop isn't a skip link",
+      "NVDA's reading stopped before the end of the page; Tab reaches nothing on the page; Tab stops before the main content, and the first stop isn't a skip link",
     );
   });
 
@@ -425,8 +405,8 @@ describe("attentionLine", () => {
       },
     ];
 
-    expect(attentionLine("Page", flags, null, null)).toBe(
-      'Page: "Close, button" repeated 5 times in a row in the tab pass (possible focus trap or duplicated content); Links to PDFs (2 matches in the read pass)',
+    expect(attentionClauses(flags)).toBe(
+      '"Close, button" repeated 5 times in a row in the tab pass (possible focus trap or duplicated content); Links to PDFs (2 matches in the read pass)',
     );
   });
 
@@ -442,70 +422,13 @@ describe("attentionLine", () => {
       },
     ];
 
-    expect(attentionLine("Page", flags, null, null)).toBe(
-      'Page: Generic link text announced 3 times in the read pass: "click here" ×3; Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1',
+    expect(attentionClauses(flags)).toBe(
+      'Generic link text announced 3 times in the read pass: "click here" ×3; Unlabeled or poorly labeled items in the tab pass: "button" ×1, "edit" ×1',
     );
   });
 
-  it("writes a failure and an issue after the flags", () => {
-    expect(
-      attentionLine(
-        "The report",
-        [genericFlag("tab", [{ text: "read more", count: 2 }])],
-        { kind: "another window took the screen", shownFrom: null },
-        "The search box has no name.",
-      ),
-    ).toBe(
-      "The report: 2 links say only “read more”; it couldn't be read after every attempt (another window took the screen); a reviewer found an issue: The search box has no name",
-    );
-  });
-
-  it("says a failure without its kind, and an issue without its note, as far as it goes", () => {
-    expect(attentionLine("The report", [], { kind: "", shownFrom: null }, null)).toBe(
-      "The report: it couldn't be read after every attempt",
-    );
-    expect(attentionLine("The report", [], null, "")).toBe("The report: a reviewer found an issue");
-  });
-
-  it("says the latest run couldn't read a page whose transcripts are from an earlier run", () => {
-    expect(
-      attentionLine(
-        "The report",
-        [genericFlag("tab", [{ text: "read more", count: 2 }])],
-        { kind: "another window took the screen", shownFrom: "2026-09-25_1000" },
-        null,
-      ),
-    ).toBe(
-      "The report: 2 links say only “read more”; the latest run couldn't read it (another window took the screen); its transcripts are from run 2026-09-25_1000",
-    );
-    expect(attentionLine("The report", [], { kind: "", shownFrom: "2026-09-25_1000" }, null)).toBe(
-      "The report: the latest run couldn't read it; its transcripts are from run 2026-09-25_1000",
-    );
-  });
-
-  it("keeps a reviewer's note to one line", () => {
-    expect(attentionLine("Page", [], null, "  The search box\n  has no   name.  ")).toBe(
-      "Page: a reviewer found an issue: The search box has no name",
-    );
-  });
-
-  it("gives just the name when there is nothing to say", () => {
-    expect(attentionLine("Page", [], null, null)).toBe("Page");
-  });
-
-  it("gives the clauses alone, for a page's line to follow its name", () => {
-    const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
-
-    expect(
-      attentionClauses(flags, { kind: "another window took the screen", shownFrom: null }, ""),
-    ).toBe(
-      "2 links say only “read more”; it couldn't be read after every attempt (another window took the screen); a reviewer found an issue",
-    );
-    expect(attentionLine("Page", flags, null, null)).toBe(
-      `Page: ${attentionClauses(flags, null, null)}`,
-    );
-    // Nothing to say is nothing, not a name.
-    expect(attentionClauses([], null, null)).toBe("");
+  it("says nothing when there is nothing to say", () => {
+    expect(attentionClauses([])).toBe("");
   });
 });
 

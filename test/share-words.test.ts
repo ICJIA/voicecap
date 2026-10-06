@@ -1,7 +1,7 @@
 /**
  * The sentences of the shareable page as strings and lines with no markup and nothing escaped: the
- * words both copies say. The first half (the top, the summary, "How voicecap works", "Every page",
- * "What the flags found", and the appendix), then the second (what changed since the last run, the
+ * words both copies say. The first half (the top, the summary, "How voicecap works", "What needs
+ * attention", "Every page", and the appendix), then the second (what changed since the last run, the
  * problems during the runs, the evidence, the story, and the footer). The demo runs of 29 September
  * 2026 are the real case; runs built in memory cover the rest. Each is also set beside what the page
  * says, so the two can't disagree.
@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { AttemptRecord, FlagResult, PassName, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import type { Changes, OnlyInOnePage, PageChange, PassChange } from "../src/share/changes.js";
+import { renderAttention } from "../src/share/html/attention.js";
 import { renderChanges } from "../src/share/html/changes.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import {
@@ -19,7 +20,7 @@ import {
   renderFooter,
   renderStory,
 } from "../src/share/html/evidence.js";
-import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
+import { renderAppendix, renderPages } from "../src/share/html/pages.js";
 import { renderProblems } from "../src/share/html/problems.js";
 import { renderHow, renderTop } from "../src/share/html/top.js";
 import { firstSentenceBold, lineText, type Line } from "../src/share/line.js";
@@ -33,7 +34,6 @@ import {
   CHANGES_TEXT,
   COVERAGE_TEXT,
   EVIDENCE_TEXT,
-  FLAGS_TEXT,
   FOOTER_TEXT,
   HOW_LEAD,
   HOW_TEXT,
@@ -51,6 +51,7 @@ import {
 } from "../src/share/text.js";
 import {
   appendixGist,
+  attentionGist,
   attentionPanelOf,
   byteCount,
   capturedOf,
@@ -61,8 +62,6 @@ import {
   documentTitle,
   evidenceGist,
   fileFingerprint,
-  flagCount,
-  flagsGist,
   flagsLine,
   fromRun,
   generatedLine,
@@ -510,7 +509,7 @@ describe("how voicecap works", () => {
   });
 });
 
-describe("the opening lines of Every page, What the flags found, and the appendix", () => {
+describe("the opening lines of What needs attention, Every page, and the appendix", () => {
   const OPEN = "Open a page to read them.";
 
   it("say how many pages were read in full, and how many weren't, the count in bold", async () => {
@@ -535,22 +534,40 @@ describe("the opening lines of Every page, What the flags found, and the appendi
     expect(lineText(pagesGist(noPagesModel()))).toBe("The latest run listed no pages.");
   });
 
-  it("say how many pages have flags, and from how many rules", async () => {
-    const flagged = modelOf([done("/a", { flags: [LINK_FLAG] }), done("/b")]);
+  it("say how many problems need attention, on how many pages, and what to do about them", async () => {
+    const one = modelOf([done("/a", { flags: [LINK_FLAG] }), done("/b")]);
+    const todo =
+      "Fix each one and run voicecap again, or check it and record that in voicecap review, until nothing is left.";
 
-    expect(lineText(flagsGist(await demoModel()))).toBe(
-      "1 page has flags, from 3 rules. Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
+    expect(lineText(attentionGist(await demoModel()))).toBe(`5 problems, on 2 pages. ${todo}`);
+    expect(lineText(attentionGist(one))).toBe(`1 problem, on 1 page. ${todo}`);
+    // A page that couldn't be read is a problem too, though it has no flag.
+    expect(lineText(attentionGist(modelOf([FAILED])))).toBe(`1 problem, on 1 page. ${todo}`);
+    // The numbers are the summary's own: its panel and its sentence count the same cards.
+    const { problems, pages } = one.summary.attention;
+    expect(attentionGist(one)).toEqual([ATTENTION_TEXT.gist(problems, pages)]);
+  });
+
+  it("say that nothing needs attention when no card is left, as the summary's panel does", () => {
+    const clean = modelOf([done("/a"), done("/b")]);
+    const skipped = modelOf([done("/a"), { path: "/pdf", status: "skipped" }]);
+
+    expect(lineText(attentionGist(clean))).toBe(ATTENTION_TEXT.none);
+    expect(lineText(attentionGist(clean))).toBe(noAttentionLine(clean.summary.attention));
+    // Some pages weren't read, so it never says every page was.
+    expect(lineText(attentionGist(skipped))).toBe(noAttentionLine(skipped.summary.attention));
+    expect(lineText(attentionGist(skipped))).toBe(
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
     );
-    expect(lineText(flagsGist(flagged))).toMatch(/^1 page has flags, from 1 rule\. Flags point/);
-    expect(lineText(flagsGist(modelOf([done("/a"), done("/b")])))).toBe(
-      "No page has flags. Flags point a person to pages worth a closer listen; none was raised.",
-    );
-    expect(lineText(flagsGist(modelOf([FAILED])))).toBe(
-      "No page has transcripts yet. There are no flags to show.",
-    );
-    expect(lineText(flagsGist(noRunModel()))).toBe(
-      "No live run counts yet. There are no flags to show.",
-    );
+  });
+
+  it("say there are no problems to show, with the count in bold, when no run counts", () => {
+    const none = attentionGist(noRunModel());
+
+    expect(lineText(none)).toBe("No live run counts yet. There are no problems to show.");
+    expect(none[0]).toEqual({ text: "No live run counts yet.", bold: true });
+    // Nothing was read, so it never says nothing needs attention.
+    expect(lineText(none)).not.toContain("Nothing needs attention");
   });
 
   it("say how many pages and transcripts there are, and any that couldn't be read", async () => {
@@ -601,7 +618,9 @@ describe("the opening lines of Every page, What the flags found, and the appendi
 
     for (const [name, model] of models) {
       expect(paragraphOf(renderPages(model), "gist"), name).toBe(lineText(pagesGist(model)));
-      expect(paragraphOf(renderFlags(model), "gist"), name).toBe(lineText(flagsGist(model)));
+      expect(paragraphOf(renderAttention(model), "gist"), name).toBe(
+        lineText(attentionGist(model)),
+      );
       expect(paragraphOf(renderAppendix(model), "gist"), name).toBe(
         lineText(appendixGist(model, OPEN)),
       );
@@ -710,13 +729,11 @@ describe("a card's lines", () => {
     expect(capturedOf({ ...card, counts: null, timeMs: null })).toBeNull();
   });
 
-  it("counts lines and flags as a reader says them, in the singular for one", () => {
+  it("counts lines as a reader says them, in the singular for one", () => {
     expect(lineCount(0)).toBe("0 lines");
     expect(lineCount(1)).toBe("1 line");
     expect(lineCount(18)).toBe("18 lines");
     expect(lineCount(1_204)).toBe("1,204 lines");
-    expect(flagCount(1)).toBe("1 flag");
-    expect(flagCount(5)).toBe("5 flags");
   });
 
   it("puts 'Not recorded' in front of words that don't say so, and leaves those that do", () => {
@@ -1800,7 +1817,6 @@ describe("the section words in text.ts", () => {
       SUMMARY_TEXT,
       HOW_TEXT,
       PAGES_TEXT,
-      FLAGS_TEXT,
       APPENDIX_TEXT,
       PASS_TITLE,
       PASS_WORDS,

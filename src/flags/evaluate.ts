@@ -96,7 +96,7 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
   return flags;
 }
 
-/** The most lines `flagQuotes` gives for a flag, and the most the shareable page quotes for a rule. */
+/** The most lines `flagQuotes` gives for a flag. */
 export const QUOTED = 3;
 
 /**

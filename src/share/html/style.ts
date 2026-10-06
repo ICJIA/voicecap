@@ -54,6 +54,9 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
+ * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
+ *   code of a fix wrap (`white-space: pre-wrap; overflow-wrap: anywhere`), so a long line never
+ *   widens the page, and a fold inside a card is on the second color of the panels;
  * - the folds' triangle is drawn but not read aloud;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the page's middle row grows. In print the
@@ -229,6 +232,18 @@ details.fold > summary .what { font: 600 1rem var(--display); }
 details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 14px; }
 details.fold > .inside > p { margin: 0; }
 .folds { display: grid; gap: 10px; }
+/* what needs attention: a card's parts, and its pages in a fold of their own. What NVDA said and the code of a fix wrap, so a long line never widens the page. */
+.place, .part, .fix { display: grid; gap: 6px; align-content: start; }
+.place > p, .part > p, .fix > p { margin: 0; }
+.place > p:first-child { font-weight: 600; }
+.place .pass { color: var(--muted); font: 500 0.82rem var(--mono); margin-right: 4px; }
+.place code { display: inline-block; max-width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fix pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.82rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fix pre code { font: inherit; }
+.part > ol, .part > ul, .on-pages > ul { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+/* The first page's link is a target that sits under the fold's own line, another target: room between them, as WCAG's target size asks. */
+.on-pages > ul { margin-top: 8px; }
+details.fold details.fold { background: var(--panel-2); }
 details.fold > .run-inside { gap: 22px; }
 .gist { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
 .gist b { color: var(--fg); font-weight: 500; }

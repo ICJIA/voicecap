@@ -1,5 +1,5 @@
 /**
- * The Word copy's "Every page", "What the flags found", and the appendix of transcripts, as blocks:
+ * The Word copy's "Every page" and the appendix of transcripts, as blocks:
  * what they say, in the page's order. The demo runs of 29 September 2026 (voicecap 0.4.1, in
  * test/fixtures/share/) are the real case; runs built in memory cover the rest. The blocks are
  * plain data, so nothing here opens a .docx.
@@ -8,24 +8,23 @@ import { describe, expect, it } from "vitest";
 
 import type { FlagResult, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
-import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
+import { renderAppendix, renderPages } from "../src/share/html/pages.js";
 import { lineText, type Line } from "../src/share/line.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
-import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, WORD_TEXT } from "../src/share/text.js";
-import { appendixGist, fileFingerprint, flagsGist, pagesGist } from "../src/share/words.js";
+import { APPENDIX_TEXT, PAGES_TEXT, WORD_TEXT } from "../src/share/text.js";
+import { appendixGist, fileFingerprint, pagesGist } from "../src/share/words.js";
 import {
   PAGE_BREAK,
   heading,
   image,
   mono,
-  monoCell,
   para,
   wordsOf,
   type Block,
   type Cell,
 } from "../src/share/word/blocks.js";
-import { wordAppendix, wordFlags, wordPages } from "../src/share/word/pages.js";
+import { wordAppendix, wordPages } from "../src/share/word/pages.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
@@ -119,9 +118,9 @@ const NO_STOPS_FLAG: FlagResult = {
   message: "Tab reached no focusable elements on the page.",
 };
 
-/** The three builders' blocks, in the order the Word copy has them. */
-function threeSections(model: ShareModel): Block[] {
-  return [...wordPages(model), ...wordFlags(model), ...wordAppendix(model)];
+/** The two builders' blocks, in the order the Word copy has them. */
+function twoSections(model: ShareModel): Block[] {
+  return [...wordPages(model), ...wordAppendix(model)];
 }
 
 /** The row of a table at a place, counting from 0. */
@@ -572,165 +571,6 @@ describe("wordPages", () => {
     );
     // One heading, for the section: a page's row is never behind one of its own.
     expect(outlineOf(pages)).toEqual(["1 Every page"]);
-  });
-});
-
-describe("wordFlags", () => {
-  it("opens with its heading and the line on how many pages have flags", async () => {
-    const model = await demoModel();
-    const flags = wordFlags(model);
-
-    expect(flags.slice(0, 2)).toEqual([
-      heading(1, "What the flags found"),
-      para(...flagsGist(model)),
-    ]);
-    expect(wordsOf(flags.slice(0, 2))[1]).toBe(
-      "1 page has flags, from 3 rules. Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
-    );
-  });
-
-  it("quotes what NVDA said for each rule", async () => {
-    const model = await demoModel();
-    const rows = wordsOf(wordFlags(model));
-
-    expect(rows).toContain("Rule | What NVDA showed | NVDA said");
-    for (const { quotes } of model.flagged) {
-      for (const { said } of quotes) {
-        for (const line of said) expect(rows.join("\n")).toContain(`“${line}”`);
-      }
-    }
-  });
-
-  it("names each flagged page and how many flags it has, then a table of its rules", async () => {
-    const model = await demoModel();
-    const flags = wordFlags(model);
-    const found = under(flags, "http://127.0.0.1:4848/common-mistakes/: 5 flags");
-
-    expect(model.flagged).toHaveLength(1);
-    expect(outlineOf(flags)).toEqual([
-      "1 What the flags found",
-      "2 http://127.0.0.1:4848/common-mistakes/: 5 flags",
-    ]);
-    expect(found.map(({ kind }) => kind)).toEqual(["table"]);
-    expect(wordsOf(found)).toEqual([
-      "Rule | What NVDA showed | NVDA said",
-      "generic-link-text | 3 links say only “click here”. | “To see how a run works,, link, click here, dot” / “To read about transcripts,, link, click here, dot” / “To learn about the report,, link, click here, dot”",
-      "unlabeled | 2 items have no names, so NVDA says only “button” and “edit”. | “button” / “main landmark. edit, blank”",
-      "headings | Its first heading is level 2, not 1. | “main landmark, Common mistakes (on purpose), heading, level 2”",
-    ]);
-    // The page's own heads, in its own words.
-    expect(tableAt(flags, 0).head).toEqual(FLAGS_TEXT.head);
-  });
-
-  it("sets each rule's name in the fixed-width font, as the page does, and what it found and what NVDA said in plain", async () => {
-    const model = await demoModel();
-    const [flagged] = model.flagged;
-    const table = tableAt(wordFlags(model), 0);
-
-    expect(table.rows.map(([rule]) => rule)).toEqual(
-      flagged?.quotes.map(({ rule }) => monoCell(rule)),
-    );
-    expect(table.rows.map((row) => row[1]?.mono)).toEqual([undefined, undefined, undefined]);
-    expect(table.rows.map((row) => row[2]?.mono)).toEqual([undefined, undefined, undefined]);
-  });
-
-  it("puts each line NVDA said in curly quotes on a line of its own, in the fixed-width font the page sets it in", async () => {
-    const model = await demoModel();
-    const [flagged] = model.flagged;
-    const table = tableAt(wordFlags(model), 0);
-
-    for (const [index, quote] of (flagged?.quotes ?? []).entries()) {
-      const said = rowAt(table, index)[2];
-      expect(cellLines(said)).toEqual(quote.said.map((line) => `“${line}”`));
-      expect(said?.lines.map(monoIn)).toEqual(quote.said.map((line) => [`“${line}”`]));
-      expect(quote.said.length).toBeGreaterThan(0);
-    }
-    // Three lines for the first rule, two for the next, and one for the last.
-    expect(table.rows.map((row) => row[2]?.lines.length)).toEqual([3, 2, 1]);
-  });
-
-  it("says there is no line to quote for a rule with none, never an empty quote", () => {
-    const model = modelOf([done("/a", { flags: [LINK_FLAG, NO_STOPS_FLAG] })]);
-    const [flagged] = model.flagged;
-    const table = tableAt(wordFlags(model), 0);
-
-    expect(flagged?.quotes.map((quote) => quote.said.length > 0)).toEqual([true, false]);
-    // Tab reaching nothing: what the rule found, and that there is no line to quote.
-    expect(wordsOf([table])[2]).toBe(
-      "tab-no-stops | Tab reaches nothing on the page. | No line to quote",
-    );
-    expect(cellLines(rowAt(table, 1)[2])).toEqual([FLAGS_TEXT.noLine]);
-    expect(rowAt(table, 1)[2]?.lines.map(monoIn)).toEqual([[]]);
-    expect(wordsOf(wordFlags(model)).join("\n")).not.toContain("“”");
-  });
-
-  it("counts a page's flags in the singular for one, and a rule once however many passes raised it", () => {
-    const one = wordFlags(modelOf([done("/a", { flags: [LINK_FLAG] })]));
-    const twice = wordFlags(
-      modelOf([done("/a", { flags: [LINK_FLAG, { ...LINK_FLAG, pass: "tab" }] })]),
-    );
-
-    expect(outlineOf(one)[1]).toBe("2 https://example.illinois.gov/a: 1 flag");
-    expect(outlineOf(twice)[1]).toBe("2 https://example.illinois.gov/a: 2 flags");
-    expect(tableAt(twice, 0).rows).toHaveLength(1);
-  });
-
-  it("says which run a flagged page's transcripts are from, when it isn't the latest", async () => {
-    const model = await demoModel();
-    // The failed page, with flags as if its older transcripts had some.
-    const how = model.pages[2] as PageCard;
-    const older = {
-      ...model,
-      flagged: [
-        {
-          card: { ...how, flags: [HEADINGS_FLAG] },
-          quotes: [{ rule: "headings", text: "Its first heading is level 2, not 1.", said: [] }],
-        },
-      ],
-    };
-    const flags = wordFlags(older);
-    const [name] = outlineOf(flags).slice(1);
-
-    expect(name).toBe("2 http://127.0.0.1:4848/how-a-run-works/: 1 flag");
-    expect(wordsOf(under(flags, name?.slice(2) ?? ""))[0]).toBe(
-      "From run 2026-09-29_1315, on 29 September 2026",
-    );
-    expect(under(flags, name?.slice(2) ?? "").map(({ kind }) => kind)).toEqual(["para", "table"]);
-    // A page read in the latest run says no run.
-    expect(wordsOf(wordFlags(model)).join("\n")).not.toContain("From run");
-  });
-
-  it("has every flagged page in full, never folded behind a line, however many there are", () => {
-    const four = wordFlags(manyPages(5, 4));
-
-    expect(outlineOf(four)).toEqual([
-      "1 What the flags found",
-      ...[1, 2, 3, 4].map((n) => `2 https://example.illinois.gov/page-${n}: 2 flags`),
-    ]);
-    expect(tablesIn(four)).toHaveLength(4);
-    expect(wordsOf(four).join("\n")).not.toContain("page-5");
-    expect(wordsOf(four)[1]).toContain("4 pages have flags, from 2 rules.");
-  });
-
-  it("says there are no flags to show: no flags raised, no page with transcripts, no counted run", () => {
-    const none = modelOf([done("/a"), done("/b")]);
-    const unread = modelOf([FAILED]);
-
-    for (const model of [none, unread, noRunModel()]) {
-      expect(wordFlags(model)).toEqual([
-        heading(1, "What the flags found"),
-        para(...flagsGist(model)),
-      ]);
-    }
-    expect(wordsOf(wordFlags(none))[1]).toBe(
-      "No page has flags. Flags point a person to pages worth a closer listen; none was raised.",
-    );
-    expect(wordsOf(wordFlags(unread))[1]).toBe(
-      "No page has transcripts yet. There are no flags to show.",
-    );
-    expect(wordsOf(wordFlags(noRunModel()))[1]).toBe(
-      "No live run counts yet. There are no flags to show.",
-    );
   });
 });
 
@@ -1190,7 +1030,7 @@ describe("wordAppendix", () => {
   });
 });
 
-describe("the three sections together", () => {
+describe("the two sections together", () => {
   /** A page whose address, label, title, and transcripts are all markup, and one never read. */
   const oddModel = (): ShareModel =>
     modelOf(
@@ -1223,15 +1063,15 @@ describe("the three sections together", () => {
     ["odd words", oddModel()],
   ];
 
-  it("sets its headings in order: an h1 for each of the three sections, h2 inside, and h3 for a transcript", async () => {
+  it("sets its headings in order: an h1 for each of the two sections, h2 inside, and h3 for a transcript", async () => {
     for (const [name, model] of await models()) {
-      const blocks = threeSections(model);
+      const blocks = twoSections(model);
       const levels = blocks.flatMap((block) => (block.kind === "heading" ? [block.level] : []));
 
       expect(
         levels.filter((level) => level === 1),
         name,
-      ).toHaveLength(3);
+      ).toHaveLength(2);
       expect(levels[0], name).toBe(1);
       for (const [index, level] of levels.entries()) {
         if (index > 0) expect(level - (levels[index - 1] ?? 0), name).toBeLessThanOrEqual(1);
@@ -1242,13 +1082,13 @@ describe("the three sections together", () => {
       ).toBe(false);
     }
     expect(
-      outlineOf(threeSections(await demoModel())).filter((line) => line.startsWith("1 ")),
-    ).toEqual(["1 Every page", "1 What the flags found", "1 Appendix: every transcript"]);
+      outlineOf(twoSections(await demoModel())).filter((line) => line.startsWith("1 ")),
+    ).toEqual(["1 Every page", "1 Appendix: every transcript"]);
   });
 
   it("never gives a table a heading with no words, since Word flags an empty header cell", async () => {
     for (const [name, model] of await models()) {
-      for (const { head, rows } of tablesIn(threeSections(model))) {
+      for (const { head, rows } of tablesIn(twoSections(model))) {
         expect(
           head.every((words) => words.trim() !== ""),
           name,
@@ -1259,18 +1099,16 @@ describe("the three sections together", () => {
     }
   });
 
-  it("has one table of the pages, one for each flagged page, and one of the pages no longer listed", async () => {
+  it("has one table of the pages, and one of the pages no longer listed", async () => {
     for (const [name, model] of await models()) {
-      const expected =
-        (model.pages.length > 0 ? 1 : 0) +
-        model.flagged.length +
-        (model.noLongerListed.length > 0 ? 1 : 0);
+      const expected = (model.pages.length > 0 ? 1 : 0) + (model.noLongerListed.length > 0 ? 1 : 0);
 
-      expect(tablesIn(threeSections(model)), name).toHaveLength(expected);
+      expect(tablesIn(twoSections(model)), name).toHaveLength(expected);
     }
-    // The tables of two models, so a count of nothing can't pass for this.
-    expect(tablesIn(threeSections(manyPages(13, 5)))).toHaveLength(1 + 5);
-    expect(tablesIn(threeSections(noLongerModel()))).toHaveLength(2);
+    // The tables of two models, so a count of nothing can't pass for this. Flagged pages are rows
+    // of the table of the pages, not tables of their own: their flags are cards of another section.
+    expect(tablesIn(twoSections(manyPages(13, 5)))).toHaveLength(1);
+    expect(tablesIn(twoSections(noLongerModel()))).toHaveLength(2);
   });
 
   it("says each page's screenshot once, page by page: in its own row when it has no entry in the appendix, and in its own entry when it has one", async () => {
@@ -1320,7 +1158,7 @@ describe("the three sections together", () => {
 
   it("links to nothing, since the page's links go to its own parts, which this copy has in order", async () => {
     for (const [name, model] of await models()) {
-      for (const line of linesIn(threeSections(model))) {
+      for (const line of linesIn(twoSections(model))) {
         expect(
           line.filter((piece) => typeof piece !== "string" && piece.href !== undefined),
           name,
@@ -1332,9 +1170,7 @@ describe("the three sections together", () => {
   it("says nothing of the page's folds or its fingerprint check, which the Word copy has none of", async () => {
     for (const [name, model] of await models()) {
       // The transcripts are NVDA's words, and any words may be in one.
-      const words = wordsOf(threeSections(model).filter((block) => block.kind !== "mono")).join(
-        "\n",
-      );
+      const words = wordsOf(twoSections(model).filter((block) => block.kind !== "mono")).join("\n");
 
       expect(words, name).not.toMatch(/fingerprint check|Open a page|opens to show/i);
     }
@@ -1342,7 +1178,7 @@ describe("the three sections together", () => {
 
   it("never calls voicecap automated, and never says a person listened", async () => {
     for (const [name, model] of await models()) {
-      const words = wordsOf(threeSections(model).filter((block) => block.kind !== "mono"));
+      const words = wordsOf(twoSections(model).filter((block) => block.kind !== "mono"));
       for (const line of words) {
         expect(line, name).not.toMatch(/voicecap[^.]*\bautomated\b/i);
         expect(line, name).not.toMatch(/\blistened\b/i);
@@ -1359,13 +1195,10 @@ describe("the three sections together", () => {
       expect(said(wordPages(model)), words).toContain(words);
     }
     expect(said(wordPages(noLongerModel()))).toContain(PAGES_TEXT.noLongerListedLead);
-    expect(said(wordFlags(model))).toContain(FLAGS_TEXT.title);
-    expect(said(wordFlags(model))).toContain(FLAGS_TEXT.head.join(" | "));
     expect(said(wordAppendix(model))).toContain(APPENDIX_TEXT.title);
     expect(said(wordAppendix(lost))).toContain(`${APPENDIX_TEXT.unreadable}.`);
     // The page says each of these in its own headings and lines.
     expect(renderPages(model)).toContain(PAGES_TEXT.title);
-    expect(renderFlags(model)).toContain(FLAGS_TEXT.title);
     expect(renderAppendix(model)).toContain(APPENDIX_TEXT.title);
   });
 
@@ -1408,19 +1241,6 @@ describe("the three sections together", () => {
     return {
       ...base,
       pages: [home, other],
-      flagged: [
-        {
-          card: home,
-          quotes: [
-            { rule: marked("rule-a"), text: marked("text-a"), said: [marked("said-a")] },
-            { rule: marked("rule-b"), text: marked("text-b"), said: [] },
-          ],
-        },
-        {
-          card: other,
-          quotes: [{ rule: marked("rule-c"), text: marked("text-c"), said: [marked("said-c")] }],
-        },
-      ],
       noLongerListed: [
         {
           name: marked("gone"),
@@ -1457,12 +1277,12 @@ describe("the three sections together", () => {
   }
 
   it("says every word a record supplies, as it is, wherever it's said", () => {
-    const words = wordsOf(threeSections(markupModel())).join("\n");
-    // No field's name is the start of another's, so each is found by its own words.
+    const words = wordsOf(twoSections(markupModel())).join("\n");
+    // No field's name is the start of another's, so each is found by its own words. A page with no
+    // label of its own is said by its path alone, so `name-b` isn't said.
     const fields = [
       ...["name-a", "path-a", "title", "status", "review", "at", "reviewer", "shot", "failure"],
-      ...["time", "flag-a", "name-b", "path-b", "run", "date", "untitled", "flag-b", "rule-a"],
-      ...["text-a", "said-a", "rule-b", "text-b", "rule-c", "text-c", "said-c", "gone", "url"],
+      ...["time", "flag-a", "path-b", "run", "date", "untitled", "flag-b", "gone", "url"],
       ...["lastRun", "lastStatus", "entry-a", "words", "sha", "entry-b", "latest"],
     ];
 

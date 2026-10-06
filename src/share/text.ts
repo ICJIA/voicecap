@@ -264,15 +264,6 @@ export const SCREENSHOT_TEXT = {
   unreadable: "Not shown: the run's record of this screenshot couldn't be read.",
 };
 
-/** "What the flags found": its heading, and the words of each flagged page's table. */
-export const FLAGS_TEXT = {
-  title: "What the flags found",
-  /** The heads of the table's columns: the rule, what it found, and the lines NVDA spoke. */
-  head: ["Rule", "What NVDA showed", "NVDA said"],
-  /** Said in place of NVDA's words, for a rule with no line to quote. */
-  noLine: "No line to quote",
-};
-
 /**
  * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
  * were skipped), the labels of a card's parts, and the small sentences the summary says about the

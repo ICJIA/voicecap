@@ -1262,9 +1262,9 @@ describe("renderSummary", () => {
     expect(
       [...nav.matchAll(/<a href="#([\w-]+)">(.*?)<\/a>/g)].map(([, id, text]) => [id, text]),
     ).toEqual([
+      ["need-h", "What needs attention"],
       ["how-h", "How voicecap works"],
       ["pages-h", "Every page"],
-      ["find-h", "What the flags found"],
       ["chg-h", "What changed since the last run"],
       ["prob-h", "Problems during the runs"],
       ["lim-h", "What these results cover"],

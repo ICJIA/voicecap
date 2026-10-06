@@ -1,7 +1,7 @@
 /**
  * The sentences of the shareable report that are worked out from its model: the numbers, counts,
  * names, and dates in the plain words each copy says them in. First those of the page's first half
- * (the top, the summary, "How voicecap works", "Every page", "What the flags found", and the
+ * (the top, the summary, "What needs attention", "How voicecap works", "Every page", and the
  * appendix), then those of its second (what changed since the last run, the problems during the
  * runs, the evidence, the story, and the footer).
  *
@@ -230,6 +230,27 @@ export function noAttentionLine({ skipped }: Summary["attention"]): string {
   return skipped === 0 ? ATTENTION_TEXT.none : ATTENTION_TEXT.noneSkipped(skipped);
 }
 
+// What needs attention.
+
+/**
+ * The line under the heading of "What needs attention": how many problems there are, on how many
+ * pages, and what to do about them, from the summary's own counts; with no card left, the line the
+ * summary's panel says in its place (`noAttentionLine`); and, when no run counts, that there are no
+ * problems to show, as the other sections say of what they would show. No panel says anything then,
+ * and nothing was read, so "every page was read" would not be true.
+ */
+export function attentionGist({ header, summary }: ShareModel): Line {
+  if (header.tested === null) {
+    return [{ text: NO_RUN, bold: true }, " There are no problems to show."];
+  }
+  const { attention } = summary;
+  return [
+    attention.cards.length === 0
+      ? noAttentionLine(attention)
+      : ATTENTION_TEXT.gist(attention.problems, attention.pages),
+  ];
+}
+
 // How voicecap works.
 
 /** The lead that opens "How voicecap works", with the words that say the person reads in bold. */
@@ -363,36 +384,6 @@ export function capturedOf({ counts, timeMs }: PageCard): Captured[] | null {
 export function notRecordedLine(text: string): string {
   const line = text.trim();
   return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
-}
-
-// What the flags found.
-
-/** The line that opens "What the flags found": how many pages have flags, and from how many rules. */
-export function flagsGist({ flagged, pages, header }: ShareModel): Line {
-  if (header.tested === null) return [{ text: NO_RUN, bold: true }, " There are no flags to show."];
-  if (pages.every(({ counts }) => counts === null)) {
-    return [{ text: "No page has transcripts yet.", bold: true }, " There are no flags to show."];
-  }
-  if (flagged.length === 0) {
-    return [
-      { text: "No page has flags.", bold: true },
-      " Flags point a person to pages worth a closer listen; none was raised.",
-    ];
-  }
-  const rules = new Set(flagged.flatMap(({ quotes }) => quotes.map(({ rule }) => rule))).size;
-  const has = flagged.length === 1 ? "has" : "have";
-  return [
-    {
-      text: `${plural(flagged.length, "page")} ${has} flags, from ${plural(rules, "rule")}.`,
-      bold: true,
-    },
-    " Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
-  ];
-}
-
-/** How many flags a page has, as a reader says it: "5 flags", "1 flag". */
-export function flagCount(flags: number): string {
-  return plural(flags, "flag");
 }
 
 // The appendix.
@@ -595,7 +586,7 @@ export function flagsLine({
     ...changed.map(({ before, after }) =>
       before.count !== undefined && after.count !== undefined
         ? [...which(after), `, ${count(before.count)} before, ${count(after.count)} now (changed).`]
-        : [...which(after), `, changed: now ${attentionClauses([after], null, null)}.`],
+        : [...which(after), `, changed: now ${attentionClauses([after])}.`],
     ),
     ...unchanged.map((flag) => [...which(flag), ", unchanged."]),
   ];
