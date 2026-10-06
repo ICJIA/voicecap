@@ -5,6 +5,7 @@ import type { FocusedElement } from "../src/drivers/types.js";
 import {
   contentSteps,
   evaluateFlags,
+  flagItemLines,
   flagQuotes,
   type PagePasses,
   type PassData,
@@ -567,5 +568,59 @@ describe("the lines that raised a flag", () => {
     expect(flagQuotes({}, rules, flag)).toEqual([]);
     const unknown: FlagResult = { rule: "retired-rule", pass: "read", message: "Something" };
     expect(flagQuotes({ read: read(["Something"]) }, rules, unknown)).toEqual([]);
+  });
+});
+
+describe("each line a rule found an item on", () => {
+  // What NVDA said of i2i's logo on its home page (v3--i2i.netlify.app), from the transcripts of
+  // 6 October 2026: in the header and at its link's Tab stop, then again in the main content.
+  const HOME_READ_HEADER =
+    "banner landmark, same page, link, current page, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.";
+  const HOME_READ_MAIN = "main landmark, Unlabeled graphic, i 2i logo";
+  const HOME_TAB =
+    "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, same page, link, current page";
+
+  it("gives each line of i2i's home page the unlabeled rule matched, in pass then step order", () => {
+    const passes = {
+      read: read([HOME_READ_HEADER, HOME_READ_MAIN]),
+      tab: tab([{ spoken: HOME_TAB, focused: el("i 2i Logo INSTITUTE 2 INNOVATE") }]),
+    };
+
+    // The read pass's Ctrl+End and its end-of-page repeats aren't lines of the page.
+    expect(flagItemLines(passes, rules)).toEqual([
+      { rule: "unlabeled", pass: "read", item: "unlabeled graphic", spoken: HOME_READ_HEADER },
+      { rule: "unlabeled", pass: "read", item: "unlabeled graphic", spoken: HOME_READ_MAIN },
+      { rule: "unlabeled", pass: "tab", item: "unlabeled graphic", spoken: HOME_TAB },
+    ]);
+  });
+
+  it("gives a link with no name as '(no name)', one line at a time, with its speech on one line", () => {
+    const passes = { tab: tab([{ spoken: "  link ", focused: el("") }]) };
+
+    // One line is enough: the lines are what the rule found, whether or not it raised a flag.
+    expect(flagItemLines(passes, rules)).toEqual([
+      { rule: "generic-link-text", pass: "tab", item: "(no name)", spoken: "link" },
+    ]);
+  });
+
+  it("finds nothing for a rule that's off, and looks only in each rule's own passes", () => {
+    const passes = {
+      read: read([HOME_READ_HEADER, "link, Read more"]),
+      tab: tab([{ spoken: "Read more, link", focused: el("Read more") }]),
+    };
+    const off = { ...rules, unlabeled: { ...rules.unlabeled, enabled: false } };
+    const tabOnly = {
+      ...rules,
+      genericLinkText: { ...rules.genericLinkText, passes: ["tab" as const] },
+    };
+
+    expect(flagItemLines(passes, off)).toEqual([
+      { rule: "generic-link-text", pass: "read", item: "read more", spoken: "link, Read more" },
+      { rule: "generic-link-text", pass: "tab", item: "read more", spoken: "Read more, link" },
+    ]);
+    expect(flagItemLines(passes, tabOnly)).toEqual([
+      { rule: "unlabeled", pass: "read", item: "unlabeled graphic", spoken: HOME_READ_HEADER },
+      { rule: "generic-link-text", pass: "tab", item: "read more", spoken: "Read more, link" },
+    ]);
   });
 });

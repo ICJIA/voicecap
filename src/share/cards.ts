@@ -465,8 +465,12 @@ export function flaggedOf(
   });
 }
 
-/** The passes of a page's shown transcripts, as the flag rules read them: steps and stop reason. */
-function shownPasses(
+/**
+ * The passes of a page's shown transcripts, as the flag rules read them: steps and stop reason. A
+ * pass whose JSON transcript can't be read here isn't among them. What the flags found shows their
+ * lines from these, and so does what needs attention (attentionCards).
+ */
+export function shownPasses(
   shown: { run: RunJson; page: PageRecord },
   transcripts: TranscriptStore,
 ): PagePasses {

@@ -1,5 +1,11 @@
 import type { VoicecapConfig } from "../config/schema.js";
-import type { FlagResult, PassName, StepRecord, StopReason } from "../model.js";
+import {
+  PASS_NAMES,
+  type FlagResult,
+  type PassName,
+  type StepRecord,
+  type StopReason,
+} from "../model.js";
 import { lineMatches } from "../passes/read.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { hashJson } from "../util/hash.js";
@@ -139,6 +145,50 @@ export function flagQuotes(passes: PagePasses, rules: FlagRules, flag: FlagResul
       return rule === undefined ? [] : quoted(customMatches(rule, steps));
     }
   }
+}
+
+/** A line on which a rule that finds items found one. */
+export interface ItemLine {
+  rule: "unlabeled" | "generic-link-text";
+  pass: PassName;
+  /**
+   * What the rule found, lowercased, as its flag's `found` lists it: "unlabeled graphic", "(no
+   * name)".
+   */
+  item: string;
+  /** What NVDA said, on one line (normalizeSpeech). */
+  spoken: string;
+}
+
+/**
+ * Every content step the unlabeled and generic-link-text rules match, in pass then step order: the
+ * item the rule's own matcher returns (lowercased, as found), and the step's speech on one line.
+ * Each rule looks only in its own passes (rules.unlabeled.passes, rules.genericLinkText.passes),
+ * and a rule that's off matches nothing, so the lines are the steps the rules count. A step both
+ * rules match gives a line for each, generic-link-text's first, as evaluateFlags raises them. The
+ * lines don't depend on a flag being raised: a rule with a minimum count may find too few for one.
+ */
+export function flagItemLines(passes: PagePasses, rules: FlagRules): ItemLine[] {
+  const context = speechContext(rules);
+  const { genericLinkText, unlabeled } = rules;
+  const linkOf = genericLinkText.enabled ? genericLinkMatcher(genericLinkText, context) : null;
+  const itemOf = unlabeled.enabled ? unlabeledMatcher(unlabeled, context) : null;
+  const lines: ItemLine[] = [];
+  for (const pass of PASS_NAMES) {
+    const data = passes[pass];
+    if (!data) continue;
+    const links = linkOf !== null && genericLinkText.passes.includes(pass) ? linkOf : null;
+    const items = itemOf !== null && unlabeled.passes.includes(pass) ? itemOf : null;
+    if (links === null && items === null) continue;
+    for (const step of contentSteps(pass, data)) {
+      const spoken = normalizeSpeech(step.spoken);
+      const link = links?.(step.spoken);
+      if (link) lines.push({ rule: "generic-link-text", pass, item: link, spoken });
+      const item = items?.(step.spoken, pass);
+      if (item) lines.push({ rule: "unlabeled", pass, item, spoken });
+    }
+  }
+  return lines;
 }
 
 /** Steps' speech, each on one line and each line once, at most `QUOTED`; silence isn't a line. */
