@@ -5,12 +5,12 @@
  *   flag and what NVDA named ("i 2i Logo", "read more"), a page the latest run couldn't read, a read
  *   that stopped before the page's end, an issue a reviewer found, or a page whose transcripts
  *   changed since its review. Each card says where on the page NVDA said it, in NVDA's own words:
- *   the lines of the shown transcripts that raised its flags (flagItemLines and flagQuotes).
+ *   the lines of the shown transcripts that raised its flags (flagItemLines and flagQuotes), read
+ *   item by item (src/flags/speech.ts).
  * - **The line for a page** (`attentionClauses` and `attentionLine`): what a listener hears on a page
  *   that needs attention, in one plain line: its flags, a failure to read it, and an issue a
  *   reviewer found.
  */
-import { DEFAULT_CONFIG } from "../config/defaults.js";
 import {
   flagItemLines,
   flagQuotes,
@@ -18,11 +18,14 @@ import {
   type ItemLine,
   type PagePasses,
 } from "../flags/evaluate.js";
+import { graphicName, insideOf, partOf } from "../flags/speech.js";
 import { PASS_NAMES, type FlagResult, type PassName } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import type { PageCard } from "./cards.js";
 import { names } from "./format.js";
 import type { PageReview } from "./review.js";
+
+export { graphicName, insideOf, speechItems } from "../flags/speech.js";
 
 /**
  * The kinds of card, in the order cards on as many pages come in: the flags' kinds, the items first,
@@ -122,16 +125,18 @@ export interface AttentionPage {
  *   settles nothing, so its flags still count, unless it found an issue.
  * - A page the latest run failed on, or never read, with the failure in words, is on the unread
  *   card, with that failure. A page voicecap skipped isn't.
- * - The flags of a page that is neither settled nor an open issue's: a read that stopped before the
- *   page's end (its card's `readStopped`, or a read-not-finished flag) is on the read-stopped card,
- *   once. Its other flags give the kinds below.
+ * - A page whose read stopped before its end (its card's `readStopped`, or a read-not-finished
+ *   flag) is on the read-stopped card, once, whatever its review says: as for a page that couldn't
+ *   be read, only a later run that reads it to its end takes it off.
+ * - The other flags of a page that is neither settled nor an open issue's give the kinds below.
  *
  * **The flags' kinds,** where NVDA's words are here: generic-link-text and unlabeled give a card for
  * each thing NVDA named, from each line that raised the flag (flagItemLines, in that flag's pass);
  * headings, tab-before-main, tab-no-stops, and repeated-phrase give their own kinds; any other rule
- * is custom, named by its message. Where they aren't (null passes), each flag is "recorded", named by
- * each item its record found, else by its message; so is a flag of the rules that find items whose
- * lines aren't here, so that no flag is lost.
+ * is custom, named by its rule's description, so a rule is one card however often it matched (by
+ * the flag's message, when the config no longer has the rule). Where NVDA's words aren't here (null
+ * passes), each flag is "recorded", named by each item its record found, else by its message; so is
+ * a flag of the rules that find items whose lines aren't here, so that no flag is lost.
  *
  * **Grouping:** one card per kind and subject (compared lowercased, with its spaces collapsed), and
  * for first-heading per level too, since each level is a different thing NVDA said; an issue is a
@@ -215,14 +220,15 @@ function hitsOf(page: AttentionPage, index: number, rules: FlagRules): Hit[] {
   }
   if (openIssue) hits.push(pageHit("issue", latest.note ?? ""));
   if (changed) hits.push(pageHit("changed", null));
-  if (settled || openIssue) return hits;
-
+  // No review settles a read that stopped: only a later run that reads the page to its end does.
   const stop = card.flags.find((flag) => flag.rule === "read-not-finished");
   if (card.readStopped !== null || stop !== undefined) {
     const line =
       stop === undefined || passes === null ? undefined : flagQuotes(passes, rules, stop)[0];
     hits.push(placedHit("read-stopped", null, null, index, stop?.count ?? 1, line, stop?.pass));
   }
+  if (settled || openIssue) return hits;
+
   const flags = card.flags.filter((flag) => flag.rule !== "read-not-finished");
   if (passes === null) return [...hits, ...flags.flatMap((flag) => recordedHits(flag, index))];
 
@@ -247,6 +253,8 @@ function hitsOf(page: AttentionPage, index: number, rules: FlagRules): Hit[] {
 /** A line an item rule matched, as the card of what it found: its kind and subject, and where. */
 function itemHit(line: ItemLine, page: number, rules: FlagRules): Hit {
   const { kind, subject } = itemKind(line, rules);
+  // A graphic is the item the rule matched; any other item is no graphic.
+  const graphic = kind === "graphic-generic" || kind === "graphic-unnamed" ? line.item : undefined;
   return {
     kind,
     subject,
@@ -258,7 +266,7 @@ function itemHit(line: ItemLine, page: number, rules: FlagRules): Hit {
       part: partOf(line.spoken),
       said: { pass: line.pass, line: line.spoken },
       // A Tab stop says the link or button the item sits in. The item's own name isn't its words.
-      inside: line.pass === "tab" ? insideOf(line.spoken, subject, rules) : null,
+      inside: line.pass === "tab" ? insideOf(line.spoken, subject, { item: graphic, rules }) : null,
     },
   };
 }
@@ -274,14 +282,14 @@ function itemKind(
   line: ItemLine,
   rules: FlagRules,
 ): { kind: AttentionKind; subject: string | null } {
-  const item = lower(line.item);
+  const item = line.item.toLowerCase();
   if (line.rule === "generic-link-text") {
     return item === NO_NAME
       ? { kind: "link-unnamed", subject: null }
       : { kind: "link-generic", subject: item };
   }
   if (item.includes("graphic")) {
-    const name = graphicName(line.spoken, rules);
+    const name = graphicName(line.spoken, { item, rules });
     return name === null
       ? { kind: "graphic-unnamed", subject: item }
       : { kind: "graphic-generic", subject: name };
@@ -296,16 +304,24 @@ const FIELDS = new Set(["edit", "combo box", "check box", "radio button"]);
 
 /**
  * A flag of a rule that finds no items, as its card: its kind, and the first line it quotes
- * (flagQuotes) with its pass. A repeated phrase is named by the phrase, a custom rule by its
- * message, and the first heading has its level.
+ * (flagQuotes) with its pass. A repeated phrase is named by the phrase, and the first heading has
+ * its level. A custom rule is named by its own description in `rules`, which is the same in every
+ * pass and on every page (its flags' messages add how many matches, and where), else, for a rule
+ * the config no longer has, by the flag's message.
  */
 function flagHit(flag: FlagResult, passes: PagePasses, rules: FlagRules, page: number): Hit {
   const kind = RULE_KINDS.get(flag.rule) ?? "custom";
   const line = flagQuotes(passes, rules, flag)[0];
   const subject =
-    kind === "repeated" ? (line ?? null) : kind === "custom" ? tidy(flag.message) : null;
+    kind === "repeated" ? (line ?? null) : kind === "custom" ? customName(flag, rules) : null;
   const level = kind === "first-heading" ? levelOf(flag.message) : null;
   return placedHit(kind, subject, level, page, flag.count ?? 1, line, flag.pass);
+}
+
+/** A custom rule's flag's name: its rule's description, else its message without its final ".". */
+function customName(flag: FlagResult, rules: FlagRules): string {
+  const rule = rules.custom.find((custom) => custom.id === flag.rule);
+  return rule === undefined ? tidy(flag.message) : rule.description;
 }
 
 /** The level a headings flag's message says ("The first heading is level 2, not level 1."). */
@@ -365,7 +381,7 @@ function recordedHits(flag: FlagResult, page: number): Hit[] {
  * collapsed, and its level. An issue is a card of its own, so its page is part of its key.
  */
 function keyOf(hit: Hit): string {
-  const subject = hit.subject === null ? null : lower(normalizeSpeech(hit.subject));
+  const subject = hit.subject === null ? null : normalizeSpeech(hit.subject).toLowerCase();
   return JSON.stringify([hit.kind, subject, hit.level, hit.kind === "issue" ? hit.page : null]);
 }
 
@@ -426,142 +442,6 @@ function inOrder(indices: number[]): number[] {
 
 function timesOf(parts: { times: number }[]): number {
   return parts.reduce((sum, { times }) => sum + times, 0);
-}
-
-/**
- * Chrome's hint after an image it counts as having no name, in English: "To get missing image
- * descriptions, open the context menu." It follows the image's name, when it has one.
- */
-const HINT = "to get missing image descriptions";
-
-/** The hint's second item. */
-const CONTEXT_MENU = "open the context menu";
-
-/** Where a link goes, as NVDA says it beside the link: never the link's own words. */
-const LINK_PLACES = new Set(["same page", "current page", "visited"]);
-
-/** The page parts NVDA names, by the landmark it says. */
-const PARTS = new Map([
-  ["banner landmark", "header"],
-  ["main landmark", "main content"],
-  ["navigation landmark", "navigation"],
-  ["content info landmark", "footer"],
-  ["complementary landmark", "sidebar"],
-  ["search landmark", "search"],
-]);
-
-/**
- * NVDA's speech as items: on one line (normalizeSpeech), split at ", " (within an utterance) and
- * ". " (between utterances), each without a final "." or ",", in its own capitals, and with no empty
- * item. The flag rules split speech the same way, then lowercase it.
- */
-export function speechItems(spoken: string): string[] {
-  return normalizeSpeech(spoken)
-    .split(/, |\. /)
-    .map((item) => item.replace(/[.,]$/, ""))
-    .filter((item) => item !== "");
-}
-
-/**
- * The name NVDA said for a graphic, as it said it, or null when it said none. Its items
- * (speechItems) are compared lowercased; the graphic item is the first that contains "graphic".
- * - Chrome's hint follows the name of an image whose name it counts as missing: the item before an
- *   item that starts with the hint is the name, unless it's the graphic item ("…, Unlabeled graphic,
- *   i 2i Logo. To get missing image descriptions, …", and at a Tab stop, "i 2i Logo. To get missing
- *   image descriptions, …, Unlabeled graphic, …").
- * - Otherwise, the item right after the graphic item is the name ("Unlabeled graphic, i 2i logo"),
- *   unless it starts with the hint, or is a landmark, a state (rules.unlabeled.stateItems), a link's
- *   role (rules.genericLinkText.linkRoles), or "button".
- * `rules` gives the states and links' roles: the default config's, unless a caller gives its own.
- */
-export function graphicName(
-  spoken: string,
-  rules: FlagRules = DEFAULT_CONFIG.flags,
-): string | null {
-  const list = speechItems(spoken);
-  const said = list.map(lower);
-  const graphic = said.findIndex((item) => item.includes("graphic"));
-  const hinted = said.findIndex((item, i) => i > 0 && item.startsWith(HINT) && i - 1 !== graphic);
-  if (hinted !== -1) return list[hinted - 1] ?? null;
-  if (graphic === -1) return null;
-  const after = said[graphic + 1];
-  if (after === undefined || after.startsWith(HINT) || neverAName(after, rules)) return null;
-  return list[graphic + 1] ?? null;
-}
-
-/** An item NVDA says around a name that is never one: a landmark, a state, or a role. */
-function neverAName(item: string, rules: FlagRules): boolean {
-  const { states, linkRoles } = wordsOf(rules);
-  return isLandmark(item) || states.has(item) || linkRoles.has(item) || item === "button";
-}
-
-/**
- * The link or button an item sits in, from its Tab stop (`spoken`): its other words, as NVDA said
- * them, joined by ", ", and its role. Its other words are the stop's items without its landmarks,
- * its states (rules.unlabeled.stateItems), where a link goes ("same page", "current page",
- * "visited"), the graphic item, the item's name (`name`), Chrome's hint, and the role itself. The
- * role is "link" when a link's role (rules.genericLinkText.linkRoles) was among the items, else
- * "button" when "button" was. Null with no such role, or no words left.
- */
-export function insideOf(
-  spoken: string,
-  name: string | null,
-  rules: FlagRules = DEFAULT_CONFIG.flags,
-): AttentionPlace["inside"] {
-  const { states, linkRoles } = wordsOf(rules);
-  const list = speechItems(spoken);
-  const said = list.map(lower);
-  const graphic = said.findIndex((item) => item.includes("graphic"));
-  const named =
-    name === null ? -1 : said.findIndex((item, i) => i !== graphic && item === lower(name));
-  const role = said.some((item) => linkRoles.has(item))
-    ? "link"
-    : said.includes("button")
-      ? "button"
-      : null;
-  const words = list.filter((_, i) => {
-    const item = said[i] ?? "";
-    return !(
-      i === graphic ||
-      i === named ||
-      isLandmark(item) ||
-      states.has(item) ||
-      LINK_PLACES.has(item) ||
-      item.startsWith(HINT) ||
-      item === CONTEXT_MENU ||
-      linkRoles.has(item) ||
-      item === "button"
-    );
-  });
-  return role === null || words.length === 0 ? null : { words: words.join(", "), role };
-}
-
-/**
- * The page part a line names: its first item that ends in " landmark", as a part ("banner
- * landmark" is the header); null when it names no landmark, or one that's no part here.
- */
-function partOf(spoken: string): string | null {
-  const landmark = speechItems(spoken)
-    .map(lower)
-    .find((item) => item.endsWith(" landmark"));
-  return (landmark === undefined ? undefined : PARTS.get(landmark)) ?? null;
-}
-
-/** An item NVDA says for a landmark: "banner landmark". */
-function isLandmark(item: string): boolean {
-  return /(^| )landmark$/.test(item);
-}
-
-/** The states, and the roles a link is said with, that `rules` know, lowercased. */
-function wordsOf(rules: FlagRules): { states: Set<string>; linkRoles: Set<string> } {
-  return {
-    states: new Set(rules.unlabeled.stateItems.map(lower)),
-    linkRoles: new Set(rules.genericLinkText.linkRoles.map(lower)),
-  };
-}
-
-function lower(text: string): string {
-  return text.toLowerCase();
 }
 
 /** The rules that find items, and what the line says of the items each found. */

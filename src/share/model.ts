@@ -6,9 +6,9 @@
  * Each section's parts come from their own modules: the standing, the problems, the changes since
  * the run before, the human review and the summary, the page cards (./cards.ts), the cards of what
  * needs attention (./attention.ts), each run's evidence (./run-evidence.ts), and each run's event
- * log (./timeline.ts), whose events the evidence and the problems' records say in the same words. This puts them together, and works out the top,
- * the sample of what NVDA said, what the results cover, the appendix of transcripts, and the
- * fingerprint check's data.
+ * log (./timeline.ts), whose events the evidence and the problems' records say in the same words.
+ * This puts them together, and works out the top, the sample of what NVDA said, what the results
+ * cover, the appendix of transcripts, and the fingerprint check's data.
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
  * problems' in problemsOf, the evidence's in evidenceOf, the reason a screenshot couldn't be taken

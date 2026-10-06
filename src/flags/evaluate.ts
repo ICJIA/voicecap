@@ -9,6 +9,7 @@ import {
 import { lineMatches } from "../passes/read.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { hashJson } from "../util/hash.js";
+import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
 
@@ -225,12 +226,12 @@ export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   return data.steps.filter((step) => step.inDocument !== false);
 }
 
-/** Speech split into items (", " within an utterance, ". " between utterances), lowercased. */
+/**
+ * Speech split into items (", " within an utterance, ". " between utterances), lowercased: as the
+ * cards of what needs attention split it (speechItems), so a rule's item is always one of theirs.
+ */
 function items(speech: string): string[] {
-  return normalizeSpeech(speech)
-    .split(/, |\. /)
-    .map((item) => lower(item).replace(/[.,]$/, ""))
-    .filter((item) => item !== "");
+  return speechItems(speech).map(lower);
 }
 
 /** What NVDA says around a control without naming it: context before it, and its states. */

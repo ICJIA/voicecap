@@ -219,11 +219,25 @@ describe("NVDA's speech, item by item", () => {
       ["unlabeled graphic. To get missing image descriptions, open the context menu.", null],
       ["unlabeled graphic", null],
       ["graphic", null],
-      // What can follow a graphic and is never its name: a link, a landmark, a state, a button.
+      // What can follow a graphic and is never its name: a link, where a link goes, a landmark, a
+      // state, a button.
       ["Unlabeled graphic, link", null],
+      ["Unlabeled graphic, same page, link", null],
       ["Unlabeled graphic, main landmark", null],
       ["Unlabeled graphic, clickable", null],
       ["Unlabeled graphic, button", null],
+      // The graphic is the item NVDA calls unlabeled, not a link's words that say "graphic".
+      ["Graphic design, link, Unlabeled graphic, Photo", "Photo"],
+      // Chrome's hint after what is never a name, at a Tab stop: the graphic has no name, and the
+      // link's words after it aren't one.
+      [
+        "banner landmark, To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, link",
+        null,
+      ],
+      [
+        "To get missing image descriptions, open the context menu., Unlabeled graphic, Home, link",
+        null,
+      ],
     ];
 
     for (const [spoken, name] of names) expect(graphicName(spoken), spoken).toBe(name);
@@ -247,6 +261,21 @@ describe("NVDA's speech, item by item", () => {
     ).toEqual({ words: "Menu", role: "button" });
     // No link or button: the graphic stands on its own.
     expect(insideOf(HOME_READ_MAIN, "i 2i logo")).toBeNull();
+    // A link whose own words say "graphic": they're its words, and the graphic is the item NVDA
+    // calls unlabeled.
+    expect(
+      insideOf(
+        "Graphic design, Photo. To get missing image descriptions, open the context menu., Unlabeled graphic, link",
+        "Photo",
+      ),
+    ).toEqual({ words: "Graphic design", role: "link" });
+    // A graphic with no name at all, in a link with words of its own.
+    expect(
+      insideOf(
+        "To get missing image descriptions, open the context menu., Unlabeled graphic, Home, link",
+        null,
+      ),
+    ).toEqual({ words: "Home", role: "link" });
   });
 });
 
@@ -313,6 +342,29 @@ describe("what needs attention, as a card for each problem", () => {
         times: 1,
       },
     ]);
+
+    // At a Tab stop: Chrome's hint is all the graphic's name, inside a link with words of its own.
+    const home =
+      "To get missing image descriptions, open the context menu., Unlabeled graphic, Home, link";
+    expect(attentionCards([pageOf("about", [], [home])], rules)).toEqual([
+      {
+        id: "need-1",
+        kind: "graphic-unnamed",
+        subject: "unlabeled graphic",
+        level: null,
+        places: [
+          {
+            part: null,
+            inside: { words: "Home", role: "link" },
+            said: [{ pass: "tab", line: home }],
+            pages: ["about"],
+            times: 1,
+          },
+        ],
+        pages: [{ slug: "about", name: "Page about", path: "/about/", detail: null }],
+        times: 1,
+      },
+    ]);
   });
 
   it("a review settles a page's flags", () => {
@@ -361,13 +413,64 @@ describe("what needs attention, as a card for each problem", () => {
       ["changed", null],
     ]);
 
-    // A read that stopped short is one of the page's flags, and the review settles it too.
-    const stopped = pageFrom("archive", passesOf({ read: ["Archive", "2019"] }, "step-cap"), {
-      card: { readStopped: "step-cap" },
-      review: reviewed("reviewed"),
-    });
-    expect(stopped.card.flags.map((flag) => flag.rule)).toEqual(["read-not-finished"]);
-    expect(attentionCards([stopped], rules)).toEqual([]);
+    // Each issue is a card of its own, with its own note.
+    const issues = attentionCards(
+      [
+        logo(reviewed("issue", { note: "Logo has no name" })),
+        pageOf(
+          "team",
+          ["Our team", "graphic"],
+          [],
+          reviewed("issue", { note: "Photo has no text" }),
+        ),
+      ],
+      rules,
+    );
+    expect(issues.map((card) => [card.id, card.kind, card.pages])).toEqual([
+      ["need-1", "issue", [{ slug: "home", name: "Home", path: "/", detail: "Logo has no name" }]],
+      [
+        "need-2",
+        "issue",
+        [{ slug: "team", name: "Page team", path: "/team/", detail: "Photo has no text" }],
+      ],
+    ]);
+  });
+
+  it("keeps a read that stopped on its card whatever the review says, until a run reads it all", () => {
+    const stopped = (review: PageReview) =>
+      pageFrom("archive", passesOf({ read: ["Archive", "2019"] }, "step-cap"), {
+        card: { readStopped: "step-cap" },
+        review,
+      });
+    const card: AttentionCard = {
+      id: "need-1",
+      kind: "read-stopped",
+      subject: null,
+      level: null,
+      places: [
+        {
+          part: null,
+          inside: null,
+          said: [{ pass: "read", line: "2019" }],
+          pages: ["archive"],
+          times: 1,
+        },
+      ],
+      pages: [{ slug: "archive", name: "Page archive", path: "/archive/", detail: null }],
+      times: 1,
+    };
+
+    expect(stopped(reviewed("reviewed")).card.flags.map((flag) => flag.rule)).toEqual([
+      "read-not-finished",
+    ]);
+    expect(attentionCards([stopped(reviewed("reviewed"))], rules)).toEqual([card]);
+    expect(attentionCards([stopped(reviewed("fixed"))], rules)).toEqual([card]);
+    // An issue found is a card of its own, beside the read that stopped.
+    const issue = attentionCards([stopped(reviewed("issue", { note: "Ends mid-list" }))], rules);
+    expect(issue.map((each) => [each.kind, each.pages.map((page) => page.detail)])).toEqual([
+      ["read-stopped", [null]],
+      ["issue", ["Ends mid-list"]],
+    ]);
   });
 
   it("pages not read, and reads that stopped", () => {
@@ -555,7 +658,7 @@ describe("what needs attention, as a card for each problem", () => {
       ["repeated", "Close, button", 5],
     ]);
 
-    // A rule of the site's own, named by its message.
+    // A rule of the site's own, named by its description.
     const pdf: FlagRules = {
       ...rules,
       custom: [
@@ -572,14 +675,72 @@ describe("what needs attention, as a card for each problem", () => {
       rules: pdf,
     });
     expect(one(report, pdf).map((card) => [card.kind, card.subject, card.places[0]?.said])).toEqual(
-      [
-        [
-          "custom",
-          "Links to PDFs (1 match in the read pass)",
-          [{ pass: "read", line: "link, Annual report (PDF)" }],
-        ],
-      ],
+      [["custom", "Links to PDFs", [{ pass: "read", line: "link, Annual report (PDF)" }]]],
     );
+  });
+
+  it("makes one card of a site's own rule, named by its description, however often it matched", () => {
+    const pdf: FlagRules = {
+      ...rules,
+      custom: [
+        {
+          id: "pdf-links",
+          description: "Links to PDFs",
+          passes: ["read", "tab"],
+          pattern: "\\bpdf\\b",
+          minCount: 1,
+        },
+      ],
+    };
+    // Once in the read pass and twice at Tab stops on one page, twice in the read pass on another.
+    const report = pageFrom(
+      "report",
+      passesOf({
+        read: ["link, Annual report (PDF)", "Footer"],
+        tab: ["Annual report (PDF), link", "Budget (PDF), link"],
+      }),
+      { rules: pdf },
+    );
+    const budget = pageFrom(
+      "budget",
+      passesOf({ read: ["link, Budget (PDF)", "link, Plan (PDF)", "Footer"] }),
+      { rules: pdf },
+    );
+
+    expect([...report.card.flags, ...budget.card.flags].map((flag) => flag.message)).toEqual([
+      "Links to PDFs (1 match in the read pass).",
+      "Links to PDFs (2 matches in the tab pass).",
+      "Links to PDFs (2 matches in the read pass).",
+    ]);
+    expect(attentionCards([report, budget], pdf)).toEqual([
+      {
+        id: "need-1",
+        kind: "custom",
+        subject: "Links to PDFs",
+        level: null,
+        places: [
+          {
+            part: null,
+            inside: null,
+            said: [
+              { pass: "read", line: "link, Annual report (PDF)" },
+              { pass: "tab", line: "Annual report (PDF), link" },
+            ],
+            pages: ["report", "budget"],
+            times: 5,
+          },
+        ],
+        pages: [
+          { slug: "report", name: "Page report", path: "/report/", detail: null },
+          { slug: "budget", name: "Page budget", path: "/budget/", detail: null },
+        ],
+        times: 5,
+      },
+    ]);
+    // A rule the config no longer has is named by its message, without its final period.
+    expect(kindsOf(attentionCards([budget], rules))).toEqual([
+      ["custom", "Links to PDFs (2 matches in the read pass)"],
+    ]);
   });
 
   it("takes a card's lines from the passes that raised its flags, and no others", () => {
