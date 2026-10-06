@@ -27,6 +27,21 @@
  * - The person's own NVDA, which Guidepup's NVDA shuts down as it starts, is started again from
  *   where it ran once NVDA and the browsers are down: at the final stop() (a mid-run restart keeps
  *   it off), or as the process exits.
+ * - What it does to NVDA, the browsers, the person's own NVDA, and the NVDA lock goes to the run's
+ *   event log (setEventRecorder) as it's done, in the order it's done, and only once it's done: a
+ *   browser that wouldn't close isn't recorded as closed. An event recorded after the fact is
+ *   stamped with when it happened: NVDA's start with when it finished, before the lookup of its
+ *   process id, and the person's own NVDA's shutdown with when the start began. The exit hook
+ *   (abandon) records nothing.
+ * - When another window has the foreground, it looks up which program has it, once, as the loss is
+ *   found. The log gets the program and the window's title (foreground-lost), and the
+ *   ForegroundError names the program only: a title can hold private text. Not knowing the program
+ *   (the lookup fails, Windows doesn't say, or the foreground has come back to the page's own
+ *   browser, which took it from no one) changes nothing else about the failure.
+ * - Each HTML page's screenshot is taken through the browser's DevTools connection once the page
+ *   has loaded, before the browser is brought to the front and before any key, so it shows the page
+ *   as the screen reader finds it, and taking it doesn't move the window. One that can't be taken
+ *   is returned as the reason, and never fails the page.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -50,22 +65,29 @@ import {
 } from "./guidepup/paths.js";
 import {
   cleanupOrphans,
+  foregroundWindow,
   listProcesses,
   keepAwake,
   nvdaLanguage,
+  nvdaProcesses,
   ownNvdaPaths,
   restartNvda,
   restartNvdaDetached,
   sessionLocked,
+  startedNvda,
   titleMatches,
   windowsSystemInfo,
+  type ForegroundWindow,
 } from "./guidepup/windows.js";
 import {
   ForegroundError,
+  NO_EVENTS,
   type CaptureMode,
   type EnvironmentInfo,
+  type EventRecorder,
   type FocusedElement,
   type PageInfo,
+  type PageScreenshot,
   type ScreenReaderDriver,
   type Speech,
 } from "./types.js";
@@ -116,6 +138,8 @@ export interface LoadResult {
 export interface BrowserSession {
   readonly name: string;
   readonly version: string;
+  /** The browser's process id, which the event log keeps; absent when there is none to give. */
+  readonly pid?: number;
   /** Load a URL, following redirects, within the time limit (0: no limit). */
   load(url: string, timeoutMs: number): Promise<LoadResult>;
   waitUntilReady(readiness: VoicecapConfig["readiness"]): Promise<void>;
@@ -125,6 +149,12 @@ export interface BrowserSession {
    * (absolute), or null when the page has no such tag or the tag has no address.
    */
   pageCanonical(): Promise<string | null>;
+  /**
+   * What shows in the window now, as a JPEG at half the page's CSS size. It goes through the
+   * browser's DevTools connection, so it never brings the window forward, and it fails when the
+   * browser hasn't answered within five seconds.
+   */
+  screenshot(): Promise<Uint8Array>;
   /** Set the page's title (the window title follows it); returns a function that restores it. */
   setTitle(title: string): Promise<() => Promise<void>>;
   /**
@@ -162,6 +192,11 @@ export interface GuidepupDriverDeps {
   /** Process ids of running NVDA copies (any NVDA, not just Guidepup's). */
   runningNvda: () => Promise<number[]>;
   /**
+   * The process id of the NVDA voicecap started (Guidepup's), for the event log; null when it
+   * can't be found. Asked once that NVDA has started. A lookup that fails counts as null.
+   */
+  screenReaderPid: () => Promise<number | null>;
+  /**
    * Where the person's own running NVDA was started from (not Guidepup's NVDA), each path once.
    * Throws when Windows can't tell.
    */
@@ -180,12 +215,24 @@ export interface GuidepupDriverDeps {
   cleanupOrphans: () => Promise<string[]>;
   /** Whether Windows is locked (null when it doesn't say). */
   sessionLocked: () => Promise<boolean | null>;
+  /**
+   * The window in front, by its process, program, and title; null when Windows doesn't say. The
+   * log keeps the program and the title, and the process tells the page's own browser's window from
+   * another's. Asked once each time another window is found to have the foreground, and a lookup
+   * that fails counts as null. It must answer in good time: the step that lost the foreground waits.
+   */
+  foregroundWindow: () => Promise<ForegroundWindow | null>;
   /** Keep Windows from sleeping or turning the screen off (and locking because of either). */
   keepAwake: () => { release(): void };
   /** Wait; an abort ends the wait early (it may reject). */
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** A short random token for the window-title check. */
   marker: () => string;
+  /**
+   * The time now: when NVDA's start began and finished, which the event log stamps the events of
+   * the start with, since they're recorded only after it (see startUp).
+   */
+  now: () => Date;
 }
 
 /** The driver with the real Guidepup, browser, and Windows behind it. Nothing starts until start(). */
@@ -196,7 +243,7 @@ export function createGuidepupNvdaDriver(
   const guidepup = readGuidepupPackage();
   const install = guidepupInstall(guidepup.nvdaBuild, process.env, os.homedir());
   let system: SystemInfo | null = null;
-  return new GuidepupNvdaDriver(options, {
+  const driver = new GuidepupNvdaDriver(options, {
     platform,
     loadNvda: () => loadGuidepupNvda(install),
     install,
@@ -206,9 +253,10 @@ export function createGuidepupNvdaDriver(
         browser: options.config.browser,
         env: process.env,
         signal,
-        onRelaunch: (notice) => options.logger.warn(notice),
+        onRelaunch: (notice) => driver.relaunched(notice),
       }),
     runningNvda: () => listProcesses("nvda.exe"),
+    screenReaderPid: async () => startedNvda(await nvdaProcesses(), install.nvdaExe),
     ownNvda: () => ownNvdaPaths(install),
     restartNvda,
     restartNvdaDetached: (exe) => restartNvdaDetached(exe, install.nvdaExe),
@@ -216,10 +264,13 @@ export function createGuidepupNvdaDriver(
     system: () => (system ??= { ...windowsSystemInfo(), guidepupVersion: guidepup.version }),
     cleanupOrphans: () => cleanupOrphans(os.tmpdir(), install.nvdaExe),
     sessionLocked,
+    foregroundWindow,
     keepAwake,
     sleep: (ms, signal) => delay(ms, undefined, { signal }),
     marker: randomMarker,
+    now: () => new Date(),
   });
+  return driver;
 }
 
 /** Six random letters: NVDA reads letters back exactly, whatever its symbol and number settings. */
@@ -263,6 +314,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private awake: { release(): void } | null = null;
   /** Where the person's own NVDA ran from before Guidepup's NVDA shut it down: to start again. */
   private ownNvdaExes: string[] = [];
+  /** Where the run's event log is, once a run gives the driver it. */
+  private events: EventRecorder = NO_EVENTS;
+  /** The process id of the NVDA voicecap started, for the event that says it stopped. */
+  private nvdaPid: number | null = null;
   private session: BrowserSession | null = null;
   /** Whether the current session has loaded a page (the next load gets a fresh browser). */
   private sessionUsed = false;
@@ -279,6 +334,19 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     private readonly options: { config: VoicecapConfig; logger: Logger },
     private readonly deps: GuidepupDriverDeps,
   ) {}
+
+  setEventRecorder(recorder: EventRecorder): void {
+    this.events = recorder;
+  }
+
+  /**
+   * The browser handed over to a new copy of itself as it started, and voicecap is starting it
+   * again (launchChrome's onRelaunch calls this): warned of on the console, and recorded.
+   */
+  relaunched(notice: string): void {
+    this.options.logger.warn(notice);
+    this.events.record({ type: "browser-handed-over" });
+  }
 
   async start(): Promise<void> {
     const { install } = this.deps;
@@ -333,7 +401,18 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       // again would restart it.
       this.ownNvdaExes = ownNvdaExes;
       this.syncExitHook();
-      await this.startNvda(nvda, generation);
+      const { began, finished } = await this.startNvda(nvda, generation);
+      // Recorded before the check for a stop: NVDA has started, and a stop that came meanwhile shuts
+      // it down next, which the log shows as the stop of that start. Each is stamped when it
+      // happened, not when it's recorded: the computer's own NVDA closed as the start began (it's
+      // the first thing Guidepup's start does), and voicecap's NVDA was running once the start
+      // finished, before the lookup of its process id, a start of PowerShell that takes a second or
+      // more.
+      if (running.length > 0) {
+        this.events.record({ type: "own-screen-reader-closed", pids: [...running] }, began);
+      }
+      this.nvdaPid = await this.startedNvdaPid();
+      this.events.record({ type: "screen-reader-started", pid: this.nvdaPid }, finished);
       this.checkLive(generation);
       const settings = nvda.settings();
       // Launching the browser now checks that it works before any page is tried.
@@ -351,21 +430,31 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     }
   }
 
-  /** Take the machine's NVDA lock, unless this driver holds it already. */
+  /**
+   * Take the machine's NVDA lock, unless this driver holds it already. Only taking it is recorded:
+   * a call that finds the lock held changes nothing.
+   */
   private async holdLock(): Promise<void> {
+    if (this.releaseLock) return;
     const file = this.deps.lockFile;
-    this.releaseLock ??= await acquireLockFile(file, {
+    this.releaseLock = await acquireLockFile(file, {
       held: (holder) =>
         `Another voicecap (process ${holder.pid}, started ${holder.startedAt}) is using NVDA on this computer, and only one can at a time. Wait for it to finish, or stop it first. If no other voicecap is running, delete its lock: ${file}`,
       otherHost: (holder) =>
         `The NVDA lock ${file} was taken on another computer (${holder.host}). If no voicecap is running here, delete it.`,
     });
+    this.events.record({ type: "screen-reader-lock-taken" });
   }
 
-  private async startNvda(nvda: NvdaControl, generation: number): Promise<void> {
+  /** Start NVDA, and say when the start began and when it finished, for the event log. */
+  private async startNvda(
+    nvda: NvdaControl,
+    generation: number,
+  ): Promise<{ began: Date; finished: Date }> {
     this.nvda = nvda;
     this.nvdaOwner = generation;
     this.setNvdaState("starting");
+    const began = this.deps.now();
     try {
       await nvda.start({
         capture: this.options.config.capture,
@@ -378,7 +467,9 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         failure: "screen-reader-stopped",
       });
     }
+    const finished = this.deps.now();
     this.setNvdaState("running");
+    return { began, finished };
   }
 
   stop(options: { restarting?: boolean } = {}): Promise<void> {
@@ -418,7 +509,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.letSleep();
     const release = this.releaseLock;
     this.releaseLock = null;
-    await release?.();
+    if (release) {
+      await release();
+      this.events.record({ type: "screen-reader-lock-released" });
+    }
   }
 
   /**
@@ -453,6 +547,18 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   }
 
   /**
+   * The process id of the NVDA that has just started. Null when it can't be found: it's kept for
+   * the event log, and not knowing it mustn't stop a run.
+   */
+  private async startedNvdaPid(): Promise<number | null> {
+    try {
+      return await this.deps.screenReaderPid();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * The final stop's restore, once nothing of Guidepup's can shut the person's NVDA down again:
    * Guidepup's start keeps waiting for its NVDA after a direct shutdown (then starts it again, or
    * quits whichever NVDA is running when it gives up), and its stop ends with that quit. Until
@@ -478,12 +584,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private async restartOwnNvda(): Promise<void> {
     for (const exe of [...this.ownNvdaExes]) {
       if (!this.ownNvdaExes.includes(exe)) continue; // abandon() has started it meanwhile
+      let ok = false;
       try {
         await this.deps.restartNvda(exe);
+        ok = true;
         this.options.logger.info(`Turned your NVDA back on (${exe}).`);
       } catch (error) {
         this.warnNotRestarted(error);
       }
+      this.events.record({ type: "own-screen-reader-restarted", ok });
       this.ownNvdaExes = this.ownNvdaExes.filter((noted) => noted !== exe);
       this.syncExitHook();
     }
@@ -560,10 +669,24 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     await session.waitUntilReady(this.options.config.readiness);
     const title = await session.pageTitle();
     const canonical = await session.pageCanonical();
+    const screenshot = await this.screenshotOf(session);
     await this.bringToFront(page);
     await this.press(page, "exitFocusMode", { capture: false });
     await this.press(page, "toTop");
-    return { ...loaded, title: title === "" ? null : title, canonical };
+    return { ...loaded, title: title === "" ? null : title, canonical, screenshot };
+  }
+
+  /**
+   * The page as it looks now it has loaded: taken before the browser comes forward and before any
+   * key, so it's the page as the screen reader finds it. A picture that can't be taken is the reason
+   * instead, and never fails the page: it's evidence beside the transcripts, not part of them.
+   */
+  private async screenshotOf(session: BrowserSession): Promise<PageScreenshot> {
+    try {
+      return { jpeg: await session.screenshot() };
+    } catch (error) {
+      return { error: errorMessage(error) };
+    }
   }
 
   nextLine(): Promise<Speech> {
@@ -587,7 +710,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const { nvda, session } = page;
     const before = await session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost();
+    if (!before.focused) throw await this.foregroundLost(session);
     let speech: Speech;
     if (this.firstTab) {
       this.firstTab = false;
@@ -609,7 +732,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.inDocument = false;
       return speech;
     }
-    throw await this.foregroundLost();
+    throw await this.foregroundLost(session);
   }
 
   focusInDocument(): Promise<boolean> {
@@ -635,13 +758,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   ): Promise<Speech> {
     const before = await page.session.focusState();
     this.checkLive(page.generation);
-    if (!before.focused) throw await this.foregroundLost();
+    if (!before.focused) throw await this.foregroundLost(page.session);
     const said = await this.command(() => page.nvda.press(key, options));
     // Only speech that was captured says anything about NVDA and Windows.
     const speech = options?.capture === false ? said : await this.heard(page, said);
     const after = await page.session.focusState();
     this.checkLive(page.generation);
-    if (!after.focused || lostFocusBetween(before, after)) throw await this.foregroundLost();
+    if (!after.focused || lostFocusBetween(before, after)) {
+      throw await this.foregroundLost(page.session);
+    }
     return speech;
   }
 
@@ -676,6 +801,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       );
       throw new ForegroundError(
         "The browser window couldn't be brought to the front, so keystrokes would have gone to another window. Keep the computer free while voicecap runs: close dialogs, and don't use other windows.",
+        { program: await this.foregroundTakenBy(session) },
       );
     } finally {
       await restore();
@@ -712,14 +838,50 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     // On a locked computer, Windows keeps NVDA from pressing keys, and NVDA says nothing.
     if ((await this.deps.sessionLocked()) === true) {
       this.checkLive(page.generation);
-      throw windowsLocked();
+      throw this.computerLocked();
     }
     return speech;
   }
 
-  /** The page lost focus: to another window, or to the lock screen (checked on real Windows). */
-  private async foregroundLost(): Promise<Error> {
-    return (await this.deps.sessionLocked()) === true ? windowsLocked() : lostForeground();
+  /**
+   * The page of the browser `session` lost focus: to another window, or to the lock screen (checked
+   * on real Windows).
+   */
+  private async foregroundLost(session: BrowserSession): Promise<Error> {
+    return (await this.deps.sessionLocked()) === true
+      ? this.computerLocked()
+      : lostForeground(await this.foregroundTakenBy(session));
+  }
+
+  /**
+   * Another window has the foreground: which program has it is looked up, once, and recorded as the
+   * error is made. Gives the program's name, null when it isn't known: the lookup failed, Windows
+   * didn't say, or the window in front is the page's own browser (`session`, told by its process
+   * id). The lookup comes a moment after the loss, and the foreground may have come back to the
+   * browser by then: no program took it. A browser with no process id can't be told from another
+   * program's window, so the answer stands. The error gets the name only, as the window's title,
+   * which the log keeps, can hold private text. Not knowing mustn't change what the step fails with.
+   */
+  private async foregroundTakenBy(session: BrowserSession): Promise<string | null> {
+    let front: ForegroundWindow | null = null;
+    try {
+      front = await this.deps.foregroundWindow();
+    } catch {
+      // Counts as not known.
+    }
+    if (front !== null && front.pid === session.pid) front = null;
+    this.events.record({
+      type: "foreground-lost",
+      program: front?.program ?? null,
+      title: front?.title ?? null,
+    });
+    return front?.program ?? null;
+  }
+
+  /** Windows was found locked: recorded, as the error that says so is made. */
+  private computerLocked(): EnvironmentError {
+    this.events.record({ type: "computer-locked" });
+    return windowsLocked();
   }
 
   private markerTitle(): string {
@@ -758,6 +920,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       this.deps.launchBrowser(this.launches.signal).then(async (session) => {
         this.browsers.set(session, null);
         this.syncExitHook();
+        this.events.record({ type: "browser-launched", pid: session.pid ?? null });
         const recorded = this.browser;
         if (recorded && (session.name !== recorded.name || session.version !== recorded.version)) {
           await this.closeBrowser(session);
@@ -771,13 +934,19 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     );
   }
 
-  /** Close a browser; closing one that's already closing waits for that close. */
+  /**
+   * Close a browser; closing one that's already closing waits for that close. The close is recorded
+   * once it has finished: a browser that wouldn't close isn't said to have.
+   */
   private closeBrowser(session: BrowserSession): Promise<void> {
     let closing = this.browsers.get(session);
     if (closing === undefined) return Promise.resolve();
     if (closing === null) {
       closing = session
         .close()
+        .then(() => {
+          this.events.record({ type: "browser-closed", pid: session.pid ?? null });
+        })
         .catch((error: unknown) => {
           this.options.logger.warn(`Closing the browser failed: ${errorMessage(error)}`);
         })
@@ -854,6 +1023,12 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     } finally {
       this.setNvdaState("stopped");
     }
+    // A restart's stop is one that a start follows at once. That's judged only now, after the wait,
+    // as a final stop may have joined it meanwhile. NVDA shut down by a start that failed, with no
+    // stop() under way, isn't followed by a start: the core decides what comes next.
+    const restarting = this.stopping !== null && !this.finalStop;
+    this.events.record({ type: "screen-reader-stopped", pid: this.nvdaPid, restarting });
+    this.nvdaPid = null;
   }
 
   private async stopNvda(nvda: NvdaControl): Promise<void> {
@@ -934,9 +1109,10 @@ function windowsLocked(): EnvironmentError {
   );
 }
 
-function lostForeground(): ForegroundError {
+function lostForeground(program: string | null): ForegroundError {
   return new ForegroundError(
     "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
+    { program },
   );
 }
 

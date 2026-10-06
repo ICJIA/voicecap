@@ -1,7 +1,8 @@
 /**
  * The problems during the runs: every failed attempt in the runs a standing draws on, each with
  * its kind, what voicecap did, whether it happened again, what it did to the results, and the
- * record of it. Pure: it works from run records already read, and reads no files.
+ * record of it. Pure: it works from run records already read, and reads no files. The lines a run's
+ * event log has of an attempt come from whoever read the log (see `EventRows`).
  */
 import {
   PASS_NAMES,
@@ -13,6 +14,7 @@ import {
 } from "../model.js";
 import { redactHome } from "../run/failure.js";
 import type { Standing } from "./standing.js";
+import { PROBLEMS_TEXT, TIMELINE_TEXT } from "./text.js";
 
 /** A problem's kind: a cause code, with the three timeouts under one kind. */
 export type ProblemKind =
@@ -27,8 +29,34 @@ export type ProblemKind =
 
 export interface ProblemRecordRow {
   time: string | null;
-  source: "run.json" | "stack";
+  /** The page's record in run.json, the run's event log, or the stack an unexpected error left. */
+  source: "run.json" | "events.jsonl" | "stack";
   entry: string;
+}
+
+/**
+ * What a run's event log says of an attempt at a page, for its record:
+ * - `rows`: each of its events from the attempt's start until the next attempt's, or until 10
+ *   seconds after it ended when none followed, as its time and its words (none for an attempt of a
+ *   session the log has no line of);
+ * - `gap`: where the page doesn't have the log of a run whose voicecap keeps one, why, as the
+ *   record's line says it, which is the reason the run's evidence gives (TIMELINE_TEXT.gaps);
+ * - null: the page has no log of a run from before voicecap kept one.
+ */
+export type EventRows = (
+  run: RunJson,
+  page: PageRecord,
+  attempt: AttemptRecord,
+) => { rows: { time: string; entry: string }[] } | { gap: string } | null;
+
+/**
+ * Whether a voicecap keeps a run's event log, and the program that takes the screen when the
+ * browser loses it: 0.11.0, the first, and every version since. An unknown version counts as an
+ * earlier one.
+ */
+export function keepsEventLog(version: string | null): boolean {
+  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
+  return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 11);
 }
 
 export interface Problem {
@@ -46,6 +74,12 @@ export interface Problem {
   command: string | null;
   /** The message with the home folder replaced. */
   message: string;
+  /**
+   * For a foreground loss, the program that came to the front, by its name, with the home folder
+   * replaced; null when voicecap couldn't tell. Absent when the run didn't record it: before
+   * voicecap 0.11.0, or a driver that didn't look. Never the window's title.
+   */
+  program?: string | null;
   stack: string | null;
   /** "What happened", in plain words. */
   happened: string;
@@ -170,6 +204,14 @@ const KIND_OF_CAUSE: Record<FailureCause, ProblemKind> = {
   "page-timeout": "timeout",
   unexpected: "unexpected",
 };
+
+/**
+ * The kind of a cause code. A code this version doesn't know (a newer voicecap's) is an unexpected
+ * error, as the spec says of any other: it's shown as possibly voicecap's own.
+ */
+export function kindOfCause(cause: string): ProblemKind {
+  return Object.hasOwn(KIND_OF_CAUSE, cause) ? KIND_OF_CAUSE[cause as FailureCause] : "unexpected";
+}
 
 /**
  * Each kind in plain words, as the verdict line and the verdicts name it, and as the summary names
@@ -335,17 +377,46 @@ interface Failure {
     | "step"
     | "command"
     | "message"
+    | "program"
     | "stack"
     | "record"
   >;
+  /** Whether the record has the event log's lines of the attempt. */
+  logged: boolean;
+  /**
+   * Why the page doesn't have the log of a run whose voicecap keeps one, as the record says it (see
+   * EventRows); null otherwise.
+   */
+  gap: string | null;
 }
 
-function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => string): Failure {
+/**
+ * A failed attempt from its record, with what the run's event log says of it (`events`, see
+ * EventRows) among the record's own lines, by time. Its program, for a foreground loss, is as the
+ * record keeps it: a name, or null when voicecap couldn't tell.
+ */
+function failureOfRecord(
+  attempt: AttemptRecord,
+  redact: (text: string) => string,
+  events: ReturnType<EventRows>,
+): Failure {
   const message = redact(attempt.message);
   // A cause code this version doesn't know (a newer voicecap's) is an unexpected error, as the
   // spec says of any other: it's shown as possibly voicecap's own, with its stack.
-  const kind = KIND_OF_CAUSE[attempt.cause] ?? "unexpected";
+  const kind = kindOfCause(attempt.cause);
   const stack = kind === "unexpected" && attempt.stack !== undefined ? redact(attempt.stack) : null;
+  const program = kind === "foreground" ? programOf(attempt.program, redact) : undefined;
+  const own: ProblemRecordRow[] = [
+    { time: attempt.startedAt, source: "run.json", entry: `Attempt ${attempt.n} started` },
+    { time: attempt.endedAt, source: "run.json", entry: `Failed: ${attempt.cause}: ${message}` },
+    ...(stack === null ? [] : [{ time: attempt.endedAt, source: "stack" as const, entry: stack }]),
+  ];
+  const lines = events !== null && "rows" in events ? events.rows : [];
+  const logged = lines.map(({ time, entry }): ProblemRecordRow => ({
+    time,
+    source: "events.jsonl",
+    entry,
+  }));
   return {
     attempt: attempt.n,
     next: attempt.n + 1,
@@ -354,6 +425,8 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
     recorded: true,
     unnamedStep: false,
     at: Date.parse(attempt.startedAt) || 0,
+    logged: logged.length > 0,
+    gap: events !== null && "gap" in events ? events.gap : null,
     fields: {
       n: attempt.n,
       startedAt: attempt.startedAt,
@@ -364,20 +437,39 @@ function failureOfRecord(attempt: AttemptRecord, redact: (text: string) => strin
       step: attempt.step,
       command: attempt.command,
       message,
+      ...(program === undefined ? {} : { program }),
       stack,
-      record: [
-        { time: attempt.startedAt, source: "run.json", entry: `Attempt ${attempt.n} started` },
-        {
-          time: attempt.endedAt,
-          source: "run.json",
-          entry: `Failed: ${attempt.cause}: ${message}`,
-        },
-        ...(stack === null
-          ? []
-          : [{ time: attempt.endedAt, source: "stack" as const, entry: stack }]),
-      ],
+      record: byTime([...own, ...logged]),
     },
   };
+}
+
+/**
+ * The program a foreground loss's record names: its name, with the home folder replaced, or null
+ * when voicecap couldn't tell. Absent when the record has none to give (a run from before 0.11.0,
+ * or a driver that didn't look), or a value no voicecap writes.
+ */
+function programOf(
+  program: AttemptRecord["program"],
+  redact: (text: string) => string,
+): string | null | undefined {
+  if (program === null) return null;
+  return typeof program === "string" ? redact(program) : undefined;
+}
+
+/**
+ * A record's lines in the order they were recorded: by time, and, where a line of the event log has
+ * the same time as one of the record's own (the attempt began, then its page; it failed, then its
+ * page), the record's first, as they're given first and the sort keeps their order. A line whose
+ * time can't be read leaves every line where it was.
+ */
+function byTime(rows: ProblemRecordRow[]): ProblemRecordRow[] {
+  const times = rows.map((row) => (row.time === null ? NaN : Date.parse(row.time)));
+  if (!times.every(Number.isFinite)) return rows;
+  return rows
+    .map((row, index) => ({ row, at: times[index] ?? 0 }))
+    .sort((a, b) => a.at - b.at)
+    .map(({ row }) => row);
 }
 
 function failureOfEntry(entry: string, index: number, redact: (text: string) => string): Failure {
@@ -390,6 +482,9 @@ function failureOfEntry(entry: string, index: number, redact: (text: string) => 
     recorded: false,
     unnamedStep: parsed.inStep,
     at: 0,
+    // Runs that wrote their errors as text recorded no event log.
+    logged: false,
+    gap: null,
     fields: {
       n: parsed.n,
       startedAt: null,
@@ -412,22 +507,27 @@ interface PageContext {
   run: RunJson;
   page: PageRecord;
   redact: (text: string) => string;
+  eventRows: EventRows;
 }
 
 /**
  * The problems of the runs a standing draws on: each failed attempt in their pages, from the
  * page's attempt records when it has them, and otherwise from its errors, whose kind comes from
  * the wording voicecap wrote them in. Oldest first, by when each attempt began; the problems
- * written as text, which don't say, go by run, then page order.
+ * written as text, which don't say, go by run, then page order. `eventRows` gives what a run's
+ * event log says of an attempt, for its record; without it, no run has a log.
  */
 export function problemsOf(
   standing: Standing,
-  options: { home: string; platform: NodeJS.Platform },
+  options: { home: string; platform: NodeJS.Platform; eventRows?: EventRows },
 ): ProblemsSection {
   const redact = (text: string) => redactHome(text, options.home, options.platform);
+  const eventRows = options.eventRows ?? (() => null);
   const problems: Problem[] = [];
   for (const run of standing.drawnOn) {
-    const found = run.pages.flatMap((page) => problemsOfPage({ standing, run, page, redact }));
+    const found = run.pages.flatMap((page) =>
+      problemsOfPage({ standing, run, page, redact, eventRows }),
+    );
     // The sort is stable. What's written as text says nothing of when (0 here), so it stays in page
     // order, and a page's own attempts stay as its record lists them, oldest first.
     found.sort((a, b) => a.at - b.at);
@@ -445,7 +545,9 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
   const records = page.failedAttempts ?? [];
   const failures =
     records.length > 0
-      ? records.map((attempt) => failureOfRecord(attempt, redact))
+      ? records.map((attempt) =>
+          failureOfRecord(attempt, redact, ctx.eventRows(run, page, attempt)),
+        )
       : page.errors.map((entry, index) => failureOfEntry(entry, index, redact));
   if (failures.length === 0) return [];
 
@@ -467,10 +569,22 @@ function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
       verdict,
       again,
       effect: effectOf(ctx, failure, endsPage, version),
-      notRecorded: notRecordedOf(failure, version),
+      notRecorded: notRecordedOf(failure, versionAt(run, failure.fields.startedAt) ?? version),
     };
     return { problem, at: failure.at };
   });
+}
+
+/**
+ * The voicecap version of the session a time is in: the last to start at or before it. An attempt
+ * names no session, but its time places it in one, and a run begun with one voicecap can be resumed
+ * with a later one. Null for no time, or a session that recorded no environment.
+ */
+function versionAt(run: RunJson, time: string | null): string | null {
+  const at = time === null ? NaN : Date.parse(time);
+  if (!Number.isFinite(at)) return null;
+  const session = run.sessions.findLast((each) => Date.parse(each.startedAt) <= at);
+  return session?.environment?.voicecap.version ?? null;
 }
 
 /** "What happened": the pass, the step, and the key, in plain words, and what went wrong. */
@@ -669,18 +783,38 @@ function keepsEarlierAttempts(version: string | null): boolean {
 }
 
 /**
- * What a run didn't record, said where it matters. An error from a pass's step, written as text,
- * doesn't give the step that failed or the key it pressed. The program in front is for a foreground
- * loss only, and the event log and NVDA's own log are for every problem.
+ * What a run didn't record, said where it matters, and never put down to a voicecap that records
+ * it. `version` is the voicecap of the attempt's session.
+ * - The step and the key: for an error from a pass's step, written as text, which gives neither.
+ * - Which program came to the front: for a foreground loss whose record has none. A voicecap that
+ *   looks (0.11.0 on) left it out because the run's screen reader driver didn't look; an older one
+ *   never looked. A record that names the program, or says Windows didn't, says so after what
+ *   happened.
+ * - The event log: for a problem whose record has none of its lines. From a voicecap that keeps the
+ *   log, why: the page doesn't have the log, for the reason the run's evidence gives (`gap`), or the
+ *   log has no line of the attempt. From an older voicecap, that it kept none.
+ * - NVDA's own log: for every problem, since no voicecap keeps it yet, said by the run's voicecap as
+ *   the run's evidence says it.
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
+  const { unrecorded } = PROBLEMS_TEXT;
+  const keeps = keepsEventLog(version);
+  const program =
+    failure.fields.kind === "foreground" && failure.fields.program === undefined
+      ? [keeps ? PROBLEMS_TEXT.program.notLooked : notRecorded(unrecorded.program)]
+      : [];
+  const eventLog = failure.logged
+    ? []
+    : !keeps
+      ? null
+      : [failure.gap ?? TIMELINE_TEXT.noLinesOfAttempt];
   return [
-    ...(failure.unnamedStep ? [notRecorded("The step and the key")] : []),
-    ...(failure.fields.kind === "foreground"
-      ? [notRecorded("Which program came to the front")]
-      : []),
-    notRecorded("The event log and NVDA's own log"),
+    ...(failure.unnamedStep ? [notRecorded(unrecorded.stepAndKey)] : []),
+    ...program,
+    ...(eventLog === null
+      ? [notRecorded(unrecorded.logs)]
+      : [...eventLog, notRecorded(unrecorded.nvdaLog)]),
   ];
 }
 
@@ -741,7 +875,31 @@ function lineOf(problems: Problem[], standing: Standing): string {
       : unexpected === 1
         ? `1 was an unexpected error, ${itself}: see its record.`
         : `${unexpected} were unexpected errors, ${itself}: see their records.`;
-  return `${count}${whose}: ${named}. ${again}. ${closing}`;
+  const programs = programsLine(problems);
+  return `${count}${whose}: ${named}.${programs === null ? "" : ` ${programs}`} ${again}. ${closing}`;
+}
+
+/**
+ * The verdict line's sentence on which programs came to the front: each program the problems of
+ * another window taking the screen name, with how often, the most often first (among those as often
+ * as each other, the first to come to the front first), then how many of those problems name none
+ * (voicecap couldn't tell, or the run didn't record it). None when no problem names a program, as
+ * in every run from before voicecap 0.11.0, whose line stays as it was.
+ */
+function programsLine(problems: Problem[]): string | null {
+  const counts = new Map<string, number>();
+  let unnamed = 0;
+  for (const { kind, program } of problems) {
+    if (kind !== "foreground") continue;
+    if (typeof program === "string") counts.set(program, (counts.get(program) ?? 0) + 1);
+    else unnamed++;
+  }
+  if (counts.size === 0) return null;
+  // The sort is stable, so programs as often as each other stay in the order they came.
+  const often = [...counts]
+    .sort(([, more], [, fewer]) => fewer - more)
+    .map(([program, times]) => PROBLEMS_TEXT.programs.often(program, times));
+  return PROBLEMS_TEXT.programs.line(joinList(often), counts.size, unnamed);
 }
 
 /**

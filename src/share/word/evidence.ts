@@ -29,6 +29,7 @@ import {
   STORY,
   STORY_TEXT,
   TIMELINE,
+  TIMELINE_TEXT,
   TOP_TEXT,
   WORD_TEXT,
   WORTH_KNOWING,
@@ -41,7 +42,9 @@ import {
   inRun,
   notRecordedLine,
   readCopyNote,
+  recordTime,
   runTitle,
+  sessionLine,
   timelineDay,
   whenOf,
   whyLine,
@@ -154,11 +157,41 @@ function walkthroughBlocks({ walkthrough }: RunEvidence): Block[] {
 }
 
 /**
+ * A run's event log, where the page has a chart and a fold for each session: each session's name,
+ * when the run's sessions are named, in bold; its summary, the chart's text; its table of every
+ * event, the time to the millisecond in the fixed-width font; and, after the last, how many lines of
+ * the log couldn't be read. A session the log has no line of says why in its place, as the page
+ * says it. Where the page can't show the log, it says why, as the page does.
+ */
+function eventLogBlocks({ timeline, unlogged }: RunEvidence): Block[] {
+  if (!Array.isArray(timeline)) return [para(notRecordedLine(timeline.notRecorded))];
+  const sessions = [
+    ...timeline.map((session) => {
+      const named = sessionLine(timeline, session, unlogged);
+      const rows = session.rows.map(({ time, text }) => [monoCell(recordTime(time)), text]);
+      const blocks = [
+        ...(named === null ? [] : [para({ text: named, bold: true })]),
+        ...(session.summary.length === 0 ? [] : [para(session.summary.join(" "))]),
+        table(TIMELINE_TEXT.head, rows, [22, 78]),
+        ...(session.unreadable > 0 ? [para(TIMELINE_TEXT.unreadable(session.unreadable))] : []),
+      ];
+      return { n: session.session, blocks };
+    }),
+    ...unlogged.map(({ session, notRecorded }) => ({
+      n: session,
+      blocks: [para(notRecordedLine(notRecorded))],
+    })),
+  ];
+  return sessions.sort((a, b) => a.n - b.n).flatMap(({ blocks }) => blocks);
+}
+
+/**
  * A run: its title as a heading 2, when it ran and that it completed and was sealed, its facts, and
- * its five parts. The event log and NVDA's own log, which no version of voicecap records yet, each
- * say so, as the model words it. The test environment is a table. The fingerprints are a table,
- * and after it how to check them against the recorded files, with the command as a fixed-width
- * block. The walkthrough file is last.
+ * its five parts. The event log, minute by minute, is each session's summary and its table of
+ * events (from voicecap 0.11.0); NVDA's own log, which no version records yet, says so, as the model
+ * words it. The test environment is a table. The fingerprints are a table, and after it how to check
+ * them against the recorded files, with the command as a fixed-width block. The walkthrough file is
+ * last.
  */
 function runBlocks(each: RunEvidence): Block[] {
   const { run } = each;
@@ -167,7 +200,7 @@ function runBlocks(each: RunEvidence): Block[] {
     heading(2, runTitle(run.id)),
     para(`${whenOf(run)}. ${WORD_TEXT.evidence.status}`),
     rowsTable(each.facts),
-    ...partBlocks(parts.timeline, run.id, [para(notRecordedLine(each.timeline.notRecorded))]),
+    ...partBlocks(parts.timeline, run.id, eventLogBlocks(each)),
     ...partBlocks(parts.nvdaLog, run.id, [para(notRecordedLine(each.nvdaLog.notRecorded))]),
     ...partBlocks(parts.environment, run.id, [rowsTable(each.environment)]),
     ...partBlocks(parts.fingerprints, run.id, [

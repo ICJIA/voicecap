@@ -5,16 +5,18 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { chromium } from "playwright";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
+  foregroundWindow,
   keepAwake,
   listProcesses,
   nvdaProcesses,
   ownNvdaPaths,
   parseComputerModel,
+  parseForegroundWindow,
   parseNvdaProcesses,
   parseWindowsMachine,
   personsNvda,
@@ -23,6 +25,7 @@ import {
   restartAfterScript,
   restartNvda,
   sessionLocked,
+  startedNvda,
   startProcessScript,
   windowsMachineProbe,
   windowsSystemInfo,
@@ -80,19 +83,32 @@ function startStandInNvda(
   return { pid: child.pid, exe, child };
 }
 
-/** Runs a script as voicecap's PowerShell helpers do; resolves when it's done, with its errors. */
-function runPowershell(script: string): Promise<{ stderr: string; at: number }> {
+/**
+ * Runs a script as voicecap's PowerShell helpers do; resolves when it's done, with what it printed
+ * and its errors.
+ */
+function runPowershell(script: string): Promise<{ stdout: string; stderr: string; at: number }> {
   return new Promise((resolve, reject) => {
     execFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", powershellCommand(script)],
       { windowsHide: true, timeout: 60_000 },
-      (error, _stdout, stderr) => {
+      (error, stdout, stderr) => {
         if (error?.killed) reject(new Error("PowerShell didn't finish within a minute"));
-        else resolve({ stderr, at: Date.now() });
+        else resolve({ stdout, stderr, at: Date.now() });
       },
     );
   });
+}
+
+/** The script foregroundWindow() has PowerShell run, which nothing here runs against the desktop. */
+async function foregroundScript(): Promise<string> {
+  let script = "";
+  await foregroundWindow((asked) => {
+    script = asked;
+    return Promise.resolve("");
+  });
+  return script;
 }
 
 /**
@@ -172,6 +188,32 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
     expect(await listProcesses("node.exe")).toContain(process.pid);
     expect(await listProcesses("no-such-program-for-voicecap.exe")).toEqual([]);
   });
+
+  // The lookup of the window in front is checked for real only at the PC, and a typo in it would
+  // fail every lookup: each lost foreground would read as one voicecap couldn't name the program of.
+  // These two read no window and never ask which one is in front.
+  it("compile the C# the lookup of the window in front uses, and ask it about no window", async () => {
+    // The script's first statement is its Add-Type, with the C# in single quotes (it has none of its
+    // own). HostedProcess is asked about the null window, which it must take for no window: user32's
+    // EnumChildWindows takes a null parent for every top-level window, those of the desktop.
+    const compile = /^Add-Type [^']*'[^']*';/.exec(await foregroundScript())?.[0] ?? "";
+    expect(compile).not.toBe("");
+    const answer = await runPowershell(
+      `${compile} [Voicecap.Front]::HostedProcess([IntPtr]::Zero, 0)`,
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("0");
+  }, 60_000);
+
+  it("parse the script of the lookup of the window in front as PowerShell, and run none of it", async () => {
+    const answer = await runPowershell(
+      [
+        "$errors = $null;",
+        `[void][System.Management.Automation.Language.Parser]::ParseInput(${powershellString(await foregroundScript())}, [ref]$null, [ref]$errors);`,
+        "$errors | ForEach-Object { $_.Message }; 'parsed'",
+      ].join(" "),
+    );
+    expect(answer.stdout.trim(), answer.stderr).toBe("parsed");
+  }, 60_000);
 
   it("read the path of an nvda.exe whose memory Windows won't let voicecap read, as for an installed NVDA", async () => {
     const nvda = startStandInNvda("voicecap-nvda-test-");
@@ -331,6 +373,30 @@ describe("Windows helpers (what PowerShell says)", () => {
     ]);
   });
 
+  it("find Guidepup's NVDA among the person's, whatever the spelling of its path", () => {
+    const running = [
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+      {
+        pid: 2,
+        path: "c:/users/PAT/appdata/local/GUIDEPUP/nvda/all/0.2.1-2026.2/extracted/NVDA.EXE",
+      },
+    ];
+    expect(startedNvda(running, install.nvdaExe)).toBe(2);
+    // Should two run from that path, it's the first listed.
+    expect(startedNvda([{ pid: 1, path: install.nvdaExe }, ...running], install.nvdaExe)).toBe(1);
+  });
+
+  it("find no started NVDA when none runs from Guidepup's path, or none runs", () => {
+    // A process whose path Windows doesn't give isn't taken for it.
+    const persons = [
+      { pid: 3, path: OWN_NVDA },
+      { pid: 4, path: null },
+    ];
+    expect(startedNvda(persons, install.nvdaExe)).toBeNull();
+    expect(startedNvda([], install.nvdaExe)).toBeNull();
+  });
+
   it("list where to start the person's own NVDA again from: each path once, none unknown", async () => {
     const running = [
       { pid: 1, path: install.nvdaExe },
@@ -343,6 +409,243 @@ describe("Windows helpers (what PowerShell says)", () => {
       OWN_NVDA,
       "D:\\nvda-portable\\nvda.exe",
     ]);
+  });
+
+  // What the lookup of the window in front prints: one line of JSON, from ConvertTo-Json.
+  it("read the process, the program, and the title of the window in front from PowerShell's answer", () => {
+    expect(
+      parseForegroundWindow(
+        '{"pid":4242,"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n',
+      ),
+    ).toEqual({ pid: 4242, program: "Microsoft Teams", title: "Chat | Microsoft Teams" });
+  });
+
+  it("read no window in front from an answer that's empty, null, or isn't an object", () => {
+    const answers = [
+      "",
+      " \r\n",
+      "null",
+      "7",
+      "true",
+      '"Microsoft Teams"',
+      "[]",
+      '[{"pid":4242,"program":"Microsoft Teams","title":"Chat"}]',
+      "Add-Type : Cannot add type. Compilation errors occurred.",
+    ];
+    for (const answer of answers) expect(parseForegroundWindow(answer), answer).toBeNull();
+  });
+
+  it("read no window in front when the program is missing, empty, or not a name", () => {
+    const programs = [
+      '""',
+      '"   "',
+      "null",
+      "7",
+      "true",
+      '["Microsoft Teams"]',
+      '{"name":"Teams"}',
+    ];
+    for (const program of programs) {
+      const answer = `{"pid":4242,"program":${program},"title":"Chat | Microsoft Teams"}`;
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+    expect(parseForegroundWindow('{"pid":4242,"title":"Chat | Microsoft Teams"}')).toBeNull();
+    expect(parseForegroundWindow("{}")).toBeNull();
+  });
+
+  it("read no window in front when the process isn't a whole number above zero, or is missing", () => {
+    // Zero is what Windows gives when it can't name the window's owner.
+    const ids = ["0", "-1", "-4242", "0.5", "4242.5", '"4242"', "null", "true", "[4242]", "{}"];
+    for (const id of ids) {
+      const answer = `{"pid":${id},"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}`;
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+    const missing = '{"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}';
+    expect(parseForegroundWindow(missing)).toBeNull();
+  });
+
+  it("read the smallest and the largest process id, a DWORD", () => {
+    for (const pid of [1, 4, 4_294_967_295]) {
+      const answer = `{"pid":${pid},"program":"Microsoft Teams","title":"Chat"}`;
+      expect(parseForegroundWindow(answer)).toEqual({
+        pid,
+        program: "Microsoft Teams",
+        title: "Chat",
+      });
+    }
+  });
+
+  it("read a window in front with no title as one with an empty title", () => {
+    const none = { pid: 4242, program: "Microsoft Teams", title: "" };
+    const answer = (title: string) => `{"pid":4242,"program":"Microsoft Teams"${title}}`;
+    expect(parseForegroundWindow(answer(""))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":null'))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":""'))).toEqual(none);
+    expect(parseForegroundWindow(answer(',"title":7'))).toEqual(none);
+  });
+
+  it("leave out the spaces round a program's name and a window's title", () => {
+    const answer = '{"pid":4242,"program":"  Microsoft Teams ","title":" Chat "}';
+    expect(parseForegroundWindow(answer)).toEqual({
+      pid: 4242,
+      program: "Microsoft Teams",
+      title: "Chat",
+    });
+  });
+
+  // The Windows 11 Notepad is a packaged app, and its file's description is its file's name.
+  it("leave the .exe off a program that's named by its file, whatever its letter case", () => {
+    const front = (program: string) =>
+      parseForegroundWindow(JSON.stringify({ pid: 4242, program, title: "Untitled - Notepad" }));
+    expect(front("Notepad.exe")).toEqual({
+      pid: 4242,
+      program: "Notepad",
+      title: "Untitled - Notepad",
+    });
+    expect(front("NOTEPAD.EXE")?.program).toBe("NOTEPAD");
+    expect(front("Notepad.Exe")?.program).toBe("Notepad");
+    // The spaces round it, and between the name and the .exe, go too.
+    expect(front("  Notepad.exe ")?.program).toBe("Notepad");
+    expect(front("Windows Notepad .exe")?.program).toBe("Windows Notepad");
+    // Only the ending goes, and only once.
+    expect(front("notepad.exe.exe")?.program).toBe("notepad.exe");
+  });
+
+  it("keep a program's name that doesn't end in .exe, and a title that does", () => {
+    const names = [
+      "Microsoft Teams",
+      "Application Frame Host",
+      "Windows Explorer",
+      "Notepad",
+      "exe",
+      "Notepadexe",
+      "Notepad.exe Viewer",
+      "Notepad.exe.config",
+    ];
+    for (const program of names) {
+      const answer = JSON.stringify({ pid: 4242, program, title: "Chat" });
+      expect(parseForegroundWindow(answer)?.program, program).toBe(program);
+    }
+    const title = "setup.exe - Properties";
+    const answer = JSON.stringify({ pid: 4242, program: "Notepad.exe", title });
+    expect(parseForegroundWindow(answer)).toEqual({ pid: 4242, program: "Notepad", title });
+  });
+
+  it("read no window in front when the program is only an .exe, whatever its case or spaces", () => {
+    for (const program of [".exe", ".EXE", ".Exe", " .exe ", "  .exe"]) {
+      const answer = JSON.stringify({ pid: 4242, program, title: "Untitled - Notepad" });
+      expect(parseForegroundWindow(answer), answer).toBeNull();
+    }
+  });
+
+  it("look for the app a Store app's window hosts, and still answer with the window's own process", async () => {
+    const script = await foregroundScript();
+    // A Store app's window belongs to the frame host, ApplicationFrameHost.exe, and the app's own
+    // process owns a window below it.
+    expect(script).toContain("EnumChildWindows");
+    expect(script).toContain("HostedProcess");
+    expect(script).toContain("ApplicationFrameHost.exe");
+    // The answer's process is still the window's own, the frame host's: the driver tells its own
+    // browser's window by it.
+    expect(script).toContain("pid = $id");
+    // Still no asking what the program was told to open.
+    expect(script).not.toMatch(/CommandLine|Win32_Process/i);
+  });
+
+  it("read the characters JSON's escapes stand for, as PowerShell writes an apostrophe as \\u0027", () => {
+    const answer =
+      '{"pid":4242,"program":"Pat\\u0027s \\"Notes\\"","title":"Caf\\u00e9 \\u2013 menu"}';
+    expect(parseForegroundWindow(answer)).toEqual({
+      pid: 4242,
+      program: 'Pat\'s "Notes"',
+      title: "Café – menu",
+    });
+  });
+
+  it("ask PowerShell once which window is in front, and give what it answers", async () => {
+    const asked: string[] = [];
+    const found = await foregroundWindow((script) => {
+      asked.push(script);
+      return Promise.resolve(
+        '{"pid":4242,"program":"Microsoft Teams","title":"Chat | Microsoft Teams"}\r\n',
+      );
+    });
+    expect(found).toEqual({
+      pid: 4242,
+      program: "Microsoft Teams",
+      title: "Chat | Microsoft Teams",
+    });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("find the window in front through user32, and name its program by its file's description", async () => {
+    const asked: string[] = [];
+    await foregroundWindow((script) => {
+      asked.push(script);
+      return Promise.resolve("");
+    });
+    const script = asked[0] ?? "";
+    for (const call of ["GetForegroundWindow", "GetWindowThreadProcessId", "GetWindowText"]) {
+      expect(script, call).toContain(call);
+    }
+    expect(script).toContain("[System.Diagnostics.FileVersionInfo]::GetVersionInfo");
+    expect(script).toContain(".FileDescription");
+    // The process name, when the file says nothing.
+    expect(script).toContain("Get-Process");
+    // The process that owns the window is in the answer: the driver tells its own browser by it.
+    expect(script).toContain("pid = $id");
+    // It asks for the program and the title, not for what the program was told to open.
+    expect(script).not.toMatch(/CommandLine|Win32_Process/i);
+  });
+
+  it("find no window in front when PowerShell fails, or says nothing that is one", async () => {
+    const answers = [
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+      () => {
+        throw new Error("spawn powershell.exe ENOENT");
+      },
+      () => Promise.resolve(""),
+      () => Promise.resolve("Add-Type : Cannot add type."),
+      () => Promise.resolve('{"pid":6048,"program":null,"title":"Program Manager"}'),
+      // A window Windows can't name an owner for: Get-Process finds an Idle process for pid 0.
+      () => Promise.resolve('{"pid":0,"program":"Idle","title":""}'),
+    ];
+    for (const answer of answers) expect(await foregroundWindow(answer)).toBeNull();
+  });
+
+  // The lookup is part of a step: a PowerShell that's slow to start mustn't hold the step up.
+  it("find no window in front once PowerShell has taken 10 seconds, and not before", async () => {
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const lookup = foregroundWindow(() => new Promise<string>(() => {})).then((found) => {
+        settled = true;
+        return found;
+      });
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
+      expect(await lookup).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("give the answer of a PowerShell that answered in time, and leave no timer running", async () => {
+    vi.useFakeTimers();
+    try {
+      const lookup = foregroundWindow(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 9_000));
+        return '{"pid":4242,"program":"Microsoft Teams","title":"Chat"}';
+      });
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(await lookup).toEqual({ pid: 4242, program: "Microsoft Teams", title: "Chat" });
+      // A timer left running would keep voicecap from exiting for the rest of the 10 seconds.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("name the computer by maker and model, leaving out a part Windows doesn't give", () => {

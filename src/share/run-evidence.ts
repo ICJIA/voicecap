@@ -1,25 +1,40 @@
 /**
- * The evidence behind the page: what each run it draws on recorded (its facts, its test
- * environment, and its files' fingerprints), the walkthrough file that repeats it, the runs it left
- * out with what each did, and how the page says what a run's voicecap didn't record. Pure: it works
- * from records already read.
+ * The evidence behind the page: what each run it draws on recorded (its facts, its event log, its
+ * test environment, and its files' fingerprints), the walkthrough file that repeats it, the runs it
+ * left out with what each did, and how the page says what a run's voicecap didn't record. Pure: it
+ * works from records already read.
  */
-import type {
-  EnvironmentRecord,
-  ListenerAnswer,
-  MachineRecord,
-  PageSource,
-  PageStatus,
-  RunJson,
-  SessionRecord,
+import {
+  SCREENSHOT_FILE,
+  type EnvironmentRecord,
+  type ListenerAnswer,
+  type MachineRecord,
+  type PageRecord,
+  type PageSource,
+  type PageStatus,
+  type RunEvent,
+  type RunJson,
+  type SessionRecord,
 } from "../model.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
+import { EVENT_LOG } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
+import { keepsEventLog } from "./problems.js";
+import { isFileHash, screenshotRecordOf } from "./records.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
-import { EVIDENCE_TEXT } from "./text.js";
+import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
+import {
+  isEventTime,
+  restartsOf,
+  timelinesOf,
+  unloggedSessions,
+  type EventWords,
+  type SessionTimeline,
+  type UnloggedSession,
+} from "./timeline.js";
 import { walkthroughJson, walkthroughOf, walkthroughProblem } from "./walkthrough.js";
 
 /** A line of a run's evidence: what it is, and what the record says. */
@@ -63,11 +78,28 @@ export interface RunEvidence {
    * the run is from before voicecap recorded a part.
    */
   environment: EvidenceRow[];
-  /** Evidence A, the event log minute by minute: no version records it yet. */
-  timeline: { notRecorded: string };
+  /**
+   * Evidence A, the event log (from voicecap 0.11.0): each session's timeline, minute by minute and
+   * to the millisecond, or what the page says in its place (see `timelineOf`).
+   */
+  timeline: SessionTimeline[] | { notRecorded: string };
+  /**
+   * The run's sessions that the timelines don't cover, each with what the page says where its
+   * timeline would be: a run begun before voicecap kept the log (0.11.0) and finished with one that
+   * does, say ("Session 1: not recorded: it used voicecap 0.10.0."). None when the page has no
+   * timeline to show, since the part then says why once.
+   */
+  unlogged: UnloggedSession[];
+  /** The run's screen reader, as its environment records it, which the timeline's chart names. */
+  screenReader: string;
   /** Evidence C, NVDA's own log checked against the transcripts: no version records it yet. */
   nvdaLog: { notRecorded: string };
-  /** Every file the run's record lists, page by page: its size and SHA-256. */
+  /**
+   * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
+   * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
+   * then page by page, a page's transcripts, then its screenshot, where its record has the file's
+   * fingerprint.
+   */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
    * The command that checks the originals: "npx @icjia/voicecap verify", which checks every site
@@ -89,6 +121,15 @@ export interface RunEvidence {
 export function notRecordedBy(version: string | null): string {
   const used = version === null ? "an earlier version of voicecap" : `voicecap ${version}`;
   return `Not recorded: this run used ${used}.`;
+}
+
+/**
+ * Whether a run's voicecap records a screenshot of each page it loads: 0.11.0 and later, as it keeps
+ * the event log. A page of such a run with none says why (SCREENSHOT_TEXT), and a page of an earlier
+ * run says that run's voicecap didn't (`notRecordedBy`). An unknown version counts as an earlier one.
+ */
+export function keepsScreenshots(version: string | null): boolean {
+  return keepsEventLog(version);
 }
 
 /** The voicecap version a session recorded, or null when it recorded no environment. */
@@ -117,12 +158,20 @@ export function runEnd(run: RunJson): string {
   return run.completedAt ?? run.sessions.at(-1)?.endedAt ?? runStart(run);
 }
 
+/** A run's event log, as the loader read it: its events, and how many lines couldn't be read. */
+export interface EventLog {
+  events: RunEvent[];
+  unreadable: number;
+}
+
 /**
  * The evidence of each run the standing draws on, the latest first. `recordOf` gives a run's record
  * as its run.json holds it; `redact` replaces the home folder in what the page shows. `site` is the
  * site as the page names it (its canonical address, else the address voicecap read), which the
  * commands and the walkthrough files' names take, and `shown` gives any other address as the page
  * shows it. A run's record, and the walkthrough file made of it, keep the address voicecap read.
+ * `eventLog` gives a run's event log, when the page has it, and `words` what its events' words
+ * need of the run.
  */
 export function evidenceOf(input: {
   standing: Standing;
@@ -130,6 +179,8 @@ export function evidenceOf(input: {
   site: string;
   shown: Shown;
   redact: (text: string) => string;
+  eventLog: (run: RunJson) => EventLog | null;
+  words: (run: RunJson) => EventWords;
 }): RunEvidence[] {
   const { standing, site, shown, redact } = input;
   const before = standing.latest && runBefore(standing.counted, standing.latest);
@@ -137,24 +188,101 @@ export function evidenceOf(input: {
     const fromRun = standing.pages.filter((page) => page.shown?.run === run).length;
     const notRecorded = notRecordedBy(versionOf(run));
     const record = input.recordOf(run);
+    const words = input.words(run);
+    const log = input.eventLog(run);
+    const timeline = timelineOf(run, log, words);
+    const unlogged = Array.isArray(timeline) ? unloggedSessions(run, timeline) : [];
+    // The restarts are the log's to count: where the page can't show the log, it says why here too,
+    // and where the log covers only some sessions, it says which.
+    const restarts = Array.isArray(timeline)
+      ? restartsOf(log ?? { events: [] }, words, { timelines: timeline, unlogged })
+      : timeline.notRecorded;
     return {
       run: record,
-      facts: factsOf(run, fromRun, run === before),
+      facts: factsOf(run, fromRun, run === before, restarts),
       environment: environmentOf(run, redact, shown),
-      timeline: { notRecorded },
+      timeline,
+      unlogged,
+      screenReader: words.screenReader,
       nvdaLog: { notRecorded },
-      fingerprints: run.pages.flatMap((page) =>
-        Object.entries(page.files).map(([file, hash]) => ({
-          page: pagePath(page.url),
-          file,
-          bytes: hash.bytes,
-          sha256: hash.sha256,
-        })),
-      ),
+      fingerprints: [
+        ...ownFiles(run),
+        ...run.pages.flatMap((page) => [
+          ...Object.entries(page.files).map(([file, hash]) => ({
+            page: pagePath(page.url),
+            file,
+            bytes: hash.bytes,
+            sha256: hash.sha256,
+          })),
+          ...screenshotFile(page),
+        ]),
+      ],
       verify: formatCommand(["verify"]),
       walkthrough: walkthroughFor(record, site),
     };
   });
+}
+
+/**
+ * The files a run's record lists beside its pages (RunJson.files: its event log), each as the
+ * run's. Only an entry that is a file's fingerprint as voicecap writes one: `voicecap verify` reads
+ * a record with any other as not voicecap's, and the page shows no size or fingerprint it doesn't
+ * have.
+ */
+function ownFiles(run: RunJson): RunEvidence["fingerprints"] {
+  const files: unknown = run.files;
+  if (typeof files !== "object" || files === null) return [];
+  return Object.entries(files).flatMap(([file, hash]: [string, unknown]) =>
+    isFileHash(hash)
+      ? [{ page: EVIDENCE_TEXT.theRun, file, bytes: hash.bytes, sha256: hash.sha256 }]
+      : [],
+  );
+}
+
+/**
+ * A page's screenshot as one of its run's files, when the page's record has the file's fingerprint
+ * (a record of why there's none lists no file, and neither does one of no kind voicecap writes). The
+ * record keeps it apart from the page's transcripts, so it's added to them here.
+ */
+function screenshotFile(page: PageRecord): RunEvidence["fingerprints"] {
+  const shot = screenshotRecordOf(page);
+  if (shot === undefined || shot === "unreadable" || "error" in shot) return [];
+  return [
+    { page: pagePath(page.url), file: SCREENSHOT_FILE, bytes: shot.bytes, sha256: shot.sha256 },
+  ];
+}
+
+/** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */
+export type EventLogGap = keyof typeof TIMELINE_TEXT.gaps;
+
+/**
+ * Why the page can't show a run's event log, for a run whose voicecap keeps one (0.11.0 and later):
+ * the log its record lists isn't as the run recorded it (missing, unreadable, or changed), and
+ * `voicecap verify` names it; its record lists none, so the log couldn't be written; or no line of
+ * it could be read. Null when the page shows the log, and for a run from before voicecap kept one,
+ * which its evidence says as it says every part the run didn't record. The run's evidence and its
+ * problems' records each give this reason, so they never say different things.
+ */
+export function eventLogGap(run: RunJson, log: EventLog | null): EventLogGap | null {
+  if (log !== null) return log.events.some((event) => isEventTime(event.at)) ? null : "unreadable";
+  if (run.files?.[EVENT_LOG] !== undefined) return "changed";
+  return keepsEventLog(versionOf(run)) ? "unlisted" : null;
+}
+
+/**
+ * A run's event log as the page shows it: a timeline of each of its sessions. Where the page can't,
+ * it says why (`eventLogGap`), or, for a run from before voicecap kept the log, that it didn't.
+ */
+function timelineOf(
+  run: RunJson,
+  log: EventLog | null,
+  words: EventWords,
+): RunEvidence["timeline"] {
+  const gap = eventLogGap(run, log);
+  if (gap !== null) return { notRecorded: TIMELINE_TEXT.gaps[gap].part };
+  return log === null
+    ? { notRecorded: notRecordedBy(versionOf(run)) }
+    : timelinesOf(run, log, words);
 }
 
 /**
@@ -203,7 +331,16 @@ const ANSWERS: Record<ListenerAnswer, string> = {
   no: "No",
 };
 
-function factsOf(run: RunJson, shown: number, isRunBefore: boolean): EvidenceRow[] {
+/**
+ * A run's facts. `restarts` is what the page says of NVDA's restarts: the event log counts them,
+ * with why each was, and where the page has no log to count, it says why.
+ */
+function factsOf(
+  run: RunJson,
+  shown: number,
+  isRunBefore: boolean,
+  restarts: string,
+): EvidenceRow[] {
   const version = versionOf(run);
   const statuses = (["done", "failed", "skipped", "pending"] as const).flatMap((status) => {
     const count = run.pages.filter((page) => page.status === status).length;
@@ -220,8 +357,8 @@ function factsOf(run: RunJson, shown: number, isRunBefore: boolean): EvidenceRow
     { label: "Finished", value: dateAndTime(runEnd(run)) },
     { label: "Pages", value: statuses.length > 0 ? names(statuses) : "None" },
     { label: "Transcripts shown", value: shownHere },
-    // Only the event log (evidence A) will say when NVDA was started again, and why.
-    { label: "NVDA restarts", value: notRecordedBy(version) },
+    // Only the event log (evidence A) says when NVDA was started again, and why.
+    { label: "NVDA restarts", value: restarts },
     { label: "Run by", value: ranBy(run, version) },
     ...statements(run),
   ];

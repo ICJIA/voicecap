@@ -39,7 +39,11 @@ export const THEME_CSS = `:root {
  * - colors axe needs: a solid background behind "When to run voicecap", a darker green for chips
  *   in the light theme, and red, not green, behind the words a removed line lost;
  * - the transcript's box scrolls, not the text in it (the box is what a keyboard reaches), and in
- *   print no box scrolls or cuts anything short, since paper can't scroll;
+ *   print no box scrolls or cuts anything short, since paper can't scroll: a session's chart of
+ *   its event log narrows to the paper, and its table of events shows every row;
+ * - a session of the event log (`.t-session`), and the kinds of its events' rows (`.ev-*`): the
+ *   lock's, the screen readers', the browser's, and a failure's each in a color of their own (the
+ *   row's words say what each is), and the run's own in bold;
  * - long words in tables wrap at a phone's width, and the timeline's table fits its box down to 320
  *   pixels (closer columns, no dots, smaller type), so nothing in it is cut off at the box's edge;
  * - a name is a whole address, or a host, and can be one word longer than any box: the text it can
@@ -50,16 +54,25 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
- * - the folds' triangle is drawn but not read aloud.
+ * - the folds' triangle is drawn but not read aloud;
+ * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
+ *   body is a column at least as tall as the window, and the page's middle row grows. In print the
+ *   page is laid out as it was.
  *
  * Nothing from the mockup's samples (`.mock`) is here.
  */
 export const SHARE_CSS = `/* Layout: an instrument panel for evidence — the verdict band first, then every page, then the run's own proof. */
 ${THEME_CSS}
-body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); padding-inline: 16px; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); margin: 0; padding: 8px 24px; box-sizing: border-box; }
 .wrap { max-width: 1120px; margin-inline: auto; padding-block: 24px 64px; display: grid; gap: 56px; }
 .wrap > *, .run > *, .glance > *, main > *, .folds > *, details.fold > .inside > * { min-width: 0; }
 main { display: grid; gap: 56px; }
+/* On screen, a page shorter than the window ends at its bottom: the body is a column at least as tall as the window (its 8px margin is padding, so it adds no height), and the page's rows grow, so the footer sits there. */
+@media screen {
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  .wrap { flex: 1 0 auto; width: 100%; grid-template-rows: auto 1fr auto; }
+  main { align-content: start; }
+}
 /* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead, the verify command, and the footer's file names do the same, where they are. */
 main :where(p, li, h3, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
@@ -132,7 +145,7 @@ code { overflow-wrap: anywhere; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
 .cards + .folds, .cards + .panel, .folds + .panel { margin-top: 16px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
-.card img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border-bottom: 1px solid var(--line); background: #fff; }
+.card img { width: 100%; height: auto; border-bottom: 1px solid var(--line); background: #fff; }
 .card-body { padding: 14px 16px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .card-body p { margin: 0; }
 .num { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font: 600 0.8rem var(--mono); margin-right: 6px; }
@@ -173,9 +186,14 @@ td.said code { display: inline-block; background: var(--panel-2); border: 1px so
 .timeline .b-lock { fill: var(--accent); } .timeline .b-nvda { fill: var(--ok); } .timeline .b-page { fill: var(--muted); } .timeline .b-fail { fill: var(--bad); } .timeline .b-own { fill: var(--panel-2); stroke: var(--muted); stroke-dasharray: 3 3; }
 .timeline .fail-line { stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 4 4; }
 details.log > summary, details.tx-page > summary { cursor: pointer; }
+/* A session of a run's event log: its name, its summary, its chart, and its folded table of events, each the mockup's. */
+.t-session { display: grid; gap: 10px; } .t-session + .t-session { margin-top: 18px; }
+.t-session > p, .t-session > h4 { margin: 0; } .t-session > h4 { font: 600 0.95rem var(--display); }
+details.log > .events { margin-top: 8px; }
 .events { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
-.events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; }
+.events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; } .events td.mono { white-space: nowrap; }
 .ev-fail td { color: var(--bad); } .ev-own td { color: var(--warn); } .ev-lock td { color: var(--accent); }
+.ev-screen-reader td { color: var(--ok); } .ev-browser td { color: var(--muted); } .ev-run td { font-weight: 600; }
 .cross { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
 .cross div { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
 .cross .big { font: 700 1.8rem/1 var(--display); }
@@ -192,7 +210,7 @@ dl.spec dt { color: var(--muted); }
 .appendix summary { padding: 12px 16px; font: 600 1rem var(--display); cursor: pointer; }
 .tx-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; padding: 0 16px 16px; }
 .inside > .tx-grid { padding: 0; }
-.tx-grid > img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.tx-grid > img { box-sizing: border-box; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .tx h3 { margin: 10px 0 2px; font: 600 0.95rem var(--display); }
 .fp { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -302,6 +320,6 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 /* At a phone's width, down to 320 pixels, the timeline's three columns fit their box: closer together, inside it, without the dots, and in smaller type. */
 @media (max-width: 400px) { table.tracks { border-spacing: 4px 6px; margin: 4px 0 10px; font-size: 0.86rem; } table.tracks caption { padding: 0 0 2px; } table.tracks thead th { padding: 4px 4px 0; letter-spacing: 0.02em; } table.tracks tbody th { padding: 8px 4px; font-size: 0.74rem; } table.tracks tbody th::before { display: none; } table.tracks td { padding: 8px 6px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
-/* Paper doesn't scroll: in print, every box shows all it holds. After the rules that limit the boxes, so it wins. */
-@media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } }
+/* Paper doesn't scroll: in print, every box shows all it holds, and a chart narrows to the paper. After the rules that limit the boxes, so it wins. */
+@media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } .timeline { min-width: 0; } }
 `;

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ForegroundError } from "../src/drivers/types.js";
 import { StepTimeoutError, withTimeout } from "../src/passes/steps.js";
 import { causeOf, homeFolder, redactHome } from "../src/run/failure.js";
-import { EnvironmentError } from "../src/util/errors.js";
+import { EnvironmentError, programOf } from "../src/util/errors.js";
 import { isoLocal, isoLocalMs } from "../src/util/time.js";
 
 describe("causeOf", () => {
@@ -50,6 +50,47 @@ describe("causeOf", () => {
     expect(plain.cause).toBe(cause);
     expect(plain.failure).toBeUndefined();
     expect(new EnvironmentError("No options").failure).toBeUndefined();
+  });
+});
+
+describe("programOf", () => {
+  const LOST = "The browser lost the foreground to another window.";
+
+  it("gives the program a ForegroundError names, or null when Windows didn't say", () => {
+    expect(programOf(new ForegroundError(LOST, { program: "Microsoft Teams" }))).toBe(
+      "Microsoft Teams",
+    );
+    expect(programOf(new ForegroundError(LOST, { program: null }))).toBeNull();
+  });
+
+  it("gives nothing for a ForegroundError that names no program, and for every other error", () => {
+    expect(programOf(new ForegroundError(LOST))).toBeUndefined();
+    expect(programOf(new ForegroundError(LOST, {}))).toBeUndefined();
+    expect(
+      programOf(new EnvironmentError("Windows is locked.", { failure: "locked" })),
+    ).toBeUndefined();
+    expect(programOf(new StepTimeoutError("nextLine", 30_000))).toBeUndefined();
+    expect(programOf(new TypeError("Cannot read properties of undefined"))).toBeUndefined();
+    expect(programOf("a thrown string")).toBeUndefined();
+    expect(programOf(null)).toBeUndefined();
+    expect(programOf(undefined)).toBeUndefined();
+  });
+
+  it("takes a program only from a ForegroundError, not from anything with a program property", () => {
+    const named = { failure: "foreground", program: "Microsoft Teams" };
+    expect(programOf(Object.assign(new Error(LOST), named))).toBeUndefined();
+    expect(programOf(named)).toBeUndefined();
+  });
+
+  it("keeps the program beside the message and the code", () => {
+    const error = new ForegroundError(LOST, { program: "Microsoft Teams" });
+    expect(error).toMatchObject({
+      name: "ForegroundError",
+      message: LOST,
+      failure: "foreground",
+      program: "Microsoft Teams",
+    });
+    expect(causeOf(error)).toBe("foreground");
   });
 });
 

@@ -7,15 +7,20 @@
 import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 
-/** The parts of a .docx a test reads, each as its XML. */
+/** The parts of a .docx a test reads, each as its XML, and its pictures as their bytes. */
 export interface DocxParts {
   document: string;
   styles: string;
   /** The document's properties: its title, its author, and its description. */
   core: string;
   footer: string;
-  /** The document's relationships: where each of its links goes. */
+  /** The document's relationships: where each of its links and pictures goes. */
   rels: string;
+  /**
+   * Each file in the document's `word/media/` folder, by its name there (a hash of its bytes and
+   * its type: "4766f90bf6aec4c64b9fb249cceb00da9321fffb.jpg").
+   */
+  media: Map<string, Uint8Array>;
 }
 
 /** The parts of a .docx a test reads. Throws for a part the file doesn't have. */
@@ -27,12 +32,18 @@ export async function unzipDocx(bytes: Uint8Array): Promise<DocxParts> {
     return file.async("string");
   };
   const footerName = Object.keys(zip.files).find((name) => /^word\/footer\d*\.xml$/.test(name));
+  const media = new Map<string, Uint8Array>();
+  for (const name of Object.keys(zip.files)) {
+    const file = name.startsWith("word/media/") ? zip.file(name) : null;
+    if (file !== null) media.set(name.slice("word/media/".length), await file.async("uint8array"));
+  }
   return {
     document: await read("word/document.xml"),
     styles: await read("word/styles.xml"),
     core: await read("docProps/core.xml"),
     footer: await read(footerName ?? "word/footer1.xml"),
     rels: await read("word/_rels/document.xml.rels"),
+    media,
   };
 }
 
@@ -181,4 +192,47 @@ export function linksOf(parts: DocxParts): string[] {
     ({ attributes }) => attributes["r:id"] ?? "",
   );
   return [...new Set(ids.flatMap((id) => addresses.get(id) ?? []))];
+}
+
+/** A picture in the document, as its XML gives it. */
+export interface Drawing {
+  /** What a screen reader says of it: the `descr` of its `wp:docPr`. */
+  descr: string;
+  /** The `name` and `title` of the same element, which the Word copy gives the same words. */
+  name: string;
+  title: string;
+  /** Its id, which no other picture in the document may share. */
+  id: string;
+  /** Its size on the page, in pixels (the XML counts 9,525 EMU to a pixel). */
+  width: number;
+  height: number;
+  /** Its file in `word/media/`, by its name there, as the document's relationships give it. */
+  file: string;
+}
+
+/** English Metric Units in a pixel: what Word's XML counts a picture's size in. */
+const EMU_PER_PIXEL = 9525;
+
+/** Each picture in the document, in the order the file has them, wherever it is: in a table too. */
+export function drawingsOf(parts: DocxParts): Drawing[] {
+  const targets = new Map<string, string>();
+  for (const { attributes } of descendants(parse(parts.rels), "Relationship")) {
+    const { Id, Target } = attributes;
+    if (Id !== undefined && Target !== undefined) targets.set(Id, Target);
+  }
+  return descendants(bodyOf(parts.document), "w:drawing").map((drawing) => {
+    const [properties] = descendants([drawing], "wp:docPr");
+    const [extent] = descendants([drawing], "wp:extent");
+    const [blip] = descendants([drawing], "a:blip");
+    const target = targets.get(blip?.attributes["r:embed"] ?? "") ?? "";
+    return {
+      descr: properties?.attributes.descr ?? "",
+      name: properties?.attributes.name ?? "",
+      title: properties?.attributes.title ?? "",
+      id: properties?.attributes.id ?? "",
+      width: Number(extent?.attributes.cx) / EMU_PER_PIXEL,
+      height: Number(extent?.attributes.cy) / EMU_PER_PIXEL,
+      file: target.replace(/^media\//, ""),
+    };
+  });
 }

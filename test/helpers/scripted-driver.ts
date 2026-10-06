@@ -1,7 +1,9 @@
 import type {
   EnvironmentInfo,
+  EventRecorder,
   FocusedElement,
   PageInfo,
+  PageScreenshot,
   ScreenReaderDriver,
   Speech,
 } from "../../src/drivers/types.js";
@@ -20,6 +22,11 @@ export interface ScriptedPage {
    * openPage reports (default: no tag, reported as null).
    */
   canonical?: string;
+  /**
+   * The screenshot openPage reports with the page: a JPEG, or the reason there's none (default: no
+   * screenshot, as a driver that takes none leaves it out).
+   */
+  screenshot?: PageScreenshot;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -66,6 +73,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   readonly stopOptions: ({ restarting?: boolean } | undefined)[] = [];
   readonly opened: string[] = [];
   readonly calls: Command[] = [];
+  /** The recorder the run gave this driver, null until it does. This driver records nothing. */
+  recorder: EventRecorder | null = null;
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
@@ -83,6 +92,10 @@ export class ScriptedDriver implements ScreenReaderDriver {
     private readonly options: ScriptedOptions = {},
   ) {
     for (const page of pages) this.pages.set(canonicalKey(page.url), page);
+  }
+
+  setEventRecorder(recorder: EventRecorder): void {
+    this.recorder = recorder;
   }
 
   start(): Promise<void> {
@@ -138,6 +151,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
         contentType: page.contentType ?? "text/html; charset=utf-8",
         title: page.title ?? null,
         canonical: page.canonical ?? null,
+        ...(page.screenshot !== undefined ? { screenshot: page.screenshot } : {}),
       };
     });
   }

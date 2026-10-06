@@ -7,12 +7,16 @@
  * Six sites make the pages: the demo runs of 29 September 2026 (copied, so the page goes in the
  * copy), where each run failed a page the other read, as Review Focus 5 describes; a site made by
  * voicecap's own commands, with reviews, a manual session, a page that sounds different, and a
- * page that failed; a site whose transcripts hold markup and a closing script tag; a site whose
- * host is one long word, with no name set and no title on its home page; a site whose config gives
- * it a canonical address and a long name, which the page leads with; and a site whose only run was
- * a replay, as in CI's smoke test.
+ * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
+ * closing script tag; a site whose host is one long word, with no name set and no title on its home
+ * page; a site whose config gives it a canonical address and a long name, which the page leads
+ * with; and a site whose only run was a replay, as in CI's smoke test. A seventh page is written
+ * from a model, for a run whose event log has all a chart can draw.
+ *
+ * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
+ * measured here instead, against the bars and the fold they're drawn on, in both themes.
  */
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -25,14 +29,28 @@ import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
+import { fontFaceCss } from "../src/share/fonts.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import { buildShareModel } from "../src/share/model.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
+import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
+import { TINY_JPEG } from "./helpers/jpeg.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
-import { DEMO_SITE } from "./helpers/share-model.js";
+import {
+  DEMO_SITE,
+  inputOf,
+  LINES,
+  loggedModel,
+  storeOf,
+  TRANSCRIPTS,
+} from "./helpers/share-model.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const fixture = (...parts: string[]) => path.join(ROOT, "fixture", ...parts);
@@ -119,13 +137,15 @@ async function demoPage(): Promise<string> {
  * each of which writes the page again. In the second run the home page and /about are read (and
  * /about sounds different), and the page with the long address (LONG_PATH) can't be opened, so its
  * transcripts are the first run's. A person said they heard NVDA speaking in both runs, the whole
- * time.
+ * time. Each page that's loaded takes a screenshot (TINY_JPEG): the page shows three of them, each
+ * on its card and in the appendix.
  */
 async function richPage(): Promise<string> {
   const dir = await setup(["/", "/about", LONG_PATH]);
   folders.push(dir);
   const logger = createMemoryLogger();
-  const titled = { title: "Example Agency" };
+  const picture = { screenshot: { jpeg: TINY_JPEG } };
+  const titled = { title: "Example Agency", ...picture };
   const long = { url: `${SITE}${LONG_PATH}` };
   const run = (driver: ScriptedDriver, when: Date, attempts: number) =>
     runAudit({
@@ -139,7 +159,9 @@ async function richPage(): Promise<string> {
     });
 
   await run(
-    new ScriptedDriver(sitePages({ home: titled, resources: long })),
+    new ScriptedDriver(
+      sitePages({ home: titled, about: picture, resources: { ...long, ...picture } }),
+    ),
     new Date(2026, 8, 26, 14, 5),
     1,
   );
@@ -149,6 +171,7 @@ async function richPage(): Promise<string> {
         home: titled,
         about: {
           lines: ["heading, level 1, About us", "We have a new address.", "© 2026 Example Agency"],
+          ...picture,
         },
         resources: { ...long, openError: new Error("NVDA is not responding") },
       }),
@@ -239,6 +262,19 @@ async function namedPage(): Promise<string> {
   return sharePath(result.siteDir);
 }
 
+/**
+ * The page of a run whose event log has all a chart can draw: the lock, voicecap's NVDA and the
+ * computer's own, the pages, a page that failed, and the program that took the screen, over two
+ * sessions (test/helpers/share-model.ts's loggedRun). Written as the page is, from its model.
+ */
+async function loggedPage(): Promise<string> {
+  const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-logged-"));
+  folders.push(folder);
+  const file = path.join(folder, "logged.html");
+  await writeFile(file, renderSharePage(loggedModel(), { fontCss: await fontFaceCss() }));
+  return file;
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -262,6 +298,7 @@ let pages: {
   longHost: string;
   named: string;
   replay: string;
+  logged: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -280,7 +317,8 @@ beforeAll(async () => {
   const longHost = await longHostPage();
   const named = await namedPage();
   const replay = await replayPage();
-  pages = { demo, rich, hostile: hostile.file, longHost, named, replay: replay.file };
+  const logged = await loggedPage();
+  pages = { demo, rich, hostile: hostile.file, longHost, named, replay: replay.file, logged };
   hostileRun = hostile;
   replayRunId = replay.runId;
 });
@@ -374,6 +412,41 @@ const overflowOf = (page: Page): Promise<{ beyondTheWindow: number; boxes: strin
     return { beyondTheWindow: root.scrollWidth - root.clientWidth, boxes };
   });
 
+/**
+ * The contrast of each word of each chart of a run's event log, as WCAG measures it: its fill
+ * against what it's drawn on, which is the bar it's written in (the shape just before it) or else
+ * whatever is behind the chart. axe finds no background for text drawn in an SVG, so it can't measure
+ * these (test/helpers/axe.ts): this does.
+ */
+const chartContrasts = (page: Page): Promise<{ words: string; ratio: number }[]> =>
+  page.evaluate(() => {
+    const luminance = (color: string): number => {
+      const [r = 0, g = 0, b = 0] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((value) => {
+        const share = Number(value) / 255;
+        return share <= 0.03928 ? share / 12.92 : ((share + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const behind = (text: Element): string => {
+      const shape = text.previousElementSibling;
+      if (shape?.tagName === "rect" && /\bt-(?:in|note)\b/.test(text.getAttribute("class") ?? "")) {
+        return getComputedStyle(shape).fill;
+      }
+      for (let box = text.closest("svg")?.parentElement; box; box = box.parentElement) {
+        const color = getComputedStyle(box).backgroundColor;
+        if (color !== "rgba(0, 0, 0, 0)" && color !== "transparent") return color;
+      }
+      return "rgb(255, 255, 255)";
+    };
+    return [...document.querySelectorAll("svg.timeline text")].map((text) => {
+      const [high = 0, low = 0] = [
+        luminance(getComputedStyle(text).fill),
+        luminance(behind(text)),
+      ].sort((a, b) => b - a);
+      return { words: text.textContent ?? "", ratio: (high + 0.05) / (low + 0.05) };
+    });
+  });
+
 describe("axe, in Chromium", () => {
   /** Four runs of axe over a page 20,000 pixels tall take a while, more on a slow computer. */
   const AXE_TIMEOUT = 120_000;
@@ -403,6 +476,22 @@ describe("axe, in Chromium", () => {
         expect.poll(() => result(page), { timeout: 10_000 }).toMatch(start);
 
       expect(await theme()).toBe("dark");
+      if (which === "rich") {
+        // Its runs recorded their event logs: each has a chart and a folded table of its events.
+        expect(await page.locator("svg.timeline").count()).toBe(2);
+        expect(await page.locator("details.log").count()).toBe(2);
+        // And a screenshot of each page, on its card and in the appendix, each with its alt text.
+        expect(await page.locator("img").count()).toBe(6);
+        expect(
+          await page
+            .locator("img")
+            .evaluateAll((images) =>
+              images
+                .map((image) => image.getAttribute("alt") ?? "")
+                .filter((alt) => alt.trim() === ""),
+            ),
+        ).toEqual([]);
+      }
       expect(await axeFindings(page), "dark, folds closed").toEqual([]);
 
       // Open, with the check's list of every file checked, and a mismatch in it, in red.
@@ -452,6 +541,80 @@ describe("axe, in Chromium", () => {
     AXE_TIMEOUT,
   );
 
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on a page with a run's event log in full, folds closed and open, dark and light",
+    async (width) => {
+      const page = await open(pages.logged);
+
+      // Each session's chart, with all four lanes, and each session's table of events.
+      expect(await page.locator("svg.timeline").count()).toBe(2);
+      expect(await page.locator("svg.timeline >> nth=0").locator("text.t-lane").count()).toBe(4);
+      expect(await page.locator("details.log").count()).toBe(2);
+      expect(await axeFindings(page, width), "dark, folds closed").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each(["dark", "light"])(
+    "draws every word of a chart of the event log in colors that meet WCAG AA against what it's on: %s",
+    async (theme) => {
+      for (const which of ["logged", "rich"] as const) {
+        const page = await open(pages[which]);
+        if (theme === "light") await page.locator("#theme-toggle").click();
+        await page.locator("#open-all").click();
+        const measured = await chartContrasts(page);
+
+        // The full chart has its lanes' names, its minutes, and words in its bars: a process, a
+        // page's number, the computer's own NVDA off, and where a page failed.
+        expect(measured.length, which).toBeGreaterThan(which === "logged" ? 20 : 2);
+        if (which === "logged") {
+          expect(measured.map(({ words }) => words)).toEqual(
+            expect.arrayContaining([
+              "NVDA lock",
+              "process 65720",
+              "1",
+              "off while voicecap ran",
+              "page 2 failed",
+              "14:03",
+            ]),
+          );
+        }
+        expect(
+          measured.filter(({ ratio }) => !(ratio >= 4.5)),
+          which,
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it.each([390, 320])(
+    "has no axe violations at %i px on a page whose runs recorded their events, folds closed and open, dark and light",
+    async (width) => {
+      const page = await open(pages.rich);
+      const charts = page.locator("svg.timeline");
+      const tables = page.locator("details.log .events");
+
+      expect(await charts.count()).toBe(2);
+      expect(await axeFindings(page, width), "dark, folds closed").toEqual([]);
+      await page.locator("#open-all").click();
+      // Open, each table of events is in view, with a row for every event.
+      for (const table of await tables.all()) expect(await table.isVisible()).toBe(true);
+      expect(await page.locator("details.log tbody tr").count()).toBeGreaterThan(10);
+      expect(await axeFindings(page, width), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
   it(
     "has no axe violations on the page of a site named by its canonical address, with a name set for it, at 1280 px",
     async () => {
@@ -484,7 +647,7 @@ describe("a page in a narrow window", () => {
   it.each([1280, 390, 320])(
     "keeps every box's contents, and the page, inside the window at %i px, with folds closed and open",
     async (width) => {
-      for (const which of ["demo", "rich", "longHost", "named"] as const) {
+      for (const which of ["demo", "rich", "longHost", "named", "logged"] as const) {
         const page = await open(pages[which]);
         await page.setViewportSize({ width, height: 900 });
         expect(await overflowOf(page), `${which}, folds closed`).toEqual(FITS);
@@ -626,6 +789,63 @@ describe("the footer", () => {
     expect(lines).toHaveLength(3);
     for (const { width, eighty } of lines) expect(width).toBeLessThanOrEqual(eighty * 1.02);
   });
+
+  it("puts the footer at the window's bottom when the page is shorter than the window", async () => {
+    const page = await open(pages.demo);
+
+    const { long, short } = await footerInTwoWindows(page);
+
+    expect(short.scrolls).toBe(false);
+    expect(
+      Math.abs(short.gapBelow - long.gapBelow),
+      `${short.gapBelow} px below the footer in a window taller than the page, ${long.gapBelow} px in one shorter`,
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps the sections together at the top when the page is shorter than the window", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.evaluate(async () => {
+      await Promise.all([...document.fonts].map((face) => face.load()));
+    });
+    // Where each section starts, and how tall it is.
+    const sections = (): Promise<number[][]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll("main > *")].map((section) => {
+          const box = section.getBoundingClientRect();
+          return [Math.round(box.top + window.scrollY), Math.round(box.height)];
+        }),
+      );
+    const before = await sections();
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+
+    await page.setViewportSize({ width: 1280, height: height + 400 });
+
+    expect(before.length).toBeGreaterThan(5);
+    expect(await sections()).toEqual(before);
+  });
+
+  it("leaves a long page's footer after its content", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const { scrolls } = await footerPlacement(page);
+    const { mainBottom, footerTop } = await page.evaluate(() => ({
+      mainBottom: document.querySelector("main")?.getBoundingClientRect().bottom ?? NaN,
+      footerTop: document.querySelector("footer")?.getBoundingClientRect().top ?? NaN,
+    }));
+
+    expect(scrolls).toBe(true);
+    expect(footerTop).toBeGreaterThanOrEqual(mainBottom);
+  });
+
+  it("prints as before: the page is no flex column in print", async () => {
+    const page = await open(pages.demo);
+
+    await page.emulateMedia({ media: "print" });
+
+    expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe("flex");
+  });
 });
 
 describe("a run's walkthrough file", () => {
@@ -712,6 +932,105 @@ describe("a page that needs nothing from outside its file", () => {
   });
 });
 
+describe("a page's screenshots", () => {
+  it("draws each of them from the file itself, with nothing requested from outside it", async () => {
+    const context = await newContext();
+    const requested: string[] = [];
+    // Every request goes through here, and only the file itself is let through.
+    await context.route("**/*", (route) => {
+      const url = route.request().url();
+      requested.push(url);
+      return url.startsWith("file:") ? route.continue() : route.abort();
+    });
+    const page = await context.newPage();
+    await page.goto(addressOf(pages.rich));
+    await page.waitForLoadState("networkidle");
+    await page.locator("#open-all").click();
+    // The window as tall as the page, so each picture is near enough to the window to load.
+    await page.setViewportSize({
+      width: 1280,
+      height: await page.evaluate(() => document.documentElement.scrollHeight),
+    });
+
+    // Three pages, a picture on each card and one in each page's entry in the appendix: all drawn.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            [...document.images].map((image) => (image.complete ? image.naturalWidth : 0)),
+          ),
+        { timeout: 10_000 },
+      )
+      .toEqual([16, 16, 16, 16, 16, 16]);
+    expect(
+      requested.map((url) => (url.startsWith("file:") ? path.resolve(fileURLToPath(url)) : url)),
+    ).toEqual([path.resolve(pages.rich)]);
+  });
+
+  it("shows a card's picture whole, at its own proportions, not cropped to the 4:3 the cards were drawn for", async () => {
+    // A real JPEG 160 wide and 100 high (8:5), blue on its left half and red on its right.
+    const maker = await (await newContext()).newPage();
+    await maker.setViewportSize({ width: 200, height: 200 });
+    await maker.setContent(
+      '<body style="margin:0;background:#c33"><div style="width:80px;height:100px;background:#33c"></div></body>',
+    );
+    const jpeg = await maker.screenshot({
+      type: "jpeg",
+      clip: { x: 0, y: 0, width: 160, height: 100 },
+    });
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        {
+          path: "/",
+          files: TRANSCRIPTS,
+          passes: LINES,
+          screenshot: {
+            ...fileHash(jpeg),
+            takenAt: "2026-09-26T14:05:03.120-05:00",
+            width: 160,
+            height: 100,
+          },
+        },
+      ],
+    });
+    const slug = run.pages[0]?.slug ?? "";
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), screenshots: new Map([[`r1/${slug}`, jpeg]]) }),
+    );
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-wide-"));
+    folders.push(folder);
+    const file = path.join(folder, "wide.html");
+    await writeFile(file, renderSharePage(model, { fontCss: "" }));
+
+    const page = await open(file);
+    const picture = await page.locator("#pg-home img").evaluate((image) => ({
+      // The picture's box, inside its border: as wide and high as the picture is, in proportion.
+      ratio: image.clientWidth / image.clientHeight,
+      fit: getComputedStyle(image).objectFit,
+    }));
+
+    expect(picture.ratio).toBeGreaterThan(1.58);
+    expect(picture.ratio).toBeLessThan(1.62);
+    expect(picture.fit).toBe("fill");
+  });
+
+  it("names each one as the page it shows, as it loaded, before NVDA read it", async () => {
+    const page = await open(pages.rich);
+
+    const alts = await page
+      .locator("#pages .card img")
+      .evaluateAll((images) => images.map((image) => image.getAttribute("alt")));
+
+    expect(alts).toEqual([
+      `The page ${SITE}/ as it loaded, before NVDA read it`,
+      `The page ${SITE}/about as it loaded, before NVDA read it`,
+      `The page ${SITE}${LONG_PATH} as it loaded, before NVDA read it`,
+    ]);
+  });
+});
+
 describe("Open every section, and printing", () => {
   it("opens every fold, and a second press puts each back as it was, a hand-opened one too", async () => {
     const page = await open(pages.demo);
@@ -738,6 +1057,71 @@ describe("Open every section, and printing", () => {
     expect(openFolds(await foldStates(page))).toEqual(Object.keys(byHand));
     await button.click();
     expect(await foldStates(page)).toEqual(byHand);
+  });
+
+  // Every picture is loaded lazily, and most sit in folds that only printing opens: printing opens
+  // them first (beforeprint), and each picture still reaches the paper.
+  it("prints every screenshot, those in folds that printing opens too", async () => {
+    // Thirteen pages, each with a picture of its own: a real JPEG of a color of its own, 32 by 24.
+    const maker = await (await newContext()).newPage();
+    await maker.setViewportSize({ width: 64, height: 64 });
+    const jpegs: Buffer[] = [];
+    for (let index = 0; index < 13; index++) {
+      await maker.setContent(
+        `<body style="margin:0;background:hsl(${index * 27} 70% 45%)"><b>${index}</b></body>`,
+      );
+      jpegs.push(
+        await maker.screenshot({ type: "jpeg", clip: { x: 0, y: 0, width: 32, height: 24 } }),
+      );
+    }
+    // The first two have flags, so their cards are in the open; the other 11 have nothing to note,
+    // so theirs are in a fold. Every page's entry in the appendix is in a fold of its own.
+    const flag = {
+      rule: "generic-link-text",
+      pass: "read" as const,
+      count: 1,
+      found: [{ text: "click here", count: 1 }],
+      message: 'Generic link text announced 1 time in the read pass: "click here" ×1.',
+    };
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: jpegs.map((jpeg, index) => ({
+        path: `/page-${index + 1}`,
+        ...(index < 2 ? { flags: [flag] } : {}),
+        screenshot: {
+          ...fileHash(jpeg),
+          takenAt: "2026-09-26T14:05:03.120-05:00",
+          width: 32,
+          height: 24,
+        },
+      })),
+    });
+    const model = buildShareModel(
+      inputOf([run], {
+        screenshots: new Map(run.pages.map((page, index) => [`r1/${page.slug}`, jpegs[index]!])),
+      }),
+    );
+    const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-print-"));
+    folders.push(folder);
+    const file = path.join(folder, "print.html");
+    await writeFile(file, renderSharePage(model, { fontCss: "" }));
+
+    const page = await open(file);
+    // As written, only the two flagged pages' pictures are in the open: the other 24 are folded.
+    expect(
+      await page.evaluate(
+        () => [...document.images].filter((image) => image.closest("details:not([open])")).length,
+      ),
+    ).toBe(24);
+    const before = await foldStates(page);
+    const pdf = await page.pdf();
+
+    // Each picture's own JPEG is in the printed file: none was left out by its fold or its loading.
+    const missing = jpegs.flatMap((jpeg, index) => (pdf.includes(jpeg) ? [] : [index + 1]));
+    expect(missing).toEqual([]);
+    // Printing puts every fold back as it was.
+    expect(await foldStates(page)).toEqual(before);
   });
 
   it("opens every fold for printing, and puts each back as it was afterwards", async () => {
@@ -847,6 +1231,22 @@ describe("the fingerprint check, on the page's own data", () => {
     expect(await result(page)).not.toContain("doesn't match");
     expect(await page.locator("#fp-count").textContent()).toBe("23 checked, 0 not matching");
     expect(await page.locator("#fp-rows .c-ok").count()).toBe(23);
+    expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
+  });
+
+  it("checks each screenshot of a page whose runs took them, with its transcripts and its seals", async () => {
+    const page = await open(pages.rich);
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toContain("3 of 3 screenshots match their fingerprints");
+
+    expect(await result(page)).not.toContain("doesn't match");
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+    // Each is listed with the transcripts and the seals, and each matches.
+    const rows = await page.locator("#fp-rows tr").allTextContents();
+    expect(rows.filter((row) => row.includes("screenshot.jpg"))).toHaveLength(3);
     expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
   });
 

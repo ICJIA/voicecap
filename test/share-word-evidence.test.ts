@@ -35,6 +35,7 @@ import {
   WORTH_KNOWING,
   type TimelineRow,
 } from "../src/share/text.js";
+import type { SessionTimeline } from "../src/share/timeline.js";
 import {
   byteCount,
   evidenceGist,
@@ -46,6 +47,7 @@ import {
 } from "../src/share/words.js";
 import { heading, mono, monoCell, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordCoverage, wordEvidence, wordFooter, wordStory } from "../src/share/word/evidence.js";
+import { TINY_RECORD } from "./helpers/jpeg.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -54,9 +56,14 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  LOG_HASH,
+  loggedModel,
+  loggedRun,
+  resumedLoggedRun,
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
 import {
@@ -570,6 +577,41 @@ describe("wordEvidence", () => {
       }
     });
 
+    it("lists a page's screenshot among the run's files, after the page's transcripts, as the page does", () => {
+      const run = shareRun({
+        id: "r1",
+        pages: [
+          { path: "/", files: ["read.txt"], screenshot: TINY_RECORD },
+          { path: "/b", screenshot: { error: "timed out", takenAt: TINY_RECORD.takenAt } },
+        ],
+      });
+      const part = partOf(runParts(buildShareModel(inputOf([run]))), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+
+      // A record of why there's none lists no file.
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
+      ]);
+    });
+
+    it("lists the run's own files first, its event log as the run's, as the page does", () => {
+      const run = withOwnFiles(
+        shareRun({ id: "r1", pages: [{ path: "/", files: ["read.txt"] }] }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const part = partOf(runParts(buildShareModel(inputOf([run]))), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${byteCount(LOG_HASH.bytes)} | ${LOG_HASH.sha256}`,
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+      ]);
+      expect(files?.rows[0]?.[3]).toEqual(monoCell(LOG_HASH.sha256));
+    });
+
     it("gives each run its own fingerprints, never the other's", async () => {
       const parts = runParts(await demoModel());
       const latest = "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe";
@@ -794,6 +836,27 @@ describe("wordEvidence", () => {
         EVIDENCE_TEXT.rowsHead,
       ]);
     });
+
+    it("but that lists its own, shows those, never that it lists none, as for a run whose pages were all skipped", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", status: "skipped" }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [part = []] = runParts(buildShareModel(inputOf([run])));
+      const inside = under(part, "Fingerprints (SHA-256) in run r1");
+
+      expect(wordsOf(inside)).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${byteCount(LOG_HASH.bytes)} | ${LOG_HASH.sha256}`,
+        EVIDENCE_TEXT.verify,
+        "npx @icjia/voicecap verify",
+      ]);
+      expect(saysOf(inside)).not.toContain("lists no files");
+    });
   });
 
   describe("with no run that counts", () => {
@@ -839,6 +902,111 @@ describe("wordEvidence", () => {
       expect(runParts(model)).toHaveLength(1);
       expect(leftOutPart(model)).toBeUndefined();
       expect(saysOf(wordEvidence(model))).not.toContain("Runs left out");
+    });
+  });
+
+  describe("a run's event log", () => {
+    const RUN = "2026-09-26_1402";
+    const MINUTE_BY_MINUTE = `${EVIDENCE_TEXT.parts.timeline} ${inRun(RUN)}`;
+
+    /** The logged run's timelines, as the model has them. */
+    function timelinesOf(model: ShareModel): SessionTimeline[] {
+      const timeline = model.evidence[0]?.timeline;
+      if (!Array.isArray(timeline)) throw new Error("The run has no timeline.");
+      return timeline;
+    }
+
+    it("says each session's day, its summary, and its table of Time and Event, under the run's own heading", () => {
+      const model = loggedModel();
+      const inside = under(partOf(runParts(model), 0), MINUTE_BY_MINUTE);
+      const timelines = timelinesOf(model);
+
+      expect(inside.map(({ kind }) => kind)).toEqual([
+        "para",
+        "para",
+        "table",
+        "para",
+        "para",
+        "table",
+      ]);
+      expect(inside[0]).toEqual(para({ text: "Session 1, 26 September 2026", bold: true }));
+      expect(inside[3]).toEqual(para({ text: "Session 2, 28 September 2026", bold: true }));
+      for (const [index, timeline] of timelines.entries()) {
+        expect(inside[index * 3 + 1]).toEqual(para(timeline.summary.join(" ")));
+        const table = tableAt(inside, index);
+        expect(table.head).toEqual(["Time", "Event"]);
+        expect(wordsOf([table])).toEqual([
+          "Time | Event",
+          ...timeline.rows.map(({ time, text }) => `${time.slice(11, 23)} | ${text}`),
+        ]);
+        // Each time in the fixed-width font, as the page sets it.
+        expect(table.rows.map((row) => row[0]?.mono)).toEqual(timeline.rows.map(() => true));
+      }
+      expect(wordsOf(inside)).toContain(
+        "voicecap held the NVDA lock from 14:02 to 14:06. voicecap's NVDA ran as process 65720, then 54568. The computer's own NVDA was shut down at 14:02 and started again at 14:06. 2 pages ran in order; page 2 failed at 14:04.",
+      );
+    });
+
+    it("says, in its place, that a session the log doesn't cover isn't recorded, and why: a run begun on 0.10.0 and finished on 0.11.0", () => {
+      const { run, log } = resumedLoggedRun("0.10.0");
+      const model = buildShareModel(
+        inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]) }),
+      );
+      const part = partOf(runParts(model), 0);
+      const inside = under(part, MINUTE_BY_MINUTE);
+
+      expect(inside.slice(0, 2)).toEqual([
+        para("Session 1: not recorded: it used voicecap 0.10.0."),
+        para({ text: "Session 2, 28 September 2026", bold: true }),
+      ]);
+      expect(tablesIn(inside)).toHaveLength(1);
+      expect(saysOf(part)).toContain(
+        "NVDA restarts | None in session 2. Session 1: not recorded: it used voicecap 0.10.0.",
+      );
+    });
+
+    it("says the lines of the log it couldn't read, after the last table", () => {
+      const { run, log } = loggedRun();
+      const model = loggedModel({ events: new Map([[run.id, { ...log, unreadable: 1 }]]) });
+      const inside = under(partOf(runParts(model), 0), MINUTE_BY_MINUTE);
+
+      expect(inside.at(-1)).toEqual(para("1 line of the event log couldn't be read."));
+    });
+
+    it("counts NVDA's restarts in the run's facts, with why each was", () => {
+      expect(saysOf(partOf(runParts(loggedModel()), 0))).toContain(
+        "NVDA restarts | 1: to try Apply again (attempt 2 of 5)",
+      );
+    });
+
+    it("keeps the run's five parts, each in its place", () => {
+      expect(outlineOf(partOf(runParts(loggedModel()), 0))).toEqual([
+        `2 Run ${RUN}`,
+        `3 Minute by minute in run ${RUN}`,
+        `3 NVDA's own log, checked against the transcripts in run ${RUN}`,
+        `3 Test environment in run ${RUN}`,
+        `3 Fingerprints (SHA-256) in run ${RUN}`,
+        `3 Walkthrough file in run ${RUN}`,
+      ]);
+    });
+
+    it("says what the page's timeline says: each session's day and summary, every event, and the lines it couldn't read", () => {
+      const { run, log } = loggedRun();
+      const model = loggedModel({ events: new Map([[run.id, { ...log, unreadable: 2 }]]) });
+      const html = renderEvidence(model);
+      const fold = html.slice(html.indexOf('<details class="fold" id="run-'));
+      const part = fold.slice(0, fold.indexOf("<h3>NVDA&#39;s own log"));
+      const said = [
+        ...[...part.matchAll(/<h4>(.*?)<\/h4>/gs)].map(([, words = ""]) => textOf(words, "")),
+        ...[...part.matchAll(/<p\b[^>]*>(.*?)<\/p>/gs)].map(([, words = ""]) => textOf(words, "")),
+        ...[...part.matchAll(/<table class="plain">.*?<\/table>/gs)].flatMap(([table]) =>
+          rowsOf(table),
+        ),
+      ];
+      const words = wordsOf(under(partOf(runParts(model), 0), MINUTE_BY_MINUTE));
+
+      expect(said.length).toBeGreaterThan(40);
+      for (const line of said) expect(words, line).toContain(line);
     });
   });
 
@@ -1189,7 +1357,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: The event log, screenshots, and NVDA's own log, recorded at the PC.",
+        "Windows PC, with NVDA: NVDA's own log, checked against the transcripts, recorded at the PC.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

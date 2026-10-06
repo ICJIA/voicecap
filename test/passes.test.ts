@@ -4,6 +4,7 @@ import { ForegroundError } from "../src/drivers/types.js";
 import { runPass, type PassSettings } from "../src/passes/index.js";
 import { lineMatches } from "../src/passes/read.js";
 import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
+import { EnvironmentError } from "../src/util/errors.js";
 import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
 
 const URL_ = "https://example.illinois.gov/page";
@@ -313,6 +314,42 @@ describe("the failure a pass reports, for a page's failed attempts", () => {
       step: 1,
       command: "nextHeading",
     });
+  });
+
+  it("keeps the program that took the foreground, when the driver says which, or that Windows didn't", async () => {
+    for (const program of ["Microsoft Teams", null]) {
+      const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }], {
+        fail: (command) =>
+          command === "nextHeading"
+            ? new ForegroundError("Another window took the foreground.", { program })
+            : null,
+      });
+      await driver.openPage(URL_);
+      const result = await runPass("headings", driver, settings);
+      expect(result.failure, String(program)).toEqual({
+        cause: "foreground",
+        message: "Another window took the foreground.",
+        step: 1,
+        command: "nextHeading",
+        program,
+      });
+    }
+  });
+
+  it("keeps no program for any other failure, as for a foreground one that names none", async () => {
+    const failures = [
+      new ForegroundError("Another window took the foreground."),
+      new EnvironmentError("Windows is locked.", { failure: "locked" }),
+      new Error("NVDA went away"),
+    ];
+    for (const failure of failures) {
+      const driver = new ScriptedDriver([{ url: URL_, lines: ["A"] }], {
+        fail: (command) => (command === "nextHeading" ? failure : null),
+      });
+      await driver.openPage(URL_);
+      const result = await runPass("headings", driver, settings);
+      expect(result.failure, failure.message).not.toHaveProperty("program");
+    }
   });
 
   it("keeps no stack when what was thrown isn't an Error", async () => {

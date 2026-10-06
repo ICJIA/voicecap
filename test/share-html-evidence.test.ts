@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { PassName } from "../src/model.js";
+import type { PassName, RunEvent, RunJson } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { longDate, sizeWords } from "../src/share/format.js";
@@ -22,8 +22,10 @@ import {
 import type { ShareInput, TranscriptStore } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
+import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
+import { TINY_RECORD } from "./helpers/jpeg.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
@@ -44,8 +46,13 @@ import {
   downloadOf,
   inputOf,
   LINES,
+  LOG_HASH,
+  loggedModel,
+  loggedRun,
+  resumedLoggedRun,
   storeOf,
   TRANSCRIPTS,
+  withOwnFiles,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -604,6 +611,57 @@ describe("renderEvidence", () => {
       }
     });
 
+    it("lists a page's screenshot among the files the run's record lists, after the page's transcripts, with its size and fingerprint", () => {
+      const model = modelOf([
+        { path: "/", files: ["read.txt"], screenshot: TINY_RECORD },
+        { path: "/b", screenshot: { error: "timed out", takenAt: TINY_RECORD.takenAt } },
+      ]);
+      const [fold = ""] = runFolds(renderEvidence(model));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      // A record of why there's none lists no file.
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${plural(TINY_RECORD.bytes, "byte")} | ${TINY_RECORD.sha256}`,
+      ]);
+    });
+
+    it("lists the run's own files first, its event log as the run's, with its size and fingerprint", () => {
+      const run = withOwnFiles(
+        shareRun({ id: "r1", pages: [{ path: "/", files: ["read.txt"] }] }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [fold = ""] = runFolds(renderEvidence(buildShareModel(inputOf([run]))));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${plural(LOG_HASH.bytes, "byte")} | ${LOG_HASH.sha256}`,
+        `/ | read.txt | 1 byte | ${"0".repeat(64)}`,
+      ]);
+      expect(part).toContain(`<td><code>${LOG_HASH.sha256}</code></td>`);
+    });
+
+    it("shows the run's own files, never that its record lists none, when no page lists one", () => {
+      const run = withOwnFiles(
+        shareRun({
+          id: "r1",
+          voicecapVersion: "0.11.0",
+          pages: [{ path: "/", status: "skipped" }],
+        }),
+        { "events.jsonl": LOG_HASH },
+      );
+      const [fold = ""] = runFolds(renderEvidence(buildShareModel(inputOf([run]))));
+      const part = partOf(fold, "Fingerprints (SHA-256)");
+
+      expect(rowsOf(tableOf(part, "plain"))).toEqual([
+        "Page | File | Size | SHA-256",
+        `The run | events.jsonl | ${plural(LOG_HASH.bytes, "byte")} | ${LOG_HASH.sha256}`,
+      ]);
+      expect(textOf(part)).not.toContain("lists no files");
+    });
+
     it("puts each table in a box that a keyboard can reach and scroll, named for its run", async () => {
       const html = renderEvidence(await demoModel());
 
@@ -856,6 +914,262 @@ describe("renderEvidence", () => {
     });
   });
 
+  describe("a run's event log, minute by minute and to the millisecond", () => {
+    const RUN = "2026-09-26_1402";
+
+    /** The logged run's fold: everything from its opening tag, its folds of events with it. */
+    function loggedFold(model = loggedModel()): string {
+      const html = renderEvidence(model);
+      return html.slice(html.indexOf('<details class="fold" id="run-'));
+    }
+
+    /** The logged run's timelines, as the model has them. */
+    function timelinesOf(model: ShareModel): SessionTimeline[] {
+      const timeline = model.evidence[0]?.timeline;
+      if (!Array.isArray(timeline)) throw new Error("The run has no timeline.");
+      return timeline;
+    }
+
+    /** The element whose id is `id`, as text. */
+    function textById(html: string, id: string): string {
+      const found = new RegExp(`<([a-z0-9]+)\\b[^>]*\\sid="${id}"[^>]*>(.*?)</\\1>`, "s").exec(
+        html,
+      );
+      if (found === null) throw new Error(`Nothing has the id ${id}`);
+      return textOf(found[2] ?? "");
+    }
+
+    it("draws a chart of each session: an image named by its summary, in a box a keyboard can reach and scroll", () => {
+      const model = loggedModel();
+      const fold = loggedFold(model);
+      const charts = [...fold.matchAll(/(<div class="scroll"[^>]*>)(<svg [^>]*>)/g)].map(
+        ([, box = "", svg = ""]) => ({ box, svg }),
+      );
+
+      expect(charts).toHaveLength(2);
+      for (const [index, { box, svg }] of charts.entries()) {
+        const session = index + 1;
+        expect(attributes(svg, "class")).toEqual(["timeline"]);
+        expect(attributes(svg, "role")).toEqual(["img"]);
+        expect(attributes(svg, "aria-labelledby")).toEqual([
+          `tl-${RUN}-${session}-title tl-${RUN}-${session}-sum`,
+        ]);
+        expect(textById(fold, `tl-${RUN}-${session}-title`)).toBe(
+          `Minute by minute, run ${RUN}, session ${session}`,
+        );
+        // Its summary is a paragraph above it, whose words are the model's.
+        expect(textById(fold, `tl-${RUN}-${session}-sum`)).toBe(
+          timelinesOf(model)[index]?.summary.join(" "),
+        );
+        expect(fold.indexOf(`id="tl-${RUN}-${session}-sum"`)).toBeLessThan(fold.indexOf(svg));
+        expect(box).toBe(
+          `<div class="scroll" tabindex="0" role="region" aria-label="Minute by minute, run ${RUN}, session ${session}, chart">`,
+        );
+      }
+      expect(textById(fold, `tl-${RUN}-1-sum`)).toBe(
+        "voicecap held the NVDA lock from 14:02 to 14:06. voicecap's NVDA ran as process 65720, then 54568. The computer's own NVDA was shut down at 14:02 and started again at 14:06. 2 pages ran in order; page 2 failed at 14:04.",
+      );
+    });
+
+    it("names each session by its number and its day, when the run has more than one", () => {
+      const fold = loggedFold();
+
+      expect([...fold.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 1, 26 September 2026",
+        "Session 2, 28 September 2026",
+      ]);
+    });
+
+    it("names a run's only session by its run alone", () => {
+      const { run, log } = loggedRun();
+      // A run of one session: the logged run as its first session left it.
+      const single = { ...run, sessions: run.sessions.slice(0, 1) };
+      const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
+      const fold = loggedFold(
+        loggedModel({
+          runs: [single],
+          records: [single],
+          events: new Map([[run.id, { events: first, unreadable: 0 }]]),
+        }),
+      );
+
+      expect(fold).not.toContain("<h4>");
+      expect(scrollBoxes(fold)[0]).toContain(`aria-label="Minute by minute, run ${RUN}, chart"`);
+      expect(textById(fold, `tl-${RUN}-1-title`)).toBe(`Minute by minute, run ${RUN}`);
+    });
+
+    it("names a run's only logged session by its number when it isn't the first, as for a run begun before voicecap kept the log", () => {
+      const { run, log } = loggedRun();
+      const second = log.events.filter((event) => event.at.startsWith("2026-09-28"));
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { events: second, unreadable: 0 }]]) }),
+      );
+
+      expect([...fold.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 2, 28 September 2026",
+      ]);
+      expect(scrollBoxes(fold)[0]).toContain(
+        `aria-label="Minute by minute, run ${RUN}, session 2, chart"`,
+      );
+    });
+
+    it("says, in its place, that a session the log doesn't cover isn't recorded, and why: a run begun on 0.10.0 and finished on 0.11.0", () => {
+      const { run, log } = resumedLoggedRun("0.10.0");
+      const fold = loggedFold(
+        buildShareModel(
+          inputOf([run], { transcripts: storeOf(), events: new Map([[run.id, log]]) }),
+        ),
+      );
+      const part = partOf(fold, "Minute by minute");
+      const said = '<p class="not-recorded">Session 1: not recorded: it used voicecap 0.10.0.</p>';
+
+      expect(part).toContain(`<div class="t-session">${said}</div>`);
+      expect(part.indexOf(said)).toBeLessThan(
+        part.indexOf("<h4>Session 2, 28 September 2026</h4>"),
+      );
+      expect(part.match(/<svg /g)).toHaveLength(1);
+      expect(termsOf(fold)).toContainEqual([
+        "NVDA restarts",
+        "None in session 2. Session 1: not recorded: it used voicecap 0.10.0.",
+      ]);
+    });
+
+    it("names the session the log covers when another isn't, as for a run finished with an older voicecap", () => {
+      const { run, log } = loggedRun();
+      const sessions = run.sessions.map((session) =>
+        session.n === 2 && session.environment !== null
+          ? {
+              ...session,
+              environment: {
+                ...session.environment,
+                voicecap: { ...session.environment.voicecap, version: "0.10.0" },
+              },
+            }
+          : session,
+      );
+      const first = log.events.filter((event) => event.at.startsWith("2026-09-26"));
+      const fold = loggedFold(
+        buildShareModel(
+          inputOf([{ ...run, sessions }], {
+            transcripts: storeOf(),
+            events: new Map([[run.id, { events: first, unreadable: 0 }]]),
+          }),
+        ),
+      );
+      const part = partOf(fold, "Minute by minute");
+
+      expect([...part.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, said]) => said)).toEqual([
+        "Session 1, 26 September 2026",
+      ]);
+      expect(scrollBoxes(part)[0]).toContain(
+        `aria-label="Minute by minute, run ${RUN}, session 1, chart"`,
+      );
+      expect(part.indexOf("<h4>Session 1")).toBeLessThan(
+        part.indexOf("Session 2: not recorded: it used voicecap 0.10.0."),
+      );
+    });
+
+    it("folds a table of every event of each session, a row for each, marked with its kind", () => {
+      const model = loggedModel();
+      const fold = loggedFold(model);
+      const logs = fold.split('<details class="log">').slice(1);
+
+      expect(logs).toHaveLength(2);
+      for (const [index, timeline] of timelinesOf(model).entries()) {
+        const log = logs[index]?.split("</details>")[0] ?? "";
+        const session = index + 1;
+        expect(log).toMatch(
+          new RegExp(
+            `^<summary>Every event, to the millisecond \\(${timeline.rows.length}\\)</summary>`,
+          ),
+        );
+        expect(log).toContain(
+          `<div class="events" tabindex="0" role="region" aria-label="Every event, run ${RUN}, session ${session}, table">`,
+        );
+        expect(rowsOf(log)).toEqual([
+          "Time | Event",
+          ...timeline.rows.map(({ time, text }) => `${time.slice(11, 23)} | ${text}`),
+        ]);
+        expect([...log.matchAll(/<tr class="([^"]*)">/g)].map(([, kind]) => kind)).toEqual(
+          timeline.rows.map(({ kind }) => `ev-${kind}`),
+        );
+      }
+      // The first session's 26 events and the second's 12, each closed.
+      expect(summariesIn(fold).filter((line) => line.startsWith("Every event"))).toEqual([
+        "Every event, to the millisecond (26)",
+        "Every event, to the millisecond (12)",
+      ]);
+      expect(fold).not.toMatch(/<details class="log" open/);
+    });
+
+    it("says how many lines of the log couldn't be read, under the last table", () => {
+      const { run, log } = loggedRun();
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { ...log, unreadable: 3 }]]) }),
+      );
+
+      expect(fold).toContain("<p>3 lines of the event log couldn&#39;t be read.</p>");
+      expect(fold.indexOf("couldn&#39;t be read")).toBeGreaterThan(
+        fold.lastIndexOf('<details class="log">'),
+      );
+      expect(loggedFold()).not.toContain("couldn&#39;t be read");
+    });
+
+    it("counts NVDA's restarts in the run's facts, with why each was", () => {
+      const model = loggedModel();
+
+      expect(termsOf(loggedFold(model))).toContainEqual([
+        "NVDA restarts",
+        "1: to try Apply again (attempt 2 of 5)",
+      ]);
+    });
+
+    it("says what the event log can't show of a run of 0.11.0 whose log isn't there to read", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const timelineOf = (record: RunJson) =>
+        partOf(
+          runFolds(renderEvidence(buildShareModel(inputOf([record])))).at(0) ?? "",
+          "Minute by minute",
+        );
+
+      // Its record lists a log, which the page couldn't read as it was recorded.
+      expect(timelineOf(listed)).toContain(
+        '<p class="not-recorded">Not shown: the event log isn&#39;t as the run recorded it; voicecap verify names it.</p>',
+      );
+      // Its record lists none.
+      expect(timelineOf(run)).toContain(
+        '<p class="not-recorded">Not recorded: this run&#39;s record lists no event log.</p>',
+      );
+      expect(renderEvidence(buildShareModel(inputOf([run])))).not.toContain('class="timeline"');
+    });
+
+    it("escapes what an event says: a type it doesn't know, and a program's name", () => {
+      const { run, log } = loggedRun();
+      const hostile = '<img src=x onerror="alert(1)">';
+      const events: RunEvent[] = log.events.map((event) =>
+        event.type === "foreground-lost" ? { ...event, program: hostile } : event,
+      );
+      const last = events.at(-1)?.at ?? "";
+      events.push({ at: last, type: hostile } as unknown as RunEvent);
+      const fold = loggedFold(
+        loggedModel({ events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+      );
+
+      expect(fold).not.toContain("<img");
+      expect(fold).toContain(`<td>Another window came to the front: ${esc(hostile)}</td>`);
+      expect(fold).toContain(`<td>${esc(hostile)}</td>`);
+    });
+
+    it("leaves the demo's runs, from 0.4.1, as they were: no chart, no table", async () => {
+      const html = renderEvidence(await demoModel());
+
+      expect(html).not.toContain('class="timeline"');
+      expect(html).not.toContain('class="log"');
+      expect(html).not.toContain('class="events"');
+    });
+  });
+
   describe("the runs it left out", () => {
     it("lists them last, as a list", async () => {
       const model = await demoModel();
@@ -966,6 +1280,7 @@ describe("renderEvidence", () => {
       unreadableModel(THREE_UNREADABLE),
       modelOf([{ path: "/" }]),
       noRunModel(),
+      loggedModel(),
     ]) {
       const html = withoutData(renderEvidence(model));
 

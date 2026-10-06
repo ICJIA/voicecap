@@ -17,6 +17,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
+import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
 
 /** The page's background in each theme. */
@@ -80,8 +81,11 @@ function manyContent(): SiteContent {
 
 let browser: Browser;
 let folder: string;
-/** The page files: the tests' content, a site with names as long as they can be, and many sites. */
-let files: { page: string; long: string; many: string };
+/**
+ * The page files: the tests' content, a site with names as long as they can be, many sites, and no
+ * report at all.
+ */
+let files: { page: string; long: string; many: string; empty: string };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
 const reported: string[] = [];
@@ -99,6 +103,7 @@ beforeAll(async () => {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
     many: await write("many.html", manyContent()),
+    empty: await write("empty.html", { demo: null, sites: [] }),
   };
 });
 
@@ -362,6 +367,44 @@ describe("the site's page", () => {
     // as in Chromium on Linux, the footer's can come out up to 2% short of theirs, but never wider.
     expect(width.footer).toBeLessThanOrEqual(width.notes + 1);
     expect(width.footer).toBeGreaterThanOrEqual(width.notes * 0.98);
+  });
+
+  it.each([
+    ["with no report at all", "empty"],
+    ["with the demo and two sites", "page"],
+  ] as const)(
+    "puts the footer at the window's bottom when the page is shorter than the window, %s",
+    async (_, which) => {
+      const page = await open(files[which]);
+
+      const { long, short } = await footerInTwoWindows(page);
+
+      expect(short.scrolls).toBe(false);
+      expect(
+        Math.abs(short.gapBelow - long.gapBelow),
+        `${short.gapBelow} px below the footer in a window taller than the page, ${long.gapBelow} px in one shorter`,
+      ).toBeLessThanOrEqual(1);
+    },
+  );
+
+  it.each([
+    ["with no report at all", "empty"],
+    ["with the demo and two sites", "page"],
+  ] as const)("keeps the main part as wide as its box allows, %s", async (_, which) => {
+    const page = await open(files[which]);
+
+    const width = await page.locator("main").evaluate((main) => main.getBoundingClientRect().width);
+
+    // 1120 pixels in a window 1280 wide, however little is in it.
+    expect(width).toBe(1120);
+  });
+
+  it("prints as before: the page is no flex column in print", async () => {
+    const page = await open(files.page);
+
+    await page.emulateMedia({ media: "print" });
+
+    expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe("flex");
   });
 
   it("never hides what has focus under the bar, 1100 pixels wide", async () => {

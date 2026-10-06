@@ -2,10 +2,11 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { FileHash, ReviewsFile } from "./model.js";
+import { SCREENSHOT_FILE, type FileHash, type ReviewsFile } from "./model.js";
 import { isWebRoot } from "./pages/canonical.js";
 import { canonicalKey } from "./pages/url.js";
 import { readReviews } from "./reviews/store.js";
+import { EVENT_LOG } from "./run/events.js";
 import {
   DATE_FOLDER,
   linkPath,
@@ -75,6 +76,7 @@ interface SiteTally extends VerifySiteResult {
 const NOT_SEALED = "not sealed (written before voicecap 0.3.0), so it can't be checked";
 const CHANGED = "changed since it was recorded (SHA-256 differs)";
 const MISSING = "missing";
+const UNRECORDED = "not recorded by the run";
 const UNREADABLE = "not a readable run or manual session";
 
 /**
@@ -168,7 +170,8 @@ async function checkDateFolder(home: string, dateDir: string, site: SiteTally): 
 }
 
 /**
- * A run. A sealed one is checked in full: its seal, where it's filed, and every file in pages/,
+ * A run. A sealed one is checked in full: its seal, where it's filed, each file it records beside
+ * its pages (its event log, from 0.11.0) and any event log it doesn't, and every file in pages/,
  * recorded or not. An unsealed one is a completed run from before seals, which can't be checked, or
  * an incomplete run, which must look as voicecap writes one and be where voicecap puts it, and is
  * then listed rather than checked.
@@ -193,7 +196,8 @@ async function checkRun(home: string, dir: string, site: SiteTally): Promise<voi
   }
   const belongs = runBelongsAt(home, run);
   const recorded = recordedFiles(run);
-  if (belongs === null || recorded === null) {
+  const own = ownFiles(run);
+  if (belongs === null || recorded === null || own === null) {
     site.problems.push(`${linkPath(home, dir)}: ${UNREADABLE}`);
     return;
   }
@@ -202,6 +206,7 @@ async function checkRun(home: string, dir: string, site: SiteTally): Promise<voi
     site.problems.push(`${linkPath(home, dir)}: this run belongs at ${linkPath(home, belongs)}`);
   }
   if (sealed) {
+    await checkOwnFiles(home, dir, own, site);
     await checkRunFiles(home, dir, recorded, site);
   } else if (belongs === dir) {
     // Listed, not checked: an incomplete run's files can change until it's completed and sealed.
@@ -229,6 +234,27 @@ function runBelongsAt(home: string, run: Record<string, unknown>): string | null
     : null;
 }
 
+/**
+ * The files a completed run records beside its pages (run.files): each one that's missing or
+ * changed, and an event log the run doesn't record, which someone put in a folder that had none.
+ * The problems come in the order of the files' paths.
+ */
+async function checkOwnFiles(
+  home: string,
+  dir: string,
+  recorded: Map<string, FileHash>,
+  site: VerifySiteResult,
+): Promise<void> {
+  const names = new Set(recorded.keys());
+  if (existsSync(path.join(dir, EVENT_LOG))) names.add(EVENT_LOG);
+  for (const name of [...names].sort()) {
+    const file = path.join(dir, ...name.split("/"));
+    const hash = recorded.get(name);
+    const problem = hash === undefined ? UNRECORDED : await difference(file, hash);
+    if (problem !== null) site.problems.push(`${linkPath(home, file)}: ${problem}`);
+  }
+}
+
 /** A completed run's pages/ folder: each file the run records, and any it doesn't. */
 async function checkRunFiles(
   home: string,
@@ -244,7 +270,7 @@ async function checkRunFiles(
     if (hash === undefined) {
       // An operating system's own files in a folder someone opened aren't part of the record.
       if (!OS_LITTER.has(path.posix.basename(name))) {
-        site.problems.push(`${shown}: not recorded by the run`);
+        site.problems.push(`${shown}: ${UNRECORDED}`);
       }
       continue;
     }
@@ -254,7 +280,11 @@ async function checkRunFiles(
   }
 }
 
-/** The files a run records, by path in pages/; null when its pages aren't as voicecap writes them. */
+/**
+ * The files a run records, by path in pages/: each page's transcripts, and its screenshot when the
+ * page's record has the file's hash (a record of why there's none has no file to check). Null when
+ * its pages aren't as voicecap writes them.
+ */
 function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | null {
   if (!Array.isArray(run.pages)) return null;
   const files = new Map<string, FileHash>();
@@ -264,8 +294,33 @@ function recordedFiles(run: Record<string, unknown>): Map<string, FileHash> | nu
       if (!isFileHash(hash)) return null;
       files.set(`${page.slug}/${name}`, hash);
     }
+    if (isFileHash(page.screenshot)) files.set(`${page.slug}/${SCREENSHOT_FILE}`, page.screenshot);
   }
   return files;
+}
+
+/**
+ * The files a run records beside its pages, by path from its folder, written with "/"; none for a
+ * run from before it recorded any. Null when they aren't as voicecap writes them, which includes a
+ * path that leads out of the run's folder: it's never read.
+ */
+function ownFiles(run: Record<string, unknown>): Map<string, FileHash> | null {
+  if (run.files === undefined) return new Map();
+  if (!isRecord(run.files)) return null;
+  const files = new Map<string, FileHash>();
+  for (const [name, hash] of Object.entries(run.files)) {
+    if (!isPathInside(name) || !isFileHash(hash)) return null;
+    files.set(name, hash);
+  }
+  return files;
+}
+
+/** Whether a name is a path inside a folder: written with "/", with no empty, "." or ".." part. */
+function isPathInside(name: string): boolean {
+  return (
+    !name.includes("\\") &&
+    name.split("/").every((part) => part !== "" && part !== "." && part !== "..")
+  );
 }
 
 /** A manual session: its seal, where it's filed, its session.txt, and its raw copy if there. */

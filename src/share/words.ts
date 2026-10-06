@@ -43,8 +43,10 @@ import {
   PROBLEMS_TEXT,
   STORY,
   SUMMARY_TEXT,
+  TIMELINE_TEXT,
   TOP_TEXT,
 } from "./text.js";
+import type { SessionTimeline, UnloggedSession } from "./timeline.js";
 
 /** The first words of a section's opening line, when no run counts. */
 const NO_RUN = "No live run counts yet.";
@@ -311,13 +313,14 @@ export function capturedOf({ counts, timeMs }: PageCard): Captured[] | null {
 }
 
 /**
- * A line that says something wasn't recorded: the model's own words ("Not recorded: this run used
- * voicecap 0.4.1."), or, for words that don't say so, with "Not recorded: " put in front, so a gap
- * never reads as a pass.
+ * A line that says something wasn't recorded, or isn't shown: the model's own words ("Not
+ * recorded: this run used voicecap 0.4.1.", "Not shown: the event log isn't as the run recorded
+ * it…"), or, for words that say neither, with "Not recorded: " put in front, so a gap never reads as
+ * a pass.
  */
 export function notRecordedLine(text: string): string {
   const line = text.trim();
-  return /\bnot recorded\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
+  return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
 }
 
 // What the flags found.
@@ -565,6 +568,26 @@ export function sentence(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
+/**
+ * Which program came to the front, for a foreground loss whose run recorded it (`Problem.program`):
+ * its name, or that voicecap couldn't tell. None for a problem that has no program to say: a run
+ * that didn't record one says so among what it didn't record.
+ */
+export function programLine({ program }: Problem): string | null {
+  if (program === undefined) return null;
+  return program === null ? PROBLEMS_TEXT.program.unknown : PROBLEMS_TEXT.program.named(program);
+}
+
+/**
+ * "What happened", as a problem's answer says it: what went wrong, then, for a foreground loss whose
+ * run recorded it, which program came to the front.
+ */
+export function happenedLine(problem: Problem): string {
+  const program = programLine(problem);
+  const happened = sentence(problem.happened);
+  return program === null ? happened : `${happened} ${program}`;
+}
+
 /** The time of day in an ISO time, to the millisecond when it has them: "14:05:10.000". */
 export function timeOfDay(iso: string): string {
   return /T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)/.exec(iso)?.[1] ?? iso;
@@ -720,6 +743,22 @@ export function unreadableNote({ appendix }: ShareModel): Line | null {
     },
     ` ${where.join("; ")}.`,
   ];
+}
+
+/**
+ * A session's name, above its chart and its table, where a run's timelines name their sessions: when
+ * the run has more than one (logged, or `unlogged`, which the log has no line of), or its log begins
+ * after its first session (a run begun with a voicecap that kept no log): "Session 2, 30 September
+ * 2026", the day it began. None where they don't.
+ */
+export function sessionLine(
+  timelines: SessionTimeline[],
+  { session, from }: SessionTimeline,
+  unlogged: readonly UnloggedSession[] = [],
+): string | null {
+  const named =
+    timelines.length + unlogged.length > 1 || timelines.some((each) => each.session !== 1);
+  return named ? TIMELINE_TEXT.session(session, longDate(from)) : null;
 }
 
 /** When a run ran: "29 September 2026, 14:02 to 14:09", with the day again for a run that crossed one. */

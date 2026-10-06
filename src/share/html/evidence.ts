@@ -14,10 +14,12 @@
  *
  * Of a run's record (`RunEvidence.run`, which the model keeps exactly as recorded, home folder and
  * all, since its seal covers every field) only its id and its dates are used. Everything else shown
- * of a run comes from the model's own rows, which are redacted, and its own walkthrough file.
+ * of a run comes from the model's own rows, which are redacted, its event log's timelines, and its
+ * own walkthrough file.
  *
- * The mockup showed the evidence with two sample runs and a timeline drawn from a watcher's log,
- * which no record has yet: where a run didn't record something, the model says "Not recorded: this
+ * The mockup showed the evidence with two sample runs and a timeline drawn from a watcher's log. A
+ * run records its own event log from voicecap 0.11.0, and the page draws each session's timeline
+ * from it (./timeline.ts). Where a run didn't record something, the model says "Not recorded: this
  * run used voicecap <version>", and so does the page. The walkthrough file the mockup showed is
  * made of each run's record (../run-evidence.ts).
  *
@@ -57,6 +59,7 @@ import {
   whyLine,
 } from "../words.js";
 import { chip, fold, lineHtml, notRecorded, scroll } from "./parts.js";
+import { renderTimelines } from "./timeline.js";
 
 /** The header cells of a table, from the words of each column. */
 const columns = (words: string[]): string =>
@@ -221,10 +224,21 @@ function walkthroughBody({ run, walkthrough }: RunEvidence): string {
 }
 
 /**
+ * A run's event log: each session's chart and table of events (./timeline.ts), with a line in the
+ * place of each session the log has no line of, or, where the page can't show it, why, as the model
+ * words it.
+ */
+function timelinePart({ run, timeline, unlogged, screenReader }: RunEvidence): string {
+  return Array.isArray(timeline)
+    ? renderTimelines(timeline, run.id, screenReader, unlogged)
+    : notRecorded(timeline.notRecorded);
+}
+
+/**
  * A run's fold, behind its id, when it ran, and chips that say it completed and was sealed. Inside:
- * its facts, then five parts: the event log and NVDA's own log, which no version of voicecap records
- * yet (each says so, as the model words it), the test environment, the fingerprints, and the
- * walkthrough file that repeats the run.
+ * its facts, then five parts: the event log, minute by minute (from voicecap 0.11.0), and NVDA's own
+ * log, which no version records yet (each says what the run didn't record, as the model words it),
+ * the test environment, the fingerprints, and the walkthrough file that repeats the run.
  */
 function runFold(each: RunEvidence): string {
   const { run } = each;
@@ -233,7 +247,7 @@ function runFold(each: RunEvidence): string {
   const summary = `<span class="what">${esc(runTitle(run.id))}</span> <span class="sub">${esc(whenOf(run))}</span> <span class="chips">${chips}</span>`;
   const body = [
     factsOf(each.facts),
-    runPart(parts.timeline, run.id, notRecorded(each.timeline.notRecorded)),
+    runPart(parts.timeline, run.id, timelinePart(each)),
     runPart(parts.nvdaLog, run.id, notRecorded(each.nvdaLog.notRecorded)),
     runPart(parts.environment, run.id, environmentTable(each.environment, run.id)),
     runPart(

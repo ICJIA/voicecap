@@ -207,6 +207,20 @@ export interface FileHash {
   bytes: number;
 }
 
+/** A page's screenshot, in the page's folder (pages/<slug>/). */
+export const SCREENSHOT_FILE = "screenshot.jpg";
+
+/**
+ * A page's screenshot, as the page's record keeps it. A picture that was kept has the file's SHA-256
+ * and size, and the picture's size in pixels, read from the JPEG: half the browser window's width,
+ * and less than half its height, as the window's own bar takes some of that. A picture that couldn't
+ * be taken has the reason, and no file. Both have when the run recorded it (a local ISO time to the
+ * millisecond), a moment after the driver took the picture, or tried to.
+ */
+export type ScreenshotRecord =
+  | (FileHash & { takenAt: string; width: number; height: number })
+  | { error: string; takenAt: string };
+
 export interface PassSummary {
   steps: number;
   stopReason: StopReason;
@@ -285,6 +299,14 @@ export interface AttemptRecord {
   command: DriverCommand | "openPage" | null;
   cause: FailureCause;
   message: string;
+  /**
+   * For "foreground" only: the program that took the foreground from the browser, by its name
+   * ("Microsoft Teams"), or null when it isn't known: Windows didn't say, or the foreground was
+   * back in the browser itself when it was looked up. Its window's title isn't kept here, as it
+   * can hold private text. Absent for the other causes, for a driver that didn't look, and in
+   * records from before voicecap 0.11.0.
+   */
+  program?: string | null;
   /** For "unexpected" only: the stack, with the home folder replaced. */
   stack?: string;
   /**
@@ -338,6 +360,14 @@ export interface PageRecord extends PageRef {
   passes: Partial<Record<PassName, PassSummary>>;
   /** Transcript files in pages/<slug>/, by file name ("read.txt", "read.json", ...). */
   files: Record<string, FileHash>;
+  /**
+   * The page's screenshot, taken as the page first loaded in its last attempt, before the screen
+   * reader read it. Kept apart from `files`, which a review copies to find a page that changed since
+   * it was reviewed: a screenshot would mark every page changed. Absent when the page has none: the
+   * driver took none, the page wasn't read (it was skipped, or the site answered with an HTTP
+   * error), it's pending, or the run is from before voicecap 0.11.0.
+   */
+  screenshot?: ScreenshotRecord;
   flags: FlagResult[];
   errors: string[];
 }
@@ -396,6 +426,67 @@ export interface SessionRecord {
   environment: EnvironmentRecord | null;
 }
 
+/** Why voicecap started the screen reader and the browser again. */
+export type RestartReason =
+  /** The config's restartEvery pages were read since they last started. */
+  | { kind: "every"; pages: number }
+  /** A page failed, and the screen reader or the browser may be the reason. */
+  | { kind: "failed-page" }
+  /**
+   * To try a page again. `attempt` is the number of the attempt about to start, counted as the
+   * page's record counts its attempts, and `of` is the number of the last attempt voicecap will
+   * make at the page in this session, counted the same way: for a page with no earlier attempt,
+   * how many attempts a page gets (the config's pageAttempts).
+   */
+  | { kind: "retry"; page: string; attempt: number; of: number };
+
+/**
+ * One thing that happened in a run, as the run's event log (events.jsonl) keeps it, less when: see
+ * RunEvent. The types are general, so each driver says what it did in the same words ("screen
+ * reader started", "browser closed"), and what belongs to one screen reader stays in its driver. A
+ * page is named by its address as voicecap read it (PageRecord.url), and an attempt by its number
+ * in the page's record (AttemptRecord.n). A process id is null when it couldn't be found.
+ */
+export type NewRunEvent =
+  /** A session began. `resumed` is true for every session after the run's first. */
+  | { type: "run-started"; session: number; resumed: boolean }
+  /** A session ended, as its record says. */
+  | { type: "run-ended"; session: number; reason: NonNullable<SessionRecord["endReason"]> }
+  /** voicecap took the lock that keeps runs from sharing the screen reader, or gave it up. */
+  | { type: "screen-reader-lock-taken" }
+  | { type: "screen-reader-lock-released" }
+  /** The screen reader voicecap runs started or stopped. `restarting`: it starts again at once. */
+  | { type: "screen-reader-started"; pid: number | null }
+  | { type: "screen-reader-stopped"; pid: number | null; restarting: boolean }
+  /** voicecap is about to stop the screen reader and the browser, and start them again. */
+  | { type: "screen-reader-restarting"; reason: RestartReason }
+  /** The computer's own screen reader, shut down so voicecap's could run, and started again. */
+  | { type: "own-screen-reader-closed"; pids: number[] }
+  | { type: "own-screen-reader-restarted"; ok: boolean }
+  /** The browser voicecap uses started or closed, or handed over to a new copy of itself. */
+  | { type: "browser-launched"; pid: number | null }
+  | { type: "browser-closed"; pid: number | null }
+  | { type: "browser-handed-over" }
+  /** An attempt at a page began; ended with the page read, or skipped; or failed. */
+  | { type: "page-started"; page: string; attempt: number }
+  | { type: "page-finished"; page: string; attempt: number; status: "done" | "skipped" }
+  | { type: "page-failed"; page: string; attempt: number; cause: FailureCause; message: string }
+  /** Windows was found locked. */
+  | { type: "computer-locked" }
+  /**
+   * Another window took the foreground from the browser: the program's name and the window's
+   * title, each null when it isn't known: Windows didn't say, or the foreground was back in the
+   * browser itself when it was looked up. A title can hold private text, such as an email's
+   * subject, so no report shows it.
+   */
+  | { type: "foreground-lost"; program: string | null; title: string | null };
+
+/**
+ * A line of the event log: an event, and when it was recorded, as a local ISO time to the
+ * millisecond. A log written by a later voicecap may hold types this one doesn't know.
+ */
+export type RunEvent = NewRunEvent & { at: string };
+
 export interface RunJson {
   schemaVersion: 1;
   id: string;
@@ -426,6 +517,13 @@ export interface RunJson {
   /** Every skipped URL: before the run (off-origin, extension) and on load (response, redirect). */
   skipped: SkippedRecord[];
   pages: PageRecord[];
+  /**
+   * The run's own evidence files, beside its pages': each one's SHA-256 and size, by its path from
+   * the run's folder, written with "/". Today that's "events.jsonl", the run's event log. Each
+   * session's end sets them, so the seal covers every file, and `voicecap verify` checks each one.
+   * Absent in runs from before voicecap 0.11.0, and while a run has no file to record.
+   */
+  files?: Record<string, FileHash>;
   /**
    * SHA-256 seal of this record (see sealOf), set once every other field is final at completion.
    * Absent while the run is incomplete, and on runs written before this field existed.

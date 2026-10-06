@@ -31,6 +31,20 @@ import { BROWSER_WINDOW, type FocusedElement } from "../types.js";
 import { envValue, PROFILE_PREFIX } from "./paths.js";
 import { closeBrowsersUsing } from "./windows.js";
 
+/** A screenshot is a JPEG at this quality: small enough to keep with every page, and still legible. */
+const SCREENSHOT_QUALITY = 60;
+/** It's taken at half the page's CSS size. */
+const SCREENSHOT_SCALE = 0.5;
+/**
+ * The screen's pixels for each CSS pixel can be no fewer than this, and no more than the next: from
+ * a screen at 50% to one at 400%, beyond any Windows scaling voicecap's window is likely to meet. A
+ * ratio past them is taken as the nearer, so no reading can make a picture huge, or a speck.
+ */
+const LEAST_PIXEL_RATIO = 0.5;
+const MOST_PIXEL_RATIO = 4;
+/** How long the browser gets to answer before the screenshot is given up. */
+const SCREENSHOT_TIMEOUT_MS = 5_000;
+
 /** Browser features that would add network noise or UI surprises to a run (as Playwright disables them). */
 const DISABLED_FEATURES = [
   "Translate",
@@ -436,7 +450,10 @@ export class ChromeSession implements BrowserSession {
     });
   }
 
-  /** The browser's process id, which the Mac live test raises through System Events. */
+  /**
+   * The browser's process id: the run's event log keeps it, and the Mac live test raises it
+   * through System Events.
+   */
   get pid(): number | undefined {
     return this.child.pid;
   }
@@ -517,6 +534,46 @@ export class ChromeSession implements BrowserSession {
         return href === undefined || href === "" ? null : href;
       }),
     );
+  }
+
+  /**
+   * What shows in the window now, as a JPEG at half the page's CSS size. It uses the DevTools
+   * connection and nothing else, so it never brings the window forward or takes focus. The browser
+   * gets five seconds to answer: a call that hangs can't be stopped, so it's left behind.
+   */
+  screenshot(): Promise<Uint8Array> {
+    return this.onPage(() =>
+      withinLimit(
+        this.capture(),
+        SCREENSHOT_TIMEOUT_MS,
+        `timed out after ${formatDuration(SCREENSHOT_TIMEOUT_MS)}`,
+      ),
+    );
+  }
+
+  private async capture(): Promise<Uint8Array> {
+    // The window's visible page: its viewport (without scrollbars), where the page is scrolled to,
+    // in CSS pixels, and the same viewport in the screen's own pixels, which Chromium still gives
+    // though it calls them deprecated: one it no longer gives is taken as unscaled.
+    const metrics = await this.cdp.send("Page.getLayoutMetrics");
+    const view = metrics.cssLayoutViewport;
+    const onScreen = (metrics as { layoutViewport?: { clientWidth?: unknown } }).layoutViewport;
+    const { data } = await this.cdp.send("Page.captureScreenshot", {
+      format: "jpeg",
+      quality: SCREENSHOT_QUALITY,
+      clip: {
+        x: view.pageX,
+        y: view.pageY,
+        width: view.clientWidth,
+        height: view.clientHeight,
+        // The scale counts the screen's own pixels: at a scale of 1, a screen at 200% gives 2 pixels
+        // for each CSS pixel. Dividing by the screen's ratio keeps the picture at half the page's CSS
+        // size on a scaled display, as at 100% (where the ratio is 1).
+        scale: SCREENSHOT_SCALE / pixelRatio(onScreen?.clientWidth, view.clientWidth),
+      },
+      captureBeyondViewport: false,
+    });
+    return Buffer.from(data, "base64");
   }
 
   async setTitle(title: string): Promise<() => Promise<void>> {
@@ -663,6 +720,33 @@ export class ChromeSession implements BrowserSession {
 
 function axString(value: AxValue | undefined): string | null {
   return typeof value?.value === "string" ? value.value : null;
+}
+
+/**
+ * The screen's pixels for each CSS pixel of the page, 1 at 100% and 1.5 at 150%: the viewport's
+ * width in the screen's pixels (`screen`, the layout metrics' own) over its width in CSS pixels
+ * (`css`), as the browser reports them. Never the page's `devicePixelRatio`, which the page's own
+ * script can change. 1 when the browser gives no width to go by, and kept between the least and the
+ * most a screen has (LEAST_PIXEL_RATIO, MOST_PIXEL_RATIO).
+ */
+function pixelRatio(screen: unknown, css: unknown): number {
+  const width = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  const [onScreen, inCss] = [width(screen), width(css)];
+  if (onScreen === null || inCss === null) return 1;
+  return Math.min(MOST_PIXEL_RATIO, Math.max(LEAST_PIXEL_RATIO, onScreen / inCss));
+}
+
+/**
+ * `work`, or a rejection with `message` once `ms` have passed without it finishing. The work isn't
+ * stopped: what it gives or throws later is ignored.
+ */
+function withinLimit<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
 }
 
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {

@@ -4,6 +4,31 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+Each run records an event log, which names the program that took the screen, and a screenshot of each page. The shareable page and its Word copy show them: the event log minute by minute, and each page's screenshot. On every page voicecap makes, the footer sits at the window's bottom when the page is shorter than the window.
+
+### Added
+
+- **The event log, `events.jsonl`,** in each run's folder: a JSON line for each thing that happened, with its time to the millisecond, written as the run goes, so a window closed in the middle of a run still leaves everything up to that moment. A resumed run adds its events after the earlier sessions'. The README's "What each run records" describes it.
+  - **What it holds:** each session starting and ending, with why; the NVDA lock taken and released; voicecap's NVDA started and stopped, with its process id, and each restart of it, with the reason; the computer's own NVDA shut down while voicecap runs, and started again; each browser launched and closed, and a hand-over to a new copy of itself; each attempt at a page starting, and finishing or failing; the computer found locked; and another window taking the screen.
+  - **Sealed and checked:** at the end of each session, the log's SHA-256 and size go into `run.json`'s new `files`, so the run's seal covers it, and `voicecap verify` checks it: it names a log that's missing or changed, and one a completed run doesn't record. A run from before 0.11.0 has none, and `verify` passes on it.
+  - **Only added to:** a line cut short by a closed window is left as it is, and the next event starts on a new line.
+- **The program that took the screen.** When another window takes the screen, voicecap asks Windows which program it was. The event log keeps the program and the window's title. The failed attempt's record keeps `program`, the program's name only, or `null` when Windows didn't say, and when voicecap's own browser was back in front by the time it looked. A title can hold private text, such as an email's subject, so the page and the Word copy never show it.
+- **A screenshot of each page,** `pages/<slug>/screenshot.jpg`, taken through the browser's own DevTools connection as the page finishes loading, before NVDA reads it, without taking focus: the part of the page the window shows, at half its size (about 640 pixels wide), as a JPEG. The page's record keeps `screenshot`: the file's size and SHA-256, the picture's size, and when it was recorded, or the reason when none could be taken, which never fails the page. `voicecap verify` checks each file, and the shareable page's "Check the fingerprints" checks each one it shows.
+- **Minute by minute, on the shareable page and in its Word copy.** Each run's evidence shows each session as a chart, with a lane for the lock, voicecap's NVDA, the pages, and the computer's own NVDA, and a fold with every event to the millisecond. The run's facts say how many times NVDA was restarted, and why. A problem's record has the event log's lines from that attempt, and a problem of another window taking the screen says which program came to the front, by its name; the section's opening line names each such program, with how often. In the Word copy, a session is the sentences that sum it up and a table of its events. A run whose log isn't as its record says, or that has none, says so in the log's place, and a run from before 0.11.0 says which version of voicecap it used. So does each session of a run begun before 0.11.0 and finished on it, in that session's place, and the run's facts say which sessions NVDA's restarts were counted in.
+- **Screenshots on the shareable page and in its Word copy.** Each page's card and its entry in the appendix show its screenshot, with alt text, and the Word copy has the picture in the appendix. A screenshot that's missing, or isn't the file its run recorded, isn't shown, and the page says so.
+- **Programmatic API,** all optional, so code that uses voicecap as before works as before:
+  - `ScreenReaderDriver.setEventRecorder(recorder)`, which a run calls with an `EventRecorder` before it first starts the driver, for a driver to report what it does to the screen reader and the browser;
+  - `EventRecorder.record(event, at)`'s optional `at`, the `Date` an event happened, for one a driver records after the fact: the log stamps it with `at` in place of the time it's recorded, and keeps its lines in the order they were recorded. The NVDA driver stamps NVDA's start with the moment it finished, before it looks up NVDA's process id, and the computer's own NVDA's shutdown with the moment the start began;
+  - `PageInfo.screenshot`, a `PageScreenshot` (`{ jpeg }`, or `{ error }`) that a driver gives for a page it has loaded;
+  - `ForegroundError`'s `program`, the name of the program that took the screen, given as `{ program }` in its second argument;
+  - `RunJson.files`, `PageRecord.screenshot` (a `ScreenshotRecord`), and `AttemptRecord.program`;
+  - the types `RunEvent`, `NewRunEvent`, `RestartReason`, `EventRecorder`, `PageScreenshot`, and `ScreenshotRecord`.
+
+### Changed
+
+- **The footer sits at the window's bottom when its page is shorter than the window,** on every page voicecap makes: the shareable page and its dated copies, a run's report, the website, and the demo's own pages. On a page longer than the window it comes after the content, as before, and print is as before. A page already shared is as it was: only pages made from now on change.
+- **The story's "Next" now lists NVDA's own log,** checked against the transcripts, recorded at the PC. It's the part of the evidence still to come, since the event log and the screenshots are recorded from this release.
+
 ## [0.10.0] - 2026-10-05
 
 Canonical site names: everything voicecap makes for readers names a site by the address people visit, never an IP address, even for a run on a copy on the tester's computer, and the page and its Word copy lead with that name and when the site was tested. The website publishes the demo's own pages at voicecap.netlify.app/demo-site/, the footers keep to the width of the text above them, and the README shows what voicecap makes.

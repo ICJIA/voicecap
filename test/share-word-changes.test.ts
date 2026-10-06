@@ -50,7 +50,14 @@ import {
   termsOf,
   textOf,
 } from "./helpers/share-html.js";
-import { demoModel, inputOf, storeOf, TRANSCRIPTS, type Lines } from "./helpers/share-model.js";
+import {
+  demoModel,
+  inputOf,
+  loggedModel,
+  storeOf,
+  TRANSCRIPTS,
+  type Lines,
+} from "./helpers/share-model.js";
 import {
   boldIn,
   cellLines,
@@ -1392,6 +1399,25 @@ describe("wordProblems", () => {
       expect(saysOf(part)).not.toContain("github.com");
     });
 
+    it("says which program came to the front after what happened, as the run recorded it", () => {
+      const happened = (program: string | null) =>
+        wordsOf([tableAt(firstProblem(failedModel([failedAttempt({ n: 1, program })])), 0)])[1];
+
+      expect(happened("Microsoft Teams")).toBe(
+        "What happened | During the read pass, at step 12 (Down Arrow), another window took the screen. Which program came to the front: Microsoft Teams.",
+      );
+      expect(happened(null)).toBe(
+        "What happened | During the read pass, at step 12 (Down Arrow), another window took the screen. voicecap couldn't tell which program came to the front.",
+      );
+      // A run that didn't look says so with what it didn't record, as before.
+      const older = firstProblem(
+        failedModel([failedAttempt({ n: 1 })], { voicecapVersion: "0.6.0" }),
+      );
+      expect(saysOf(older)).toContain(
+        "Which program came to the front: not recorded: this run used voicecap 0.6.0.",
+      );
+    });
+
     it("ends each answer as a sentence, however voicecap's own words for it end", () => {
       const model = failedModel([failedAttempt({ n: 1 })]);
       const answers = (fields: Partial<Problem>) =>
@@ -1437,6 +1463,32 @@ describe("wordProblems", () => {
         "14:05:10.000 | run.json | Failed: foreground: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
       ]);
       expect(tableAt(part, 1).head).toEqual(PROBLEMS_TEXT.record.head);
+    });
+
+    it("names the program that came to the front, and how often, in the section's verdict line", () => {
+      const [, verdict] = wordProblems(loggedModel());
+
+      expect(verdict && wordsOf([verdict])).toEqual([
+        "1 problem, outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (once). It didn't happen again. It wasn't an unexpected error, the kind that could mean a problem in voicecap itself.",
+      ]);
+      expect(verdict?.kind === "para" ? boldIn(verdict.line) : []).toEqual([
+        "1 problem, outside voicecap: another window took the screen.",
+      ]);
+    });
+
+    it("has the event log's lines too, by time, each from events.jsonl", () => {
+      const part = firstProblem(loggedModel());
+      const rows = wordsOf([tableAt(part, 1)]);
+
+      expect(rows.slice(0, 6)).toEqual([
+        "Time | From | What was recorded",
+        "14:03:56.000 | run.json | Attempt 1 started",
+        "14:03:56.000 | events.jsonl | Page 2 started: Apply",
+        "14:04:41.250 | events.jsonl | Another window came to the front: Microsoft Teams",
+        "14:04:41.300 | run.json | Failed: foreground: The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
+        "14:04:41.300 | events.jsonl | Page 2 failed: another window took the screen",
+      ]);
+      expect(rows.at(-1)).toBe("14:04:47.000 | events.jsonl | The browser started: process 7003");
     });
 
     it("sets what was recorded in the fixed-width font, and the time and the source in plain words", async () => {

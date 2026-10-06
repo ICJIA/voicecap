@@ -18,6 +18,7 @@ import { fetchSitemap } from "../src/pages/sitemap.js";
 import { inlineHashes } from "../src/site/headers.js";
 import { packageRoot } from "../src/util/version.js";
 import { launchBrowser, violations } from "./helpers/axe.js";
+import { footerInTwoWindows } from "./helpers/footer.js";
 
 const MISTAKES = "/common-mistakes/";
 const GOOD_PAGES = DEMO_PAGES.filter((page) => page !== MISTAKES);
@@ -324,6 +325,41 @@ describe("the demo site's words", () => {
     expect(await page.locator("body").innerText()).not.toContain("Nothing was sent");
     await close(page);
   });
+});
+
+describe("the demo site's footer", () => {
+  const PAGES = [
+    ["the home page", "/"],
+    ["the form's answer", "/ask-a-question/sent.html"],
+  ] as const;
+
+  it.each(PAGES)(
+    "puts the footer at the window's bottom when the page is shorter than the window: %s",
+    async (_, pagePath) => {
+      const page = await open(pagePath);
+
+      const { long, short } = await footerInTwoWindows(page);
+
+      expect(short.scrolls).toBe(false);
+      expect(
+        Math.abs(short.gapBelow - long.gapBelow),
+        `${short.gapBelow} px below the footer in a window taller than the page, ${long.gapBelow} px in one shorter`,
+      ).toBeLessThanOrEqual(1);
+      await close(page);
+    },
+  );
+
+  it.each(PAGES)(
+    "prints as before: the page is no flex column in print: %s",
+    async (_, pagePath) => {
+      const page = await open(pagePath);
+
+      await page.emulateMedia({ media: "print" });
+
+      expect(await page.evaluate(() => getComputedStyle(document.body).display)).not.toBe("flex");
+      await close(page);
+    },
+  );
 });
 
 describe("the demo site's accessibility (axe-core in Chromium)", () => {

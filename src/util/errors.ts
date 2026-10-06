@@ -1,3 +1,4 @@
+import { ForegroundError } from "../drivers/types.js";
 import type { FailureCause } from "../model.js";
 
 /** Process exit codes. Documented in the README; keep them stable. */
@@ -65,4 +66,15 @@ export class NotImplementedError extends VoicecapError {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The program that took the foreground, from the ForegroundError that says so: its name, or null
+ * when voicecap couldn't tell which it was (Windows didn't say, or the window in front by the time
+ * voicecap looked was its own browser's). Undefined for a ForegroundError whose driver didn't look,
+ * and for every other error, whatever properties it has: as causeOf takes a code only from
+ * voicecap's own errors, this takes a program only from this one.
+ */
+export function programOf(error: unknown): string | null | undefined {
+  return error instanceof ForegroundError ? error.program : undefined;
 }

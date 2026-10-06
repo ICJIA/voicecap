@@ -17,6 +17,7 @@ import { appendixGist, fileFingerprint, flagsGist, pagesGist } from "../src/shar
 import {
   PAGE_BREAK,
   heading,
+  image,
   mono,
   monoCell,
   para,
@@ -25,11 +26,13 @@ import {
   type Cell,
 } from "../src/share/word/blocks.js";
 import { wordAppendix, wordFlags, wordPages } from "../src/share/word/pages.js";
+import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
   demoModel,
   inputOf as inputWithoutTranscripts,
   LINES,
+  picturesOf,
   storeOf,
   TRANSCRIPTS,
 } from "./helpers/share-model.js";
@@ -872,13 +875,94 @@ describe("wordAppendix", () => {
     expect(renderAppendix(withCard(model, 0, { screenshot: { notRecorded: "x" } }))).toContain(
       '<p class="not-recorded">Not recorded: x</p>',
     );
-    // A recorded screenshot has its words for the picture, which this copy has no place for yet.
-    expect(
-      said({
-        dataUri: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
-        alt: "Screenshot of / as tested",
-      }),
-    ).toBe("Screenshot of / as tested");
+    // A line that says it isn't shown is as it is: it doesn't say "Not recorded" first.
+    expect(said({ notRecorded: "Not shown: the file isn't as the run recorded it." })).toBe(
+      "Screenshot: Not shown: the file isn't as the run recorded it.",
+    );
+  });
+
+  describe("a picture", () => {
+    const ALT = "The page Read as it loaded, before NVDA read it";
+
+    /** A run of voicecap 0.11.0 whose pages took TINY_JPEG, as the loader holds it. */
+    function shotModel(pages: SharePageSpec[]): ShareModel {
+      const run = shareRun({ id: "r1", voicecapVersion: "0.11.0", pages });
+      return buildShareModel(inputOf([run], { screenshots: picturesOf([run]) }));
+    }
+
+    it("is in its page's entry in the appendix, after the label that names it: the file's bytes, at the size its record gives, with its alt text", () => {
+      const model = shotModel([
+        done("/read", { label: "Read", screenshot: { ...TINY_RECORD, width: 632, height: 419 } }),
+      ]);
+      const entry = under(wordAppendix(model), "1 Read: read, headings, and Tab transcripts");
+      const [origin, label, picture] = entry;
+
+      expect(entry.map(({ kind }) => kind)).toEqual(["para", "para", "image"]);
+      expect(origin?.kind === "para" ? lineText(origin.line) : "").toBe("From run r1");
+      // The label is in bold, as the line that says a screenshot wasn't recorded has it.
+      expect(label?.kind === "para" ? boldIn(label.line) : []).toEqual(["Screenshot:"]);
+      expect(wordsOf([label ?? PAGE_BREAK])).toEqual(["Screenshot:"]);
+      expect(picture).toEqual(image({ jpeg: TINY_JPEG, width: 632, height: 419, alt: ALT }));
+      // Its alt text is among the document's words, once.
+      expect(wordsOf(entry)).toEqual(["From run r1", "Screenshot:", ALT]);
+    });
+
+    it("is the exact bytes the page has in its address, whatever they are", () => {
+      const bytes = Uint8Array.of(0xff, 0xd8, 0xfb, 0xff, 0xfe, 0x00, 0x7f, 0x80);
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.11.0",
+        pages: [done("/read", { screenshot: { ...TINY_RECORD, width: 4, height: 2 } })],
+      });
+      const slug = run.pages[0]?.slug ?? "";
+      const model = buildShareModel(
+        inputOf([run], { screenshots: new Map([[`r1/${slug}`, bytes]]) }),
+      );
+      const [picture] = wordAppendix(model).filter((block) => block.kind === "image");
+
+      expect(picture?.kind === "image" ? Array.from(picture.jpeg) : []).toEqual(Array.from(bytes));
+    });
+
+    it("is one for each page that has a picture and an entry in the appendix, and the reason for each page that has none", () => {
+      const model = shotModel([
+        done("/a", { screenshot: TINY_RECORD }),
+        done("/c", { screenshot: { error: "timed out", takenAt: TINY_RECORD.takenAt } }),
+        done("/d", { screenshot: TINY_RECORD }),
+      ]);
+      const appendix = wordAppendix(model);
+
+      expect(appendix.filter((block) => block.kind === "image")).toHaveLength(2);
+      // Each page says its screenshot once: the label, with the picture after it or the reason.
+      expect(wordsOf(appendix).filter((words) => words.startsWith("Screenshot:"))).toEqual([
+        "Screenshot:",
+        "Screenshot: Not recorded: the screenshot couldn't be taken (timed out).",
+        "Screenshot:",
+      ]);
+    });
+
+    it("is in the result of a page with no entry in the appendix, after the label that names it, and in no other row", () => {
+      const model = shotModel([
+        done("/read"),
+        {
+          path: "/never",
+          status: "failed",
+          failedAttempts: [failedAttempt({ n: 1 })],
+          screenshot: { ...TINY_RECORD, width: 632, height: 419 },
+        },
+      ]);
+      const table = tableAt(wordPages(model), 0);
+      const [read, never] = table.rows;
+      const alt = "The page https://example.illinois.gov/never as it loaded, before NVDA read it";
+
+      expect(model.appendix.map(({ slug }) => slug)).toEqual([model.pages[0]?.slug]);
+      expect(cellLines(never?.[2]).slice(-1)).toEqual(["Screenshot:"]);
+      expect(never?.[2]?.picture).toEqual({ jpeg: TINY_JPEG, width: 632, height: 419, alt });
+      // The page with an entry says its screenshot there, not in its row.
+      expect(cellLines(read?.[2])).not.toContain("Screenshot:");
+      expect(read?.[2]?.picture).toBeUndefined();
+      // The cell's words include its picture's.
+      expect(wordsOf([table]).join("\n")).toContain(alt);
+    });
   });
 
   it("names the run only when it knows it", async () => {

@@ -247,14 +247,14 @@ describe("the timeline", () => {
     expect(TIMELINE.filter((row) => row.date === "2026-10-04" && row.release === null)).toEqual([]);
   });
 
-  it("leaves only the evidence recorded at the PC in Next, which is last, with no day and no release", () => {
+  it("leaves only NVDA's own log in Next, which is last, with no day and no release", () => {
     const next = TIMELINE.at(-1);
 
     expect(next?.date).toBeNull();
     expect(next?.release).toBeNull();
-    // The website has its own row now: what still comes on the Windows PC is the evidence the runs
-    // don't record yet.
-    expect(next?.pc).toBe("The event log, screenshots, and NVDA's own log, recorded at the PC.");
+    // The event log and the screenshots are recorded from 0.11.0, and its row comes with the
+    // release: what still comes on the Windows PC is NVDA's own log, checked against the transcripts.
+    expect(next?.pc).toBe("NVDA's own log, checked against the transcripts, recorded at the PC.");
     expect(next?.mac).toBe("Full runs with VoiceOver, with voicecap's VoiceOver driver.");
     expect(next?.both).toBeNull();
   });
@@ -300,6 +300,28 @@ describe("the fixed text", () => {
     expect(STORY.began).toContain("more than a dozen websites");
     expect(STORY.began).toContain(
       "the April 2027 ADA Title II deadline for accessible digital content",
+    );
+  });
+
+  it("words a page's screenshot as the plan pins it: its alt text, and why there's none", () => {
+    const { SCREENSHOT_TEXT } = text;
+
+    expect(SCREENSHOT_TEXT.alt("/about/", "NVDA")).toBe(
+      "The page /about/ as it loaded, before NVDA read it",
+    );
+    expect(SCREENSHOT_TEXT.failed("timed out after 5s")).toBe(
+      "Not recorded: the screenshot couldn't be taken (timed out after 5s).",
+    );
+    // A reason that says nothing leaves the sentence without its brackets.
+    expect(SCREENSHOT_TEXT.failed("")).toBe("Not recorded: the screenshot couldn't be taken.");
+    expect(SCREENSHOT_TEXT.noDriver).toBe(
+      "Not recorded: this run's screen reader driver doesn't take screenshots.",
+    );
+    expect(SCREENSHOT_TEXT.notRead).toBe(
+      "Not recorded: no screenshot was taken, since the page wasn't read.",
+    );
+    expect(SCREENSHOT_TEXT.changed).toBe(
+      "Not shown: the file isn't as the run recorded it; voicecap verify names it.",
     );
   });
 

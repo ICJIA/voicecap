@@ -11,6 +11,7 @@ import { esc, idFragment } from "../src/report/html.js";
 import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
+import { TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
   attributes,
@@ -24,6 +25,7 @@ import {
   demoModel,
   inputOf as inputWithoutTranscripts,
   LINES,
+  picturesOf,
   storeOf,
   TRANSCRIPTS,
 } from "./helpers/share-model.js";
@@ -378,21 +380,27 @@ describe("renderPages", () => {
     expect(title({ title: "  " })).not.toContain("Title:");
   });
 
-  it("shows the screenshot, or says it wasn't recorded", async () => {
+  it("shows the screenshot at the size its record gives, or says it wasn't recorded", async () => {
     const model = await demoModel();
     const uri = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
-    const shot = withCard(model, 0, {
-      screenshot: { dataUri: uri, alt: 'Screenshot of "/" as tested' },
-    });
-    const [card = ""] = cardsIn(renderPages(shot));
+    const alt = 'The page "/" as it loaded, before NVDA read it';
+    const shot = (width: number, height: number) =>
+      withCard(model, 0, { screenshot: { dataUri: uri, alt, width, height } });
+    const [card = ""] = cardsIn(renderPages(shot(632, 419)));
 
-    // The mockup's picture: first in the card, sized for the layout, loaded when scrolled to.
+    // The mockup's picture: first in the card, laid out at the size it was recorded at (a little
+    // less than 480 high, since the window's own bar takes some of it), loaded when scrolled to, and
+    // naming its page and file for the page's fingerprint check.
     expect(card).toMatch(
       new RegExp(
-        `^ id="pg-[^"]+">\\s*<img src="${uri}" alt="Screenshot of &quot;/&quot; as tested" width="640" height="480" loading="lazy">\\s*<div class="card-body">`,
+        `^ id="pg-[^"]+">\\s*<img src="${uri}" alt="The page &quot;/&quot; as it loaded, before NVDA read it" width="632" height="419" loading="lazy" data-slug="home" data-file="screenshot.jpg">\\s*<div class="card-body">`,
       ),
     );
     expect(card).not.toContain("not-recorded");
+    // Each picture has the size its own record gives, never one the page fixes for every picture.
+    const [taller = ""] = cardsIn(renderPages(shot(640, 480)));
+    expect(taller).toContain('width="640" height="480"');
+    expect(card).not.toContain('width="640"');
 
     // Not recorded: the line in the picture's place, named for a screen reader.
     const [unrecorded = ""] = cardsIn(renderPages(model));
@@ -1154,18 +1162,47 @@ describe("renderAppendix", () => {
     const uri = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
     const [shot = ""] = foldsIn(
       renderAppendix(
-        withCard(model, 0, { screenshot: { dataUri: uri, alt: "Screenshot of / as tested" } }),
+        withCard(model, 0, {
+          screenshot: { dataUri: uri, alt: "Screenshot of / as tested", width: 632, height: 419 },
+        }),
       ),
     );
 
-    // First in the fold, ahead of the transcripts, as the mockup has it.
+    // First in the fold, ahead of the transcripts, as the mockup has it, at the size its record
+    // gives, and naming its page and file as the card's picture does.
     expect(shot).toContain(
-      `<div class="tx-grid"><img src="${uri}" alt="Screenshot of / as tested" width="640" height="480" loading="lazy">`,
+      `<div class="tx-grid"><img src="${uri}" alt="Screenshot of / as tested" width="632" height="419" loading="lazy" data-slug="home" data-file="screenshot.jpg">`,
     );
     expect(unrecorded).toContain(
       '<div class="tx-grid"><div role="group" aria-label="Screenshot"><p class="not-recorded">Not recorded: this run used voicecap 0.4.1.</p></div>',
     );
     expect(unrecorded).not.toContain("<img");
+  });
+
+  it("writes a page's picture on its card and in its entry in the appendix, once in each, and on the card alone for a page with no transcripts", () => {
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        done("/read", { screenshot: TINY_RECORD }),
+        {
+          path: "/never",
+          status: "failed",
+          failedAttempts: [failedAttempt({ n: 1 })],
+          screenshot: TINY_RECORD,
+        },
+      ],
+    });
+    const model = buildShareModel(inputOf([run], { screenshots: picturesOf([run]) }));
+    const uri = model.pages.map(({ screenshot }) =>
+      "dataUri" in screenshot ? screenshot.dataUri : "",
+    );
+    const pictures = (html: string): string[] => attributes(html, "src");
+
+    expect(uri.every((address) => address.startsWith("data:image/jpeg;base64,"))).toBe(true);
+    expect(cardsIn(renderPages(model)).map(pictures)).toEqual([[uri[0]], [uri[1]]]);
+    // Only the page with transcripts has an entry in the appendix, and the same picture is in it.
+    expect(foldsIn(renderAppendix(model)).map(pictures)).toEqual([[uri[0]]]);
   });
 
   it("numbers each page as its card does, and names each box by its path", () => {
@@ -1333,7 +1370,7 @@ describe("the three sections together", () => {
           statusText: marked("status"),
           reviewChips: [marked("review")],
           manual: [{ at: marked("at"), reviewer: marked("reviewer") }],
-          screenshot: { dataUri: marked("uri"), alt: marked("alt") },
+          screenshot: { dataUri: marked("uri"), alt: marked("alt"), width: 632, height: 419 },
           failure: marked("failure"),
           flags: [{ rule: marked("flag"), message: "m" }],
         };

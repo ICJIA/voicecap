@@ -1,7 +1,8 @@
 /**
  * What the shareable page is made from, read from a site's folder in the transcripts home: its
- * runs, reviews, and manual sessions, and the transcripts the page shows or compares. Every read is
- * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
+ * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs of
+ * the runs it draws on, and the screenshots it shows. Every read is here; buildShareModel
+ * (./model.ts) works from what this gives it, and reads nothing itself.
  */
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -17,22 +18,27 @@ import {
 import { listManualSessions, type ManualSessionFile } from "../manual/list.js";
 import {
   PASS_NAMES,
+  SCREENSHOT_FILE,
   type FlagResult,
   type PageRecord,
   type PassName,
   type ReviewsFile,
+  type RunEvent,
   type RunJson,
   type StepRecord,
   type TranscriptJson,
 } from "../model.js";
 import { recordedCanonical } from "../pages/canonical.js";
 import { readReviews } from "../reviews/store.js";
+import { EVENT_LOG, readEventLog } from "../run/events.js";
 import { homeFolder } from "../run/failure.js";
-import { pageDir, runJsonPath } from "../run/paths.js";
+import { eventLogFile, pageDir, runJsonPath } from "../run/paths.js";
 import { listRuns } from "../run/store.js";
+import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { runBefore, standingOf, type Standing } from "./standing.js";
+import { screenshotRecordOf } from "./records.js";
+import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
 /** The transcripts the page shows or compares, by run id, page slug, and pass. */
 export interface TranscriptStore {
@@ -77,6 +83,21 @@ export interface ShareInput {
    * sounds different in the latest run (the page compares them line by line).
    */
   transcripts: TranscriptStore;
+  /**
+   * The event log (events.jsonl) of each run the page draws on, by run id, as readEventLog reads
+   * it: its events, and how many of its lines couldn't be read. Only a log its run's record lists,
+   * whose file is as recorded there (its size and SHA-256), so the page shows only what the run's
+   * seal covers: a run without one isn't in it.
+   */
+  events: Map<string, { events: RunEvent[]; unreadable: number }>;
+  /**
+   * The screenshot file of each page the page shows a picture for, by run id and page slug
+   * ("2026-09-29_1402/home"): the file of the record its card speaks for (the one whose transcripts
+   * the page shows, else a page never transcribed's latest failure's). Only a file its record lists
+   * (from voicecap 0.11.0), as the record has it (its size and SHA-256), so the page shows only what
+   * the run's seal covers: a page whose file is missing or changed isn't in it, and the page says so.
+   */
+  screenshots: Map<string, Uint8Array>;
   /**
    * The pages read here whose flags couldn't be computed afresh, since a JSON transcript of theirs
    * couldn't be read: each keeps the flags its record has, by run id and slug.
@@ -145,10 +166,12 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns] = await Promise.all([
+  const [reviews, manual, unreadableRuns, events, screenshots] = await Promise.all([
     readReviews(siteDir),
     listManualSessions(siteDir),
     runsNotRead(siteDir, records),
+    eventLogsOf(siteDir, standing.drawnOn),
+    screenshotsOf(siteDir, standing),
   ]);
   const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
@@ -168,6 +191,8 @@ export async function loadShareInput(options: {
     reviews,
     manual,
     transcripts: storeOf(read),
+    events,
+    screenshots,
     siteName: config.report.siteName,
     flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
@@ -233,6 +258,63 @@ async function readPage(
     }),
   );
   return read;
+}
+
+/**
+ * The event log of each run, by run id: one its record lists (from voicecap 0.11.0), whose file is
+ * there and is as its record has it. A log that isn't (missing, unreadable, or changed since its
+ * run's seal) is left out, and the page says so; `voicecap verify` names it.
+ */
+async function eventLogsOf(siteDir: string, runs: RunJson[]): Promise<ShareInput["events"]> {
+  const logs: ShareInput["events"] = new Map();
+  for (const run of runs) {
+    const recorded = run.files?.[EVENT_LOG];
+    if (recorded === undefined) continue;
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(eventLogFile(siteDir, run.id));
+    } catch {
+      continue;
+    }
+    const { sha256, bytes: size } = fileHash(bytes);
+    if (sha256 !== recorded.sha256 || size !== recorded.bytes) continue;
+    logs.set(run.id, readEventLog(bytes.toString("utf8")));
+  }
+  return logs;
+}
+
+/**
+ * The screenshot of each page, by run id and slug: the file of the record its card speaks for, when
+ * the record lists one (a record of why there's none lists no file, and neither does a record of no
+ * kind voicecap writes) and the file is there and is as the record has it. A file that isn't
+ * (missing, unreadable, or changed since its run's seal) is left out, and the page says so;
+ * `voicecap verify` names it. They're read one at a time: a site of hundreds of pages would
+ * otherwise hold hundreds of files open at once, more than some systems allow.
+ */
+async function screenshotsOf(
+  siteDir: string,
+  standing: Standing,
+): Promise<ShareInput["screenshots"]> {
+  const pictures: ShareInput["screenshots"] = new Map();
+  for (const card of standing.pages) {
+    const source = cardRecord(card);
+    const recorded = source === null ? undefined : screenshotRecordOf(source.page);
+    if (source === null || recorded === undefined || recorded === "unreadable") continue;
+    if ("error" in recorded) continue;
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(
+        path.join(pageDir(siteDir, source.run.id, source.page.slug), SCREENSHOT_FILE),
+      );
+    } catch {
+      continue;
+    }
+    const { sha256, bytes: size } = fileHash(bytes);
+    if (sha256 === recorded.sha256 && size === recorded.bytes) {
+      pictures.set(storeKey(source.run.id, source.page.slug), bytes);
+    }
+  }
+  return pictures;
 }
 
 /** A file's text, exactly: UTF-8, with a byte-order mark and line endings kept. */

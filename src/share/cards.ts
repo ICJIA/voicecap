@@ -6,6 +6,8 @@
 import { flagQuotes, QUOTED, type FlagRules, type PagePasses } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
+  SCREENSHOT_FILE,
+  type FileHash,
   type FlagResult,
   type PageRecord,
   type PageStatus,
@@ -15,14 +17,18 @@ import {
   type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
+import { jpegSize } from "../util/jpeg.js";
 import { attentionClauses } from "./attention.js";
+import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
-import type { TranscriptStore } from "./load.js";
+import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
+import { screenshotRecordOf } from "./records.js";
 import type { PageReview } from "./review.js";
-import { notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
-import type { PageStanding, Standing } from "./standing.js";
+import { keepsScreenshots, notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
+import { cardRecord, type PageStanding, type Standing } from "./standing.js";
 import { SKIP_REASONS } from "./summary.js";
+import { SCREENSHOT_TEXT } from "./text.js";
 
 export interface PageCard {
   key: string;
@@ -79,10 +85,16 @@ export interface PageCard {
   /** One bar per read-pass line: how long it took, and its length in characters. */
   strip: { ms: number; chars: number }[];
   /**
-   * The page as the browser showed it. "Not recorded: this run used voicecap <v>." until stage 2
-   * records screenshots, for the run of the record the card speaks for.
+   * The page as the browser showed it once it had loaded, before the screen reader read it: the
+   * JPEG as an image's address (`dataUri`), its words for a screen reader, and its size in pixels as
+   * its record gives it, a little less than half the browser window's, since the window's own bar
+   * takes some of its height. It's the picture of the record the card speaks for (the one whose
+   * transcripts it shows, else its latest failure's). Where there's none, the words that say why:
+   * the run's voicecap didn't take one (from before 0.11.0), its screen reader driver doesn't, the
+   * page wasn't read, the browser couldn't, or the file isn't as the run recorded it.
    */
-  screenshot: { dataUri: string; alt: string } | { notRecorded: string };
+  screenshot:
+    { dataUri: string; alt: string; width: number; height: number } | { notRecorded: string };
   /** When the shown transcripts come from an older run than the latest: its id, and its date. */
   from: { run: string; date: string } | null;
   /** The latest run's failure, or why it skipped the page, in plain words; home replaced. */
@@ -141,12 +153,19 @@ interface CardsInput {
   flagsAsRecorded: { run: string; slug: string }[];
   /** How a page is called: its label, else its address as the page shows it (see `Shown`). */
   name: (page: { label?: string; url: string }) => string;
+  /** The screenshot files the page can show (ShareInput.screenshots). */
+  screenshots: ShareInput["screenshots"];
+  /** A run's screen reader, as its environment records it ("NVDA"). */
+  screenReader: (run: RunJson) => string;
+  /** The home folder replaced, in what a record's reason says. */
+  redact: (text: string) => string;
 }
 
 /** A card for each page in scope, in the latest run's page order. */
 export function cardsOf(input: CardsInput): PageCard[] {
   const { standing, transcripts } = input;
   const asRecorded = new Set(input.flagsAsRecorded.map(({ run, slug }) => `${run}/${slug}`));
+  const tookAny = new Map<RunJson, boolean>();
   return standing.pages.map((page) => {
     const { shown } = page;
     const flags = shown?.page.flags ?? [];
@@ -155,15 +174,16 @@ export function cardsOf(input: CardsInput): PageCard[] {
     const { status, statusText } = statusOf(page, flags, readStopped);
     // The record the card speaks for: the transcripts shown, else the latest run's. A completed run
     // has a record of every page, done, failed, or skipped, so there is always one.
-    const source = shown ?? page.latestFailure;
+    const source = cardRecord(page);
     const version =
       source === null
         ? standing.latest && versionOf(standing.latest)
         : sessionVersion(source.run, source.page.session);
+    const name = input.name(page);
     return {
       key: page.key,
       slug: page.slug,
-      name: input.name(page),
+      name,
       labeled: (page.label?.trim() ?? "") !== "",
       path: pagePath(page.url),
       title: source === null ? null : titleOf(source.page, version),
@@ -186,7 +206,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
               ms: step.durationMs,
               chars: normalizeSpeech(step.spoken).length,
             })),
-      screenshot: { notRecorded: notRecordedBy(version) },
+      screenshot: screenshotOf(source, version, name, input, tookAny),
       from:
         shown !== null && shown.run !== standing.latest
           ? { run: shown.run.id, date: longDate(shown.run.createdAt) }
@@ -202,6 +222,107 @@ export function cardsOf(input: CardsInput): PageCard[] {
         review?.latest?.status === "issue" ||
         review?.changedSinceReview === true,
     };
+  });
+}
+
+/** A JPEG as the address an image of the page has: its bytes in base64, as the page carries them. */
+const JPEG_ADDRESS = "data:image/jpeg;base64,";
+
+/**
+ * The JPEG an address of that kind holds, as bytes (a plain Uint8Array of its own, not a view of the
+ * pool Node's Buffers share): what the Word copy embeds.
+ */
+export function jpegOfAddress(address: string): Uint8Array {
+  return new Uint8Array(Buffer.from(address.slice(JPEG_ADDRESS.length), "base64"));
+}
+
+/**
+ * A page's screenshot as its card shows it, of the record the card speaks for. A record with the
+ * file's fingerprint is the picture, when the loader holds the file (it holds only a file as its
+ * record has it), at the size the record gives, else the size the picture itself gives; otherwise
+ * it's the words that say why there's none, as SCREENSHOT_TEXT has them: the file isn't as recorded,
+ * the file is as recorded but isn't a picture with a size, or the record itself (read through
+ * `screenshotRecordOf`) is of no kind voicecap writes.
+ *
+ * A record with no screenshot says it as every part a run didn't record is said, when its run is
+ * from before voicecap took screenshots (0.11.0). From then on, either its run's driver took none of
+ * its pages' screenshots, or this page wasn't read (it was skipped, or it failed before it
+ * loaded). `tookAny` remembers, by run, whether any page of it has a screenshot record.
+ */
+function screenshotOf(
+  source: { run: RunJson; page: PageRecord } | null,
+  version: string | null,
+  name: string,
+  input: CardsInput,
+  tookAny: Map<RunJson, boolean>,
+): PageCard["screenshot"] {
+  if (source === null) return { notRecorded: notRecordedBy(version) };
+  const { run, page } = source;
+  const record = screenshotRecordOf(page);
+  if (record === "unreadable") return { notRecorded: SCREENSHOT_TEXT.unreadable };
+  if (record === undefined) {
+    if (!keepsScreenshots(version)) return { notRecorded: notRecordedBy(version) };
+    let took = tookAny.get(run);
+    if (took === undefined) {
+      took = run.pages.some((each) => each.screenshot !== undefined);
+      tookAny.set(run, took);
+    }
+    return { notRecorded: took ? SCREENSHOT_TEXT.notRead : SCREENSHOT_TEXT.noDriver };
+  }
+  if ("error" in record) {
+    return { notRecorded: SCREENSHOT_TEXT.failed(reasonOf(record.error, input.redact)) };
+  }
+  // The loader holds a file only when it's as its record has it.
+  const bytes = input.screenshots.get(`${run.id}/${page.slug}`);
+  if (bytes === undefined) return { notRecorded: SCREENSHOT_TEXT.changed };
+  const size = sizeOf(record, bytes);
+  if (size === null) return { notRecorded: SCREENSHOT_TEXT.notAPicture };
+  return {
+    dataUri: `${JPEG_ADDRESS}${Buffer.from(bytes).toString("base64")}`,
+    alt: SCREENSHOT_TEXT.alt(name, input.screenReader(run)),
+    ...size,
+  };
+}
+
+/**
+ * The reason a screenshot couldn't be taken, as a sentence's brackets hold it: the home folder
+ * replaced, on one line, and with no full stop at its end, which the sentence puts after its bracket.
+ */
+function reasonOf(error: unknown, redact: (text: string) => string): string {
+  const said = typeof error === "string" ? redact(error) : "";
+  return said
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.\s]+$/, "");
+}
+
+/**
+ * A picture's size in pixels: its record's, when that's a size (two whole numbers above 0), else the
+ * picture's own, from its JPEG header. Null when neither is: bytes that aren't a JPEG with a size
+ * aren't what the run recorded.
+ */
+function sizeOf(
+  record: FileHash & { width: number; height: number },
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
+  const whole = (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value > 0;
+  return whole(record.width) && whole(record.height)
+    ? { width: record.width, height: record.height }
+    : jpegSize(bytes);
+}
+
+/**
+ * The screenshots the page carries, as its fingerprint check names them: the run and the page of
+ * each picture a card shows, in the order of the cards.
+ */
+export function embeddedOf(standing: Standing, cards: PageCard[]): CheckData["screenshots"] {
+  return standing.pages.flatMap((page, index) => {
+    const source = cardRecord(page);
+    const shot = cards[index]?.screenshot;
+    return source !== null && shot !== undefined && "dataUri" in shot
+      ? [{ run: source.run.id, slug: source.page.slug, name: SCREENSHOT_FILE }]
+      : [];
   });
 }
 

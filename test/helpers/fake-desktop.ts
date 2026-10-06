@@ -4,7 +4,9 @@ import type {
   NvdaControl,
   NvdaKey,
 } from "../../src/drivers/guidepup-nvda.js";
+import type { ForegroundWindow } from "../../src/drivers/guidepup/windows.js";
 import type { CaptureMode, FocusedElement, Speech } from "../../src/drivers/types.js";
+import { TINY_JPEG } from "./jpeg.js";
 
 /** Holds whoever waits on it until the test opens it: for work still in progress at a given moment. */
 export class Gate {
@@ -35,11 +37,15 @@ export class Gate {
  *
  * - keys pressed through NVDA go to whichever window is in front;
  * - NVDA+T reports the title of the window in front;
+ * - Windows names the program that owns the window in front, and gives its title;
  * - Chrome reports that its page has focus until its window has really been in front at least
  *   once, even while another window is in front.
  */
 export class FakeDesktop {
   private frontWindow: "browser" | "other" = "browser";
+  /** The process that owns the other window, and its program: the name is its file's description. */
+  otherPid = 7001;
+  otherProgram = "Microsoft Outlook";
   otherTitle = "Inbox - Outlook";
   /** Whether asking the browser window to come forward works. */
   raiseWorks = true;
@@ -120,6 +126,32 @@ export class FakeDesktop {
     this.changed();
   }
 
+  /** The title of the window in front, as NVDA+T reports it and Windows gives it. */
+  get frontTitle(): string {
+    return this.front === "browser"
+      ? `${this.frontBrowser?.title ?? ""} - Google Chrome`
+      : this.otherTitle;
+  }
+
+  /**
+   * The driver's foregroundWindow(): the process, program, and title of the window in front, which
+   * is the newest browser's when the browser is in front. None where no browser has started.
+   */
+  foregroundWindow(): Promise<ForegroundWindow | null> {
+    this.events.push("foreground:look");
+    if (this.front === "other") {
+      return Promise.resolve({
+        pid: this.otherPid,
+        program: this.otherProgram,
+        title: this.otherTitle,
+      });
+    }
+    const browser = this.frontBrowser;
+    return Promise.resolve(
+      browser ? { pid: browser.pid, program: "Google Chrome", title: this.frontTitle } : null,
+    );
+  }
+
   /** Whether the window in front keeps NVDA talking. */
   keepsNvdaTalking(): boolean {
     if (this.front === "other") return this.otherKeepsTalking;
@@ -165,6 +197,8 @@ export class FakeDesktop {
 
 export class FakeNvda implements NvdaControl {
   readonly build = "0.2.1-2026.2";
+  /** The process id Windows gives Guidepup's NVDA once it has started. */
+  readonly pid = 5150;
   started = false;
   startOptions: { capture: CaptureMode; settings: Record<string, unknown> } | null = null;
   forceQuits = 0;
@@ -289,13 +323,7 @@ export class FakeNvda implements NvdaControl {
         this.silencing.add(command);
       });
     }
-    if (key === "reportTitle") {
-      const title =
-        this.desktop.front === "browser"
-          ? `${this.desktop.frontBrowser?.title ?? ""} - Google Chrome`
-          : this.desktop.otherTitle;
-      return options.capture === false ? "" : title;
-    }
+    if (key === "reportTitle") return options.capture === false ? "" : this.desktop.frontTitle;
     const spoken = this.desktop.deliver(key);
     return options.capture === false ? "" : spoken;
   }
@@ -321,11 +349,18 @@ export interface FakePage {
   title?: string;
   /** The address of the page's canonical tag, as the browser reports it (default: no tag). */
   canonical?: string;
+  /**
+   * What taking a screenshot of the page gives: the JPEG's bytes, or the error the browser fails
+   * with (default: a tiny picture).
+   */
+  screenshot?: Uint8Array | Error;
 }
 
 export class FakeSession implements BrowserSession {
   readonly name = "Chrome";
   readonly version: string;
+  /** The browser's process id: each browser launched has its own, counting up from 6001. */
+  readonly pid: number;
   title = "";
   /** The loaded page's canonical tag: null when it has none. */
   canonical: string | null = null;
@@ -357,6 +392,7 @@ export class FakeSession implements BrowserSession {
   ) {
     this.activated = desktop.front === "browser";
     this.version = desktop.browserVersion;
+    this.pid = 6001 + desktop.sessions.length;
   }
 
   load(url: string, timeoutMs: number): Promise<LoadResult> {
@@ -384,6 +420,18 @@ export class FakeSession implements BrowserSession {
 
   pageCanonical(): Promise<string | null> {
     return Promise.resolve(this.canonical);
+  }
+
+  /**
+   * A picture of the page loaded last, which is the page it takes: asked before a page has loaded,
+   * it fails. It never brings the window forward.
+   */
+  screenshot(): Promise<Uint8Array> {
+    this.desktop.events.push("screenshot");
+    const url = this.loaded.at(-1);
+    if (url === undefined) return Promise.reject(new Error("No page has loaded yet."));
+    const shot = this.pages[url]?.screenshot ?? TINY_JPEG;
+    return shot instanceof Error ? Promise.reject(shot) : Promise.resolve(shot);
   }
 
   setTitle(title: string): Promise<() => Promise<void>> {

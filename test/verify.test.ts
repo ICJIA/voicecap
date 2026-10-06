@@ -28,10 +28,12 @@ import { addReview } from "../src/reviews/review.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
 import { shareReport, type ShareReportResult } from "../src/share/share.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
+import { TINY_JPEG } from "./helpers/jpeg.js";
 import { homeWithCountedRun, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -181,6 +183,183 @@ describe("verifyHome", () => {
       `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 3 problems.`,
     ]);
     expect(result.problems).toBe(3);
+  });
+
+  describe("a page's screenshot", () => {
+    const SHOT = `${RUN}/pages/home/screenshot.jpg`;
+    const TAKEN_AT = "2026-09-27T11:02:05.000-05:00";
+    const ONE_PROBLEM = `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`;
+    const recorded = { ...fileHash(TINY_JPEG), takenAt: TAKEN_AT, width: 16, height: 12 };
+
+    /** A copy of the home, with the record of the page in folder `slug` changed, and the run sealed again. */
+    async function changingPage(slug: string, edit: (page: RunJson["pages"][number]) => void) {
+      const home = await copyOfHome();
+      await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+        edit(run.pages.find((page) => page.slug === slug)!);
+        run.seal = sealOf(run);
+      });
+      return home;
+    }
+
+    /** A copy of the home whose home page has a screenshot, in its folder and in its record. */
+    async function withScreenshot(): Promise<string> {
+      const home = await changingPage("home", (page) => {
+        page.screenshot = recorded;
+      });
+      await writeFile(at(home, SHOT), TINY_JPEG);
+      return home;
+    }
+
+    it("finds nothing wrong with one that's as the run recorded it", async () => {
+      expect((await verify(await withScreenshot())).lines).toEqual([MATCHES]);
+    });
+
+    it("names one that was edited, whether or not its size changed", async () => {
+      const added = await withScreenshot();
+      await appendFile(at(added, SHOT), "An added byte.");
+      expect((await verify(added)).lines).toEqual([
+        `${SHOT}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+
+      const sameSize = await withScreenshot();
+      const bytes = await readFile(at(sameSize, SHOT));
+      bytes[bytes.length - 3] = (bytes[bytes.length - 3] ?? 0) ^ 0xff;
+      await writeFile(at(sameSize, SHOT), bytes);
+      expect((await verify(sameSize)).lines).toEqual([
+        `${SHOT}: changed since it was recorded (SHA-256 differs)`,
+        ONE_PROBLEM,
+      ]);
+    });
+
+    it("names one that was removed", async () => {
+      const home = await withScreenshot();
+      await rm(at(home, SHOT));
+      expect((await verify(home)).lines).toEqual([`${SHOT}: missing`, ONE_PROBLEM]);
+    });
+
+    it("names a file the run doesn't record, as it does any", async () => {
+      // A page with no screenshot in its record, and one whose record says why it has none.
+      for (const screenshot of [undefined, { error: "timed out", takenAt: TAKEN_AT }]) {
+        const home = await changingPage("home", (page) => {
+          if (screenshot) page.screenshot = screenshot;
+        });
+        await writeFile(at(home, SHOT), TINY_JPEG);
+        expect((await verify(home)).lines).toEqual([
+          `${SHOT}: not recorded by the run`,
+          ONE_PROBLEM,
+        ]);
+      }
+    });
+
+    it("finds nothing wrong with a record of why there's none", async () => {
+      const home = await changingPage("home", (page) => {
+        page.screenshot = { error: "timed out", takenAt: TAKEN_AT };
+      });
+      expect((await verify(home)).lines).toEqual([MATCHES]);
+    });
+
+    it("is filed in its own page's folder", async () => {
+      // The flawed page records one, with no file in its folder; the file is in the home page's.
+      const flawed = "flawed-68c5de39bc";
+      const home = await changingPage(flawed, (page) => {
+        page.screenshot = recorded;
+      });
+      await writeFile(at(home, SHOT), TINY_JPEG);
+      expect((await verify(home)).lines).toEqual([
+        `${RUN}/pages/${flawed}/screenshot.jpg: missing`,
+        `${SHOT}: not recorded by the run`,
+        `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 2 problems.`,
+      ]);
+    });
+  });
+
+  it("checks the event log its run recorded", async () => {
+    const run = JSON.parse(await readFile(at(untouched, `${RUN}/run.json`), "utf8")) as RunJson;
+    expect(Object.keys(run.files ?? {})).toEqual(["events.jsonl"]);
+    expect(existsSync(at(untouched, `${RUN}/events.jsonl`))).toBe(true);
+  });
+
+  it("catches an edited event log", async () => {
+    const home = await copyOfHome();
+    await appendFile(
+      at(home, `${RUN}/events.jsonl`),
+      '{"at":"2026-09-27T11:03:00.000-05:00","type":"computer-locked"}\n',
+    );
+    const { result, lines } = await verify(home);
+    expect(lines).toEqual([
+      `${RUN}/events.jsonl: changed since it was recorded (SHA-256 differs)`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+    expect(result.problems).toBe(1);
+  });
+
+  it("catches a missing event log", async () => {
+    const home = await copyOfHome();
+    await rm(at(home, `${RUN}/events.jsonl`));
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/events.jsonl: missing`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("passes a run from before the event log, and catches a log added to it", async () => {
+    const home = await copyOfHome();
+    // A run from before voicecap 0.11.0: no log in its folder, none recorded, sealed without one.
+    await rm(at(home, `${RUN}/events.jsonl`));
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      delete run.files;
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([MATCHES]);
+
+    // A log the run doesn't record is one nothing vouches for.
+    await writeFile(
+      at(home, `${RUN}/events.jsonl`),
+      '{"at":"2026-09-27T11:03:00.000-05:00","type":"computer-locked"}\n',
+    );
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/events.jsonl: not recorded by the run`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("checks each file a run records beside its pages, in a folder or not", async () => {
+    const home = await copyOfHome();
+    const notes = "Kept with the run.\n";
+    await mkdir(at(home, `${RUN}/extra`));
+    await writeFile(at(home, `${RUN}/extra/notes.txt`), notes);
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.files = { ...run.files, "extra/notes.txt": fileHash(notes) };
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([MATCHES]);
+
+    await appendFile(at(home, `${RUN}/extra/notes.txt`), "An added line.\n");
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/extra/notes.txt: changed since it was recorded (SHA-256 differs)`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+
+    await rm(at(home, `${RUN}/extra`), { recursive: true });
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}/extra/notes.txt: missing`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
+  });
+
+  it("reads no file a run names outside its own folder", async () => {
+    const home = await copyOfHome();
+    const outside = "Not part of the run.\n";
+    await writeFile(at(home, `${FOLDER}/outside.txt`), outside);
+    await editJson<RunJson>(at(home, `${RUN}/run.json`), (run) => {
+      run.files = { ...run.files, "../../outside.txt": fileHash(outside) };
+      run.seal = sealOf(run);
+    });
+    expect((await verify(home)).lines).toEqual([
+      `${RUN}: not a readable run or manual session`,
+      `${FOLDER}: 1 run (0 incomplete), 1 manual session, 2 reviews, 0 shares checked: 1 problem.`,
+    ]);
   });
 
   it("doesn't mind the files an operating system leaves in folders", async () => {

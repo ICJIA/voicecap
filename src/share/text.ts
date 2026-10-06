@@ -15,7 +15,7 @@
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
-import type { PassName } from "../model.js";
+import type { PassName, SessionRecord } from "../model.js";
 import type { OnlyInOnePage } from "./changes.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
@@ -226,6 +226,36 @@ export const PAGES_TEXT = {
   noLongerListedHead: ["Page", "Last run that had it", "What it recorded"],
 };
 
+/**
+ * A page's screenshot: the words of its picture for a screen reader, and what a card says in place
+ * of a picture it doesn't have. (A run from before voicecap took screenshots says it as it says of
+ * every part such a run didn't record: `notRecordedBy`. `PAGES_TEXT.screenshot` names the picture.)
+ */
+export const SCREENSHOT_TEXT = {
+  /** The page, as the page names it, and the run's screen reader, as its environment records it. */
+  alt: (page: string, screenReader: string): string =>
+    `The page ${page} as it loaded, before ${screenReader} read it`,
+  /** The browser couldn't take it: the reason it gave, already on one line and with no full stop. */
+  failed: (reason: string): string =>
+    reason === ""
+      ? "Not recorded: the screenshot couldn't be taken."
+      : `Not recorded: the screenshot couldn't be taken (${reason}).`,
+  /** A run of voicecap 0.11.0 or later whose screen reader driver took no page's screenshot. */
+  noDriver: "Not recorded: this run's screen reader driver doesn't take screenshots.",
+  /** A page of a run whose driver took some, that wasn't read: skipped, or failed before it loaded. */
+  notRead: "Not recorded: no screenshot was taken, since the page wasn't read.",
+  /** The picture's file is missing, or isn't as its run recorded it (changed since the seal). */
+  changed: "Not shown: the file isn't as the run recorded it; voicecap verify names it.",
+  /**
+   * The picture's file is as its run recorded it, but neither its record nor the file itself gives
+   * its size: it isn't a JPEG the page can lay out.
+   */
+  notAPicture:
+    "Not shown: the file is as the run recorded it, but it isn't a picture voicecap can show.",
+  /** The page's record of its screenshot is of no kind voicecap writes: null, or a string, say. */
+  unreadable: "Not shown: the run's record of this screenshot couldn't be read.",
+};
+
 /** "What the flags found": its heading, and the words of each flagged page's table. */
 export const FLAGS_TEXT = {
   title: "What the flags found",
@@ -324,6 +354,51 @@ export const PROBLEMS_TEXT = {
   /** The title of the stack an unexpected error left: where in voicecap's code it happened. */
   stack: "Where in voicecap's code it happened",
   /**
+   * What a problem says its run didn't record, each where it matters, before "not recorded" and the
+   * voicecap the run used: the step and the key (an error from a pass's step, written as text), the
+   * program in front (a foreground loss), the event log and NVDA's own log together (a voicecap that
+   * kept neither), or NVDA's own log alone (one that keeps the event log).
+   */
+  unrecorded: {
+    stepAndKey: "The step and the key",
+    program: "Which program came to the front",
+    logs: "The event log and NVDA's own log",
+    nvdaLog: "NVDA's own log",
+  },
+  /**
+   * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said
+   * after what happened: its name, never its window's title, or that voicecap couldn't tell (Windows
+   * didn't say, or by the time voicecap looked, its own browser was in front again). A run of 0.11.0
+   * or later whose screen reader driver didn't look says so where the problem says what the run
+   * didn't record (`notLooked`); an older run's voicecap didn't look at all.
+   */
+  program: {
+    named: (program: string): string => `Which program came to the front: ${program}.`,
+    unknown: "voicecap couldn't tell which program came to the front.",
+    notLooked:
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
+  },
+  /**
+   * The verdict line's sentence on the programs that came to the front, said when its problems name
+   * any (runs of 0.11.0 on): the list of them, each with how often (`often`), and, when some of the
+   * problems of another window taking the screen name none (voicecap couldn't tell, or the run
+   * didn't record it), how many. `programs` is how many programs the list names.
+   */
+  programs: {
+    line: (list: string, programs: number, unnamed: number): string => {
+      const which = programs === 1 ? "Which program" : "Which programs";
+      const others =
+        unnamed === 0
+          ? ""
+          : unnamed === 1
+            ? "; for the other, it isn't known"
+            : `; for the other ${unnamed}, it isn't known`;
+      return `${which} came to the front: ${list}${others}.`;
+    },
+    often: (program: string, times: number): string =>
+      `${program} (${times === 1 ? "once" : `${times} times`})`,
+  },
+  /**
    * The table of kinds of problem: its title, what its line says is in it (the number of kinds is
    * the table's), and the heads of its columns.
    */
@@ -415,6 +490,11 @@ export const EVIDENCE_TEXT = {
   rowsHead: ["What", "What the run recorded"],
   /** The heads of the table of a run's files. */
   filesHead: ["Page", "File", "Size", "SHA-256"],
+  /**
+   * What that table says in its Page column of a file of the run's own, which its record lists
+   * beside its pages' (RunJson.files): its event log.
+   */
+  theRun: "The run",
   /** Said in place of that table, for a run whose record lists no files. */
   noFiles: "This run's record lists no files.",
   /** Before the command that checks a run's files against its record. */
@@ -447,6 +527,195 @@ export const EVIDENCE_TEXT = {
     lead: "These runs aren't counted in any result on this page.",
     why: "A run counts only when it completed, was sealed, and wasn't a replay.",
   },
+};
+
+/**
+ * Each event of a run's event log (events.jsonl), in the words its row of the table says, and the
+ * problems' records quote. `sr` is the run's screen reader as its environment records it ("NVDA");
+ * `name` is a page as the page names it, and `n` its number in the run. The screen reader voicecap
+ * runs is "voicecap's", and the one it shuts down while it runs is "the computer's own". A window's
+ * title, which the log keeps, is never said: only the program's name.
+ */
+export const EVENT_TEXT = {
+  runStarted: "The run started",
+  runResumed: (session: number): string => `The run resumed (session ${session})`,
+  runEnded: (reason: string): string => `The run ended: ${reason}`,
+  /** Why a session ended, as the session's record says it, in words that follow `runEnded`. */
+  endReasons: {
+    completed: "complete",
+    interrupted: "stopped by the person running it",
+    "environment-failure": "stopped by a problem on the computer",
+    error: "stopped by an unexpected error",
+  } satisfies Record<NonNullable<SessionRecord["endReason"]>, string>,
+  lockTaken: (sr: string): string => `voicecap took the ${sr} lock`,
+  lockReleased: (sr: string): string => `voicecap released the ${sr} lock`,
+  /** voicecap's screen reader started, with its process, when the log has it. */
+  started: (sr: string, pid: number | null): string =>
+    `voicecap's ${sr} started${pid === null ? "" : `: process ${pid}`}`,
+  /** voicecap's screen reader stopped, with its process, and whether it starts again at once. */
+  stopped: (sr: string, pid: number | null, restarting: boolean): string =>
+    `voicecap's ${sr} stopped${pid === null ? "" : `: process ${pid}`}${restarting ? ", to restart" : ""}`,
+  restarted: (sr: string, reason: string): string => `voicecap restarted ${sr}: ${reason}`,
+  /** Why voicecap started the screen reader and the browser again, in words that follow `restarted`. */
+  restartReasons: {
+    every: (pages: number): string =>
+      pages === 1 ? "after every page" : `after every ${pages} pages`,
+    failedPage: "after a failed page",
+    retry: (name: string, attempt: number, of: number): string =>
+      `to try ${name} again (attempt ${attempt} of ${of})`,
+  },
+  /**
+   * The computer's own screen reader was shut down, with its processes when the log has them, as a
+   * list ("4321, 4322"), or "" for none.
+   */
+  ownClosed: (sr: string, pids: string): string =>
+    `The computer's own ${sr} was shut down while voicecap ran${pids === "" ? "" : `: process ${pids}`}`,
+  ownRestarted: (sr: string): string => `The computer's own ${sr} was started again`,
+  ownNotRestarted: (sr: string): string => `The computer's own ${sr} couldn't be started again`,
+  browserLaunched: (pid: number | null): string =>
+    `The browser started${pid === null ? "" : `: process ${pid}`}`,
+  browserClosed: (pid: number | null): string =>
+    `The browser closed${pid === null ? "" : `: process ${pid}`}`,
+  browserHandedOver: "The browser handed over to a new copy of itself to finish an update",
+  /** An attempt at a page began: the page's attempt number after its first. */
+  pageStarted: (n: number, name: string, attempt: number): string =>
+    `Page ${n} started: ${name}${attempt > 1 ? ` (attempt ${attempt})` : ""}`,
+  pageDone: (n: number, name: string): string => `Page ${n} read in full: ${name}`,
+  pageSkipped: (n: number, name: string): string => `Page ${n} skipped: ${name}`,
+  /** An attempt at a page failed: its kind, as the problems name it ("another window took the screen"). */
+  pageFailed: (n: number, kind: string): string => `Page ${n} failed: ${kind}`,
+  locked: "The computer was locked",
+  /** Another window took the screen: the program's name, when Windows said it. Never the title. */
+  foreground: (program: string | null): string =>
+    `Another window came to the front${program === null ? "" : `: ${program}`}`,
+};
+
+/**
+ * "Minute by minute": what each session's chart and table say around the events' own words. The
+ * summary's sentences, from the chart's spans, each where it applies; the lanes of the chart, and
+ * the words in it; the line of the fold that holds the table, and the heads of the table; the line
+ * on lines of the log that couldn't be read; the line that names a session, when a run has more
+ * than one; NVDA's restarts, as the run's facts count them; and what the part says when the page
+ * can't show a run's log.
+ */
+export const TIMELINE_TEXT = {
+  /** One of a list of times or processes, then the next: "from 14:00 to 14:01, then from 14:03…". */
+  then: (first: string, next: string): string => `${first}, then ${next}`,
+  /** The lock's sentence: each time voicecap held it (`held`), one after another (`then`). */
+  lock: (sr: string, held: string): string => `voicecap held the ${sr} lock ${held}.`,
+  held: (from: string, to: string): string => `from ${from} to ${to}`,
+  /**
+   * voicecap's screen reader's processes, one after another ("65720, then 54568"), or, with no
+   * process id known, "", and it only ran.
+   */
+  ran: (sr: string, processes: string): string =>
+    processes === "" ? `voicecap's ${sr} ran.` : `voicecap's ${sr} ran as process ${processes}.`,
+  /** The computer's own screen reader: shut down, and started again where the log says so. */
+  own: (sr: string, at: string, again: string | null): string =>
+    again === null
+      ? `The computer's own ${sr} was shut down at ${at}.`
+      : `The computer's own ${sr} was shut down at ${at} and started again at ${again}.`,
+  /** The pages, then each that failed, with when (`failedAt`, one after another, or ""). */
+  pages: (count: number, failed: string): string =>
+    `${count} ${count === 1 ? "page" : "pages"} ran in order${failed}.`,
+  failedAt: (n: number, at: string): string => `; page ${n} failed at ${at}`,
+  /** The chart's lanes: the lock, voicecap's screen reader, the pages, and the computer's own. */
+  lanes: {
+    lock: (sr: string): string => `${sr} lock`,
+    screenReader: (sr: string): string => `voicecap's ${sr}`,
+    pages: "Pages",
+    own: (sr: string): string => `The computer's own ${sr}`,
+  },
+  /** Inside the chart: a process, the computer's own screen reader's lane, and a failed page. */
+  process: (pid: number): string => `process ${pid}`,
+  off: "off while voicecap ran",
+  failed: (n: number): string => `page ${n} failed`,
+  /** The line of the fold that holds a session's table of events. */
+  fold: (count: string): string => `Every event, to the millisecond (${count})`,
+  head: ["Time", "Event"],
+  /**
+   * A session, as the names a screen reader hears of its parts say it (a box's name, a table's
+   * caption, the chart's title, which the page sets apart for a screen reader alone): its run, and,
+   * where the run's sessions are named, its number. So no two parts on the page are named alike.
+   */
+  which: (run: string, session: number | null): string =>
+    session === null ? `run ${run}` : `run ${run}, session ${session}`,
+  /** The chart's title, which names the image ("Minute by minute, run …"), and its box's name. */
+  chartTitle: (which: string): string => `${EVIDENCE_TEXT.parts.timeline}, ${which}`,
+  chartBox: (title: string): string => `${title}, chart`,
+  /** The table of a session's events: its caption, and its box's name. */
+  eventsCaption: (which: string): string => `Every event, ${which}`,
+  eventsBox: (which: string): string => `Every event, ${which}, table`,
+  /** Said under the last table, when the log has lines that couldn't be read. */
+  unreadable: (count: number): string =>
+    `${count} ${count === 1 ? "line" : "lines"} of the event log couldn't be read.`,
+  /** A session of a run that has more than one, or that isn't its first: "Session 2, 30 September 2026". */
+  session: (n: number, day: string): string => `Session ${n}, ${day}`,
+  /**
+   * The run's facts: how many times NVDA was restarted, then why, each reason once ("after every 10
+   * pages (3 times)"), as a list: "4: after every 10 pages (3 times), and after a failed page".
+   */
+  restarts: (count: number, reasons: string): string =>
+    count === 0 ? "None" : reasons === "" ? String(count) : `${count}: ${reasons}`,
+  times: (reason: string, times: number): string =>
+    times === 1 ? reason : `${reason} (${times} times)`,
+  /**
+   * NVDA's restarts, as the run's facts count them, when the event log doesn't cover all the run's
+   * sessions: how many, in the sessions it covers (`inSessions`), then why, as `restarts` says it
+   * ("1 in session 2: after a failed page."). Each session it doesn't cover follows, said as its
+   * timeline says it (`unlogged`).
+   */
+  restartsIn: (count: number, sessions: string, reasons: string): string =>
+    `${count === 0 ? "None" : count} in ${sessions}${count === 0 || reasons === "" ? "" : `: ${reasons}`}.`,
+  /**
+   * The sessions the log covers, their numbers as a list ("2 and 3"): "session 2", "sessions 2
+   * and 3".
+   */
+  inSessions: (list: string, several: boolean): string =>
+    `${several ? "sessions" : "session"} ${list}`,
+  /**
+   * A session of the run that the event log has no line of, said where its timeline would be: by
+   * the voicecap its own session used, when that kept no log (a run begun before 0.11.0 and
+   * finished on it), named as `notRecordedBy` names one ("an earlier version of voicecap" when its
+   * record doesn't say); or, of a voicecap that keeps the log, that the log has no line of it (one
+   * that couldn't be written then).
+   */
+  unlogged: {
+    version: (session: number, version: string | null): string =>
+      `Session ${session}: not recorded: it used ${version === null ? "an earlier version of voicecap" : `voicecap ${version}`}.`,
+    noLines: (session: number): string =>
+      `Session ${session}: not recorded: the event log has no line of it.`,
+  },
+  /**
+   * Why the page can't show the event log of a run whose voicecap keeps one (0.11.0 and later), the
+   * same reason where the run's timeline says it (`part`) as where a problem's record says it of its
+   * attempt (`problem`): the log its record lists isn't as the run recorded it (missing,
+   * unreadable, or changed), and `voicecap verify` names it; its record lists none, so it couldn't be
+   * written; or no line of it could be read. A run from before voicecap kept the log says so as every
+   * part of its evidence does (notRecordedBy), and so do its problems.
+   */
+  gaps: {
+    changed: {
+      part: "Not shown: the event log isn't as the run recorded it; voicecap verify names it.",
+      problem:
+        "The event log: not shown: it isn't as the run recorded it; voicecap verify names it.",
+    },
+    unlisted: {
+      part: "Not recorded: this run's record lists no event log.",
+      problem: "The event log: not recorded: this run's record lists none.",
+    },
+    unreadable: {
+      part: "Not shown: no line of the event log could be read.",
+      problem: "The event log: not shown: no line of it could be read.",
+    },
+  },
+  /**
+   * What a problem's record says when the page has the run's log, of a voicecap that keeps one, but
+   * the log has no line of the attempt: one of a session whose lines it couldn't write.
+   */
+  noLinesOfAttempt: "The event log: not recorded: it has no line of this attempt.",
+  /** What a run whose environment names no screen reader calls it. */
+  someScreenReader: "screen reader",
 };
 
 /**
@@ -660,7 +929,7 @@ export const TIMELINE: TimelineRow[] = [
   {
     date: null,
     release: null,
-    pc: "The event log, screenshots, and NVDA's own log, recorded at the PC.",
+    pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },

@@ -14,16 +14,25 @@ import vm from "node:vm";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { ReviewEntry, ReviewsFile, ReviewStatus, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
+import { runAudit } from "../src/run/audit.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import { loadShareInput } from "../src/share/load.js";
+import { buildShareModel } from "../src/share/model.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { canonicalJson, sealOf } from "../src/util/hash.js";
 import { launchBrowser } from "./helpers/axe.js";
+import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import { options as runOptions, setup as setupSite, sitePages } from "./helpers/run-site.js";
+import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
 
 interface Checked {
   files: { label: string; ok: boolean }[];
+  screenshots: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
   reviewProblems: string[];
   line: string;
@@ -34,11 +43,19 @@ type Digest = (bytes: Uint8Array) => string | Promise<string>;
 /** What the page shows of a file the data holds: its text, or null when the page doesn't show it. */
 type Shown = (file: CheckData["files"][number]) => string | null;
 
+/** The bytes of each copy of a screenshot the page shows, from its address: none for none shown. */
+type Pictures = (shot: CheckData["screenshots"][number]) => Uint8Array[];
+
 interface Library {
   sha256Hex: (bytes: Uint8Array) => string;
   canonicalJson: (value: unknown) => string;
   sealOf: (record: object) => string;
-  checkAll: (data: CheckData, digest?: Digest, shown?: Shown) => Promise<Checked>;
+  checkAll: (
+    data: CheckData,
+    digest?: Digest,
+    shown?: Shown,
+    pictures?: Pictures,
+  ) => Promise<Checked>;
 }
 
 // The library as a browser gets it, with nothing but TextEncoder from outside.
@@ -67,8 +84,9 @@ async function check(
   data: CheckData,
   digest: Digest = library.sha256Hex,
   shown?: Shown,
+  pictures?: Pictures,
 ): Promise<Checked> {
-  return plain(await library.checkAll(data, digest, shown));
+  return plain(await library.checkAll(data, digest, shown, pictures));
 }
 
 /** What the appendix shows of each file: its body, the file without its header, as the page has it. */
@@ -99,8 +117,24 @@ function demoData(): CheckData {
       files.push({ run: source.id, slug: page.slug, name, text });
     }
   }
-  return { runs: [earlier, latest], files, reviews: null };
+  return { runs: [earlier, latest], files, screenshots: [], reviews: null };
 }
+
+/** The demo's data with a screenshot of TINY_JPEG recorded for each of the pages of run 1402 named. */
+function shotData(slugs: string[] = ["home", REPORT]): CheckData {
+  const data = demoData();
+  const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+  for (const slug of slugs) {
+    latest.pages.find((page) => page.slug === slug)!.screenshot = TINY_RECORD;
+    data.screenshots.push({ run: latest.id, slug, name: "screenshot.jpg" });
+  }
+  // The record has a new field, so it's sealed again, as voicecap sealed it with the field there.
+  latest.seal = sealOf(latest);
+  return data;
+}
+
+/** Each screenshot of the page as the page shows it unchanged: once, as TINY_JPEG. */
+const asEmbedded: Pictures = () => [TINY_JPEG];
 
 /** `text` with the character at `at` replaced by another one. */
 function changeOneCharacter(text: string, at: number): string {
@@ -492,17 +526,18 @@ describe("checkAll", () => {
     const data = demoData();
 
     const noTranscripts = await check({ ...data, files: [], reviews: null });
-    const onlyReviews = await check({ runs: [], files: [], reviews: history() });
+    const onlyReviews = await check({ runs: [], files: [], screenshots: [], reviews: history() });
 
     expect(noTranscripts.line).toBe("Both runs' seals check out");
     expect(onlyReviews.line).toBe("The review entries' seals and chain check out");
   });
 
   it("says so when the page holds nothing to check", async () => {
-    const result = await check({ runs: [], files: [], reviews: null });
+    const result = await check({ runs: [], files: [], screenshots: [], reviews: null });
 
     expect(result).toEqual({
       files: [],
+      screenshots: [],
       runs: [],
       reviewProblems: [],
       line: "This page holds no transcripts or run records to check",
@@ -618,6 +653,146 @@ describe("checkAll: the transcripts shown", () => {
   });
 });
 
+describe("checkAll, with the screenshots a page shows", () => {
+  const HOME_LABEL = "Run 1402 · / · screenshot.jpg";
+  const REPORT_LABEL = "Run 1402 · /the-report/ · screenshot.jpg";
+
+  /** TINY_JPEG with its last byte changed: a picture that isn't the one the run recorded. */
+  const changed = Uint8Array.from(TINY_JPEG, (byte, at) =>
+    at === TINY_JPEG.length - 1 ? ~byte & 0xff : byte,
+  );
+
+  it("finds each screenshot the page shows matching its run's record, and counts it in words of its own", async () => {
+    const result = await check(shotData(), library.sha256Hex, asShown, asEmbedded);
+
+    expect(result.screenshots).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.files).toHaveLength(21);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("names a screenshot changed by one byte, by its page, and says how many match", async () => {
+    const pictures: Pictures = (shot) => [shot.slug === REPORT ? changed : TINY_JPEG];
+
+    const result = await check(shotData(), library.sha256Hex, asShown, pictures);
+
+    expect(result.screenshots).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: false },
+    ]);
+    expect(result.files.every((file) => file.ok)).toBe(true);
+    expect(result.line).toBe(
+      `${REPORT_LABEL} doesn't match its fingerprint. ` +
+        "21 of 21 transcripts match their fingerprints, and 1 of 2 screenshots match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("checks every copy the page has of a screenshot, and names the screenshot once", async () => {
+    // The card's copy is as it was, and the appendix's has been changed.
+    const pictures: Pictures = (shot) =>
+      shot.slug === "home" ? [TINY_JPEG, changed] : [TINY_JPEG];
+
+    const result = await check(shotData(), library.sha256Hex, asShown, pictures);
+
+    expect(result.screenshots).toEqual([
+      { label: HOME_LABEL, ok: false },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.line.match(/doesn't match its fingerprint/g)).toHaveLength(1);
+  });
+
+  it("names a screenshot the page doesn't show any copy of, since it can't match what isn't there", async () => {
+    const pictures: Pictures = (shot) => (shot.slug === "home" ? [] : [TINY_JPEG]);
+
+    const result = await check(shotData(), library.sha256Hex, asShown, pictures);
+
+    expect(result.screenshots.filter(({ ok }) => !ok).map(({ label }) => label)).toEqual([
+      HOME_LABEL,
+    ]);
+    expect(result.line).toContain(`${HOME_LABEL} doesn't match its fingerprint.`);
+  });
+
+  it("names a screenshot its run's record doesn't list, or a run the page doesn't carry", async () => {
+    const data = shotData();
+    // The page /ask-a-question/ has a record of why it has no screenshot, which has no fingerprint.
+    data.runs[1]!.pages.find((page) => page.slug === ASK)!.screenshot = {
+      error: "timed out after 5s",
+      takenAt: "2026-09-29T14:03:00.000-05:00",
+    };
+    data.runs[1]!.seal = sealOf(data.runs[1]!);
+    data.screenshots.push({ run: "2026-09-29_1402", slug: ASK, name: "screenshot.jpg" });
+    data.screenshots.push({ run: "2026-01-01_0000", slug: "home", name: "screenshot.jpg" });
+
+    const result = await check(data, library.sha256Hex, asShown, asEmbedded);
+
+    expect(result.screenshots.slice(2)).toEqual([
+      { label: "Run 1402 · /ask-a-question/ · screenshot.jpg", ok: false },
+      { label: "Run 0000 · home · screenshot.jpg", ok: false },
+    ]);
+    expect(result.line).toContain("2 of 4 screenshots match their fingerprints");
+  });
+
+  it("names a run whose record was changed to match a changed screenshot, by its seal", async () => {
+    const data = shotData();
+    const page = data.runs[1]!.pages.find((candidate) => candidate.slug === "home")!;
+    // Whoever changed the picture also puts its new fingerprint in the run's record: the picture
+    // now matches the record, so only the run's seal gives it away.
+    page.screenshot = { ...TINY_RECORD, sha256: nodeHex(changed), bytes: changed.length };
+    const pictures: Pictures = (shot) => [shot.slug === "home" ? changed : TINY_JPEG];
+
+    const result = await check(data, library.sha256Hex, asShown, pictures);
+
+    expect(result.screenshots).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.runs.map((run) => run.ok)).toEqual([true, false]);
+    expect(result.line).toContain("Run 1402's record doesn't match its seal.");
+  });
+
+  it("gives the same result with Web Crypto's digest, which is async", async () => {
+    const pictures: Pictures = (shot) => [shot.slug === REPORT ? changed : TINY_JPEG];
+
+    expect(await check(shotData(), webCryptoHex, asShown, pictures)).toEqual(
+      await check(shotData(), library.sha256Hex, asShown, pictures),
+    );
+  });
+
+  it("leaves the screenshots out when it's given no way to read them, as it leaves out the text a page shows", async () => {
+    const result = await check(shotData());
+
+    expect(result.screenshots).toEqual([]);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("words one screenshot in the singular, and none as nothing to say", async () => {
+    const one = shotData(["home"]);
+
+    expect((await check(one, library.sha256Hex, asShown, asEmbedded)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 1 of 1 screenshot matches its fingerprint, " +
+        "and both runs' seals check out",
+    );
+    expect((await check(one, library.sha256Hex, asShown, () => [changed])).line).toContain(
+      "0 of 1 screenshot matches its fingerprint",
+    );
+    // A page that shows none, and data from before it carried a list of them, say nothing of them.
+    const { screenshots: _list, ...older } = demoData();
+    for (const data of [demoData(), older as CheckData]) {
+      expect((await check(data, library.sha256Hex, asShown, asEmbedded)).line).toBe(
+        "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+      );
+    }
+  });
+});
+
 describe("checkDataJson", () => {
   it("keeps </script> and <!-- in a transcript intact through the page's data", async () => {
     // Text that would end or hide the data block if it went in as it is, and the two line
@@ -694,8 +869,25 @@ function appendixOf(data: CheckData): string {
 }
 
 /**
+ * Each screenshot the data lists as the page shows it, twice: on the card of its page, and in its
+ * place in the appendix. Each is an image that names its page and file, whose address holds its
+ * bytes in base64.
+ */
+function picturesIn(data: CheckData): string {
+  return data.screenshots
+    .flatMap((shot) =>
+      ["card", "appendix"].map(
+        (place) =>
+          `<img class="${place}" src="data:image/jpeg;base64,${Buffer.from(TINY_JPEG).toString("base64")}" alt="" width="16" height="12" data-slug="${esc(shot.slug)}" data-file="${esc(shot.name)}">`,
+      ),
+    )
+    .join("\n");
+}
+
+/**
  * A stand-in for the page's evidence section and its appendix: the elements the check's wiring
- * names, its data, and each transcript as the appendix shows it.
+ * names, its data, each transcript as the appendix shows it, and each screenshot as the page shows
+ * it.
  */
 function checkPage(data: CheckData): string {
   return `<!doctype html>
@@ -708,17 +900,45 @@ function checkPage(data: CheckData): string {
 <table><thead><tr><th scope="col">File</th><th scope="col">Recorded fingerprint</th><th scope="col">Result</th></tr></thead><tbody id="fp-rows"></tbody></table></details>
 <script type="application/json" id="fp-data">${checkDataJson(data)}</script>
 ${appendixOf(data)}
+${picturesIn(data)}
 <script>${CHECK_SCRIPT}</script>
 </body></html>
 `;
 }
 
+/**
+ * The page voicecap writes for a run of the scripted site, each of whose three pages took a
+ * screenshot: written from the run's own records, as a reader gets it. Gives the folder the run's
+ * home is in, to remove, and the page's file.
+ */
+async function generatedPage(folder: string): Promise<{ home: string; file: string }> {
+  const home = await setupSite(["/", "/about", "/resources"]);
+  const picture = { screenshot: { jpeg: TINY_JPEG } };
+  const driver = new ScriptedDriver(
+    sitePages({ home: picture, about: picture, resources: picture }),
+  );
+  const ran = await runAudit(runOptions(home, driver, { now: () => new Date(2026, 8, 26, 14, 5) }));
+  const model = buildShareModel(
+    await loadShareInput({ siteDir: ran.siteDir, config: DEFAULT_CONFIG }),
+  );
+  const file = path.join(folder, "generated.html");
+  await writeFile(file, renderSharePage(model, { fontCss: "" }));
+  return { home, file };
+}
+
 describe("the check in a browser", () => {
   let browser: Browser;
   let folder: string;
-  /** The page with the demo runs' transcripts, and the same with a review history besides. */
+  /** The home of the run the generated page was written for. */
+  let generatedHome: string;
+  /**
+   * The page with the demo runs' transcripts, and the same with a review history besides, and with
+   * two screenshots; and a page as voicecap generates it, with three.
+   */
   let pageUrl: string;
   let reviewsUrl: string;
+  let shotsUrl: string;
+  let generatedUrl: string;
   const contexts: BrowserContext[] = [];
 
   beforeAll(async () => {
@@ -726,10 +946,16 @@ describe("the check in a browser", () => {
     folder = await mkdtemp(path.join(tmpdir(), "voicecap-check-"));
     const plain = path.join(folder, "check.html");
     const reviewed = path.join(folder, "check-reviews.html");
+    const shots = path.join(folder, "check-shots.html");
     await writeFile(plain, checkPage(demoData()));
     await writeFile(reviewed, checkPage({ ...demoData(), reviews: history() }));
+    await writeFile(shots, checkPage(shotData()));
+    const generated = await generatedPage(folder);
+    generatedHome = generated.home;
     pageUrl = pathToFileURL(plain).href;
     reviewsUrl = pathToFileURL(reviewed).href;
+    shotsUrl = pathToFileURL(shots).href;
+    generatedUrl = pathToFileURL(generated.file).href;
   });
 
   afterEach(async () => {
@@ -739,11 +965,21 @@ describe("the check in a browser", () => {
   afterAll(async () => {
     await browser.close();
     await rm(folder, { recursive: true, force: true });
+    await rm(generatedHome, { recursive: true, force: true });
   });
 
-  /** The page, open. `webCrypto: false` takes crypto.subtle away, as an insecure origin has it. */
+  /**
+   * The page, open: the demo's, or with `reviews`, `shots`, or `generated`, the one of those.
+   * `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
+   */
   async function open(
-    options: { webCrypto?: boolean; scripts?: boolean; reviews?: boolean } = {},
+    options: {
+      webCrypto?: boolean;
+      scripts?: boolean;
+      reviews?: boolean;
+      shots?: boolean;
+      generated?: boolean;
+    } = {},
   ): Promise<Page> {
     const context = await browser.newContext({ javaScriptEnabled: options.scripts ?? true });
     contexts.push(context);
@@ -760,7 +996,14 @@ describe("the check in a browser", () => {
            };`,
     );
     const page = await context.newPage();
-    await page.goto(options.reviews === true ? reviewsUrl : pageUrl);
+    const url = options.reviews
+      ? reviewsUrl
+      : options.shots
+        ? shotsUrl
+        : options.generated
+          ? generatedUrl
+          : pageUrl;
+    await page.goto(url);
     return page;
   }
 
@@ -947,5 +1190,166 @@ describe("the check in a browser", () => {
       .poll(() => result(page), { timeout: 10_000 })
       .toMatch(/^The check couldn't run: .+\.$/);
     expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+  });
+
+  describe("with the screenshots a page shows", () => {
+    const SHOTS_MATCHING =
+      "Checked just now, in this browser. " +
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
+      "and both runs' seals check out.";
+
+    it.each([true, false])(
+      "checks each screenshot's bytes against its run's record, and lists each, with Web Crypto: %s",
+      async (webCrypto) => {
+        const page = await open({ shots: true, webCrypto });
+        await page.locator("#fp-run").click();
+
+        await expect.poll(() => result(page), { timeout: 10_000 }).toBe(SHOTS_MATCHING);
+
+        expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 0 not matching");
+        const rows = page.locator("#fp-rows tr");
+        // After the transcripts and before the seals, each with the fingerprint its run recorded.
+        expect(await rows.nth(21).locator("td").allTextContents()).toEqual([
+          "Run 1402 · / · screenshot.jpg",
+          `${TINY_RECORD.sha256.slice(0, 12)}…${TINY_RECORD.sha256.slice(-6)}`,
+          "matches",
+        ]);
+        expect((await rows.nth(22).locator("td").allTextContents())[0]).toBe(
+          "Run 1402 · /the-report/ · screenshot.jpg",
+        );
+        expect((await rows.nth(23).locator("td").allTextContents())[0]).toBe(
+          "Run 1315 · its record's seal",
+        );
+        if (webCrypto) {
+          // 21 transcripts, 4 copies of 2 screenshots, and 2 seals.
+          expect(
+            await page.evaluate(() => (window as unknown as { digests: number }).digests),
+          ).toBe(21 + 4 + 2);
+        }
+      },
+    );
+
+    it("names a screenshot changed by one character of its base64, whichever copy it's in", async () => {
+      for (const place of ["card", "appendix"]) {
+        const page = await open({ shots: true });
+        await page.evaluate((copy) => {
+          const image = document.querySelector(`img.${copy}[data-slug="home"]`);
+          if (image === null) throw new Error(`The page has no ${copy} copy of the picture.`);
+          const address = image.getAttribute("src") ?? "";
+          const at = "data:image/jpeg;base64,".length + 40;
+          image.setAttribute(
+            "src",
+            `${address.slice(0, at)}${address[at] === "A" ? "B" : "A"}${address.slice(at + 1)}`,
+          );
+        }, place);
+        await page.locator("#fp-run").click();
+
+        await expect
+          .poll(() => result(page), { timeout: 10_000 })
+          .toBe(
+            "Checked just now, in this browser. " +
+              "Run 1402 · / · screenshot.jpg doesn't match its fingerprint. " +
+              "21 of 21 transcripts match their fingerprints, and 1 of 2 screenshots match their fingerprints, " +
+              "and both runs' seals check out.",
+          );
+        expect(await page.locator("#fp-result").getAttribute("class"), place).toBe("fp-result bad");
+        const rows = await page.locator("#fp-rows tr").allTextContents();
+        expect(rows.filter((row) => row.includes("doesn’t match"))).toEqual([
+          expect.stringContaining("Run 1402 · / · screenshot.jpg"),
+        ]);
+      }
+    });
+
+    it("names a screenshot that isn't a JPEG in an address, and one with no copy on the page", async () => {
+      const page = await open({ shots: true });
+      await page.evaluate(() => {
+        const [first, second] = document.querySelectorAll(`img[data-slug="home"]`);
+        // The right bytes under another type, which this check won't take for the recorded JPEG.
+        first?.setAttribute(
+          "src",
+          first.getAttribute("src")?.replace("image/jpeg", "image/png") ?? "",
+        );
+        second?.setAttribute("src", "data:image/jpeg;base64,not*base64");
+        document.querySelectorAll(`img[data-slug="the-report-03940c2f88"]`).forEach((image) => {
+          image.remove();
+        });
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1402 · / · screenshot.jpg doesn't match its fingerprint. " +
+            "Run 1402 · /the-report/ · screenshot.jpg doesn't match its fingerprint. " +
+            "21 of 21 transcripts match their fingerprints, and 0 of 2 screenshots match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+    });
+
+    it("shows a change being caught, with the screenshots matching in the count", async () => {
+      const page = await open({ shots: true });
+      await page.locator("#fp-demo").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Demonstration, on a copy with one character changed " +
+            "(the first character of Run 1402 · / · read.txt, “#” to “$”); the page itself is unchanged. " +
+            "Run 1402 · / · read.txt doesn't match its fingerprint. " +
+            "20 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+    });
+  });
+
+  describe("on a page as voicecap generates it", () => {
+    const GENERATED_MATCHING =
+      "Checked just now, in this browser. " +
+      "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
+      "and the run's seal checks out.";
+
+    it("finds every transcript and screenshot matching, a page's picture on its card and in the appendix both", async () => {
+      const page = await open({ generated: true });
+
+      // Each page's picture twice, each naming its page and file.
+      expect(await page.locator("img[data-file]").count()).toBe(6);
+      expect(await page.locator("#pg-home img[data-file]").count()).toBe(1);
+      expect(await page.locator("#tx-home img[data-file]").count()).toBe(1);
+      await page.locator("#fp-run").click();
+
+      await expect.poll(() => result(page), { timeout: 10_000 }).toBe(GENERATED_MATCHING);
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+      expect(await page.locator("#fp-count").textContent()).toBe("13 checked, 0 not matching");
+    });
+
+    it.each(["#pg-home", "#tx-home"])(
+      "names the page's screenshot when one character of its base64 is changed in %s",
+      async (where) => {
+        const page = await open({ generated: true });
+        await page.evaluate((selector) => {
+          const image = document.querySelector(`${selector} img`);
+          if (image === null) throw new Error(`${selector} has no picture.`);
+          const address = image.getAttribute("src") ?? "";
+          const at = "data:image/jpeg;base64,".length + 40;
+          image.setAttribute(
+            "src",
+            `${address.slice(0, at)}${address[at] === "A" ? "B" : "A"}${address.slice(at + 1)}`,
+          );
+        }, where);
+        await page.locator("#fp-run").click();
+
+        await expect
+          .poll(() => result(page), { timeout: 10_000 })
+          .toBe(
+            "Checked just now, in this browser. " +
+              "Run 1405 · / · screenshot.jpg doesn't match its fingerprint. " +
+              "9 of 9 transcripts match their fingerprints, and 2 of 3 screenshots match their fingerprints, " +
+              "and the run's seal checks out.",
+          );
+        expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+        expect(await page.locator("#fp-count").textContent()).toBe("13 checked, 1 not matching");
+      },
+    );
   });
 });

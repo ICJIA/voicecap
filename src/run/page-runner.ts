@@ -1,15 +1,19 @@
-import type { PageInfo } from "../drivers/types.js";
-import type {
-  AttemptRecord,
-  EnvironmentRecord,
-  FailureKind,
-  FileHash,
-  PageRecord,
-  PassName,
-  PassSummary,
-  RunJson,
-  SkippedRecord,
-  TranscriptJson,
+import path from "node:path";
+
+import type { EventRecorder, PageInfo, PageScreenshot } from "../drivers/types.js";
+import {
+  SCREENSHOT_FILE,
+  type AttemptRecord,
+  type EnvironmentRecord,
+  type FailureKind,
+  type FileHash,
+  type PageRecord,
+  type PassName,
+  type PassSummary,
+  type RunJson,
+  type ScreenshotRecord,
+  type SkippedRecord,
+  type TranscriptJson,
 } from "../model.js";
 import {
   failureOf,
@@ -20,8 +24,10 @@ import {
 } from "../passes/index.js";
 import { InterruptedError, StepTimeoutError, withTimeout } from "../passes/steps.js";
 import { isHtmlContentType, sameOrigin } from "../pages/url.js";
-import { writeTranscript } from "../transcripts/write.js";
+import { fileHash, writeTranscript } from "../transcripts/write.js";
+import { writeFileAtomic } from "../util/atomic-write.js";
 import { errorMessage } from "../util/errors.js";
+import { jpegSize } from "../util/jpeg.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { keepEarlierAttempt } from "./attempts.js";
@@ -47,6 +53,11 @@ export interface PageContext {
   signal: AbortSignal;
   /** Writes the run's record (run.json) as it stands: a failed attempt is kept as it happens. */
   save: () => Promise<void>;
+  /**
+   * The run's event log: each attempt's start is recorded as it begins, and its end as it ends,
+   * numbered as the page's record numbers its attempts.
+   */
+  events: EventRecorder;
   now: () => Date;
   clock?: () => number;
 }
@@ -77,6 +88,12 @@ export interface PageOutcome {
    * may be an error page or another site's, so its tag says nothing about this site.
    */
   canonical?: string | null;
+  /**
+   * The screenshot the last attempt kept in the page's folder, or why it has none: taken as the page
+   * first loaded, like its title. Left out when the driver took none, and for a page the attempt
+   * didn't read (it was skipped, or the site answered with an HTTP error).
+   */
+  screenshot?: ScreenshotRecord;
   skip?: SkippedRecord;
 }
 
@@ -97,6 +114,8 @@ interface Loaded {
   title?: string | null;
   /** From the attempt's first load too: the address of the page's canonical tag. */
   canonical?: string | null;
+  /** From the attempt's first load too, once the page is to be read: its screenshot, if any. */
+  screenshot?: ScreenshotRecord;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -138,11 +157,17 @@ type Attempt = Loaded &
  * Whether the screen reader and browser were restarted for the next attempt is added once that
  * restart has finished. Ctrl+C propagates as InterruptedError and leaves the page pending; the
  * attempt it stopped isn't counted.
+ *
+ * Each attempt is in the run's event log too, numbered as the page's record numbers it: its start,
+ * and its end, which is the page read or skipped, or the attempt failed. A failed attempt is
+ * recorded before it's kept, and before any restart for the next.
  */
 export async function processPage(ctx: PageContext): Promise<PageOutcome> {
   const clock = ctx.clock ?? (() => performance.now());
   const started = clock();
   const errors: string[] = [];
+  // The attempts the page had before this call: an earlier session's, in a run that was resumed.
+  const earlier = ctx.page.attempts;
   const outcome = (
     result: Attempt,
     status: PageOutcome["status"],
@@ -159,13 +184,22 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(result.httpStatus !== undefined ? { httpStatus: result.httpStatus } : {}),
     ...(result.title !== undefined ? { title: result.title } : {}),
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
+    ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
   for (let attempt = 1; ; attempt++) {
     const result = await runAttempt(ctx);
     // The attempt has ended, so it counts: one that Ctrl+C stopped threw instead.
     ctx.page.attempts++;
-    if (result.kind === "done" || result.kind === "skipped") return outcome(result, result.kind);
+    // This attempt's number in the page's record, which is its number in the event log.
+    const n = ctx.page.attempts;
+    const page = ctx.page.url;
+    if (result.kind === "done" || result.kind === "skipped") {
+      ctx.events.record({ type: "page-finished", page, attempt: n, status: result.kind });
+      return outcome(result, result.kind);
+    }
+    const { cause, message } = result.record;
+    ctx.events.record({ type: "page-failed", page, attempt: n, cause, message });
 
     const kept = await keepFailedAttempt(ctx, result.record);
     if (result.kind === "failed" || attempt >= ctx.maxAttempts) {
@@ -174,8 +208,9 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     }
     errors.push(`Attempt ${attempt} failed (${result.error}); retrying.`);
     if (result.restart) {
+      // The next attempt, and the last this call can make, numbered as the page's record numbers.
       await ctx.session.restart(
-        `retrying ${ctx.page.url}: attempt ${attempt + 1} of ${ctx.maxAttempts}`,
+        { kind: "retry", page, attempt: n + 1, of: earlier + ctx.maxAttempts },
         ctx.signal,
       );
       // Only now that it has finished: a restart that throws leaves the attempt saying it had none.
@@ -200,6 +235,8 @@ async function keepFailedAttempt(ctx: PageContext, failed: FailedAttempt): Promi
 async function runAttempt(ctx: PageContext): Promise<Attempt> {
   const startedAt = isoLocalMs(ctx.now());
   const { page, session } = ctx;
+  // The page's record counts an attempt once it has ended, so the one starting is the next number.
+  ctx.events.record({ type: "page-started", page: page.url, attempt: page.attempts + 1 });
   const dir = pageDir(ctx.outDir, ctx.run.id, page.slug);
   // A retry (or a resumed page) starts from an empty folder; any earlier attempt is moved into
   // attempts/<slug>/ rather than deleted.
@@ -267,6 +304,10 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
             ...failedWith(httpProblem(pass, info.status)),
           };
         }
+        // The page will be read: keep the picture the driver took of it as it loaded. The loads for
+        // the passes after this one are of the same page, and their pictures aren't kept.
+        const screenshot = await keepScreenshot(ctx, dir, info.screenshot);
+        if (screenshot) loaded.screenshot = screenshot;
       } else if (info.finalUrl !== loaded.finalUrl) {
         warnings.push(
           `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
@@ -305,9 +346,29 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
 }
 
 /**
+ * Keep the screenshot a driver took of a page: the JPEG in the page's folder, and its record, with
+ * the picture's size and when. A picture the driver couldn't take, and bytes that aren't a JPEG
+ * voicecap can read, are recorded as the reason, with no file. Null when the driver took none.
+ */
+async function keepScreenshot(
+  ctx: PageContext,
+  dir: string,
+  screenshot: PageScreenshot | undefined,
+): Promise<ScreenshotRecord | null> {
+  if (screenshot === undefined) return null;
+  const takenAt = isoLocalMs(ctx.now());
+  if ("error" in screenshot) return { error: screenshot.error, takenAt };
+  const size = jpegSize(screenshot.jpeg);
+  if (size === null) return { error: "the picture wasn't a JPEG voicecap could read", takenAt };
+  await writeFileAtomic(path.join(dir, SCREENSHOT_FILE), screenshot.jpeg);
+  return { ...fileHash(screenshot.jpeg), takenAt, ...size };
+}
+
+/**
  * What the record of a failed pass, or of a page that couldn't be opened for it (command
- * "openPage"), says went wrong. An unexpected error's stack is kept with the home folder replaced,
- * so the record doesn't name the account that ran voicecap. Its message is kept word for word: the
+ * "openPage"), says went wrong. The program that took the foreground is kept when the driver named
+ * one (or said it couldn't). An unexpected error's stack is kept with the home folder replaced, so
+ * the record doesn't name the account that ran voicecap. Its message is kept word for word: the
  * report replaces the home folder where it shows one.
  */
 function problemOf(
@@ -322,6 +383,7 @@ function problemOf(
     command,
     cause: failure.cause,
     message: failure.message,
+    ...(failure.program !== undefined ? { program: failure.program } : {}),
     ...(failure.stack !== undefined
       ? {
           stack: home === null ? failure.stack : redactHome(failure.stack, home, process.platform),

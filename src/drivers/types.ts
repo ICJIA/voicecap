@@ -3,6 +3,7 @@
  * src/drivers/ touches Guidepup or Playwright. The interface is expressed in actions, not
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
+import type { NewRunEvent } from "../model.js";
 
 /**
  * Everything the screen reader said in response to one action.
@@ -14,9 +15,29 @@
  */
 export type Speech = string;
 
+/**
+ * Where a driver reports what it does to the screen reader and the browser, as it does it, for the
+ * run's event log (events.jsonl). The log stamps each event with when it was recorded, or with `at`,
+ * the moment it happened, when the driver knows that was earlier: a start that's recorded only once
+ * the start's own process id has been looked up, say. Lines stay in the order they were recorded.
+ */
+export interface EventRecorder {
+  record(event: NewRunEvent, at?: Date): void;
+}
+
+/** A recorder that records nothing: what a driver reports to until a run gives it a real one. */
+export const NO_EVENTS: EventRecorder = Object.freeze({ record: () => {} });
+
 export interface ScreenReaderDriver {
   /** "guidepup", "replay", or "at-driver". */
   readonly name: string;
+
+  /**
+   * Where to report the events of the run: the screen reader and the browser starting and
+   * stopping, and the like. Optional, so a driver that has nothing to report needn't have it. A run
+   * calls it once, before it first calls `cleanupStale` or `start`.
+   */
+  setEventRecorder?(recorder: EventRecorder): void;
 
   /** Start the screen reader and the browser. Throws EnvironmentError if they can't start. */
   start(): Promise<void>;
@@ -38,6 +59,9 @@ export interface ScreenReaderDriver {
    * On return the browse-mode cursor is at the top of the document, nothing is focused, and
    * the browser's sequential focus starting point is at the top of the document.
    * If the response isn't HTML, it returns straight after loading and the core skips the page.
+   *
+   * A driver that takes screenshots takes one of an HTML page once it has loaded, before the screen
+   * reader moves into it, and gives it in the PageInfo.
    */
   openPage(url: string): Promise<PageInfo>;
 
@@ -72,7 +96,19 @@ export interface PageInfo {
    * no address, or the response isn't HTML. A driver that can't read the page's tags gives null.
    */
   canonical: string | null;
+  /**
+   * The page as it looked once it had loaded, before the screen reader read it, for the run to keep.
+   * A driver that doesn't take screenshots leaves it out, and so does one that took none because the
+   * response isn't HTML.
+   */
+  screenshot?: PageScreenshot;
 }
+
+/**
+ * A page's screenshot: a JPEG, or the reason none could be taken. Not being able to take one never
+ * fails the page, so the reason is the answer, and the run records it.
+ */
+export type PageScreenshot = { jpeg: Uint8Array } | { error: string };
 
 export interface FocusedElement {
   /** Lowercase tag name, e.g. "a". */
@@ -123,9 +159,16 @@ export interface EnvironmentInfo {
 export class ForegroundError extends Error {
   /** The failure code a page's record keeps for this error (see causeOf in src/run/failure.ts). */
   readonly failure = "foreground";
+  /**
+   * The program that took the foreground, by its name ("Microsoft Teams"): null when the driver
+   * looked and couldn't name one (Windows didn't say, or the foreground had come back to the
+   * browser itself), and absent when it didn't look. The page's record keeps it.
+   */
+  readonly program?: string | null;
 
-  constructor(message: string) {
+  constructor(message: string, options?: { program?: string | null }) {
     super(message);
     this.name = "ForegroundError";
+    this.program = options?.program;
   }
 }

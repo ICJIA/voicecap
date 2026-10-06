@@ -6,11 +6,14 @@
 import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it, vi } from "vitest";
 
-import { docxOf } from "../src/share/docx.js";
+import type { RunJson } from "../src/model.js";
+import { docxOf, renderWordCopy } from "../src/share/docx.js";
+import { buildShareModel } from "../src/share/model.js";
 import {
   PAGE_BREAK,
   cell,
   heading,
+  image,
   list,
   mono,
   monoCell,
@@ -19,8 +22,13 @@ import {
   title,
   wordsOf,
   type Block,
+  type Picture,
 } from "../src/share/word/blocks.js";
-import { linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
+import { drawingsOf, linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
+import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import { SITE } from "./helpers/report-data.js";
+import { failedAttempt, shareRun } from "./helpers/share-data.js";
+import { inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
 
 const PROPERTIES = {
   title: "Demo: how its pages read aloud with NVDA",
@@ -217,10 +225,12 @@ describe("docxOf", () => {
     expect(paragraphsOf(document)[0]?.text).toBe("a\u{FFFD}b\u{FFFD}c\u{FFFD}d\u{FFFD}e");
   });
 
-  it("has no image, so none lacks alt text", async () => {
-    expect((await unzipDocx(await docxOf(BLOCKS, PROPERTIES))).document).not.toContain(
-      "<w:drawing",
-    );
+  it("has no picture unless a block is one, so none lacks alt text", async () => {
+    const parts = await opened(BLOCKS);
+
+    expect(parts.document).not.toContain("<w:drawing");
+    expect(drawingsOf(parts)).toEqual([]);
+    expect(parts.media.size).toBe(0);
   });
 
   it("shows a character XML forbids as U+FFFD in every word the document holds", async () => {
@@ -545,5 +555,258 @@ describe("docxOf", () => {
       vi.doUnmock("docx");
       vi.resetModules();
     }
+  });
+});
+
+describe("a picture in the Word copy", () => {
+  const ALT = 'The page "/" as it loaded, before NVDA read it';
+  const PICTURE: Picture = { jpeg: TINY_JPEG, width: 16, height: 12, alt: ALT };
+
+  /** Bytes that differ from TINY_JPEG's and from each other's: a comment added to the picture. */
+  function commented(text: string): Uint8Array {
+    const note = new TextEncoder().encode(text);
+    const length = note.length + 2;
+    return Uint8Array.from([
+      ...TINY_JPEG.subarray(0, 2),
+      ...[0xff, 0xfe, length >> 8, length & 0xff],
+      ...note,
+      ...TINY_JPEG.subarray(2),
+    ]);
+  }
+
+  it("is made of its bytes, its size, and its alt text, which are the words it adds", () => {
+    expect(image(PICTURE)).toEqual({ kind: "image", ...PICTURE });
+    expect(wordsOf([para("before"), image(PICTURE), para("after")])).toEqual([
+      "before",
+      ALT,
+      "after",
+    ]);
+  });
+
+  it("is one drawing 400 pixels wide, its height in proportion, with its alt text as the words a screen reader says, and its file's exact bytes", async () => {
+    const parts = await opened([para("before"), image(PICTURE), para("after")]);
+    const drawings = drawingsOf(parts);
+
+    expect(XMLValidator.validate(parts.document)).toBe(true);
+    expect(parts.document.match(/<w:drawing>/g)).toHaveLength(1);
+    // Word's alt text is the description; the name and the title say the same, so no reader of the
+    // file gets less.
+    expect(drawings).toEqual([
+      {
+        descr: ALT,
+        name: ALT,
+        title: ALT,
+        id: expect.any(String) as unknown,
+        width: 400,
+        height: 300,
+        file: expect.stringMatching(/\.jpe?g$/) as unknown,
+      },
+    ]);
+    expect(parts.media.size).toBe(1);
+    expect(
+      Buffer.compare(parts.media.get(drawings[0]?.file ?? "") ?? new Uint8Array(), TINY_JPEG),
+    ).toBe(0);
+    // It stands between the paragraphs around it, in a paragraph of its own.
+    expect(paragraphsOf(parts.document).map(({ text }) => text)).toEqual(["before", "", "after"]);
+  });
+
+  it("keeps the paragraph before a picture with it, and no other paragraph with what follows", async () => {
+    const { document } = await opened([
+      para("Screenshot:"),
+      image(PICTURE),
+      para("after"),
+      para("more"),
+    ]);
+    const paragraphs = document.match(/<w:p>.*?<\/w:p>/gs) ?? [];
+
+    // A label is never left at the foot of a page with its picture on the next.
+    expect(paragraphs.map((paragraph) => paragraph.includes("<w:keepNext/>"))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("keeps the proportions of the size it's recorded at, a little less than half the window's", async () => {
+    const parts = await opened([
+      image({ ...PICTURE, width: 632, height: 419 }),
+      image({ ...PICTURE, width: 640, height: 480 }),
+      image({ ...PICTURE, width: 200, height: 400 }),
+    ]);
+
+    expect(drawingsOf(parts).map(({ width, height }) => [width, height])).toEqual([
+      [400, 265],
+      [400, 300],
+      [400, 800],
+    ]);
+  });
+
+  it("gives each picture its own id, its own words, and its own file's bytes", async () => {
+    const bytes = [commented("one"), commented("two"), TINY_JPEG];
+    const alts = ["First page", "Second page", "Third page"];
+    const parts = await opened(
+      bytes.map((jpeg, index) => image({ ...PICTURE, jpeg, alt: alts[index] ?? "" })),
+    );
+    const drawings = drawingsOf(parts);
+
+    expect(drawings.map(({ descr }) => descr)).toEqual(alts);
+    expect(new Set(drawings.map(({ id }) => id)).size).toBe(3);
+    expect(drawings.map(({ file }) => file)).toEqual([
+      ...new Set(drawings.map(({ file }) => file)),
+    ]);
+    for (const [index, drawing] of drawings.entries()) {
+      const file = parts.media.get(drawing.file) ?? new Uint8Array();
+      expect(Buffer.compare(file, bytes[index] ?? new Uint8Array()), alts[index]).toBe(0);
+    }
+  });
+
+  it("shows two pictures of the same bytes, each with its own words", async () => {
+    const parts = await opened([
+      image({ ...PICTURE, alt: "Home" }),
+      image({ ...PICTURE, alt: "Another page" }),
+    ]);
+    const drawings = drawingsOf(parts);
+
+    expect(drawings.map(({ descr }) => descr)).toEqual(["Home", "Another page"]);
+    expect(new Set(drawings.map(({ id }) => id)).size).toBe(2);
+    for (const drawing of drawings) {
+      expect(Buffer.compare(parts.media.get(drawing.file) ?? new Uint8Array(), TINY_JPEG)).toBe(0);
+    }
+  });
+
+  it("says its alt text as it is: markup and quotes stay words, and a character XML forbids shows as U+FFFD", async () => {
+    const odd = `A <b>"page"</b> & more\u0000, 'quoted'\u{FFFE}`;
+    const parts = await opened([image({ ...PICTURE, alt: odd })]);
+    const [drawing] = drawingsOf(parts);
+    const cleaned = `A <b>"page"</b> & more\u{FFFD}, 'quoted'\u{FFFD}`;
+
+    expect(XMLValidator.validate(parts.document)).toBe(true);
+    expect(FORBIDDEN.test(parts.document)).toBe(false);
+    expect([drawing?.descr, drawing?.name, drawing?.title]).toEqual([cleaned, cleaned, cleaned]);
+  });
+
+  it("is in a table's cell as wide as the cell holds, and never wider than 400 pixels", async () => {
+    // A cell has 1,872 twentieths of a point in a column a fifth of the text's width, less 100 on
+    // each side for its margins: 1,672, which are 111 pixels (a pixel is 15 of them).
+    const withPicture = { ...cell("Screenshot:"), picture: PICTURE };
+    const parts = await opened([
+      table(["Narrow", "Wide", "None"], [[withPicture, withPicture, "none"]], [20, 70, 10]),
+    ]);
+
+    expect(XMLValidator.validate(parts.document)).toBe(true);
+    expect(drawingsOf(parts).map(({ width, height, descr }) => [width, height, descr])).toEqual([
+      [111, 83, ALT],
+      [400, 300, ALT],
+    ]);
+    // The cell's lines are before it, and its picture is a paragraph of its own after them.
+    expect(tablesOf(parts.document)[0]?.rows[1]).toEqual([
+      "Screenshot:\n",
+      "Screenshot:\n",
+      "none",
+    ]);
+  });
+});
+
+describe("the Word copy of a site whose pages took screenshots", () => {
+  /** TINY_JPEG with a comment added: the same 16 x 12 picture, in other bytes, one for each page. */
+  function commented(text: string): Uint8Array {
+    const note = new TextEncoder().encode(text);
+    const length = note.length + 2;
+    return Uint8Array.from([
+      ...TINY_JPEG.subarray(0, 2),
+      ...[0xff, 0xfe, length >> 8, length & 0xff],
+      ...note,
+      ...TINY_JPEG.subarray(2),
+    ]);
+  }
+
+  /**
+   * Five pages of a run of voicecap 0.11.0: Home and About were read in full (each has an entry in
+   * the appendix), Never failed after its picture was taken (it has none), Skipped took no picture
+   * since it wasn't read, and Error's picture couldn't be taken.
+   */
+  function siteOf(): { run: RunJson; pictures: Map<string, Uint8Array> } {
+    const read = { files: TRANSCRIPTS, passes: LINES };
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        { path: "/", label: "Home", ...read, screenshot: TINY_RECORD },
+        { path: "/about/", ...read, screenshot: { ...TINY_RECORD, width: 632, height: 419 } },
+        {
+          path: "/never/",
+          status: "failed",
+          failedAttempts: [failedAttempt({ n: 1 })],
+          screenshot: TINY_RECORD,
+        },
+        { path: "/skipped/", status: "skipped" },
+        {
+          path: "/error/",
+          ...read,
+          screenshot: { error: "timed out after 5s", takenAt: TINY_RECORD.takenAt },
+        },
+      ],
+    });
+    const pictures = new Map<string, Uint8Array>(
+      ["home", "about", "never"].flatMap((name) => {
+        const page = run.pages.find((each) => each.url.includes(name === "home" ? "/" : name));
+        return page === undefined ? [] : [[`r1/${page.slug}`, commented(name)]];
+      }),
+    );
+    return { run, pictures };
+  }
+
+  it("has one drawing for each page with a picture, with the page's alt text for a description, and each picture's exact bytes in word/media", async () => {
+    const { run, pictures } = siteOf();
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), screenshots: pictures }),
+    );
+    const parts = await unzipDocx(await renderWordCopy(model));
+    const drawings = drawingsOf(parts);
+    const alt = (name: string) => `The page ${name} as it loaded, before NVDA read it`;
+    const [home, about, never] = run.pages.map((page) => pictures.get(`r1/${page.slug}`));
+
+    expect(XMLValidator.validate(parts.document)).toBe(true);
+    // The row of the page that has no entry in the appendix comes first, then the entries'.
+    expect(drawings.map(({ descr }) => descr)).toEqual([
+      alt(`${SITE}never/`),
+      alt("Home"),
+      alt(`${SITE}about/`),
+    ]);
+    // 400 pixels wide in an entry, with the height its record gives; as wide as its cell in a row.
+    expect(drawings.map(({ width, height }) => [width, height])).toEqual([
+      [117, 88],
+      [400, 300],
+      [400, 265],
+    ]);
+    expect(new Set(drawings.map(({ id }) => id)).size).toBe(3);
+    expect(parts.media.size).toBe(3);
+    for (const [index, bytes] of [never, home, about].entries()) {
+      const file = parts.media.get(drawings[index]?.file ?? "") ?? new Uint8Array();
+      expect(Buffer.compare(file, bytes ?? new Uint8Array()), alt(String(index))).toBe(0);
+    }
+  });
+
+  it("says why a page has no picture, in the words the page says it in, and puts its label where the picture would be", async () => {
+    const { run, pictures } = siteOf();
+    const model = buildShareModel(
+      inputOf([run], { transcripts: storeOf(), screenshots: pictures }),
+    );
+    const { document } = await unzipDocx(await renderWordCopy(model));
+    const said = paragraphsOf(document).map(({ text }) => text);
+    // The table of every page: its head's second cell says "Page".
+    const rows = tablesOf(document).find((each) => each.rows[0]?.[1] === "Page")?.rows ?? [];
+    const skipped = rows.find((row) => row[1]?.includes("/skipped/"));
+
+    // A page with an entry in the appendix says it there, a page without one in its row.
+    expect(said).toContain(
+      "Screenshot: Not recorded: the screenshot couldn't be taken (timed out after 5s).",
+    );
+    expect(skipped?.[2]).toContain(
+      "Screenshot: Not recorded: no screenshot was taken, since the page wasn't read.",
+    );
+    // The pages with a picture have the label alone, and the picture after it.
+    expect(said.filter((text) => text === "Screenshot:")).toHaveLength(2);
   });
 });

@@ -6,10 +6,25 @@
  */
 import { lineText, type Inline, type Line } from "../line.js";
 
-/** A table cell: its lines, each a paragraph of its own; `mono` sets them in the fixed-width font. */
+/**
+ * A picture: a JPEG, its size in pixels (which gives its proportions), and its alt text, the words
+ * a screen reader says of it.
+ */
+export interface Picture {
+  jpeg: Uint8Array;
+  width: number;
+  height: number;
+  alt: string;
+}
+
+/**
+ * A table cell: its lines, each a paragraph of its own, then its picture, if it has one, in a
+ * paragraph of its own; `mono` sets the lines in the fixed-width font.
+ */
 export interface Cell {
   lines: Line[];
   mono?: true;
+  picture?: Picture;
 }
 
 /** A part of the outline. Nothing in one is escaped: `docxOf` sets each word in a run of its own. */
@@ -21,6 +36,8 @@ export type Block =
   | { kind: "table"; head: string[]; rows: Cell[][]; widths?: number[] }
   /** Lines in the fixed-width font, as one paragraph with a line break after each. */
   | { kind: "mono"; lines: string[] }
+  /** A picture, in a paragraph of its own. */
+  | ({ kind: "image" } & Picture)
   | { kind: "pageBreak" };
 
 /** A line, from plain words or as it is. */
@@ -92,18 +109,25 @@ export function mono(lines: string[]): Block {
   return { kind: "mono", lines };
 }
 
+/** A picture, in a paragraph of its own. */
+export function image(picture: Picture): Block {
+  return { kind: "image", ...picture };
+}
+
 /** The end of a page. */
 export const PAGE_BREAK: Block = { kind: "pageBreak" };
 
-/** A cell's words: its lines, set apart by " / ". */
+/** A cell's words: its lines, set apart by " / ", and its picture's alt text last. */
 function cellWords(of: Cell): string {
-  return of.lines.map(lineText).join(" / ");
+  return [...of.lines.map(lineText), ...(of.picture === undefined ? [] : [of.picture.alt])].join(
+    " / ",
+  );
 }
 
 /**
  * Every word of some blocks: a string for each title, heading, paragraph, list item, table row (its
- * cells joined by " | ", a cell's lines by " / "), and fixed-width line. A table's first row is its
- * headings.
+ * cells joined by " | ", a cell's lines by " / "), fixed-width line, and picture (its alt text). A
+ * table's first row is its headings.
  */
 export function wordsOf(blocks: Block[]): string[] {
   return blocks.flatMap((block): string[] => {
@@ -121,6 +145,8 @@ export function wordsOf(blocks: Block[]): string[] {
         );
       case "mono":
         return block.lines;
+      case "image":
+        return [block.alt];
       case "pageBreak":
         return [];
     }

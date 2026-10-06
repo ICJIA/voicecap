@@ -28,13 +28,27 @@ export async function launchBrowser(args: string[] = []): Promise<Browser> {
 }
 
 /**
+ * The words of a chart of a run's event log on the shareable page (src/share/html/timeline.ts): text
+ * drawn in an SVG. axe finds no background for text in an SVG (the SVG is an image to it), so it
+ * leaves their contrast for a person to check, every time. The page's tests measure it themselves
+ * instead (chartContrasts in test/share-browser.test.ts), in both themes.
+ */
+const CHART_TEXT = /^<text\b[^>]*\bclass="t-(?:axis|lane|in|note|fail)"/;
+
+/**
  * axe violations as readable lines ("<rule id>: <help> — <nodes>"), so a failure says what to fix.
  * Color-contrast checks axe couldn't complete count too: every text node's contrast must actually
- * be verified.
+ * be verified. The words of an event log's chart are verified by measuring them (CHART_TEXT).
  */
 export async function violations(page: Page): Promise<string[]> {
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
-  const unverified = results.incomplete.filter((result) => result.id === "color-contrast");
+  const unverified = results.incomplete
+    .filter((result) => result.id === "color-contrast")
+    .map((result) => ({
+      ...result,
+      nodes: result.nodes.filter((node) => !CHART_TEXT.test(node.html)),
+    }))
+    .filter((result) => result.nodes.length > 0);
   return [...results.violations, ...unverified].map(
     (violation) =>
       `${violation.id}: ${violation.help} — ${violation.nodes

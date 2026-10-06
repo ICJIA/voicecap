@@ -182,6 +182,13 @@ summary { cursor: pointer; min-height: 24px; padding: 0.25rem 0; }
 .history p, .sessions p { margin: 0.125rem 0; }
 .page-footer { border-top: 1px solid var(--rule); margin-top: 3rem; padding-top: 1rem; padding-bottom: 2rem; color: var(--muted); }
 .page-footer p { margin: 0.25rem 0; }
+/* On screen, a page shorter than the window ends at its bottom: the main part grows, and each part keeps its measure, so the footer sits there. The main part now holds in the 1rem margin under its last list, which used to collapse into the footer's 3rem, so the footer's own is 2rem. */
+@media screen {
+  body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  .page-header, main, .page-footer { width: 100%; }
+  main { flex: 1 0 auto; }
+  .page-footer { margin-top: 2rem; }
+}
 @media print {
   .filters, .skip-link { display: none !important; }
   .table-scroll { overflow: visible; border: 0; }

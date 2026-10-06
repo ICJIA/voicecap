@@ -4,7 +4,15 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { FailureCause, PassName, RunJson } from "../src/model.js";
+import type {
+  AttemptRecord,
+  FailureCause,
+  NewRunEvent,
+  PassName,
+  RunEvent,
+  RunJson,
+} from "../src/model.js";
+import { buildShareModel } from "../src/share/model.js";
 import {
   KIND_ROWS,
   kindFromWording,
@@ -13,9 +21,10 @@ import {
   type ProblemKind,
 } from "../src/share/problems.js";
 import { standingOf } from "../src/share/standing.js";
-import { findPage } from "./helpers/report-data.js";
+import { findPage, SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
+import { inputOf, logged, loggedModel, loggedRun, PRIVATE_TITLE } from "./helpers/share-model.js";
 
 // What voicecap 0.4.1 and 0.5.0 wrote into a page's errors, word for word (from the drivers in
 // src/drivers/guidepup-nvda.ts, guidepup/chrome.ts, and guidepup/nvda.ts, the timeouts in
@@ -2095,6 +2104,99 @@ describe("problemsOf: the verdict line", () => {
     );
   });
 
+  describe("names each program that came to the front, and how often", () => {
+    /**
+     * A run of voicecap 0.11.0 in which each page fails once as another window takes the screen,
+     * naming the program given (null when voicecap couldn't tell, undefined when the run didn't
+     * record it), and a later run that reads them all.
+     */
+    const takenBy = (programs: (string | null | undefined)[], voicecapVersion = "0.11.0") => {
+      const failed = shareRun({
+        id: "failed",
+        voicecapVersion,
+        pages: programs.map((program, index) => ({
+          path: `/${index}`,
+          status: "failed" as const,
+          failedAttempts: [
+            failedAttempt({
+              n: 1,
+              startedAt: at(index),
+              endedAt: at(index, 5),
+              ...(program === undefined ? {} : { program }),
+            }),
+          ],
+        })),
+      });
+      const after = shareRun({
+        id: "after",
+        createdAt: "2026-09-27T09:30:00-05:00",
+        voicecapVersion,
+        pages: programs.map((_, index) => ({ path: `/${index}` })),
+      });
+      return problemsFor(failed, after).line;
+    };
+
+    it("names one program, and how often", () => {
+      expect(takenBy(["Microsoft Teams"])).toBe(
+        `1 problem, outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (once). It didn't happen again. It wasn't an unexpected error, ${NOT_VOICECAP}`,
+      );
+      expect(takenBy(["Microsoft Teams", "Microsoft Teams"])).toBe(
+        `2 problems, both outside voicecap: another window took the screen. Which program came to the front: Microsoft Teams (2 times). Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`,
+      );
+    });
+
+    it("names two programs, each with how often, the most often first", () => {
+      expect(takenBy(["Microsoft Outlook", "Microsoft Teams", "Microsoft Teams"])).toBe(
+        `3 problems, all outside voicecap: another window took the screen. Which programs came to the front: Microsoft Teams (2 times), and Microsoft Outlook (once). None happened again. None was an unexpected error, ${NOT_VOICECAP}`,
+      );
+      // Two as often as each other: the first to come to the front first.
+      expect(takenBy(["Slack", "Microsoft Teams"])).toContain(
+        "Which programs came to the front: Slack (once), and Microsoft Teams (once).",
+      );
+    });
+
+    it("counts, without a name, those it couldn't name or the run didn't record", () => {
+      expect(takenBy(["Microsoft Teams", null, "Microsoft Teams"])).toContain(
+        "another window took the screen. Which program came to the front: Microsoft Teams (2 times); for the other, it isn't known. None happened again.",
+      );
+      expect(takenBy(["Microsoft Teams", null, undefined, "Microsoft Outlook"])).toContain(
+        "Which programs came to the front: Microsoft Teams (once), and Microsoft Outlook (once); for the other 2, it isn't known.",
+      );
+    });
+
+    it("counts only the problems of another window taking the screen", () => {
+      const [failed, after] = failing(["foreground", "step-timeout"]);
+      const named = (run: RunJson | undefined): RunJson[] =>
+        run === undefined
+          ? []
+          : [
+              {
+                ...run,
+                pages: run.pages.map((page) => ({
+                  ...page,
+                  failedAttempts: page.failedAttempts?.map((attempt) => ({
+                    ...attempt,
+                    program: "Microsoft Teams",
+                  })),
+                })),
+              },
+            ];
+
+      expect(problemsFor(...named(failed), ...named(after)).line).toBe(
+        `2 problems: another window took the screen (1), and a step took too long (1). Which program came to the front: Microsoft Teams (once). Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`,
+      );
+    });
+
+    it("keeps today's line where no problem names a program, as for a run from before 0.11.0", () => {
+      const today = `2 problems, both outside voicecap: another window took the screen. Neither happened again. Neither was an unexpected error, ${NOT_VOICECAP}`;
+
+      expect(takenBy([undefined, undefined], "0.10.0")).toBe(today);
+      expect(takenBy([null, null])).toBe(today);
+      // The demo runs of 29 September, from voicecap 0.4.1, wrote their errors as text.
+      expect(problemsFor(demoRun("1315"), demoRun("1402")).line).not.toContain("Which program");
+    });
+  });
+
   it("points to an unexpected error, which could mean a problem in voicecap itself", () => {
     const one = problemsFor(...failing(["foreground", "unexpected"]));
     const two = problemsFor(...failing(["unexpected", "foreground", "unexpected"]));
@@ -2120,6 +2222,405 @@ describe("problemsOf", () => {
     expect(runs).toEqual(recorded);
   });
 });
+
+describe("problemsOf: the program that took the screen", () => {
+  /** The problems of a run of one page, which failed with the attempt given. */
+  const problemsWith = (attempt: AttemptRecord, voicecapVersion = "0.11.0") =>
+    problemsFor(
+      shareRun({
+        id: "r1",
+        voicecapVersion,
+        pages: [{ path: "/a", status: "failed", failedAttempts: [attempt] }],
+      }),
+    ).problems;
+  const notRecorded = (version: string) =>
+    `Which program came to the front: not recorded: this run used voicecap ${version}.`;
+
+  it("names the program a run from 0.11.0 recorded, and says nothing of it as not recorded", () => {
+    const [problem] = problemsWith(failedAttempt({ n: 1, program: "Microsoft Teams" }));
+
+    expect(problem?.program).toBe("Microsoft Teams");
+    expect(problem?.notRecorded).not.toContain(notRecorded("0.11.0"));
+    expect(problem?.notRecorded.join(" ")).not.toContain("Which program");
+  });
+
+  it("keeps that voicecap couldn't tell which program it was", () => {
+    const [problem] = problemsWith(failedAttempt({ n: 1, program: null }));
+
+    expect(problem).toHaveProperty("program", null);
+    expect(problem?.notRecorded.join(" ")).not.toContain("Which program");
+  });
+
+  it("still says an older run didn't record the program", () => {
+    const [problem] = problemsWith(failedAttempt({ n: 1 }), "0.10.0");
+
+    expect(problem).not.toHaveProperty("program");
+    expect(problem?.notRecorded).toContain(notRecorded("0.10.0"));
+  });
+
+  it("says a run of 0.11.0 whose driver didn't look didn't record the program, without blaming its voicecap", () => {
+    const [problem] = problemsWith(failedAttempt({ n: 1 }), "0.11.0");
+
+    expect(problem).not.toHaveProperty("program");
+    expect(problem?.notRecorded).toContain(
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
+    );
+    expect(problem?.notRecorded).not.toContain(notRecorded("0.11.0"));
+  });
+
+  it("names no program for a problem of another kind", () => {
+    const [problem] = problemsWith(
+      failedAttempt({ n: 1, cause: "step-timeout", message: STEP_TIMEOUT, program: "Teams" }),
+    );
+
+    expect(problem).not.toHaveProperty("program");
+  });
+
+  it("shows the home folder in a program's name as it does everywhere", () => {
+    const program = path.join(os.homedir(), "AppData", "Local", "Tool", "tool.exe");
+    const [problem] = problemsWith(failedAttempt({ n: 1, program }));
+
+    expect(problem?.program).not.toContain(os.homedir());
+    expect(problem?.program).toContain(process.platform === "win32" ? "%USERPROFILE%" : "~");
+  });
+});
+
+describe("problemsOf: the record's lines from the event log", () => {
+  /** A problem's record as rows of its time of day, where it's from, and what it says. */
+  const rowsOf = (problem: Problem | undefined) =>
+    (problem?.record ?? [])
+      .filter((row) => row.source !== "stack")
+      .map((row) => `${row.time?.slice(11, 23) ?? "-"} | ${row.source} | ${row.entry}`);
+
+  it("adds the event log's lines from the attempt's start until the next attempt's start, by time", () => {
+    const model = loggedModel();
+    const [problem] = model.problems.problems;
+
+    expect(rowsOf(problem)).toEqual([
+      "14:03:56.000 | run.json | Attempt 1 started",
+      "14:03:56.000 | events.jsonl | Page 2 started: Apply",
+      "14:04:41.250 | events.jsonl | Another window came to the front: Microsoft Teams",
+      `14:04:41.300 | run.json | Failed: foreground: ${FOREGROUND}`,
+      "14:04:41.300 | events.jsonl | Page 2 failed: another window took the screen",
+      "14:04:41.350 | events.jsonl | voicecap restarted NVDA: to try Apply again (attempt 2 of 5)",
+      "14:04:43.900 | events.jsonl | voicecap's NVDA stopped: process 65720, to restart",
+      "14:04:44.100 | events.jsonl | The browser closed: process 7002",
+      "14:04:44.150 | events.jsonl | voicecap released the NVDA lock",
+      "14:04:44.160 | events.jsonl | voicecap took the NVDA lock",
+      "14:04:45.729 | events.jsonl | voicecap's NVDA started: process 54568",
+      "14:04:47.000 | events.jsonl | The browser started: process 7003",
+    ]);
+  });
+
+  it("adds them until 10 seconds after the attempt ended, when no attempt followed it", () => {
+    const page = `${SITE}a`;
+    const on = (time: string, event: NewRunEvent) => logged("2026-09-26", time, event);
+    const failed = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        {
+          path: "/a",
+          status: "failed",
+          failedAttempts: [
+            failedAttempt({ n: 1, startedAt: at(5, 0), endedAt: at(5, 10), program: null }),
+          ],
+        },
+      ],
+    });
+    const events = [
+      on("14:04:00.000", { type: "run-started", session: 1, resumed: false }),
+      on("14:05:00.000", { type: "page-started", page, attempt: 1 }),
+      on("14:05:09.000", { type: "foreground-lost", program: null, title: PRIVATE_TITLE }),
+      on("14:05:10.000", {
+        type: "page-failed",
+        page,
+        attempt: 1,
+        cause: "foreground",
+        message: FOREGROUND,
+      }),
+      on("14:05:19.999", { type: "screen-reader-stopped", pid: 1, restarting: false }),
+      on("14:05:20.000", { type: "screen-reader-lock-released" }),
+      on("14:05:20.001", { type: "run-ended", session: 1, reason: "completed" }),
+    ];
+    const model = buildShareModel(
+      inputOf([failed], { events: new Map([[failed.id, { events, unreadable: 0 }]]) }),
+    );
+
+    expect(
+      rowsOf(model.problems.problems[0]).filter((row) => row.includes("events.jsonl")),
+    ).toEqual([
+      "14:05:00.000 | events.jsonl | Page 1 started: https://example.illinois.gov/a",
+      "14:05:09.000 | events.jsonl | Another window came to the front",
+      "14:05:10.000 | events.jsonl | Page 1 failed: another window took the screen",
+      "14:05:19.999 | events.jsonl | voicecap's NVDA stopped: process 1",
+      "14:05:20.000 | events.jsonl | voicecap released the NVDA lock",
+    ]);
+  });
+
+  it("starts at the attempt's own start: the last before its end, when a resumed session took its number again", () => {
+    const page = `${SITE}a`;
+    const on = (day: string, time: string, event: NewRunEvent) => logged(day, time, event);
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      sessions: [
+        { startedAt: "2026-09-26T14:00:00-05:00", endReason: "interrupted" },
+        { startedAt: "2026-09-27T09:00:00-05:00" },
+      ],
+      pages: [
+        {
+          path: "/a",
+          status: "failed",
+          session: 2,
+          failedAttempts: [
+            failedAttempt({
+              n: 1,
+              startedAt: "2026-09-27T09:00:10.000-05:00",
+              endedAt: "2026-09-27T09:00:20.000-05:00",
+            }),
+          ],
+        },
+      ],
+    });
+    const events = [
+      on("2026-09-26", "14:00:00.000", { type: "run-started", session: 1, resumed: false }),
+      // Ctrl+C stopped this attempt, so the page's record didn't count it.
+      on("2026-09-26", "14:00:10.000", { type: "page-started", page, attempt: 1 }),
+      on("2026-09-26", "14:00:12.000", { type: "run-ended", session: 1, reason: "interrupted" }),
+      on("2026-09-27", "09:00:00.000", { type: "run-started", session: 2, resumed: true }),
+      on("2026-09-27", "09:00:10.000", { type: "page-started", page, attempt: 1 }),
+      on("2026-09-27", "09:00:20.000", {
+        type: "page-failed",
+        page,
+        attempt: 1,
+        cause: "foreground",
+        message: FOREGROUND,
+      }),
+    ];
+    const model = buildShareModel(
+      inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+    );
+    const record = model.problems.problems[0]?.record ?? [];
+
+    expect(record.filter((row) => row.source === "events.jsonl").map((row) => row.time)).toEqual([
+      "2026-09-27T09:00:10.000-05:00",
+      "2026-09-27T09:00:20.000-05:00",
+    ]);
+  });
+
+  it("says which voicecap kept no log, for each attempt of a run begun before voicecap kept one and resumed after", () => {
+    const page = `${SITE}a`;
+    const version = (used: string) => ({
+      voicecap: { version: used, configSha256: "c".repeat(64) },
+    });
+    const run = shareRun({
+      id: "r1",
+      sessions: [
+        {
+          startedAt: "2026-09-26T14:00:00-05:00",
+          endReason: "interrupted",
+          environment: version("0.10.0"),
+        },
+        { startedAt: "2026-09-27T09:00:00-05:00", environment: version("0.11.0") },
+      ],
+      pages: [
+        {
+          path: "/a",
+          attempts: 3,
+          session: 2,
+          failedAttempts: [
+            failedAttempt({ n: 1, startedAt: at(0, 10), endedAt: at(0, 20) }),
+            failedAttempt({
+              n: 2,
+              startedAt: "2026-09-27T09:00:10.000-05:00",
+              endedAt: "2026-09-27T09:00:20.000-05:00",
+              program: "Outlook",
+              restarted: true,
+            }),
+          ],
+        },
+      ],
+    });
+    // Only the session that resumed it, the next day with 0.11.0, is in the log.
+    const events = [
+      logged("2026-09-27", "09:00:00.000", { type: "run-started", session: 2, resumed: true }),
+      logged("2026-09-27", "09:00:10.000", { type: "page-started", page, attempt: 2 }),
+      logged("2026-09-27", "09:00:20.000", {
+        type: "page-failed",
+        page,
+        attempt: 2,
+        cause: "foreground",
+        message: FOREGROUND,
+      }),
+      logged("2026-09-27", "09:00:30.000", { type: "page-started", page, attempt: 3 }),
+      logged("2026-09-27", "09:01:00.000", {
+        type: "page-finished",
+        page,
+        attempt: 3,
+        status: "done",
+      }),
+    ];
+    const model = buildShareModel(
+      inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+    );
+    const [first, second] = model.problems.problems;
+
+    // The first attempt's session used 0.10.0, which kept no log, and its record says so.
+    expect(first?.record.map((row) => row.source)).toEqual(["run.json", "run.json"]);
+    expect(first?.notRecorded).toEqual([
+      "Which program came to the front: not recorded: this run used voicecap 0.10.0.",
+      "The event log and NVDA's own log: not recorded: this run used voicecap 0.10.0.",
+    ]);
+    // The second's used 0.11.0: the log's lines are in its record, and only NVDA's own log isn't.
+    expect(second?.record.map((row) => row.source)).toContain("events.jsonl");
+    expect(second?.notRecorded).toEqual([
+      "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+    ]);
+  });
+
+  it("says the log has no line of an attempt of a voicecap that keeps it, never that its voicecap didn't keep one", () => {
+    const page = `${SITE}a`;
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      sessions: [
+        { startedAt: "2026-09-26T14:00:00-05:00", endReason: "interrupted" },
+        { startedAt: "2026-09-27T09:00:00-05:00" },
+      ],
+      pages: [
+        {
+          path: "/a",
+          attempts: 2,
+          session: 2,
+          failedAttempts: [failedAttempt({ n: 1, startedAt: at(0, 10), endedAt: at(0, 20) })],
+        },
+      ],
+    });
+    // The first session's lines aren't in the log, as when it couldn't write them.
+    const events = [
+      logged("2026-09-27", "09:00:00.000", { type: "run-started", session: 2, resumed: true }),
+      logged("2026-09-27", "09:00:10.000", { type: "page-started", page, attempt: 2 }),
+      logged("2026-09-27", "09:01:00.000", {
+        type: "page-finished",
+        page,
+        attempt: 2,
+        status: "done",
+      }),
+    ];
+    const model = buildShareModel(
+      inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+    );
+    const [problem] = model.problems.problems;
+
+    expect(problem?.record.map((row) => row.source)).toEqual(["run.json", "run.json"]);
+    expect(problem?.notRecorded).toEqual([
+      "Which program came to the front: not recorded: this run's screen reader driver doesn't record it.",
+      "The event log: not recorded: it has no line of this attempt.",
+      "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+    ]);
+  });
+
+  it("shows the home folder in an event's words as it does everywhere", () => {
+    const program = path.join(os.homedir(), "AppData", "Local", "Tool", "tool.exe");
+    const { run, log } = loggedRun();
+    const events = log.events.map((event) =>
+      event.type === "foreground-lost" ? { ...event, program } : event,
+    );
+    const model = buildShareModel(
+      inputOf([run], { events: new Map([[run.id, { events, unreadable: 0 }]]) }),
+    );
+    const entries = (model.problems.problems[0]?.record ?? []).map((row) => row.entry);
+    const replaced = process.platform === "win32" ? "%USERPROFILE%" : "~";
+
+    expect(entries.join("\n")).not.toContain(os.homedir());
+    expect(entries).toContainEqual(
+      expect.stringMatching(
+        new RegExp(`^Another window came to the front: ${escapeRegExp(replaced)}`),
+      ),
+    );
+  });
+
+  it("says NVDA's own log isn't recorded, and no longer the event log, for a run whose log it read", () => {
+    const [problem] = loggedModel().problems.problems;
+
+    expect(problem?.notRecorded).toEqual([
+      "NVDA's own log: not recorded: this run used voicecap 0.11.0.",
+    ]);
+  });
+
+  describe("where the page doesn't have the log of a run of a voicecap that keeps one", () => {
+    /** The logged run of 0.11.0, the log the page has of it (none, by default), and what each says. */
+    function saidOf(
+      run: RunJson,
+      log?: { events: RunEvent[]; unreadable: number },
+    ): { problem: string[]; timeline: unknown; restarts: string | undefined } {
+      const model = buildShareModel(
+        inputOf([run], { events: log === undefined ? new Map() : new Map([[run.id, log]]) }),
+      );
+      const [evidence] = model.evidence;
+      return {
+        problem: model.problems.problems[0]?.notRecorded ?? [],
+        timeline: evidence?.timeline,
+        restarts: evidence?.facts.find(({ label }) => label === "NVDA restarts")?.value,
+      };
+    }
+    const NVDA_LOG = "NVDA's own log: not recorded: this run used voicecap 0.11.0.";
+
+    it("says, as the evidence does, that the log its record lists isn't as the run recorded it", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const part =
+        "Not shown: the event log isn't as the run recorded it; voicecap verify names it.";
+
+      expect(saidOf(listed)).toEqual({
+        problem: [
+          "The event log: not shown: it isn't as the run recorded it; voicecap verify names it.",
+          NVDA_LOG,
+        ],
+        timeline: { notRecorded: part },
+        restarts: part,
+      });
+    });
+
+    it("says, as the evidence does, that its record lists none", () => {
+      const { run } = loggedRun();
+
+      expect(saidOf(run)).toEqual({
+        problem: ["The event log: not recorded: this run's record lists none.", NVDA_LOG],
+        timeline: { notRecorded: "Not recorded: this run's record lists no event log." },
+        restarts: "Not recorded: this run's record lists no event log.",
+      });
+    });
+
+    it("says, as the evidence does, that no line of it could be read", () => {
+      const { run } = loggedRun();
+
+      expect(saidOf(run, { events: [], unreadable: 3 })).toEqual({
+        problem: ["The event log: not shown: no line of it could be read.", NVDA_LOG],
+        timeline: { notRecorded: "Not shown: no line of the event log could be read." },
+        restarts: "Not shown: no line of the event log could be read.",
+      });
+    });
+
+    it("never says the run's voicecap didn't record the event log", () => {
+      const { run } = loggedRun();
+      const listed = { ...run, files: { "events.jsonl": { sha256: "e".repeat(64), bytes: 10 } } };
+      const said = [saidOf(listed), saidOf(run), saidOf(run, { events: [], unreadable: 1 })]
+        .flatMap(({ problem }) => problem)
+        .filter((line) => line !== NVDA_LOG);
+
+      // One line of the event log for each of the three.
+      expect(said.length).toBe(3);
+      expect(said.filter((line) => /this run used voicecap/.test(line))).toEqual([]);
+    });
+  });
+});
+
+/** Text as a regular expression that matches it as it is. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 describe("KIND_ROWS", () => {
   it("has a row for each kind, and one for a run the person stopped", () => {

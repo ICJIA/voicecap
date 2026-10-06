@@ -645,6 +645,10 @@ describe("a card's lines", () => {
     expect(
       notRecordedLine("The step and the key: not recorded: this run used voicecap 0.4.1."),
     ).toBe("The step and the key: not recorded: this run used voicecap 0.4.1.");
+    // So does a line that says something recorded isn't shown, which is no gap in the record.
+    const notShown =
+      "Not shown: the event log isn't as the run recorded it; voicecap verify names it.";
+    expect(notRecordedLine(notShown)).toBe(notShown);
   });
 
   it("is what the page's cards say of each pass and of the time", async () => {
