@@ -15,7 +15,8 @@ import {
   type AttentionKind,
   type AttentionPlace,
 } from "../src/share/attention.js";
-import { ATTENTION_TEXT, attentionWords } from "../src/share/text.js";
+import { attentionWords } from "../src/share/attention-words.js";
+import { ATTENTION_TEXT } from "../src/share/text.js";
 import { HOME_READ_HEADER, HOME_READ_MAIN, HOME_TAB, i2iPages } from "./helpers/share-attention.js";
 
 /** i2i's logo: the one card that the home page and 31 biography pages make. */

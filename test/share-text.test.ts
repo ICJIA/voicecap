@@ -56,16 +56,11 @@ function storedStrings(): string[] {
 /**
  * What the module's functions say, each called with sample arguments: the sentence it gives, or the
  * words of the line it gives (its pieces joined, so a check reads across a piece in bold or in
- * code). `storedStrings` can't see these, since it reads no function. `attentionWords` is the one
- * function left out: it says a card of what needs attention, which no sample string is, so
- * share-attention-words.test.ts reads what it says, and holds it to the same words.
+ * code). `storedStrings` can't see these, since it reads no function.
  */
 function spokenStrings(): string[] {
   return leavesOf(text)
-    .filter(
-      (leaf): leaf is (...args: string[]) => string | Line =>
-        typeof leaf === "function" && leaf !== text.attentionWords,
-    )
+    .filter((leaf): leaf is (...args: string[]) => string | Line => typeof leaf === "function")
     .map((say) => {
       const said = say(...SAMPLE);
       return typeof said === "string" ? said : lineText(said);
