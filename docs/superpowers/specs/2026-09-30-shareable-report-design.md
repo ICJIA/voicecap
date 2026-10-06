@@ -150,7 +150,7 @@ A kind of flag splits into one card for each thing NVDA named, where the words n
 6. **The path forward:** fix it (and where one change covers many pages, such as a shared header, say so); run voicecap again on one page (`--page`), then on every page; and share again, which leaves the card off. When it isn't a problem: mark the pages "Reviewed, no issues" in `voicecap review`.
 7. **The pages,** each linked to its card under "Every page": open when there are 3 or fewer, and folded behind a line that counts them when there are more.
 
-The fix comes from what NVDA said, never from the page's code: voicecap doesn't read or keep a page's HTML (the owner chose this on 2026-10-06). The example is the usual fix for the case NVDA's words show, and the person reviewing decides whether it fits.
+The fix comes from what NVDA said, never from the page's code: voicecap keeps no page's HTML (the owner chose this on 2026-10-06). The example is the usual fix for the case NVDA's words show, and the person reviewing decides whether it fits.
 
 **The advice for each kind.** The page's own words are in `src/share/text.ts`; this is what each says.
 

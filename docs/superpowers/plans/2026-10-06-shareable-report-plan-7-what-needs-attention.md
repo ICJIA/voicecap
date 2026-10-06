@@ -24,7 +24,7 @@
 - **Only what the records show.** The page says a person heard NVDA, reviewed, or fixed something only where the records say so, and it never leads with what a person hasn't done.
 - **A fix is a suggestion.** A card's fix is the usual fix for the case NVDA's words show, and the person reviewing decides whether it fits.
 - **Blame the right party.** A card's likely cause never blames NVDA or the site for what a browser adds, and it says which browser added it.
-- **From speech, never from code.** The fix comes from what NVDA said, never from the page's code: voicecap doesn't read or keep a page's HTML.
+- **From speech, never from code.** The fix comes from what NVDA said, never from the page's code: voicecap keeps no page's HTML.
 - **Computed numbers.** Every number is computed from the records, never typed.
 - **One source of words.** The page's words live in `src/share/text.ts`, and both renderers use them, so the Word copy has the same cards.
 - **Accessibility:**
