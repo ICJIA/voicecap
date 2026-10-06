@@ -531,7 +531,9 @@ export interface RunJson {
    * 0.11.0), and, from 0.12.0, each cleaned copy of the screen reader's own log that a session kept
    * ("nvda-log/<session>-<n>.txt"). Each session's end sets them, so the seal covers every file, and
    * `voicecap verify` checks each one, and reports an event log or a copy that the run doesn't list.
-   * Absent in runs from before voicecap 0.11.0, and while a run has no file to record.
+   * A session that never reached its end (it crashed, or its window was closed) lists no copy of its
+   * own, so the end of a later session lists the copies it left. Absent in runs from before voicecap
+   * 0.11.0, and while a run has no file to record.
    */
   files?: Record<string, FileHash>;
   /**

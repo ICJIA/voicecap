@@ -51,7 +51,7 @@ import { createConsoleLogger, type Logger } from "../util/log.js";
 import { isoLocal, isoLocalMs } from "../util/time.js";
 import { voicecapVersion } from "../util/version.js";
 import { DriverSession } from "./driver-session.js";
-import { EVENT_LOG, openEventLog, type EventLog } from "./events.js";
+import { copiesInFolder, EVENT_LOG, openEventLog, type EventLog } from "./events.js";
 import { withCurrentFlags } from "./flags.js";
 import { ensureGitFiles } from "./git-files.js";
 import { acquireRunLock } from "./lock.js";
@@ -541,11 +541,19 @@ async function execute(ctx: ExecuteContext): Promise<RunAuditResult> {
     session.endReason = reason;
     // The log's last line for the session, and then it's closed and hashed into the run's record,
     // with each copy of the screen reader's log the session kept, so that a completed run's seal
-    // covers them and nothing is written to them after.
+    // covers them and nothing is written to them after. The copies of earlier sessions that the run
+    // doesn't list yet go in too: a session that never reached this point (it crashed, or its window
+    // was closed) listed none of its own, and a run that a later session completes must list what it
+    // left, as it lists its event log, which every session's end hashes whole. Left as they are: a
+    // copy the run lists already (an edit made since is still found), and any file that isn't a copy
+    // of one of its sessions (`voicecap verify` names it).
     ctx.events.record({ type: "run-ended", session: session.n, reason });
     ctx.events.close();
     const folder = runDir(outDir, run.id);
-    for (const name of [EVENT_LOG, ...ctx.events.copies()]) {
+    const unlisted = copiesInFolder(folder, session.n).filter(
+      (name) => run.files?.[name] === undefined,
+    );
+    for (const name of new Set([EVENT_LOG, ...unlisted, ...ctx.events.copies()])) {
       // Each is named by its path from the run's folder, written with "/", as the record lists it.
       const hash = await hashOfFile(path.join(folder, ...name.split("/")));
       if (hash) (run.files ??= {})[name] = hash;

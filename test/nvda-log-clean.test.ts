@@ -12,6 +12,7 @@ import {
   VOICECAP_GESTURES,
   cleanNvdaLog,
   gestureOf,
+  withNvdaLog,
 } from "../src/drivers/guidepup/nvda-log.js";
 import { parseNvdaLog, splitLogEntries } from "../src/manual/nvda-log.js";
 import type { DriverCommand, RunJson, TranscriptJson } from "../src/model.js";
@@ -364,6 +365,55 @@ describe("cleanNvdaLog: the copy", () => {
 describe("NVDA's log file", () => {
   it("is named nvda.log", () => {
     expect(NVDA_LOG_FILE).toBe("nvda.log");
+  });
+});
+
+// The settings NVDA starts with: the log is turned on through Guidepup's own settings, and a
+// loggingLevel the config sets itself wins.
+describe("withNvdaLog: the settings NVDA starts with", () => {
+  it("turns the log on at the input/output level, when the config sets nothing", () => {
+    expect(withNvdaLog({})).toEqual({ general: { loggingLevel: "IO" } });
+  });
+
+  it("keeps the config's own settings, and the rest of its general ones, beside it", () => {
+    expect(withNvdaLog({ general: { language: "en" }, speech: { symbolLevel: 100 } })).toEqual({
+      general: { language: "en", loggingLevel: "IO" },
+      speech: { symbolLevel: 100 },
+    });
+  });
+
+  it("leaves alone a loggingLevel the config sets itself", () => {
+    for (const loggingLevel of ["OFF", "INFO", "DEBUG"]) {
+      expect(withNvdaLog({ general: { language: "en", loggingLevel } }), loggingLevel).toEqual({
+        general: { language: "en", loggingLevel },
+      });
+    }
+  });
+
+  it("takes a loggingLevel the config leaves undefined for one it didn't set", () => {
+    expect(withNvdaLog({ general: { loggingLevel: undefined } })).toEqual({
+      general: { loggingLevel: "IO" },
+    });
+  });
+
+  it("takes a general that isn't a table of settings for none", () => {
+    for (const general of ["OFF", ["OFF"], 7, null]) {
+      expect(withNvdaLog({ general }), JSON.stringify(general)).toEqual({
+        general: { loggingLevel: "IO" },
+      });
+    }
+  });
+
+  it("makes new objects, and never changes the config's own, which the run records", () => {
+    const general = { language: "en" };
+    const settings = { general, speech: { symbolLevel: 100 } };
+    const made = withNvdaLog(settings);
+    expect(made).not.toBe(settings);
+    expect(made.general).not.toBe(general);
+    expect(settings).toEqual({ general: { language: "en" }, speech: { symbolLevel: 100 } });
+    expect(general).toEqual({ language: "en" });
+    // What's beside general is the config's, as it is.
+    expect(made.speech).toBe(settings.speech);
   });
 });
 

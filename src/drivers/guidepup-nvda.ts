@@ -47,8 +47,8 @@
  *   reads that log, cleans it (./guidepup/nvda-log.ts), and hands the copy to the run's recorder,
  *   before anything starts NVDA again: NVDA moves the last log aside to nvda-old.log whenever it
  *   starts, as the person's own NVDA does when the final stop starts it again. It reads nothing
- *   for a recorder that keeps no copies, and a log it can't have is recorded as no copy, with why:
- *   it never stops a stop.
+ *   for a recorder that keeps no copies, and a log it can't have is recorded as no copy, with why,
+ *   and the console is told, once for a driver: it never stops a stop.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -63,7 +63,7 @@ import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
 import { launchChrome } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
-import { cleanNvdaLog } from "./guidepup/nvda-log.js";
+import { cleanNvdaLog, withNvdaLog } from "./guidepup/nvda-log.js";
 import {
   guidepupInstall,
   nvdaLockFile,
@@ -341,6 +341,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   private events: EventRecorder = NO_EVENTS;
   /** The process id of the NVDA voicecap started, for the event that says it stopped. */
   private nvdaPid: number | null = null;
+  /**
+   * Whether the console has been told that a copy of NVDA's log wasn't kept: it's told once for a
+   * driver, the first time, whichever copy it was and whatever the reason.
+   */
+  private noCopyWarned = false;
   private session: BrowserSession | null = null;
   /** Whether the current session has loaded a page (the next load gets a fresh browser). */
   private sessionUsed = false;
@@ -1062,32 +1067,48 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * person's own NVDA when the final stop starts it again. Only an NVDA that this driver ran and
    * has just quit has a log to read: one that never started has none of this run's. A recorder that
    * keeps no copies is given none, and nothing is read, as doctor's live check and fixture capture
-   * run the driver with none. A log that can't be had (no file, an empty one, or one that can't be
-   * read) is recorded as no copy, with why, and never stops the stop that was under way. So is any
-   * log, unread, when the account's home folder isn't known: a copy says it has the home folder
-   * written as %USERPROFILE%, and the account's name in a path would stay in it.
+   * run the driver with none. A log that can't be had (see cleanedNvdaLog) is recorded as no copy,
+   * with why, and the console is told, once for a driver; it never stops the stop that was under
+   * way. What the recorder does with a copy is its own: it never throws, as `record` never does.
    */
   private async keepNvdaLog(): Promise<void> {
     const recorder = this.events;
     if (recorder.screenReaderLog === undefined) return;
-    const { home, platform } = this.deps;
-    let reason: string;
-    if (home.trim() === "") {
-      reason = "The account's home folder isn't known, so NVDA's log couldn't be cleaned of it.";
-    } else {
-      try {
-        const raw = await this.deps.readNvdaLog();
-        if (raw !== null && raw.trim() !== "") {
-          recorder.screenReaderLog(cleanNvdaLog(raw, { home, platform }));
-          return;
-        }
-        reason = "NVDA's log wasn't there.";
-      } catch (error) {
-        // The run keeps the reason, and a path in an error's message names the account.
-        reason = redactHome(errorMessage(error), home, platform);
-      }
+    const log = await this.cleanedNvdaLog();
+    if ("cleaned" in log) {
+      recorder.screenReaderLog(log.cleaned);
+      return;
     }
-    recorder.record({ type: "screen-reader-log", file: null, reason });
+    recorder.record({ type: "screen-reader-log", file: null, reason: log.reason });
+    if (!this.noCopyWarned) {
+      this.noCopyWarned = true;
+      this.options.logger.warn(
+        `NVDA's own log of one NVDA session wasn't kept: ${log.reason} The run goes on.`,
+      );
+    }
+  }
+
+  /**
+   * NVDA's log, read and cleaned, or why it can't be had: there is no file, or it's empty, or it
+   * can't be read (another program has it locked, say). Nothing is read when the account's home
+   * folder isn't known: a copy says it has the home folder written as %USERPROFILE%, and the
+   * account's name in a path would stay in it. Never throws.
+   */
+  private async cleanedNvdaLog(): Promise<{ cleaned: string } | { reason: string }> {
+    const { home, platform } = this.deps;
+    if (home.trim() === "") {
+      return {
+        reason: "The account's home folder isn't known, so NVDA's log couldn't be cleaned of it.",
+      };
+    }
+    try {
+      const raw = await this.deps.readNvdaLog();
+      if (raw === null || raw.trim() === "") return { reason: "NVDA's log wasn't there." };
+      return { cleaned: cleanNvdaLog(raw, { home, platform }) };
+    } catch (error) {
+      // The run keeps the reason, and a path in an error's message names the account.
+      return { reason: redactHome(errorMessage(error), home, platform) };
+    }
   }
 
   private async stopNvda(nvda: NvdaControl): Promise<void> {
@@ -1182,18 +1203,6 @@ function describeError(error: unknown): string {
   return cause && !message.includes(cause)
     ? `${message} (${cause.split("\n")[0] ?? cause})`
     : message;
-}
-
-/**
- * The settings NVDA starts with: the config's own, with NVDA's log turned on at the input/output
- * level, which holds what NVDA says and every key pressed, for the run to keep a cleaned copy of
- * (see keepNvdaLog). The config's own settings win, a general.loggingLevel among them (one left
- * undefined counts as none), and the rest of its general settings stay. The config's object, which
- * the run records, is left as it is.
- */
-function withNvdaLog(settings: Record<string, unknown>): Record<string, unknown> {
-  const general = section(settings, "general");
-  return { ...settings, general: { ...general, loggingLevel: general.loggingLevel ?? "IO" } };
 }
 
 function section(settings: Record<string, unknown>, name: string): Record<string, unknown> {

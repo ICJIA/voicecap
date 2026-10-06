@@ -1,16 +1,17 @@
-import { readdirSync, readFileSync } from "node:fs";
+import type * as Fs from "node:fs";
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { AttemptRecord, RunEvent } from "../src/model.js";
 import { runAudit } from "../src/run/audit.js";
-import { EVENT_LOG, openEventLog, readEventLog } from "../src/run/events.js";
-import { eventLogFile } from "../src/run/paths.js";
-import { listRuns, readRunJson } from "../src/run/store.js";
+import { copiesInFolder, EVENT_LOG, openEventLog, readEventLog } from "../src/run/events.js";
+import { eventLogFile, linkPath } from "../src/run/paths.js";
+import { listRuns, readRunJson, writeRunJson } from "../src/run/store.js";
 import { fileHash } from "../src/transcripts/write.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { sealOf } from "../src/util/hash.js";
@@ -19,6 +20,13 @@ import { isoLocalMs } from "../src/util/time.js";
 import { verifyHome } from "../src/verify.js";
 import { config, ISO_MS, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
+
+// Every write and removal of a file goes through as it did, and is kept, so that a test can make
+// one fail: a write that stops partway through a copy, and a removal that can't be done.
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof Fs>();
+  return { ...actual, writeFileSync: vi.fn(actual.writeFileSync), rmSync: vi.fn(actual.rmSync) };
+});
 
 /** An event as it's written, less its time. */
 const bare = ({ at: _at, ...event }: RunEvent) => event;
@@ -598,6 +606,146 @@ describe("a run's copies of NVDA's log", () => {
     expect((await verifyHome({ home, logger: createMemoryLogger() })).problems).toBe(0);
   });
 
+  // A session that's killed (a crash, its window closed, the power gone) never reaches its end, which
+  // is what lists its copies in run.json. The event log is hashed whole by every session's end, so a
+  // later session covers it. The copies must be covered the same way, or a run that a later session
+  // completes fails verify for evidence nothing was wrong with.
+  describe("when a session never reached its end", () => {
+    /** A run's first session, interrupted after a restart and a final stop: copies 1-1 and 1-2. */
+    async function killedFirstSession(dir: string) {
+      const controller = new AbortController();
+      const first = await runAudit(
+        options(
+          dir,
+          keepingLog(
+            interruptingAt("/about", controller),
+            (stop) => `first session, copy ${stop}\n`,
+          ),
+          { signal: controller.signal, config: config({ restartEvery: 1 }) },
+        ),
+      );
+      expect(first.outcome).toBe("interrupted");
+      // What a killed session leaves: its copies on disk, and a run.json that lists no file, as
+      // the session's end never ran to set them.
+      const killed = await readRunJson(outDir(dir), first.runId);
+      expect(Object.keys(killed.files ?? {})).toEqual([
+        EVENT_LOG,
+        "nvda-log/1-1.txt",
+        "nvda-log/1-2.txt",
+      ]);
+      delete killed.files;
+      await writeRunJson(outDir(dir), killed);
+      return first;
+    }
+
+    const verifyProblems = async (dir: string) =>
+      (await verifyHome({ home: path.join(dir, "transcripts"), logger: createMemoryLogger() }))
+        .sites[0]!.problems;
+
+    it("lists the copies it kept, with the copies of the session that completes the run", async () => {
+      const dir = await setup(["/", "/about"]);
+      const first = await killedFirstSession(dir);
+
+      const second = await runAudit(
+        options(
+          dir,
+          keepingLog(new ScriptedDriver(sitePages()), () => "second session\n"),
+        ),
+      );
+      expect(second).toMatchObject({ runId: first.runId, outcome: "completed" });
+
+      const run = await readRunJson(outDir(dir), first.runId);
+      expect(Object.keys(run.files ?? {})).toEqual([
+        EVENT_LOG,
+        "nvda-log/1-1.txt",
+        "nvda-log/1-2.txt",
+        "nvda-log/2-1.txt",
+      ]);
+      expect(run.files?.["nvda-log/1-1.txt"]).toEqual(fileHash("first session, copy 1\n"));
+      expect(run.files?.["nvda-log/1-2.txt"]).toEqual(fileHash("first session, copy 2\n"));
+      expect(run.files?.["nvda-log/2-1.txt"]).toEqual(fileHash("second session\n"));
+      // The seal covers them, and verify finds nothing wrong.
+      expect(run.seal).toBe(sealOf(run));
+      expect(await verifyProblems(dir)).toEqual([]);
+    });
+
+    it("leaves a copy it already lists as it recorded it, so an edit made since is still caught", async () => {
+      const dir = await setup(["/", "/about"]);
+      const controller = new AbortController();
+      const first = await runAudit(
+        options(
+          dir,
+          keepingLog(interruptingAt("/about", controller), () => "first session\n"),
+          {
+            signal: controller.signal,
+          },
+        ),
+      );
+      expect(first.outcome).toBe("interrupted");
+      // This session did reach its end: its copy is listed. Someone edits it before the next.
+      const copy = path.join(folderOf(dir, first.runId), "nvda-log", "1-1.txt");
+      await appendFile(copy, "An added line\n");
+
+      const second = await runAudit(
+        options(
+          dir,
+          keepingLog(new ScriptedDriver(sitePages()), () => "second session\n"),
+        ),
+      );
+      expect(second).toMatchObject({ runId: first.runId, outcome: "completed" });
+
+      const run = await readRunJson(outDir(dir), first.runId);
+      expect(run.files?.["nvda-log/1-1.txt"]).toEqual(fileHash("first session\n"));
+      const home = path.join(dir, "transcripts");
+      expect(await verifyProblems(dir)).toEqual([
+        `${linkPath(home, copy)}: changed since it was recorded (SHA-256 differs)`,
+      ]);
+    });
+
+    it("leaves anything else in the folder unlisted, for verify to name", async () => {
+      const dir = await setup(["/", "/about"]);
+      const first = await killedFirstSession(dir);
+      // What isn't a copy of this run's own sessions: another name, another extension, a number
+      // above the session's, and numbers voicecap never writes (it counts from 1, in plain digits).
+      const strays = [
+        "notes.txt",
+        "1-1.txt.bak",
+        "1-3.log",
+        "x-1.txt",
+        "1-x.txt",
+        "3-1.txt",
+        "01-1.txt",
+        "1-02.txt",
+        "0-1.txt",
+        "1-0.txt",
+      ];
+      const second = keepingLog(new ScriptedDriver(sitePages()), () => "second session\n");
+      const stop = second.stop.bind(second);
+      second.stop = async (stopOptions) => {
+        await stop(stopOptions);
+        for (const name of strays) {
+          await writeFile(path.join(folderOf(dir, first.runId), "nvda-log", name), "left here\n");
+        }
+      };
+      const result = await runAudit(options(dir, second));
+      expect(result).toMatchObject({ runId: first.runId, outcome: "completed" });
+
+      // The first session's copies and the second's are listed; no stray is.
+      const run = await readRunJson(outDir(dir), first.runId);
+      expect(Object.keys(run.files ?? {})).toEqual([
+        EVENT_LOG,
+        "nvda-log/1-1.txt",
+        "nvda-log/1-2.txt",
+        "nvda-log/2-1.txt",
+      ]);
+      const home = path.join(dir, "transcripts");
+      const shown = linkPath(home, path.join(folderOf(dir, first.runId), "nvda-log"));
+      expect(await verifyProblems(dir)).toEqual(
+        strays.map((name) => `${shown}/${name}: not recorded by the run`).sort(),
+      );
+    });
+  });
+
   it("keeps no folder, and lists nothing, for a driver that hands over no copy", async () => {
     const dir = await setup(["/"]);
     const result = await runAudit(options(dir, new ScriptedDriver(sitePages())));
@@ -941,6 +1089,88 @@ describe("openEventLog", () => {
       expect(whyNoCopy(events[0])).toMatch(/^E[A-Z]+: /);
     });
 
+    // A write that fails partway (a disk that fills) can leave part of a copy. It isn't one: the
+    // record says none was kept, so none should be there for verify to call unrecorded.
+    describe("that can't be written whole", () => {
+      // Going through as they did, with no call counted: before each test, and after it, so that
+      // what one left unused (a failure it never reached) never reaches another.
+      const restore = () => {
+        vi.mocked(writeFileSync).mockReset();
+        vi.mocked(rmSync).mockReset();
+      };
+      beforeEach(restore);
+      afterEach(restore);
+
+      const NO_SPACE = () =>
+        Object.assign(new Error("ENOSPC: no space left on device, write"), { code: "ENOSPC" });
+
+      it("is taken away, with whatever part of it was written, so the folder matches the record", async () => {
+        const file = await logFile();
+        const folder = path.join(path.dirname(file), "nvda-log");
+        const real = await vi.importActual<typeof Fs>("node:fs");
+        // The disk fills as the copy is written: the first of it lands, and the write fails.
+        vi.mocked(writeFileSync).mockImplementationOnce((target, data, writeOptions) => {
+          real.writeFileSync(
+            target,
+            typeof data === "string" ? data.slice(0, 4) : "",
+            writeOptions,
+          );
+          throw NO_SPACE();
+        });
+        const log = openEventLog(file, {
+          now: () => NOW,
+          logger: createMemoryLogger(),
+          session: 2,
+        });
+        expect(() => log.screenReaderLog("a whole copy\n")).not.toThrow();
+
+        expect(log.copies()).toEqual([]);
+        expect(readdirSync(folder)).toEqual([]);
+        expect(rmSync).toHaveBeenCalledWith(path.join(folder, "2-1.txt"), { force: true });
+        // The event says no copy was kept, and why.
+        const [event] = readEventLog(readFileSync(file, "utf8")).events;
+        expect(event).toMatchObject({ type: "screen-reader-log", file: null });
+        expect(whyNoCopy(event)).toMatch(/^ENOSPC: /);
+      });
+
+      it("goes on, with the write's reason, when what was left can't be taken away either", async () => {
+        const file = await logFile();
+        vi.mocked(writeFileSync).mockImplementationOnce(() => {
+          throw NO_SPACE();
+        });
+        vi.mocked(rmSync).mockImplementationOnce(() => {
+          throw Object.assign(new Error("EBUSY: resource busy or locked, unlink"), {
+            code: "EBUSY",
+          });
+        });
+        const log = openEventLog(file, {
+          now: () => NOW,
+          logger: createMemoryLogger(),
+          session: 2,
+        });
+        expect(() => log.screenReaderLog("a whole copy\n")).not.toThrow();
+
+        expect(log.copies()).toEqual([]);
+        // Why no copy was kept is why the write failed, not why the removal did.
+        const { events, unreadable } = readEventLog(readFileSync(file, "utf8"));
+        expect(unreadable).toBe(0);
+        expect(events).toHaveLength(1);
+        expect(whyNoCopy(events[0])).toMatch(/^ENOSPC: /);
+      });
+
+      it("is never tried for a copy that was kept", async () => {
+        const file = await logFile();
+        const log = openEventLog(file, {
+          now: () => NOW,
+          logger: createMemoryLogger(),
+          session: 2,
+        });
+        log.screenReaderLog("a whole copy\n");
+        expect(rmSync).not.toHaveBeenCalled();
+        expect(log.copies()).toEqual([copy(1)]);
+      });
+    });
+
     it("doesn't reuse a name after one it couldn't write, so each name is its session's nth copy", async () => {
       const file = await logFile();
       const folder = path.join(path.dirname(file), "nvda-log");
@@ -983,6 +1213,81 @@ describe("openEventLog", () => {
       expect(readFileSync(file, "utf8")).toBe(NAMED(1));
       expect(readdirSync(path.join(path.dirname(file), "nvda-log"))).toEqual(["2-1.txt"]);
     });
+  });
+});
+
+// The copies already in a run's folder, which a session's end lists beside the ones it kept: those
+// of an earlier session that never reached its own end.
+describe("copiesInFolder", () => {
+  /** A run's folder with a folder of copies holding `files`, and a folder named `folders` in it. */
+  async function runFolder(files: string[], folders: string[] = []): Promise<string> {
+    const run = await mkdtemp(path.join(os.tmpdir(), "voicecap-copies-"));
+    await mkdir(path.join(run, "nvda-log"));
+    for (const name of files) await writeFile(path.join(run, "nvda-log", name), "A copy.\n");
+    for (const name of folders) await mkdir(path.join(run, "nvda-log", name));
+    return run;
+  }
+
+  it("names each copy of a session up to the last, by its path from the run's folder", async () => {
+    const run = await runFolder(["1-1.txt", "1-2.txt", "2-1.txt", "3-1.txt"]);
+    expect(copiesInFolder(run, 2)).toEqual([
+      "nvda-log/1-1.txt",
+      "nvda-log/1-2.txt",
+      "nvda-log/2-1.txt",
+    ]);
+    expect(copiesInFolder(run, 1)).toEqual(["nvda-log/1-1.txt", "nvda-log/1-2.txt"]);
+    expect(copiesInFolder(run, 3)).toHaveLength(4);
+    expect(copiesInFolder(run, 0)).toEqual([]);
+  });
+
+  it("puts them in the order of their numbers, not their letters", async () => {
+    const run = await runFolder([
+      "10-1.txt",
+      "1-10.txt",
+      "2-1.txt",
+      "1-2.txt",
+      "1-1.txt",
+      "2-10.txt",
+    ]);
+    expect(copiesInFolder(run, 10)).toEqual([
+      "nvda-log/1-1.txt",
+      "nvda-log/1-2.txt",
+      "nvda-log/1-10.txt",
+      "nvda-log/2-1.txt",
+      "nvda-log/2-10.txt",
+      "nvda-log/10-1.txt",
+    ]);
+  });
+
+  it("leaves out any file named another way, and any folder, even one named like a copy", async () => {
+    const run = await runFolder(
+      [
+        "1-1.txt",
+        "notes.txt",
+        "1-1.txt.bak",
+        "1-3.log",
+        "x-1.txt",
+        "1-x.txt",
+        "01-1.txt",
+        "1-02.txt",
+        "0-1.txt",
+        "1-0.txt",
+        "-1.txt",
+        "1-.txt",
+        "1-1-1.txt",
+        ".DS_Store",
+      ],
+      ["1-2.txt"],
+    );
+    expect(copiesInFolder(run, 9)).toEqual(["nvda-log/1-1.txt"]);
+  });
+
+  it("gives none when the run has no folder of copies, or a file stands where it goes", async () => {
+    const run = await mkdtemp(path.join(os.tmpdir(), "voicecap-copies-"));
+    expect(copiesInFolder(run, 3)).toEqual([]);
+    await writeFile(path.join(run, "nvda-log"), "in the way");
+    expect(copiesInFolder(run, 3)).toEqual([]);
+    expect(copiesInFolder(path.join(run, "missing"), 3)).toEqual([]);
   });
 });
 

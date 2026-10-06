@@ -4,8 +4,11 @@ import {
   fstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readSync,
+  rmSync,
   writeFileSync,
+  type Dirent,
 } from "node:fs";
 import path from "node:path";
 
@@ -31,6 +34,41 @@ export const EVENT_LOG = "events.jsonl";
  * The run lists each in its record (RunJson.files), as it lists the event log.
  */
 export const NVDA_LOG_FOLDER = "nvda-log";
+
+/**
+ * A copy's file name as `screenReaderLog` makes it: the session's number, then the copy's, in plain
+ * numbers (voicecap counts from 1, and writes no leading zero).
+ */
+const COPY_NAME = /^([1-9]\d*)-([1-9]\d*)\.txt$/;
+
+/**
+ * The copies of the screen reader's log that the run's sessions up to the `lastSession`th have in
+ * its folder, each by its path from the run's folder (written with "/"), in the order of their
+ * numbers: session by session, and each session's by its own. Whether the run lists them isn't
+ * asked here. A session that never reached its end (it crashed, or its window was closed) listed
+ * none of its copies, so the session that completes the run lists them with its own (see runAudit's
+ * `end`), as it does the event log, which every session's end hashes whole. A name that isn't a
+ * copy's, a copy numbered for a later session, and a folder are none of them: `voicecap verify`
+ * names a file the run doesn't list. None where the run has no folder of copies, or it can't be read.
+ */
+export function copiesInFolder(runFolder: string, lastSession: number): string[] {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(path.join(runFolder, NVDA_LOG_FOLDER), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const found: { name: string; session: number; n: number }[] = [];
+  for (const entry of entries) {
+    const numbers = entry.isFile() ? COPY_NAME.exec(entry.name) : null;
+    if (numbers === null) continue;
+    const session = Number(numbers[1]);
+    if (session <= lastSession) found.push({ name: entry.name, session, n: Number(numbers[2]) });
+  }
+  return found
+    .sort((a, b) => a.session - b.session || a.n - b.n)
+    .map(({ name }) => `${NVDA_LOG_FOLDER}/${name}`);
+}
 
 export interface EventLog extends EventRecorder {
   /**
@@ -102,14 +140,22 @@ export function openEventLog(
       if (closed) return;
       handed += 1;
       const name = `${NVDA_LOG_FOLDER}/${options.session}-${handed}.txt`;
+      const copy = path.join(path.dirname(file), ...name.split("/"));
       let reason: string | null = null;
       try {
-        const copy = path.join(path.dirname(file), ...name.split("/"));
         mkdirSync(path.dirname(copy), { recursive: true });
         writeFileSync(copy, cleaned, { flush: true });
         kept.push(name);
       } catch (error) {
         reason = reasonOf(error);
+        // A write that failed partway (a disk that filled) may have left part of the copy. It isn't
+        // one: no copy is kept, so none should be there for `voicecap verify` to call unrecorded. Not
+        // being able to take it away changes nothing, and the reason stays the write's.
+        try {
+          rmSync(copy, { force: true });
+        } catch {
+          // Left where it is.
+        }
       }
       // After the copy, so the log never names a file that isn't there.
       record({ type: "screen-reader-log", file: reason === null ? name : null, reason });

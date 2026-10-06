@@ -2033,6 +2033,8 @@ describe("NVDA's own log", () => {
   const reads = (desktop: FakeDesktop) =>
     desktop.events.filter((event) => event === "nvda-log:read").length;
 
+  // The merge itself is withNvdaLog's, tested with it (nvda-log-clean.test.ts): here, that the driver
+  // gives NVDA what it makes.
   describe("turning it on", () => {
     it("starts NVDA with its log at the input/output level", async () => {
       const { driver, nvda } = setup();
@@ -2040,45 +2042,17 @@ describe("NVDA's own log", () => {
       expect(nvda.startOptions?.settings).toEqual({ general: { loggingLevel: "IO" } });
     });
 
-    it("keeps the config's own settings, and the rest of its general ones, beside it", async () => {
+    it("starts it with a loggingLevel the config sets itself, and the config's other settings", async () => {
       const { driver, nvda } = setup({
         config: {
-          nvdaSettings: { general: { language: "en" }, speech: { symbolLevel: 100 } },
+          nvdaSettings: { general: { language: "en", loggingLevel: "OFF" }, speech: { rate: 60 } },
         },
       });
       await driver.start();
       expect(nvda.startOptions?.settings).toEqual({
-        general: { language: "en", loggingLevel: "IO" },
-        speech: { symbolLevel: 100 },
+        general: { language: "en", loggingLevel: "OFF" },
+        speech: { rate: 60 },
       });
-    });
-
-    it("leaves alone a loggingLevel the config sets itself", async () => {
-      for (const loggingLevel of ["OFF", "DEBUG"]) {
-        const { driver, nvda } = setup({
-          config: { nvdaSettings: { general: { language: "en", loggingLevel } } },
-        });
-        await driver.start();
-        expect(nvda.startOptions?.settings, loggingLevel).toEqual({
-          general: { language: "en", loggingLevel },
-        });
-      }
-    });
-
-    it("treats a loggingLevel the config leaves undefined as one it didn't set", async () => {
-      const { driver, nvda } = setup({
-        config: { nvdaSettings: { general: { loggingLevel: undefined } } },
-      });
-      await driver.start();
-      expect(nvda.startOptions?.settings).toEqual({ general: { loggingLevel: "IO" } });
-    });
-
-    it("never changes the config's own settings, which the run records", async () => {
-      const nvdaSettings = { general: { language: "en" }, speech: { symbolLevel: 100 } };
-      const { driver } = setup({ config: { nvdaSettings } });
-      await driver.start();
-      await driver.stop();
-      expect(nvdaSettings).toEqual({ general: { language: "en" }, speech: { symbolLevel: 100 } });
     });
   });
 
@@ -2198,6 +2172,28 @@ describe("NVDA's own log", () => {
       expect(desktop.events.indexOf("nvda-log:read")).toBeGreaterThan(
         desktop.events.indexOf("nvda:stop"),
       );
+    });
+
+    it("takes no second event for a copy when a recorder that breaks its contract throws after recording it", async () => {
+      // A recorder never throws. This one records the copy as a run's event log does, and then does:
+      // the driver's own event, for a log it couldn't have, isn't for a copy that was had.
+      const { driver, desktop } = setup();
+      const events: NewRunEvent[] = [];
+      driver.setEventRecorder({
+        record: (event) => {
+          events.push(event);
+        },
+        screenReaderLog: () => {
+          events.push({ type: "screen-reader-log", file: "nvda-log/1-1.txt", reason: null });
+          throw new Error("The recorder broke.");
+        },
+      });
+      desktop.nvdaLog = FIRST_LOG;
+      await driver.start();
+      await driver.stop().catch(() => {}); // what the recorder threw may stop the stop
+      expect(only(events, "screen-reader-log")).toEqual([
+        { type: "screen-reader-log", file: "nvda-log/1-1.txt", reason: null },
+      ]);
     });
 
     it("reads no log for an NVDA that didn't start", async () => {
@@ -2349,6 +2345,91 @@ describe("NVDA's own log", () => {
         { type: "screen-reader-log", file: null, reason: "EBUSY: resource busy or locked" },
       ]);
       expect(recorder.logs).toEqual([cleaned(SECOND_LOG)]);
+    });
+
+    // The event log and the page say it, and so does the console, once: in a run of hours, the first
+    // sign shouldn't be the page at the end.
+    describe("on the console", () => {
+      const WARNING = (reason: string) =>
+        `NVDA's own log of one NVDA session wasn't kept: ${reason} The run goes on.`;
+      const warnings = (logger: { entries: { level: string; message: string }[] }) =>
+        logger.entries.filter((entry) => entry.level === "warn").map((entry) => entry.message);
+
+      it("is told once, the first time a copy isn't kept, and never again", async () => {
+        const { driver, desktop, logger } = recordingLogs();
+        desktop.nvdaLog = null;
+        await driver.start();
+        await driver.stop({ restarting: true });
+        expect(warnings(logger)).toEqual([WARNING("NVDA's log wasn't there.")]);
+        // The next two sessions' copies aren't kept either, for other reasons: nothing more is said.
+        desktop.nvdaLog = new Error("EBUSY: resource busy or locked");
+        await driver.start();
+        await driver.stop({ restarting: true });
+        desktop.nvdaLog = "";
+        await driver.start();
+        await driver.stop();
+        expect(warnings(logger)).toEqual([WARNING("NVDA's log wasn't there.")]);
+      });
+
+      it("says why, with the error's own words and the account's folder left out", async () => {
+        const { driver, desktop, logger } = recordingLogs();
+        desktop.nvdaLog = new Error(
+          String.raw`EBUSY: resource busy or locked, open 'C:\Users\pat\AppData\Local\Temp\nvda.log'`,
+        );
+        await driver.start();
+        await driver.stop();
+        expect(warnings(logger)).toEqual([
+          WARNING(
+            String.raw`EBUSY: resource busy or locked, open '%USERPROFILE%\AppData\Local\Temp\nvda.log'`,
+          ),
+        ]);
+      });
+
+      it("says why when the account's home folder isn't known", async () => {
+        const { driver, desktop, deps, logger } = recordingLogs();
+        deps.home = "";
+        desktop.nvdaLog = FIRST_LOG;
+        await driver.start();
+        await driver.stop();
+        expect(warnings(logger)).toEqual([
+          WARNING(
+            "The account's home folder isn't known, so NVDA's log couldn't be cleaned of it.",
+          ),
+        ]);
+      });
+
+      it("is not used up by a copy that was kept: it comes with the first that isn't", async () => {
+        const { driver, desktop, logger, recorder } = recordingLogs();
+        desktop.nvdaLog = FIRST_LOG;
+        await driver.start();
+        await driver.stop({ restarting: true });
+        expect(recorder.logs).toHaveLength(1);
+        expect(warnings(logger)).toEqual([]);
+        desktop.nvdaLog = null;
+        await driver.start();
+        await driver.stop();
+        expect(warnings(logger)).toEqual([WARNING("NVDA's log wasn't there.")]);
+      });
+
+      it("says nothing for a run that keeps no copies: nothing is read, so none isn't kept", async () => {
+        const bare = setup();
+        await bare.driver.start();
+        await bare.driver.stop();
+        const plain = recording();
+        await plain.driver.start();
+        await plain.driver.stop();
+        expect(warnings(bare.logger)).toEqual([]);
+        expect(warnings(plain.logger)).toEqual([]);
+      });
+
+      it("is told once for each driver", async () => {
+        for (let run = 0; run < 2; run++) {
+          const { driver, logger } = recordingLogs();
+          await driver.start();
+          await driver.stop();
+          expect(warnings(logger)).toEqual([WARNING("NVDA's log wasn't there.")]);
+        }
+      });
     });
   });
 

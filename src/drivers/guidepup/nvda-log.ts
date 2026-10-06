@@ -3,7 +3,8 @@
  * everything it hears and does: its speech, every key pressed on the computer (typing, too), every
  * word typed, and what it says about itself. The copy a run keeps is NVDA's speech, the keys
  * voicecap pressed, and NVDA's warnings and errors. The raw log is never kept: it holds what the
- * person typed, and the account name in its paths.
+ * person typed, and the account name in its paths. NVDA is started with the log at that level by
+ * the settings `withNvdaLog` makes.
  *
  * NVDA speaks each character a person types, and logs it as speech like any other. So speech is
  * kept only while the last key NVDA logged was one voicecap pressed (or none has been logged yet),
@@ -130,4 +131,22 @@ export function cleanNvdaLog(
   });
   const text = redactHome(kept.join("\n"), options.home, options.platform);
   return kept.length === 0 ? `${CLEANED_LOG_FIRST_LINE}\n` : `${CLEANED_LOG_FIRST_LINE}\n${text}\n`;
+}
+
+/**
+ * The settings NVDA starts with: the config's own, with NVDA's log turned on at the input/output
+ * level, which holds what NVDA says and every key pressed, for the run to keep a cleaned copy of
+ * (see cleanNvdaLog). It's Guidepup's own setting, `general.loggingLevel`, and nothing else is
+ * done to NVDA to get it. The config's own settings win, a general.loggingLevel among them (one left
+ * undefined counts as none), and the rest of its general settings stay. A `general` that isn't a
+ * table of settings counts as none. New objects are made, and the config's own, which the run
+ * records, is left as it is.
+ */
+export function withNvdaLog(settings: Record<string, unknown>): Record<string, unknown> {
+  const own = settings.general;
+  const general =
+    own !== null && typeof own === "object" && !Array.isArray(own)
+      ? (own as Record<string, unknown>)
+      : {};
+  return { ...settings, general: { ...general, loggingLevel: general.loggingLevel ?? "IO" } };
 }
