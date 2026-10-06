@@ -190,22 +190,19 @@ export function summaryOf(input: SummaryInput): Summary {
   });
   const skippedInLatest = pages.filter((facts) => outcomeOf(facts) === "skipped");
   // The pages on the read-stopped card: a review doesn't settle a read that stopped before the
-  // page's end, since no later run has read the page to its end. Each is a task, unless another
-  // task already names the page.
+  // page's end, since no later run has read the page to its end. Running such a page again is a
+  // task of its own, whatever else is to be done with it (a decision on its flags, or an issue to
+  // fix): only a page the latest run couldn't read or skipped is left out, since the lines about
+  // those already say to read it again or to check whether it belongs on the list.
   const stopped = new Set(
     input.attention
       .filter((card) => card.kind === "read-stopped")
       .flatMap((card) => card.pages.map((page) => page.slug)),
   );
   const named = new Set(
-    [
-      ...withIssue,
-      ...toRecord,
-      ...unread,
-      ...readBefore.map(({ facts }) => facts),
-      ...skippedInLatest,
-      ...undecided,
-    ].map(({ page }) => page.slug),
+    [...unread, ...readBefore.map(({ facts }) => facts), ...skippedInLatest].map(
+      ({ page }) => page.slug,
+    ),
   );
   const readStopped = pages.filter(({ page }) => stopped.has(page.slug) && !named.has(page.slug));
   // The sentence's problems are the cards that come from flags (a read that stopped among them), and
@@ -499,8 +496,9 @@ interface Tasks {
    */
   readBefore: { name: string; kind: string; shownFrom: string }[];
   /**
-   * The read of the page stopped before the page's end, which a review doesn't settle, and no
-   * other task names the page.
+   * The read of the page stopped before the page's end, which a review doesn't settle: every page
+   * on the read-stopped card but those the latest run couldn't read or skipped, whose tasks above
+   * and below already name them.
    */
   readStopped: PageFacts[];
   /** The latest run skipped the page after loading it, with or without older transcripts. */
@@ -595,8 +593,8 @@ function readAgainTasks(pages: Tasks["readBefore"]): string[] {
 
 /**
  * A task, in one line, for the pages whose read stopped before the page's end: only a later run
- * that reads each to its end takes it off the list, which a review doesn't. None when there are
- * none.
+ * that reads each to its end takes it off the list, which a review doesn't. It is the page's own
+ * task, whatever else is to be done with it. None when there are none.
  */
 function readStoppedTasks(pages: PageFacts[]): string[] {
   if (pages.length === 0) return [];

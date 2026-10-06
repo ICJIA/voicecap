@@ -2425,26 +2425,32 @@ describe("summaryOf: a read that stopped before the page's end", () => {
     ]);
   });
 
-  it("names a page once: not again where another task already names it", () => {
+  it("is a task of its own for a page another task names for its flag or its issue: running it again is not that task", () => {
     const run = stoppedAt(HOW);
     const entries = (...statuses: ReviewStatus[]) =>
       reviewsOf(...statuses.map((status) => review(run, HOW, status)));
+    const runAgain =
+      "Run How a run works again with --page: its reading stopped before the page's end.";
 
-    // No one has decided about its flag: it is named for the decision.
+    // No one has decided about its flag: it is to be run again, and to be decided about.
     expect(summarize({ runs: [run] }).todo).toEqual([
+      runAgain,
       "Take a closer listen to How a run works, where flags were raised, and record what you decide.",
     ]);
-    // An issue is open on it: it is named for the fix.
+    // An issue is open on it: it is to be fixed, and run again.
     expect(summarize({ runs: [run], reviews: entries("issue") }).todo).toEqual([
       "Fix the issue found on How a run works, then record it as fixed.",
+      runAgain,
     ]);
-    // Found, then reviewed again with no fix recorded: it is named to record whether it was fixed.
-    const again = reviewsOf(
+    // Found, then reviewed again with no fix recorded: it is to have its fix recorded, and be run
+    // again.
+    const reviewedAgain = reviewsOf(
       review(run, HOW, "issue", { at: "2026-09-26T15:00:00-05:00" }),
       review(run, HOW, "reviewed", { at: "2026-09-26T16:00:00-05:00" }),
     );
-    expect(summarize({ runs: [run], reviews: again }).todo).toEqual([
+    expect(summarize({ runs: [run], reviews: reviewedAgain }).todo).toEqual([
       "Record whether the issue found on How a run works was fixed.",
+      runAgain,
     ]);
   });
 
