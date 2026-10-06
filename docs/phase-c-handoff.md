@@ -1,5 +1,7 @@
 # Phase C handoff: VoiceOver on the Mac
 
+> **On hold until the PC work is finished** (the owner, 2026-10-05): plan 6c, then a security audit of the PC work, come first. Then Phase C is built, followed by a separate security audit of the Mac part. See "Where things stand" for the latest.
+
 ## Status: readiness done, released in 0.4.0 (2026-09-29; spike findings below)
 
 Readiness (sub-project 1): designed (`docs/superpowers/specs/2026-09-28-readiness-design.md`) and built. The spike is done. The VoiceOver driver (sub-project 2) comes next.
@@ -238,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.10.0 on npm, released 2026-10-05 (tag `v0.10.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.11.0 on npm, released 2026-10-06 (tag `v0.11.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -280,19 +282,31 @@ The owner's standing rules, from Phases A and B:
     - **The demo:** its pages are published at voicecap.netlify.app/demo-site/, its canonical address, with relative links, canonical tags, a GET form, and exact CSP rules.
     - **Also:** the website's and the page's footers keep to the width of the text above them, and the README shows six screenshots of what voicecap makes (`pnpm readme:screenshots`).
     - **The plan's record:** its After execution lists 23 rulings and what's carried.
-    - **Still to confirm on the PC:** one real demo run with 0.10.0 records `"canonical": "https://voicecap.netlify.app/demo-site/"`, and `share --out voicecap-demo` names `voicecap.netlify.app_<day>.*`. The owner released first, and this is the real Chrome path no test drives.
-- **Being built:** the rest of the shareable report, in later releases, each plan written when the owner says:
-  - plan 6, the event log and screenshots, is built on the branch `plan-6-evidence` (Tasks 1 to 8, from `main` at 0.10.0), and is not merged or released yet (2026-10-05; the CHANGELOG's `[Unreleased]` lists it). Its plan is `docs/superpowers/plans/2026-10-05-shareable-report-plan-6-event-log-and-screenshots.md`:
-    - the footer sits at the window's bottom when a page is shorter than the window, on every page voicecap makes;
-    - each run's folder has `events.jsonl`, written as the run goes and sealed with the run (`run.json`'s new `files`, which `voicecap verify` checks). It holds the run's own events and the NVDA driver's: the NVDA lock, voicecap's NVDA and the computer's own, the browsers (with process ids), each restart and why, and the computer found locked;
-    - when another window takes the screen, the log names the program and keeps the window's title, and the failed attempt's record keeps only the program's name. No page or Word copy shows a title;
-    - each page has `pages/<slug>/screenshot.jpg`, taken through the browser's DevTools connection as the page loads, before NVDA reads it;
-    - the shareable page and its Word copy show each session's timeline and table of events, the "NVDA restarts" fact, a problem's event log lines and program, and each page's screenshot, which "Check the fingerprints" covers;
-    - **next:** real runs at the PC with the owner (the plan's "At the PC", steps 1 to 6: the demo as shipped, the program in front, and the demo again with NVDA's log turned on, for plan 6c), then the release as 0.11.0, then plan 6c.
-  - plan 6c, NVDA's own log checked against the transcripts, comes after 0.11.0. It's written from what those PC runs settle: whether NVDA's log, at the input/output level, holds `Speaking` and `Input:` entries, whether voicecap's key presses appear as `Input:` entries, and whether logging changes NVDA's timing. Until then its place on the page says "Not recorded".
+    - **Confirmed on the PC on 2026-10-06** (with 0.11.0's build): a real demo run records `"canonical": "https://voicecap.netlify.app/demo-site/"`, and its share is named `voicecap.netlify.app_2026-10-06.*`.
+  - 0.11.0 (2026-10-06) added plan 6, the event log and screenshots. Its plan is `docs/superpowers/plans/2026-10-05-shareable-report-plan-6-event-log-and-screenshots.md`, with its rulings and what the PC found in its After execution.
+    - **Footers:** the footer sits at the window's bottom when a page is shorter than the window, on every page voicecap makes.
+    - **The event log:** each run's folder has `events.jsonl`, written as the run goes, and sealed with the run in `run.json`'s new `files`, which `voicecap verify` checks.
+      - It holds the run's own events: its sessions, its pages, and each restart and why.
+      - It also holds the NVDA driver's: the NVDA lock, voicecap's NVDA and the computer's own, the browsers (with process ids), and the computer found locked.
+    - **The program in front:** when another window takes the screen, the log names the program and keeps the window's title. The failed attempt's record keeps only the program's name, so no page or Word copy shows a title. A Store app is named by its own program, such as Calculator, which the PC runs found and the release fixed.
+    - **Screenshots:** each page has `pages/<slug>/screenshot.jpg`, taken through the browser's DevTools connection as the page loads, before NVDA reads it.
+    - **The page and the Word copy** show:
+      - each session's timeline and table of events;
+      - the "NVDA restarts" fact;
+      - a problem's event-log lines and program;
+      - each page's screenshot, which "Check the fingerprints" covers.
+    - **The README** opens with two sentences on what voicecap does and why nothing off the shelf does it (the owner asked, for managers).
+    - **The PC runs** (2026-10-06) checked all of it with real NVDA. They also settled the facts plan 6c needs:
+      - NVDA's log at the input/output level is turned on through Guidepup's settings (`general.loggingLevel: "IO"`), and lands in `%TEMP%\nvda.log`, moved to `nvda-old.log` at each NVDA start;
+      - it changes neither NVDA's timing nor what it says;
+      - voicecap's keys appear in it as `Input:` lines;
+      - it also holds other windows' speech and the account name in paths.
+- **Being built:** the rest of the shareable report, each plan written when the owner says:
+  - plan 6c, NVDA's own log checked against the transcripts, is next, written from those facts. Until then, its place on the page says "Not recorded".
+  - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.
   - **The owner's decisions of 2026-10-05:** the VoiceOver work on the Mac (Phase C) waits until the PC work is finished: plans 6 and 6c, then a security audit of the PC work. Then Phase C is built, and a separate security audit of the Mac part follows.
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
-- **Tests:** 4,620 Vitest tests pass on the Windows PC, on the branch `plan-6-evidence` (4,282 on `main`), and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
+- **Tests:** 4,658 Vitest tests pass on the Windows PC, and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share`, the Word copy, `voicecap walkthrough`, and `voicecap site` need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer." A walkthrough repeats on a Mac with VoiceOver once that driver exists. Until then, repeat it on a Windows computer, with NVDA.
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.
