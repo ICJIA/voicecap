@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-06
+
 Each run records an event log, which names the program that took the screen, and a screenshot of each page. The shareable page and its Word copy show them: the event log minute by minute, and each page's screenshot. On every page voicecap makes, the footer sits at the window's bottom when the page is shorter than the window.
 
 ### Added
@@ -12,7 +14,7 @@ Each run records an event log, which names the program that took the screen, and
   - **What it holds:** each session starting and ending, with why; the NVDA lock taken and released; voicecap's NVDA started and stopped, with its process id, and each restart of it, with the reason; the computer's own NVDA shut down while voicecap runs, and started again; each browser launched and closed, and a hand-over to a new copy of itself; each attempt at a page starting, and finishing or failing; the computer found locked; and another window taking the screen.
   - **Sealed and checked:** at the end of each session, the log's SHA-256 and size go into `run.json`'s new `files`, so the run's seal covers it, and `voicecap verify` checks it: it names a log that's missing or changed, and one a completed run doesn't record. A run from before 0.11.0 has none, and `verify` passes on it.
   - **Only added to:** a line cut short by a closed window is left as it is, and the next event starts on a new line.
-- **The program that took the screen.** When another window takes the screen, voicecap asks Windows which program it was. The event log keeps the program and the window's title. The failed attempt's record keeps `program`, the program's name only, or `null` when Windows didn't say, and when voicecap's own browser was back in front by the time it looked. A title can hold private text, such as an email's subject, so the page and the Word copy never show it.
+- **The program that took the screen.** When another window takes the screen, voicecap asks Windows which program it was. The event log keeps the program and the window's title. The failed attempt's record keeps `program`, the program's name only, or `null` when Windows didn't say, and when voicecap's own browser was back in front by the time it looked. A title can hold private text, such as an email's subject, so the page and the Word copy never show it. A Store app, such as Calculator, is named by its own program, not by the host Windows runs it in.
 - **A screenshot of each page,** `pages/<slug>/screenshot.jpg`, taken through the browser's own DevTools connection as the page finishes loading, before NVDA reads it, without taking focus: the part of the page the window shows, at half its size (about 640 pixels wide), as a JPEG. The page's record keeps `screenshot`: the file's size and SHA-256, the picture's size, and when it was recorded, or the reason when none could be taken, which never fails the page. `voicecap verify` checks each file, and the shareable page's "Check the fingerprints" checks each one it shows.
 - **Minute by minute, on the shareable page and in its Word copy.** Each run's evidence shows each session as a chart, with a lane for the lock, voicecap's NVDA, the pages, and the computer's own NVDA, and a fold with every event to the millisecond. The run's facts say how many times NVDA was restarted, and why. A problem's record has the event log's lines from that attempt, and a problem of another window taking the screen says which program came to the front, by its name; the section's opening line names each such program, with how often. In the Word copy, a session is the sentences that sum it up and a table of its events. A run whose log isn't as its record says, or that has none, says so in the log's place, and a run from before 0.11.0 says which version of voicecap it used. So does each session of a run begun before 0.11.0 and finished on it, in that session's place, and the run's facts say which sessions NVDA's restarts were counted in.
 - **Screenshots on the shareable page and in its Word copy.** Each page's card and its entry in the appendix show its screenshot, with alt text, and the Word copy has the picture in the appendix. A screenshot that's missing, or isn't the file its run recorded, isn't shown, and the page says so.
@@ -22,7 +24,7 @@ Each run records an event log, which names the program that took the screen, and
   - `PageInfo.screenshot`, a `PageScreenshot` (`{ jpeg }`, or `{ error }`) that a driver gives for a page it has loaded;
   - `ForegroundError`'s `program`, the name of the program that took the screen, given as `{ program }` in its second argument;
   - `RunJson.files`, `PageRecord.screenshot` (a `ScreenshotRecord`), and `AttemptRecord.program`;
-  - the types `RunEvent`, `NewRunEvent`, `RestartReason`, `EventRecorder`, `PageScreenshot`, and `ScreenshotRecord`.
+  - the types `RunEvent`, `NewRunEvent`, `RestartReason`, `EventRecorder`, `PageScreenshot`, and `ScreenshotRecord`, and the constant `SCREENSHOT_FILE`.
 
 ### Changed
 
@@ -418,7 +420,12 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/ICJIA/voicecap/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/ICJIA/voicecap/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/ICJIA/voicecap/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/ICJIA/voicecap/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/ICJIA/voicecap/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/ICJIA/voicecap/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ICJIA/voicecap/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ICJIA/voicecap/compare/v0.4.1...v0.5.0

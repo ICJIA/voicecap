@@ -927,6 +927,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.10.0</b>: canonical site names. The page, its Word copy, the shared copies, and the website name a site by the address people visit, never an IP address, even when the run read a copy; and the website publishes the demo's own pages.",
   },
   {
+    date: "2026-10-06",
+    release: "0.11.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.11.0</b>: each run's event log, with the program that took the screen, and a screenshot of each page, on the page and in its Word copy; and footers that stay at the window's bottom.",
+  },
+  {
     date: null,
     release: null,
     pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",
