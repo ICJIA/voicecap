@@ -785,3 +785,14 @@ Real runs check A and B before the release, and settle the facts plan 6c needs.
   - A copy is kept for plan 6c's fixture, once the owner has looked it over.
 - **Across four of the runs,** every page and pass read the same words, including the pages retried after a window took the screen.
 - **Not checked:** a Chrome window closed mid-page (optional, from 0.6.0's list).
+
+**Released as 0.11.0 on 2026-10-06:**
+- the merge was 9d43499, "Prepare 0.11.0" cb3d939, and "Release v0.11.0" 3bf9d0c, tagged `v0.11.0`;
+- the handoff note is b3b6013;
+- the website builds with `@0.11` (transcripts 375f8bb), set only after npm served 0.11.0, and the live site matched a local build on all 29 addresses.
+
+The Store-app fix's own review left four small notes, carried for later:
+- the parse-only test checks stdout only; it should assert stderr is empty;
+- five comment lines run 101 columns;
+- one assertion pair is repeated, and one script capture is duplicated, in `windows-helpers.test.ts`;
+- the window script's branches are guarded by text, parse, and compile tests, with the real check at the PC.
