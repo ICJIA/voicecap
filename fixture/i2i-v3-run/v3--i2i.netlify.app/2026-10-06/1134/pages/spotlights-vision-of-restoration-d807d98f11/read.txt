@@ -1,0 +1,70 @@
+# voicecap transcript: read pass
+# Page: https://v3--i2i.netlify.app/spotlights/vision-of-restoration/
+# Final URL: https://v3--i2i.netlify.app/spotlights/vision-of-restoration/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_1134 (started 2026-10-06T11:34:27-05:00)
+# Captured: 2026-10-06T12:29:53-05:00
+# Steps: 45 (stopped: end reached)
+# Duration: 58s
+# Errors: none
+# Warnings: none
+# Page source: page list page-lists/v3--i2i.netlify.app.csv (sha256 5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1)
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0 (config sha256 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, list, with 4 items, link, Newsletter (opens in a new window)
+[to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+same page, link, Skip to navigation
+banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+link, INSTITUTE 2 INNOVATE
+Main, navigation landmark, link, Overview
+button, collapsed, Resources
+link, Newsletter (opens in new tab)
+link, Contact
+link, Search
+main landmark, heading, level 1, VISION OF RESTORATION
+figure, graphic, Vision of Restoration, Inc. logo
+out of figure, Vision of Restoration strives to advance the welfare, quality of life, and unity of children and
+adults by providing comprehensive, rehabilitative programs and services within the community. their
+scope of programs includes mental health and social services, career development and enrichment,
+housing assistance, economic development, and educational services.
+heading, level 2, same page, link, Mission
+Vision of Restoration is committed to enhancing the well-being, quality of life, and unity of
+children and adults through comprehensive rehabilitative programs. Their diverse offerings include
+mental health services, career development, housing assistance, economic development, and education.
+Recent Developments since joining the i 2i program include:
+list, with 5 items, bullet
+GATA Pre-Qualification (Sep 2023): Achieved GATA Pre-Qualification, showcasing their commitment to
+excellence in community services.
+bullet
+Leadership Advancement: Steven Dailey, who engaged in the i 2i program, was promoted from Program
+Manager to Executive Director.
+bullet
+Strategic Expansion: Currently expanding the Board of Directors for diverse perspectives and
+expertise.
+bullet
+Enhanced Online Presence: Updating their website for improved community engagement and transparency.
+bullet
+Employee Handbook Expansion: Expanding the employee handbook to foster a supportive and inclusive
+work environment.
+out of list, Vision of Restoration remains dedicated to making a positive impact on the community, striving to
+build a space where individuals can thrive and reach their full potential.
+heading, level 2, Visit Vision of Restoration, link, http: slash slash www dot vorhelp dot org slash (opens in a new window)
+content info landmark, link, Visit ICJIA website (opens in a new window)
+list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)
+link, Privacy
+link, Contact
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)

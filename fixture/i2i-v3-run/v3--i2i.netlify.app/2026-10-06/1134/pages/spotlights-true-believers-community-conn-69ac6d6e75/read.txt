@@ -1,0 +1,102 @@
+# voicecap transcript: read pass
+# Page: https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/
+# Final URL: https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_1134 (started 2026-10-06T11:34:27-05:00)
+# Captured: 2026-10-06T12:26:31-05:00
+# Steps: 77 (stopped: end reached)
+# Duration: 1m 38s
+# Errors: none
+# Warnings: none
+# Page source: page list page-lists/v3--i2i.netlify.app.csv (sha256 5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1)
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0 (config sha256 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, list, with 4 items, link, Newsletter (opens in a new window)
+[to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+same page, link, Skip to navigation
+banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+link, INSTITUTE 2 INNOVATE
+Main, navigation landmark, link, Overview
+button, collapsed, Resources
+link, Newsletter (opens in new tab)
+link, Contact
+link, Search
+main landmark, heading, level 1, TRUE BELIEVERS COMMUNITY CONNECTIONS (TBCC)
+Empowering Tomorrow's Leaders
+figure, graphic, True Believers Community Connections (TBCC) logo
+out of figure, True Believers Community Connections (TBCC) is an organization deeply committed to empowering
+individuals through education and training, serving as a catalyst for leadership development. With
+a strong vision, TBCC aims to become a cornerstone resource and a primary service provider for
+emerging leaders, focusing on Mentoring, Youth Development, Leadership Development, and Workforce
+Development.
+heading, level 2, same page, link, Mission
+TBCC’s mission is to foster community relations throughout the local community by collaborating
+with community partners to offer supportive services for youth slash young adults aged 11 to 24 in the
+Auburn Gresham and Englewood communities.
+Recent Developments since joining the i 2i program include:
+list, with 10 items, bullet
+Increased Youth Involvement (377)
+bullet
+Increased Youth Connection to Resources (406)
+bullet
+Increased Family Communication and Supervision (202)
+bullet
+Increased Life Skills (Youth and Parents) (788)
+bullet
+Increased College and Career Readiness (238)
+bullet
+Increased Parent Involvement (Academic and Relational) (107)
+bullet
+Improved the physical Climate (School Climate Beautification and Advocacy) (67)
+bullet
+Total Activities (2,492)
+bullet
+Doubled their operational budget in the year 2023
+bullet
+Hosted their 10th year Stay Lit (Live in Truth) on Gala November 3, 2023
+out of list, heading, level 2, Visit True Believers Community Connections (TBCC), link, https: slash slash www dot truebelieverscc dot org slash (opens in a new
+link, window)
+heading, level 2, Photo Gallery
+tab, selected, Photo collage: two women in black blazers stacking boxes of Cuties diapers in a warehouse
+tab, A woman in a sparkling orange dress and a man in a blue suit smiling together at a formal event
+tab, Photo collage from a Network 11 Schools event, including a SY 23 Community Partner Award' slide and
+tab, a group receiving the award
+tab, Photo collage from an outdoor community event: people posing with police officers, tents on a lawn,
+tab, and volunteers at tables
+tab, A woman in a light green gown speaking at the microphone on a stage decorated with balloons and
+tab, gold stars in front of large STAY LIT' letters
+tab, A woman in a pale green gown and a man in a gray suit posing together on the decorated stage
+tab, beneath a gold star balloon
+tab, Guests seated at gold-sequin tables in a banquet room, with the STAY LIT' stage and a table of
+tab, awards and gift bags
+tab, A folded white napkin on a gold charger plate holding a 10 Year Anniversary — True Believers
+tab, Community Connections' card
+figure, graphic, Photo collage: two women in black blazers stacking boxes of Cuties diapers in a warehouse (Photo
+graphic, Gallery, full size, photo 1 of 8)
+out of figure, button, Previous photo
+Photo 1 of 8
+button, Next photo
+Keyboard:, press
+graphic, Left arrow
+or
+graphic, Right arrow
+to change the photo.
+content info landmark, link, Visit ICJIA website (opens in a new window)
+list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)
+link, Privacy
+link, Contact
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)

@@ -1,0 +1,788 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/program-overview/",
+    "key": "https://v3--i2i.netlify.app/program-overview",
+    "slug": "program-overview-4fa6ba48dc",
+    "finalUrl": "https://v3--i2i.netlify.app/program-overview/"
+  },
+  "capturedAt": "2026-10-06T12:07:33-05:00",
+  "durationMs": 123886,
+  "stepCount": 97,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1274,
+      "offsetMs": 1274
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1281,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1278,
+      "offsetMs": 3834
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1281,
+      "offsetMs": 5115
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1277,
+      "offsetMs": 6392
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, same page, link, current page, Overview",
+      "durationMs": 1276,
+      "offsetMs": 7668
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1277,
+      "offsetMs": 8945
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1274,
+      "offsetMs": 10218
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1276,
+      "offsetMs": 11494
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1274,
+      "offsetMs": 12768
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, Behind the Founding of i 2i",
+      "durationMs": 1279,
+      "offsetMs": 14047
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "In the diverse landscape of the State of Illinois, thousands of organizations diligently engage",
+      "durationMs": 1282,
+      "offsetMs": 15329
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "with communities, striving to make a difference. However, the struggle with capacity remains a",
+      "durationMs": 1284,
+      "offsetMs": 16613
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "common challenge, exacerbated by historical disinvestment that has left many grassroots",
+      "durationMs": 1279,
+      "offsetMs": 17891
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "organizations vulnerable and at risk of dissolution.",
+      "durationMs": 1278,
+      "offsetMs": 19170
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "These organizations face fundamental challenges and organizational needs that demand urgent",
+      "durationMs": 1280,
+      "offsetMs": 20450
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "attention. i 2i emerged as a response to this pressing issue, aiming to be a transformative force.",
+      "durationMs": 1276,
+      "offsetMs": 21726
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "Its inception acknowledges the precarious position of grassroots organizations and their essential",
+      "durationMs": 1284,
+      "offsetMs": 23010
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "role in community well-being amid historical disinvestments.",
+      "durationMs": 1278,
+      "offsetMs": 24288
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "Historical disinvestment has cast a shadow over the resilience of grassroots organizations, and i 2i",
+      "durationMs": 1282,
+      "offsetMs": 25570
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "stands committed to addressing these challenges. Firm in the belief that with the right resources",
+      "durationMs": 1276,
+      "offsetMs": 26846
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "and assistance, these grassroots organizations can not only weather the storm but thrive.",
+      "durationMs": 1280,
+      "offsetMs": 28126
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "i 2i focuses on grassroots organizations dedicated to changing the circumstances of violence in",
+      "durationMs": 1277,
+      "offsetMs": 29403
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "their communities. By providing essential support, i 2i becomes a resource to ensure that their",
+      "durationMs": 1272,
+      "offsetMs": 30676
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "capacity is not merely sustained but elevated, guiding them on a path to sustainability.",
+      "durationMs": 1276,
+      "offsetMs": 31952
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "Together, we shape a future where capacity is not a barrier but a steppingstone to sustained impact.",
+      "durationMs": 1276,
+      "offsetMs": 33228
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "heading, level 2, i 2i Overview",
+      "durationMs": 1277,
+      "offsetMs": 34505
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Welcome to Institute to Innovate (i 2i)",
+      "durationMs": 1277,
+      "offsetMs": 35782
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "i 2i, an initiative launched by the Illinois Criminal Justice Information Authority (ICJIA), is an",
+      "durationMs": 1276,
+      "offsetMs": 37058
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "innovative, capacity-building hub, that empowers statewide community-based organizations by providing",
+      "durationMs": 1284,
+      "offsetMs": 38342
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "tailored support to, strengthen infrastructure, increase sustainability, and address critical",
+      "durationMs": 1274,
+      "offsetMs": 39616
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "capacity needs, dot",
+      "durationMs": 1269,
+      "offsetMs": 40885
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "heading, level 3, What exactly is capacity building?",
+      "durationMs": 1277,
+      "offsetMs": 42162
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "Capacity building is the intentional process of, developing and strengthening the skills, systems,",
+      "durationMs": 1279,
+      "offsetMs": 43440
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "processes, and resources, an organization needs to operate effectively and sustainably.",
+      "durationMs": 1278,
+      "offsetMs": 44718
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "i 2i is dedicated to providing support to grassroots organizations and community groups by",
+      "durationMs": 1276,
+      "offsetMs": 45994
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "strengthening their capacity.",
+      "durationMs": 1280,
+      "offsetMs": 47274
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "block quote, graphic, Delrice Adams",
+      "durationMs": 1275,
+      "offsetMs": 48548
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "Our commitment to public safety starts with an ongoing investment in you, ensuring lasting impact.",
+      "durationMs": 1278,
+      "offsetMs": 49827
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "– Delrice Adams, ICJIA Executive Director",
+      "durationMs": 1278,
+      "offsetMs": 51105
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "out of block quote, heading, level 3, Examples of Capacity Building",
+      "durationMs": 1276,
+      "offsetMs": 52382
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, bullet Leadership development",
+      "durationMs": 1277,
+      "offsetMs": 53659
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "bullet Financial Management",
+      "durationMs": 1279,
+      "offsetMs": 54938
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "bullet Technology Improvements",
+      "durationMs": 1280,
+      "offsetMs": 56218
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "bullet Strategic Planning",
+      "durationMs": 1279,
+      "offsetMs": 57497
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 3, i 2i Capacity Building Services",
+      "durationMs": 1278,
+      "offsetMs": 58775
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "list, with 7 items, bullet Vision and Impact",
+      "durationMs": 1278,
+      "offsetMs": 60053
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "bullet Governance and leadership",
+      "durationMs": 1278,
+      "offsetMs": 61332
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "bullet Program delivery",
+      "durationMs": 1276,
+      "offsetMs": 62608
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "bullet Resource generation",
+      "durationMs": 1272,
+      "offsetMs": 63880
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "bullet Internal operations and management",
+      "durationMs": 1275,
+      "offsetMs": 65155
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "bullet Evaluation and learning",
+      "durationMs": 1275,
+      "offsetMs": 66430
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "bullet Strategic relationships",
+      "durationMs": 1278,
+      "offsetMs": 67708
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 3, An Inclusive Cohort Approach",
+      "durationMs": 1277,
+      "offsetMs": 68985
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "i 2i welcomes cohort members, including, local organizations interested in funding from the state of",
+      "durationMs": 1277,
+      "offsetMs": 70262
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "Illinois and current grantees facing capacity constraints., Our commitment lies in fostering an",
+      "durationMs": 1281,
+      "offsetMs": 71543
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "inclusive environment, ensuring that organizations at various stages of development benefit from",
+      "durationMs": 1277,
+      "offsetMs": 72821
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "our expertise. Drawing from the wisdom of the National Council of Nonprofits,, we define nonprofit",
+      "durationMs": 1280,
+      "offsetMs": 74100
+    },
+    {
+      "n": 59,
+      "command": "nextLine",
+      "spoken": "capacity building as more than a one-time effort; it's a continuous improvement strategy., This",
+      "durationMs": 1279,
+      "offsetMs": 75379
+    },
+    {
+      "n": 60,
+      "command": "nextLine",
+      "spoken": "strategic approach serves as the key to bringing a nonprofit to the next level of operational,",
+      "durationMs": 1277,
+      "offsetMs": 76656
+    },
+    {
+      "n": 61,
+      "command": "nextLine",
+      "spoken": "programmatic, financial, and organizational maturity, enabling more effective and efficient",
+      "durationMs": 1277,
+      "offsetMs": 77933
+    },
+    {
+      "n": 62,
+      "command": "nextLine",
+      "spoken": "advancement of their mission into the future.",
+      "durationMs": 1274,
+      "offsetMs": 79207
+    },
+    {
+      "n": 63,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Program Structure",
+      "durationMs": 1275,
+      "offsetMs": 80482
+    },
+    {
+      "n": 64,
+      "command": "nextLine",
+      "spoken": "heading, level 4, Phase One: Institute Program (6 months)",
+      "durationMs": 1277,
+      "offsetMs": 81759
+    },
+    {
+      "n": 65,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, bullet Biweekly 3-hour capacity building workshops",
+      "durationMs": 1272,
+      "offsetMs": 83032
+    },
+    {
+      "n": 66,
+      "command": "nextLine",
+      "spoken": "bullet One-on-one coaching",
+      "durationMs": 1280,
+      "offsetMs": 84311
+    },
+    {
+      "n": 67,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 4, Phase Two: Assisted Implementation (12 months)",
+      "durationMs": 1274,
+      "offsetMs": 85586
+    },
+    {
+      "n": 68,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, bullet Continued one-on-one coaching",
+      "durationMs": 1272,
+      "offsetMs": 86857
+    },
+    {
+      "n": 69,
+      "command": "nextLine",
+      "spoken": "bullet Monthly workshops tailored to specific needs",
+      "durationMs": 1275,
+      "offsetMs": 88132
+    },
+    {
+      "n": 70,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 3, How do I know if I qualify for i 2i support?",
+      "durationMs": 1276,
+      "offsetMs": 89408
+    },
+    {
+      "n": 71,
+      "command": "nextLine",
+      "spoken": "If your organization...",
+      "durationMs": 1277,
+      "offsetMs": 90685
+    },
+    {
+      "n": 72,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, check",
+      "durationMs": 1279,
+      "offsetMs": 91963
+    },
+    {
+      "n": 73,
+      "command": "nextLine",
+      "spoken": "Has an established presence as a grassroots organization (budget under $2 million)",
+      "durationMs": 1276,
+      "offsetMs": 93239
+    },
+    {
+      "n": 74,
+      "command": "nextLine",
+      "spoken": "check",
+      "durationMs": 1272,
+      "offsetMs": 94512
+    },
+    {
+      "n": 75,
+      "command": "nextLine",
+      "spoken": "Serves an average of 100 plus individuals in the last 3 years",
+      "durationMs": 1272,
+      "offsetMs": 95783
+    },
+    {
+      "n": 76,
+      "command": "nextLine",
+      "spoken": "check",
+      "durationMs": 1279,
+      "offsetMs": 97062
+    },
+    {
+      "n": 77,
+      "command": "nextLine",
+      "spoken": "Exhibits a dedication to serve the community and reduce violence",
+      "durationMs": 1275,
+      "offsetMs": 98337
+    },
+    {
+      "n": 78,
+      "command": "nextLine",
+      "spoken": "check",
+      "durationMs": 1281,
+      "offsetMs": 99618
+    },
+    {
+      "n": 79,
+      "command": "nextLine",
+      "spoken": "Demonstrates a commitment to participating in the 18-month program requirement",
+      "durationMs": 1276,
+      "offsetMs": 100894
+    },
+    {
+      "n": 80,
+      "command": "nextLine",
+      "spoken": "out of list, ...you qualify for participation in the i 2i cohort training process.",
+      "durationMs": 1281,
+      "offsetMs": 102175
+    },
+    {
+      "n": 81,
+      "command": "nextLine",
+      "spoken": "heading, level 3, Application Process",
+      "durationMs": 1286,
+      "offsetMs": 103461
+    },
+    {
+      "n": 82,
+      "command": "nextLine",
+      "spoken": "list, with 5 items, 1. Complete a Request for Information (RFI) on the i 2i website.",
+      "durationMs": 1283,
+      "offsetMs": 104744
+    },
+    {
+      "n": 83,
+      "command": "nextLine",
+      "spoken": "2. Attend the i 2i orientation to learn more about the program structure, requirements, timeline,",
+      "durationMs": 1276,
+      "offsetMs": 106020
+    },
+    {
+      "n": 84,
+      "command": "nextLine",
+      "spoken": "and expectations.",
+      "durationMs": 1277,
+      "offsetMs": 107297
+    },
+    {
+      "n": 85,
+      "command": "nextLine",
+      "spoken": "3. Meet with an i 2i coach to further assess capacity-building needs.",
+      "durationMs": 1273,
+      "offsetMs": 108569
+    },
+    {
+      "n": 86,
+      "command": "nextLine",
+      "spoken": "4. i 2i matches each organization with coaches who can provide support aligned with its goals and",
+      "durationMs": 1277,
+      "offsetMs": 109846
+    },
+    {
+      "n": 87,
+      "command": "nextLine",
+      "spoken": "needs.",
+      "durationMs": 1275,
+      "offsetMs": 111121
+    },
+    {
+      "n": 88,
+      "command": "nextLine",
+      "spoken": "5. Once matched with a coach, the organization officially becomes part of the cohort and begins the",
+      "durationMs": 1272,
+      "offsetMs": 112393
+    },
+    {
+      "n": 89,
+      "command": "nextLine",
+      "spoken": "training process.",
+      "durationMs": 1273,
+      "offsetMs": 113667
+    },
+    {
+      "n": 90,
+      "command": "nextLine",
+      "spoken": "out of list, Next:, link, The PARLOR Process, — the evidence-informed approach behind all i 2i training.",
+      "durationMs": 1276,
+      "offsetMs": 114942
+    },
+    {
+      "n": 91,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 116222
+    },
+    {
+      "n": 92,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 117501
+    },
+    {
+      "n": 93,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1280,
+      "offsetMs": 118781
+    },
+    {
+      "n": 94,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1274,
+      "offsetMs": 120055
+    },
+    {
+      "n": 95,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 121330
+    },
+    {
+      "n": 96,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 122604
+    },
+    {
+      "n": 97,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1282,
+      "offsetMs": 123886
+    }
+  ]
+}

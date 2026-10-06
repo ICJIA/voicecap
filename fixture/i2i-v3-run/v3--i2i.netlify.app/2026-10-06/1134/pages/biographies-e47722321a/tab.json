@@ -1,0 +1,479 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "tab",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/biographies/",
+    "key": "https://v3--i2i.netlify.app/biographies",
+    "slug": "biographies-e47722321a",
+    "finalUrl": "https://v3--i2i.netlify.app/biographies/"
+  },
+  "capturedAt": "2026-10-06T11:40:04-05:00",
+  "durationMs": 34384,
+  "stepCount": 25,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1328,
+      "offsetMs": 1329,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main-content"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Skip to navigation, same page, link",
+      "durationMs": 1311,
+      "offsetMs": 2639,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to navigation",
+        "inMain": false,
+        "href": "#main-navigation"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, link",
+      "durationMs": 1315,
+      "offsetMs": 3954,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "i2i Logo INSTITUTE 2 INNOVATE",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, Overview, link",
+      "durationMs": 1317,
+      "offsetMs": 5271,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Overview",
+        "inMain": false,
+        "href": "/program-overview/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Resources, button, collapsed",
+      "durationMs": 1312,
+      "offsetMs": 6582,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Resources",
+        "inMain": false,
+        "href": null
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in new tab), link",
+      "durationMs": 1330,
+      "offsetMs": 7912,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in new tab)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1311,
+      "offsetMs": 9224,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Search, link",
+      "durationMs": 1320,
+      "offsetMs": 10543,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Search",
+        "inMain": false,
+        "href": "/search/"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "main landmark, figure, Headshot of Demetri Alexakos, graphic, out of figure, Demetri Alexakos, heading, level 2, i 2i Capacity Building Coach, Demetri Alexakos holds a bachelor’s degree in Political Science from the University of Illinois at Chicago and a master’s in Public Policy and Administration from Northwestern University. With over a decade of experience in economic development nonprofits on Chicago’s South and Southwest Sides, Demetri uses innovative data analysis and Geographic Information System (GIS) visualization to tell the story of communities. His work has deepened his understanding of the power of community outreach and grassroots advocacy. In his free time, Demetri enjoys exploring diverse neighborhoods, finding the perfect spot to hang his hammock between two trees, and attending comedy improv shows, embracing the YES, AND... mindset in both work and life., link",
+      "durationMs": 1320,
+      "offsetMs": 11863,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Demetri Alexakos i2i Capacity Building Coach Demetri Alexakos holds a bachelor’s degree in Political Science from the University of Illinois at Chicago and a master’s in Public Policy & Administration from Northwestern University. With over a decade of experience in economic development nonprofits on Chicago’s South and Southwest Sides, Demetri uses innovative data analysis and Geographic Information System (GIS) visualization to tell the story of communities. His work has deepened his understanding of the power of community outreach and grassroots advocacy. In his free time, Demetri enjoys exploring diverse neighborhoods, finding the perfect spot to hang his hammock between two trees, and attending comedy improv shows, embracing the “YES, AND...” mindset in both work and life.",
+        "inMain": true,
+        "href": "/biographies/demetri-alexakos/"
+      }
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Chandrea Chaiyarat, graphic, out of figure, Chandrea Chaiyarat, heading, level 2, i 2i Capacity Building Coach, Chandrea Chaiyarat is an accomplished Program Manager specializing in community health work and workforce development. In her recent position, she successfully led initiatives related to CHW Research, Outcomes, and Workforce Development, demonstrating proficiency in project planning, community engagement, and CHW program development. With a master's in human resources development, Chandrea has a solid background in training coordination, HR, and professional development. Her diverse experience includes roles in security services and an educational commission, highlighting her adaptability. Possessing strong communication and organizational skills, Chandrea brings valuable expertise to any organization navigating dynamic work environments., link",
+      "durationMs": 1312,
+      "offsetMs": 13176,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Chandrea Chaiyarat i2i Capacity Building Coach Chandrea Chaiyarat is an accomplished Program Manager specializing in community health work and workforce development. In her recent position, she successfully led initiatives related to CHW Research, Outcomes, and Workforce Development, demonstrating proficiency in project planning, community engagement, and CHW program development. With a master's in human resources development, Chandrea has a solid background in training coordination, HR, and professional development. Her diverse experience includes roles in security services and an educational commission, highlighting her adaptability. Possessing strong communication and organizational skills, Chandrea brings valuable expertise to any organization navigating dynamic work environments.",
+        "inMain": true,
+        "href": "/biographies/chandrea-chaiyarat/"
+      }
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Clair Daney, graphic, out of figure, Clair Daney, heading, level 2, i 2i Capacity Building Coach, Originally from the Washington, D dot C. area, Clair received her master's degree in art therapy from the School of the Art Institute of Chicago, became a Licensed Professional Counselor, and provided services for Chicago Public Schools students and adults with chronic mental illness before starting her career as a grant writer., link",
+      "durationMs": 1309,
+      "offsetMs": 14485,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Clair Daney i2i Capacity Building Coach Originally from the Washington, D.C. area, Clair received her master's degree in art therapy from the School of the Art Institute of Chicago, became a Licensed Professional Counselor, and provided services for Chicago Public Schools students and adults with chronic mental illness before starting her career as a grant writer.",
+        "inMain": true,
+        "href": "/biographies/clair-daney/"
+      }
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Dr. Cornelius Davis Sr., graphic, out of figure, Dr. Cornelius Davis Sr., heading, level 2, i 2i Capacity Building Coach, As the capacity Building Coach at the Illinois Criminal Justice Information Authority, Dr. Davis brings over two decades of exceptional leadership experience with a strong focus in community engagement and strategic planning. Hailing from Chicago, Illinois, Dr. Davis holds both his Bachelors (B dot S dot W.) and Masters (M dot Min) from Olivet Nazarene University. He is a proud Blue Demon of his alma mater, De Paul University, where he received his Doctorate of Education in Educational Leadership. Dr. Davis dedication to lifelong learning and serving is unmatched., link",
+      "durationMs": 1318,
+      "offsetMs": 15802,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Dr. Cornelius Davis Sr. i2i Capacity Building Coach As the capacity Building Coach at the Illinois Criminal Justice Information Authority, Dr. Davis brings over two decades of exceptional leadership experience with a strong focus in community engagement and strategic planning. Hailing from Chicago, Illinois, Dr. Davis holds both his Bachelors (B.S.W.) and Masters (M.Min) from Olivet Nazarene University. He is a proud Blue Demon of his alma mater, DePaul University, where he received his Doctorate of Education in Educational Leadership. Dr. Davis dedication to lifelong learning and serving is unmatched.",
+        "inMain": true,
+        "href": "/biographies/cornelius-davis/"
+      }
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Aaliyah Gaston, graphic, out of figure, Aaliyah Gaston, heading, level 2, i 2i Capacity Building Coach, With extensive event production and management experience, Aaliyah is a proactive self-starter. She led impactful strategic initiatives, executing major marketing campaigns for Fortune 100 brands like Mc Donald's and New Balance. A trailblazer in fashion-based narrative storytelling, Aaliyah launched product lines that reshaped global culture. Passionate about entrepreneurship, she fosters productivity and happiness in her community. A dedicated volunteer for the Obama Foundation and Director of Public Relations for Community Goods, a Chicago-based arts-education nonprofit, Aaliyah is a proud Mississippi State University Department of Communications graduate, committed to creating transformative work that changes lives., link",
+      "durationMs": 1317,
+      "offsetMs": 17119,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Aaliyah Gaston i2i Capacity Building Coach With extensive event production and management experience, Aaliyah is a proactive self-starter. She led impactful strategic initiatives, executing major marketing campaigns for Fortune 100 brands like McDonald's and New Balance. A trailblazer in fashion-based narrative storytelling, Aaliyah launched product lines that reshaped global culture. Passionate about entrepreneurship, she fosters productivity and happiness in her community. A dedicated volunteer for the Obama Foundation and Director of Public Relations for Community Goods, a Chicago-based arts-education nonprofit, Aaliyah is a proud Mississippi State University Department of Communications graduate, committed to creating transformative work that changes lives.",
+        "inMain": true,
+        "href": "/biographies/aaliyah-gaston/"
+      }
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "figure, No photograph yet of Andrea Gatewood, graphic, out of figure, Andrea Gatewood, heading, level 2, ICJIA Community Engagement Manager, Andrea Gatewood serves as the Manager of Community Engagement for the Illinois Criminal Justice Information Authority. Gatewood holds a bachelor's degree in political science and a master's degree in Urban Regional Planning from Jackson State University. As the Manager of Community Engagement for ICJIA programs, she works with both external and internal partners to develop and implement strategic and comprehensive outreach strategies. She has worked to revitalize communities through building partnerships, relentless engagement, and a keen focus on advocacy., link",
+      "durationMs": 1313,
+      "offsetMs": 18432,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Andrea Gatewood ICJIA Community Engagement Manager Andrea Gatewood serves as the Manager of Community Engagement for the Illinois Criminal Justice Information Authority. Gatewood holds a bachelor's degree in political science and a master's degree in Urban Regional Planning from Jackson State University. As the Manager of Community Engagement for ICJIA programs, she works with both external and internal partners to develop and implement strategic and comprehensive outreach strategies. She has worked to revitalize communities through building partnerships, relentless engagement, and a keen focus on advocacy.",
+        "inMain": true,
+        "href": "/biographies/andrea-gatewood/"
+      }
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Brandon Hilton, graphic, out of figure, Brandon Hilton, heading, level 2, i 2i Capacity Building Coach, Bringing over 18 years of HR consulting experience, the professional excels in diverse sectors like Healthcare, Marketing, Sales, IT, Engineering, Education, Supply Chain, Operations, Accounting, and Finance. Brandon’s accomplishments include building diverse teams, forging strategic partnerships in recruitment and operations, and consulting with senior management. Proficient in various HR facets, he handles talent acquisition, retention, benefits, compensation, employee relations, and marketing strategies. With a keen eye on budgets and business development, they've contributed to the growth of new acquisitions. Committed to fostering compliance, the expert develops and trains employees to enhance retention and company culture. Ultimately, their goal is to propel companies beyond benchmark goals, optimize resources, and expand target markets swiftly through analytical research and innovative marketing, all while prioritizing excellent customer service., link",
+      "durationMs": 1318,
+      "offsetMs": 19750,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Brandon Hilton i2i Capacity Building Coach Bringing over 18 years of HR consulting experience, the professional excels in diverse sectors like Healthcare, Marketing, Sales, IT, Engineering, Education, Supply Chain, Operations, Accounting, and Finance. Brandon’s accomplishments include building diverse teams, forging strategic partnerships in recruitment and operations, and consulting with senior management. Proficient in various HR facets, he handles talent acquisition, retention, benefits, compensation, employee relations, and marketing strategies. With a keen eye on budgets and business development, they've contributed to the growth of new acquisitions. Committed to fostering compliance, the expert develops and trains employees to enhance retention and company culture. Ultimately, their goal is to propel companies beyond benchmark goals, optimize resources, and expand target markets swiftly through analytical research and innovative marketing, all while prioritizing excellent customer service.",
+        "inMain": true,
+        "href": "/biographies/brandon-hilton/"
+      }
+    },
+    {
+      "n": 16,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Dr. Michelle Martinez, graphic, out of figure, Dr. Michelle Martinez, heading, level 2, i 2i Capacity Building Coach, Dr. Michelle Martinez is a bilingual (English slash Spanish) clinical psychologist with over 10 years of experience advancing community-based violence prevention and capacity-building efforts across Chicagoland. She is a Mc Nair Scholar and earned her Bachelor’s degree in Psychology from the University of Illinois at Urbana-Champaign, and her Master’s and Doctorate in Clinical Psychology from Midwestern University. Her work is grounded in trauma-informed, culturally responsive, and inclusive approaches supporting individuals and organizations. She has led program evaluation, partnered with stakeholders, and co-founded a national initiative supporting emerging professionals from historically underrepresented communities. Dr. Martinez is also a published author and brings a strong foundation in research to her work advancing scalable, equity-driven strategies that strengthen community systems and promote long-term safety and wellness., link",
+      "durationMs": 1318,
+      "offsetMs": 21069,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Dr. Michelle Martinez i2i Capacity Building Coach Dr. Michelle Martinez is a bilingual (English/Spanish) clinical psychologist with over 10 years of experience advancing community-based violence prevention and capacity-building efforts across Chicagoland. She is a McNair Scholar and earned her Bachelor’s degree in Psychology from the University of Illinois at Urbana-Champaign, and her Master’s and Doctorate in Clinical Psychology from Midwestern University. Her work is grounded in trauma-informed, culturally responsive, and inclusive approaches supporting individuals and organizations. She has led program evaluation, partnered with stakeholders, and co-founded a national initiative supporting emerging professionals from historically underrepresented communities. Dr. Martinez is also a published author and brings a strong foundation in research to her work advancing scalable, equity-driven strategies that strengthen community systems and promote long-term safety and wellness.",
+        "inMain": true,
+        "href": "/biographies/dr-michelle-martinez/"
+      }
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Katherine L. Staten, graphic, out of figure, Katherine L. Staten, heading, level 2, i 2i Capacity Building Coach, Katherine L. Staten has been a health and human service professional for well over 30 years. Her experience includes administering state and federal social service programming in local communities and working in communities that impacted national research regarding evidenced-based programming., link",
+      "durationMs": 1325,
+      "offsetMs": 22393,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Katherine L. Staten i2i Capacity Building Coach Katherine L. Staten has been a health and human service professional for well over 30 years. Her experience includes administering state and federal social service programming in local communities and working in communities that impacted national research regarding evidenced-based programming.",
+        "inMain": true,
+        "href": "/biographies/katherine-l-staten/"
+      }
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Courtney Wade, graphic, out of figure, Courtney Wade, heading, level 2, i 2i Capacity Building Coach, Courtney Wade has been in the field of social services and behavioral support and analysis for over 20 years. Specializing in work with individuals deemed developmentally delayed and with mental illness, and most recently, accounting and procurement, she has assisted with providing appropriate housing, jobs, and many other resources to many individuals within the served communities., link",
+      "durationMs": 1310,
+      "offsetMs": 23703,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Courtney Wade i2i Capacity Building Coach Courtney Wade has been in the field of social services and behavioral support and analysis for over 20 years. Specializing in work with individuals deemed developmentally delayed and with mental illness, and most recently, accounting and procurement, she has assisted with providing appropriate housing, jobs, and many other resources to many individuals within the served communities.",
+        "inMain": true,
+        "href": "/biographies/courtney-wade/"
+      }
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "figure, Headshot of Dr. Tasha Williams, graphic, out of figure, Dr. Tasha Williams, heading, level 2, i 2i Capacity Building Coach, Dr. Tasha Williams has served as an Assistant Professor of Business, Dean of Business Programs, and Dean of Juvenile Correctional Programs at various universities and colleges in Illinois. Dr. Tasha has also served as an Executive Director and Capacity Building Program and Fiscal Manager for community organizations around the State of Illinois. Dr. Tasha earned her bachelor’s degree from the University of Missouri St. Louis in 2007, her master’s in business administration (M dot B dot A) with a concentration in finance from Colorado Technical University in 2009, and her Doctorate in Education, with a focus on Interdisciplinary Leadership and Higher Education, from Governors State University in 2017. Dr. Tasha has developed and implemented mentoring programs for youth serving nonprofit organizations around the State of Illinois. She founded a nonprofit organization called Save One Life Foundation, which works with reentry youth to provide opportunities for them to become productive members of society., link",
+      "durationMs": 1314,
+      "offsetMs": 25018,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Dr. Tasha Williams i2i Capacity Building Coach Dr. Tasha Williams has served as an Assistant Professor of Business, Dean of Business Programs, and Dean of Juvenile Correctional Programs at various universities and colleges in Illinois. Dr. Tasha has also served as an Executive Director and Capacity Building Program and Fiscal Manager for community organizations around the State of Illinois. Dr. Tasha earned her bachelor’s degree from the University of Missouri St. Louis in 2007, her master’s in business administration (M.B.A) with a concentration in finance from Colorado Technical University in 2009, and her Doctorate in Education, with a focus on Interdisciplinary Leadership and Higher Education, from Governors State University in 2017. Dr. Tasha has developed and implemented mentoring programs for youth serving nonprofit organizations around the State of Illinois. She founded a nonprofit organization called Save One Life Foundation, which works with reentry youth to provide opportunities for them to become productive members of society.",
+        "inMain": true,
+        "href": "/biographies/dr-tasha-williams/"
+      }
+    },
+    {
+      "n": 20,
+      "command": "nextFocusable",
+      "spoken": "content info landmark, Visit ICJIA website (opens in a new window), link",
+      "durationMs": 1314,
+      "offsetMs": 26332,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA website (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 21,
+      "command": "nextFocusable",
+      "spoken": "list, with 4 items, Illinois Criminal Justice Information Authority (opens in a new window), link",
+      "durationMs": 1325,
+      "offsetMs": 27657,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Illinois Criminal Justice Information Authority (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 22,
+      "command": "nextFocusable",
+      "spoken": "Privacy, link",
+      "durationMs": 1326,
+      "offsetMs": 28983,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Privacy",
+        "inMain": false,
+        "href": "/privacy/"
+      }
+    },
+    {
+      "n": 23,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1311,
+      "offsetMs": 30294,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 24,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in a new window), link",
+      "durationMs": 1329,
+      "offsetMs": 31623,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in a new window)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 25,
+      "command": "nextFocusable",
+      "spoken": "Meet the Team i 2i - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2761,
+      "offsetMs": 34384,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

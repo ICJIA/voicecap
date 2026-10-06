@@ -1,0 +1,452 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/training-and-technical-assistance/",
+    "key": "https://v3--i2i.netlify.app/training-and-technical-assistance",
+    "slug": "training-and-technical-assistance-a35bc39873",
+    "finalUrl": "https://v3--i2i.netlify.app/training-and-technical-assistance/"
+  },
+  "capturedAt": "2026-10-06T12:31:41-05:00",
+  "durationMs": 62709,
+  "stepCount": 49,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1271,
+      "offsetMs": 1271
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1284,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1292,
+      "offsetMs": 3847
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1277,
+      "offsetMs": 5125
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1284,
+      "offsetMs": 6409
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1281,
+      "offsetMs": 7690
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1284,
+      "offsetMs": 8974
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1286,
+      "offsetMs": 10260
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1290,
+      "offsetMs": 11550
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1286,
+      "offsetMs": 12837
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, Training and Technical Assistance",
+      "durationMs": 1273,
+      "offsetMs": 14109
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "i 2i strives to make the grant process clearer and simpler for the Illinois community. Look below",
+      "durationMs": 1283,
+      "offsetMs": 15392
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "for available resources, opportunities, and training services to aid you in your journey!",
+      "durationMs": 1281,
+      "offsetMs": 16673
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "region, heading, level 2, CRACK THE CODE TO GRANT SUCCESS",
+      "durationMs": 1280,
+      "offsetMs": 17953
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "Simplify the state grant application process with, Your Recipe for Grant Success,, a self-paced",
+      "durationMs": 1286,
+      "offsetMs": 19240
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "online course by ICJIA. Gain insights into the ICJIA grant process, budgeting, program narrative",
+      "durationMs": 1287,
+      "offsetMs": 20527
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "creation, and compliance with the Grant Accountability and Transparency Act (GATA) requirements.",
+      "durationMs": 1280,
+      "offsetMs": 21807
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "In this course, you will learn to:",
+      "durationMs": 1284,
+      "offsetMs": 23091
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "list, with 6 items, bullet Prepare for state grant applications (NOFO).",
+      "durationMs": 1281,
+      "offsetMs": 24372
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "bullet Find available grant opportunities.",
+      "durationMs": 1287,
+      "offsetMs": 25659
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "bullet Craft a winning grant application.",
+      "durationMs": 1276,
+      "offsetMs": 26935
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "bullet Navigate submission guidelines.",
+      "durationMs": 1272,
+      "offsetMs": 28206
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "bullet Understand outcomes of grant awards.",
+      "durationMs": 1275,
+      "offsetMs": 29481
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "bullet Navigate the post-agreement phase.",
+      "durationMs": 1274,
+      "offsetMs": 30755
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "out of list, Discover the steps of the grant process, meet GATA requirements, and stay in good standing with",
+      "durationMs": 1283,
+      "offsetMs": 32038
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "pre-qualification requirements.",
+      "durationMs": 1290,
+      "offsetMs": 33328
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "link, Learn More and",
+      "durationMs": 1280,
+      "offsetMs": 34608
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "link, Register Here!",
+      "durationMs": 1277,
+      "offsetMs": 35885
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "out of region, separator",
+      "durationMs": 1282,
+      "offsetMs": 37167
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "region, link, Learn More and",
+      "durationMs": 1275,
+      "offsetMs": 38442
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "link, Apply Here!",
+      "durationMs": 1275,
+      "offsetMs": 39717
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "heading, level 2, GRANT OPPORTUNITIES",
+      "durationMs": 1274,
+      "offsetMs": 40991
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "EMPOWERING CHANGE: ICJIA FUNDING OPPORTUNITIES FOR A SAFER AND MORE JUST ILLINOIS",
+      "durationMs": 1278,
+      "offsetMs": 42269
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "ICJIA is currently providing funding opportunities for initiatives aligned with its mission to",
+      "durationMs": 1277,
+      "offsetMs": 43546
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "improve the criminal justice system in Illinois. These opportunities support projects related to",
+      "durationMs": 1275,
+      "offsetMs": 44821
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "crime prevention, victim services, law enforcement, and more.",
+      "durationMs": 1279,
+      "offsetMs": 46100
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "By offering these funds, ICJIA aims to foster innovation and collaboration, encouraging individuals",
+      "durationMs": 1288,
+      "offsetMs": 47388
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "and organizations to contribute to the enhancement of the criminal justice landscape in the state.",
+      "durationMs": 1277,
+      "offsetMs": 48665
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "Interested parties should review the specific guidelines for each opportunity to ensure",
+      "durationMs": 1277,
+      "offsetMs": 49942
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "compatibility with their proposed projects.",
+      "durationMs": 1276,
+      "offsetMs": 51218
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "Engaging with ICJIA's funding opportunities provides a platform for making meaningful contributions",
+      "durationMs": 1278,
+      "offsetMs": 52496
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "to building a safer and more just society in Illinois.",
+      "durationMs": 1275,
+      "offsetMs": 53771
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "out of region, content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 55047
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 56327
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1277,
+      "offsetMs": 57603
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1274,
+      "offsetMs": 58878
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 60156
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 61431
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 62709
+    }
+  ]
+}

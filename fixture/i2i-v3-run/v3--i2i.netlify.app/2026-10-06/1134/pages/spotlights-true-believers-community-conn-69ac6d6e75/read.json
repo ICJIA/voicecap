@@ -1,0 +1,648 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/",
+    "key": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections",
+    "slug": "spotlights-true-believers-community-conn-69ac6d6e75",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/"
+  },
+  "capturedAt": "2026-10-06T12:26:31-05:00",
+  "durationMs": 98423,
+  "stepCount": 77,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 1276
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1281,
+      "offsetMs": 2556
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1278,
+      "offsetMs": 3834
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1278,
+      "offsetMs": 5113
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1283,
+      "offsetMs": 6396
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1281,
+      "offsetMs": 7677
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1284,
+      "offsetMs": 8960
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1282,
+      "offsetMs": 10242
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1283,
+      "offsetMs": 11525
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1284,
+      "offsetMs": 12809
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, TRUE BELIEVERS COMMUNITY CONNECTIONS (TBCC)",
+      "durationMs": 1285,
+      "offsetMs": 14094
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "Empowering Tomorrow's Leaders",
+      "durationMs": 1280,
+      "offsetMs": 15374
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "figure, graphic, True Believers Community Connections (TBCC) logo",
+      "durationMs": 1275,
+      "offsetMs": 16649
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of figure, True Believers Community Connections (TBCC) is an organization deeply committed to empowering",
+      "durationMs": 1283,
+      "offsetMs": 17932
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "individuals through education and training, serving as a catalyst for leadership development. With",
+      "durationMs": 1280,
+      "offsetMs": 19212
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "a strong vision, TBCC aims to become a cornerstone resource and a primary service provider for",
+      "durationMs": 1278,
+      "offsetMs": 20490
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "emerging leaders, focusing on Mentoring, Youth Development, Leadership Development, and Workforce",
+      "durationMs": 1278,
+      "offsetMs": 21768
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "Development.",
+      "durationMs": 1278,
+      "offsetMs": 23046
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "heading, level 2, same page, link, Mission",
+      "durationMs": 1281,
+      "offsetMs": 24328
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "TBCC’s mission is to foster community relations throughout the local community by collaborating",
+      "durationMs": 1285,
+      "offsetMs": 25613
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "with community partners to offer supportive services for youth slash young adults aged 11 to 24 in the",
+      "durationMs": 1284,
+      "offsetMs": 26896
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "Auburn Gresham and Englewood communities.",
+      "durationMs": 1280,
+      "offsetMs": 28176
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "Recent Developments since joining the i 2i program include:",
+      "durationMs": 1283,
+      "offsetMs": 29459
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "list, with 10 items, bullet",
+      "durationMs": 1278,
+      "offsetMs": 30737
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "Increased Youth Involvement (377)",
+      "durationMs": 1279,
+      "offsetMs": 32016
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1274,
+      "offsetMs": 33289
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "Increased Youth Connection to Resources (406)",
+      "durationMs": 1275,
+      "offsetMs": 34564
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1279,
+      "offsetMs": 35843
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "Increased Family Communication and Supervision (202)",
+      "durationMs": 1287,
+      "offsetMs": 37130
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1280,
+      "offsetMs": 38410
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "Increased Life Skills (Youth and Parents) (788)",
+      "durationMs": 1288,
+      "offsetMs": 39698
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1276,
+      "offsetMs": 40974
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "Increased College and Career Readiness (238)",
+      "durationMs": 1275,
+      "offsetMs": 42249
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1278,
+      "offsetMs": 43526
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "Increased Parent Involvement (Academic and Relational) (107)",
+      "durationMs": 1278,
+      "offsetMs": 44804
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1273,
+      "offsetMs": 46077
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "Improved the physical Climate (School Climate Beautification and Advocacy) (67)",
+      "durationMs": 1285,
+      "offsetMs": 47362
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1271,
+      "offsetMs": 48634
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "Total Activities (2,492)",
+      "durationMs": 1278,
+      "offsetMs": 49912
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1276,
+      "offsetMs": 51188
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "Doubled their operational budget in the year 2023",
+      "durationMs": 1275,
+      "offsetMs": 52463
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1271,
+      "offsetMs": 53734
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "Hosted their 10th year Stay Lit (Live in Truth) on Gala November 3, 2023",
+      "durationMs": 1277,
+      "offsetMs": 55010
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 2, Visit True Believers Community Connections (TBCC), link, https: slash slash www dot truebelieverscc dot org slash (opens in a new",
+      "durationMs": 1280,
+      "offsetMs": 56290
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "link, window)",
+      "durationMs": 1280,
+      "offsetMs": 57570
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Photo Gallery",
+      "durationMs": 1275,
+      "offsetMs": 58844
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "tab, selected, Photo collage: two women in black blazers stacking boxes of Cuties diapers in a warehouse",
+      "durationMs": 1283,
+      "offsetMs": 60127
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "tab, A woman in a sparkling orange dress and a man in a blue suit smiling together at a formal event",
+      "durationMs": 1275,
+      "offsetMs": 61402
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "tab, Photo collage from a Network 11 Schools event, including a SY 23 Community Partner Award' slide and",
+      "durationMs": 1275,
+      "offsetMs": 62677
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "tab, a group receiving the award",
+      "durationMs": 1280,
+      "offsetMs": 63957
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "tab, Photo collage from an outdoor community event: people posing with police officers, tents on a lawn,",
+      "durationMs": 1276,
+      "offsetMs": 65233
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "tab, and volunteers at tables",
+      "durationMs": 1276,
+      "offsetMs": 66509
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "tab, A woman in a light green gown speaking at the microphone on a stage decorated with balloons and",
+      "durationMs": 1273,
+      "offsetMs": 67783
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "tab, gold stars in front of large STAY LIT' letters",
+      "durationMs": 1277,
+      "offsetMs": 69059
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "tab, A woman in a pale green gown and a man in a gray suit posing together on the decorated stage",
+      "durationMs": 1273,
+      "offsetMs": 70332
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "tab, beneath a gold star balloon",
+      "durationMs": 1275,
+      "offsetMs": 71608
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "tab, Guests seated at gold-sequin tables in a banquet room, with the STAY LIT' stage and a table of",
+      "durationMs": 1274,
+      "offsetMs": 72882
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "tab, awards and gift bags",
+      "durationMs": 1274,
+      "offsetMs": 74156
+    },
+    {
+      "n": 59,
+      "command": "nextLine",
+      "spoken": "tab, A folded white napkin on a gold charger plate holding a 10 Year Anniversary — True Believers",
+      "durationMs": 1278,
+      "offsetMs": 75434
+    },
+    {
+      "n": 60,
+      "command": "nextLine",
+      "spoken": "tab, Community Connections' card",
+      "durationMs": 1278,
+      "offsetMs": 76712
+    },
+    {
+      "n": 61,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Photo collage: two women in black blazers stacking boxes of Cuties diapers in a warehouse (Photo",
+      "durationMs": 1279,
+      "offsetMs": 77991
+    },
+    {
+      "n": 62,
+      "command": "nextLine",
+      "spoken": "graphic, Gallery, full size, photo 1 of 8)",
+      "durationMs": 1279,
+      "offsetMs": 79271
+    },
+    {
+      "n": 63,
+      "command": "nextLine",
+      "spoken": "out of figure, button, Previous photo",
+      "durationMs": 1285,
+      "offsetMs": 80555
+    },
+    {
+      "n": 64,
+      "command": "nextLine",
+      "spoken": "Photo 1 of 8",
+      "durationMs": 1273,
+      "offsetMs": 81829
+    },
+    {
+      "n": 65,
+      "command": "nextLine",
+      "spoken": "button, Next photo",
+      "durationMs": 1276,
+      "offsetMs": 83105
+    },
+    {
+      "n": 66,
+      "command": "nextLine",
+      "spoken": "Keyboard:, press",
+      "durationMs": 1274,
+      "offsetMs": 84379
+    },
+    {
+      "n": 67,
+      "command": "nextLine",
+      "spoken": "graphic, Left arrow",
+      "durationMs": 1275,
+      "offsetMs": 85654
+    },
+    {
+      "n": 68,
+      "command": "nextLine",
+      "spoken": "or",
+      "durationMs": 1275,
+      "offsetMs": 86929
+    },
+    {
+      "n": 69,
+      "command": "nextLine",
+      "spoken": "graphic, Right arrow",
+      "durationMs": 1277,
+      "offsetMs": 88206
+    },
+    {
+      "n": 70,
+      "command": "nextLine",
+      "spoken": "to change the photo.",
+      "durationMs": 1278,
+      "offsetMs": 89484
+    },
+    {
+      "n": 71,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1280,
+      "offsetMs": 90764
+    },
+    {
+      "n": 72,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 92041
+    },
+    {
+      "n": 73,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1272,
+      "offsetMs": 93313
+    },
+    {
+      "n": 74,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1278,
+      "offsetMs": 94591
+    },
+    {
+      "n": 75,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 95869
+    },
+    {
+      "n": 76,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 97146
+    },
+    {
+      "n": 77,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 98423
+    }
+  ]
+}

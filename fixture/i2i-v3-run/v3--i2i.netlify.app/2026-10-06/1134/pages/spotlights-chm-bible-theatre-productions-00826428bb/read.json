@@ -1,0 +1,564 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/",
+    "key": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions",
+    "slug": "spotlights-chm-bible-theatre-productions-00826428bb",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/"
+  },
+  "capturedAt": "2026-10-06T12:16:31-05:00",
+  "durationMs": 83097,
+  "stepCount": 65,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1282,
+      "offsetMs": 1282
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1273,
+      "offsetMs": 2555
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1274,
+      "offsetMs": 3828
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1277,
+      "offsetMs": 5105
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1275,
+      "offsetMs": 6380
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1288,
+      "offsetMs": 7668
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1273,
+      "offsetMs": 8941
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1278,
+      "offsetMs": 10219
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1278,
+      "offsetMs": 11497
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1278,
+      "offsetMs": 12775
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, CHM BIBLE THEATRE PRODUCTIONS (CHMBT)",
+      "durationMs": 1275,
+      "offsetMs": 14051
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "Bringing Faith, Art, and Community Together",
+      "durationMs": 1274,
+      "offsetMs": 15325
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "figure, graphic, CHM Bible Theatre Productions (CHMBT) logo",
+      "durationMs": 1278,
+      "offsetMs": 16603
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of figure, CHM Bible Theatre Productions (CHMBT) is a faith-based organization to provides quality theatrical",
+      "durationMs": 1277,
+      "offsetMs": 17880
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "experiences and valuable life skills training to students and young adults. Their commitment is to",
+      "durationMs": 1274,
+      "offsetMs": 19154
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "support quality theater arts that foster togetherness among families, churches, and communities.",
+      "durationMs": 1277,
+      "offsetMs": 20431
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "heading, level 2, same page, link, Mission",
+      "durationMs": 1278,
+      "offsetMs": 21709
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "The mission of CHM Bible Theatre Productions, CHMBT, is to present innovative and inspiring stage",
+      "durationMs": 1274,
+      "offsetMs": 22983
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "play productions along with culturally competent educational programming.",
+      "durationMs": 1281,
+      "offsetMs": 24264
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "Recent Developments since joining the i 2i program include:",
+      "durationMs": 1276,
+      "offsetMs": 25540
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "list, with 3 items, bullet",
+      "durationMs": 1281,
+      "offsetMs": 26821
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "i 2i Cohort Participation: CHMBT completed the i 2i 6-month Cohort (1) program, gaining valuable",
+      "durationMs": 1277,
+      "offsetMs": 28097
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "insights and knowledge to enhance the organization’s impact.",
+      "durationMs": 1279,
+      "offsetMs": 29376
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1282,
+      "offsetMs": 30658
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "Youth Empowerment: In 2023, CHMBT continued its commitment to serving youth in the arts, fostering",
+      "durationMs": 1276,
+      "offsetMs": 31934
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "creativity, and providing mentorship to the next generation of artists.",
+      "durationMs": 1285,
+      "offsetMs": 33219
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1279,
+      "offsetMs": 34497
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "Christmas GALA: CHMBT hosted an unforgettable Christmas GALA on December 16, 2023, bringing the",
+      "durationMs": 1277,
+      "offsetMs": 35774
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "community together in a celebration of faith, art, and joy during the holiday season.",
+      "durationMs": 1279,
+      "offsetMs": 37053
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "out of list, CHMBT welcomes your support, participation, and partnership as they continue to make a meaningful",
+      "durationMs": 1290,
+      "offsetMs": 38343
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "difference in the lives of those they serve. They can create a brighter future through the power of",
+      "durationMs": 1280,
+      "offsetMs": 39623
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "theater and education.",
+      "durationMs": 1279,
+      "offsetMs": 40902
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "Connect with them on their website at, link, www dot chmbibletheatre dot org, to learn more about their upcoming",
+      "durationMs": 1279,
+      "offsetMs": 42180
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "events, programs, and how you can get involved.",
+      "durationMs": 1278,
+      "offsetMs": 43458
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Visit CHM Bible Theatre Productions (CHMBT), link, https: slash slash www dot chmbibletheatre dot org slash (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 44734
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Photo Gallery",
+      "durationMs": 1279,
+      "offsetMs": 46013
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "tab, selected, Two inflatable bounce houses with slides and ball pits set up on the lawn beside a stone church",
+      "durationMs": 1278,
+      "offsetMs": 47291
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "tab, A smiling boy in a gold paper crown and blue striped outfit holding a gold scepter, seated near a",
+      "durationMs": 1275,
+      "offsetMs": 48566
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "tab, bounce house",
+      "durationMs": 1273,
+      "offsetMs": 49839
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "tab, Flyer for CHM Bible Theatre's The Christmas Story' Christmas Gala on December 16, 2023, at the",
+      "durationMs": 1277,
+      "offsetMs": 51117
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "tab, i Hotel Conference Center in Urbana",
+      "durationMs": 1276,
+      "offsetMs": 52393
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "tab, Adults and children standing together on the lawn in front of a small stage with shade sails",
+      "durationMs": 1282,
+      "offsetMs": 53675
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "tab, A child in a light blue T-shirt wearing a large plush dog mascot head, standing in front of the",
+      "durationMs": 1273,
+      "offsetMs": 54948
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "tab, bounce houses",
+      "durationMs": 1283,
+      "offsetMs": 56231
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "tab, Two women in navy dresses holding glass awards, with a man in a white shirt and tie between them,",
+      "durationMs": 1275,
+      "offsetMs": 57506
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "tab, in front of the Cohort Graduation 2023' screen",
+      "durationMs": 1277,
+      "offsetMs": 58783
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "tab, Three children in costume on a small outdoor stage: a gold crown, a captain's hat with sunglasses,",
+      "durationMs": 1275,
+      "offsetMs": 60057
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "tab, and a gold Roman helmet with a toy sword",
+      "durationMs": 1279,
+      "offsetMs": 61336
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Two inflatable bounce houses with slides and ball pits set up on the lawn beside a stone church",
+      "durationMs": 1279,
+      "offsetMs": 62615
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "graphic, (Photo Gallery, full size, photo 1 of 7)",
+      "durationMs": 1276,
+      "offsetMs": 63891
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "out of figure, button, Previous photo",
+      "durationMs": 1279,
+      "offsetMs": 65171
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "Photo 1 of 7",
+      "durationMs": 1284,
+      "offsetMs": 66455
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "button, Next photo",
+      "durationMs": 1276,
+      "offsetMs": 67731
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "Keyboard:, press",
+      "durationMs": 1281,
+      "offsetMs": 69012
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "graphic, Left arrow",
+      "durationMs": 1283,
+      "offsetMs": 70295
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "or",
+      "durationMs": 1286,
+      "offsetMs": 71581
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "graphic, Right arrow",
+      "durationMs": 1282,
+      "offsetMs": 72863
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "to change the photo.",
+      "durationMs": 1286,
+      "offsetMs": 74149
+    },
+    {
+      "n": 59,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1282,
+      "offsetMs": 75431
+    },
+    {
+      "n": 60,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1284,
+      "offsetMs": 76715
+    },
+    {
+      "n": 61,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1275,
+      "offsetMs": 77990
+    },
+    {
+      "n": 62,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1279,
+      "offsetMs": 79269
+    },
+    {
+      "n": 63,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 80548
+    },
+    {
+      "n": 64,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1272,
+      "offsetMs": 81820
+    },
+    {
+      "n": 65,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 83097
+    }
+  ]
+}
