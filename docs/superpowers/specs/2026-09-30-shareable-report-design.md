@@ -173,7 +173,7 @@ The fix comes from what NVDA said, never from the page's code: voicecap doesn't 
 
 **How a card clears.** A card leaves the list when nothing on it is left:
 - a flag, when a later run of the page doesn't raise it, or when the page is marked "Reviewed, no issues" after the run that raised it. It comes back if the page's transcripts change after that review;
-- a page that couldn't be read, when a later run reads it;
+- a page that couldn't be read, or whose read pass stopped before the page's end, when a later run reads it to its end. A review doesn't clear it: the transcripts stop short of what wasn't heard;
 - an issue, when it's marked "Fixed".
 
 With no card left, the section says "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", and the summary's panel says the same.

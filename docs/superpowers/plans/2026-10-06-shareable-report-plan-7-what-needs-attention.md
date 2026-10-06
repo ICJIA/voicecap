@@ -127,7 +127,7 @@
   - An open issue gives an `issue` card for its page, with detail set to its note (`""` when it has none).
   - A latest entry with `changedSinceReview` true puts the page on the one `changed` card. Its flags still count too, since that review settles nothing.
   - A card of status `failed` or `never` with a `failure` goes on the one `unread` card, with its detail set to that failure.
-  - A card with `readStopped` set, or with a `read-not-finished` flag, goes on the one `read-stopped` card, once.
+  - A card with `readStopped` set, or with a `read-not-finished` flag, goes on the one `read-stopped` card, once. No review settles it: it stays until a later run reads the page to its end (Ruling R5).
 - **The flag kinds, from `flagItemLines` when `passes` isn't null.** For `unlabeled`, with the item lowercased:
   - an item that contains "graphic" is `graphic-generic` with subject `graphicName(spoken)` when that isn't null. Otherwise it's `graphic-unnamed`, with the item as its subject;
   - "button", or an item that contains "button", is `button-unnamed`;
@@ -143,7 +143,7 @@
   - `tab-no-stops` is `tab-nothing`;
   - `repeated-phrase` is `repeated`, with subject `flagQuotes(...)[0]`;
   - `read-not-finished` is `read-stopped`;
-  - any other rule is `custom`, with its subject set to the flag's message without its final ".".
+  - any other rule is `custom`, with its subject set to the custom rule's own `description` from `rules.custom` (Ruling R9). Only when the rule isn't in the config is it the flag's message without its final ".".
 
   These cards take their place's `said` from `flagQuotes`: the first line, with the flag's pass.
 - **When `passes` is null** (flags as recorded): every flag is `recorded`. Its subject is each `found` item's text, or the flag's message (without its final ".") when there's no `found`. Its place has `said: []`.
@@ -159,8 +159,8 @@
     - anything else is null.
   - `inside` is the first non-null `insideOf` over the place's Tab-pass lines.
 - **`graphicName(spoken)`**, over `speechItems(spoken)`, compared lowercased. `HINT` is "to get missing image descriptions", Chrome's English wording.
-  - If an item starts with `HINT` and the item before it isn't the graphic item (the one that contains "graphic"), that item before it is the name.
-  - Otherwise, the item right after the graphic item is the name, unless it starts with `HINT`, or is a landmark, a state (`rules.unlabeled.stateItems`), a link role (`rules.genericLinkText.linkRoles`), or "button".
+  - If an item starts with `HINT`, the item before it is the name. There's no name instead when that item is the graphic item (the item the rule matched), or an item that's never a name: a landmark, a state (`rules.unlabeled.stateItems`), a link role (`rules.genericLinkText.linkRoles`), "button", "same page", "current page", or "visited". (This last case was accepted in Task 1's fix round.)
+  - Otherwise, the item right after the graphic item is the name, unless it starts with `HINT` or is an item that's never a name.
   - Otherwise there's no name.
 - **`insideOf(spoken, name)`:** the items left after removing:
   - landmark items;
@@ -225,7 +225,7 @@
     - `tab-before-main` gives `skip-link`;
     - `tab-no-stops` gives `tab-nothing`;
     - `repeated-phrase` gives `repeated`, with the phrase as its subject;
-    - a custom rule gives `custom`, with its message as its subject.
+    - a custom rule gives `custom`, with its description as its subject (R9).
   - **"cards come most pages first":** ties go in `AttentionKind` order, and ids are `need-1` onward.
   - **"flags as recorded make recorded cards"** (Review Focus 2 and 3):
     - `passes: null` with `found: [{ text: "unlabeled graphic", count: 2 }]` gives a `recorded` card with subject "unlabeled graphic" and `said: []`;
@@ -471,30 +471,65 @@
 - [ ] **Step 4:** PASS. Then run `pnpm lint && pnpm typecheck && pnpm test`.
 - [ ] **Step 5:** Commit: `Show what needs attention as cards, on the page and in its Word copy, in place of what the flags found`.
 
-### Task 5: The README, its screenshots, and the CHANGELOG
+### Task 5: The README's words, and the CHANGELOG
 
 **Files:**
-- Modify: `README.md`.
-  - **Line 31:** the top of the demo's report has five numbers. Drop "0 heard live by a person".
-  - **Lines 1289–1291:** the section shown, with its fold open, is now "What needs attention", in `report-attention.png`. Its alt text describes the demo's card or cards.
+- Modify: `README.md`. This task changes words only; Task 6 owns the screenshots, their captions, and the report examples.
   - **Line 1311:** "five numbers (pages in scope, pages transcribed, pages with flags, lines NVDA spoke, and NVDA time)".
   - **Line 1314:** "What the flags found" becomes **What needs attention**: a card for each problem, with what NVDA says and where, the likely cause, why it matters, the fix in the code, what NVDA should say then, and the path forward.
-  - **The review's description:** "Reviewed, no issues" settles a page's flags, and the page shows "Checked by <name>, <date>: not an issue".
-- Modify: `scripts/readme-screenshots.ts` and `test/readme-screenshots.test.ts`: the shot `report-flags.png` becomes `report-attention.png`, which is "What needs attention" with each fold open.
-- Run `pnpm readme:screenshots`, delete `assets/screenshots/report-flags.png`, and commit the new `report-attention.png` and `report-top.png` (now with five numbers).
+  - **Where `voicecap review` is described:** "Reviewed, no issues" settles a page's flags, and its card shows "Checked by <name>, <date>: not an issue". A read that stopped before the page's end stays on the list until a later run reads the page to its end.
 - Modify: `CHANGELOG.md`: an `## [Unreleased]` section, under Added and Changed. It covers:
   - the cards and the advice for each kind;
-  - a review settling flags;
+  - a review settling flags (but never a stopped read);
   - five numbers, and no heard-live count or row;
   - the summary sentence's count of problems;
-  - "What the flags found" folded into the cards;
-  - the README screenshot renamed.
-- Test: `test/readme-screenshots.test.ts`, and the pinned README tests, if any.
+  - "What the flags found" folded into the cards.
 
-- [ ] **Step 1:** Update the README and the screenshot script, with its test first: the test expects `report-attention.png` and no `report-flags.png`.
-- [ ] **Step 2:** Run `pnpm vitest run test/readme-screenshots.test.ts`. FAIL, then PASS after the script's change.
-- [ ] **Step 3:** Run `pnpm readme:screenshots`. Check each new PNG by eye: the summary shows five numbers, and the demo's card shows its parts. Then run `pnpm lint && pnpm typecheck && pnpm test`.
-- [ ] **Step 4:** Commit: `Describe what needs attention in the README, with new screenshots, and note it in the CHANGELOG`.
+- [ ] **Step 1:** Make the README and CHANGELOG changes above.
+- [ ] **Step 2:** Run `pnpm lint && pnpm typecheck && pnpm test`.
+- [ ] **Step 3:** Commit: `Describe what needs attention in the README, and note it in the CHANGELOG`.
+
+### Task 6: The README's screenshots, from the i2i v3 run
+
+The owner asked on 2026-10-06 for the README's screenshots to show what the web pages have now, from a 0.11 run, and for i2i v3 to be the main demo site (Ruling R7).
+
+**Files:**
+- **The fixture**, which the controller commits before this task: the i2i v3 run of 6 October 2026 (voicecap 0.11.0, 32 pages, every page's screenshot, and its event log), copied from the transcripts home without `report.html`:
+  - `fixture/i2i-v3-run/v3--i2i.netlify.app/latest.txt`;
+  - `fixture/i2i-v3-run/v3--i2i.netlify.app/2026-10-06/1134/run.json`, its `events.jsonl`, and its `pages/**`.
+
+  Its records name the reviewer and no account or local path.
+- Modify: `scripts/readme-screenshots.ts`:
+  - **The source:** the fixture's site folder, copied into a temporary transcripts home and shared there with the built voicecap, as today with the demo's runs. The website is built from that share.
+  - **The shots:** drawn as today (a 1200 × 900 window at twice its size). As today, any shot whose text shows an IP address or `localhost` is refused.
+    - `report-top.png`: the masthead and the summary, down to the end of its panels;
+    - `report-heard.png`: "Heard on …";
+    - `report-attention.png`: "What needs attention", with each fold open (the logo card);
+    - `report-pages.png` (new): the first page cards under "Every page", with their screenshots;
+    - `report-timeline.png` (new): the run's evidence, with its minute-by-minute timeline open;
+    - `report-fingerprints.png`: the fingerprint check, after it has run;
+    - `website-dark.png` and `website-light.png`: the website's bar, through v3--i2i.netlify.app's entry under "The sites".
+  - **Its comment:** the screenshots are of the i2i v3 report: the new version of i2i.illinois.gov, not yet live, read on 6 October 2026.
+- Modify: `test/readme-screenshots.test.ts`: the eight files (no `report-flags.png`), and the fixture.
+- Run `pnpm readme:screenshots`, delete `assets/screenshots/report-flags.png`, and commit the eight PNGs.
+- Modify: `README.md`. The built-in `voicecap demo` tour's own docs stay on its own site.
+  - **Line 31:** the top of the report for v3--i2i.netlify.app, the new version of i2i.illinois.gov, read on 6 October 2026. Its sentence and five numbers are as the shot shows them, taken from the generated page, never typed from memory.
+  - **Lines 144–150 and 875–877:** the first lines NVDA said on i2i v3's home page in each pass, from the fixture's transcripts, and the "Heard on" caption.
+  - **Lines 1289–1291:** `report-attention.png`, with alt text that names the logo card's parts.
+  - **The two new shots:** each goes where the README describes "Every page" and "The evidence behind these results", with alt text.
+  - **The website shots:** their captions and alt text.
+- Modify: `CHANGELOG.md`, under `[Unreleased]`: "The README's screenshots and report examples now come from the i2i v3 run of 6 October 2026, and two show what 0.11.0 added: a page card with its screenshot, and a run's minute-by-minute timeline."
+
+- [ ] **Step 1:** Test first. `test/readme-screenshots.test.ts` expects the eight files and the fixture. Run it: FAIL.
+- [ ] **Step 2:** Change the script, and run the test: PASS.
+- [ ] **Step 3:** Run `pnpm readme:screenshots`, and look at each PNG; the Read tool shows images. Check for:
+  - the summary's five numbers;
+  - the logo card's parts;
+  - a page card with its screenshot;
+  - the timeline;
+  - the website listing v3--i2i.netlify.app.
+- [ ] **Step 4:** Make the README and CHANGELOG changes above, then run `pnpm lint && pnpm typecheck && pnpm test`.
+- [ ] **Step 5:** Commit: `Make the README's screenshots from the i2i v3 run, with the cards, a page card, and a run's timeline`.
 
 ---
 
