@@ -320,8 +320,14 @@ export interface AttentionWords {
   path: string[];
 }
 
-/** What a place of a recorded card says in place of NVDA's words: no transcript could be read. */
-const UNAVAILABLE = "NVDA's words aren't available here: this page's transcripts couldn't be read.";
+/**
+ * What a place of a recorded card says in place of NVDA's words: the transcripts of its page, or of
+ * its pages, couldn't be read.
+ */
+const UNAVAILABLE = {
+  one: "NVDA's words aren't available here: this page's transcripts couldn't be read.",
+  many: "NVDA's words aren't available here: these pages' transcripts couldn't be read.",
+};
 
 /** How a place's lead begins, by the page part NVDA named there. */
 const PART_LEADS = new Map([
@@ -366,16 +372,17 @@ function onePage(card: AttentionCard): string {
 }
 
 /**
- * The first place on a page part that every page of a site shares (header, footer, or navigation)
- * and that is on more than one page: its part, and how many pages. Null when there's none.
+ * The place on a page part that every page of a site shares (header, footer, or navigation) and
+ * that is on the most pages, over more than one: its part, and how many pages. The first of them
+ * when two are on as many. Null when there's none.
  */
 function sharedPart(card: AttentionCard): { part: string; pages: number } | null {
+  let most: { part: string; pages: number } | null = null;
   for (const { part, pages } of card.places) {
-    if (part !== null && SHARED_PARTS.has(part) && pages.length > 1) {
-      return { part, pages: pages.length };
-    }
+    if (part === null || !SHARED_PARTS.has(part) || pages.length < 2) continue;
+    if (most === null || pages.length > most.pages) most = { part, pages: pages.length };
   }
-  return null;
+  return most;
 }
 
 /**
@@ -400,11 +407,15 @@ function flagPath(card: AttentionCard): string[] {
 }
 
 /**
- * Words as a title has them when NVDA said them all in capitals: "INSTITUTE 2 INNOVATE" is "Institute
- * 2 Innovate". Words with a lowercase letter, or with no letters at all, are as NVDA said them.
+ * Words as a title has them when NVDA said a phrase of them all in capitals: "INSTITUTE 2 INNOVATE"
+ * is "Institute 2 Innovate". Words with a lowercase letter, or with no letters at all, are as NVDA
+ * said them, and so is a single word: "ICJIA" may be a name, which a title would keep in capitals.
+ * A number beside it is no second word.
  */
 function titleLike(words: string): string {
   if (words === words.toLowerCase() || words !== words.toUpperCase()) return words;
+  const lettered = words.split(/\s+/).filter((word) => /\p{L}/u.test(word));
+  if (lettered.length < 2) return words;
   return words
     .toLowerCase()
     .replace(
@@ -421,8 +432,8 @@ function attribute(value: string): string {
 /**
  * A graphic's fix at one place on its pages. Inside a link or button with words of its own, a Tab
  * stop says those words with the graphic, so the graphic is best marked decorative. Standing on its
- * own, it needs a name in words: the words of the link it's inside elsewhere, when it's inside one
- * there, else a place to write them.
+ * own, it needs a name in words: the words of the link or button it's inside elsewhere, when it's
+ * inside one there (the first place that has one), said with that role; else a place to write them.
  */
 function graphicFix(card: AttentionCard, place: AttentionPlace): Fix {
   const here = whereOn(place.part) ?? "Here";
@@ -434,13 +445,35 @@ function graphicFix(card: AttentionCard, place: AttentionPlace): Fix {
       after: `"${words}, ${role}"`,
     };
   }
-  const [link] = card.places.flatMap(({ inside }) => (inside === null ? [] : [inside]));
-  const name = link === undefined ? "What it is, in words" : titleLike(link.words);
-  const elsewhere = link === undefined ? "" : ", such as the words its link says elsewhere";
+  const [other] = card.places.flatMap(({ inside }) => (inside === null ? [] : [inside]));
+  const name = other === undefined ? "What it is, in words" : titleLike(other.words);
+  const elsewhere =
+    other === undefined ? "" : `, such as the words its ${other.role} says elsewhere`;
   return {
     lead: `${here}, it stands on its own, so give it a name in words, not "logo" or a file name${elsewhere}:`,
     code: `<img src="…" alt="${attribute(name)}">`,
     after: `"graphic, ${name}"`,
+  };
+}
+
+/**
+ * What a first-heading card says for a page with no headings at all (level 0), which the level in
+ * its title can't say: the page's titles are likely styled text, so the fix is to mark them as
+ * headings.
+ */
+function noHeadings(card: AttentionCard): Advice {
+  return {
+    title: "NVDA found no headings: likely titles made of styled text, not heading tags",
+    cause: `Likely titles made of styled text, not heading tags: NVDA found no headings on ${card.pages.length > 1 ? "these pages" : "the page"}.`,
+    why: "Screen reader users jump from heading to heading to find their way around a page; with none, they have to go through all of it.",
+    fixes: [
+      {
+        lead: "Mark the page's title and its section titles as headings:",
+        code: "<h1>Grant opportunities</h1>\n<h2>How to apply</h2>",
+        after: '"heading, level 1, Grant opportunities"',
+      },
+    ],
+    path: flagPath(card),
   };
 }
 
@@ -548,22 +581,26 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
     ],
     path: flagPath(card),
   }),
-  "first-heading": (card) => ({
-    title:
-      card.level === null
-        ? "The first heading isn't level 1: likely a missing <h1>"
-        : `The first heading is level ${card.level}, not 1: likely a missing <h1>`,
-    cause: "Likely a missing <h1>: the page's main title isn't marked as its level 1 heading.",
-    why: "Screen reader users jump to the first heading, or list the headings, to find what the page is about.",
-    fixes: [
-      {
-        lead: "Make the page's main title its <h1>:",
-        code: "<h1>Grant opportunities</h1>",
-        after: '"heading, level 1, Grant opportunities"',
-      },
-    ],
-    path: flagPath(card),
-  }),
+  "first-heading": (card) =>
+    card.level === 0
+      ? noHeadings(card)
+      : {
+          title:
+            card.level === null
+              ? "The first heading isn't level 1: likely a missing <h1>"
+              : `The first heading is level ${card.level}, not 1: likely a missing <h1>`,
+          cause:
+            "Likely a missing <h1>: the page's main title isn't marked as its level 1 heading.",
+          why: "Screen reader users jump to the first heading, or list the headings, to find what the page is about.",
+          fixes: [
+            {
+              lead: "Make the page's main title its <h1>:",
+              code: "<h1>Grant opportunities</h1>",
+              after: '"heading, level 1, Grant opportunities"',
+            },
+          ],
+          path: flagPath(card),
+        },
   "skip-link": (card) => ({
     title: "Many Tab stops before the main content, and no skip link",
     cause: "Likely a missing skip link: the first Tab stop isn't a link to the main content.",
@@ -629,15 +666,17 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
     why: "The rule's own words say what it found.",
     path: flagPath(card),
   }),
-  recorded: (card) => ({
-    title: `What the run recorded: ${named(card)}`,
-    cause:
-      "This page's transcripts couldn't be read here, so this card shows what its run recorded, without NVDA's words.",
-    why: "voicecap can't tell from the record alone what NVDA said, so it can't suggest a fix.",
-    path: [
-      `Run voicecap again on ${card.pages.length > 1 ? "these pages" : "the page"}${onePage(card)}.`,
-    ],
-  }),
+  recorded: (card) => {
+    const many = card.pages.length > 1;
+    return {
+      title: `What the run recorded: ${named(card)}`,
+      cause: many
+        ? "These pages' transcripts couldn't be read here, so this card shows what their runs recorded, without NVDA's words."
+        : "This page's transcripts couldn't be read here, so this card shows what its run recorded, without NVDA's words.",
+      why: "voicecap can't tell from the record alone what NVDA said, so it can't suggest a fix.",
+      path: [`Run voicecap again on ${many ? "these pages" : "the page"}${onePage(card)}.`],
+    };
+  },
   unread: (card) => {
     const many = card.pages.length > 1;
     return {
@@ -698,7 +737,12 @@ export function attentionWords(card: AttentionCard): AttentionWords {
       return {
         lead: lead === null ? `On ${on}` : `${lead}, on ${on}`,
         quotes: place.said.map(({ pass, line }) => ({ pass: HOW_TEXT.ways[pass].key, line })),
-        unavailable: card.kind === "recorded" ? UNAVAILABLE : null,
+        unavailable:
+          card.kind !== "recorded"
+            ? null
+            : place.pages.length > 1
+              ? UNAVAILABLE.many
+              : UNAVAILABLE.one,
       };
     }),
     cause,

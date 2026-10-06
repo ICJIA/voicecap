@@ -26,14 +26,14 @@ function i2iCard(): AttentionCard {
 }
 
 /** A page of a card: "Page A", at /a/. */
-function pageOf(slug: string, detail: string | null = null): AttentionCard["pages"][number] {
+function cardPage(slug: string, detail: string | null = null): AttentionCard["pages"][number] {
   return { slug, name: `Page ${slug.toUpperCase()}`, path: `/${slug}/`, detail };
 }
 
 /** The pages "a", "b", ... "z", then "p26", "p27", ...: "a" is first, as a card's first page is. */
 function pagesOf(count: number): AttentionCard["pages"] {
   return Array.from({ length: count }, (_, i) =>
-    pageOf(i < 26 ? String.fromCharCode(97 + i) : `p${i}`),
+    cardPage(i < 26 ? String.fromCharCode(97 + i) : `p${i}`),
   );
 }
 
@@ -155,13 +155,13 @@ const SAMPLES: { card: AttentionCard; title: string; cause: string; why: string 
     why: "voicecap can't tell from the record alone what NVDA said, so it can't suggest a fix.",
   },
   {
-    card: cardOf("unread", { pages: [pageOf("a", "another window took the screen")] }),
+    card: cardOf("unread", { pages: [cardPage("a", "another window took the screen")] }),
     title: "A page the latest run couldn't read",
     cause: "The latest run couldn't read it: the reason is beside the page.",
     why: "A page that wasn't read has no transcripts from this run, so nothing on it was heard.",
   },
   {
-    card: cardOf("issue", { pages: [pageOf("a", "Logo has no name")] }),
+    card: cardOf("issue", { pages: [cardPage("a", "Logo has no name")] }),
     title: "An issue found in review: Page A",
     cause: "Logo has no name",
     why: "A person reviewing the transcripts found something a screen reader user would hear.",
@@ -266,6 +266,50 @@ describe("a card's words", () => {
     expect(attentionWords(cardOf("repeated", { subject: "  " })).title).toBe(silence.title);
   });
 
+  it("says a page with no headings, level 0, in words of its own", () => {
+    const none = (pages: AttentionCard["pages"] = pagesOf(1)) =>
+      attentionWords(cardOf("first-heading", { level: 0, pages, times: pages.length }));
+    const one = none();
+
+    expect(one.title).toBe(
+      "NVDA found no headings: likely titles made of styled text, not heading tags",
+    );
+    expect(one.cause).toBe(
+      "Likely titles made of styled text, not heading tags: NVDA found no headings on the page.",
+    );
+    expect(none(pagesOf(2)).cause).toBe(
+      "Likely titles made of styled text, not heading tags: NVDA found no headings on these pages.",
+    );
+    expect(one.why).toBe(
+      "Screen reader users jump from heading to heading to find their way around a page; with none, they have to go through all of it.",
+    );
+    expect(one.fixes).toEqual([
+      {
+        lead: "Mark the page's title and its section titles as headings:",
+        code: "<h1>Grant opportunities</h1>\n<h2>How to apply</h2>",
+        after: '"heading, level 1, Grant opportunities"',
+      },
+    ]);
+    // The usual path for a flag, for one page and for many.
+    expect(one.path).toEqual([
+      "Fix it on the page.",
+      "Run voicecap again on one page (--page /a/), then on every page.",
+      "Share again: once no page raises it, this card is gone.",
+      'Not a problem? Mark the page "Reviewed, no issues" in voicecap review.',
+    ]);
+    expect(none(pagesOf(2)).path).toEqual([
+      "Fix it on each page.",
+      "Run voicecap again on one page (--page /a/), then on every page.",
+      "Share again: once no page raises it, this card is gone.",
+      'Not a problem? Mark the pages "Reviewed, no issues" in voicecap review.',
+    ]);
+    expect(one.count).toBe("1 page, 1 time");
+    // Level 0 is the only one worded apart: a level NVDA said is still in its title.
+    expect(attentionWords(cardOf("first-heading", { level: 3 })).title).toBe(
+      "The first heading is level 3, not 1: likely a missing <h1>",
+    );
+  });
+
   it("says each of an unread page, a change, and an issue for one page or for many", () => {
     const many = pagesOf(2);
     const manyUnread = attentionWords(cardOf("unread", { pages: many, times: 2 }));
@@ -287,13 +331,29 @@ describe("a card's words", () => {
     // An issue is a card for one page; with no note, the cause says so.
     for (const detail of [null, "", "   "]) {
       expect(
-        attentionWords(cardOf("issue", { pages: [pageOf("a", detail)] })).cause,
+        attentionWords(cardOf("issue", { pages: [cardPage("a", detail)] })).cause,
         `${detail}`,
       ).toBe("No note was recorded.");
     }
     expect(
-      attentionWords(cardOf("issue", { pages: [pageOf("a", "  Logo has no name \n")] })).cause,
+      attentionWords(cardOf("issue", { pages: [cardPage("a", "  Logo has no name \n")] })).cause,
     ).toBe("Logo has no name");
+  });
+
+  it("says a recorded card's cause for one page, or for many", () => {
+    expect(attentionWords(cardOf("recorded", { subject: "x" })).cause).toBe(
+      "This page's transcripts couldn't be read here, so this card shows what its run recorded, without NVDA's words.",
+    );
+
+    const many = attentionWords(cardOf("recorded", { subject: "x", pages: pagesOf(2), times: 2 }));
+    expect(many.cause).toBe(
+      "These pages' transcripts couldn't be read here, so this card shows what their runs recorded, without NVDA's words.",
+    );
+    // Its title and its reason name no page, so they're the same for one page and for many.
+    expect(many.title).toBe("What the run recorded: x");
+    expect(many.why).toBe(
+      "voicecap can't tell from the record alone what NVDA said, so it can't suggest a fix.",
+    );
   });
 
   it("counts a card's pages and its times", () => {
@@ -369,18 +429,44 @@ describe("where NVDA said it", () => {
         (each) => each.unavailable,
       );
 
-    expect(unavailable("recorded")).toEqual([
-      "NVDA's words aren't available here: this page's transcripts couldn't be read.",
-    ]);
     expect(attentionWords(cardOf("recorded", { places: [place] })).places[0]).toEqual({
       lead: "On 2 pages",
       quotes: [],
-      unavailable: "NVDA's words aren't available here: this page's transcripts couldn't be read.",
+      unavailable: "NVDA's words aren't available here: these pages' transcripts couldn't be read.",
     });
     // No other kind says it, a read that stopped with no line to quote included.
     for (const kind of FLAG_KINDS) {
       if (kind !== "recorded") expect(unavailable(kind), kind).toEqual([null]);
     }
+  });
+
+  it("says whose transcripts couldn't be read by the pages a place is on", () => {
+    const unavailable = (pages: string[]) =>
+      attentionWords(
+        cardOf("recorded", {
+          pages: pagesOf(2),
+          places: [placeOf({ pages, times: pages.length })],
+        }),
+      ).places.map((each) => each.unavailable);
+
+    expect(unavailable(["a"])).toEqual([
+      "NVDA's words aren't available here: this page's transcripts couldn't be read.",
+    ]);
+    expect(unavailable(["a", "b"])).toEqual([
+      "NVDA's words aren't available here: these pages' transcripts couldn't be read.",
+    ]);
+    // Each place says it for its own pages, whatever the card's.
+    expect(
+      attentionWords(
+        cardOf("recorded", {
+          pages: pagesOf(3),
+          places: [placeOf({ pages: ["a"] }), placeOf({ part: "footer", pages: ["b", "c"] })],
+        }),
+      ).places.map((each) => each.unavailable),
+    ).toEqual([
+      "NVDA's words aren't available here: this page's transcripts couldn't be read.",
+      "NVDA's words aren't available here: these pages' transcripts couldn't be read.",
+    ]);
   });
 
   it("has no place for a page not read, an issue, or a change", () => {
@@ -532,6 +618,34 @@ describe("the fix in the code", () => {
       });
     });
 
+    it("names the role the words came from, a button's when a button is where they are", () => {
+      const lead = (role: "link" | "button") =>
+        fixes([
+          placeOf({ part: "header", inside: inLink("Menu", role) }),
+          placeOf({ part: "main content" }),
+        ])[1]?.lead;
+
+      expect(lead("button")).toBe(
+        'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its button says elsewhere:',
+      );
+      expect(lead("link")).toBe(
+        'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its link says elsewhere:',
+      );
+    });
+
+    it("takes the role from the first other place that has one, as it takes the words", () => {
+      const [, , own] = fixes([
+        placeOf({ part: "header", inside: inLink("Menu", "button") }),
+        placeOf({ part: "footer", inside: inLink("Contact us") }),
+        placeOf({ part: "main content" }),
+      ]);
+
+      expect(own?.lead).toBe(
+        'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its button says elsewhere:',
+      );
+      expect(own?.code).toBe('<img src="…" alt="Menu">');
+    });
+
     it("makes a name title-like when NVDA said it all in capitals", () => {
       const named = (words: string) => {
         const [, own] = fixes([placeOf({ inside: inLink(words) }), placeOf({ part: "footer" })]);
@@ -542,6 +656,13 @@ describe("the fix in the code", () => {
       expect(named("ANTI-CRIME UNIT")).toBe('"graphic, Anti-Crime Unit"');
       expect(named("DON'T STOP, HOME")).toBe('"graphic, Don\'t Stop, Home"');
       expect(named("ÉCOLE NORMALE")).toBe('"graphic, École Normale"');
+      // One word, even in capitals, is as NVDA said it: it may be a name like ICJIA.
+      expect(named("ICJIA")).toBe('"graphic, ICJIA"');
+      expect(named("I2I")).toBe('"graphic, I2I"');
+      expect(named("ANTI-CRIME")).toBe('"graphic, ANTI-CRIME"');
+      // A number beside the word is no second word.
+      expect(named("ICJIA 2026")).toBe('"graphic, ICJIA 2026"');
+      expect(named("2 ICJIA")).toBe('"graphic, 2 ICJIA"');
       // Words with a lowercase letter, or with none at all, are as NVDA said them.
       expect(named("Institute 2 INNOVATE")).toBe('"graphic, Institute 2 INNOVATE"');
       expect(named("i2i home")).toBe('"graphic, i2i home"');
@@ -622,7 +743,7 @@ describe("the path forward", () => {
   });
 
   it("says where to run again by the first page's address, and which pages to mark", () => {
-    expect(flagPath({ pages: [pageOf("b"), pageOf("a")] })).toEqual([
+    expect(flagPath({ pages: [cardPage("b"), cardPage("a")] })).toEqual([
       "Fix it on each page.",
       "Run voicecap again on one page (--page /b/), then on every page.",
       "Share again: once no page raises it, this card is gone.",
@@ -650,16 +771,38 @@ describe("the path forward", () => {
         ],
       })[0],
     ).toBe("Fix it in the footer, which every page shares: one change fixes it on all 2 pages.");
-    // Two shared parts: the first place's.
-    expect(
+  });
+
+  it("names the shared part on the most pages, and the first of them when pages are level", () => {
+    const shared = (...places: [string, number][]) =>
       flagPath({
         pages: pagesOf(5),
-        places: [
-          placeOf({ part: "header", pages: ["a", "b", "c", "d", "e"] }),
-          placeOf({ part: "footer", pages: ["a", "b"] }),
-        ],
-      })[0],
-    ).toBe("Fix it in the header, which every page shares: one change fixes it on all 5 pages.");
+        places: places.map(([part, pages]) =>
+          placeOf({ part, pages: pagesOf(pages).map((page) => page.slug) }),
+        ),
+      })[0];
+
+    // The one on more pages, wherever its place comes.
+    expect(shared(["header", 2], ["footer", 5])).toBe(
+      "Fix it in the footer, which every page shares: one change fixes it on all 5 pages.",
+    );
+    expect(shared(["footer", 5], ["header", 2])).toBe(
+      "Fix it in the footer, which every page shares: one change fixes it on all 5 pages.",
+    );
+    expect(shared(["header", 3], ["navigation", 2], ["footer", 4])).toBe(
+      "Fix it in the footer, which every page shares: one change fixes it on all 4 pages.",
+    );
+    // A part that isn't shared never wins, however many pages it's on.
+    expect(shared(["main content", 5], ["header", 2])).toBe(
+      "Fix it in the header, which every page shares: one change fixes it on all 2 pages.",
+    );
+    // Level on pages: the first place.
+    expect(shared(["navigation", 3], ["header", 3], ["footer", 3])).toBe(
+      "Fix it in the navigation, which every page shares: one change fixes it on all 3 pages.",
+    );
+    expect(shared(["footer", 3], ["header", 3])).toBe(
+      "Fix it in the footer, which every page shares: one change fixes it on all 3 pages.",
+    );
   });
 
   it("says one change fixes a page part only where it's shared and on more than one page", () => {
@@ -684,7 +827,8 @@ describe("the path forward", () => {
       "Run voicecap again on the page (--page /a/).",
     ]);
     expect(
-      attentionWords(cardOf("recorded", { subject: "x", pages: [pageOf("b"), pageOf("a")] })).path,
+      attentionWords(cardOf("recorded", { subject: "x", pages: [cardPage("b"), cardPage("a")] }))
+        .path,
     ).toEqual(["Run voicecap again on these pages (--page /b/)."]);
   });
 
@@ -707,7 +851,7 @@ describe("the path forward", () => {
   });
 
   it("has two steps for an issue", () => {
-    expect(attentionWords(cardOf("issue", { pages: [pageOf("a", "x")] })).path).toEqual([
+    expect(attentionWords(cardOf("issue", { pages: [cardPage("a", "x")] })).path).toEqual([
       "Fix it on the site.",
       'Run voicecap again on the page, then mark it "Fixed" in voicecap review.',
     ]);
@@ -784,25 +928,38 @@ describe("what the words never say", () => {
     return [];
   }
 
-  it("never calls voicecap automated, says a person listened, or names a library", () => {
+  it("never says automated, never any form of listen, and never names a library", () => {
     const cards = [
       i2iCard(),
       ...SAMPLES.map(({ card }) => card),
       cardOf("repeated"),
       cardOf("first-heading"),
+      cardOf("first-heading", { level: 0 }),
+      cardOf("first-heading", { level: 0, pages: pagesOf(2) }),
+      cardOf("recorded", {
+        subject: "x",
+        pages: pagesOf(2),
+        places: [placeOf({ pages: ["a", "b"] })],
+      }),
       cardOf("unread", { pages: pagesOf(2) }),
       cardOf("changed", { pages: pagesOf(2) }),
-      cardOf("issue", { pages: [pageOf("a", "")] }),
+      cardOf("issue", { pages: [cardPage("a", "")] }),
     ];
     const strings = [
       ...wordsIn(ATTENTION_TEXT),
       ...cards.flatMap((card) => wordsIn(attentionWords(card))),
     ];
+    // The fixed text's own checks (share-text.test.ts), which card words are held to as well: the
+    // word listen is said only in the two phrases that stay, and voicecap is never called automated.
+    const kept = ["the listen-through", "the one to listen to"];
+    const rest = strings.map((string) =>
+      kept.reduce((left, phrase) => left.replaceAll(phrase, ""), string),
+    );
 
     // Words were read at all: the section's own, and each card's.
     expect(strings).toContain(ATTENTION_TEXT.none);
     expect(strings).toContain("Fix it on the page.");
     expect(strings.length).toBeGreaterThan(100);
-    expect(strings.filter((string) => /automated|listened|guidepup/i.test(string))).toEqual([]);
+    expect(rest.filter((string) => /listen|automated|guidepup/i.test(string))).toEqual([]);
   });
 });

@@ -91,7 +91,10 @@ export interface AttentionCard {
    * nothing.
    */
   subject: string | null;
-  /** first-heading: the level NVDA said, else null. */
+  /**
+   * first-heading: the level NVDA said; 0 when the page has no headings; null when the flag's
+   * message gave neither. Each is a card of its own.
+   */
   level: number | null;
   /** None for a page not read, an issue, and a change since a review. */
   places: AttentionPlace[];
@@ -139,9 +142,9 @@ export interface AttentionPage {
  * a flag of the rules that find items whose lines aren't here, so that no flag is lost.
  *
  * **Grouping:** one card per kind and subject (compared lowercased, with its spaces collapsed), and
- * for first-heading per level too, since each level is a different thing NVDA said; an issue is a
- * card of its own. A card's subject is its first, as NVDA said it. Its places are keyed by the page
- * part each line names, in the order first met.
+ * for first-heading per level too, since each level is a different thing NVDA said, and a page with
+ * no headings (level 0) is another; an issue is a card of its own. A card's subject is its first,
+ * as NVDA said it. Its places are keyed by the page part each line names, in the order first met.
  *
  * **Order:** most pages first, then in the kinds' order (KINDS), then by the first page.
  */
@@ -324,8 +327,13 @@ function customName(flag: FlagResult, rules: FlagRules): string {
   return rule === undefined ? tidy(flag.message) : rule.description;
 }
 
-/** The level a headings flag's message says ("The first heading is level 2, not level 1."). */
+/**
+ * The level a headings flag's message says ("The first heading is level 2, not level 1."): 0 for a
+ * page with no headings ("The page has no headings."), which is a card of its own; null when the
+ * message says neither.
+ */
 function levelOf(message: string): number | null {
+  if (tidy(message) === "The page has no headings") return 0;
   const level = /level (\d+)/.exec(message)?.[1];
   return level === undefined ? null : Number(level);
 }

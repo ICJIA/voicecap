@@ -452,7 +452,7 @@ describe("what needs attention, as a card for each problem", () => {
       ["unnamed", "unlabeled image"],
     ]);
 
-    // The first heading, with the level NVDA said; none for a page with no headings.
+    // The first heading, with the level NVDA said; level 0 for a page with no headings.
     const level2 = pageFrom(
       "a",
       passesOf({ headings: ["heading, level 2, Resources", "heading, level 3, Grants"] }),
@@ -481,7 +481,7 @@ describe("what needs attention, as a card for each problem", () => {
     ]);
     const none = one(pageFrom("a", passesOf({ headings: [] })));
     expect(none.map((card) => [card.kind, card.level, card.places[0]?.said])).toEqual([
-      ["first-heading", null, []],
+      ["first-heading", 0, []],
     ]);
 
     // Many Tab stops before the main content, and no skip link: its first stop is quoted.
@@ -627,6 +627,42 @@ describe("what needs attention, as a card for each problem", () => {
       ["first-heading", 2, ["a", "c"]],
       ["first-heading", 3, ["b"]],
     ]);
+  });
+
+  it("a page with no headings is a first-heading card of its own, at level 0", () => {
+    const none = (slug: string) => pageFrom(slug, passesOf({ headings: [] }));
+    const first = (slug: string, level: number) =>
+      pageFrom(slug, passesOf({ headings: [`heading, level ${level}, Welcome`] }));
+
+    expect(none("b").card.flags.map((flag) => flag.message)).toEqual(["The page has no headings."]);
+    // Level 0 isn't level 2's card, and the most pages come first: the two with no headings.
+    expect(
+      attentionCards([first("a", 2), none("b"), none("c")], rules).map((card) => [
+        card.id,
+        card.kind,
+        card.level,
+        card.pages.map((page) => page.slug),
+      ]),
+    ).toEqual([
+      ["need-1", "first-heading", 0, ["b", "c"]],
+      ["need-2", "first-heading", 2, ["a"]],
+    ]);
+  });
+
+  it("a headings flag whose message says no level, and no lack of headings, has no level", () => {
+    // A message this version doesn't know, as a record from another version could have it.
+    const flag: FlagResult = {
+      rule: "headings",
+      pass: "headings",
+      message: "The first heading isn't what the rule expected.",
+    };
+    const page = pageFrom("a", passesOf({ headings: ["heading, level 2, Welcome"] }), {
+      flags: [flag],
+    });
+
+    expect(
+      attentionCards([page], rules).map((card) => [card.kind, card.level, card.pages.length]),
+    ).toEqual([["first-heading", null, 1]]);
   });
 
   it("cards come most pages first", () => {
