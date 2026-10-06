@@ -47,7 +47,7 @@ This plan amends C with the owner's decision.
 - **The cleaned copy is the only copy voicecap keeps.**
   - The raw `nvda.log` is never copied into a run, and never committed.
   - The test fixture made from the real log is the cleaned copy.
-- **Each cleaned copy says what it is.** Its first line is voicecap's: `# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key and every typed word, and wrote %USERPROFILE% for the home folder.`
+- **Each cleaned copy says what it is.** Its first line is voicecap's: `# NVDA's own log of one NVDA session in this run, as voicecap keeps it: NVDA's speech, the keys voicecap pressed, and NVDA's warnings and errors. voicecap left out every other key, every typed word, and what NVDA said after a key voicecap didn't press, and wrote %USERPROFILE% for the home folder.`
 - **The page never lists speech outside voicecap's own steps**: not before the first step, not between pages, and not in attempts that were thrown out. It only counts it.
 - **Turning the log on uses Guidepup's supported settings, and nothing else:**
   - no command-line flags;
@@ -115,7 +115,7 @@ This plan amends C with the owner's decision.
   - `cleanNvdaLog(raw: string, options: { home: string; platform: NodeJS.Platform }): string`.
     - It splits the log into entries with `splitLogEntries` (`src/manual/nvda-log.ts`).
     - It keeps only these entries, whole, in order:
-      - `IO` entries whose message starts `Speaking `;
+      - `IO` entries whose message starts `Speaking `, but only when the last `Input:` entry before them was one of `VOICECAP_GESTURES`, or none came before them (Ruling R3, from Task 1's review: NVDA speaks what a person types, so speech after any other key is dropped with the key);
       - `IO` entries whose message is `Input: kb(desktop|laptop):<g>` with `<g>` in `VOICECAP_GESTURES`;
       - entries at the `WARNING`, `ERROR`, or `CRITICAL` level, with their following lines (a traceback).
     - It drops everything else, including other `Input:` entries, `typed word:` entries, and `INFO`, `DEBUG`, and `DEBUGWARNING` entries.
