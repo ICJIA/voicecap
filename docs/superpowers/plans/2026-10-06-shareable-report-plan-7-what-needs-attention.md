@@ -541,6 +541,28 @@ The owner asked on 2026-10-06 for the README's screenshots to show what the web 
 - [ ] **Step 4:** Make the README and CHANGELOG changes above, then run `pnpm lint && pnpm typecheck && pnpm test`.
 - [ ] **Step 5:** Commit: `Make the README's screenshots from the i2i v3 run, with the cards, a page card, and a run's timeline`.
 
+### Task 7: The summary's "What needs attention" panel, full width
+
+The owner asked on 2026-10-06: "the what needs attention columns needs to be full width. This is the critical column, and it's too hard to read when there's three other columns beside it" (Ruling R23).
+
+**Files:**
+- Modify: `src/share/html/style.ts`. The attention panel spans the panels grid's whole row (`grid-column: 1 / -1`), first, and the other three panels share the rows after it. Where the panels stack (narrow widths), nothing changes.
+- Modify: `src/share/html/top.ts`. The attention panel carries the class that makes it span, with or without problems (with the none lines too).
+- Run `pnpm readme:screenshots`, and commit `report-top.png` and any other shot that changes. Change `scripts/readme-screenshots.ts` only if the top shot's region needs it.
+- Modify: `README.md`. The top shot's alt text and its paragraph say that "What needs attention" spans the width, above the other three panels.
+- The Word copy has no columns, so it doesn't change.
+- Test:
+  - `test/share-html-top.test.ts`: the panel's class, with problems and without.
+  - `test/share-browser.test.ts`:
+    - at 1280 px, the attention panel is as wide as the panels grid, and sits above the other three;
+    - at 390 px, all four are full width;
+    - axe reports zero violations.
+
+- [ ] **Step 1:** Write the tests, and run them: FAIL.
+- [ ] **Step 2:** Implement, and run them: PASS.
+- [ ] **Step 3:** Run `pnpm readme:screenshots` and look at `report-top.png`. Then update the README's alt text and paragraph, and run `pnpm lint && pnpm typecheck && pnpm test`.
+- [ ] **Step 4:** Commit: `Give the summary's What needs attention panel the full width`.
+
 ---
 
 ## The release (the controller, with the owner)
