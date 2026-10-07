@@ -510,6 +510,70 @@ async function panelsOf(page: Page): Promise<{
 }
 
 /**
+ * Each line NVDA said on a card, as it is drawn, by place in page order: its key's box ("Down
+ * Arrow:", with its words) and its quote's box.
+ */
+function quotesOf(
+  page: Page,
+  card: string,
+): Promise<{ key: Box & { text: string }; quote: Box }[][]> {
+  return page.evaluate((id) => {
+    const boxOf = (element: Element) => {
+      const { left, right, top, bottom, width } = element.getBoundingClientRect();
+      return { left, right, top, bottom, width };
+    };
+    return [...document.querySelectorAll(`#${id} .place`)].map((place) =>
+      [...place.querySelectorAll(":scope > p")].flatMap((line) => {
+        const key = line.querySelector(".pass");
+        const quote = line.querySelector("code");
+        return key === null || quote === null
+          ? []
+          : [{ key: { text: key.textContent ?? "", ...boxOf(key) }, quote: boxOf(quote) }];
+      }),
+    );
+  }, card);
+}
+
+/** Whether two boxes share any area, past half a pixel: boxes that only touch don't meet. */
+function meet(a: Box, b: Box): boolean {
+  const overlap = (from: number, to: number, start: number, end: number) =>
+    Math.min(to, end) - Math.max(from, start) > 0.5;
+  return overlap(a.left, a.right, b.left, b.right) && overlap(a.top, a.bottom, b.top, b.bottom);
+}
+
+/**
+ * The letters of the lines NVDA said that are drawn outside their quote's box, as the browser lays
+ * them out: a line of text, of each quote, whose box isn't inside the quote's border box. axe's
+ * contrast check needs every one inside, to know what it's drawn on.
+ */
+function lettersOutside(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const outside: string[] = [];
+    document.querySelectorAll(".place code").forEach((quote, at) => {
+      const box = quote.getBoundingClientRect();
+      for (const node of quote.childNodes) {
+        if (node.nodeType !== Node.TEXT_NODE) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const line of range.getClientRects()) {
+          const inside =
+            line.left >= box.left - 0.01 &&
+            line.right <= box.right + 0.01 &&
+            line.top >= box.top - 0.01 &&
+            line.bottom <= box.bottom + 0.01;
+          if (!inside) {
+            outside.push(
+              `quote ${at + 1}: letters at ${line.left.toFixed(2)} to ${line.right.toFixed(2)} px, its box ${box.left.toFixed(2)} to ${box.right.toFixed(2)} px`,
+            );
+          }
+        }
+      }
+    });
+    return outside;
+  });
+}
+
+/**
  * The contrast of each word of each chart of a run's event log, as WCAG measures it: its fill
  * against what it's drawn on, which is the bar it's written in (the shape just before it) or else
  * whatever is behind the chart. axe finds no background for text drawn in an SVG, so it can't measure
@@ -1527,10 +1591,62 @@ describe("what needs attention", () => {
       }),
     );
 
+    // What NVDA said keeps its spaces, and a space where a line wraps takes room in the line rather
+    // than hang past the quote's box (break-spaces, not pre-wrap): see the next two tests.
     expect(wraps).toEqual([
-      [".place code", "pre-wrap", "anywhere"],
+      [".place code", "break-spaces", "anywhere"],
       [".fix pre", "pre-wrap", "anywhere"],
     ]);
+  });
+
+  it.each([320, 1280])(
+    "lays each line NVDA said under its key, so no quote's box meets its key's or another quote's, at %i px",
+    async (width) => {
+      const page = await open(pages.i2i);
+      await page.setViewportSize({ width, height: 900 });
+
+      const places = await quotesOf(page, "need-1");
+
+      // The header's two lines, Down Arrow's and Tab's, and the main content's one.
+      expect(places.map((lines) => lines.map(({ key }) => key.text))).toEqual([
+        ["Down Arrow:", "Tab:"],
+        ["Down Arrow:"],
+      ]);
+      for (const [at, lines] of places.entries()) {
+        for (const { key, quote } of lines) {
+          const where = `place ${at + 1}, ${key.text.replace(/:$/, "")}`;
+          // Under its key, never beside it on the key's line, and starting where the key starts.
+          expect(quote.top, `${where}: under its key`).toBeGreaterThanOrEqual(key.bottom - 0.5);
+          expect(Math.abs(quote.left - key.left), `${where}: at its key's left`).toBeLessThan(1);
+          for (const other of lines) {
+            expect(meet(quote, other.key), `${where} meets ${other.key.text}`).toBe(false);
+            if (other.quote !== quote) {
+              expect(
+                meet(quote, other.quote),
+                `${where} meets the quote of ${other.key.text}`,
+              ).toBe(false);
+            }
+          }
+        }
+      }
+    },
+  );
+
+  // Where a quote wraps depends on the fonts and on how the system rounds their widths. With
+  // pre-wrap, a line whose last word ended less than a space's width from the box's edge left that
+  // space hanging past the box: at 320 px on Linux in CI, and at 313, 321, and 336 px, among 16
+  // widths, on Windows. axe then can't tell what those letters are drawn on, and calls the box
+  // "partially obscured". So this checks every width from 300 to 480 px, not one.
+  it("keeps every letter of each line NVDA said inside its quote's box, at every width from 300 to 480 px", async () => {
+    const page = await open(pages.i2i);
+    const outside: string[] = [];
+
+    for (let width = 300; width <= 480; width += 1) {
+      await page.setViewportSize({ width, height: 900 });
+      outside.push(...(await lettersOutside(page)).map((line) => `${width} px: ${line}`));
+    }
+
+    expect(outside).toEqual([]);
   });
 
   it("opens a folded card from the summary's link to it, and brings it into view", async () => {

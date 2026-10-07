@@ -60,8 +60,11 @@ export const THEME_CSS = `:root {
  *   their row. Between about 580 and 851 pixels it has two, so the first spans them and the other
  *   three sit two and one; narrower, every panel is stacked;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
- *   code of a fix wrap (`white-space: pre-wrap; overflow-wrap: anywhere`), so a long line never
- *   widens the page, and a fold inside a card is on the second color of the panels;
+ *   code of a fix wrap (`overflow-wrap: anywhere`), so a long line never widens the page, and a
+ *   fold inside a card is on the second color of the panels. Each line NVDA said is a block under
+ *   its key, so no box sits on another whatever the fonts, and keeps its spaces without letting one
+ *   hang past its box where it wraps (`white-space: break-spaces`, where a fix's code has
+ *   `pre-wrap`), so axe can tell what each letter is drawn on;
  * - the folds' triangle is drawn but not read aloud;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the page's middle row grows. In print the
@@ -239,12 +242,12 @@ details.fold > summary .what { font: 600 1rem var(--display); }
 details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 14px; }
 details.fold > .inside > p { margin: 0; }
 .folds { display: grid; gap: 10px; }
-/* what needs attention: a card's parts, and its pages in a fold of their own. What NVDA said and the code of a fix wrap, so a long line never widens the page. */
+/* what needs attention: a card's parts, and its pages in a fold of their own. What NVDA said and the code of a fix wrap, so a long line never widens the page. Each line NVDA said is a block under its key, as wide as its words up to the line's whole width, so no box can sit on or over another whatever the fonts; and a space where it wraps takes room in the line (break-spaces) rather than hang past the box, as pre-wrap lets it, which left axe unable to tell what those letters are drawn on. */
 .place, .part, .fix { display: grid; gap: 6px; align-content: start; }
 .place > p, .part > p, .fix > p { margin: 0; }
 .place > p:first-child { font-weight: 600; }
-.place .pass { color: var(--muted); font: 500 0.82rem var(--mono); margin-right: 4px; }
-.place code { display: inline-block; max-width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.place .pass { display: block; color: var(--muted); font: 500 0.82rem var(--mono); margin-bottom: 2px; }
+.place code { display: block; width: fit-content; max-width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: break-spaces; overflow-wrap: anywhere; }
 .fix pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.82rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .fix pre code { font: inherit; }
 .part > ol, .part > ul, .on-pages > ul { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
