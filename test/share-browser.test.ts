@@ -1404,11 +1404,15 @@ describe("the summary's panels", () => {
     },
   );
 
-  it.each(STATES)(
-    "has the other three share the row after what needs attention, side by side, and fill it at 1280 px: %s",
-    async (state, which) => {
+  // At 1200 px, as at 1280, four columns of 260 px would fit the grid, and leave one empty beside
+  // the three: the rule from 1100 px makes it three.
+  it.each(
+    [1280, 1200].flatMap((width) => STATES.map(([state, which]) => [width, state, which] as const)),
+  )(
+    "has the other three share the row after what needs attention, side by side, and fill it at %i px: %s",
+    async (width, state, which) => {
       const page = await open(pages[which]);
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setViewportSize({ width, height: 900 });
 
       const { grid, others } = await panelsOf(page);
       const [first, , last] = others;

@@ -97,7 +97,7 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
 }
 
 /** The most lines `flagQuotes` gives for a flag. */
-export const QUOTED = 3;
+const QUOTED = 3;
 
 /**
  * Up to 3 lines NVDA spoke that raised `flag`, each once, in the order spoken: the steps of its pass

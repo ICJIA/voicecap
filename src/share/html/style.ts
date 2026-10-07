@@ -57,7 +57,8 @@ export const THEME_CSS = `:root {
  * - the summary's panels (`.panels`): the first, on what needs attention (`.panel.wide`), takes a
  *   row of its own, the grid's whole width, in each of its states, and the other three share the
  *   rows after it. From 1100 pixels the grid has three columns, not four, so those three fill
- *   their row; where the panels are in two columns or stacked, they are as they were;
+ *   their row. Between about 580 and 851 pixels it has two, so the first spans them and the other
+ *   three sit two and one; narrower, every panel is stacked;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
  *   code of a fix wrap (`white-space: pre-wrap; overflow-wrap: anywhere`), so a long line never
  *   widens the page, and a fold inside a card is on the second color of the panels;
@@ -120,7 +121,7 @@ code { overflow-wrap: anywhere; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
 .panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .panel.attention h3 { color: var(--warn); }
-/* The panel on what needs attention is the one to read: it takes a row of its own, the grid's whole width, and the other three share the rows after it. Four columns of 260px fit from a window 1124px wide, which would leave a column empty beside those three; from 1100px the grid has three, so they fill their row. Narrower, the columns are as they were. */
+/* The panel on what needs attention is the one to read: it takes a row of its own, the grid's whole width, and the other three share the rows after it. Four columns of 260px fit from a window 1124px wide, which would leave a column empty beside those three; from 1100px the grid has three, so they fill their row. Narrower, the columns are as they were: three down to about 852px; two from about 851px to 580px, where the other three sit two and one; and one below that. */
 .panel.wide { grid-column: 1 / -1; }
 @media (min-width: 1100px) { .panels { grid-template-columns: repeat(3, 1fr); } }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
@@ -173,7 +174,6 @@ table.plain { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 table.plain th, table.plain td { text-align: left; padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
 table.plain thead th { border-top: 0; color: var(--muted); font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
 .panel table.plain th, .panel table.plain td { overflow-wrap: anywhere; }
-td.said code { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; margin: 2px 0; }
 .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; margin-top: 14px; }
 .limits > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .limits ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
