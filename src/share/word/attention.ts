@@ -7,7 +7,8 @@
  * number and title, how many pages and times, where on its pages NVDA said it (each place's lead,
  * and each line it said there, in the fixed-width font, after the key the pass pressed), the likely
  * cause and why it matters, each fix (what to change, its code in the fixed-width font, a line for
- * each line of it, and what NVDA should say then), the path forward, and its pages, as lists.
+ * each line of it, and what NVDA should say then), the path forward, and its pages, as lists. With
+ * no card there is no section at all, as on the page.
  *
  * It folds nothing: every page of every card is listed, and there are no links, since the Word
  * copy's sections follow one another. A card's parts are paragraphs, lists, and lines of code, never
@@ -76,9 +77,13 @@ function cardBlocks(card: AttentionCard, number: number): Block[] {
 
 /**
  * "What needs attention": its heading, the line under it (`attentionGist`: how many problems and
- * what to do, or that none is left), and each card in full, in the cards' order.
+ * what to do), and each card in full, in the cards' order.
+ *
+ * With no card it is nothing, as it is on the page, not a section that says so: At a glance's
+ * verdict says that nothing needs attention (`verdictOf`).
  */
 export function wordAttention(model: ShareModel): Block[] {
+  if (model.attention.length === 0) return [];
   return [
     heading(1, ATTENTION_TEXT.title),
     para(...attentionGist(model)),

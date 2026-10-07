@@ -15,7 +15,7 @@ import { attentionWords } from "../src/share/attention-words.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ATTENTION_TEXT } from "../src/share/text.js";
-import { attentionGist, noAttentionLine } from "../src/share/words.js";
+import { attentionGist } from "../src/share/words.js";
 import { heading, list, mono, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordAttention } from "../src/share/word/attention.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
@@ -265,7 +265,7 @@ describe("wordAttention", () => {
   });
 
   it("sets its headings in order: an h1, then an h2 for each card, and nothing between", async () => {
-    for (const model of [i2i, linkModel(PHRASES), await demoModel(), withCards(i2i, [])]) {
+    for (const model of [i2i, linkModel(PHRASES), await demoModel()]) {
       const levels = wordAttention(model).flatMap((block) =>
         block.kind === "heading" ? [block.level] : [],
       );
@@ -362,56 +362,43 @@ describe("wordAttention", () => {
     }
   });
 
-  it("says the line for no problem when no card is left, as the summary does, with no card and no list", () => {
-    const clean = withCards(i2i, []);
-    const copy = wordAttention(clean);
+  it("is nothing when no card is left, as the page has no section then: At a glance's verdict says that nothing needs attention", () => {
+    // Flags were raised, and no card is left of them.
+    const checked = withCards(i2i, []);
 
-    expect(copy).toEqual([heading(1, "What needs attention"), para(...attentionGist(clean))]);
-    expect(wordsOf(copy)[1]).toBe(ATTENTION_TEXT.none);
-    expect(wordsOf(copy)[1]).toBe(noAttentionLine(clean.summary.attention));
+    expect(checked.attention).toEqual([]);
+    expect(wordAttention(checked)).toEqual([]);
   });
 
-  it("says nothing needs attention on the pages read, and how many were skipped, when some were", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [
-        { path: "/", passes: { read: ["Welcome"] } },
-        { path: "/pdf", status: "skipped" },
-      ],
-    });
-    const model = buildShareModel(inputOf([run]));
-
-    // No page raised a flag, so the line says so.
-    expect(model.attention).toEqual([]);
-    expect(wordsOf(wordAttention(model))[1]).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
+  it("is nothing when pages were skipped and no card is left, or when no flag was raised", () => {
+    const skipped = buildShareModel(
+      inputOf([
+        shareRun({
+          id: "r1",
+          pages: [
+            { path: "/", passes: { read: ["Welcome"] } },
+            { path: "/pdf", status: "skipped" },
+          ],
+        }),
+      ]),
     );
-    expect(wordsOf(wordAttention(model))[1]).toBe(noAttentionLine(model.summary.attention));
-  });
-
-  it("says no flags were raised, as the summary does, when every page was read and none raised one", () => {
-    const model = buildShareModel(
+    const clean = buildShareModel(
       inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
     );
 
-    expect(model.attention).toEqual([]);
-    expect(wordsOf(wordAttention(model))[1]).toBe(
-      "Nothing needs attention: every page was read, and no flags were raised.",
-    );
-    expect(wordsOf(wordAttention(model))[1]).toBe(noAttentionLine(model.summary.attention));
+    for (const model of [skipped, clean]) {
+      expect(model.attention).toEqual([]);
+      expect(wordAttention(model)).toEqual([]);
+    }
   });
 
-  it("says nothing was counted, and never that nothing needs attention, when no run counts", () => {
+  it("is nothing when no run counts, so there is no section to say that nothing was counted", () => {
     const model = buildShareModel(
       inputOf([shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] })]),
     );
-    const copy = wordAttention(model);
 
-    expect(outlineOf(copy)).toEqual(["1 What needs attention"]);
-    expect(wordsOf(copy)).toEqual([
-      "What needs attention",
-      "No live run counts yet. There are no problems to show.",
-    ]);
+    expect(model.header.tested).toBeNull();
+    expect(wordAttention(model)).toEqual([]);
   });
 
   it("names each page by its canonical address, never by the address voicecap read", async () => {
@@ -425,7 +412,7 @@ describe("wordAttention", () => {
   });
 
   it("never calls voicecap automated, never says listened, and never names a library", async () => {
-    for (const model of [i2i, linkModel(PHRASES), await demoModel(), withCards(i2i, [])]) {
+    for (const model of [i2i, linkModel(PHRASES), await demoModel()]) {
       const said = wordsOf(wordAttention(model)).join("\n");
 
       expect(said).not.toMatch(/automated|listen|guidepup/i);

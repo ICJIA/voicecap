@@ -1,25 +1,28 @@
 /**
- * The Word copy's "Every page" and the appendix of transcripts, as blocks (./blocks.ts). Each takes
- * the model, and says the words of the page's renderer (../html/pages.ts) in the same order: the
- * fixed ones come from ../text.ts, the ones worked out from the model from ../words.ts, and the
- * heads of the table of pages and the words of its flags column from `WORD_TEXT`. So the two copies
- * can't say different things.
+ * The Word copy's "Every page", as blocks (./blocks.ts). It takes the model, and says the words of
+ * the page's renderer (../html/pages.ts) in the same order: the fixed ones come from ../text.ts,
+ * the ones worked out from the model from ../words.ts, and the label the page says for a screen
+ * reader alone before a page's flags, and the line for a page with nothing to flag, from
+ * `PAGES_TEXT` and `WORD_TEXT`. So the two copies can't say different things.
  *
- * Where the page has a card for each page, the Word copy has a row, in one table. It folds nothing:
- * every page and every transcript is there in full. What it leaves out has no use on paper: the
- * link on a card to its transcripts, and the strip of bars that draws a page's spoken lines (the
- * spec's charts that become tables don't include it). Nor does it say anything of the page's
- * fingerprint check, which it has none of. A page's screenshot is an image (./blocks.ts): in its
- * entry in the appendix, 400 pixels wide, or, for a page with no entry (it has no transcripts), in
- * its row's result, as wide as that cell holds. Pure.
+ * Where the page has a card for each page, the Word copy has blocks for each, in this order: a
+ * heading 2 with the page's number and name; its screenshot (its label, then its picture, or the
+ * reason it has none); one paragraph of its title, its status, its flags, its review, and what each
+ * pass captured; the lines NVDA said first; the run its transcripts are from; and its transcripts,
+ * each a heading 3 under the page's, where the page folds them in its card. A page that wasn't read
+ * has no lines and no transcripts. There is no appendix of transcripts: every page's are with it.
+ *
+ * It folds nothing: every page and every transcript is there in full. What it leaves out has no use
+ * on paper: the strip of bars that draws a page's spoken lines (the spec's charts that become
+ * tables don't include it). Nor does it say anything of the page's fingerprint check, which it has
+ * none of. Pure.
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
 import { jpegOfAddress } from "../cards.js";
-import type { Line } from "../line.js";
+import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
 import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
 import {
-  appendixGist,
   capturedOf,
   fileFingerprint,
   fromRun,
@@ -30,35 +33,31 @@ import {
   pagesGist,
   sentence,
   titleOf,
-  transcriptsInside,
 } from "../words.js";
 import {
-  PAGE_BREAK,
   cell,
   heading,
   image,
+  list,
   mono,
   para,
   table,
   type Block,
-  type Cell,
   type Picture,
 } from "./blocks.js";
 
 // Every page.
 
+/** A page's entry among the model's transcripts: the files it has, and the passes it couldn't read. */
+type Transcripts = ShareModel["appendix"][number];
+
 /**
- * A page's name in bold, as its card's heading has it: its label with its path under it, or, for a
- * page with no label, its path alone (the site's address is at the top of the copy, and a whole
- * address crowds a table of six columns). Then its title.
+ * A page's heading: its number, then its name as its card's heading has it: its label with its path
+ * after it, or, for a page with no label, its path alone (the site's address is at the top of the
+ * copy, and a whole address crowds a heading).
  */
-function pageCell(card: PageCard): Cell {
-  const title = titleOf(card);
-  return cell(
-    [{ text: card.labeled ? card.name : card.path, bold: true }],
-    ...(card.labeled ? [card.path] : []),
-    ...(title === null ? [] : [title]),
-  );
+function pageHeading(card: PageCard, number: number): Block {
+  return heading(2, `${number} ${card.labeled ? `${card.name} ${card.path}` : card.path}`);
 }
 
 /**
@@ -88,67 +87,158 @@ function pictureOf({ screenshot }: PageCard): Picture | null {
 }
 
 /**
- * A page's result in words, the failure when it has one, and the run its transcripts are from. A
- * page with no entry in the appendix (it has no transcripts) says its screenshot last, with its
- * picture if it has one, since no entry does; every other page says it in its entry, so each page
- * says it once.
+ * A page's flags, as the page's chips say them: that nothing was read to flag, that it has none, or
+ * each rule that raised one, once and in the fixed-width font, after the label the page gives them
+ * for a screen reader; then, when they are, that they are as the run recorded them. The page has no
+ * chip for a page with no transcripts, but a paragraph that said nothing of flags would read as no
+ * flags, so this says it.
  */
-function resultCell(card: PageCard, inAppendix: boolean): Cell {
-  const from = fromRun(card);
-  const said = cell(
-    card.statusText,
-    ...(card.failure === null ? [] : [card.failure]),
-    ...(from === null ? [] : [from]),
-    ...(inAppendix ? [] : [screenshotLine(card)]),
-  );
-  const picture = inAppendix ? null : pictureOf(card);
-  return picture === null ? said : { ...said, picture };
-}
-
-/**
- * A page's flags: that nothing was read to flag, that it has none, or each rule that raised one,
- * once and in the fixed-width font, as the page's chips set them; then, when they are, that they
- * are as the run recorded them. The page has no chip for a page with no transcripts, but the empty
- * cell of a table would read as no flags, so this says it.
- */
-function flagsCell(card: PageCard): Cell {
+function flagsSentences(card: PageCard): Line[] {
   const rules = [...new Set(card.flags.map(({ rule }) => rule))];
-  const said: (Line | string)[] =
+  const said: Line[] =
     card.counts === null
-      ? [WORD_TEXT.pages.nothingToFlag]
+      ? [[sentence(WORD_TEXT.pages.nothingToFlag)]]
       : rules.length === 0
-        ? [PAGES_TEXT.noFlags]
-        : rules.map((rule): Line => [{ text: rule, mono: true }]);
-  return cell(...said, ...(card.flagsAsRecorded ? [PAGES_TEXT.flagsAsRecorded] : []));
+        ? [[sentence(PAGES_TEXT.noFlags)]]
+        : [
+            [
+              `${PAGES_TEXT.flagsRaised}: `,
+              ...rules.flatMap((rule, at): Inline[] => [
+                ...(at === 0 ? [] : [", "]),
+                { text: rule, mono: true },
+              ]),
+              ".",
+            ],
+          ];
+  return [...said, ...(card.flagsAsRecorded ? [[sentence(PAGES_TEXT.flagsAsRecorded)]] : [])];
 }
 
 /**
- * The person's review as far as the records show it: each chip's words, then each manual NVDA
- * session. Empty when they show none, since a copy never says what a person hasn't done.
+ * What each pass captured and how long the page took, as one sentence: "Read: 18 lines; Headings:
+ * 2; Tab stops: 8; Time: 55.1 s." None for a page with no transcripts.
  */
-function reviewCell({ reviewChips, manual }: PageCard): Cell {
-  return cell(...reviewChips, ...manual.map(manualLine));
-}
-
-/** What each pass captured and how long the page took, a line each. Empty with no transcripts. */
-function passesCell(card: PageCard): Cell {
-  return cell(...(capturedOf(card) ?? []).map(({ label, value }) => `${label}: ${value}`));
+function capturedSentence(card: PageCard): Line[] {
+  const captured = capturedOf(card);
+  if (captured === null) return [];
+  return [[sentence(captured.map(({ label, value }) => `${label}: ${value}`).join("; "))]];
 }
 
 /**
- * Every page as one table: a row for each, in the latest run's order, and a column for each part
- * of a card. `inAppendix` holds the pages that have an entry there.
+ * A page's title, status, flags, and review in one paragraph, a sentence for each part, in this
+ * order: its title, when it has one; its status in words, the failure when it has one, and the run
+ * its transcripts are from when it isn't the latest; its flags; the person's review as far as the
+ * records show it (each chip's words, then each manual NVDA session), which is nothing when they
+ * show none, since a copy never says what a person hasn't done; and what each pass captured, which
+ * the section's opening line promises of every page.
  */
-function pagesTable(pages: PageCard[], inAppendix: Set<string>): Block {
-  const rows = pages.map((card, index) => [
-    `${index + 1}`,
-    pageCell(card),
-    resultCell(card, inAppendix.has(card.slug)),
-    flagsCell(card),
-    reviewCell(card),
-    passesCell(card),
-  ]);
-  return table(WORD_TEXT.pages.head, rows, [6, 22, 21, 18, 14, 19]);
+function statusLine(card: PageCard): Line {
+  const title = titleOf(card);
+  const from = fromRun(card);
+  const sentences: Line[] = [
+    ...(title === null ? [] : [[sentence(title)]]),
+    [sentence(card.statusText)],
+    ...(card.failure === null ? [] : [[sentence(card.failure)]]),
+    ...(from === null ? [] : [[sentence(from)]]),
+    ...flagsSentences(card),
+    ...card.reviewChips.map((chip): Line => [sentence(chip)]),
+    ...card.manual.map((session): Line => [sentence(manualLine(session))]),
+    ...capturedSentence(card),
+  ];
+  return sentences.flatMap((each, at) => (at === 0 ? each : [" ", ...each]));
+}
+
+/**
+ * What NVDA said first on the page: a label and the first lines of its read pass, word for word,
+ * each in curly quotes, as the page's card has them. A page with none (it was never read, or its
+ * read transcript can't be read here) has none: a label with nothing under it says less than
+ * nothing.
+ */
+function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
+  if (heardFirst.length === 0) return [];
+  return [
+    para({ text: PAGES_TEXT.heardFirst, bold: true }),
+    list(heardFirst.map((line) => `“${line}”`)),
+  ];
+}
+
+// A page's transcripts.
+
+/**
+ * A transcript's heading, a heading 3 under its page's: its pass, and how many lines it has: "Read,
+ * 18 lines". A transcript that couldn't be read has no count to give. The page's address isn't in
+ * it: the page's own heading is above.
+ */
+function transcriptHeading(pass: PassName, lines: number | null): Block {
+  const title = PASS_TITLE[pass];
+  return heading(3, lines === null ? title : `${title}, ${lineCount(lines)}`);
+}
+
+/**
+ * A transcript: its heading, its file's size and fingerprint (the whole file's, its header
+ * included, as its run recorded them), and what NVDA said, word for word, as one fixed-width block
+ * however many lines it has. The model's text is its lines joined by newlines, with no final
+ * newline, so splitting it at them gives the `file.lines` lines it has, a blank last one too, and
+ * nothing is dropped. A transcript with no lines says so, rather than show an empty block.
+ */
+function transcriptBlocks(file: AppendixFile): Block[] {
+  const words = file.lines === 0 ? para(APPENDIX_TEXT.noLines) : mono(file.text.split(/\r?\n/));
+  return [transcriptHeading(file.pass, file.lines), para(...fileFingerprint(file)), words];
+}
+
+/**
+ * A transcript the run recorded but that couldn't be read here, said in words, in its place. The
+ * page goes on to say what its fingerprint check does with it; the Word copy has no check.
+ */
+function unreadableBlocks(pass: PassName): Block[] {
+  return [transcriptHeading(pass, null), para(sentence(APPENDIX_TEXT.unreadable))];
+}
+
+/**
+ * A page's transcripts, as its fold has them: the run they are from; and a transcript for each pass
+ * the run recorded, the read pass first. A page whose record lists no transcript files says so.
+ */
+function transcriptsBlocks(
+  card: PageCard,
+  transcripts: Transcripts,
+  latest: string | null,
+): Block[] {
+  const passes = PASS_NAMES.filter(
+    (pass) =>
+      transcripts.files.some((file) => file.pass === pass) || transcripts.unreadable.includes(pass),
+  );
+  const origin = originOf(card, latest);
+  return [
+    ...(origin === null ? [] : [para(...origin)]),
+    ...passes.flatMap((pass) => {
+      const file = transcripts.files.find((each) => each.pass === pass);
+      return file === undefined ? unreadableBlocks(pass) : transcriptBlocks(file);
+    }),
+    ...(passes.length === 0 ? [para(APPENDIX_TEXT.noFiles)] : []),
+  ];
+}
+
+// The pages.
+
+/**
+ * A page: its heading, its screenshot (its label, then its picture when it has one), the paragraph
+ * that says its title, status, flags, and review, what NVDA said first, and its transcripts. A page
+ * with no transcripts (`transcripts` is undefined) has the first three alone.
+ */
+function pageBlocks(
+  card: PageCard,
+  number: number,
+  transcripts: Transcripts | undefined,
+  latest: string | null,
+): Block[] {
+  const picture = pictureOf(card);
+  return [
+    pageHeading(card, number),
+    para(...screenshotLine(card)),
+    ...(picture === null ? [] : [image(picture)]),
+    para(...statusLine(card)),
+    ...heardFirstBlocks(card),
+    ...(transcripts === undefined ? [] : transcriptsBlocks(card, transcripts, latest)),
+  ];
 }
 
 /**
@@ -171,97 +261,20 @@ function noLongerListedBlocks(gone: NoLongerListed[]): Block[] {
 }
 
 /**
- * "Every page": the line on how many pages were read in full, one table with a row for each page,
- * and the pages no longer listed. With no pages (no run counts, or the latest run listed none) it
- * is the line alone, with no table.
+ * "Every page": the line on how many pages were read in full, then each page in the latest run's
+ * order, with its number, and last the pages no longer listed. With no pages (no run counts, or the
+ * latest run listed none) it is the line alone.
  */
 export function wordPages(model: ShareModel): Block[] {
-  const inAppendix = new Set(model.appendix.map(({ slug }) => slug));
+  // The model keeps a page's transcripts apart from its card, by the page's slug.
+  const transcripts = new Map(model.appendix.map((entry) => [entry.slug, entry]));
+  const latest = model.evidence[0]?.run.id ?? null;
   return [
     heading(1, PAGES_TEXT.title),
     para(...pagesGist(model)),
-    ...(model.pages.length === 0 ? [] : [pagesTable(model.pages, inAppendix)]),
+    ...model.pages.flatMap((card, index) =>
+      pageBlocks(card, index + 1, transcripts.get(card.slug), latest),
+    ),
     ...noLongerListedBlocks(model.noLongerListed),
   ];
-}
-
-// The appendix.
-
-/**
- * A transcript's heading: its pass and its page, and how many lines it has: "Read transcript of
- * /about/, 21 lines". A transcript that couldn't be read has no count to give.
- */
-function transcriptHeading(pass: PassName, path: string, lines: number | null): Block {
-  const title = `${PASS_TITLE[pass]} ${APPENDIX_TEXT.transcriptOf} ${path}`;
-  return heading(3, lines === null ? title : `${title}, ${lineCount(lines)}`);
-}
-
-/**
- * A transcript: its heading, its file's size and fingerprint (the whole file's, its header
- * included, as its run recorded them), and what NVDA said, word for word, as one fixed-width block
- * however many lines it has. The model's text is its lines joined by newlines, with no final
- * newline, so splitting it at them gives the `file.lines` lines it has, a blank last one too, and
- * nothing is dropped. A transcript with no lines says so, rather than show an empty block.
- */
-function transcriptBlocks(file: AppendixFile, path: string): Block[] {
-  const words = file.lines === 0 ? para(APPENDIX_TEXT.noLines) : mono(file.text.split(/\r?\n/));
-  return [transcriptHeading(file.pass, path, file.lines), para(...fileFingerprint(file)), words];
-}
-
-/**
- * A transcript the run recorded but that couldn't be read here, said in words, in its place. The
- * page goes on to say what its fingerprint check does with it; the Word copy has no check.
- */
-function unreadableBlocks(pass: PassName, path: string): Block[] {
-  return [transcriptHeading(pass, path, null), para(sentence(APPENDIX_TEXT.unreadable))];
-}
-
-/**
- * One page of the appendix: its number, its name, and the transcripts it has (a heading as the
- * page's fold has it, which says which, as many as there are); the run its transcripts are from;
- * its screenshot (the only place a page with transcripts says it): its label, then its picture, or
- * the line that says why there's none; and a transcript for each pass the run recorded. A page
- * whose record lists no transcript files says so. A page with no card has the latest run's
- * transcripts, and no screenshot.
- */
-function appendixPage(
-  entry: ShareModel["appendix"][number],
-  number: number,
-  card: PageCard | undefined,
-  latest: string | null,
-): Block[] {
-  const passes = PASS_NAMES.filter(
-    (pass) => entry.files.some((file) => file.pass === pass) || entry.unreadable.includes(pass),
-  );
-  const path = card?.path ?? entry.name;
-  const origin = originOf(card, latest);
-  const transcripts = passes.flatMap((pass) => {
-    const file = entry.files.find((each) => each.pass === pass);
-    return file === undefined ? unreadableBlocks(pass, path) : transcriptBlocks(file, path);
-  });
-  const picture = card === undefined ? null : pictureOf(card);
-  return [
-    heading(2, `${number} ${entry.name}: ${transcriptsInside(passes)}`),
-    ...(origin === null ? [] : [para(...origin)]),
-    ...(card === undefined ? [] : [para(...screenshotLine(card))]),
-    ...(picture === null ? [] : [image(picture)]),
-    ...transcripts,
-    ...(passes.length === 0 ? [para(APPENDIX_TEXT.noFiles)] : []),
-  ];
-}
-
-/**
- * "Appendix: every transcript", starting on a new page and running on from there: the line on how
- * many pages and transcripts there are (without the page's sentence on opening a page, since
- * nothing here is folded), then each page with transcripts, in the latest run's order, with the
- * number its row has.
- */
-export function wordAppendix(model: ShareModel): Block[] {
-  const cards = new Map(model.pages.map((card, index) => [card.slug, { card, number: index + 1 }]));
-  const latest = model.evidence[0]?.run.id ?? null;
-  const pages = model.appendix.flatMap((entry, index) => {
-    const found = cards.get(entry.slug);
-    return appendixPage(entry, found?.number ?? index + 1, found?.card, latest);
-  });
-  return [PAGE_BREAK, heading(1, APPENDIX_TEXT.title), para(...appendixGist(model)), ...pages];
 }

@@ -1,8 +1,8 @@
 /**
  * The sentences of the shareable report that are worked out from its model: the numbers, counts,
  * names, and dates in the plain words each copy says them in. First those of the page's first half
- * (the top, the summary, "What needs attention", "How voicecap works", "Every page", and the
- * appendix), then those of its second (what changed since the last run, the problems during the
+ * (the top, At a glance, "What needs attention", "How voicecap works", and "Every page" with its
+ * transcripts), then those of its second (what changed since the last run, the problems during the
  * runs, the evidence, the story, and the footer).
  *
  * Each is a string, or a line (./line.ts): no markup, and nothing escaped. The page's renderers
@@ -10,7 +10,7 @@
  * two can't say different things. What no record changes is in text.ts. Pure.
  *
  * A fold's instruction to open it is the page's alone: the Word copy folds nothing. So a line that
- * has one (`appendixGist`, `changesGist`) takes the page's sentence, and says none of its own.
+ * has one (`changesGist`) takes the page's sentence, and says none of its own.
  */
 import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
 import { plural } from "../report/html.js";
@@ -32,7 +32,6 @@ import type { Line } from "./line.js";
 import type { AppendixFile, PageCard, ShareModel } from "./model.js";
 import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
-import type { Summary } from "./summary.js";
 import {
   ATTENTION_TEXT,
   EVIDENCE_TEXT,
@@ -43,7 +42,6 @@ import {
   PASS_WORDS,
   PROBLEMS_TEXT,
   STORY,
-  SUMMARY_TEXT,
   TIMELINE_TEXT,
   TOP_TEXT,
 } from "./text.js";
@@ -92,9 +90,9 @@ export function documentTitle({ name, screenReader }: ShareModel["header"]): str
   return `${name}: how its pages read aloud with ${screenReader}`;
 }
 
-// The summary.
+// At a glance.
 
-/** One of the summary's five numbers: how it's counted, and what it counts. */
+/** One of At a glance's numbers: how it's counted, and what it counts. */
 export interface NumberTile {
   /** Complete is "ok", a flag or a gap "warn", a plain count "quiet": a copy says it in words too. */
   tone: "ok" | "warn" | "quiet";
@@ -131,39 +129,13 @@ function timeTile({ summary, evidence }: ShareModel): NumberTile {
 }
 
 /**
- * The five numbers, in order. A count out of its total is in the tone of whether it's complete; a
- * copy says each in words, never by tone alone. None counts the pages a person heard NVDA read: a
- * run started without a terminal can't ask, and a count of 0 read as though no one had heard NVDA.
- */
-export function numbersOf(model: ShareModel): NumberTile[] {
-  const { pagesInScope, transcribed, flagged, rules } = model.summary.numbers;
-  const flagsLabel = `${flagged === 1 ? "page" : "pages"} with flags${flagged > 0 ? `, ${plural(rules, "rule")}` : ""}`;
-  const transcribedTone =
-    pagesInScope === 0 ? "quiet" : transcribed === pagesInScope ? "ok" : "warn";
-  return [
-    {
-      tone: "quiet",
-      value: { count: pagesInScope },
-      label: pagesInScope === 1 ? "page in scope" : "pages in scope",
-    },
-    {
-      tone: transcribedTone,
-      value: { part: transcribed, whole: pagesInScope },
-      label: "transcribed by NVDA",
-    },
-    { tone: flagged > 0 ? "warn" : "quiet", value: { count: flagged }, label: flagsLabel },
-    spokenTile(model),
-    timeTile(model),
-  ];
-}
-
-/**
  * The four numbers At a glance gives, in order: the pages NVDA read out of those in scope, the
  * problems to fix, the lines NVDA spoke, and how long it ran. The first two are the result the
  * verdict goes by (`ShareModel.result`), so the numbers and the verdict can't disagree. A count out
  * of its total is in the tone of whether it's complete, and the problems to fix are `ok` at none
  * and `warn` above; a copy says each in words, never by tone alone. None counts the pages a person
- * heard NVDA read (see `numbersOf`).
+ * heard NVDA read: a run started without a terminal can't ask, and a count of 0 read as though no
+ * one had heard NVDA.
  */
 export function glanceNumbersOf(model: ShareModel): NumberTile[] {
   const { pages, read, problems } = model.result;
@@ -203,95 +175,17 @@ export function shareOf(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`;
 }
 
-/**
- * The pages each kind of latest result counts, in words: "5 pages without flags, 1 page with
- * flags". A kind with no pages isn't named, so it's empty when there are no pages at all.
- */
-export function resultsCaption({ done, flagged, never }: Summary["bars"]["results"]): string {
-  const { resultWords } = SUMMARY_TEXT;
-  return (
-    [
-      [done, resultWords.done],
-      [flagged, resultWords.flagged],
-      [never, resultWords.never],
-    ] as const
-  )
-    .filter(([pages]) => pages > 0)
-    .map(([pages, what]) => `${plural(pages, "page")} ${what}`)
-    .join(", ");
-}
-
-/** The most cards the summary's panel on what needs attention names, before it counts the rest. */
-const PANEL_CARDS = 5;
-
-/** What the summary's panel on what needs attention says, in its words: see `attentionPanelOf`. */
-export interface AttentionPanel {
-  /** How many problems, on how many pages, ahead of the cards: "1 problem, on 32 pages:". */
-  lead: string;
-  /** The cards it names, the first few, each with its id (the page links its title to its card). */
-  named: { id: string; title: string }[];
-  /**
-   * How many cards it leaves out, "and 2 more, under What needs attention", which is where they all
-   * are; null when it names every one.
-   */
-  more: string | null;
-}
-
-/**
- * What the summary's panel on what needs attention says: how many problems there are and on how
- * many pages, over every card; the first `PANEL_CARDS` cards by their titles; and, when there are
- * more, how many it leaves out, which both copies say beneath the cards, the page linking it to the
- * section that has them all. Null when no card is left: the panel says the line for no problem
- * (`noAttentionLine`).
- */
-export function attentionPanelOf({
-  problems,
-  pages,
-  cards,
-}: Summary["attention"]): AttentionPanel | null {
-  if (cards.length === 0) return null;
-  const named = cards.slice(0, PANEL_CARDS);
-  const rest = cards.length - named.length;
-  return {
-    lead: `${plural(problems, "problem")}, on ${plural(pages, "page")}:`,
-    named,
-    more: rest > 0 ? ATTENTION_TEXT.more(rest) : null,
-  };
-}
-
-/**
- * What the section on what needs attention and the summary's panel say when no card is left: that
- * nothing needs attention, as every page was read; or, when some pages were skipped (they are on no
- * card, and weren't read), that nothing does on the pages read, with how many were skipped. Each
- * says that every flag was fixed or checked by a person when a page in scope raised one, and that
- * no flags were raised when none did: a flag never raised was never fixed or checked.
- */
-export function noAttentionLine({ skipped, flagsRaised }: Summary["attention"]): string {
-  if (!flagsRaised) {
-    return skipped === 0 ? ATTENTION_TEXT.noFlags : ATTENTION_TEXT.noFlagsSkipped(skipped);
-  }
-  return skipped === 0 ? ATTENTION_TEXT.none : ATTENTION_TEXT.noneSkipped(skipped);
-}
-
 // What needs attention.
 
 /**
  * The line under the heading of "What needs attention": how many problems there are, on how many
- * pages, and what to do about them, from the summary's own counts; with no card left, the line the
- * summary's panel says in its place (`noAttentionLine`); and, when no run counts, that there are no
- * problems to show, as the other sections say of what they would show. No panel says anything then,
- * and nothing was read, so "every page was read" would not be true.
+ * pages, and what to do about them, from the summary's own counts. Both copies have the section
+ * only when a card is left, so this is said of a model with a card; with none, At a glance's
+ * verdict says that nothing needs attention.
  */
-export function attentionGist({ header, summary }: ShareModel): Line {
-  if (header.tested === null) {
-    return [{ text: NO_RUN, bold: true }, " There are no problems to show."];
-  }
-  const { attention } = summary;
-  return [
-    attention.cards.length === 0
-      ? noAttentionLine(attention)
-      : ATTENTION_TEXT.gist(attention.problems, attention.pages),
-  ];
+export function attentionGist({ summary }: ShareModel): Line {
+  const { problems, pages } = summary.attention;
+  return [ATTENTION_TEXT.gist(problems, pages)];
 }
 
 // How voicecap works.
@@ -429,33 +323,7 @@ export function notRecordedLine(text: string): string {
   return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
 }
 
-// The appendix.
-
-/**
- * The line that opens the appendix: how many pages and transcripts, what each page has, and any
- * that couldn't be read. `open` is the page's sentence about opening a page, which follows what each
- * page has; a copy that folds nothing gives none.
- */
-export function appendixGist({ appendix, header }: ShareModel, open = ""): Line {
-  if (header.tested === null) {
-    return [{ text: NO_RUN, bold: true }, " There are no transcripts to show."];
-  }
-  if (appendix.length === 0) {
-    return [{ text: "No transcripts to show.", bold: true }, " No page has been read in full yet."];
-  }
-  const shown = appendix.reduce((sum, { files }) => sum + files.length, 0);
-  const lost = appendix.reduce((sum, { unreadable }) => sum + unreadable.length, 0);
-  const headline = `${plural(appendix.length, "page")}, ${shown === 0 ? "no transcripts shown" : plural(shown, "transcript")}.`;
-  const opening = open === "" ? "" : ` ${open}`;
-  const unread =
-    lost === 0
-      ? ""
-      : ` ${plural(lost, "transcript")} couldn't be read, and ${lost === 1 ? "says" : "each says"} so under its page.`;
-  return [
-    { text: headline, bold: true },
-    ` What NVDA said on each page, word for word, with each file's fingerprint.${opening}${unread}`,
-  ];
-}
+// A page's transcripts.
 
 /**
  * The run a page's transcripts are from, with its id in the fixed-width font: its id, and its date

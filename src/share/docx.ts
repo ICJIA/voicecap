@@ -5,7 +5,7 @@
  * pays for loading it.
  *
  * The document is US Letter with 1-inch margins, black on white, in Word's own styles: Title, and
- * Heading 1 to Heading 3. Body text is Calibri 11 pt, a table's text 10 pt, and fixed-width text
+ * Heading 1 to Heading 4. Body text is Calibri 11 pt, a table's text 10 pt, and fixed-width text
  * Consolas 9 pt, in a paragraph style named Mono. A table has a header row, in bold on light gray,
  * that repeats on every page; a link is blue and underlined. The footer of every page says where
  * the page is in the document. A picture is a JPEG, 400 pixels wide with its height in proportion
@@ -113,6 +113,7 @@ const STYLES: DocxModule.IStylesOptions = {
     heading1: headingStyle(0, 32, 360, 120),
     heading2: headingStyle(1, 28, 240, 80),
     heading3: headingStyle(2, 24, 200, 60),
+    heading4: headingStyle(3, 22, 160, 40),
     // A list's items sit together, with the space after the list rather than between its items.
     listParagraph: { paragraph: { contextualSpacing: true } },
   },
@@ -342,6 +343,7 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
         1: d.HeadingLevel.HEADING_1,
         2: d.HeadingLevel.HEADING_2,
         3: d.HeadingLevel.HEADING_3,
+        4: d.HeadingLevel.HEADING_4,
       } as const;
       return [
         new d.Paragraph({ heading: levels[block.level], children: runsOf(d, block.text, {}) }),

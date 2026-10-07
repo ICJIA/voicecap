@@ -23,6 +23,7 @@ import type { OnlyInOnePage } from "./changes.js";
 import { count } from "./format.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
+import type { VerdictKind } from "./verdict.js";
 
 /**
  * The top of the page: the line above the site's name, the label of the line under it (which is
@@ -47,23 +48,16 @@ export const TOP_TEXT = {
 };
 
 /**
- * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
- * by a phrase that says what the bar counts), and the words for what a page's latest result can
- * be. What its panel on what needs attention says of the cards, and of there being none, is
- * `ATTENTION_TEXT`'s. On the page, the Summary is At a glance now (`GLANCE_TEXT`), and its panels
- * and bars are parts of the details (`DETAILS_TEXT`), except the panel on what needs attention and
- * the bar of each page's latest result, which the page no longer draws. The Word copy still has
- * all of them in its Summary.
+ * The titles of the five parts of the details that were the Summary's panels and bars (two of the
+ * bars' titles are followed by a phrase that says what the bar counts). The Summary itself is At a
+ * glance now (`GLANCE_TEXT`), and these are parts of the details (`DETAILS_TEXT`) on the page and in
+ * the Word copy alike. What the panel on what needs attention said is gone from both: the verdict
+ * says it, and the section is there only when a card is.
  */
 export const SUMMARY_TEXT = {
-  title: "Summary",
-  attention: "What needs attention",
   complete: "How complete the test was",
   todo: "What's still to do",
   whenHow: "When and how",
-  results: "Every page's latest result",
-  /** What a page's latest result can be, as the words that follow a count of pages. */
-  resultWords: { done: "without flags", flagged: "with flags", never: "never transcribed" },
   rules: "Flags by rule",
   /**
    * The phrase after that title, which says what each rule's count is. The page sets it beside the
@@ -271,6 +265,12 @@ export const PAGES_TEXT = {
    * recorded, by it for a screen reader, and the Word copy says it before that line.
    */
   screenshot: "Screenshot",
+  /**
+   * The label of the rules that raised a page's flags. The page's card says it for a screen reader
+   * alone, before their chips, and the Word copy says it before the rules in its sentence: "Flags
+   * raised: generic-link-text, headings."
+   */
+  flagsRaised: "Flags raised",
   /** Said of a page that has transcripts and no flags. */
   noFlags: "No flags",
   /** Said of a page whose flags are as its run recorded them, not the current rules'. */
@@ -313,15 +313,13 @@ export const SCREENSHOT_TEXT = {
 };
 
 /**
- * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
- * were skipped; `noFlags` and `noFlagsSkipped` when no page raised a flag), the labels of a card's
- * parts, the line of the fold a card's pages are behind, and the small sentences said about the
- * cards: the verdict's words (`headline` when something needs attention, `nothing` and
- * `nothingOnRead` when nothing does, and `sentence`, the headline with a full stop) and `more` for
- * the Word copy's summary panel. What a card itself says is `attentionWords`, in
- * ./attention-words.ts.
+ * "What needs attention": its heading, the line under it, the labels of a card's parts, the line of
+ * the fold a card's pages are behind, and the verdict's words (`headline` when something needs
+ * attention, `nothing` and `nothingOnRead` when nothing does). What a card itself says is
+ * `attentionWords`, in ./attention-words.ts.
  *
- * The page has no section when no card is left: its verdict says that nothing needs attention.
+ * Both copies have no section when no card is left: At a glance's verdict says that nothing needs
+ * attention.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -331,22 +329,6 @@ export const ATTENTION_TEXT = {
    */
   gist: (problems: number, pages: number): string =>
     `${plural(problems, "problem")}, on ${plural(pages, "page")}. Fix each one and run voicecap again, or check it and record that in voicecap review, until nothing is left.`,
-  /** Said in place of the cards when no card is left and no page was skipped. The spec pins it. */
-  none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-  /**
-   * Said in its place when no card is left but some pages were skipped, which are on no card and
-   * weren't read: nothing needs attention on the pages read, and how many were skipped.
-   */
-  noneSkipped: (skipped: number): string =>
-    `Nothing needs attention on the pages read: every flag was fixed or checked by a person. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
-  /**
-   * Said in place of `none` when no page in scope raised a flag, since a flag never raised was never
-   * fixed or checked. The spec pins it.
-   */
-  noFlags: "Nothing needs attention: every page was read, and no flags were raised.",
-  /** Said in place of `noneSkipped` when no page read raised a flag. */
-  noFlagsSkipped: (skipped: number): string =>
-    `Nothing needs attention on the pages read: no flags were raised. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
   /**
    * The labels of a card's parts, each followed by what it labels: a card on one page labels it
    * `page`, and one on more `pages`.
@@ -366,11 +348,6 @@ export const ATTENTION_TEXT = {
    */
   pagesFold: (pages: number): string => `The ${count(pages)} pages`,
   /**
-   * The Word copy's summary panel's last line, when it names fewer cards than there are: how many it
-   * leaves out.
-   */
-  more: (rest: number): string => `and ${count(rest)} more, under What needs attention`,
-  /**
    * The verdict's headline when something needs attention (see `verdictOf`, in ./verdict.ts): how
    * many problems, on how many pages, as the spec pins it. It has no full stop, so the page can set
    * it as a line of its own, and the website's card can follow it with its own.
@@ -385,9 +362,6 @@ export const ATTENTION_TEXT = {
    * were read.
    */
   nothingOnRead: "Nothing needs attention on the pages read",
-  /** The headline as a sentence of its own. */
-  sentence: (problems: number, pages: number): string =>
-    `${ATTENTION_TEXT.headline(problems, pages)}.`,
 };
 
 /**
@@ -846,15 +820,14 @@ export const TIMELINE_TEXT = {
 /**
  * A page's transcripts, in the words both copies use: what a transcript's heading says of its page,
  * and what it says in place of a transcript's words, or of a page's transcript files. The page folds
- * a page's transcripts in its card, and has no appendix; the Word copy still does, and says its
- * heading (`title`).
+ * a page's transcripts in its card, and the Word copy sets them under the page, a heading 3 for
+ * each. Neither has an appendix of transcripts.
  */
 export const APPENDIX_TEXT = {
-  title: "Appendix: every transcript",
   /**
    * Between a transcript's pass and its page's address, in its heading: "Read transcript of
-   * /about/". The page sets it apart for a screen reader, which reads each heading alone; the Word
-   * copy has it in view.
+   * /about/". The page sets it apart for a screen reader, which reads each heading alone. The Word
+   * copy's heading says neither the words nor the address: it sits under its page's own heading.
    */
   transcriptOf: "transcript of",
   /** For a transcript with no lines. */
@@ -1151,20 +1124,26 @@ export const WORD_TEXT = {
   top: {
     made: (asOf: string): string => `This copy was made ${asOf}.`,
   },
-  /** The Summary: the table of its five numbers, and the three tables that stand in for its bars. */
+  /**
+   * At a glance: the verdict's sign, which the page draws with its style, with no alternative text,
+   * and a document has no style to draw with, so its line holds it: ✓ before the words of nothing
+   * that needs attention, and ⚠ before those of anything else, as the page's styles draw them. And
+   * the heads of the table that stands in for the page's ring of the pages.
+   */
+  glance: {
+    signs: { ok: "✓", warn: "⚠", bad: "⚠" } satisfies Record<VerdictKind, string>,
+    /** The heads of the table of the ring's three parts: the part, and the pages in it. */
+    ringHead: ["Part", "Pages"],
+  },
+  /**
+   * The tables that stand in for the page's tiles and bars: the table of At a glance's four
+   * numbers, and the two tables of the details' bars (flags by rule, and the human review).
+   */
   summary: {
-    /** The heads of the table of the five numbers: the number, and what it counts. */
+    /** The heads of the table of the four numbers: the number, and what it counts. */
     numbersHead: ["Number", "What it counts"],
     /** A count out of its total, in that table: "7 of 7". */
     outOf: (part: string, whole: string): string => `${part} of ${whole}`,
-    /** The heads of the table of each page's latest result. */
-    resultsHead: ["Result", "Pages", "Share"],
-    /** What a page's latest result can be, as the label of a row: the page's words, capitalized. */
-    results: {
-      done: "Without flags",
-      flagged: "With flags",
-      never: "Never transcribed",
-    } satisfies Record<keyof typeof SUMMARY_TEXT.resultWords, string>,
     /** The heads of the table of flags by rule: the rule, how often it was raised, its share. */
     rulesHead: ["Rule", "Times raised", "Share of all flags raised"],
     /** The heads of the table of the human review: what, how many, out of how many, the share. */
@@ -1175,15 +1154,15 @@ export const WORD_TEXT = {
     stepsHead: ["No.", "Step", "What it means"],
   },
   /**
-   * "Every page": where the page has a card for each page, the Word copy has one table. These are
-   * the heads of its columns, and what its flags column says of a page that has no transcripts.
+   * "Every page": where the page has a chip for each part of a card, the Word copy has a sentence
+   * for each, in one paragraph. This is what its sentence on flags says of a page that has no
+   * transcripts.
    */
   pages: {
-    /** The heads of the table of every page, one column for each part of a card. */
-    head: ["No.", "Page", "Result", "Flags", "The person's review", "What each pass captured"],
     /**
-     * Said in a page's flags cell when it has no transcripts, so that an empty cell never reads as
-     * no flags. The page's card has no flags chip for such a page: its result says it wasn't read.
+     * Said in a page's paragraph when it has no transcripts, so that a paragraph with nothing of
+     * flags never reads as no flags. The page's card has no flags chip for such a page: its result
+     * says it wasn't read.
      */
     nothingToFlag: "Nothing was read to flag",
   },

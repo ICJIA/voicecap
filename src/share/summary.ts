@@ -41,10 +41,7 @@ export interface Summary {
    * pages they're on, over every card; how many pages voicecap skipped after loading them and so
    * never read (the sentence's "skipped, not read"), which are on no card; whether any page in
    * scope raised a flag (in the transcripts shown), settled or not, since a flag never raised was
-   * never fixed or checked: the line for no problem says both (`noAttentionLine`, in words.ts); and
-   * each card's id and title (its words' `title`), in the cards' order, for the panel to name and
-   * link to its card. The panel names the first few and counts the rest (`attentionPanelOf`, in
-   * words.ts).
+   * never fixed or checked; and each card's id and title (its words' `title`), in the cards' order.
    */
   attention: {
     problems: number;

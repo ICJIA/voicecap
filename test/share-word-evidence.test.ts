@@ -1500,7 +1500,7 @@ describe("wordFooter", () => {
     expect(blocks.map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para"]);
     expect(blocks[0]).toEqual(heading(1, "About this report"));
     expect(blocks[0]).toEqual(heading(1, WORD_TEXT.footer.heading));
-    // No page break: the heading and its paragraphs run on from the last transcript.
+    // No page break: the heading and its paragraphs run on from the details.
     expect(blocks.some(({ kind }) => kind === "pageBreak")).toBe(false);
   });
 
@@ -1510,7 +1510,7 @@ describe("wordFooter", () => {
 
     expect(page).toMatch(/^<footer>/);
     expect(page).not.toMatch(/<h[1-6]/);
-    // In Word, a footer with no heading would belong to the last transcript's heading 3.
+    // In Word, a footer with no heading would belong to the heading before it, in the details.
     expect(wordFooter(model)[0]).toEqual(heading(1, "About this report"));
     expect(wordFooter(noRunModel())[0]).toEqual(heading(1, "About this report"));
   });

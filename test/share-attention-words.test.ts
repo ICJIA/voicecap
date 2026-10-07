@@ -952,27 +952,17 @@ describe("the path forward", () => {
 });
 
 describe("the section's own words", () => {
-  it("has the section's title, the line for no problem, and the labels of a card's parts", () => {
+  it("has the section's title, the labels of a card's parts, and the verdict's words", () => {
     expect(Object.keys(ATTENTION_TEXT).sort()).toEqual([
       "gist",
       "headline",
       "labels",
-      "more",
-      "noFlags",
-      "noFlagsSkipped",
-      "none",
-      "noneSkipped",
       "nothing",
       "nothingOnRead",
       "pagesFold",
-      "sentence",
       "title",
     ]);
     expect(ATTENTION_TEXT.title).toBe("What needs attention");
-    // The spec pins it, word for word.
-    expect(ATTENTION_TEXT.none).toBe(
-      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-    );
     // A card on one page labels it "The page", and a card on more "The pages".
     expect(ATTENTION_TEXT.labels).toEqual({
       cause: "Likely cause",
@@ -1000,59 +990,10 @@ describe("the section's own words", () => {
     );
   });
 
-  it("says the headline as a sentence of its own, with a full stop", () => {
-    expect(ATTENTION_TEXT.sentence(1, 32)).toBe("1 problem needs attention, on 32 pages.");
-    expect(ATTENTION_TEXT.sentence(2, 1)).toBe("2 problems need attention, on 1 page.");
-    expect(ATTENTION_TEXT.sentence(1, 1)).toBe("1 problem needs attention, on 1 page.");
-    expect(ATTENTION_TEXT.sentence(1200, 3000)).toBe(
-      "1,200 problems need attention, on 3,000 pages.",
-    );
-  });
-
   it("says the verdict's headline when nothing needs attention, and when that is of the pages read, with no full stop", () => {
     // The page's words are in this one file, so the verdict (src/share/verdict.ts) says them from here.
     expect(ATTENTION_TEXT.nothing).toBe("Nothing needs attention");
     expect(ATTENTION_TEXT.nothingOnRead).toBe("Nothing needs attention on the pages read");
-  });
-
-  it("says nothing needs attention on the pages read, and how many were skipped, for the line for no problem when some were", () => {
-    expect(ATTENTION_TEXT.noneSkipped(1)).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
-    );
-    expect(ATTENTION_TEXT.noneSkipped(2)).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.",
-    );
-    expect(ATTENTION_TEXT.noneSkipped(1204)).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1,204 pages were skipped, not read.",
-    );
-    // It never says every page was read, since some weren't.
-    expect(ATTENTION_TEXT.noneSkipped(3)).not.toMatch(/every page was read/);
-  });
-
-  it("says no flags were raised, in the line for no problem, when no page raised one", () => {
-    // The spec pins it, word for word.
-    expect(ATTENTION_TEXT.noFlags).toBe(
-      "Nothing needs attention: every page was read, and no flags were raised.",
-    );
-    expect(ATTENTION_TEXT.noFlagsSkipped(1)).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
-    );
-    expect(ATTENTION_TEXT.noFlagsSkipped(2)).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
-    );
-    expect(ATTENTION_TEXT.noFlagsSkipped(1204)).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 1,204 pages were skipped, not read.",
-    );
-    // Neither claims a flag that was never raised was fixed or checked.
-    for (const line of [ATTENTION_TEXT.noFlags, ATTENTION_TEXT.noFlagsSkipped(2)]) {
-      expect(line).not.toMatch(/fixed or checked/);
-    }
-  });
-
-  it("says how many cards the summary's panel leaves out", () => {
-    expect(ATTENTION_TEXT.more(35)).toBe("and 35 more, under What needs attention");
-    expect(ATTENTION_TEXT.more(1)).toBe("and 1 more, under What needs attention");
-    expect(ATTENTION_TEXT.more(1204)).toBe("and 1,204 more, under What needs attention");
   });
 
   it("opens the section with how many problems, on how many pages, and what to do", () => {
@@ -1107,7 +1048,7 @@ describe("what the words never say", () => {
     );
 
     // Words were read at all: the section's own, and each card's.
-    expect(strings).toContain(ATTENTION_TEXT.none);
+    expect(strings).toContain(ATTENTION_TEXT.nothing);
     expect(strings).toContain("Fix it on the page.");
     expect(strings.length).toBeGreaterThan(100);
     expect(rest.filter((string) => /listen|automated|guidepup/i.test(string))).toEqual([]);

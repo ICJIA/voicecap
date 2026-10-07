@@ -31,7 +31,6 @@ import { problemsOf } from "../src/share/problems.js";
 import { reviewOf } from "../src/share/review.js";
 import { standingOf, type Standing } from "../src/share/standing.js";
 import { summaryOf, type Summary } from "../src/share/summary.js";
-import { noAttentionLine } from "../src/share/words.js";
 import { findPage, SITE } from "./helpers/report-data.js";
 import { BIO_READ, BIO_TAB, passesOf } from "./helpers/share-attention.js";
 import {
@@ -1303,8 +1302,8 @@ describe("summaryOf: the problems the cards count", () => {
     expect(model.summary.sentence).toMatch(
       / Every page with flags was reviewed, and no issues were found\.$/,
     );
-    // A review settles a page's flags: the card leaves the list, and the summary's panel. Flags
-    // were raised, and each was checked by a person, so the line for none says so.
+    // A review settles a page's flags: the card leaves the list. Flags were raised, and each was
+    // checked by a person, so the summary counts flags raised, and no problem.
     expect(model.attention).toEqual([]);
     expect(model.summary.attention).toEqual({
       problems: 0,
@@ -1313,9 +1312,6 @@ describe("summaryOf: the problems the cards count", () => {
       flagsRaised: true,
       cards: [],
     });
-    expect(noAttentionLine(model.summary.attention)).toBe(
-      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-    );
   });
 
   it("counts only the pages no review has settled, and the problem stays until the last is", () => {
@@ -2537,26 +2533,23 @@ describe("summaryOf: a page that reads differently since its review", () => {
   });
 });
 
-describe("summaryOf: the line that says nothing needs attention", () => {
-  // With no card left, the line turns on whether any page in scope raised a flag: "every flag was
-  // fixed or checked by a person" speaks of flags, so a standing that raised none says so instead.
-  // The section and the summary's panel say it through noAttentionLine.
+describe("summaryOf: what it counts when no problem is left", () => {
+  // With no card left, the summary still counts the pages voicecap skipped after loading them (they
+  // are on no card, and weren't read) and whether any page in scope raised a flag: a flag never
+  // raised was never fixed or checked, so a standing that raised none counts none.
   const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
   const skipped =
     (...paths: string[]) =>
     (path: string) =>
       paths.includes(path) ? { status: "skipped" as const } : {};
 
-  it("says no flags were raised when no page raised one", () => {
+  it("counts no flags raised when no page raised one", () => {
     const summary = summarize({ runs: [sevenPages({ sessions: [{ reviewer: CHRIS }] })] });
 
     expect(summary.attention).toMatchObject({ problems: 0, skipped: 0, flagsRaised: false });
-    expect(noAttentionLine(summary.attention)).toBe(
-      "Nothing needs attention: every page was read, and no flags were raised.",
-    );
   });
 
-  it("says every flag was fixed or checked by a person when each page that raised one has a decision", () => {
+  it("counts flags raised, and no problem, when each page that raised one has a decision", () => {
     const run = sevenPages({
       sessions: [{ reviewer: CHRIS }],
       page: (path) => (path === COMMON ? { flags } : {}),
@@ -2566,26 +2559,18 @@ describe("summaryOf: the line that says nothing needs attention", () => {
       const summary = summarize({ runs: [run], reviews: reviewsOf(review(run, COMMON, status)) });
 
       expect(summary.attention, status).toMatchObject({ problems: 0, flagsRaised: true });
-      expect(noAttentionLine(summary.attention), status).toBe(
-        "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-      );
     }
   });
 
-  it("says no flags were raised on the pages read, and how many were skipped, when some were", () => {
+  it("counts the pages skipped, and no flags raised, when some were skipped and none raised a flag", () => {
     const one = summarize({ runs: [sevenPages({ page: skipped("/") })] });
     const two = summarize({ runs: [sevenPages({ page: skipped("/", "/the-report/") })] });
 
     expect(one.attention).toMatchObject({ problems: 0, skipped: 1, flagsRaised: false });
-    expect(noAttentionLine(one.attention)).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
-    );
-    expect(noAttentionLine(two.attention)).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
-    );
+    expect(two.attention).toMatchObject({ problems: 0, skipped: 2, flagsRaised: false });
   });
 
-  it("says every flag was fixed or checked on the pages read, and how many were skipped, when some were", () => {
+  it("counts the pages skipped, and flags raised, when some were skipped and a page that raised flags was decided", () => {
     const run = sevenPages({
       page: (path) => (path === COMMON ? { flags } : skipped("/")(path)),
     });
@@ -2593,9 +2578,6 @@ describe("summaryOf: the line that says nothing needs attention", () => {
     const summary = summarize({ runs: [run], reviews: reviewsOf(review(run, COMMON, "reviewed")) });
 
     expect(summary.attention).toMatchObject({ problems: 0, skipped: 1, flagsRaised: true });
-    expect(noAttentionLine(summary.attention)).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
-    );
   });
 
   it("counts the flags of every page in scope that was read, open or settled", () => {

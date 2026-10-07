@@ -685,15 +685,16 @@ describe("a run whose record can't be made into a walkthrough file", () => {
       expect(attributes(markupOf(html), "download")).toEqual([]);
       expect(html).toContain('id="fp-data"');
 
-      // The Word copy: the same sentence under the part's heading, and nothing else under it.
+      // The Word copy: the same sentence under the part's heading, a heading 4 under the run's in
+      // the details, and nothing else under it: the next part of the details follows.
       const { document } = await unzipDocx(await renderWordCopy(model));
       const paragraphs = paragraphsOf(document);
       const at = paragraphs.findIndex(
-        ({ style, text }) => style === "Heading3" && text === "Walkthrough file in run r1",
+        ({ style, text }) => style === "Heading4" && text === "Walkthrough file in run r1",
       );
       expect(at).toBeGreaterThan(-1);
       expect(paragraphs[at + 1]?.text).toBe(sentence);
-      expect(paragraphs[at + 2]?.style).toBe("Heading1");
+      expect(paragraphs[at + 2]).toEqual({ style: "Heading2", text: "How voicecap works" });
       expect(paragraphs.some(({ text }) => text.includes("--walkthrough"))).toBe(false);
     },
   );

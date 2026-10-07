@@ -133,7 +133,10 @@ function chipsOf(card: PageCard): string {
       ? []
       : rules.length === 0
         ? [chip("quiet", PAGES_TEXT.noFlags)]
-        : ['<span class="sr">Flags raised: </span>', ...rules.map((rule) => chip("warn", rule))];
+        : [
+            `<span class="sr">${esc(PAGES_TEXT.flagsRaised)}: </span>`,
+            ...rules.map((rule) => chip("warn", rule)),
+          ];
   const recorded = card.flagsAsRecorded ? [chip("quiet", PAGES_TEXT.flagsAsRecorded)] : [];
   const review = card.reviewChips.map((words) => chip(reviewKind(words), words));
   return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...recorded, ...review].join("")}</div>`;

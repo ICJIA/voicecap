@@ -12,6 +12,7 @@ import { buildShareModel } from "../src/share/model.js";
 import {
   PAGE_BREAK,
   cell,
+  demoted,
   heading,
   image,
   list,
@@ -91,6 +92,7 @@ describe("the Word copy's blocks", () => {
   it("makes each kind of block as plain data", () => {
     expect(title("Demo")).toEqual({ kind: "title", text: "Demo" });
     expect(heading(2, "Next")).toEqual({ kind: "heading", level: 2, text: "Next" });
+    expect(heading(4, "Deep")).toEqual({ kind: "heading", level: 4, text: "Deep" });
     expect(para("a ", { text: "b", bold: true })).toEqual({
       kind: "para",
       line: ["a ", { text: "b", bold: true }],
@@ -162,6 +164,42 @@ describe("the Word copy's blocks", () => {
       "Next",
       "Inside",
     ]);
+  });
+
+  it("sets the headings of some blocks one level down, and leaves every other block as it is", () => {
+    const blocks = [
+      heading(1, "Section"),
+      para("Words."),
+      heading(2, "Part"),
+      list(["one"]),
+      heading(3, "Piece"),
+      mono(["x"]),
+      PAGE_BREAK,
+    ];
+
+    expect(demoted(blocks)).toEqual([
+      heading(2, "Section"),
+      para("Words."),
+      heading(3, "Part"),
+      list(["one"]),
+      heading(4, "Piece"),
+      mono(["x"]),
+      PAGE_BREAK,
+    ]);
+    // The blocks it was given are not changed, and no blocks come out as no blocks.
+    expect(blocks[0]).toEqual(heading(1, "Section"));
+    expect(demoted([])).toEqual([]);
+  });
+
+  it("refuses to set a heading below level 4, since Word has no heading it can be", () => {
+    const refusal = "A heading can't go below level 4.";
+
+    expect(() => demoted([heading(4, "Too deep")])).toThrow(refusal);
+    expect(() => demoted([heading(1, "Fine"), para("Words."), heading(4, "Too deep")])).toThrow(
+      refusal,
+    );
+    // Level 3 is the last that can be set down.
+    expect(demoted([heading(3, "Last")])).toEqual([heading(4, "Last")]);
   });
 });
 
@@ -370,14 +408,38 @@ describe("docxOf", () => {
 
   it("sets the titles and headings in black, bold, and in order of size", async () => {
     const { styles } = await opened(BLOCKS);
-    const sizes = ["Title", "Heading1", "Heading2", "Heading3"].map((id) => {
+    const sizes = ["Title", "Heading1", "Heading2", "Heading3", "Heading4"].map((id) => {
       const style = styleXml(styles, id);
       expect(style).toContain('<w:color w:val="000000"/>');
       expect(style).toContain("<w:b/>");
       return Number(/<w:sz w:val="(\d+)"\/>/.exec(style)?.[1]);
     });
     expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
-    expect(new Set(sizes).size).toBe(4);
+    expect(new Set(sizes).size).toBe(5);
+  });
+
+  it("sets a level-4 heading in the Heading 4 style, kept with what follows it and an outline level of its own", async () => {
+    const { document, styles } = await opened([
+      heading(1, "Section"),
+      heading(2, "Part"),
+      heading(3, "Piece"),
+      heading(4, "Detail"),
+      para("Words."),
+    ]);
+    const style = styleXml(styles, "Heading4");
+
+    expect(paragraphsOf(document)).toEqual([
+      { style: "Heading1", text: "Section" },
+      { style: "Heading2", text: "Part" },
+      { style: "Heading3", text: "Piece" },
+      { style: "Heading4", text: "Detail" },
+      { style: "", text: "Words." },
+    ]);
+    // Heading 4 is as the others are: a style of Word's own that its navigation pane lists at the
+    // fourth level, kept with the paragraph that follows.
+    expect(style).toContain('<w:outlineLvl w:val="3"/>');
+    expect(style).toContain("<w:keepNext/>");
+    expect(style).toContain("<w:keepLines/>");
   });
 
   it("sets a piece in bold, in the fixed-width font, and linked, each as a run of its own", async () => {
@@ -722,9 +784,9 @@ describe("the Word copy of a site whose pages took screenshots", () => {
   }
 
   /**
-   * Five pages of a run of voicecap 0.11.0: Home and About were read in full (each has an entry in
-   * the appendix), Never failed after its picture was taken (it has none), Skipped took no picture
-   * since it wasn't read, and Error's picture couldn't be taken.
+   * Five pages of a run of voicecap 0.11.0: Home and About were read in full (each has its
+   * transcripts), Never failed after its picture was taken (it has no transcripts), Skipped took no
+   * picture since it wasn't read, and Error's picture couldn't be taken.
    */
   function siteOf(): { run: RunJson; pictures: Map<string, Uint8Array> } {
     const read = { files: TRANSCRIPTS, passes: LINES };
@@ -768,21 +830,21 @@ describe("the Word copy of a site whose pages took screenshots", () => {
     const [home, about, never] = run.pages.map((page) => pictures.get(`r1/${page.slug}`));
 
     expect(XMLValidator.validate(parts.document)).toBe(true);
-    // The row of the page that has no entry in the appendix comes first, then the entries'.
+    // Each page has its picture in its own blocks, in the pages' order, whether it was read or not.
     expect(drawings.map(({ descr }) => descr)).toEqual([
-      alt(`${SITE}never/`),
       alt("Home"),
       alt(`${SITE}about/`),
+      alt(`${SITE}never/`),
     ]);
-    // 400 pixels wide in an entry, with the height its record gives; as wide as its cell in a row.
+    // 400 pixels wide, with the height its record gives.
     expect(drawings.map(({ width, height }) => [width, height])).toEqual([
-      [117, 88],
       [400, 300],
       [400, 265],
+      [400, 300],
     ]);
     expect(new Set(drawings.map(({ id }) => id)).size).toBe(3);
     expect(parts.media.size).toBe(3);
-    for (const [index, bytes] of [never, home, about].entries()) {
+    for (const [index, bytes] of [home, about, never].entries()) {
       const file = parts.media.get(drawings[index]?.file ?? "") ?? new Uint8Array();
       expect(Buffer.compare(file, bytes ?? new Uint8Array()), alt(String(index))).toBe(0);
     }
@@ -795,18 +857,15 @@ describe("the Word copy of a site whose pages took screenshots", () => {
     );
     const { document } = await unzipDocx(await renderWordCopy(model));
     const said = paragraphsOf(document).map(({ text }) => text);
-    // The table of every page: its head's second cell says "Page".
-    const rows = tablesOf(document).find((each) => each.rows[0]?.[1] === "Page")?.rows ?? [];
-    const skipped = rows.find((row) => row[1]?.includes("/skipped/"));
 
-    // A page with an entry in the appendix says it there, a page without one in its row.
+    // A page says it in its own blocks, whether it was read or not.
     expect(said).toContain(
       "Screenshot: Not recorded: the screenshot couldn't be taken (timed out after 5s).",
     );
-    expect(skipped?.[2]).toContain(
+    expect(said).toContain(
       "Screenshot: Not recorded: no screenshot was taken, since the page wasn't read.",
     );
     // The pages with a picture have the label alone, and the picture after it.
-    expect(said.filter((text) => text === "Screenshot:")).toHaveLength(2);
+    expect(said.filter((text) => text === "Screenshot:")).toHaveLength(3);
   });
 });

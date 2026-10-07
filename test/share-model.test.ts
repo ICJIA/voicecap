@@ -1187,7 +1187,7 @@ describe("buildShareModel", () => {
     const model = buildShareModel(inputOf([run], { flagRules, transcripts: storeOf(() => lines) }));
 
     // The page has the rule's card, named by its description with the home folder replaced, as the
-    // flag's message is, and the summary's panel names it so.
+    // flag's message is, and the summary's list of cards names it so.
     expect(model.attention.map((card) => [card.kind, card.subject])).toEqual([
       ["custom", `Text noted in ${redact(notes)}`],
     ]);
