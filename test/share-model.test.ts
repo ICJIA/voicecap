@@ -26,7 +26,10 @@ import type {
   RunEvent,
   RunJson,
   ScreenshotRecord,
+  StepRecord,
 } from "../src/model.js";
+import { pageSlug } from "../src/pages/slug.js";
+import { canonicalKey } from "../src/pages/url.js";
 import { describeChanges } from "../src/report/compare.js";
 import { runAudit } from "../src/run/audit.js";
 import { readEventLog } from "../src/run/events.js";
@@ -35,13 +38,14 @@ import { eventLogFile, pageDir, runJsonPath, siteFolder } from "../src/run/paths
 import { attentionWords } from "../src/share/attention-words.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
-import { loadShareInput } from "../src/share/load.js";
+import { loadShareInput, type TranscriptStore } from "../src/share/load.js";
 import {
   buildShareModel,
   type PageCard,
   type RunEvidence,
   type ShareModel,
 } from "../src/share/model.js";
+import { verdictOf } from "../src/share/verdict.js";
 import {
   parseWalkthrough,
   walkthroughJson,
@@ -78,6 +82,7 @@ import {
   downloadOf,
   fileBytes,
   inputOf,
+  LINES,
   LOG_HASH,
   logged,
   loggedRun,
@@ -86,6 +91,7 @@ import {
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  type Lines,
   withNestedSettings,
   withOwnFiles,
   withStepLimit,
@@ -1296,10 +1302,208 @@ describe("buildShareModel", () => {
         title: attentionWords(card).title,
       })),
     });
-    // The sentence counts the cards that come from flags: not the page that couldn't be read.
-    expect(model.summary.sentence).toBe(
-      "NVDA read all 7 pages. 4 problems need attention, on 1 page.",
-    );
+    // The sentence counts no problems: the verdict does, every card (see `result`, below).
+    expect(model.summary.sentence).toBe("NVDA read all 7 pages.");
+  });
+
+  it("carries the result its copies say, and the ring's three parts", async () => {
+    const model = await demoModel();
+
+    // What `voicecap share` records for the website's card: the summary's counts, every card among
+    // the problems.
+    expect(model.result).toEqual({ pages: 7, read: 7, problems: 5, problemPages: 2 });
+    expect(model.result).toEqual({
+      pages: model.summary.numbers.pagesInScope,
+      read: model.summary.numbers.transcribed,
+      problems: model.summary.attention.problems,
+      problemPages: model.summary.attention.pages,
+    });
+    // /common-mistakes/ and /how-a-run-works/ (which the latest run couldn't read, though an earlier
+    // run's transcripts are shown) are on a card; the other five pages have no problem.
+    expect(model.ring).toEqual({ noProblems: 5, needAttention: 2, notRead: 0 });
+    const { noProblems, needAttention, notRead } = model.ring;
+    expect(noProblems + needAttention + notRead).toBe(model.result.pages);
+    expect(verdictOf(model.result)).toEqual({
+      kind: "warn",
+      headline: "5 problems need attention, on 2 pages",
+    });
+  });
+
+  it("has an empty result and an empty ring when no run counts", () => {
+    const replay = shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] });
+    const model = buildShareModel(inputOf([replay]));
+
+    expect(model.header.tested).toBeNull();
+    expect(model.result).toEqual({ pages: 0, read: 0, problems: 0, problemPages: 0 });
+    expect(model.ring).toEqual({ noProblems: 0, needAttention: 0, notRead: 0 });
+  });
+
+  it("counts a page never read as not read, and each other page once, by whether a card is on it", () => {
+    // /never failed in the latest run and no run transcribed it, so it has no transcripts, though
+    // its failure is on a card of its own; /flagged is read, with a problem on a card.
+    const run = shareRun({
+      id: "r1",
+      pages: [
+        { path: "/", files: TRANSCRIPTS, passes: LINES },
+        { path: "/flagged", files: TRANSCRIPTS, passes: LINES, flags: [LINK_FLAG] },
+        { path: "/never", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
+      ],
+    });
+    const model = buildShareModel(inputOf([run], { transcripts: storeOf() }));
+
+    expect(model.pages.map((card) => [card.path, card.counts === null])).toEqual([
+      ["/", false],
+      ["/flagged", false],
+      ["/never", true],
+    ]);
+    expect(model.attention.map(({ kind }) => kind).sort()).toEqual(["link-generic", "unread"]);
+    // The page that was never read is on a card, and is counted as not read, not twice.
+    expect(model.ring).toEqual({ noProblems: 1, needAttention: 1, notRead: 1 });
+    expect(model.result).toEqual({ pages: 3, read: 2, problems: 2, problemPages: 2 });
+    expect(verdictOf(model.result).kind).toBe("bad");
+  });
+
+  it("counts a page whose latest run failed but whose earlier transcripts are shown as needing attention, not as not read", () => {
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+    });
+    const latest = shareRun({
+      id: "r2",
+      pages: [{ path: "/", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
+    });
+    const model = buildShareModel(inputOf([earlier, latest], { transcripts: storeOf() }));
+
+    // The page has transcripts (from run r1), so NVDA read it; the latest run couldn't, which is a
+    // problem on a card.
+    expect(model.ring).toEqual({ noProblems: 0, needAttention: 1, notRead: 0 });
+    expect(model.result).toEqual({ pages: 1, read: 1, problems: 1, problemPages: 1 });
+    expect(verdictOf(model.result).kind).toBe("warn");
+  });
+
+  describe("gives each card the first three lines NVDA said on it", () => {
+    it("is the first lines of the read pass the transcript carries, after the two steps that set it up", async () => {
+      const model = await demoModel();
+      const home = model.pages.find((card) => card.slug === HOME);
+      const read = model.appendix
+        .find((page) => page.slug === HOME)
+        ?.files.find((file) => file.pass === "read");
+      const lines = read?.text.split("\n") ?? [];
+
+      // The read pass's first two steps, Ctrl+End and Ctrl+Home, set the pass up: they are lines of
+      // the transcript, and not what NVDA said as it read the page.
+      expect(lines.slice(0, 2)).toEqual([
+        "[to bottom] content info landmark, This demo site comes with voicecap, and runs only on this computer.",
+        "[to top] same page, link, Skip to main content",
+      ]);
+      expect(home?.heardFirst).toEqual([
+        "banner landmark, voicecap demo",
+        "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
+        "out of list, main landmark, heading, level 1, Welcome to the voicecap demo",
+      ]);
+      expect(lines.slice(2, 5)).toEqual(home?.heardFirst);
+    });
+
+    it("gives every demo page that has a read transcript its first three lines", async () => {
+      const model = await demoModel();
+
+      for (const card of model.pages) {
+        const lines =
+          model.appendix
+            .find((page) => page.slug === card.slug)
+            ?.files.find((file) => file.pass === "read")
+            ?.text.split("\n") ?? [];
+        expect(card.heardFirst, card.name).toHaveLength(3);
+        expect(lines.slice(2, 5), card.name).toEqual(card.heardFirst);
+      }
+    });
+
+    // A page of the example site by its path, to give its transcripts lines of their own.
+    const slugOf = (path: string) => pageSlug(canonicalKey(new URL(path, SITE).href));
+
+    it("gives what a page has when its read pass has fewer lines, and none for a page with no transcripts", () => {
+      const run = shareRun({
+        id: "r1",
+        pages: [
+          { path: "/long", files: TRANSCRIPTS, passes: LINES },
+          { path: "/two", files: TRANSCRIPTS, passes: { read: ["One", "Two"] } },
+          { path: "/one", files: TRANSCRIPTS, passes: { read: ["Only"] } },
+          { path: "/never", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
+        ],
+      });
+      const own: Record<string, Lines> = {
+        [slugOf("/two")]: { read: ["One", "Two"] },
+        [slugOf("/one")]: { read: ["Only"] },
+      };
+      const { pages } = buildShareModel(
+        inputOf([run], { transcripts: storeOf((slug) => own[slug] ?? LINES) }),
+      );
+
+      expect(pages.map((card) => [card.path, card.heardFirst])).toEqual([
+        ["/long", LINES.read.slice(0, 3)],
+        ["/two", ["One", "Two"]],
+        ["/one", ["Only"]],
+        ["/never", []],
+      ]);
+    });
+
+    it("gives none for a page whose read transcript can't be read here, or that was skipped", () => {
+      const run = shareRun({
+        id: "r1",
+        pages: [
+          // Read, but only its headings transcript can be read here.
+          { path: "/lost", files: TRANSCRIPTS, passes: LINES },
+          { path: "/skipped", status: "skipped" },
+        ],
+      });
+      const own: Record<string, Lines> = { [slugOf("/lost")]: { headings: LINES.headings } };
+      const { pages } = buildShareModel(
+        inputOf([run], { transcripts: storeOf((slug) => own[slug] ?? LINES) }),
+      );
+
+      expect(pages.map((card) => [card.path, card.counts === null, card.heardFirst])).toEqual([
+        ["/lost", false, []],
+        ["/skipped", true, []],
+      ]);
+    });
+
+    it("takes the lines as the transcript writes them, not the steps that set the pass up", () => {
+      const step = (n: number, command: StepRecord["command"], spoken: string): StepRecord => ({
+        n,
+        command,
+        spoken,
+        durationMs: 1200,
+        offsetMs: n * 1200,
+      });
+      const run = shareRun({
+        id: "r1",
+        pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+      });
+      const transcripts: TranscriptStore = {
+        txt: () => null,
+        steps: (_run, _slug, pass) =>
+          pass === "read"
+            ? [
+                step(1, "toBottom", "content info landmark, End"),
+                step(2, "toTop", "banner landmark"),
+                // On two lines; a transcript's line is one line.
+                step(3, "nextLine", 'heading, level 1,\nTerms & <conditions> "apply"'),
+                step(4, "nextLine", ""),
+                step(5, "nextLine", "  link, Back  "),
+                step(6, "nextLine", "never reached: only three are kept"),
+              ]
+            : null,
+      };
+      const [card] = buildShareModel(inputOf([run], { transcripts })).pages;
+
+      // As the page will draw them: the words themselves, not escaped here.
+      expect(card?.heardFirst).toEqual([
+        'heading, level 1, Terms & <conditions> "apply"',
+        "[no speech]",
+        "link, Back",
+      ]);
+    });
   });
 
   it("counts the lines NVDA spoke, and how long the runs it draws on held NVDA", async () => {

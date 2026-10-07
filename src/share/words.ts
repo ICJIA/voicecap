@@ -103,18 +103,40 @@ export interface NumberTile {
   label: string;
 }
 
+/** The tile of how many lines NVDA spoke in the transcripts shown, a plain count. */
+function spokenTile({ summary }: ShareModel): NumberTile {
+  const { linesSpoken } = summary.numbers;
+  return {
+    tone: "quiet",
+    value: { count: linesSpoken },
+    label: linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke",
+  };
+}
+
+/**
+ * The tile of how long the runs held NVDA, across how many runs, with how many sessions its time
+ * leaves out when some have no recorded end.
+ */
+function timeTile({ summary, evidence }: ShareModel): NumberTile {
+  const { nvdaMs, sessionsWithoutEnd: uncounted } = summary.numbers;
+  const left =
+    uncounted === 0
+      ? ""
+      : `; ${plural(uncounted, "session")} without a recorded end ${uncounted === 1 ? "isn't" : "aren't"} counted`;
+  return {
+    tone: "quiet",
+    value: { ms: nvdaMs },
+    label: `of NVDA time, across ${plural(evidence.length, "run")}${left}`,
+  };
+}
+
 /**
  * The five numbers, in order. A count out of its total is in the tone of whether it's complete; a
  * copy says each in words, never by tone alone. None counts the pages a person heard NVDA read: a
  * run started without a terminal can't ask, and a count of 0 read as though no one had heard NVDA.
  */
 export function numbersOf(model: ShareModel): NumberTile[] {
-  const { pagesInScope, transcribed, flagged, rules, linesSpoken, nvdaMs } = model.summary.numbers;
-  const { sessionsWithoutEnd: uncounted } = model.summary.numbers;
-  const left =
-    uncounted === 0
-      ? ""
-      : `; ${plural(uncounted, "session")} without a recorded end ${uncounted === 1 ? "isn't" : "aren't"} counted`;
+  const { pagesInScope, transcribed, flagged, rules } = model.summary.numbers;
   const flagsLabel = `${flagged === 1 ? "page" : "pages"} with flags${flagged > 0 ? `, ${plural(rules, "rule")}` : ""}`;
   const transcribedTone =
     pagesInScope === 0 ? "quiet" : transcribed === pagesInScope ? "ok" : "warn";
@@ -130,16 +152,31 @@ export function numbersOf(model: ShareModel): NumberTile[] {
       label: "transcribed by NVDA",
     },
     { tone: flagged > 0 ? "warn" : "quiet", value: { count: flagged }, label: flagsLabel },
+    spokenTile(model),
+    timeTile(model),
+  ];
+}
+
+/**
+ * The four numbers At a glance gives, in order: the pages NVDA read out of those in scope, the
+ * problems to fix, the lines NVDA spoke, and how long it ran. The first two are the result the
+ * verdict goes by (`ShareModel.result`), so the numbers and the verdict can't disagree. A count out
+ * of its total is in the tone of whether it's complete, and the problems to fix are `ok` at none
+ * and `warn` above; a copy says each in words, never by tone alone. None counts the pages a person
+ * heard NVDA read (see `numbersOf`).
+ */
+export function glanceNumbersOf(model: ShareModel): NumberTile[] {
+  const { pages, read, problems } = model.result;
+  const readTone = pages === 0 ? "quiet" : read === pages ? "ok" : "warn";
+  return [
+    { tone: readTone, value: { part: read, whole: pages }, label: "pages read by NVDA" },
     {
-      tone: "quiet",
-      value: { count: linesSpoken },
-      label: linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke",
+      tone: problems > 0 ? "warn" : "ok",
+      value: { count: problems },
+      label: problems === 1 ? "problem to fix" : "problems to fix",
     },
-    {
-      tone: "quiet",
-      value: { ms: nvdaMs },
-      label: `of NVDA time, across ${plural(model.evidence.length, "run")}${left}`,
-    },
+    spokenTile(model),
+    timeTile(model),
   ];
 }
 

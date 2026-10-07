@@ -714,15 +714,14 @@ describe("summaryOf: the sentence", () => {
     );
     expect(sentence).not.toMatch(/\bnot\b/i);
     expect(sentence).not.toMatch(/\bno one\b/i);
-    // Flagged, with no statement and no reviews: still nothing about what hasn't been done. The
-    // flags are three problems on one page (with no transcripts to read, a card for each item the
-    // record found: "click here", "edit", and "button").
+    // Flagged, with no statement and no reviews: still nothing about what hasn't been done, and no
+    // count of problems, which the verdict gives. The flags are three problems on one page (with no
+    // transcripts to read, a card for each item the record found: "click here", "edit", and
+    // "button").
     const flagged = summarize({
       runs: [sevenPages({ sessions: [{ reviewer: CHRIS }], page: flagCommonMistakes })],
     }).sentence;
-    expect(flagged).toBe(
-      "NVDA read all 7 pages, run by Christopher Schweda. 3 problems need attention, on 1 page.",
-    );
+    expect(flagged).toBe("NVDA read all 7 pages, run by Christopher Schweda.");
     expect(flagged).not.toMatch(/\bnot\b/i);
     expect(flagged).not.toMatch(/\bno one\b/i);
   });
@@ -958,31 +957,42 @@ describe("summaryOf: the sentence", () => {
       return end === -1 ? "" : sentence.slice(end + 2);
     };
 
-    it("says how many problems need attention, and on how many pages, from the flags no one has decided about", () => {
-      expect(findings(NO_REVIEWS)).toBe("1 problem needs attention, on 3 pages.");
-      expect(
-        findings(
-          reviewsOf(review(run, "/the-report/", "reviewed"), review(run, COMMON, "reviewed")),
-        ),
-      ).toBe("1 problem needs attention, on 1 page.");
+    /** The panel's problems and the pages they're on, which the verdict says. */
+    const panel = (reviews: ReviewsFile) => {
+      const { problems, pages } = summarize({ runs: [run], reviews }).attention;
+      return { problems, pages };
+    };
+
+    it("leaves the flags no one has decided about to the verdict: the panel counts them, and the sentence doesn't", () => {
+      expect(findings(NO_REVIEWS)).toBe("");
+      expect(panel(NO_REVIEWS)).toEqual({ problems: 1, pages: 3 });
+      const decided = reviewsOf(
+        review(run, "/the-report/", "reviewed"),
+        review(run, COMMON, "reviewed"),
+      );
+      expect(findings(decided)).toBe("");
+      expect(panel(decided)).toEqual({ problems: 1, pages: 1 });
     });
 
     it("says a review whose transcripts have changed doesn't settle a page's flags", () => {
       const stale = review(run, "/the-report/", "reviewed", { content: { read: "0".repeat(64) } });
 
-      // Its change since the review is a problem of its own, which the sentence leaves to the panel.
-      expect(findings(reviewsOf(stale))).toBe("1 problem needs attention, on 3 pages.");
+      // Its change since the review is a problem of its own, which the panel counts and the
+      // sentence, which counts none, leaves to the verdict.
+      expect(findings(reviewsOf(stale))).toBe("");
+      expect(panel(reviewsOf(stale))).toEqual({ problems: 2, pages: 3 });
     });
 
-    it("says how many pages have an issue, and how many problems need attention besides", () => {
+    it("says how many pages have an issue, and leaves the problems besides to the verdict", () => {
       const reviews = reviewsOf(
         review(run, "/before-you-start/", "issue"),
         review(run, COMMON, "reviewed"),
       );
 
       expect(findings(reviews)).toBe(
-        "1 page has an issue a screen reader user would hear, found in review. 1 problem needs attention, on 1 page.",
+        "1 page has an issue a screen reader user would hear, found in review.",
       );
+      expect(panel(reviews)).toMatchObject({ problems: 2 });
       expect(
         findings(
           reviewsOf(
@@ -1000,7 +1010,7 @@ describe("summaryOf: the sentence", () => {
       });
 
       expect(findings(reviewsOf(stale))).toBe(
-        "1 page has an issue a screen reader user would hear, found in review. 1 problem needs attention, on 2 pages.",
+        "1 page has an issue a screen reader user would hear, found in review.",
       );
     });
 
@@ -1259,15 +1269,14 @@ describe("summaryOf: the problems the cards count", () => {
   const LOGO =
     'The graphic "i 2i Logo" is read as "Unlabeled graphic": its alt text is too generic for Chrome';
 
-  it("says one problem needs attention, on 32 pages, when the logo is on every page", () => {
+  it("counts one problem, on 32 pages, when the logo is on every page, and leaves saying so to the verdict", () => {
     const { attention, summary } = i2iModel(i2iRun());
 
     expect(attention.map(({ kind, subject, pages }) => [kind, subject, pages.length])).toEqual([
       ["graphic-generic", "i 2i Logo", 32],
     ]);
-    expect(summary.sentence).toBe(
-      "NVDA read all 32 pages, run by Christopher Schweda. 1 problem needs attention, on 32 pages.",
-    );
+    // The sentence counts no problems: the verdict does.
+    expect(summary.sentence).toBe("NVDA read all 32 pages, run by Christopher Schweda.");
     // The panel names each card by the title its words give it (attentionWords).
     expect(summary.attention).toEqual({
       problems: 1,
@@ -1315,7 +1324,7 @@ describe("summaryOf: the problems the cards count", () => {
     const model = i2iModel(run, reviewsOf(...rest.map((path) => review(run, path, "reviewed"))));
 
     expect(model.summary.sentence).toBe(
-      "NVDA read all 32 pages, run by Christopher Schweda, who reviewed 31 of the 32 transcripts. 1 problem needs attention, on 1 page.",
+      "NVDA read all 32 pages, run by Christopher Schweda, who reviewed 31 of the 32 transcripts.",
     );
     expect(model.summary.attention).toEqual({
       problems: 1,
@@ -1326,27 +1335,28 @@ describe("summaryOf: the problems the cards count", () => {
     });
   });
 
-  it("says a problem or problems, on a page or pages", () => {
+  it("counts the problems and the pages they're on in the panel, a page on two cards once, and says neither in the sentence", () => {
     const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
-    const said = (attention: AttentionCard[]) => summarize({ runs: [run], attention }).sentence;
-    const lead = "NVDA read all 7 pages, run by Christopher Schweda. ";
+    const summed = (attention: AttentionCard[]) => summarize({ runs: [run], attention });
+    const lead = "NVDA read all 7 pages, run by Christopher Schweda.";
 
-    expect(said([cardOf("link-generic", ["a"])])).toBe(
-      `${lead}1 problem needs attention, on 1 page.`,
-    );
-    expect(said([cardOf("link-generic", ["a", "b", "c"])])).toBe(
-      `${lead}1 problem needs attention, on 3 pages.`,
-    );
-    expect(said([cardOf("link-generic", ["a"]), cardOf("button-unnamed", ["a"], 2)])).toBe(
-      `${lead}2 problems need attention, on 1 page.`,
-    );
-    // A page on two cards is counted once.
-    expect(
-      said([cardOf("link-generic", ["a", "b"]), cardOf("button-unnamed", ["b", "c"], 2)]),
-    ).toBe(`${lead}2 problems need attention, on 3 pages.`);
+    const cases: [cards: AttentionCard[], problems: number, pages: number][] = [
+      [[cardOf("link-generic", ["a"])], 1, 1],
+      [[cardOf("link-generic", ["a", "b", "c"])], 1, 3],
+      [[cardOf("link-generic", ["a"]), cardOf("button-unnamed", ["a"], 2)], 2, 1],
+      // A page on two cards is counted once.
+      [[cardOf("link-generic", ["a", "b"]), cardOf("button-unnamed", ["b", "c"], 2)], 2, 3],
+    ];
+    for (const [cards, problems, pages] of cases) {
+      const summary = summed(cards);
+
+      // The verdict says how many, in words (verdictOf).
+      expect(summary.sentence).toBe(lead);
+      expect(summary.attention).toMatchObject({ problems, pages });
+    }
   });
 
-  it("counts in the sentence the problems that come from flags, and in the panel every problem", () => {
+  it("counts every problem in the panel, and holds back what review found only while a problem that comes from a flag is left", () => {
     const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
     const attention = [
       cardOf("graphic-generic", ["a", "b"], 1),
@@ -1361,9 +1371,9 @@ describe("summaryOf: the problems the cards count", () => {
 
     const summary = summarize({ runs: [run], attention });
 
-    expect(summary.sentence).toBe(
-      "NVDA read all 7 pages, run by Christopher Schweda. 2 problems need attention, on 2 pages.",
-    );
+    // Two of them come from flags: the sentence doesn't count them, and doesn't say that no flag
+    // was raised while they are left.
+    expect(summary.sentence).toBe("NVDA read all 7 pages, run by Christopher Schweda.");
     expect(summary.attention).toMatchObject({ problems: 5, pages: 5 });
     expect(summary.attention.cards.map(({ id }) => id)).toEqual([
       "need-1",
@@ -1372,13 +1382,14 @@ describe("summaryOf: the problems the cards count", () => {
       "need-4",
       "need-5",
     ]);
-    // With none that comes from a flag, the sentence has no problems to count, and the panel still
-    // counts each.
+    // With none that comes from a flag, it says what review found, and the panel still counts each.
     const others = summarize({
       runs: [run],
       attention: [cardOf("unread", ["c"]), cardOf("issue", ["d"], 2), cardOf("changed", ["e"], 3)],
     });
-    expect(others.sentence).not.toMatch(/need attention/);
+    expect(others.sentence).toBe(
+      "NVDA read all 7 pages, run by Christopher Schweda. No flags were raised, and no issues were found.",
+    );
     expect(others.attention).toMatchObject({ problems: 3, pages: 3 });
   });
 
@@ -1409,9 +1420,10 @@ describe("summaryOf: the problems the cards count", () => {
     expect(model.attention.map(({ kind, pages }) => [kind, pages.map(({ path }) => path)])).toEqual(
       [["read-stopped", ["/long"]]],
     );
-    // Counted from the card, not from the flags no one has decided about: there are none.
+    // Counted from the card, not from the flags no one has decided about: there are none. The
+    // sentence counts no problems, but it doesn't say every flagged page was reviewed either.
     expect(model.summary.sentence).toBe(
-      "NVDA read all 2 pages, run by Christopher Schweda, who reviewed every transcript. 1 problem needs attention, on 1 page.",
+      "NVDA read all 2 pages, run by Christopher Schweda, who reviewed every transcript.",
     );
     expect(model.summary.sentence).not.toMatch(/Every page with flags was reviewed/);
     expect(model.summary.attention).toMatchObject({ problems: 1, pages: 1 });
@@ -2137,7 +2149,7 @@ describe("summaryOf: pages that were skipped", () => {
     const summary = summarize({ runs: [run], reviews });
 
     expect(summary.sentence).toBe(
-      "NVDA read 4 of the 7 pages, run by Christopher Schweda, who reviewed 1 of the 4 transcripts. 1 page has an issue a screen reader user would hear, found in review. 1 problem needs attention, on 1 page. 1 page couldn't be read after every attempt. 2 pages were skipped, not read.",
+      "NVDA read 4 of the 7 pages, run by Christopher Schweda, who reviewed 1 of the 4 transcripts. 1 page has an issue a screen reader user would hear, found in review. 1 page couldn't be read after every attempt. 2 pages were skipped, not read.",
     );
     // Issues first, then pages to read again, then pages to check, then flags to decide about.
     expect(summary.todo).toEqual([
@@ -2613,8 +2625,9 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
   it("counts the page that failed in the latest run as read, from the run that read it", async () => {
     const summary = await summarizeDemo();
 
-    // Four problems, all on /common-mistakes/: the page 1402 couldn't read is read, from 1315.
-    expect(summary.sentence).toBe("NVDA read all 7 pages. 4 problems need attention, on 1 page.");
+    // Four problems, all on /common-mistakes/: the page 1402 couldn't read is read, from 1315. The
+    // sentence counts no problems: the verdict does.
+    expect(summary.sentence).toBe("NVDA read all 7 pages.");
     expect(summary.numbers).toEqual({
       pagesInScope: 7,
       transcribed: 7,

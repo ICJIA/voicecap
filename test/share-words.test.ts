@@ -66,6 +66,7 @@ import {
   fromRun,
   generatedLine,
   generatedStamp,
+  glanceNumbersOf,
   heardTitle,
   howLead,
   inRun,
@@ -181,6 +182,11 @@ function withNumbers(
     ...model,
     summary: { ...model.summary, numbers: { ...model.summary.numbers, ...numbers } },
   };
+}
+
+/** The model with some of the result the verdict goes by changed. */
+function withResult(model: ShareModel, result: Partial<ShareModel["result"]>): ShareModel {
+  return { ...model, result: { ...model.result, ...result } };
 }
 
 /** The first paragraph of the class in some markup, as the words a reader gets of it. */
@@ -381,6 +387,81 @@ describe("the summary's numbers", () => {
     );
     expect(resultsCaption({ done: 0, flagged: 0, never: 3 })).toBe("3 pages never transcribed");
     expect(resultsCaption({ done: 0, flagged: 0, never: 0 })).toBe("");
+  });
+});
+
+describe("glanceNumbersOf", () => {
+  it("gives At a glance its four numbers, in order, with what each counts", async () => {
+    expect(glanceNumbersOf(await demoModel())).toEqual([
+      { tone: "ok", value: { part: 7, whole: 7 }, label: "pages read by NVDA" },
+      { tone: "warn", value: { count: 5 }, label: "problems to fix" },
+      { tone: "quiet", value: { count: 204 }, label: "lines NVDA spoke" },
+      { tone: "quiet", value: { ms: 754_000 }, label: "of NVDA time, across 2 runs" },
+    ]);
+  });
+
+  it("takes the pages read and the problems from the result the verdict goes by", async () => {
+    const model = withResult(await demoModel(), {
+      pages: 9,
+      read: 7,
+      problems: 2,
+      problemPages: 2,
+    });
+    const [read, problems] = glanceNumbersOf(model);
+
+    expect(read).toEqual({
+      tone: "warn",
+      value: { part: 7, whole: 9 },
+      label: "pages read by NVDA",
+    });
+    expect(problems).toEqual({ tone: "warn", value: { count: 2 }, label: "problems to fix" });
+  });
+
+  it("calls the pages read complete only when every page was read, and quiet with no page", async () => {
+    const tone = async (result: Partial<ShareModel["result"]>) =>
+      glanceNumbersOf(withResult(await demoModel(), result))[0]?.tone;
+
+    expect(await tone({ pages: 3, read: 3 })).toBe("ok");
+    expect(await tone({ pages: 3, read: 2 })).toBe("warn");
+    expect(await tone({ pages: 3, read: 0 })).toBe("warn");
+    // Nothing in scope is nothing complete.
+    expect(await tone({ pages: 0, read: 0 })).toBe("quiet");
+  });
+
+  it("calls the problems to fix warn above 0 and ok at 0, and words the label in the singular for one", async () => {
+    const tile = async (problems: number) =>
+      glanceNumbersOf(withResult(await demoModel(), { problems }))[1];
+
+    expect(await tile(0)).toEqual({ tone: "ok", value: { count: 0 }, label: "problems to fix" });
+    expect(await tile(1)).toEqual({ tone: "warn", value: { count: 1 }, label: "problem to fix" });
+    expect(await tile(2)).toEqual({ tone: "warn", value: { count: 2 }, label: "problems to fix" });
+  });
+
+  it("words the lines in the singular for one, and says how many sessions the NVDA time leaves out", async () => {
+    const tiles = async (numbers: Partial<ShareModel["summary"]["numbers"]>) =>
+      glanceNumbersOf(withNumbers(await demoModel(), numbers)).slice(2);
+
+    expect((await tiles({ linesSpoken: 1 }))[0]).toEqual({
+      tone: "quiet",
+      value: { count: 1 },
+      label: "line NVDA spoke",
+    });
+    expect((await tiles({ sessionsWithoutEnd: 0 }))[1]?.label).toBe("of NVDA time, across 2 runs");
+    expect((await tiles({ sessionsWithoutEnd: 1 }))[1]?.label).toBe(
+      "of NVDA time, across 2 runs; 1 session without a recorded end isn't counted",
+    );
+    expect((await tiles({ sessionsWithoutEnd: 2 }))[1]?.label).toBe(
+      "of NVDA time, across 2 runs; 2 sessions without a recorded end aren't counted",
+    );
+  });
+
+  it("doesn't count the pages a person heard NVDA read", async () => {
+    const labels = glanceNumbersOf(await demoModel()).map(({ label }) => label);
+
+    // A run started without a terminal can't ask, and a count of 0 read as though no one had heard
+    // NVDA: the statement stays on each page's chips and in each run's evidence.
+    expect(labels).toHaveLength(4);
+    expect(labels.join(" ")).not.toMatch(/heard/i);
   });
 });
 

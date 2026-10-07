@@ -10,8 +10,8 @@
  * steps' icons are named here and drawn by the renderer, and the only markup is the bold and code
  * in the timeline's cells. A few are functions: for a line (./line.ts) with something in bold, in
  * code, or linked out, which holds those as data, never as markup, or for a sentence with a name, a
- * number, or a command in it (the summary's, in `ATTENTION_TEXT`). What only the Word copy says,
- * the heads of its tables and the labels of their rows, is last, in `WORD_TEXT`.
+ * number, or a command in it (the verdict's headline, in `ATTENTION_TEXT`). What only the Word
+ * copy says, the heads of its tables and the labels of their rows, is last, in `WORD_TEXT`.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
@@ -267,9 +267,9 @@ export const SCREENSHOT_TEXT = {
 /**
  * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
  * were skipped; `noFlags` and `noFlagsSkipped` when no page raised a flag), the labels of a card's
- * parts, the line of the fold a card's pages are behind, and the small sentences the summary says
- * about the cards (`sentence`, and `more` for its panel). What a card itself says is
- * `attentionWords`, in ./attention-words.ts.
+ * parts, the line of the fold a card's pages are behind, and the small sentences said about the
+ * cards: the verdict's headline (`headline`, and `sentence`, the same with a full stop) and `more`
+ * for the summary's panel. What a card itself says is `attentionWords`, in ./attention-words.ts.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -318,9 +318,16 @@ export const ATTENTION_TEXT = {
   pagesFold: (pages: number): string => `The ${count(pages)} pages`,
   /** The summary panel's last line, when it names fewer cards than there are: how many it leaves out. */
   more: (rest: number): string => `and ${count(rest)} more, under What needs attention`,
-  /** The summary sentence's part on the problems, as the spec pins it. */
+  /**
+   * The verdict's headline when something needs attention (see `verdictOf`, in ./verdict.ts): how
+   * many problems, on how many pages, as the spec pins it. It has no full stop, so the page can set
+   * it as a heading, and the website's card can follow it with its own.
+   */
+  headline: (problems: number, pages: number): string =>
+    `${plural(problems, "problem")} ${problems === 1 ? "needs" : "need"} attention, on ${plural(pages, "page")}`,
+  /** The headline as a sentence of its own. */
   sentence: (problems: number, pages: number): string =>
-    `${plural(problems, "problem")} ${problems === 1 ? "needs" : "need"} attention, on ${plural(pages, "page")}.`,
+    `${ATTENTION_TEXT.headline(problems, pages)}.`,
 };
 
 /**

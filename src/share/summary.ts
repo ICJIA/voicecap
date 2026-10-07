@@ -1,6 +1,9 @@
 /**
  * The summary: the result in one sentence that leads with the person's review, five numbers, four
  * panels, and three bars. Pure: every part is worked out from records already read.
+ *
+ * The sentence counts no problems. The verdict does (see ./verdict.ts), over every card of What
+ * needs attention, as the panel and the cards do, so the page never gives two counts that differ.
  */
 import type { FlagResult, RunJson, SkipReason } from "../model.js";
 import {
@@ -15,7 +18,6 @@ import { dateRange, names } from "./format.js";
 import { PHRASES, type ProblemsSection } from "./problems.js";
 import type { PageReview } from "./review.js";
 import type { PageStanding, Standing } from "./standing.js";
-import { ATTENTION_TEXT } from "./text.js";
 
 export interface Summary {
   /** The result in one sentence, leading with the person's review as far as the records show it. */
@@ -82,7 +84,8 @@ export interface SummaryInput {
   flags: Map<string, FlagResult[]>;
   /**
    * The cards of what needs attention (attention.ts), which the summary counts and names. The
-   * sentence counts those that come from flags, and the panel every one.
+   * panel counts every one. The sentence counts none: it only needs to know whether a problem that
+   * comes from a flag is left, since it says what review found only when none is.
    */
   attention: AttentionCard[];
   /** How a page is called in a sentence. */
@@ -236,9 +239,9 @@ export function summaryOf(input: SummaryInput): Summary {
   const changed = pages.filter(
     ({ page }) => reviewedBefore.has(page.slug) && !named.has(page.slug),
   );
-  // The sentence's problems are the cards that come from flags (a read that stopped among them), and
-  // the pages on them: counted from the cards, never from `undecided`, since a page whose read
-  // stopped keeps its card after a review has decided about it.
+  // The problems that come from flags (a read that stopped among them) are counted from the cards,
+  // never from `undecided`, since a page whose read stopped keeps its card after a review has
+  // decided about it.
   const flagCards = input.attention.filter((card) => FLAG_KINDS.has(card.kind));
 
   return {
@@ -250,7 +253,7 @@ export function summaryOf(input: SummaryInput): Summary {
       reviewed,
       withIssue,
       issuesFound,
-      flagProblems: { cards: flagCards.length, pages: distinctPages(flagCards) },
+      flagProblems: flagCards.length,
       unread,
       skipped,
       latest,
@@ -357,8 +360,11 @@ interface SentenceParts {
   withIssue: PageFacts[];
   /** Pages that ever had an issue found in review. */
   issuesFound: PageFacts[];
-  /** The problems that come from flags (cards), and how many different pages they're on. */
-  flagProblems: { cards: number; pages: number };
+  /**
+   * How many problems that come from flags are left (cards). The sentence doesn't count them, but
+   * it says what review found only when there are none.
+   */
+  flagProblems: number;
   /** Pages with no transcripts whose attempts all failed. */
   unread: PageFacts[];
   /** Pages with no transcripts that voicecap skipped after loading them. */
@@ -436,18 +442,17 @@ function sentenceOf(parts: SentenceParts): string {
 
   const sentences = [`${sentence}.`];
   const issues = withIssue.length;
-  const problems = flagProblems.cards;
   if (issues > 0) {
     sentences.push(
       `${issues} ${issues === 1 ? "page has" : "pages have"} an issue a screen reader user would hear, found in review.`,
     );
   }
-  if (problems > 0) sentences.push(ATTENTION_TEXT.sentence(problems, flagProblems.pages));
   // Nothing open: say what was found, as far as each page's history says. "No issues were found" is
   // said only when no page ever had an issue entry, and "every issue was fixed" only when every page
   // that did has a "fixed" entry after its last issue. An issue that was reviewed again with no fix
-  // recorded is neither, so nothing is said. Pages that weren't read have no flags to speak of.
-  if (issues === 0 && problems === 0 && total > 0) {
+  // recorded is neither, so nothing is said. Pages that weren't read have no flags to speak of. It
+  // isn't said while a problem that comes from a flag is left: the verdict counts those.
+  if (issues === 0 && flagProblems === 0 && total > 0) {
     if (issuesFound.length === 0) {
       sentences.push(
         flagged.length > 0

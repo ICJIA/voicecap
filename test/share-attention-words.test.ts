@@ -955,6 +955,7 @@ describe("the section's own words", () => {
   it("has the section's title, the line for no problem, and the labels of a card's parts", () => {
     expect(Object.keys(ATTENTION_TEXT).sort()).toEqual([
       "gist",
+      "headline",
       "labels",
       "more",
       "noFlags",
@@ -988,7 +989,16 @@ describe("the section's own words", () => {
     expect(ATTENTION_TEXT.pagesFold(1204)).toBe("The 1,204 pages");
   });
 
-  it("says the summary's sentence for one problem or many, and for one page or many", () => {
+  it("says the verdict's headline for one problem or many, and for one page or many, with no full stop", () => {
+    expect(ATTENTION_TEXT.headline(1, 32)).toBe("1 problem needs attention, on 32 pages");
+    expect(ATTENTION_TEXT.headline(2, 1)).toBe("2 problems need attention, on 1 page");
+    expect(ATTENTION_TEXT.headline(1, 1)).toBe("1 problem needs attention, on 1 page");
+    expect(ATTENTION_TEXT.headline(1200, 3000)).toBe(
+      "1,200 problems need attention, on 3,000 pages",
+    );
+  });
+
+  it("says the headline as a sentence of its own, with a full stop", () => {
     expect(ATTENTION_TEXT.sentence(1, 32)).toBe("1 problem needs attention, on 32 pages.");
     expect(ATTENTION_TEXT.sentence(2, 1)).toBe("2 problems need attention, on 1 page.");
     expect(ATTENTION_TEXT.sentence(1, 1)).toBe("1 problem needs attention, on 1 page.");

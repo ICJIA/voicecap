@@ -11,7 +11,8 @@
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime } from "../share/format.js";
-import { ABOUT, ATTENTION_TEXT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { verdictOf } from "../share/verdict.js";
 
 /**
  * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
@@ -67,18 +68,15 @@ export const SITE_TEXT = {
   current: "The current report",
   /**
    * What a share's copies say of the site, on its current report's card, in the page's own words:
-   * the problems that need attention and the pages they're on, as its summary says them, or that
-   * nothing does; then how many pages NVDA read. Pages skipped, not read, are on no card, so with
-   * none read on a card it's nothing on the pages read, as the page's own line says.
+   * the verdict's headline (the problems that need attention and the pages they're on, or that
+   * nothing does), then how many pages NVDA read. Pages skipped, not read, are on no card, so with
+   * none read on a card it's nothing on the pages read, as the page's own line says. The headline
+   * is followed by a full stop when there are problems, and by a colon when there are none.
    */
   verdict: (result: ShareResult): string => {
+    const { headline } = verdictOf(result);
     const reading = `NVDA read ${pagesRead(result)}.`;
-    if (result.problems > 0) {
-      return `${ATTENTION_TEXT.sentence(result.problems, result.problemPages)} ${reading}`;
-    }
-    return result.read === result.pages
-      ? `Nothing needs attention: ${reading}`
-      : `Nothing needs attention on the pages read: ${reading}`;
+    return result.problems > 0 ? `${headline}. ${reading}` : `${headline}: ${reading}`;
   },
   /** Under the current report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,

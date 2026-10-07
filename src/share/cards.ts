@@ -18,6 +18,7 @@ import {
   type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
+import { MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { jpegSize } from "../util/jpeg.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
@@ -88,6 +89,13 @@ export interface PageCard {
   /** One bar per read-pass line: how long it took, and its length in characters. */
   strip: { ms: number; chars: number }[];
   /**
+   * The first `HEARD` lines NVDA said as it read the page, from the read pass of the transcripts
+   * shown, as the transcript writes each line: the steps of the key that pass presses, so not the
+   * Ctrl+End and Ctrl+Home that set it up. Fewer when the pass has fewer, and none for a page with
+   * no transcripts or whose read transcript can't be read here.
+   */
+  heardFirst: string[];
+  /**
    * The page as the browser showed it once it had loaded, before the screen reader read it: the
    * JPEG as an image's address (`dataUri`), its words for a screen reader, and its size in pixels as
    * its record gives it, a little less than half the browser window's, since the window's own bar
@@ -147,6 +155,12 @@ interface CardsInput {
   redact: (text: string) => string;
 }
 
+/**
+ * How many lines of a pass a sample of what NVDA said has: the home page's sample of each pass
+ * (see `heardOf`, in ./model.ts), and each page's first lines of the read pass (`heardFirst`).
+ */
+export const HEARD = 3;
+
 /** A card for each page in scope, in the latest run's page order. */
 export function cardsOf(input: CardsInput): PageCard[] {
   const { standing, transcripts } = input;
@@ -166,6 +180,8 @@ export function cardsOf(input: CardsInput): PageCard[] {
         ? standing.latest && versionOf(standing.latest)
         : sessionVersion(source.run, source.page.session);
     const name = input.name(page);
+    const readSteps =
+      shown === null ? [] : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []);
     return {
       key: page.key,
       slug: page.slug,
@@ -185,13 +201,14 @@ export function cardsOf(input: CardsInput): PageCard[] {
       counts: shown === null ? null : countsOf(shown.page),
       timeMs:
         shown === null ? null : (shown.page.durationMs ?? { notRecorded: notRecordedBy(version) }),
-      strip:
-        shown === null
-          ? []
-          : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []).map((step) => ({
-              ms: step.durationMs,
-              chars: normalizeSpeech(step.spoken).length,
-            })),
+      strip: readSteps.map((step) => ({
+        ms: step.durationMs,
+        chars: normalizeSpeech(step.spoken).length,
+      })),
+      heardFirst: readSteps
+        .filter((step) => step.command === MAIN_COMMAND.read)
+        .slice(0, HEARD)
+        .map((step) => stepLine(step, "read")),
       screenshot: screenshotOf(source, version, name, input, tookAny),
       from:
         shown !== null && shown.run !== standing.latest

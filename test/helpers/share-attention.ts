@@ -131,6 +131,7 @@ export function pageFrom(
     counts: null,
     timeMs: null,
     strip: [],
+    heardFirst: [],
     screenshot: { notRecorded: "Not recorded." },
     from: null,
     failure: null,

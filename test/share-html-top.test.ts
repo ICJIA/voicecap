@@ -806,9 +806,7 @@ describe("renderSummary", () => {
   it("opens with the result in a sentence, then the line on what voicecap and the person each did", async () => {
     const html = renderSummary(await demoModel());
 
-    expect(html).toContain(
-      '<p class="lead verdict">NVDA read all 7 pages. 4 problems need attention, on 1 page.</p>',
-    );
+    expect(html).toContain('<p class="lead verdict">NVDA read all 7 pages.</p>');
     expect(html).toContain(
       '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the reading and the deciding.</p>',
     );

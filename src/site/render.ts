@@ -24,6 +24,7 @@ import type { ShareResult } from "../model.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
 import { sizeWords } from "../share/format.js";
+import { verdictOf } from "../share/verdict.js";
 import { SITE_SCRIPT } from "./client.js";
 import { SITE_CSS } from "./style.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
@@ -157,7 +158,7 @@ function timeOf(at: string): string {
  */
 function verdict(result: ShareResult | undefined): string[] {
   if (result === undefined || result.pages === 0) return [];
-  const kind = result.read < result.pages ? "bad" : result.problems > 0 ? "warn" : "ok";
+  const { kind } = verdictOf(result);
   return [`<p class="verdict ${kind}">${esc(SITE_TEXT.verdict(result))}</p>`];
 }
 
