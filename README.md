@@ -28,9 +28,9 @@ Everything goes into one record that voicecap never rewrites, summed up in an ac
 
 voicecap makes screen reader testing faster, repeatable, and documented: https://github.com/ICJIA/voicecap
 
-Here is the top of that report for voicecap's own demo site, as NVDA read it on 29 September 2026. The demo's pages are at [voicecap.netlify.app/demo-site/](https://voicecap.netlify.app/demo-site/), and every screenshot in this README is of the demo's report, or of the website built from it. The page leads with the site's name, `voicecap.netlify.app`, and when it was tested. Its summary opens with the result in one sentence, "NVDA read all 7 pages. 1 page has flags worth a closer listen." Then come six numbers (7 pages in scope, 7 transcribed, 1 with flags, 0 heard live by a person, 204 lines NVDA spoke, and 12 minutes 34 seconds of NVDA time) and four panels: what needs attention, how complete the test was, what's still to do, and when and how it was run.
+Here is the top of that report for the new version of i2i.illinois.gov, as NVDA read it on 6 October 2026. Every screenshot in this README is of that report, or of the website built from it. The page leads with the site's name, `v3--i2i.netlify.app` (the address NVDA read the new version at), and when it was tested. Its summary opens with the result in one sentence, "NVDA read all 32 pages, run by Christopher Schweda. 1 problem needs attention, on 32 pages." Then come five numbers (32 pages in scope, 32 transcribed, 32 with flags, 2,219 lines NVDA spoke, and 57 minutes 55 seconds of NVDA time) and four panels: what needs attention, how complete the test was, what's still to do, and when and how it was run.
 
-![The top of the demo's shareable page, in its dark theme: the site's name, voicecap.netlify.app, and "Tested 29 September 2026, 14:02"; the summary sentence, "NVDA read all 7 pages. 1 page has flags worth a closer listen."; six number tiles; and four panels.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-top.png)
+![The top of the i2i report's shareable page, in its dark theme: the site's name, v3--i2i.netlify.app, and "Tested 6 October 2026, 11:34"; the summary sentence, "NVDA read all 32 pages, run by Christopher Schweda. 1 problem needs attention, on 32 pages."; five number tiles (32 pages in scope, 32 of 32 transcribed, 32 pages with flags in 1 rule, 2,219 lines NVDA spoke, and 57m 55s of NVDA time); and four panels: what needs attention, how complete the test was, what's still to do, and when and how it was run.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-top.png)
 
 > **Status: what works where.**
 >
@@ -141,21 +141,21 @@ Automated checkers such as axe and Lighthouse read a page's code and test it aga
 5. **A person reviews.** The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read: the person reads them, records what they found with `voicecap review`, and fixes it. Flags point to moments worth a closer look, such as links that say only "click here".
 6. **A sealed record.** Every file gets a fingerprint (SHA-256) and each run is sealed, so `voicecap verify` can show that nothing has changed since.
 
-The first lines NVDA said on the demo site's home page, in each pass:
+The first lines NVDA said on the home page of the new i2i site, in each pass:
 
 ```
-read (Down Arrow)   banner landmark, voicecap demo
-                    Tour, navigation landmark, list, with 1 item, link, Next: Before you start
-                    out of list, main landmark, heading, level 1, Welcome to the voicecap demo
-headings (H)        main landmark, Welcome to the voicecap demo, heading, level 1
-                    The tour's pages, heading, level 2
-                    no next heading
+read (Down Arrow)   same page, link, Skip to navigation
+                    banner landmark, same page, link, current page, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+                    same page, link, current page, INSTITUTE 2 INNOVATE
+headings (H)        main landmark, INSTITUTE to INNOVATE, heading, level 1
+                    Directory, heading, level 2
+                    list, with 4 items, Overview and History, heading, level 3, link
 tab (Tab)           Skip to main content, same page, link
-                    Tour, navigation landmark, list, with 1 item, Next: Before you start, link
-                    main landmark, list, with 6 items, Before you start, link
+                    Skip to navigation, same page, link
+                    banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, same page, link, current page
 ```
 
-The details are in [What voicecap does on each page](#what-voicecap-does-on-each-page).
+The "Unlabeled graphic" in two of those lines is the one problem the report finds on the site: its logo (see [The shareable page](#the-shareable-page)). The details of each pass are in [What voicecap does on each page](#what-voicecap-does-on-each-page).
 
 ## When to run voicecap
 
@@ -872,9 +872,9 @@ With `--sample N`, voicecap drafts a sample for you to curate: N pages per URL p
 
 ## What voicecap does on each page
 
-voicecap takes NVDA through each page three ways: line by line (Down Arrow), heading by heading (H), and control by control (Tab). The report's "Heard on" panel shows the first three lines NVDA said in each way on the demo site's home page, and how long each line took: 1.3 seconds. The same lines are in text, under [How voicecap works](#how-voicecap-works).
+voicecap takes NVDA through each page three ways: line by line (Down Arrow), heading by heading (H), and control by control (Tab). The report's "Heard on" panel shows the first three lines NVDA said in each way on the home page of the new i2i site, and how long each line took: 1.3 seconds. The same lines are in text, under [How voicecap works](#how-voicecap-works).
 
-![The "Heard on" panel of the demo's report: three columns, one for each way NVDA goes through the page (Down Arrow, line by line; H, heading by heading; Tab, control by control), each with its first three lines on the home page and how long each took, 1.3 seconds.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-heard.png)
+![The "Heard on" panel of the i2i report: three columns, one for each way NVDA goes through the page (Down Arrow, line by line; H, heading by heading; Tab, control by control), each with its first three lines on the home page and how long each took, 1.3 seconds. In two of the lines, NVDA reads the logo as "Unlabeled graphic, i 2i Logo".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-heard.png)
 
 <details>
 <summary>How each page is loaded, and how voicecap captures everything NVDA says</summary>
@@ -1042,9 +1042,9 @@ Once the run completes, its seal covers all of this. A run made before voicecap 
 
 ### Checking the record: `voicecap verify`
 
-Two checks look at the record. `voicecap verify` checks the files in the transcripts home against their seals and fingerprints. The shareable page checks itself too, in the browser, with no network: its "Check the fingerprints" button checks every transcript and every screenshot the page shows against the fingerprint in its run's sealed record, and checks each run's seal and each review's (see [The shareable page](#the-shareable-page)). On the demo's page, the result reads, in green: "Checked just now, in this browser. 21 of 21 transcripts match their fingerprints, and both runs' seals check out." Under it, a fold lists every file checked, and says how many matched. A page that shows screenshots counts them in a clause of their own, such as "7 of 7 screenshots match their fingerprints".
+Two checks look at the record. `voicecap verify` checks the files in the transcripts home against their seals and fingerprints. The shareable page checks itself too, in the browser, with no network: its "Check the fingerprints" button checks every transcript and every screenshot the page shows against the fingerprint in its run's sealed record, and checks each run's seal and each review's (see [The shareable page](#the-shareable-page)). On the i2i report's page, the result reads, in green: "Checked just now, in this browser. 96 of 96 transcripts match their fingerprints, and 32 of 32 screenshots match their fingerprints, and the run's seal checks out." Under it, a fold lists every file checked, and says how many matched. A page that shows screenshots counts them in a clause of their own, as this one does.
 
-![The fingerprint check in the demo's report, after a click on "Check the fingerprints". The result, in green: "Checked just now, in this browser. 21 of 21 transcripts match their fingerprints, and both runs' seals check out." Under it, a closed fold, "Every file checked: 23 checked, 0 not matching".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-fingerprints.png)
+![The fingerprint check in the i2i report, after a click on "Check the fingerprints". The result, in green: "Checked just now, in this browser. 96 of 96 transcripts match their fingerprints, and 32 of 32 screenshots match their fingerprints, and the run's seal checks out." Under it, a closed fold, "Every file checked: 129 checked, 0 not matching".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-fingerprints.png)
 
 <details>
 <summary>How seals and the review chain work, what <code>voicecap verify</code> checks, and what it can't catch</summary>
@@ -1288,9 +1288,9 @@ A completed run, `review`, `manual add`, and `voicecap report` regenerate it. Ea
 
 ## The shareable page
 
-The shareable page folds its detail under lines that say what's inside. This is one of its sections, "What the flags found", with its fold open. The demo's flags are all on one page, "Common mistakes (on purpose)", which breaks three rules on purpose (see [Heuristic flags](#heuristic-flags)): `generic-link-text`, since 3 links say only "click here"; `unlabeled`, since 2 items have no names, so NVDA says only "button" and "edit"; and `headings`, since its first heading is level 2, not 1. For each rule, the page quotes what NVDA said.
+The shareable page folds its detail under lines that say what's inside. This is one of its sections, "What needs attention", with its folds open. The i2i report has one problem, on all 32 of its pages: the i2i logo, which NVDA reads as "Unlabeled graphic" (the `unlabeled` rule: see [Heuristic flags](#heuristic-flags)) in front of its alt text, "i 2i Logo". Its card quotes what NVDA said, in the header on all 32 pages and in the main content on 1; says the likely cause (Chrome counts that alt text as missing, and NVDA says what Chrome reports) and why it matters; gives the fix in the code, once for the header (`alt=""`, since the logo is inside a link that says "INSTITUTE 2 INNOVATE") and once for the main content (a name in words), each with what NVDA should say then; gives the path forward; and ends with its 32 pages, each linked to its card under "Every page".
 
-!["What the flags found" in the demo's report, with its fold open: the one flagged page, with 5 flags from 3 rules. A table gives each rule (generic-link-text, unlabeled, headings), what NVDA showed, and NVDA's own words, quoted.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-flags.png)
+!["What needs attention" in the i2i report, with its folds open: one card, for the logo that NVDA reads as "Unlabeled graphic", on 32 pages, 65 times. The card quotes NVDA's words in the header (the Down Arrow and Tab passes, on 32 pages) and in the main content (the Down Arrow pass, on 1 page); then gives the likely cause, why it matters, the fix in the code (one for the header, one for the main content, each with what NVDA should say then), the path forward in four steps, and, in a fold that is open, its 32 pages, each a link.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-attention.png)
 
 <details>
 <summary>What the page is, how voicecap writes it, which runs count, its sections, the fingerprint check, and what to know before you send it</summary>
@@ -1318,10 +1318,20 @@ Its sections, in order:
   - **What clears a problem:** a card is gone when no page is left on it. A flag clears for a page when a later run of the page doesn't raise it, or when the page is marked "Reviewed, no issues" after the run that raised it (see [Reviews: the audit trail](#reviews-the-audit-trail)); it comes back if the page's transcripts change after that review. A page that couldn't be read, or whose read stopped before the page's end, clears only when a later run reads it to its end: a review doesn't clear it. An issue clears when it's marked "Fixed". With no card left, the section says "Nothing needs attention: every page was read, and every flag was fixed or checked by a person." When some pages were skipped, it says that nothing needs attention on the pages read, and how many were skipped.
 - **How voicecap works**: the six steps, the first lines NVDA said on the site's home page, and when to run voicecap.
 - **Every page**: a card for each page, with its screenshot, result, flags, review, line counts, and a link to its transcripts. A page with no screenshot says why where the picture would be (its run was made before 0.11.0, say, or the browser couldn't take one). A screenshot that's missing, or isn't the file its run recorded, isn't shown, and the page says so.
+
+The first four of the i2i report's 32 page cards:
+
+![The first four page cards under "Every page" in the i2i report, in a row. Each has the page's screenshot, its number and address (/, /biographies/, /biographies/aaliyah-gaston/, and /biographies/andrea-gatewood/), its title as the browser reported it, two chips ("Transcribed" and "unlabeled", the rule that raised a flag), what each pass captured (lines read, headings, Tab stops, and time), a bar for each line NVDA spoke in the read pass, and a link to the page's transcripts and fingerprints.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-pages.png)
+
 - **What changed since the last run**: the pages that sound different from the run before (the latest earlier run that counts, with the same page source), line by line, with the changed words marked. Pages that sound the same are counted, not listed.
 - **Problems during the runs**: every failed attempt in the runs the page draws on, including those a later attempt made good. Each has its kind: another window took the screen, the computer locked, NVDA stopped, the browser stopped, the website answered with an error or couldn't be reached, a step took too long, or an unexpected error, which may be a fault in voicecap itself. Each says what voicecap did, whether it happened again (by what came after it: a run before it that read the page shows only that the page could be read), and what it means for the results. Then comes the record of it, word for word, with the home folder replaced by `%USERPROFILE%` (or `~`), and the event log's lines from that attempt. For another window taking the screen, the page also says which program came to the front, by its name, or that voicecap couldn't tell, and the section's opening line names each program, with how often. It never shows the window's title.
 - **What these results cover**: the pages and passes, and the technical limits.
 - **The evidence behind these results**: the fingerprint check, then each run the page draws on, with its facts, which say how many times NVDA was restarted and why, and five parts. The first is the run's event log, minute by minute, from voicecap 0.11.0: for each session, a chart with a lane for the lock, voicecap's NVDA, the pages, and the computer's own NVDA, and a fold with every event to the millisecond (see [What each run records](#what-each-run-records)). The second, NVDA's own log, checked against the transcripts, comes next: no version of voicecap records it yet, so it says "Not recorded". The others are its test environment, the fingerprint of every file, the run's event log and each page's screenshot included, and, last, its walkthrough file to download, with the command that repeats the run (see [Repeating a run: the walkthrough file](#repeating-a-run-the-walkthrough-file)). A run whose event log isn't as its record says, or that has none, says so in the log's place. A session the log has no line of, as in a run begun with voicecap 0.10.0 and finished with 0.11.0, says so in its own place, with the version it used, and the run's facts say which sessions NVDA's restarts were counted in.
+
+The i2i report's run, with its fold open down to the end of its minute by minute. A lane with nothing in it isn't drawn, so this run's chart has three:
+
+![The run behind the i2i report, "Run 2026-10-06_1134", from 6 October 2026, 11:34 to 12:32, marked completed and sealed, with its fold open. Its facts: when it started and finished, 32 pages transcribed, transcripts shown for 32 pages, no NVDA restarts, who ran it, and whether NVDA was heard (not recorded: the session ended without an answer). Under "Minute by minute", a sentence on the session ("voicecap held the NVDA lock from 11:34 to 12:32. voicecap's NVDA ran as process 36156. 32 pages ran in order."); a chart, marked every five minutes, with a lane for the NVDA lock, one for voicecap's NVDA, and one for the pages, each page a bar; and a fold, open, "Every event, to the millisecond (262)", whose table starts with "The run started" at 11:34:27.197.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/report-timeline.png)
+
 - **How voicecap came to be**: it opens with why voicecap was needed, then why it exists, then its timeline and a few things worth knowing.
 - **Appendix: every transcript**: each page's read, headings, and Tab transcripts, word for word, beside its screenshot.
 
@@ -1465,9 +1475,9 @@ npx @icjia/voicecap site [--home <dir>] [--out <dir>]
 
 Each report shows when it was shared and who prepared it, then its files: the page, to open; and its Word copy and the walkthrough file of each run it draws on, to download. Each file shows its size and its SHA-256 fingerprint, as `shares.json` recorded them. To check a copy against its fingerprint, run `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac. A report shared before voicecap shared walkthrough files says that none was shared with it.
 
-Here is the top of the site for the demo's report, in the dark theme it opens in, then in the light one a reader can pick. The bar links to "The demo", "The sites", and "Every report, by date", and holds the button that switches themes. Under "The demo" are the link to the demo's pages and the report, shared on 30 September 2026 at 09:00 by Demo Reviewer. The report lists its page to open, its Word copy, and the walkthrough file of each of the two runs it draws on, each with its size and SHA-256 fingerprint.
+Here is the top of the site for the i2i report, in the dark theme it opens in, then in the light one a reader can pick. The bar links to "The sites" and "Every report, by date", and holds the button that switches themes. (It links to "The demo" too, when the home has a share of the demo.) Under "The sites" is `v3--i2i.netlify.app`, with its one report, shared on 6 October 2026 at 15:00 and prepared by Christopher Schweda. The report lists its page to open, its Word copy, and the walkthrough file of the one run it draws on, each with its size and SHA-256 fingerprint.
 
-![The website in its dark theme, from its bar through the demo's report: the bar's links (The demo, The sites, Every report, by date) and its "Light version" button, the heading "Screen reader test results", the link to the demo's pages, and the report shared on 30 September 2026, 09:00, by Demo Reviewer, with its four files and their fingerprints.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/website-dark.png)
+![The website in its dark theme, from its bar through the i2i report under "The sites": the bar's links (The sites, Every report, by date) and its "Light version" button, the heading "Screen reader test results", the site v3--i2i.netlify.app with "1 report", and the report, "6 October 2026, 15:00", prepared by Christopher Schweda, with its three files (the report, its Word copy, and the run's walkthrough file), each with its size and fingerprint.](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/website-dark.png)
 
 ![The same part of the website in its light theme, after the reader picks "Light version". The button now reads "Dark version".](https://raw.githubusercontent.com/ICJIA/voicecap/main/assets/screenshots/website-light.png)
 
@@ -1994,9 +2004,9 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 | `pnpm fixture:reviews` | Rebuilds `fixture/reviews.json` from the recorded run. |
 | `pnpm share:fixture <folder>` | Writes the demo's shareable page and its Word copy into a folder, to look at a change to either. The demo is named by its canonical address, as a share of it is. Needs no screen reader. |
 | `pnpm site:fixture <folder>` | Builds the website from the demo fixture, to look at a change to it: makes a transcripts home with reports shared in it at `<folder>/home` (which must not be there yet), builds the site in `<folder>/_site`, and prints the path of its `index.html`. Needs no screen reader. |
-| `pnpm readme:screenshots [folder]` | Makes the README's six screenshots, of the demo's shareable page and of the website built from its report, in `assets/screenshots` (or the folder given), from a temporary home. Needs Playwright's Chromium, and no screen reader. It refuses to write a shot that shows an IP address or `localhost`. Run it when the page's or the site's design changes, and commit what it writes. |
+| `pnpm readme:screenshots [folder]` | Makes the README's eight screenshots, of the shareable page for the i2i v3 run of 6 October 2026 (kept in `fixture/i2i-v3-run`) and of the website built from its report, in `assets/screenshots` (or the folder given), from a temporary home. Needs Playwright's Chromium, and no screen reader. It refuses to write a shot that shows an IP address or `localhost`. Run it when the page's or the site's design changes, and commit what it writes. |
 
-`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, and a run recorded with real NVDA that the replay driver plays back; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
+`fixture/` holds the test site (with a deliberately flawed page and a page that tests end-of-page detection), sitemaps, page lists (including CRLF and Windows-1252 CSVs), a sample `reviews.json`, a real Speech Viewer capture, an NVDA log excerpt, a run recorded with real NVDA that the replay driver plays back, and the i2i v3 run that the README's screenshots are made from; see `fixture/README.md`. CI runs lint, type checks, and tests on Ubuntu, macOS, and Windows (the tests use the replay driver and Playwright's Chromium; the real-NVDA checks run locally with `pnpm test:nvda`).
 
 `docs/build-prompt.md` is the specification and `docs/plan.md` the approved plan. `docs/phase-b-handoff.md` and `docs/phase-c-handoff.md` are the notes for Phase B (the real NVDA driver) and Phase C (VoiceOver on the Mac), and `docs/superpowers/` holds the specs and plans for the audit record, `init`, and the readiness checks. `WINDOWS-SETUP.md` is the checklist for setting up a new Windows machine for development.
 

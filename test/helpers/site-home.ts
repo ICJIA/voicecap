@@ -4,8 +4,8 @@
  * written by hand, and the demo's own folder, shared once. Each share is the real `voicecap share`
  * (a scripted run's records, no screen reader and no Word), on a fixed day. The runs read the demo
  * at an IP address and recorded no canonical address, so each share names it by report.canonical,
- * as a config would (scripts/readme-screenshots.ts does the same): with no name, voicecap would
- * refuse to share it. Nothing here reads the machine's own transcripts home, Git name, or config.
+ * as a config would: with no name, voicecap would refuse to share it. Nothing here reads the
+ * machine's own transcripts home, Git name, or config.
  */
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
