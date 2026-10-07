@@ -240,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.12.2 on npm, released 2026-10-07 (tag `v0.12.2`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.12.3 on npm, released 2026-10-07 (tag `v0.12.3`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -313,6 +313,11 @@ The owner's standing rules, from Phases A and B:
     - **What a site shows:** its newest three shares. First comes the current report, with buttons to open it and to download its Word copy. The two before it are a line each. Last is every file with its fingerprint, in a closed fold.
     - **The list by date** shows only when two sites or more have reports.
     - **An older share** stays in the records, and `verify` checks it as before. Its files aren't published. Its page's address sends a reader on to the site's current report (`_redirects`, a 302).
+  - 0.12.3 (2026-10-07) put what each report found on its card, at the owner's request: managers ask "Did it pass?".
+    - **Each share records a sealed `result`:** the pages in scope, how many NVDA read, the problems that need attention, and the pages they're on. `verify` names one it can't read.
+    - **The card says it in the report's own words,** after a sign drawn by the style, which a screen reader doesn't read: "✓ Nothing needs attention: NVDA read all 9 pages.", or "⚠ 1 problem needs attention, on 32 pages. …"; red when NVDA read fewer pages than are in scope.
+    - **A share from before 0.12.3** has no result, and its card says nothing of one: share again, with no new run.
+    - **Each site's section has its own address,** such as `voicecap.netlify.app/#site-sfs.icjia.illinois.gov`, which always leads with the newest report.
   - **Two sites on the website, since 2026-10-07:** i2i's v3 (`v3--i2i.netlify.app`) and Safe From the Start (`sfs.icjia.illinois.gov`). Safe From the Start's 9 pages were read that day with real NVDA and raised no flags.
 - **Being built:** each plan written when the owner says:
   - plan 9, the page for managers, is next, as 0.13.0. The owner asked on 2026-10-07 for the most critical facts first (the overall result, the screenshots, and the transcripts) and the details last. The page opens with "At a glance": a verdict in words and an icon, a ring of the pages, and four big numbers. Then come the problem cards, then every page with what NVDA said first and its full transcript folded inside, and last the details, for reviewers and auditors. Its spec is the shareable report's, amended on branch `plan-9-page-for-managers`, awaiting the owner's review.
