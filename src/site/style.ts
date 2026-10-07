@@ -15,6 +15,11 @@
  *   it;
  * - a name or a fingerprint is one word, longer than any box, so the text it can be in breaks it
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
+ * - a site's current report is a panel, headed by its line under what it is, with its two links as
+ *   buttons, in the shareable page's colors for its button (`.fp-button`), which wrap onto a line of
+ *   their own where there's no room;
+ * - the fold of files has the shareable page's look for a fold: a marker, which a screen reader
+ *   doesn't read (`content: "▸" / ""`), turned when it's open;
  * - the files of a report are a grid whose columns are no wider than their own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
@@ -61,12 +66,37 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .site { display: grid; gap: 10px; margin-top: 14px; }
 .site > * { min-width: 0; }
 .site > h3 { font-size: 1.35rem; }
-.count { color: var(--muted); font-size: 0.86rem; }
-/* a report: when it was shared, who prepared it, and its files */
+/* a site's current report: its line, under what it is; who prepared it; and the two links a reader came for */
 .report { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; display: grid; gap: 10px; align-content: start; }
 .report > * { min-width: 0; }
-.report > h3, .report > h4 { font-size: 1.05rem; }
-.report > h3 + p, .report > h4 + p { color: var(--muted); }
+.report > h3, .report > h4 { font-size: 1.3rem; }
+.label { display: block; color: var(--muted); font: 600 0.8rem var(--body); letter-spacing: 0.04em; margin-bottom: 2px; }
+.report > .by { color: var(--muted); }
+/* what its copies say of the site: in words, after a sign that only repeats them, in the theme's green, amber, or red, which a screen reader doesn't read */
+.verdict { display: flex; gap: 8px; align-items: baseline; font-weight: 600; font-size: 1.02rem; }
+.verdict::before { flex: none; font-size: 1.1em; }
+.verdict.ok::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
+.verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
+.verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.action { border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); color: var(--fg); border-radius: 10px; padding: 9px 16px; font-weight: 600; text-decoration: none; }
+.action:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); }
+/* a site's earlier reports, a line each */
+.site > h4 { font-size: 0.95rem; color: var(--muted); margin-top: 6px; }
+.earlier { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.earlier time { font-weight: 600; }
+.sep { color: var(--muted); margin-inline: 0.3em; }
+/* the fold of every report's files, for whoever checks a copy: a report's line, then its files */
+details.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+details.fold > summary { list-style: none; cursor: pointer; padding: 10px 16px; font-weight: 600; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "▸"; content: "▸" / ""; display: inline-block; margin-right: 8px; color: var(--muted); transition: transform 0.15s; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 18px; }
+.shared { display: grid; gap: 8px; }
+.shared > * { min-width: 0; }
+.when { color: var(--muted); }
+.when time { color: var(--fg); font-weight: 600; }
 .files { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 8px; }
 .files li { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; align-content: start; min-width: 0; }
 .files a { justify-self: start; font-weight: 500; }

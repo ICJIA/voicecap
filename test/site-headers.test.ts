@@ -19,6 +19,9 @@ import {
   HEADERS_FIRST_LINE,
   headersFile,
   inlineHashes,
+  REDIRECTS_FIRST_LINE,
+  redirectsFile,
+  type RedirectRule,
   ROBOTS_TXT,
 } from "../src/site/headers.js";
 import { demoModel } from "./helpers/share-model.js";
@@ -479,6 +482,113 @@ describe("headersFile", () => {
 
     expect(message).toBe(
       `The _headers rule for "/a\\n${escape(0x1b)}${escape(0x7f)}${escape(0x85)}${escape(0x2028)}${escape(0x2029)}b" can't be written: its path holds a line break.`,
+    );
+    expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
+  });
+});
+
+describe("redirectsFile", () => {
+  const OLD = "/dvfr.illinois.gov/dvfr.illinois.gov_2026-09-29";
+  const CURRENT = "/dvfr.illinois.gov/dvfr.illinois.gov_2026-10-03.html";
+
+  it("writes _redirects as Netlify reads it: a comment, then each rule's old address, new address, and 302, a line each", () => {
+    const text = redirectsFile([
+      { from: `${OLD}.html`, to: CURRENT },
+      { from: OLD, to: CURRENT },
+      { from: "/example.illinois.gov/example.illinois.gov_2026-09-30.html", to: "/" },
+    ]);
+
+    expect(text).toBe(
+      [
+        REDIRECTS_FIRST_LINE,
+        `${OLD}.html ${CURRENT} 302`,
+        `${OLD} ${CURRENT} 302`,
+        "/example.illinois.gov/example.illinois.gov_2026-09-30.html / 302",
+        "",
+      ].join("\n"),
+    );
+    // A line Netlify reads as a comment, and no more than a line.
+    expect(REDIRECTS_FIRST_LINE).toMatch(/^# \S/);
+    expect(REDIRECTS_FIRST_LINE).not.toMatch(/[\r\n]/);
+  });
+
+  it("is its first line and a line break when there's no rule", () => {
+    expect(redirectsFile([])).toBe(`${REDIRECTS_FIRST_LINE}\n`);
+  });
+
+  it.each<[string, RedirectRule, string]>([
+    [
+      "a path that doesn't start with a slash",
+      { from: "a.html", to: CURRENT },
+      'its path doesn\'t start with "/"',
+    ],
+    ["an empty path", { from: "", to: CURRENT }, 'its path doesn\'t start with "/"'],
+    [
+      "a path with a space",
+      { from: "/a b.html", to: CURRENT },
+      "its path holds white space or a control character",
+    ],
+    [
+      "a path with a tab",
+      { from: "/a\tb.html", to: CURRENT },
+      "its path holds white space or a control character",
+    ],
+    [
+      "a path with a line feed",
+      { from: "/a\n/b.html", to: CURRENT },
+      "its path holds white space or a control character",
+    ],
+    [
+      "a path with a carriage return",
+      { from: "/a\r/b.html", to: CURRENT },
+      "its path holds white space or a control character",
+    ],
+    [
+      "a path with a control character",
+      { from: "/a\u0000b.html", to: CURRENT },
+      "its path holds white space or a control character",
+    ],
+    [
+      "an address to go to that doesn't start with a slash",
+      { from: "/a.html", to: "https://example.org/" },
+      'where it leads doesn\'t start with "/"',
+    ],
+    [
+      "an empty address to go to",
+      { from: "/a.html", to: "" },
+      'where it leads doesn\'t start with "/"',
+    ],
+    [
+      "an address to go to with a space",
+      { from: "/a.html", to: "/b c.html" },
+      "where it leads holds white space or a control character",
+    ],
+    [
+      "an address to go to with a line feed",
+      { from: "/a.html", to: "/b.html 302\n/c.html" },
+      "where it leads holds white space or a control character",
+    ],
+  ])("refuses %s, and names the rule by its path", (_name, rule, problem) => {
+    expect(messageOf(() => redirectsFile([rule]))).toBe(
+      `The _redirects rule for ${JSON.stringify(rule.from)} can't be written: ${problem}.`,
+    );
+  });
+
+  it("names the rule that has the problem, whichever it is", () => {
+    const fine: RedirectRule = { from: "/a.html", to: CURRENT };
+
+    expect(messageOf(() => redirectsFile([fine, { from: "/b.html", to: "/c d.html" }, fine]))).toBe(
+      `The _redirects rule for "/b.html" can't be written: where it leads holds white space or a control character.`,
+    );
+  });
+
+  it("writes each control character of the path it names as an escape, so its message is safe to print", () => {
+    const escape = (code: number) => `\\u${code.toString(16).padStart(4, "0")}`;
+
+    const message = messageOf(() => redirectsFile([{ from: "/a\n\u{1b}\u{2028}b", to: CURRENT }]));
+
+    expect(message).toBe(
+      `The _redirects rule for "/a\\n${escape(0x1b)}${escape(0x2028)}b" can't be written: its path holds white space or a control character.`,
     );
     expect(message).not.toMatch(/[\p{Cc}\u{2028}\u{2029}]/u);
   });

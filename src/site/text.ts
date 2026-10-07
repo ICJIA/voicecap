@@ -6,11 +6,21 @@
  *
  * The wording is the design's. voicecap is a person's review of a website with a real screen
  * reader, sped up, so every report here is a person's, and nothing says otherwise. The functions
- * are for lines with a name, a date, or a count in them.
+ * are for lines with a name or a date in them.
  */
+import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime } from "../share/format.js";
-import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { ABOUT, ATTENTION_TEXT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+
+/**
+ * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
+ * the 9 pages".
+ */
+function pagesRead({ pages, read }: ShareResult): string {
+  if (read === pages) return pages === 1 ? "1 page" : `all ${plural(pages, "page")}`;
+  return `${read} of the ${plural(pages, "page")}`;
+}
 
 /**
  * A sentence of the page: plain words, commands, which the page sets in the fixed-width font, and
@@ -38,21 +48,61 @@ export const SITE_TEXT = {
         ".",
       ] satisfies Sentence,
     },
-    sites: { title: "The sites", lead: "Each site's reports, the newest first." },
+    // The site keeps each site's newest three reports (KEPT_PER_SITE in ./build.ts): the current
+    // one, and two before it.
+    sites: {
+      title: "The sites",
+      lead: "Each site's current report, with up to two earlier ones below it.",
+    },
     byDate: {
       title: "Every report, by date",
       lead: "Every site's reports, the newest first, each with its page.",
     },
   },
-  /** Said in place of a view's lead, when no report has been shared. */
+  /** Said in place of the sites' lead, when no report has been shared. */
   noReports: "No reports have been shared yet.",
-  /** A site's count of reports: "1 report", "3 reports". */
-  reports: (count: number): string => plural(count, "report"),
-  /** A report's line, which heads it: "3 October 2026, 14:05". */
+  /** A report's line: "3 October 2026, 14:05". */
   reportLine: (at: string): string => dateAndTime(at),
-  /** Under a report's line: who prepared it. */
+  /** What heads a site's newest report, ahead of its line. */
+  current: "The current report",
+  /**
+   * What a share's copies say of the site, on its current report's card, in the page's own words:
+   * the problems that need attention and the pages they're on, as its summary says them, or that
+   * nothing does; then how many pages NVDA read. Pages skipped, not read, are on no card, so with
+   * none read on a card it's nothing on the pages read, as the page's own line says.
+   */
+  verdict: (result: ShareResult): string => {
+    const reading = `NVDA read ${pagesRead(result)}.`;
+    if (result.problems > 0) {
+      return `${ATTENTION_TEXT.sentence(result.problems, result.problemPages)} ${reading}`;
+    }
+    return result.read === result.pages
+      ? `Nothing needs attention: ${reading}`
+      : `Nothing needs attention on the pages read: ${reading}`;
+  },
+  /** Under the current report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
-  /** In a line of the list by date, after the site: "prepared by Pat Lee". */
+  /** The current report's two links: its page, which opens in the browser, and its Word copy. */
+  open: "Open the report",
+  download: "Download the Word copy",
+  /** The heading of a site's reports before its current one, which are a line each. */
+  earlier: "Earlier reports",
+  /** An earlier report's link to its Word copy, after the one to its page ({@link open}). */
+  word: "Word copy",
+  /**
+   * What a screen reader hears after a report's link, and a reader doesn't see: the site's name and
+   * the report's line, " of dvfr.illinois.gov, 3 October 2026, 14:05". So no two links on the page
+   * read alike, though each site has an "Open the report".
+   */
+  of: (site: string, at: string): string => ` of ${site}, ${dateAndTime(at)}`,
+  /** The demo's name, in what a screen reader hears after its links: the demo isn't a site. */
+  demoName: "the demo",
+  /** The fold that holds every report's files, with their sizes and fingerprints. */
+  fold: "Files and fingerprints, to check a copy",
+  /**
+   * In a line of a list, after the report's line (in the fold, and among the earlier reports) or
+   * after its site (in the list by date): "prepared by Pat Lee".
+   */
   listedBy: (by: string): string => `prepared by ${by}`,
   /** What each kind of file is called. A walkthrough file is of a run, when the record says which. */
   files: {

@@ -7,6 +7,10 @@
  * was asked for. A .docx and a .json have no content type of their own here: serveStatic sends each
  * as application/octet-stream.
  *
+ * A rule of the site's _redirects answers a path that no file is served at with its status and
+ * where it leads, in a Location header, as Netlify does: a file at the path shadows the rule. A
+ * path matches with its closing slash or without it, as Netlify's do.
+ *
  * The server is on 127.0.0.1, at a free port, and is stopped by `close`.
  */
 import { readFile } from "node:fs/promises";
@@ -32,6 +36,34 @@ export interface SiteServer {
 
 /** The headers _headers gives each path, by the path. */
 type Rules = Map<string, [name: string, value: string][]>;
+
+/** Where _redirects sends each path, and with which status, by the path without a closing slash. */
+type Redirects = Map<string, { to: string; status: number }>;
+
+/** A path as a rule of _redirects matches it: without its closing slash, but "/" itself. */
+const matched = (where: string): string => (where.length > 1 ? where.replace(/\/$/, "") : where);
+
+/**
+ * The rules of a _redirects file: a line that starts with "#" is a comment and a blank line is
+ * nothing, and every other line is a rule: its path, where it leads, and its status, set apart by
+ * white space. A line that isn't is an error, so a _redirects that Netlify wouldn't read as written
+ * stops the tests. The first rule for a path is the one that counts, as Netlify reads them.
+ */
+function redirectsOf(text: string): Redirects {
+  const redirects: Redirects = new Map();
+  for (const line of text.split(/\r?\n/)) {
+    if (line.trim() === "" || line.startsWith("#")) continue;
+    const parts = line.trim().split(/\s+/);
+    const [from = "", to = "", status = ""] = parts;
+    if (parts.length !== 3 || !from.startsWith("/") || !/^30[12]$/.test(status)) {
+      throw new Error(`Not a rule of _redirects: ${JSON.stringify(line)}`);
+    }
+    if (!redirects.has(matched(from))) {
+      redirects.set(matched(from), { to, status: Number(status) });
+    }
+  }
+  return redirects;
+}
 
 /**
  * The rules of a _headers file: a line that starts with "#" is a comment and a blank line is
@@ -64,6 +96,7 @@ function rulesOf(text: string): Rules {
 async function handle(
   dir: string,
   rules: Rules,
+  redirects: Redirects,
   request: IncomingMessage,
   response: ServerResponse,
 ): Promise<void> {
@@ -85,14 +118,27 @@ async function handle(
     const page = { raw: `${where.raw}.html`, decoded: `${where.decoded}.html` };
     if (await serveStatic(dir, page, request, response)) return;
   }
+  // No file at all: a rule of _redirects for the address, if there is one.
+  const redirect = redirects.get(matched(where.decoded));
+  if (redirect !== undefined) {
+    response.setHeader("Location", redirect.to);
+    send(response, redirect.status, CONTENT_TYPES[".txt"]!, "Moved", request.method);
+    return;
+  }
   send(response, 404, CONTENT_TYPES[".txt"]!, "Not found", request.method);
 }
 
-/** Serve the site built in `dir`, whose _headers it reads once, as the folder is when it's served. */
+/**
+ * Serve the site built in `dir`, whose _headers and _redirects it reads once, as the folder is when
+ * it's served. A site built before voicecap wrote _redirects has none, and so no rule.
+ */
 export async function serveSite(dir: string): Promise<SiteServer> {
   const rules = rulesOf(await readFile(path.join(dir, "_headers"), "utf8"));
+  const redirects = redirectsOf(
+    await readFile(path.join(dir, "_redirects"), "utf8").catch(() => ""),
+  );
   const server = createServer((request, response) => {
-    handle(dir, rules, request, response).catch(() => {
+    handle(dir, rules, redirects, request, response).catch(() => {
       if (!response.headersSent) send(response, 500, CONTENT_TYPES[".txt"]!, "Server error");
       else response.end();
     });

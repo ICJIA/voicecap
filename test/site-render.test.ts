@@ -1,8 +1,9 @@
 /**
  * The website's page, from what's published (src/site/render.ts): one file with one style block and
- * one script, its headings in order, each report with its files, what isn't there, and every
- * report by date. The content is small (test/helpers/site-content.ts): a demo, two sites with three
- * reports, a Word copy that isn't published, and a report with no walkthrough file.
+ * one script, its headings in order, each site's current report with its links, its earlier ones a
+ * line each, every report's files in a fold, what isn't there, and every report by date when two
+ * sites or more have reports. The content is small (test/helpers/site-content.ts): a demo, two
+ * sites with three reports, a Word copy that isn't published, and a report with no walkthrough file.
  *
  * What the page does in a browser is in test/site-page-browser.test.ts.
  */
@@ -26,7 +27,7 @@ import {
 } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { SITE_TEXT } from "../src/site/text.js";
-import { decode, textOf } from "./helpers/share-html.js";
+import { decode, summariesIn, textOf } from "./helpers/share-html.js";
 import {
   CONTENT,
   DEMO_REPORT,
@@ -138,6 +139,38 @@ function linksOf(html: string): { href: string; download: boolean }[] {
 
 /** The text of each file's item in a report, as a reader gets it. */
 const filesIn = (article: string): string[] => textsOf(article, "li");
+
+/** Some markup without the words only a screen reader gets: what a reader sees. */
+function withoutHidden(html: string): string {
+  return html.replace(/<span class="sr">[\s\S]*?<\/span>/g, "");
+}
+
+/**
+ * Each block of the folds of files in some markup, in order: one for each report, with when it was
+ * shared, who prepared it, its files, and what isn't here.
+ */
+function sharedBlocksOf(html: string): string[] {
+  return [...html.matchAll(/<div class="shared">([\s\S]*?)<\/div>/g)].map(
+    ([, inner = ""]) => inner,
+  );
+}
+
+/** The ids of the reports in some markup, in order: each current report's, and each earlier one's. */
+function reportIdsOf(html: string): string[] {
+  return [...html.matchAll(/<(?:article class="report"|li) id="([^"]*)"/g)].map(
+    ([, id = ""]) => id,
+  );
+}
+
+/** Each item of the lists of earlier reports in some markup, as markup. */
+function earlierItemsOf(html: string): string[] {
+  return [...html.matchAll(/<ul class="earlier"[^>]*>([\s\S]*?)<\/ul>/g)].flatMap(([, list = ""]) =>
+    [...list.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/g)].map(([item]) => item),
+  );
+}
+
+/** The bar's navigation. */
+const barOf = (markup: string): string => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
 
 /** The sites' names in a list of reports by date, as the list gives them. */
 function namesByDate(html: string): (string | undefined)[] {
@@ -251,16 +284,18 @@ describe("renderSiteIndex", () => {
       ([, level = "", inner = ""]): [number, string] => [Number(level), textOf(inner, "")],
     );
 
+    // A site's current report is headed by its date, and its earlier ones by one heading: they're
+    // a line each. Their files are in a fold, with no heading.
     expect(headings).toEqual([
       [1, "Screen reader test results"],
       [2, "The demo"],
-      [3, "29 September 2026, 15:40"],
+      [3, "The current report 29 September 2026, 15:40"],
       [2, "The sites"],
       [3, DVFR],
-      [4, "3 October 2026, 14:05"],
-      [4, "29 September 2026, 16:20"],
+      [4, "The current report 3 October 2026, 14:05"],
+      [4, "Earlier reports"],
       [3, EXAMPLE],
-      [4, "2 October 2026, 09:30"],
+      [4, "The current report 2 October 2026, 09:30"],
       [2, "Every report, by date"],
     ]);
     // None skips a level on the way down.
@@ -325,9 +360,15 @@ describe("renderSiteIndex", () => {
     // No section is made from a folder's name. A folder's name is only where its files are.
     expect(page).not.toContain('id="site-127.0.0.1_4848"');
     expect(page).not.toContain('id="site-localhost_3000"');
+    // The report's page, linked from the current report and from the fold of files.
     expect(linksOf(sectionOf(page, "site-voicecap.netlify.app")).map(({ href }) => href)).toEqual([
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
+      "127.0.0.1_4848/127.0.0.1_4848_page.html",
     ]);
+    // A screen reader hears each report's links named by the site's name, not its folder's.
+    expect(textsOf(sectionOf(page, "site-voicecap.netlify.app"), "a")[0]).toBe(
+      "Open the report of voicecap.netlify.app, 3 October 2026, 10:00",
+    );
   });
 
   it("shows the reports of a site's folders under the site's one heading, as it was given them", () => {
@@ -344,12 +385,31 @@ describe("renderSiteIndex", () => {
 
     expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([DVFR]);
     const site = sectionOf(page, `site-${DVFR}`);
-    expect([...articlesOf(site).keys()]).toEqual(reports.map(({ id }) => id));
-    expect(textsOf(site, "p")[0]).toBe("3 reports");
-    // Each report's files are at its own folder's address.
-    expect(linksOf(site).map(({ href }) => href)).toEqual(
-      reports.map(({ folder }) => `${folder}/${folder}_page.html`),
+    // The first is the current report, and the others are the earlier ones, in the order given.
+    expect([...articlesOf(site).keys()]).toEqual([reports[0]?.id]);
+    expect(reportIdsOf(site)).toEqual(reports.map(({ id }) => id));
+    // No count: the current report and the lines under it say how many there are.
+    expect(site).not.toContain('class="count"');
+    // Each report's files are at its own folder's address: the current one's link and each
+    // earlier one's, then each in the fold, in the same order.
+    const pages = reports.map(({ folder }) => `${folder}/${folder}_page.html`);
+    expect(linksOf(site).map(({ href }) => href)).toEqual([...pages, ...pages]);
+  });
+
+  it("shows every report it's given: keeping a site's newest is the build's to do", () => {
+    const reports = Array.from({ length: 5 }, (_, index) => ({
+      ...reportAt(DVFR, `2026-10-0${5 - index}T10:00:00-05:00`),
+      id: `report-${DVFR}-${5 - index}`,
+    }));
+    const page = renderSiteIndex(
+      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] },
+      NO_FONTS,
     );
+
+    const site = sectionOf(page, `site-${DVFR}`);
+    expect(reportIdsOf(site)).toEqual(reports.map(({ id }) => id));
+    expect(earlierItemsOf(site)).toHaveLength(4);
+    expect(sharedBlocksOf(site)).toHaveLength(5);
   });
 
   it("gives every id once, whatever the sites are named", () => {
@@ -405,11 +465,14 @@ describe("renderSiteIndex", () => {
     expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
   });
 
-  it("lists each report's files with their labels, sizes, and fingerprints", () => {
+  it("lists each report's files with their labels, sizes, and fingerprints, in its site's fold", () => {
     const item = (label: string, name: string, size: string) =>
       `${label} ${name} ${size}, SHA-256 ${fingerprintOf(name)}`;
+    const [demo] = sharedBlocksOf(sectionOf(html, "demo"));
+    const [newest, oldest] = sharedBlocksOf(sectionOf(html, `site-${DVFR}`));
+    const [example] = sharedBlocksOf(sectionOf(html, `site-${EXAMPLE}`));
 
-    expect(filesIn(articleOf(html, DEMO_REPORT.id))).toEqual([
+    expect(filesIn(demo ?? "")).toEqual([
       item("The report, to open", "127.0.0.1_4848_2026-09-29.html", "311 KB"),
       item("The Word copy", "127.0.0.1_4848_2026-09-29.docx", "47 KB"),
       item(
@@ -418,7 +481,7 @@ describe("renderSiteIndex", () => {
         "4 KB",
       ),
     ]);
-    expect(filesIn(articleOf(html, DVFR_NEWEST.id))).toEqual([
+    expect(filesIn(newest ?? "")).toEqual([
       item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
       item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),
       item(
@@ -428,12 +491,12 @@ describe("renderSiteIndex", () => {
       ),
     ]);
     // Only what's published is listed.
-    expect(filesIn(articleOf(html, DVFR_OLDEST.id))).toEqual([
+    expect(filesIn(oldest ?? "")).toEqual([
       item("The report, to open", `${DVFR}_2026-09-29.html`, "296 KB"),
     ]);
     // A walkthrough file whose run isn't known, and a file of another kind, are named for what
     // they are.
-    expect(filesIn(articleOf(html, EXAMPLE_REPORT.id))).toEqual([
+    expect(filesIn(example ?? "")).toEqual([
       item("The report, to open", `${EXAMPLE}_2026-10-02.html`, "270 KB"),
       item(
         "The walkthrough file of run 2026-10-01_1100",
@@ -444,25 +507,294 @@ describe("renderSiteIndex", () => {
       item("A file", `${EXAMPLE}_2026-10-02_summary.pdf`, "88 KB"),
     ]);
     // A fingerprint is in <code>, and each link is named by its file's name.
-    const article = articleOf(html, DVFR_NEWEST.id);
-    expect([...article.matchAll(/<code>(.*?)<\/code>/g)].map(([, code]) => code)).toEqual(
+    expect([...(newest ?? "").matchAll(/<code>(.*?)<\/code>/g)].map(([, code]) => code)).toEqual(
       DVFR_NEWEST.files.map(({ sha256 }) => sha256),
     );
-    expect(textsOf(article, "a")).toEqual(DVFR_NEWEST.files.map(({ name }) => name));
+    expect(textsOf(newest ?? "", "a")).toEqual(DVFR_NEWEST.files.map(({ name }) => name));
   });
 
-  it("says what isn't here, and when no walkthrough file was shared", () => {
-    // A report with everything: nothing but who prepared it.
-    expect(textsOf(articleOf(html, DVFR_NEWEST.id), "p")).toEqual(["Prepared by Pat Lee"]);
-    // A copy that changed since it was shared, in a report that has no walkthrough file.
-    expect(textsOf(articleOf(html, DVFR_OLDEST.id), "p")).toEqual([
+  it("folds every report's files and fingerprints into one fold for each site, closed, and one for the demo", () => {
+    for (const id of ["demo", `site-${DVFR}`, `site-${EXAMPLE}`]) {
+      const section = sectionOf(html, id);
+      // Closed: a fold with no open attribute, named for what's in it.
+      expect(section.match(/<details\b[^>]*>/g), id).toEqual(['<details class="fold">']);
+      expect(summariesIn(section), id).toEqual(["Files and fingerprints, to check a copy"]);
+      // Last in its section: after the current report, and after the earlier ones.
+      expect(section, id).toMatch(/<\/details>\n<\/section>$/);
+    }
+    // A block for each report, in the order given, the newest first: each opens with when it was
+    // shared, and who prepared it.
+    const opening = (id: string) =>
+      sharedBlocksOf(sectionOf(html, id)).map((block) => textsOf(block, "p")[0]);
+    expect(opening(`site-${DVFR}`)).toEqual([
+      "3 October 2026, 14:05, prepared by Pat Lee",
+      "29 September 2026, 16:20, prepared by Pat Lee",
+    ]);
+    expect(opening(`site-${EXAMPLE}`)).toEqual(["2 October 2026, 09:30, prepared by Sam Rivera"]);
+    expect(opening("demo")).toEqual(["29 September 2026, 15:40, prepared by Sam Demo"]);
+    expect(sharedBlocksOf(sectionOf(html, `site-${DVFR}`))[0]).toContain(
+      '<time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time>',
+    );
+  });
+
+  it("leads each site with its current report: its date, who prepared it, and links to open its page and download its Word copy", () => {
+    const article = articleOf(html, DVFR_NEWEST.id);
+    const of = ` of ${DVFR}, 3 October 2026, 14:05`;
+
+    expect(textsOf(article, "h4")).toEqual(["The current report 3 October 2026, 14:05"]);
+    expect(article).toContain(
+      '<h4><span class="label">The current report</span> <time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time></h4>',
+    );
+    expect(textsOf(article, "p")).toEqual([
       "Prepared by Pat Lee",
+      `Open the report${of} Download the Word copy${of}`,
+    ]);
+    // The page opens in the browser, and the Word copy is downloaded. The walkthrough files are
+    // only in the fold.
+    expect(linksOf(article)).toEqual([
+      { href: `${DVFR}/${DVFR}_2026-10-03.html`, download: false },
+      { href: `${DVFR}/${DVFR}_2026-10-03.docx`, download: true },
+    ]);
+    expect(article).toContain('<p class="actions"><a class="action" href=');
+    // What a reader sees of each link is its words. A screen reader hears the site and the date
+    // after them too, so no two links on the page read alike.
+    expect(textsOf(withoutHidden(article), "a")).toEqual([
+      "Open the report",
+      "Download the Word copy",
+    ]);
+    expect(article).toContain(`Open the report<span class="sr">${of}</span></a>`);
+
+    // The demo's is the same, a level up, under the demo's heading, and named for the demo.
+    const demo = articleOf(html, DEMO_REPORT.id);
+    expect(textsOf(demo, "h3")).toEqual(["The current report 29 September 2026, 15:40"]);
+    expect(textsOf(demo, "a")).toEqual([
+      "Open the report of the demo, 29 September 2026, 15:40",
+      "Download the Word copy of the demo, 29 September 2026, 15:40",
+    ]);
+  });
+
+  // 0.12.3: what a manager asks first, "did it pass?", answered on the card, from what the share
+  // recorded of its copies.
+  describe("the verdict on the current report's card", () => {
+    /** The card of a site whose only report records `result`. */
+    const cardWith = (result: PublishedReport["result"]): string =>
+      articleOf(
+        renderSiteIndex(
+          {
+            demo: null,
+            sites: [{ name: DVFR, folders: [DVFR], reports: [{ ...DVFR_NEWEST, result }] }],
+          },
+          NO_FONTS,
+        ),
+        DVFR_NEWEST.id,
+      );
+    /** The card's verdict line: its markup, or null when it has none. */
+    const verdictOf = (card: string): string | null =>
+      /<p class="verdict [^"]*">[\s\S]*?<\/p>/.exec(card)?.[0] ?? null;
+
+    it("says nothing needs attention, as ok, when no problem is left and every page was read", () => {
+      const card = cardWith({ pages: 9, read: 9, problems: 0, problemPages: 0 });
+
+      expect(verdictOf(card)).toBe(
+        '<p class="verdict ok">Nothing needs attention: NVDA read all 9 pages.</p>',
+      );
+      // Under the report's date, and above who prepared it and its links.
+      expect(textsOf(card, "p")).toEqual([
+        "Nothing needs attention: NVDA read all 9 pages.",
+        "Prepared by Pat Lee",
+        `Open the report of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+      ]);
+    });
+
+    it("says how many problems need attention, on how many pages, as a warning", () => {
+      expect(verdictOf(cardWith({ pages: 32, read: 32, problems: 1, problemPages: 32 }))).toBe(
+        '<p class="verdict warn">1 problem needs attention, on 32 pages. NVDA read all 32 pages.</p>',
+      );
+      expect(
+        textOf(verdictOf(cardWith({ pages: 3, read: 3, problems: 2, problemPages: 1 })) ?? ""),
+      ).toBe("2 problems need attention, on 1 page. NVDA read all 3 pages.");
+    });
+
+    it("says how many pages NVDA read when it didn't read them all, as bad", () => {
+      expect(verdictOf(cardWith({ pages: 9, read: 7, problems: 2, problemPages: 2 }))).toBe(
+        '<p class="verdict bad">2 problems need attention, on 2 pages. NVDA read 7 of the 9 pages.</p>',
+      );
+      // Pages skipped, not read, are on no card: nothing needs attention on the pages read.
+      expect(
+        textOf(verdictOf(cardWith({ pages: 9, read: 8, problems: 0, problemPages: 0 })) ?? ""),
+      ).toBe("Nothing needs attention on the pages read: NVDA read 8 of the 9 pages.");
+    });
+
+    it("says a site of one page as one", () => {
+      expect(
+        textOf(verdictOf(cardWith({ pages: 1, read: 1, problems: 0, problemPages: 0 })) ?? ""),
+      ).toBe("Nothing needs attention: NVDA read 1 page.");
+    });
+
+    it("says nothing for a report that records no result, or one of no page", () => {
+      // The tests' content records none, as a share from before 0.12.3 doesn't.
+      expect(html).not.toContain('class="verdict');
+      expect(verdictOf(cardWith(undefined))).toBeNull();
+      expect(verdictOf(cardWith({ pages: 0, read: 0, problems: 0, problemPages: 0 }))).toBeNull();
+    });
+
+    it("gives no earlier report a verdict: only the current one answers for the site", () => {
+      const page = renderSiteIndex(
+        {
+          demo: null,
+          sites: [
+            {
+              name: DVFR,
+              folders: [DVFR],
+              reports: [
+                { ...DVFR_NEWEST, result: { pages: 9, read: 9, problems: 0, problemPages: 0 } },
+                { ...DVFR_OLDEST, result: { pages: 9, read: 9, problems: 3, problemPages: 2 } },
+              ],
+            },
+          ],
+        },
+        NO_FONTS,
+      );
+
+      expect(page.match(/class="verdict /g)).toHaveLength(1);
+      expect(earlierItemsOf(page).join("")).not.toContain("attention");
+    });
+
+    it("gives the demo's card its verdict too", () => {
+      const page = renderSiteIndex(
+        {
+          demo: { ...DEMO_REPORT, result: { pages: 7, read: 7, problems: 3, problemPages: 2 } },
+          sites: [],
+        },
+        NO_FONTS,
+      );
+
+      expect(textOf(verdictOf(articleOf(page, DEMO_REPORT.id)) ?? "")).toBe(
+        "3 problems need attention, on 2 pages. NVDA read all 7 pages.",
+      );
+    });
+  });
+
+  it("says in the current report when its page or its Word copy isn't here, in place of its link", () => {
+    // The example site's Word copy is missing: its page has its link, and the Word copy a line.
+    const example = articleOf(html, EXAMPLE_REPORT.id);
+    expect(textsOf(example, "p")).toEqual([
+      "Prepared by Sam Rivera",
+      `Open the report of ${EXAMPLE}, 2 October 2026, 09:30`,
+      `${EXAMPLE}_2026-10-02.docx isn't here: the file is missing.`,
+    ]);
+    expect(example).toContain('<p class="gone">');
+
+    const currentOf = (report: PublishedReport): string =>
+      articleOf(
+        renderSiteIndex(
+          { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [report] }] },
+          NO_FONTS,
+        ),
+        report.id,
+      );
+    // A page that changed: only the Word copy's link, and the page's line.
+    const wordOnly = currentOf({
+      ...DVFR_NEWEST,
+      files: DVFR_NEWEST.files.filter(({ kind }) => kind !== "page"),
+      notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
+    });
+    expect(textsOf(wordOnly, "p")).toEqual([
+      "Prepared by Pat Lee",
+      `Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+      `${DVFR}_2026-10-03.html isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+    ]);
+    // Neither: no paragraph of links with nothing in it. A walkthrough file that isn't here is said
+    // only in the fold.
+    const neither = currentOf({
+      ...DVFR_NEWEST,
+      files: DVFR_NEWEST.files.filter(({ kind }) => kind === "walkthrough"),
+      notPublished: [
+        { name: `${DVFR}_2026-10-03.html`, reason: "missing" },
+        { name: `${DVFR}_2026-10-03.docx`, reason: "missing" },
+        { name: `${DVFR}_2026-10-03_other_walkthrough.json`, reason: "missing" },
+      ],
+    });
+    expect(neither).not.toContain('class="actions"');
+    expect(neither).not.toContain("<a ");
+    expect(textsOf(neither, "p")).toEqual([
+      "Prepared by Pat Lee",
+      `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
+      `${DVFR}_2026-10-03.docx isn't here: the file is missing.`,
+    ]);
+  });
+
+  it("lists a site's earlier reports under its current one, a line each: when, who, and links to the page and the Word copy", () => {
+    const site = sectionOf(html, `site-${DVFR}`);
+    const of = ` of ${DVFR}, 29 September 2026, 16:20`;
+
+    expect(textsOf(site, "h4")).toEqual([
+      "The current report 3 October 2026, 14:05",
+      "Earlier reports",
+    ]);
+    // The Word copy of the oldest changed since it was shared: only its page has a link.
+    expect(earlierItemsOf(site)).toEqual([
+      `<li id="${DVFR_OLDEST.id}"><time datetime="2026-09-29T16:20:00-05:00">29 September 2026, 16:20</time>, prepared by Pat Lee: <a href="${DVFR}/${DVFR}_2026-09-29.html">Open the report<span class="sr">${of}</span></a></li>`,
+    ]);
+    // After the current report, and before the fold.
+    expect(site.indexOf("Earlier reports")).toBeGreaterThan(site.indexOf("</article>"));
+    expect(site.indexOf("Earlier reports")).toBeLessThan(site.indexOf("<details"));
+
+    // With its Word copy, and with a page that isn't here.
+    const withWord: PublishedReport = {
+      ...DVFR_OLDEST,
+      files: [...DVFR_OLDEST.files, published("word", DVFR, `${DVFR}_2026-09-29.docx`, 50)],
+      notPublished: [],
+    };
+    const wordOnly: PublishedReport = {
+      ...DVFR_OLDEST,
+      id: `report-${DVFR}-0`,
+      at: "2026-09-28T09:00:00-05:00",
+      files: [published("word", DVFR, `${DVFR}_2026-09-28.docx`, 50)],
+      notPublished: [{ name: `${DVFR}_2026-09-28.html`, reason: "missing" }],
+    };
+    const page = renderSiteIndex(
+      {
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, withWord, wordOnly] }],
+      },
+      NO_FONTS,
+    );
+    const separator = '<span class="sep" aria-hidden="true">·</span>';
+    expect(earlierItemsOf(sectionOf(page, `site-${DVFR}`))).toEqual([
+      `<li id="${DVFR_OLDEST.id}"><time datetime="2026-09-29T16:20:00-05:00">29 September 2026, 16:20</time>, prepared by Pat Lee: <a href="${DVFR}/${DVFR}_2026-09-29.html">Open the report<span class="sr">${of}</span></a> ${separator} <a href="${DVFR}/${DVFR}_2026-09-29.docx" download>Word copy<span class="sr">${of}</span></a></li>`,
+      `<li id="report-${DVFR}-0"><time datetime="2026-09-28T09:00:00-05:00">28 September 2026, 09:00</time>, prepared by Pat Lee: its page isn&#39;t here ${separator} <a href="${DVFR}/${DVFR}_2026-09-28.docx" download>Word copy<span class="sr"> of ${DVFR}, 28 September 2026, 09:00</span></a></li>`,
+    ]);
+    // What a reader sees of a line, and what a screen reader hears: the dot between the links
+    // isn't read.
+    expect(
+      textOf(withoutHidden(earlierItemsOf(sectionOf(page, `site-${DVFR}`))[0] ?? ""), ""),
+    ).toBe("29 September 2026, 16:20, prepared by Pat Lee: Open the report · Word copy");
+  });
+
+  it("has no earlier reports for a site with one report", () => {
+    const site = sectionOf(html, `site-${EXAMPLE}`);
+
+    expect(textsOf(site, "h4")).toEqual(["The current report 2 October 2026, 09:30"]);
+    expect(site).not.toContain('class="earlier"');
+    expect(site).not.toContain("Earlier reports");
+  });
+
+  it("says in the fold what isn't here, and when no walkthrough file was shared", () => {
+    const [newest, oldest] = sharedBlocksOf(sectionOf(html, `site-${DVFR}`));
+    const [example] = sharedBlocksOf(sectionOf(html, `site-${EXAMPLE}`));
+
+    // A report with everything: nothing but when, and who prepared it.
+    expect(textsOf(newest ?? "", "p")).toEqual(["3 October 2026, 14:05, prepared by Pat Lee"]);
+    // A copy that changed since it was shared, in a report that has no walkthrough file.
+    expect(textsOf(oldest ?? "", "p")).toEqual([
+      "29 September 2026, 16:20, prepared by Pat Lee",
       `${DVFR}_2026-09-29.docx isn't here: it no longer matches the fingerprint recorded when it was shared.`,
       "No walkthrough file was shared with this report.",
     ]);
     // A copy that is missing, in a report that has walkthrough files.
-    expect(textsOf(articleOf(html, EXAMPLE_REPORT.id), "p")).toEqual([
-      "Prepared by Sam Rivera",
+    expect(textsOf(example ?? "", "p")).toEqual([
+      "2 October 2026, 09:30, prepared by Sam Rivera",
       `${EXAMPLE}_2026-10-02.docx isn't here: the file is missing.`,
     ]);
     // The line for no walkthrough file is said once, for the one report that has none.
@@ -491,14 +823,14 @@ describe("renderSiteIndex", () => {
         NO_FONTS,
       );
     const lines = (reason: "changed" | "missing") =>
-      textsOf(articleOf(withoutWalkthrough(reason), DVFR_NEWEST.id), "p");
+      textsOf(sharedBlocksOf(withoutWalkthrough(reason))[0] ?? "", "p");
 
     expect(lines("missing")).toEqual([
-      "Prepared by Pat Lee",
+      "3 October 2026, 14:05, prepared by Pat Lee",
       `${DVFR}_2026-10-03_walkthrough.json isn't here: the file is missing.`,
     ]);
     expect(lines("changed")).toEqual([
-      "Prepared by Pat Lee",
+      "3 October 2026, 14:05, prepared by Pat Lee",
       `${DVFR}_2026-10-03_walkthrough.json isn't here: it no longer matches the fingerprint recorded when it was shared.`,
     ]);
   });
@@ -513,12 +845,12 @@ describe("renderSiteIndex", () => {
       { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [empty] }] },
       NO_FONTS,
     );
-    const article = articleOf(page, empty.id);
+    const [block] = sharedBlocksOf(page);
 
     // No list with nothing in it, for a screen reader to announce.
-    expect(article).not.toMatch(/<ul\b|<li\b/);
-    expect(textsOf(article, "p")).toEqual([
-      "Prepared by Pat Lee",
+    expect(block).not.toMatch(/<ul\b|<li\b/);
+    expect(textsOf(block ?? "", "p")).toEqual([
+      "29 September 2026, 16:20, prepared by Pat Lee",
       `${DVFR}_2026-09-29.html isn't here: it no longer matches the fingerprint recorded when it was shared.`,
       "No walkthrough file was shared with this report.",
     ]);
@@ -526,32 +858,19 @@ describe("renderSiteIndex", () => {
 
   it("gives each of its lists the role of a list, which WebKit takes from a list with no markers", () => {
     const tags = [...html.matchAll(/<(?:ul|ol)\b[^>]*>/g)].map(([tag]) => tag);
-    const files = tags.filter((tag) => tag.startsWith("<ul"));
     const withFiles = [DEMO_REPORT, ...reportsOf(CONTENT)].filter(
       (shared) => shared.files.length > 0,
     );
+    const withEarlier = CONTENT.sites.filter(({ reports }) => reports.length > 1);
 
-    // A list of files for each report that has one published, and the list by date: no other list.
-    expect(files).toHaveLength(withFiles.length);
+    // A list of files for each report that has one published, a list of earlier reports for each
+    // site that has them, and the list by date: no other list.
+    expect(tags.filter((tag) => /\sclass="files"/.test(tag))).toHaveLength(withFiles.length);
+    expect(tags.filter((tag) => /\sclass="earlier"/.test(tag))).toHaveLength(withEarlier.length);
     expect(tags.filter((tag) => tag.startsWith("<ol"))).toHaveLength(1);
-    for (const tag of files) expect(tag).toMatch(/\sclass="files"/);
+    expect(tags).toHaveLength(withFiles.length + withEarlier.length + 1);
     for (const tag of tags) expect(tag).toMatch(/\srole="list"/);
     expect(sectionOf(html, "by-date")).toMatch(/<ol\b[^>]*\srole="list"/);
-  });
-
-  it("counts each site's reports", () => {
-    expect(textsOf(sectionOf(html, `site-${DVFR}`), "p")[0]).toBe("2 reports");
-    expect(textsOf(sectionOf(html, `site-${EXAMPLE}`), "p")[0]).toBe("1 report");
-
-    const reports = Array.from({ length: 1204 }, (_, index) => ({
-      ...reportAt(DVFR, "2026-10-03T10:00:00-05:00"),
-      id: `report-${DVFR}-${index + 1}`,
-    }));
-    const many = renderSiteIndex(
-      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] },
-      NO_FONTS,
-    );
-    expect(textsOf(sectionOf(many, `site-${DVFR}`), "p")[0]).toBe("1,204 reports");
   });
 
   it("lists every report by date across the sites, newest first, without the demo", () => {
@@ -635,8 +954,12 @@ describe("renderSiteIndex", () => {
       files: DVFR_NEWEST.files.filter(({ kind }) => kind === "word"),
       notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
     };
+    // Two sites, so that there's a list by date.
     const page = renderSiteIndex(
-      { demo: null, sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }] },
+      {
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }, ...CONTENT.sites.slice(1)],
+      },
       NO_FONTS,
     );
 
@@ -667,7 +990,6 @@ describe("renderSiteIndex", () => {
 
   it("has no demo view, and no link to one, without a demo", () => {
     const page = renderSiteIndex({ ...CONTENT, demo: null }, NO_FONTS);
-    const barOf = (markup: string) => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
 
     expect(page).not.toContain('id="demo"');
     expect(page).not.toContain('href="#demo"');
@@ -679,19 +1001,38 @@ describe("renderSiteIndex", () => {
     expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
   });
 
+  it("lists reports by date, with its link in the bar, only when two sites or more have reports", () => {
+    // With one site, the list would be that site's own again.
+    const one = renderSiteIndex({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) }, NO_FONTS);
+    expect(one).not.toContain('id="by-date"');
+    expect(one).not.toContain('href="#by-date"');
+    expect(one).not.toContain("Every report, by date");
+    expect(one).not.toMatch(/<ol\b/);
+    expect(textsOf(barOf(one), "a")).toEqual(["The demo", "The sites"]);
+    // Two views are regions, named by their headings.
+    expect(one.match(/\saria-labelledby=/g)).toHaveLength(2);
+
+    // With two, it's there, after the sites, and in the bar.
+    expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
+    expect(html.indexOf('id="by-date"')).toBeGreaterThan(html.indexOf('id="sites"'));
+  });
+
   it("says no reports have been shared yet when there are none", () => {
     const page = renderSiteIndex({ demo: null, sites: [] }, NO_FONTS);
 
     expect(textsOf(sectionOf(page, "sites"), "p")).toEqual(["No reports have been shared yet."]);
-    expect(textsOf(sectionOf(page, "by-date"), "p")).toEqual(["No reports have been shared yet."]);
-    expect(page).not.toMatch(/<article\b|<ol\b|<li\b/);
+    expect(page).not.toContain('id="by-date"');
+    expect(page).not.toMatch(/<article\b|<ol\b|<ul\b|<li\b|<details\b/);
+    expect(textsOf(barOf(page), "a")).toEqual(["The sites"]);
 
     // The demo isn't a site: with a demo and no site, the sites still have none.
     const withDemo = renderSiteIndex({ demo: DEMO_REPORT, sites: [] }, NO_FONTS);
     expect(textsOf(sectionOf(withDemo, "sites"), "p")).toEqual([
       "No reports have been shared yet.",
     ]);
-    expect(textsOf(sectionOf(withDemo, "demo"), "h3")).toEqual(["29 September 2026, 15:40"]);
+    expect(textsOf(sectionOf(withDemo, "demo"), "h3")).toEqual([
+      "The current report 29 September 2026, 15:40",
+    ]);
   });
 
   it("escapes what the record holds", () => {
@@ -748,7 +1089,10 @@ describe("renderSiteIndex", () => {
     expect(markup).toContain(
       'datetime="2026-10-03T14:05:00-05:00&quot; onmouseover=&quot;alert(1)"',
     );
-    expect(markup).toContain(", a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, prepared by");
+    // What a screen reader hears after a link: the site's name, then the date.
+    expect(markup).toContain(
+      '<span class="sr"> of a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, 3 October 2026, 14:05</span>',
+    );
     // Nothing the record holds became markup: no element it names, and no attribute it adds.
     const { elements, attributes } = namesIn(markup);
     expect(elements.filter((element) => ["img", "b", "u", "i", "s"].includes(element))).toEqual([]);
@@ -762,7 +1106,7 @@ describe("renderSiteIndex", () => {
       expect.arrayContaining([
         "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
         "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.netlify.app/demo-site/.",
-        "Each site's reports, the newest first.",
+        "Each site's current report, with up to two earlier ones below it.",
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",
         "A walkthrough file repeats its run, with the same pages, passes, and limits: npx @icjia/voicecap --walkthrough <file>.",
@@ -778,6 +1122,10 @@ describe("renderSiteIndex", () => {
     ]) {
       expect(html).toContain(`<code>${command}</code>`);
     }
+    // The fold of files, named for what it holds.
+    expect(html).toContain(
+      '<details class="fold">\n<summary>Files and fingerprints, to check a copy</summary>',
+    );
     // The bar's label, the button, which is hidden until the script shows it, and the footer's link.
     expect(html).toContain('<nav aria-label="Views">');
     expect(html).toContain(

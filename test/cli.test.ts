@@ -1858,7 +1858,7 @@ describe("voicecap site", () => {
 
   /** What the command is for, as the help says it. */
   const WHAT_IT_DOES =
-    "build the website of every shared report, for Netlify: index.html, each report's files, robots.txt, and _headers";
+    "build the website of each site's newest shared reports, for Netlify: index.html, each report's files, robots.txt, _headers, and _redirects";
 
   /** What a build says it made of the home homeWithShares makes: its reports, its sites, and the demo. */
   const BUILT = "3 reports from 2 sites, and the demo's.";

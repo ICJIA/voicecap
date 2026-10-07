@@ -1510,6 +1510,81 @@ describe("verifyHome, and what was shared", () => {
     });
   });
 
+  // 0.12.3: what the copies say of the site, which the website's card shows. A share made before
+  // has none, and needs none.
+  describe("the result an entry records", () => {
+    it.each<[string, unknown]>([
+      ["that nothing needs attention", { pages: 9, read: 9, problems: 0, problemPages: 0 }],
+      ["a problem on every page", { pages: 32, read: 32, problems: 1, problemPages: 32 }],
+      [
+        "problems on a page, and pages not read",
+        { pages: 9, read: 7, problems: 3, problemPages: 1 },
+      ],
+      ["no page at all", { pages: 0, read: 0, problems: 0, problemPages: 0 }],
+    ])("finds nothing wrong with a result that says %s", async (_what, result) => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.result = result;
+        reseal(entries[1]!);
+      });
+      expect(await problemsIn(home)).toEqual([]);
+    });
+
+    it.each<[string, unknown]>([
+      ["a number", 7],
+      ["null", null],
+      ["a list", [9, 9, 0, 0]],
+      ["missing a count", { pages: 9, read: 9, problems: 0 }],
+      ["a count that is text", { pages: "9", read: 9, problems: 0, problemPages: 0 }],
+      ["a count that isn't whole", { pages: 9.5, read: 9, problems: 0, problemPages: 0 }],
+      ["a count below 0", { pages: 9, read: -1, problems: 0, problemPages: 0 }],
+      ["more pages read than there are", { pages: 9, read: 10, problems: 0, problemPages: 0 }],
+      [
+        "problems on more pages than there are",
+        { pages: 9, read: 9, problems: 2, problemPages: 10 },
+      ],
+      ["pages with a problem, and no problem", { pages: 9, read: 9, problems: 0, problemPages: 2 }],
+    ])(
+      "says one line for an entry that matches its seal when its result is %s",
+      async (_what, result) => {
+        const { home, siteDir } = await copyOf(twice);
+        await editEntries(siteDir, (entries) => {
+          entries[1]!.result = result;
+          reseal(entries[1]!);
+        });
+        expect(await problemsIn(home)).toEqual([
+          `${SHARES_JSON}: share 2 (${second.entry.at}) lists its result in a form voicecap can't read`,
+        ]);
+      },
+    );
+
+    it("names an entry's result after its site, before its files, and checks the files all the same", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        entries[1]!.site = "not an address";
+        entries[1]!.result = "all good";
+        reseal(entries[1]!);
+      });
+      await appendFile(inShare(siteDir, PAGE_2), " ");
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) names "not an address" as its site, which isn't a site's root address, such as https://dvfr.illinois.gov/`,
+        `${SHARES_JSON}: share 2 (${second.entry.at}) lists its result in a form voicecap can't read`,
+        `${SHARE}/${PAGE_2}: changed since it was recorded (SHA-256 differs)`,
+      ]);
+    });
+
+    it("goes by no result of an entry that changed: it's named as changed, once", async () => {
+      const { home, siteDir } = await copyOf(twice);
+      await editEntries(siteDir, (entries) => {
+        // Not sealed again, so the seal no longer holds, and the result is no part of the verdict.
+        entries[1]!.result = "all good";
+      });
+      expect(await problemsIn(home)).toEqual([
+        `${SHARES_JSON}: share 2 (${second.entry.at}) changed since it was recorded`,
+      ]);
+    });
+  });
+
   describe("what share/ holds that no entry names", () => {
     it("doesn't mind the files an operating system leaves, or a name that starts with a dot", async () => {
       const { home, siteDir } = await copyOf(twice);

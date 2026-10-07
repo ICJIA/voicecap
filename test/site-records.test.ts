@@ -133,6 +133,7 @@ describe("readSiteRecords", () => {
               at: JAN_15,
               by: "Pat Lee",
               site: null,
+              result: null,
               files: copies("alpha.illinois.gov_2027-01-15"),
             },
           ],
@@ -147,6 +148,7 @@ describe("readSiteRecords", () => {
               at: JAN_16,
               by: "Sam Ortiz",
               site: null,
+              result: null,
               files: copies("zeta.illinois.gov_2027-01-16"),
             },
             {
@@ -156,6 +158,7 @@ describe("readSiteRecords", () => {
               at: JAN_15,
               by: "Sam Ortiz",
               site: null,
+              result: null,
               files: copies("zeta.illinois.gov_2027-01-15"),
             },
           ],
@@ -168,6 +171,7 @@ describe("readSiteRecords", () => {
         at: JAN_17,
         by: "Pat Lee",
         site: null,
+        result: null,
         files: copies("127.0.0.1_4848_2027-01-17"),
       },
       leftOut: [],
@@ -289,6 +293,51 @@ describe("readSiteRecords", () => {
       expect(leftOut).toEqual([
         `${EXAMPLE_RECORD}: share 1 (${JAN_15}) changed since it was recorded`,
       ]);
+    });
+
+    // 0.12.3: what the copies say of the site, which the card of its current report shows.
+    it("reads the result an entry records, and null for an entry that records none", async () => {
+      const dir = await siteFolder("example.illinois.gov");
+      const files = copies("example.illinois.gov_2027-01-15");
+      const result = { pages: 9, read: 9, problems: 0, problemPages: 0 };
+      await record(dir, [
+        sealed(1, JAN_15, files, { result: { pages: 32, read: 30, problems: 2, problemPages: 3 } }),
+        // An entry from before 0.12.3 has no result, and is published all the same.
+        sealed(2, JAN_16, files),
+        // A count it doesn't know is no reason to doubt the four it does.
+        sealed(3, JAN_17, files, { result: { ...result, heard: 9 } }),
+      ]);
+
+      const { sites, leftOut } = await readSiteRecords(home);
+
+      expect(kept(sites).map(({ seq, result: read }) => [seq, read])).toEqual([
+        [1, { pages: 32, read: 30, problems: 2, problemPages: 3 }],
+        [2, null],
+        [3, result],
+      ]);
+      expect(leftOut).toEqual([]);
+    });
+
+    it.each<[string, unknown]>([
+      ["text", "all good"],
+      ["a number", 7],
+      ["null", null],
+      ["a list", [9, 9, 0, 0]],
+      ["missing a count", { pages: 9, read: 9, problems: 0 }],
+      ["a count that isn't whole", { pages: 9, read: 8.5, problems: 0, problemPages: 0 }],
+      ["a count below 0", { pages: 9, read: 9, problems: -1, problemPages: 0 }],
+      ["more pages read than there are", { pages: 9, read: 10, problems: 0, problemPages: 0 }],
+      ["pages with a problem, and no problem", { pages: 9, read: 9, problems: 0, problemPages: 1 }],
+    ])("keeps an entry whose result is %s, and reads it with no result", async (_what, result) => {
+      const dir = await siteFolder("example.illinois.gov");
+      const files = copies("example.illinois.gov_2027-01-15");
+      await record(dir, [sealed(1, JAN_15, files, { result })]);
+
+      const { sites, leftOut } = await readSiteRecords(home);
+
+      // Its report is published all the same: only what its card would say is left out.
+      expect(kept(sites)).toEqual([expect.objectContaining({ seq: 1, files, result: null })]);
+      expect(leftOut).toEqual([]);
     });
 
     it("reads the demo's latest entry's site as any entry's", async () => {
