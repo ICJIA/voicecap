@@ -65,7 +65,7 @@ function cardBlocks(card: AttentionCard, number: number): Block[] {
     ...(words.fixes.length === 0 ? [] : [labelOnly(labels.fix), ...words.fixes.flatMap(fixBlocks)]),
     labelOnly(labels.path),
     list(words.path),
-    labelOnly(labels.pages),
+    labelOnly(card.pages.length === 1 ? labels.page : labels.pages),
     list(
       card.pages.map(({ name, detail }) =>
         detail === null || detail.trim() === "" ? name : `${name}: ${detail}`,

@@ -23,7 +23,7 @@ import { attentionWords, type AttentionWords } from "../attention-words.js";
 import type { ShareModel } from "../model.js";
 import { ATTENTION_TEXT } from "../text.js";
 import { attentionGist } from "../words.js";
-import { count, fold, lineHtml } from "./parts.js";
+import { fold, lineHtml } from "./parts.js";
 
 /** More cards than this, and each starts folded behind its title. */
 const MOST_CARDS_OPEN = 5;
@@ -61,8 +61,8 @@ function fixOf(fix: AttentionWords["fixes"][number]): string {
 
 /**
  * A card's pages, each a link to its card under "Every page", with its reason or its note after a
- * colon when it has one. Up to 3 are in the open under their label; more fold behind a line that
- * counts them, which is their label.
+ * colon when it has one. Up to 3 are in the open under their label, "The page" for one; more fold
+ * behind a line that counts them, which is their label.
  */
 function pagesOf(card: AttentionCard): string {
   const items = card.pages.map(({ slug, name, detail }) => {
@@ -71,9 +71,10 @@ function pagesOf(card: AttentionCard): string {
   });
   const list = `<ul>${items.join("")}</ul>`;
   if (card.pages.length <= MOST_PAGES_OPEN) {
-    return `<div class="part"><p>${labelled(labels.pages)}</p>${list}</div>`;
+    const label = card.pages.length === 1 ? labels.page : labels.pages;
+    return `<div class="part"><p>${labelled(label)}</p>${list}</div>`;
   }
-  const summary = `<span class="what">The ${count(card.pages.length)} pages</span>`;
+  const summary = `<span class="what">${esc(ATTENTION_TEXT.pagesFold(card.pages.length))}</span>`;
   return fold(summary, list, { insideClassName: "on-pages" });
 }
 

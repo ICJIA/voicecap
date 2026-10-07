@@ -71,8 +71,8 @@ const SAMPLES: { card: AttentionCard; title: string; cause: string; why: string 
     why: 'A screen reader user on Chrome hears "Unlabeled graphic" and an offer to describe the image, every time it\'s read.',
   },
   {
-    card: cardOf("graphic-unnamed", { subject: "unlabeled graphic" }),
-    title: 'A graphic is read only as "unlabeled graphic": likely missing alt text',
+    card: cardOf("graphic-unnamed", { subject: "Unlabeled graphic" }),
+    title: 'A graphic is read only as "Unlabeled graphic": likely missing alt text',
     cause:
       "Likely missing alt text: the image has no text alternative, so NVDA can only say that it's a graphic.",
     why: "A screen reader user hears that there's an image, but not what it shows.",
@@ -90,8 +90,8 @@ const SAMPLES: { card: AttentionCard; title: string; cause: string; why: string 
     why: "A screen reader user hears what kind of field it is, but not what to put in it.",
   },
   {
-    card: cardOf("unnamed", { subject: "unlabeled image" }),
-    title: 'Something is read as "unlabeled image": likely a control with no name',
+    card: cardOf("unnamed", { subject: "Unlabeled image" }),
+    title: 'Something is read as "Unlabeled image": likely a control with no name',
     cause: "Likely a control with no name: NVDA has no words to read for it.",
     why: "A screen reader user hears that it's there, but not what it is.",
   },
@@ -104,11 +104,11 @@ const SAMPLES: { card: AttentionCard; title: string; cause: string; why: string 
     why: "A screen reader user hears that there's a link, but not where it goes.",
   },
   {
-    card: cardOf("link-generic", { subject: "read more" }),
-    title: 'Links read as "read more": link text that doesn\'t say where it goes',
+    card: cardOf("link-generic", { subject: "Read more" }),
+    title: 'Links read as "Read more": link text that doesn\'t say where it goes',
     cause:
-      "Link text that doesn't say where it goes: \"read more\" means little when a screen reader user lists the page's links, or tabs from link to link.",
-    why: 'Screen reader users often move from link to link, and "read more" alone doesn\'t tell them where each one goes.',
+      "Link text that doesn't say where it goes: \"Read more\" means little when a screen reader user lists the page's links, or tabs from link to link.",
+    why: 'Screen reader users often move from link to link, and "Read more" alone doesn\'t tell them where each one goes.',
   },
   {
     card: cardOf("first-heading", { level: 2 }),
@@ -211,7 +211,7 @@ describe("a card's words", () => {
         },
       ],
       path: [
-        "Fix it in the header, which every page shares: one change fixes it on all 32 pages.",
+        "Fix it in the header, which these pages share: one change fixes it on all 32 pages.",
         "Run voicecap again on one page (--page /), then on every page.",
         "Share again: once no page raises it, this card is gone.",
         'Not a problem? Mark the pages "Reviewed, no issues" in voicecap review.',
@@ -241,7 +241,8 @@ describe("a card's words", () => {
     expect(attentionWords(cardOf("first-heading")).title).toBe(
       "The first heading isn't level 1: likely a missing <h1>",
     );
-    // The page has no headings, or the message gave no level: the cause and reason are the same.
+    // The message gave no level: the cause and reason are a first heading's, as for any level. (A
+    // page with no headings is level 0, a card with words of its own: see below.)
     expect(attentionWords(cardOf("first-heading")).cause).toBe(
       "Likely a missing <h1>: the page's main title isn't marked as its level 1 heading.",
     );
@@ -253,18 +254,21 @@ describe("a card's words", () => {
     expect(silence.cause).toBe(
       "Likely a focus trap, or content NVDA has no words for: NVDA said nothing, again and again.",
     );
+    // Nothing was said, so there are no words to hear over and over, and none to hide.
     expect(silence.why).toBe(
-      "A screen reader user hears the same words over and over, and may not get past them.",
+      "A screen reader user hears nothing, again and again, and may not get past it.",
     );
-    expect(silence.fixes).toEqual([
-      {
-        lead: "Check that Tab and Down Arrow move past it. If the words are repeated on purpose, hide the extra copies from screen readers:",
-        code: '<div aria-hidden="true">…</div>',
-        after: null,
-      },
-    ]);
+    expect(silence.fixes).toEqual([]);
+    // Its path is a flag's, as for any phrase repeated.
+    expect(silence.path).toEqual(attentionWords(cardOf("repeated", { subject: "x" })).path);
     // A subject that is only spaces says nothing, as none does.
-    expect(attentionWords(cardOf("repeated", { subject: "  " })).title).toBe(silence.title);
+    const spaces = attentionWords(cardOf("repeated", { subject: "  " }));
+    expect([spaces.title, spaces.cause, spaces.why, spaces.fixes]).toEqual([
+      silence.title,
+      silence.cause,
+      silence.why,
+      [],
+    ]);
   });
 
   it("says a page with no headings, level 0, in words of its own", () => {
@@ -373,6 +377,9 @@ describe("a card's words", () => {
 });
 
 describe("where NVDA said it", () => {
+  /** A line NVDA said in the read pass, for a place to quote. */
+  const READ_MORE = [{ pass: "read" as const, line: "link, Read more" }];
+
   it("leads each place with its page part, and the pages it's on", () => {
     const parts: [string | null, string][] = [
       ["header", "In the header, on 1 page"],
@@ -384,11 +391,11 @@ describe("where NVDA said it", () => {
       [null, "On 7 pages"],
     ];
     const places = parts.map(([part], i) =>
-      placeOf({ part, pages: pagesOf(i + 1).map((page) => page.slug) }),
+      placeOf({ part, said: READ_MORE, pages: pagesOf(i + 1).map((page) => page.slug) }),
     );
 
     expect(
-      attentionWords(cardOf("link-generic", { subject: "read more", places })).places.map(
+      attentionWords(cardOf("link-generic", { subject: "Read more", places })).places.map(
         (place) => place.lead,
       ),
     ).toEqual(parts.map(([, lead]) => lead));
@@ -396,13 +403,79 @@ describe("where NVDA said it", () => {
 
   it("leads a place whose page part it has no words for by that part's own name", () => {
     // Only the six parts NVDA names are known; any other name, even one an object inherits, is said as it is.
-    const places = [placeOf({ part: "aside" }), placeOf({ part: "constructor" })];
+    const places = [
+      placeOf({ part: "aside", said: READ_MORE }),
+      placeOf({ part: "constructor", said: READ_MORE }),
+    ];
 
     expect(
-      attentionWords(cardOf("link-generic", { subject: "read more", places })).places.map(
+      attentionWords(cardOf("link-generic", { subject: "Read more", places })).places.map(
         (place) => place.lead,
       ),
     ).toEqual(["In the aside, on 1 page", "In the constructor, on 1 page"]);
+  });
+
+  it("leads a read that stopped with the last line read, whatever the page part", () => {
+    const stopped = (places: AttentionPlace[]) =>
+      attentionWords(cardOf("read-stopped", { pages: pagesOf(3), places, times: 3 })).places;
+
+    expect(
+      stopped([
+        placeOf({
+          part: "footer",
+          said: [{ pass: "read", line: "content info landmark, © 2026" }],
+        }),
+        placeOf({ said: [{ pass: "read", line: "2019" }], pages: ["b", "c"], times: 2 }),
+      ]),
+    ).toEqual([
+      {
+        lead: "The last line read, on 1 page",
+        quotes: [{ pass: "Down Arrow", line: "content info landmark, © 2026" }],
+        unavailable: null,
+      },
+      {
+        lead: "The last line read, on 2 pages",
+        quotes: [{ pass: "Down Arrow", line: "2019" }],
+        unavailable: null,
+      },
+    ]);
+  });
+
+  it("leaves out a place with no line to quote, but on a recorded card, which says why it has none", () => {
+    // A read that stopped where its page's record says so, with no line of NVDA's here, and one
+    // whose last line is quoted.
+    const stopped = attentionWords(
+      cardOf("read-stopped", {
+        pages: pagesOf(3),
+        places: [
+          placeOf({ pages: ["a", "b"], times: 2 }),
+          placeOf({ part: "footer", said: [{ pass: "read", line: "Footer" }], pages: ["c"] }),
+        ],
+        times: 3,
+      }),
+    );
+    expect(stopped.places.map((place) => place.lead)).toEqual(["The last line read, on 1 page"]);
+    // So for every kind with a place to quote but nothing to quote there: a page with no headings,
+    // Tab reaching nothing, a silence said again and again.
+    for (const card of [
+      cardOf("first-heading", { level: 0, places: [placeOf()] }),
+      cardOf("tab-nothing", { places: [placeOf()] }),
+      cardOf("repeated", { places: [placeOf()] }),
+      cardOf("read-stopped", { places: [placeOf()] }),
+    ]) {
+      expect(attentionWords(card).places, card.kind).toEqual([]);
+    }
+    // A recorded card keeps its place, with no line, and says why.
+    expect(
+      attentionWords(cardOf("recorded", { subject: "x", places: [placeOf()] })).places,
+    ).toEqual([
+      {
+        lead: "On 1 page",
+        quotes: [],
+        unavailable:
+          "NVDA's words aren't available here: this page's transcripts couldn't be read.",
+      },
+    ]);
   });
 
   it("names a key for each pass, and quotes each line as NVDA said it", () => {
@@ -425,8 +498,8 @@ describe("where NVDA said it", () => {
 
   it("says NVDA's words aren't available for a recorded card, and for no other", () => {
     const place = placeOf({ pages: ["a", "b"], times: 2 });
-    const unavailable = (kind: AttentionKind) =>
-      attentionWords(cardOf(kind, { subject: "unlabeled graphic", places: [place] })).places.map(
+    const unavailable = (kind: AttentionKind, at: AttentionPlace) =>
+      attentionWords(cardOf(kind, { subject: "Unlabeled graphic", places: [at] })).places.map(
         (each) => each.unavailable,
       );
 
@@ -435,9 +508,13 @@ describe("where NVDA said it", () => {
       quotes: [],
       unavailable: "NVDA's words aren't available here: these pages' transcripts couldn't be read.",
     });
-    // No other kind says it, a read that stopped with no line to quote included.
+    // No other kind says it: a place with a line quotes it, and one with none is left out, a read
+    // that stopped with no line to quote included.
+    const quoted = placeOf({ ...place, said: [{ pass: "read", line: "Unlabeled graphic" }] });
     for (const kind of FLAG_KINDS) {
-      if (kind !== "recorded") expect(unavailable(kind), kind).toEqual([null]);
+      if (kind === "recorded") continue;
+      expect(unavailable(kind, quoted), kind).toEqual([null]);
+      expect(unavailable(kind, place), kind).toEqual([]);
     }
   });
 
@@ -752,7 +829,7 @@ describe("the path forward", () => {
     ]);
   });
 
-  it("says one change fixes a header, a footer, or a navigation, which every page shares", () => {
+  it("says one change fixes a header, a footer, or a navigation, which these pages share", () => {
     for (const part of ["header", "footer", "navigation"]) {
       expect(
         flagPath({
@@ -760,7 +837,7 @@ describe("the path forward", () => {
           places: [placeOf({ part, pages: ["a", "b", "c"] })],
         })[0],
         part,
-      ).toBe(`Fix it in the ${part}, which every page shares: one change fixes it on all 3 pages.`);
+      ).toBe(`Fix it in the ${part}, which these pages share: one change fixes it on all 3 pages.`);
     }
     // The part's own pages are counted, not the card's: one place of two is shared.
     expect(
@@ -771,7 +848,13 @@ describe("the path forward", () => {
           placeOf({ part: "footer", pages: ["d", "e"] }),
         ],
       })[0],
-    ).toBe("Fix it in the footer, which every page shares: one change fixes it on all 2 pages.");
+    ).toBe("Fix it in the footer, which these pages share: one change fixes it on all 2 pages.");
+    // The records show only that these pages have it there: never that every page of the site does.
+    const many = flagPath({
+      pages: pagesOf(40),
+      places: [placeOf({ part: "header", pages: ["a", "b"] })],
+    });
+    expect(many.join(" ")).not.toContain("every page shares");
   });
 
   it("names the shared part on the most pages, and the first of them when pages are level", () => {
@@ -785,24 +868,24 @@ describe("the path forward", () => {
 
     // The one on more pages, wherever its place comes.
     expect(shared(["header", 2], ["footer", 5])).toBe(
-      "Fix it in the footer, which every page shares: one change fixes it on all 5 pages.",
+      "Fix it in the footer, which these pages share: one change fixes it on all 5 pages.",
     );
     expect(shared(["footer", 5], ["header", 2])).toBe(
-      "Fix it in the footer, which every page shares: one change fixes it on all 5 pages.",
+      "Fix it in the footer, which these pages share: one change fixes it on all 5 pages.",
     );
     expect(shared(["header", 3], ["navigation", 2], ["footer", 4])).toBe(
-      "Fix it in the footer, which every page shares: one change fixes it on all 4 pages.",
+      "Fix it in the footer, which these pages share: one change fixes it on all 4 pages.",
     );
     // A part that isn't shared never wins, however many pages it's on.
     expect(shared(["main content", 5], ["header", 2])).toBe(
-      "Fix it in the header, which every page shares: one change fixes it on all 2 pages.",
+      "Fix it in the header, which these pages share: one change fixes it on all 2 pages.",
     );
     // Level on pages: the first place.
     expect(shared(["navigation", 3], ["header", 3], ["footer", 3])).toBe(
-      "Fix it in the navigation, which every page shares: one change fixes it on all 3 pages.",
+      "Fix it in the navigation, which these pages share: one change fixes it on all 3 pages.",
     );
     expect(shared(["footer", 3], ["header", 3])).toBe(
-      "Fix it in the footer, which every page shares: one change fixes it on all 3 pages.",
+      "Fix it in the footer, which these pages share: one change fixes it on all 3 pages.",
     );
   });
 
@@ -823,23 +906,25 @@ describe("the path forward", () => {
     }
   });
 
-  it("has one step for a recorded flag", () => {
+  it("has one step for a recorded flag, which names where to start when there are more pages", () => {
     expect(attentionWords(cardOf("recorded", { subject: "x" })).path).toEqual([
       "Run voicecap again on the page (--page /a/).",
     ]);
     expect(
       attentionWords(cardOf("recorded", { subject: "x", pages: [cardPage("b"), cardPage("a")] }))
         .path,
-    ).toEqual(["Run voicecap again on these pages (--page /b/)."]);
+    ).toEqual(["Run voicecap again on these pages, starting with --page /b/."]);
   });
 
-  it("has two steps for a read that stopped", () => {
-    for (const pages of [pagesOf(1), pagesOf(2)]) {
-      expect(attentionWords(cardOf("read-stopped", { pages })).path).toEqual([
-        "Run the page again with --page.",
-        "If it's just a very long page, raise its step limit.",
-      ]);
-    }
+  it("has two steps for a read that stopped, for each page when there are more", () => {
+    expect(attentionWords(cardOf("read-stopped", { pages: pagesOf(1) })).path).toEqual([
+      "Run the page again with --page.",
+      "If it's just a very long page, raise its step limit.",
+    ]);
+    expect(attentionWords(cardOf("read-stopped", { pages: pagesOf(2) })).path).toEqual([
+      "Run each page again with --page.",
+      "If it's just a very long page, raise its step limit.",
+    ]);
   });
 
   it("asks for a page not read to be run again, hands off", () => {
@@ -874,6 +959,7 @@ describe("the section's own words", () => {
       "more",
       "none",
       "noneSkipped",
+      "pagesFold",
       "sentence",
       "title",
     ]);
@@ -882,14 +968,22 @@ describe("the section's own words", () => {
     expect(ATTENTION_TEXT.none).toBe(
       "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
     );
+    // A card on one page labels it "The page", and a card on more "The pages".
     expect(ATTENTION_TEXT.labels).toEqual({
       cause: "Likely cause",
       why: "Why it matters",
       fix: "The fix in the code",
       after: "What NVDA should say then",
       path: "The path forward",
+      page: "The page",
       pages: "The pages",
     });
+  });
+
+  it("counts a card's pages on the line of the fold they're behind", () => {
+    expect(ATTENTION_TEXT.pagesFold(4)).toBe("The 4 pages");
+    expect(ATTENTION_TEXT.pagesFold(32)).toBe("The 32 pages");
+    expect(ATTENTION_TEXT.pagesFold(1204)).toBe("The 1,204 pages");
   });
 
   it("says the summary's sentence for one problem or many, and for one page or many", () => {

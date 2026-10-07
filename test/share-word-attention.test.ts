@@ -239,6 +239,31 @@ describe("wordAttention", () => {
     expect(four.at(-2)).toEqual(para({ text: "The pages:", bold: true }));
   });
 
+  it("labels the page of a card that is on one page The page, never The pages", () => {
+    // "learn more" is said on page A alone, and an issue is a card for one page.
+    const model = linkModel(["click here", "read more", "learn more"]);
+    const [, , third] = model.attention;
+    if (third === undefined) throw new Error("The model has no third card.");
+    const one = cardOf(wordAttention(model), `3. ${attentionWords(third).title}`);
+
+    expect(third.pages).toHaveLength(1);
+    expect(one.slice(-2)).toEqual([
+      para({ text: `${ATTENTION_TEXT.labels.page}:`, bold: true }),
+      list(["Page A"]),
+    ]);
+    expect(wordsOf(one)).not.toContain("The pages:");
+    const issue = wordAttention(
+      withCards(
+        i2i,
+        attentionCards(
+          [pageFrom("b", passesOf({ read: ["Welcome"] }), { review: reviewed("issue") })],
+          DEFAULT_CONFIG.flags,
+        ),
+      ),
+    );
+    expect(issue.slice(-2)).toEqual([para({ text: "The page:", bold: true }), list(["Page b"])]);
+  });
+
   it("sets its headings in order: an h1, then an h2 for each card, and nothing between", async () => {
     for (const model of [i2i, linkModel(PHRASES), await demoModel(), withCards(i2i, [])]) {
       const levels = wordAttention(model).flatMap((block) =>

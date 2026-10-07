@@ -266,9 +266,9 @@ export const SCREENSHOT_TEXT = {
 
 /**
  * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
- * were skipped), the labels of a card's parts, and the small sentences the summary says about the
- * cards (`sentence`, and `more` for its panel). What a card itself says is `attentionWords`, in
- * ./attention-words.ts.
+ * were skipped), the labels of a card's parts, the line of the fold a card's pages are behind, and
+ * the small sentences the summary says about the cards (`sentence`, and `more` for its panel). What
+ * a card itself says is `attentionWords`, in ./attention-words.ts.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -289,15 +289,24 @@ export const ATTENTION_TEXT = {
    */
   noneSkipped: (skipped: number): string =>
     `Nothing needs attention on the pages read: every flag was fixed or checked by a person. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
-  /** The labels of a card's parts, each followed by what it labels. */
+  /**
+   * The labels of a card's parts, each followed by what it labels: a card on one page labels it
+   * `page`, and one on more `pages`.
+   */
   labels: {
     cause: "Likely cause",
     why: "Why it matters",
     fix: "The fix in the code",
     after: "What NVDA should say then",
     path: "The path forward",
+    page: "The page",
     pages: "The pages",
   },
+  /**
+   * The line of the fold a card's pages are behind, on the page, when there are more than 3: how
+   * many they are, which is their label. The Word copy folds nothing, and labels them `pages`.
+   */
+  pagesFold: (pages: number): string => `The ${count(pages)} pages`,
   /** The summary panel's last line, when it names fewer cards than there are: how many it leaves out. */
   more: (rest: number): string => `and ${count(rest)} more, under What needs attention`,
   /** The summary sentence's part on the problems, as the spec pins it. */

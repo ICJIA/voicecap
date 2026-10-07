@@ -179,7 +179,7 @@ describe("renderAttention", () => {
       path.map((step) => esc(step)),
     );
     expect(textOf(list)).toContain(
-      "Fix it in the header, which every page shares: one change fixes it on all 32 pages.",
+      "Fix it in the header, which these pages share: one change fixes it on all 32 pages.",
     );
     expect(textOf(list)).toContain(
       "Run voicecap again on one page (--page /), then on every page.",
@@ -219,6 +219,10 @@ describe("renderAttention", () => {
     const html = renderAttention(withCards(i2i, [{ ...logo, pages }]));
 
     expect(html).toContain('<summary><span class="what">The 1,204 pages</span></summary>');
+    // The fold's line is the section's own words, in ../text.ts.
+    expect(html).toContain(
+      `<summary><span class="what">${ATTENTION_TEXT.pagesFold(1204)}</span></summary>`,
+    );
     expect(html).toContain("1,204 pages, 65 times");
   });
 
@@ -240,6 +244,31 @@ describe("renderAttention", () => {
     expect(textOf(/<b>The pages:<\/b>.*$/s.exec(three)?.[0] ?? "")).toBe(
       "The pages: Page A Page B Page C",
     );
+  });
+
+  it("labels the page of a card that is on one page The page, never The pages", () => {
+    // "learn more" is said on page A alone.
+    const html = renderAttention(linkModel(["click here", "read more", "learn more"]));
+    const one = foldOf(html, "need-3");
+
+    expect(textOf(one)).toContain('Links read as "learn more"');
+    expect(one).toContain(
+      `<div class="part"><p><b>${ATTENTION_TEXT.labels.page}:</b></p><ul><li><a href="#pg-`,
+    );
+    expect(textOf(/<b>The page:<\/b>.*$/s.exec(one)?.[0] ?? "")).toBe("The page: Page A");
+    expect(one).not.toContain("The pages");
+    // An issue is a card for one page.
+    const issue = renderAttention(
+      withCards(
+        i2i,
+        attentionCards(
+          [pageFrom("b", passesOf({ read: ["Welcome"] }), { review: reviewed("issue") })],
+          DEFAULT_CONFIG.flags,
+        ),
+      ),
+    );
+    expect(foldOf(issue, "need-1")).toContain('<p><b>The page:</b></p><ul><li><a href="#pg-b">');
+    expect(issue).not.toContain("The pages");
   });
 
   it("says why a page wasn't read, and an issue's note, after the page's name, and says nothing after a name with none", () => {

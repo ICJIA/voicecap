@@ -19,6 +19,7 @@ import {
   type AttentionCard,
   type AttentionPage,
 } from "../src/share/attention.js";
+import { attentionWords } from "../src/share/attention-words.js";
 import { buildShareModel } from "../src/share/model.js";
 import type { PageReview } from "../src/share/review.js";
 import {
@@ -196,13 +197,14 @@ describe("what needs attention, as a card for each problem", () => {
     ]);
 
     // At a Tab stop: Chrome's hint is all the graphic's name, inside a link with words of its own.
+    // The subject is in NVDA's own capitals.
     const home =
       "To get missing image descriptions, open the context menu., Unlabeled graphic, Home, link";
     expect(attentionCards([pageOf("about", [], [home])], rules)).toEqual([
       {
         id: "need-1",
         kind: "graphic-unnamed",
-        subject: "unlabeled graphic",
+        subject: "Unlabeled graphic",
         level: null,
         places: [
           {
@@ -429,13 +431,13 @@ describe("what needs attention, as a card for each problem", () => {
     const one = (page: AttentionPage, flagRules = rules) => attentionCards([page], flagRules);
     const readMore = ["link, Read more", "Our news", "link, Read more"];
 
-    // Generic link text on two pages: one card, named by what the links say.
+    // Generic link text on two pages: one card, named by what the links say, as NVDA said it.
     const links = attentionCards(
       [pageOf("news", readMore, []), pageOf("events", readMore, [])],
       rules,
     );
     expect(links.map((card) => [card.kind, card.subject, card.pages.length, card.times])).toEqual([
-      ["link-generic", "read more", 2, 4],
+      ["link-generic", "Read more", 2, 4],
     ]);
     // A link with no name.
     expect(kindsOf(one(pageOf("a", [], ["link", "main landmark, link"])))).toEqual([
@@ -449,7 +451,7 @@ describe("what needs attention, as a card for each problem", () => {
     ]);
     // Anything else NVDA calls unlabeled.
     expect(kindsOf(one(pageOf("a", ["Unlabeled image"], [])))).toEqual([
-      ["unnamed", "unlabeled image"],
+      ["unnamed", "Unlabeled image"],
     ]);
 
     // The first heading, with the level NVDA said; level 0 for a page with no headings.
@@ -484,16 +486,18 @@ describe("what needs attention, as a card for each problem", () => {
       ["first-heading", 0, []],
     ]);
 
-    // Many Tab stops before the main content, and no skip link: its first stop is quoted.
+    // Many Tab stops before the main content, and no skip link: its first stop is quoted. It is
+    // found once on the page, in its one Tab pass: the flag's count is the stops, not the times.
     const nav = Array.from({ length: 11 }, (_, i) => `Nav ${i + 1}, link`);
-    expect(
-      one(pageOf("a", [], nav)).map((card) => [
-        card.kind,
-        card.subject,
-        card.times,
-        card.places[0]?.said,
-      ]),
-    ).toEqual([["skip-link", null, 11, [{ pass: "tab", line: "Nav 1, link" }]]]);
+    const skip = one(pageOf("a", [], nav));
+    expect(skip.map((card) => [card.kind, card.subject, card.times, card.places[0]?.said])).toEqual(
+      [["skip-link", null, 1, [{ pass: "tab", line: "Nav 1, link" }]]],
+    );
+    expect(pageOf("a", [], nav).card.flags.map((flag) => [flag.rule, flag.count])).toEqual([
+      ["tab-before-main", 11],
+    ]);
+    expect(skip.map((card) => attentionWords(card).count)).toEqual(["1 page, 1 time"]);
+    expect(skip[0]?.places[0]?.times).toBe(1);
     // Tab reached nothing.
     expect(kindsOf(one(pageFrom("a", passesOf({ read: ["Welcome"], tab: [] }))))).toEqual([
       ["tab-nothing", null],
@@ -613,7 +617,39 @@ describe("what needs attention, as a card for each problem", () => {
         card.times,
         card.places[0]?.said,
       ]),
-    ).toEqual([["link-generic", "read more", 2, [{ pass: "read", line: "link, Read more" }]]]);
+    ).toEqual([["link-generic", "Read more", 2, [{ pass: "read", line: "link, Read more" }]]]);
+  });
+
+  it("names what NVDA said in its own capitals, and puts the same words in other capitals on the same card", () => {
+    // The rules match items lowercased; the card quotes the item as the line said it.
+    const pages = [
+      pageOf("news", ["link, Read more", "Our news", "link, Read more"], []),
+      pageOf("events", ["link, read more", "Our events", "link, READ MORE"], []),
+      pageOf("form", ["Search", "Unlabeled image"], ["edit", "Combo box, collapsed"]),
+    ];
+    const cards = attentionCards(pages, rules);
+
+    expect(
+      cards.map((card) => [card.kind, card.subject, card.pages.map((page) => page.slug)]),
+    ).toEqual([
+      // The first page's words, as NVDA said them there: one card for every capitals.
+      ["link-generic", "Read more", ["news", "events"]],
+      ["field-unlabeled", "edit", ["form"]],
+      ["field-unlabeled", "Combo box", ["form"]],
+      ["unnamed", "Unlabeled image", ["form"]],
+    ]);
+    expect(cards.map((card) => attentionWords(card).title)).toEqual([
+      'Links read as "Read more": link text that doesn\'t say where it goes',
+      'A form field is read only as "edit": likely a missing label',
+      'A form field is read only as "Combo box": likely a missing label',
+      'Something is read as "Unlabeled image": likely a control with no name',
+    ]);
+    // A graphic with no name is read as NVDA said it: "Unlabeled graphic", at a Tab stop.
+    const tab =
+      "To get missing image descriptions, open the context menu., Unlabeled graphic, Home, link";
+    expect(kindsOf(attentionCards([pageOf("a", [], [tab])], rules))).toEqual([
+      ["graphic-unnamed", "Unlabeled graphic"],
+    ]);
   });
 
   it("first headings at different levels are different cards", () => {
@@ -680,13 +716,13 @@ describe("what needs attention, as a card for each problem", () => {
     expect(
       cards.map((card) => [card.id, card.kind, card.subject, card.pages.map((page) => page.slug)]),
     ).toEqual([
-      ["need-1", "link-generic", "read more", ["b", "c"]],
+      ["need-1", "link-generic", "Read more", ["b", "c"]],
       // Ties go in the kinds' order: the graphic before the button, though the button's page is first.
       ["need-2", "graphic-unnamed", "graphic", ["d"]],
       ["need-3", "button-unnamed", null, ["a"]],
       // Then by their first page.
-      ["need-4", "link-generic", "click here", ["e"]],
-      ["need-5", "link-generic", "learn more", ["f"]],
+      ["need-4", "link-generic", "Click here", ["e"]],
+      ["need-5", "link-generic", "Learn more", ["f"]],
     ]);
   });
 

@@ -2,7 +2,7 @@
  * What needs attention. Pure.
  *
  * - **The cards** (`attentionCards`): a card for each problem, across every page it's on: a kind of
- *   flag and what NVDA named ("i 2i Logo", "read more"), a page the latest run couldn't read, a read
+ *   flag and what NVDA named ("i 2i Logo", "Read more"), a page the latest run couldn't read, a read
  *   that stopped before the page's end, an issue a reviewer found, or a page whose transcripts
  *   changed since its review. Each card says where on the page NVDA said it, in NVDA's own words:
  *   the lines of the shown transcripts that raised its flags (flagItemLines and flagQuotes), read
@@ -18,7 +18,7 @@ import {
   type ItemLine,
   type PagePasses,
 } from "../flags/evaluate.js";
-import { graphicName, insideOf, partOf } from "../flags/speech.js";
+import { graphicName, insideOf, partOf, speechItems } from "../flags/speech.js";
 import { PASS_NAMES, type FlagResult, type PassName } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import type { PageCard } from "./cards.js";
@@ -86,9 +86,9 @@ export interface AttentionCard {
   id: string;
   kind: AttentionKind;
   /**
-   * What NVDA named: a graphic's name as NVDA said it ("i 2i Logo"), the item ("read more", "edit",
-   * "graphic"), a repeated phrase, a custom or recorded flag's subject; null for kinds that name
-   * nothing.
+   * What NVDA named: a graphic's name as NVDA said it ("i 2i Logo"), the item as NVDA said it ("Read
+   * more", "edit", "graphic"), a repeated phrase, a custom or recorded flag's subject; null for kinds
+   * that name nothing.
    */
   subject: string | null;
   /**
@@ -144,7 +144,13 @@ export interface AttentionPage {
  * **Grouping:** one card per kind and subject (compared lowercased, with its spaces collapsed), and
  * for first-heading per level too, since each level is a different thing NVDA said, and a page with
  * no headings (level 0) is another; an issue is a card of its own. A card's subject is its first,
- * as NVDA said it. Its places are keyed by the page part each line names, in the order first met.
+ * as NVDA said it, in NVDA's own capitals ("Read more"), though the rules match it lowercased. Its
+ * places are keyed by the page part each line names, in the order first met.
+ *
+ * **Times:** one for each line an item rule matched; for any other flag, its count (a phrase's run,
+ * a custom rule's matches), or 1 when it has none, for each page and pass, but a missing skip link
+ * is 1 for each page and pass, since its flag's count is the Tab stops before the main content, not
+ * how often it was found; and 1 for each page not read, issue, or change.
  *
  * **Order:** most pages first, then in the kinds' order (KINDS), then by the first page.
  */
@@ -275,31 +281,42 @@ function itemHit(line: ItemLine, page: number, rules: FlagRules): Hit {
 }
 
 /**
- * The kind of what an item rule found, with the item lowercased, and its subject: a graphic NVDA
- * names (graphicName) is "graphic-generic", named by that name, and one it doesn't is
- * "graphic-unnamed"; a form field's role is "field-unlabeled" ("radio button" too, though it says
- * "button"); any other button is "button-unnamed"; and anything else is "unnamed". A link with no
- * name is "link-unnamed", and any other link "link-generic", named by its words.
+ * The kind of what an item rule found, told by the item lowercased, and its subject, as NVDA said
+ * it: a graphic NVDA names (graphicName) is "graphic-generic", named by that name, and one it
+ * doesn't is "graphic-unnamed"; a form field's role is "field-unlabeled" ("radio button" too,
+ * though it says "button"); any other button is "button-unnamed"; and anything else is "unnamed".
+ * A link with no name is "link-unnamed", and any other link "link-generic", named by its words.
  */
 function itemKind(
   line: ItemLine,
   rules: FlagRules,
 ): { kind: AttentionKind; subject: string | null } {
   const item = line.item.toLowerCase();
+  const said = asSaid(line);
   if (line.rule === "generic-link-text") {
     return item === NO_NAME
       ? { kind: "link-unnamed", subject: null }
-      : { kind: "link-generic", subject: item };
+      : { kind: "link-generic", subject: said };
   }
   if (item.includes("graphic")) {
     const name = graphicName(line.spoken, { item, rules });
     return name === null
-      ? { kind: "graphic-unnamed", subject: item }
+      ? { kind: "graphic-unnamed", subject: said }
       : { kind: "graphic-generic", subject: name };
   }
-  if (FIELDS.has(item)) return { kind: "field-unlabeled", subject: item };
+  if (FIELDS.has(item)) return { kind: "field-unlabeled", subject: said };
   if (item.includes("button")) return { kind: "button-unnamed", subject: null };
-  return { kind: "unnamed", subject: item };
+  return { kind: "unnamed", subject: said };
+}
+
+/**
+ * The item a rule found on a line, in NVDA's own capitals ("Read more"): the rules match items
+ * lowercased, so it is the first of the line's items (speechItems) that is the item, compared
+ * lowercased. The item itself, should no item be.
+ */
+function asSaid({ item, spoken }: ItemLine): string {
+  const lower = item.toLowerCase();
+  return speechItems(spoken).find((each) => each.toLowerCase() === lower) ?? item;
 }
 
 /** The form fields the unlabeled rule finds by their role alone. */
@@ -310,7 +327,9 @@ const FIELDS = new Set(["edit", "combo box", "check box", "radio button"]);
  * (flagQuotes) with its pass. A repeated phrase is named by the phrase, and the first heading has
  * its level. A custom rule is named by its own description in `rules`, which is the same in every
  * pass and on every page (its flags' messages add how many matches, and where), else, for a rule
- * the config no longer has, by the flag's message.
+ * the config no longer has, by the flag's message. It counts as many times as the flag's count
+ * says (a phrase's run, a rule's matches), but a missing skip link counts once: its flag's count is
+ * the Tab stops before the main content, not how often the problem was found.
  */
 function flagHit(flag: FlagResult, passes: PagePasses, rules: FlagRules, page: number): Hit {
   const kind = RULE_KINDS.get(flag.rule) ?? "custom";
@@ -318,7 +337,8 @@ function flagHit(flag: FlagResult, passes: PagePasses, rules: FlagRules, page: n
   const subject =
     kind === "repeated" ? (line ?? null) : kind === "custom" ? customName(flag, rules) : null;
   const level = kind === "first-heading" ? levelOf(flag.message) : null;
-  return placedHit(kind, subject, level, page, flag.count ?? 1, line, flag.pass);
+  const times = kind === "skip-link" ? 1 : (flag.count ?? 1);
+  return placedHit(kind, subject, level, page, times, line, flag.pass);
 }
 
 /** A custom rule's flag's name: its rule's description, else its message without its final ".". */

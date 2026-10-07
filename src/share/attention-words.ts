@@ -50,7 +50,10 @@ const PART_LEADS = new Map([
   ["search", "In the search"],
 ]);
 
-/** The page parts a site's pages share, so that one change to one fixes every page it's on. */
+/**
+ * The page parts a site's pages usually share, from one template, so that one change to one fixes
+ * every page it's on.
+ */
 const SHARED_PARTS = new Set(["header", "footer", "navigation"]);
 
 /** One fix: what to do, the code to do it with, and what NVDA should say after it (null for no words). */
@@ -76,16 +79,23 @@ function whereOn(part: string | null): string | null {
   return part === null ? null : (PART_LEADS.get(part) ?? `In the ${part}`);
 }
 
+/** "--page /about/": the option that runs voicecap on the card's first page; null for a card with no page. */
+function firstPage(card: AttentionCard): string | null {
+  const path = card.pages[0]?.path;
+  return path === undefined ? null : `--page ${path}`;
+}
+
 /** " (--page /about/)": the first page's address, to run voicecap on; nothing for a card with no page. */
 function onePage(card: AttentionCard): string {
-  const path = card.pages[0]?.path;
-  return path === undefined ? "" : ` (--page ${path})`;
+  const first = firstPage(card);
+  return first === null ? "" : ` (${first})`;
 }
 
 /**
- * The place on a page part that every page of a site shares (header, footer, or navigation) and
- * that is on the most pages, over more than one: its part, and how many pages. The first of them
- * when two are on as many. Null when there's none.
+ * The place on a page part a site's pages usually share (header, footer, or navigation) that is on
+ * the most of the card's pages, over more than one: its part, and how many pages. The first of them
+ * when two are on as many. Null when there's none. The records show only that those pages have it
+ * there, so the path says these pages share it, never that every page of the site does.
  */
 function sharedPart(card: AttentionCard): { part: string; pages: number } | null {
   let most: { part: string; pages: number } | null = null;
@@ -105,7 +115,7 @@ function flagPath(card: AttentionCard): string[] {
   const shared = sharedPart(card);
   const where =
     shared !== null
-      ? `Fix it in the ${shared.part}, which every page shares: one change fixes it on all ${count(shared.pages)} pages.`
+      ? `Fix it in the ${shared.part}, which these pages share: one change fixes it on all ${count(shared.pages)} pages.`
       : many
         ? "Fix it on each page."
         : "Fix it on the page.";
@@ -339,35 +349,40 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
     path: flagPath(card),
   }),
   repeated: (card) => {
-    // A repeated stretch of silence has no words to quote.
+    // A repeated stretch of silence has no words to quote, none to hear over and over, and none to
+    // hide: no fix in the code comes from what NVDA said.
     const phrase = named(card).trim() === "" ? null : named(card);
+    if (phrase === null) {
+      return {
+        title: "Silence, many times in a row: likely a focus trap, or content NVDA can't read",
+        cause:
+          "Likely a focus trap, or content NVDA has no words for: NVDA said nothing, again and again.",
+        why: "A screen reader user hears nothing, again and again, and may not get past it.",
+        path: flagPath(card),
+      };
+    }
     return {
-      title:
-        phrase === null
-          ? "Silence, many times in a row: likely a focus trap, or content NVDA can't read"
-          : `"${phrase}" is said many times in a row: likely a focus trap, or repeated content`,
+      title: `"${phrase}" is said many times in a row: likely a focus trap, or repeated content`,
       cause:
-        phrase === null
-          ? "Likely a focus trap, or content NVDA has no words for: NVDA said nothing, again and again."
-          : "Likely a focus trap, or the same content repeated: NVDA said the same words again and again.",
+        "Likely a focus trap, or the same content repeated: NVDA said the same words again and again.",
       why: "A screen reader user hears the same words over and over, and may not get past them.",
       fixes: [
         {
           lead: "Check that Tab and Down Arrow move past it. If the words are repeated on purpose, hide the extra copies from screen readers:",
           code: '<div aria-hidden="true">…</div>',
-          after: phrase === null ? null : `"${phrase}", once`,
+          after: `"${phrase}", once`,
         },
       ],
       path: flagPath(card),
     };
   },
-  "read-stopped": () => ({
+  "read-stopped": (card) => ({
     title: "The reading stopped before the page's end",
     cause:
       "voicecap stopped reading at its step limit, or because the same words kept coming back.",
     why: "What comes after the stop wasn't heard, so it isn't in the transcripts.",
     path: [
-      "Run the page again with --page.",
+      `Run ${card.pages.length > 1 ? "each page" : "the page"} again with --page.`,
       "If it's just a very long page, raise its step limit.",
     ],
   }),
@@ -379,13 +394,19 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
   }),
   recorded: (card) => {
     const many = card.pages.length > 1;
+    const first = firstPage(card);
     return {
       title: `What the run recorded: ${named(card)}`,
       cause: many
         ? "These pages' transcripts couldn't be read here, so this card shows what their runs recorded, without NVDA's words."
         : "This page's transcripts couldn't be read here, so this card shows what its run recorded, without NVDA's words.",
       why: "voicecap can't tell from the record alone what NVDA said, so it can't suggest a fix.",
-      path: [`Run voicecap again on ${many ? "these pages" : "the page"}${onePage(card)}.`],
+      // One page's address is where to start on many, never all of them.
+      path: [
+        many
+          ? `Run voicecap again on these pages${first === null ? "" : `, starting with ${first}`}.`
+          : `Run voicecap again on the page${onePage(card)}.`,
+      ],
     };
   },
   unread: (card) => {
@@ -431,31 +452,41 @@ const ADVICE: Record<AttentionKind, (card: AttentionCard) => Advice> = {
 };
 
 /**
+ * How a place's words begin: where on its pages NVDA said it ("In the header, on 32 pages"), or "On
+ * 2 pages" where NVDA named no page part. A read that stopped quotes the last line read, which is
+ * where the reading stopped, not where a problem is, so its lead says so, whatever the part.
+ */
+function leadOf(card: AttentionCard, place: AttentionPlace): string {
+  const on = plural(place.pages.length, "page");
+  if (card.kind === "read-stopped") return `The last line read, on ${on}`;
+  const where = whereOn(place.part);
+  return where === null ? `On ${on}` : `${where}, on ${on}`;
+}
+
+/**
  * What one card of "What needs attention" says: its title, how many pages and times, where on the
  * pages NVDA said it (the page part, and its lines for each pass, as NVDA said them), its likely
  * cause, why it matters, the fix in the code and what NVDA should say then, and the path forward.
  * A fix is the usual one for the case NVDA's words show, and the person reviewing decides whether
  * it fits. It comes from what NVDA said, never from the page's code.
+ *
+ * A place with no line of NVDA's to quote (a page with no headings, Tab reaching nothing, a silence,
+ * a read that stopped where only its record says so) is left out, since it would say no more than
+ * the count. A recorded card keeps each of its places, which says why it has no line.
  */
 export function attentionWords(card: AttentionCard): AttentionWords {
   const { title, cause, why, fixes = [], path } = ADVICE[card.kind](card);
+  const recorded = card.kind === "recorded";
   return {
     title,
     count: `${plural(card.pages.length, "page")}, ${plural(card.times, "time")}`,
-    places: card.places.map((place) => {
-      const lead = whereOn(place.part);
-      const on = plural(place.pages.length, "page");
-      return {
-        lead: lead === null ? `On ${on}` : `${lead}, on ${on}`,
+    places: card.places
+      .filter((place) => recorded || place.said.length > 0)
+      .map((place) => ({
+        lead: leadOf(card, place),
         quotes: place.said.map(({ pass, line }) => ({ pass: HOW_TEXT.ways[pass].key, line })),
-        unavailable:
-          card.kind !== "recorded"
-            ? null
-            : place.pages.length > 1
-              ? UNAVAILABLE.many
-              : UNAVAILABLE.one,
-      };
-    }),
+        unavailable: !recorded ? null : place.pages.length > 1 ? UNAVAILABLE.many : UNAVAILABLE.one,
+      })),
     cause,
     why,
     fixes,
