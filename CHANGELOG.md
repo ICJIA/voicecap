@@ -4,6 +4,17 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The website shows each site's newest three reports, and leads with the current one.** It showed every report, each with all its files and their fingerprints in full, then every report again by date: a lot to take in before anything a manager came for. The README's "The website: `voicecap site`" describes it.
+  - **A site's current report leads:** its date, who prepared it, and two links, styled as buttons, to open its page and to download its Word copy. A screen reader hears each link with the site's name and the report's date after its words ("Open the report of dvfr.illinois.gov, 3 October 2026, 14:05"), so no two links on the page sound alike.
+  - **Its earlier reports, two at most, are a line each,** with the same two links.
+  - **Every report's files, with their sizes and fingerprints, are in a fold,** closed: "Files and fingerprints, to check a copy", for whoever checks a copy.
+  - **"Every report, by date" is there only when two sites or more have reports.** With one, it was that site's own list again. A site's count of its reports is gone too.
+  - **Older shares stay in the records,** and `voicecap verify` checks them as before: only the website leaves them out. Their files aren't published or read, and the build says how many it left off, such as `dvfr.illinois.gov: 2 older reports aren't on the site, which shows each site's newest 3.` The newest three are counted across all of a site's folders.
+  - **An older report's page still leads somewhere.** The build writes `_redirects`, Netlify's file of redirects. Each older report's page, at its address with `.html` and without, sends its reader on to the site's current report with a 302, which a browser doesn't keep, or to the front page when the current report's page isn't published. Its Word copy and walkthrough files are simply gone. A site folder named `_redirects` is left out, as one named `_headers` is.
+  - Shared reports don't change: only the website's own page does. Netlify builds with the newest 0.12.x, so the website's next build has it, with no change to `netlify.toml`.
+
 ## [0.12.1] - 2026-10-07
 
 ### Changed
