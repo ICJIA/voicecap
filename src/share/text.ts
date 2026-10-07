@@ -132,9 +132,13 @@ export const HOW_TEXT = {
     headings: { key: "H", words: "heading by heading" },
     tab: { key: "Tab", words: "control by control" },
   } satisfies Record<PassName, { key: string; words: string }>,
-  /** Under the sample: what its words are, and what each time is. */
+  /**
+   * Under the sample: what its words are, and what each time is. It names where the transcripts
+   * are by their section's name, not by "above" or "below", which a change in the sections' order
+   * would make false again.
+   */
   heardNote:
-    "NVDA's own words: the first lines of each pass, from the transcripts below. Each time is how long that line took, which includes the wait for NVDA to finish speaking.",
+    "NVDA's own words: the first lines of each pass, from the transcripts under Every page. Each time is how long that line took, which includes the wait for NVDA to finish speaking.",
   /** Said in place of the sample, when the home page has no transcripts to take one from. */
   noSample: "Not recorded: no sample of the home page's lines is available.",
 };

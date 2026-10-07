@@ -357,6 +357,18 @@ describe("the fixed text", () => {
     expect(PAGES_TEXT.fullTranscript).toBe("The full transcript");
   });
 
+  it("names where the sample's transcripts are by their section, never by above or below", () => {
+    const { HOW_TEXT, PAGES_TEXT } = text;
+
+    // The sample is in the details, which come after the cards, and each page's transcripts are in
+    // its card, under Every page. "Below" was false once the page put the cards first, and the
+    // Word copy has the same order; the section's name stays true wherever the sections go.
+    expect(HOW_TEXT.heardNote).toBe(
+      `NVDA's own words: the first lines of each pass, from the transcripts under ${PAGES_TEXT.title}. Each time is how long that line took, which includes the wait for NVDA to finish speaking.`,
+    );
+    expect(HOW_TEXT.heardNote).not.toMatch(/\b(?:above|below)\b/i);
+  });
+
   it("never names a library as how voicecap began", () => {
     expect(everyString().join("\n")).not.toMatch(/guidepup/i);
   });
