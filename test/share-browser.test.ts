@@ -1774,6 +1774,63 @@ describe("a link into a fold", () => {
   });
 });
 
+describe("a card's fold of its page's transcripts", () => {
+  it("is named by its page for a screen reader, each fold apart from the rest", async () => {
+    // 13 pages: each card has a fold of its own, and every fold's line reads the same on screen.
+    const model = manyPages(13, 2);
+    const page = await open(pages.many);
+    // The folds of the 11 quiet cards are in the accessibility tree once their own fold is open.
+    await page.locator("#open-all").click();
+    const client = await page.context().newCDPSession(page);
+    try {
+      const { nodes } = await client.send("Accessibility.getFullAXTree");
+      // What Chromium gives a screen reader of each fold: the triangle that opens it, named by its
+      // line, the words set apart for a screen reader among them. Chromium puts a space where those
+      // end ("/page-5 :"), which is taken out here.
+      const names = nodes
+        .filter((node) => node.role?.value === "DisclosureTriangle")
+        .map((node): unknown => node.name?.value)
+        .filter((name): name is string => typeof name === "string")
+        .filter((name) => name.startsWith("The full transcript"))
+        .map((name) => name.replace(" :", ":"));
+      const expected = model.pages.map(
+        ({ path: where }) => `The full transcript of ${where}: read, headings, and Tab transcripts`,
+      );
+
+      // Each page's own, compared sorted: the cards in the open come first in the page, which is
+      // the page's order only when the pages with flags are its first.
+      expect([...names].sort()).toEqual([...expected].sort());
+      expect(new Set(names).size).toBe(13);
+    } finally {
+      await client.detach();
+    }
+  });
+
+  it("looks as it did to everyone else: the words that name its page take no room", async () => {
+    const page = await open(pages.many);
+    await page.locator("#open-all").click();
+
+    // How wide each fold's line is with those words, then without them: a sighted reader sees the
+    // same line, as the words are clipped to a point.
+    const widths = await page.locator("details.tx-page > summary .what").evaluateAll((lines) =>
+      lines.map((line) => {
+        const sr = line.querySelector(".sr");
+        const box = sr?.getBoundingClientRect();
+        const withWords = line.getBoundingClientRect().width;
+        sr?.remove();
+        return { withWords, without: line.getBoundingClientRect().width, hidden: box?.width };
+      }),
+    );
+
+    expect(widths).toHaveLength(13);
+    for (const { withWords, without, hidden } of widths) {
+      expect(withWords).toBeGreaterThan(0);
+      expect(withWords).toBeCloseTo(without, 0);
+      expect(hidden).toBe(1);
+    }
+  });
+});
+
 describe("the details' parts", () => {
   const TITLES = ["What's still to do", "How complete the test was", "When and how"];
   /** A page for each way the details are written: with problems, with none to name, and with a page skipped. */

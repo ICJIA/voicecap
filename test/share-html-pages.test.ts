@@ -56,8 +56,13 @@ const NO_STOPS_FLAG: FlagResult = {
   message: "Tab reached no focusable elements on the page.",
 };
 
-/** The full transcript's line in a card, when a page has all three. */
-const ALL_THREE = "The full transcript: read, headings, and Tab transcripts";
+/**
+ * The line of a card's fold of its page's transcripts as a screen reader gets it, when the page has
+ * all three: "The full transcript of /about/: read, headings, and Tab transcripts". A sighted
+ * reader sees the same without "of /about/", which is set apart for a screen reader alone.
+ */
+const allThree = (path: string): string =>
+  `The full transcript of ${path}: read, headings, and Tab transcripts`;
 
 /** Pages whose read pass has fewer than the three lines a card shows first. */
 const LESS = { two: { read: ["One", "Two"] }, one: { read: ["Only"] } } satisfies Record<
@@ -96,6 +101,24 @@ function splitAtQuietFold(html: string): [before: string, inside: string] {
 /** The lines of the section's folds of pages with nothing to note: none, or one. */
 const quietLines = (html: string): string[] =>
   summariesIn(html).filter((line) => line.startsWith("The other"));
+
+/**
+ * The summary markup of each of the section's folds of a page's full transcript, in the markup's
+ * order.
+ */
+const foldSummaries = (html: string): string[] =>
+  [...html.matchAll(/<details class="fold tx-page"[^>]*><summary>(.*?)<\/summary>/gs)].map(
+    ([, line = ""]) => line,
+  );
+
+/**
+ * The lines of those folds, each as a screen reader gets it: the words set apart for it too, and no
+ * space where a tag was.
+ */
+const foldLines = (html: string): string[] => foldSummaries(html).map((line) => textOf(line, ""));
+
+/** The paths of a model's pages, in the page's order. */
+const pathsOf = (model: ShareModel): string[] => model.pages.map(({ path }) => path);
 
 /** A page's first lines as a card shows them, each as its text without the quotes it is set in. */
 function firstLinesIn(card: string): string[] {
@@ -557,14 +580,16 @@ describe("renderPages", () => {
   });
 
   it("folds the pages with nothing to note at 13 pages, never at 12", () => {
-    const twelve = renderPages(manyPages(12, 2));
-    const thirteen = renderPages(manyPages(13, 2));
+    const twelveOf = manyPages(12, 2);
+    const thirteenOf = manyPages(13, 2);
+    const twelve = renderPages(twelveOf);
+    const thirteen = renderPages(thirteenOf);
 
     // At 12, every card is in the open, each with a fold of its own transcript and no other.
     expect(cardsIn(twelve)).toHaveLength(12);
     expect(quietLines(twelve)).toEqual([]);
     expect(twelve).not.toContain('<div class="folds">');
-    expect(summariesIn(twelve)).toEqual(Array.from({ length: 12 }, () => ALL_THREE));
+    expect(foldLines(twelve)).toEqual(pathsOf(twelveOf).map(allThree));
 
     // At 13, the 11 with nothing to note fold behind one line, closed, with their cards inside, and
     // each card still holds its own fold: 13 transcripts, and the one fold around 11 of them.
@@ -576,11 +601,9 @@ describe("renderPages", () => {
     const [before, inside] = splitAtQuietFold(thirteen);
     expect(cardsIn(before)).toHaveLength(2);
     expect(cardsIn(inside)).toHaveLength(11);
-    expect(summariesIn(before)).toEqual([ALL_THREE, ALL_THREE]);
-    expect(summariesIn(inside)).toEqual([
-      "The other 11 pages: nothing to note, all read in full",
-      ...Array.from({ length: 11 }, () => ALL_THREE),
-    ]);
+    expect(foldLines(before)).toEqual(pathsOf(thirteenOf).slice(0, 2).map(allThree));
+    expect(quietLines(inside)).toEqual(["The other 11 pages: nothing to note, all read in full"]);
+    expect(foldLines(inside)).toEqual(pathsOf(thirteenOf).slice(2).map(allThree));
     // The cards keep their numbers, in the page's order, wherever they are.
     expect(
       [...before.matchAll(/<span class="num">(\d+)<\/span>/g)].map((found) => found[1]),
@@ -640,7 +663,7 @@ describe("renderPages", () => {
     ).toEqual(["4", "8", "9", "10"]);
     // Three of the four have transcripts to fold (the failed and the skipped page show the older
     // run's); the page that was never transcribed has none.
-    expect(summariesIn(before)).toEqual([ALL_THREE, ALL_THREE, ALL_THREE]);
+    expect(foldLines(before)).toEqual(["/flagged", "/failed", "/skipped"].map(allThree));
   });
 
   it("folds nothing when every page needs attention, and everything when none does", () => {
@@ -726,9 +749,9 @@ describe("renderPages", () => {
       expect(markup, card.path).toContain(` id="pg-${idFragment(card.slug)}">`);
       expect(markup, card.path).toContain(`<details class="fold tx-page" id="${id}"><summary>`);
       expect(markup, card.path).not.toContain(" open>");
-      expect(summariesIn(markup), card.path).toEqual([ALL_THREE]);
+      expect(foldLines(markup), card.path).toEqual([allThree(card.path)]);
       expect(markup, card.path).toContain(
-        '<summary><span class="what">The full transcript:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>',
+        `<summary><span class="what">The full transcript<span class="sr"> of ${esc(card.path)}</span>:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>`,
       );
       // Its three transcripts keep the names the fingerprint check finds them by, and a heading
       // each, one level under the card's own.
@@ -780,6 +803,40 @@ describe("renderPages", () => {
     for (const fold of foldsIn(withPictures)) {
       expect(fold.split("</details>")[0]).not.toContain("<img");
     }
+  });
+
+  it("names each page's fold of its transcripts by its page for a screen reader, and looks the same to everyone else", () => {
+    const model = manyPages(13, 2);
+    const html = renderPages(model);
+    const cards = cardsIn(html);
+    const heard: string[] = [];
+
+    // 13 pages: two cards in the open, and 11 in the fold of the quiet pages, each with a fold of
+    // its own.
+    expect(cards).toHaveLength(13);
+    for (const markup of cards) {
+      const slug = /^ id="pg-([^"]+)"/.exec(markup)?.[1];
+      const card = model.pages.find((each) => idFragment(each.slug) === slug);
+      const lines = foldLines(markup);
+
+      // The fold in a card says which page it is of, by the card's own path as a screen reader gets
+      // it (the path ends at the colon, so "/page-1" isn't taken for "/page-10").
+      expect(card, slug).toBeDefined();
+      expect(lines, slug).toHaveLength(1);
+      expect(lines[0], slug).toContain(` of ${card?.path}:`);
+      heard.push(...lines);
+    }
+    // So no two are alike.
+    expect(new Set(heard).size).toBe(13);
+
+    // Sighted, every fold says the same line as before: the words that name the page are set apart
+    // for a screen reader (sr), and what is left is the line every card shows.
+    const seen = foldSummaries(html).map((line) =>
+      textOf(line.replace(/<span class="sr">.*?<\/span>/g, ""), ""),
+    );
+    expect(seen).toEqual(
+      Array.from({ length: 13 }, () => "The full transcript: read, headings, and Tab transcripts"),
+    );
   });
 
   it("has no first lines and no transcript fold for a page never read", () => {
@@ -1017,14 +1074,16 @@ describe("a card's full transcript", () => {
   it("names the passes a page's fold has, as many as it has", () => {
     const only = (pass: PassName[]) =>
       modelOf([done("/a", { files: pass.map((each) => `${each}.txt`) })]);
-    const summary = (model: ShareModel) => summariesIn(renderPages(model))[0];
+    const summary = (model: ShareModel) => foldLines(renderPages(model))[0];
 
-    expect(summary(only(["read", "headings", "tab"]))).toBe(ALL_THREE);
-    expect(summary(only(["read", "tab"]))).toBe("The full transcript: read and Tab transcripts");
-    expect(summary(only(["headings"]))).toBe("The full transcript: headings transcript");
+    expect(summary(only(["read", "headings", "tab"]))).toBe(allThree("/a"));
+    expect(summary(only(["read", "tab"]))).toBe(
+      "The full transcript of /a: read and Tab transcripts",
+    );
+    expect(summary(only(["headings"]))).toBe("The full transcript of /a: headings transcript");
     // A page whose record lists no transcript says so, rather than offer an empty fold.
     const none = modelOf([done("/a", { files: [] })]);
-    expect(summary(none)).toBe("The full transcript: no transcripts");
+    expect(summary(none)).toBe("The full transcript of /a: no transcripts");
     expect(renderPages(none)).toContain(
       "<p>This run&#39;s record lists no transcript files for the page.</p>",
     );
@@ -1046,12 +1105,12 @@ describe("a card's full transcript", () => {
     expect(sections[2]).not.toContain("<pre>");
     expect(sections[2]).not.toContain("scroll");
     // The fold still says what the page has.
-    expect(summariesIn(html)).toEqual([ALL_THREE]);
+    expect(foldLines(html)).toEqual([allThree("/a")]);
     // A page whose read transcript can't be read has its fold, all three said, and no first lines:
     // there is nothing to quote.
     const gone = renderPages(modelOf([done("/a")], { transcripts: storeOf(() => ({})) }));
     expect(gone.match(/couldn&#39;t be read here/g)).toHaveLength(3);
-    expect(summariesIn(gone)).toEqual([ALL_THREE]);
+    expect(foldLines(gone)).toEqual([allThree("/a")]);
     expect(gone).not.toContain("heard-first");
     expect(gone).not.toContain("Heard first");
   });
@@ -1150,34 +1209,34 @@ describe("the cards together", () => {
     ["odd words", oddModel()],
   ];
 
-  it("never sets a style attribute, loads nothing, and links only within the page", async () => {
+  it("never sets a style attribute, loads nothing, and has no link", async () => {
     for (const [name, model] of await models()) {
       const html = renderPages(model);
 
       expect(html, name).not.toMatch(/\sstyle\s*=/i);
       expect(html, name).not.toMatch(/<(?:script|style|link|iframe)[\s>]/i);
       expect(html, name).not.toMatch(/\ssrc\s*=/i);
-      for (const href of attributes(html, "href"))
-        expect(href.startsWith("#"), `${name}: ${href}`).toBe(true);
+      // A card links to nothing: its transcripts are in the card, and an address is what opens them.
+      expect(attributes(html, "href"), name).toEqual([]);
     }
   });
 
-  it("gives every id once, and every link a place to go", async () => {
+  it("gives every id once, and no link to a place that isn't there", async () => {
     for (const [name, model] of await models()) {
       const html = renderPages(model);
       const ids = attributes(html, "id");
 
       expect(new Set(ids).size, name).toBe(ids.length);
-      for (const href of attributes(html, "href")) {
-        expect(ids, `${name}: ${href}`).toContain(href.slice(1));
-      }
-      // The section's id, each page's card, and each page's fold of its transcript.
+      // The section has no link, so none can go nowhere.
+      expect(attributes(html, "href"), name).toEqual([]);
+      // The section's id, each page's card, and each page's fold of its transcript. The folds are
+      // in the markup's order, which isn't the page's when the fold of the quiet pages puts the
+      // cards in the open first, so the two lists are compared sorted.
       expect(ids, name).toContain("pages-h");
       for (const card of model.pages) expect(ids, name).toContain(`pg-${idFragment(card.slug)}`);
-      expect(
-        ids.filter((id) => id.startsWith("tx-")),
-        name,
-      ).toEqual(model.appendix.map(({ slug }) => `tx-${idFragment(slug)}`));
+      expect(ids.filter((id) => id.startsWith("tx-")).sort(), name).toEqual(
+        model.appendix.map(({ slug }) => `tx-${idFragment(slug)}`).sort(),
+      );
     }
   });
 

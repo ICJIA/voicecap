@@ -250,6 +250,13 @@ export const PAGES_TEXT = {
    */
   heardFirst: "Heard first",
   fullTranscript: "The full transcript",
+  /**
+   * What follows `fullTranscript` for a screen reader alone, before the page's address: "The full
+   * transcript of /about/: read, headings, and Tab transcripts". Every card's fold says the same on
+   * screen, so a reader moving from one fold to the next, or listing the page's folds, would hear
+   * them all alike; the page sets these words apart (`sr`), so each fold says which page it is of.
+   */
+  fullTranscriptOf: "of",
   /** The label of each number on a card: what each pass captured, and how long the page took. */
   captured: { read: "Read", headings: "Headings", tab: "Tab stops", time: "Time" },
   /** What a card says of a pass the shown run didn't read, which is never "0". */

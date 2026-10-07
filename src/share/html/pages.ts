@@ -303,8 +303,9 @@ function originLine(card: PageCard, latest: string | null): string {
 /**
  * A page's full transcript, folded: the run it is from, and a transcript for each pass the run
  * recorded. The fold's line says which, as many as there are ("The full transcript: read,
- * headings, and Tab transcripts"). A page whose record lists no transcript files says so inside.
- * The fold's id (`tx-…`) is what an address points to, to open it.
+ * headings, and Tab transcripts"), and, for a screen reader alone, which page it is of ("The full
+ * transcript of /about/: …"): every card's line reads alike on screen. A page whose record lists no
+ * transcript files says so inside. The fold's id (`tx-…`) is what an address points to, to open it.
  */
 function transcriptFold(
   card: PageCard,
@@ -315,7 +316,8 @@ function transcriptFold(
     (pass) => entry.files.some((file) => file.pass === pass) || entry.unreadable.includes(pass),
   );
   const inside = esc(transcriptsInside(passes));
-  const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}:</span> <span class="sub">${inside}</span>`;
+  const ofPage = `${esc(PAGES_TEXT.fullTranscriptOf)} ${esc(card.path)}`;
+  const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}<span class="sr"> ${ofPage}</span>:</span> <span class="sub">${inside}</span>`;
   const sections = passes.map((pass) => {
     const file = entry.files.find((each) => each.pass === pass);
     return file === undefined ? unreadableOf(pass, card.path) : transcriptOf(file, card.path);

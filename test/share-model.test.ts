@@ -1691,6 +1691,46 @@ describe("buildShareModel", () => {
     expect(model.check.files.map((file) => file.name)).toEqual(["read.txt", "headings.txt"]);
   });
 
+  // The page folds each page's transcripts in its card, and has no other place for them, so a page
+  // listed with transcripts but with no card would show them nowhere. Nothing on the page would say
+  // so, and its fingerprint check wouldn't either: it compares only the transcripts the page shows.
+  it("lists transcripts only for pages that have a card", async () => {
+    // The demo's latest run failed /how-a-run-works/, which the run before read.
+    const demo = await demoModel();
+    // A run that failed a page an earlier run read (/b), and a page no run read (/c).
+    const read = (pagePath: string): SharePageSpec => ({
+      path: pagePath,
+      files: TRANSCRIPTS,
+      passes: LINES,
+    });
+    const failed = (pagePath: string): SharePageSpec => ({
+      path: pagePath,
+      status: "failed",
+      failedAttempts: [failedAttempt({ n: 1 })],
+    });
+    const earlier = shareRun({
+      id: "r1",
+      createdAt: "2026-09-25T10:00:00-05:00",
+      pages: [read("/a"), read("/b")],
+    });
+    const latest = shareRun({ id: "r2", pages: [read("/a"), failed("/b"), failed("/c")] });
+    const model = buildShareModel(inputOf([earlier, latest], { transcripts: storeOf() }));
+
+    for (const [name, each] of [
+      ["the demo", demo],
+      ["a latest run that failed a page", model],
+    ] as const) {
+      const cards = new Set(each.pages.map(({ slug }) => slug));
+
+      expect(each.appendix.length, name).toBeGreaterThan(0);
+      for (const { slug } of each.appendix) expect(cards.has(slug), `${name}: ${slug}`).toBe(true);
+    }
+    // /b keeps its older transcripts and its card; /c, which no run read, is a card with none.
+    const [a, b] = model.pages.map(({ slug }) => slug);
+    expect(model.pages.map(({ path: where }) => where)).toEqual(["/a", "/b", "/c"]);
+    expect(model.appendix.map(({ slug }) => slug)).toEqual([a, b]);
+  });
+
   it("marks a page whose flags are as its run recorded them, when a JSON transcript is gone", async () => {
     const siteDir = await tempOutDir();
     const run = await sealedRun(siteDir, {
