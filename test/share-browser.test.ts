@@ -10,8 +10,10 @@
  * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
  * closing script tag; a site whose host is one long word, with no name set and no title on its home
  * page; a site whose config gives it a canonical address and a long name, which the page leads
- * with; and a site whose only run was a replay, as in CI's smoke test. A seventh page is written
- * from a model, for a run whose event log has all a chart can draw.
+ * with; and a site whose only run was a replay, as in CI's smoke test. Six more pages are written
+ * from models: a run whose event log has all a chart can draw, three of what needs attention, with
+ * 5 cards, 6 cards, and i2i's one card on 32 pages, and two whose summary has no problem to name:
+ * one where every page was read, and one with a page skipped.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -31,7 +33,7 @@ import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { renderSharePage } from "../src/share/html/document.js";
-import { buildShareModel } from "../src/share/model.js";
+import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { fileHash } from "../src/transcripts/write.js";
@@ -41,6 +43,7 @@ import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
+import { i2iModel, linkModel } from "./helpers/share-attention.js";
 import { shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
@@ -95,6 +98,12 @@ const LONG_HOST = "researchhub.icjia.illinois.gov";
  */
 const CANONICAL = "https://dvfr.illinois.gov/";
 const SITE_NAME = `Domestic Violence Fatality Review of the Illinois Criminal Justice Information Authority ${"x".repeat(40)}`;
+
+/** The phrases the default rules call generic link text, each of which makes a card of its own. */
+const PHRASES = ["click here", "read more", "learn more", "here", "more", "more info", "details"];
+
+/** The ids of the demo's five cards of what needs attention, all open as the page is written. */
+const DEMO_CARDS = ["need-1", "need-2", "need-3", "need-4", "need-5"];
 
 /** What the check's data holds, as far as these tests look at it. */
 interface Data {
@@ -275,6 +284,15 @@ async function loggedPage(): Promise<string> {
   return file;
 }
 
+/** The page of a model, written as the page is, to a folder of its own. */
+async function modelPage(model: ShareModel, name: string): Promise<string> {
+  const folder = await mkdtemp(path.join(tmpdir(), "voicecap-share-cards-"));
+  folders.push(folder);
+  const file = path.join(folder, `${name}.html`);
+  await writeFile(file, renderSharePage(model, { fontCss: await fontFaceCss() }));
+  return file;
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -299,6 +317,13 @@ let pages: {
   named: string;
   replay: string;
   logged: string;
+  /** What needs attention: 5 cards (all open), 6 (all folded), and i2i's one card on 32 pages. */
+  five: string;
+  six: string;
+  i2i: string;
+  /** No card to name: every page was read, and one page was read and one skipped. */
+  none: string;
+  skipped: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -318,7 +343,32 @@ beforeAll(async () => {
   const named = await namedPage();
   const replay = await replayPage();
   const logged = await loggedPage();
-  pages = { demo, rich, hostile: hostile.file, longHost, named, replay: replay.file, logged };
+  const five = await modelPage(linkModel(PHRASES.slice(0, 5)), "five");
+  const six = await modelPage(linkModel(PHRASES.slice(0, 6)), "six");
+  const i2i = await modelPage(i2iModel(), "i2i");
+  // Nothing needs attention, with every page read, and with a page skipped: the summary's panel
+  // says a line in place of the cards, and says which pages were skipped.
+  const ofPages = (pagesRead: { path: string; status?: "skipped" }[]) =>
+    buildShareModel(inputOf([shareRun({ id: "r1", pages: pagesRead })]));
+  const none = await modelPage(ofPages([{ path: "/" }]), "none");
+  const skipped = await modelPage(
+    ofPages([{ path: "/" }, { path: "/file-1/", status: "skipped" }]),
+    "skipped",
+  );
+  pages = {
+    demo,
+    rich,
+    hostile: hostile.file,
+    longHost,
+    named,
+    replay: replay.file,
+    logged,
+    five,
+    six,
+    i2i,
+    none,
+    skipped,
+  };
   hostileRun = hostile;
   replayRunId = replay.runId;
 });
@@ -368,17 +418,26 @@ const foldStates = (page: Page): Promise<Record<string, boolean>> =>
     ),
   );
 
+/** The cards of what needs attention, by id, and whether each is open. */
+const cardStates = async (page: Page): Promise<Record<string, boolean>> =>
+  Object.fromEntries(
+    Object.entries(await foldStates(page)).filter(([id]) => /^need-\d+$/.test(id)),
+  );
+
 /** The folds that are open, in page order. */
 const openFolds = (states: Record<string, boolean>): string[] =>
   Object.entries(states)
     .filter(([, open]) => open)
     .map(([id]) => id);
 
-/** Whether what `selector` finds is inside the window, from its top to its bottom. */
+/**
+ * Whether what `selector` finds is inside the window, from its top to its bottom, to within a
+ * pixel: a browser that scrolls a heading to the window's top can leave it a fraction of one above.
+ */
 const inView = (page: Page, selector: string): Promise<boolean> =>
   page.evaluate((selected) => {
     const box = document.querySelector(selected)?.getBoundingClientRect();
-    return box !== undefined && box.top >= 0 && box.bottom <= window.innerHeight;
+    return box !== undefined && box.top >= -1 && box.bottom <= window.innerHeight + 1;
   }, selector);
 
 const dispatch = (page: Page, type: string): Promise<void> =>
@@ -411,6 +470,108 @@ const overflowOf = (page: Page): Promise<{ beyondTheWindow: number; boxes: strin
       );
     return { beyondTheWindow: root.scrollWidth - root.clientWidth, boxes };
   });
+
+/** A box as it is drawn, in pixels from the window's top left corner. */
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+}
+
+/**
+ * The summary's four panels as they are drawn: the grid they are in, and each panel's title and
+ * box in page order, with the first (what needs attention) apart from the three after it.
+ */
+async function panelsOf(page: Page): Promise<{
+  grid: Box;
+  attention: Box & { title: string };
+  others: (Box & { title: string })[];
+}> {
+  const { grid, panels } = await page.evaluate(() => {
+    const boxOf = (element: Element) => {
+      const { left, right, top, bottom, width } = element.getBoundingClientRect();
+      return { left, right, top, bottom, width };
+    };
+    const found = document.querySelector(".panels");
+    if (found === null) throw new Error("The page has no grid of panels.");
+    return {
+      grid: boxOf(found),
+      panels: [...found.querySelectorAll(":scope > .panel")].map((panel) => ({
+        title: panel.querySelector("h3")?.textContent ?? "",
+        ...boxOf(panel),
+      })),
+    };
+  });
+  const [attention, ...others] = panels;
+  if (attention === undefined) throw new Error("The grid has no panels.");
+  return { grid, attention, others };
+}
+
+/**
+ * Each line NVDA said on a card, as it is drawn, by place in page order: its key's box ("Down
+ * Arrow:", with its words) and its quote's box.
+ */
+function quotesOf(
+  page: Page,
+  card: string,
+): Promise<{ key: Box & { text: string }; quote: Box }[][]> {
+  return page.evaluate((id) => {
+    const boxOf = (element: Element) => {
+      const { left, right, top, bottom, width } = element.getBoundingClientRect();
+      return { left, right, top, bottom, width };
+    };
+    return [...document.querySelectorAll(`#${id} .place`)].map((place) =>
+      [...place.querySelectorAll(":scope > p")].flatMap((line) => {
+        const key = line.querySelector(".pass");
+        const quote = line.querySelector("code");
+        return key === null || quote === null
+          ? []
+          : [{ key: { text: key.textContent ?? "", ...boxOf(key) }, quote: boxOf(quote) }];
+      }),
+    );
+  }, card);
+}
+
+/** Whether two boxes share any area, past half a pixel: boxes that only touch don't meet. */
+function meet(a: Box, b: Box): boolean {
+  const overlap = (from: number, to: number, start: number, end: number) =>
+    Math.min(to, end) - Math.max(from, start) > 0.5;
+  return overlap(a.left, a.right, b.left, b.right) && overlap(a.top, a.bottom, b.top, b.bottom);
+}
+
+/**
+ * The letters of the lines NVDA said that are drawn outside their quote's box, as the browser lays
+ * them out: a line of text, of each quote, whose box isn't inside the quote's border box. axe's
+ * contrast check needs every one inside, to know what it's drawn on.
+ */
+function lettersOutside(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const outside: string[] = [];
+    document.querySelectorAll(".place code").forEach((quote, at) => {
+      const box = quote.getBoundingClientRect();
+      for (const node of quote.childNodes) {
+        if (node.nodeType !== Node.TEXT_NODE) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const line of range.getClientRects()) {
+          const inside =
+            line.left >= box.left - 0.01 &&
+            line.right <= box.right + 0.01 &&
+            line.top >= box.top - 0.01 &&
+            line.bottom <= box.bottom + 0.01;
+          if (!inside) {
+            outside.push(
+              `quote ${at + 1}: letters at ${line.left.toFixed(2)} to ${line.right.toFixed(2)} px, its box ${box.left.toFixed(2)} to ${box.right.toFixed(2)} px`,
+            );
+          }
+        }
+      }
+    });
+    return outside;
+  });
+}
 
 /**
  * The contrast of each word of each chart of a run's event log, as WCAG measures it: its fill
@@ -631,6 +792,44 @@ describe("axe, in Chromium", () => {
     AXE_TIMEOUT,
   );
 
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the pages of what needs attention, with its cards open, folded, and every fold open, dark and light",
+    async (width) => {
+      // 5 cards, all open; 6, all folded; and i2i's one, with 32 pages in a fold of its own.
+      for (const which of ["five", "six", "i2i"] as const) {
+        const page = await open(pages[which]);
+
+        expect(await page.locator("#need-h").count(), which).toBe(1);
+        expect(await axeFindings(page, width), `${which}, dark, as written`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(Object.values(await cardStates(page)).every(Boolean), which).toBe(true);
+        expect(await axeFindings(page, width), `${which}, dark, every fold open`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light, every fold open`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(await axeFindings(page, width), `${which}, light, folds as written`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the summary's panels when there is no problem to name, or a page was skipped, dark and light",
+    async (width) => {
+      // With problems, the panels are checked above, on the pages of what needs attention. Here the
+      // first panel is a plain one, with a line in place of the cards: it takes a row of its own too.
+      for (const which of ["none", "skipped"] as const) {
+        const page = await open(pages[which]);
+
+        expect(await page.locator(".panels > .panel.wide").count(), which).toBe(1);
+        expect(await axeFindings(page, width), `${which}, dark`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
   it("has no axe violations on the page of a site where no run counts yet", async () => {
     const page = await open(pages.replay);
 
@@ -647,7 +846,7 @@ describe("a page in a narrow window", () => {
   it.each([1280, 390, 320])(
     "keeps every box's contents, and the page, inside the window at %i px, with folds closed and open",
     async (width) => {
-      for (const which of ["demo", "rich", "longHost", "named", "logged"] as const) {
+      for (const which of ["demo", "rich", "longHost", "named", "logged", "six", "i2i"] as const) {
         const page = await open(pages[which]);
         await page.setViewportSize({ width, height: 900 });
         expect(await overflowOf(page), `${which}, folds closed`).toEqual(FITS);
@@ -685,6 +884,9 @@ describe("a page in a narrow window", () => {
     ["a term", "main dt"],
     ["what a term means", "main dd"],
     ["a caption", "main figcaption"],
+    // What NVDA said, and a fix's code: a card quotes lines of speech, and shows code in blocks.
+    ["a line NVDA said, in a card", ".place code"],
+    ["the code of a fix", ".fix pre"],
     ["the command that verifies the records", ".verify pre"],
     // The command that verifies the records has words of its own in a span; this one has none.
     ["the command that repeats a run", ".run-inside .verify:not(:has(span)) pre"],
@@ -1036,8 +1238,9 @@ describe("Open every section, and printing", () => {
     const page = await open(pages.demo);
     const button = page.locator("#open-all");
     const asWritten = await foldStates(page);
-    // The page starts with the flags' fold open, and every other fold closed.
-    expect(openFolds(asWritten)).toHaveLength(1);
+    // The page starts with the demo's five cards of what needs attention open, and every other fold
+    // closed.
+    expect(openFolds(asWritten)).toEqual(DEMO_CARDS);
     // The reader opens another by hand.
     await page.locator("#tx-home > summary").click();
     const byHand = await foldStates(page);
@@ -1128,7 +1331,7 @@ describe("Open every section, and printing", () => {
     const page = await open(pages.demo);
     await page.locator("#tx-home > summary").click();
     const before = await foldStates(page);
-    expect(openFolds(before)).toHaveLength(2);
+    expect(openFolds(before)).toEqual([...DEMO_CARDS, "tx-home"]);
 
     await dispatch(page, "beforeprint");
     expect(openFolds(await foldStates(page))).toEqual(Object.keys(before));
@@ -1217,6 +1420,284 @@ describe("a link into a fold", () => {
       const page = await open(pages.demo, hash);
       expect(await foldStates(page), hash).toEqual(asWritten);
     }
+  });
+});
+
+describe("the summary's panels", () => {
+  const TITLES = [
+    "What needs attention",
+    "How complete the test was",
+    "What's still to do",
+    "When and how",
+  ];
+  /** A page for each way the first panel is written: naming problems, with none, and with a page skipped. */
+  const STATES = [
+    ["naming problems", "five"],
+    ["with none to name", "none"],
+    ["with a page skipped", "skipped"],
+  ] as const;
+
+  /** `actual` is `expected`, to within a pixel: a layout puts an edge a fraction of a pixel off. */
+  function near(actual: number, expected: number, what: string): void {
+    const found = `${actual} px, not ${expected} px`;
+    expect(Math.abs(actual - expected), `${what}: ${found}`).toBeLessThanOrEqual(1);
+  }
+
+  /** The first panel takes the grid's whole width: its left edge, its right edge, and its width. */
+  function expectSpans(grid: Box, attention: Box, state: string): void {
+    near(attention.left, grid.left, `${state}: its left edge`);
+    near(attention.right, grid.right, `${state}: its right edge`);
+    near(attention.width, grid.width, `${state}: its width`);
+  }
+
+  it.each(STATES)(
+    "gives what needs attention the whole width of the grid at 1280 px, above the other three: %s",
+    async (state, which) => {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 1280, height: 900 });
+
+      const { grid, attention, others } = await panelsOf(page);
+
+      expect([attention, ...others].map(({ title }) => title)).toEqual(TITLES);
+      expectSpans(grid, attention, state);
+      // Above the other three: its bottom edge is above every one's top.
+      expect(others).toHaveLength(3);
+      for (const other of others) {
+        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
+      }
+    },
+  );
+
+  // At 1200 px, as at 1280, four columns of 260 px would fit the grid, and leave one empty beside
+  // the three: the rule from 1100 px makes it three.
+  it.each(
+    [1280, 1200].flatMap((width) => STATES.map(([state, which]) => [width, state, which] as const)),
+  )(
+    "has the other three share the row after what needs attention, side by side, and fill it at %i px: %s",
+    async (width, state, which) => {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width, height: 900 });
+
+      const { grid, others } = await panelsOf(page);
+      const [first, , last] = others;
+      const tops = others.map(({ top }) => top);
+      const lefts = others.map(({ left }) => left);
+
+      // One row, in page order, from the grid's left edge to its right: no column is left empty.
+      near(Math.max(...tops), Math.min(...tops), `${state}: one row`);
+      expect(lefts, `${state}: in page order`).toEqual([...lefts].sort((a, b) => a - b));
+      near(first?.left ?? NaN, grid.left, `${state}: the first one's left edge`);
+      near(last?.right ?? NaN, grid.right, `${state}: the last one's right edge`);
+      for (const other of others) expect(other.width).toBeLessThan(grid.width / 2);
+    },
+  );
+
+  it.each([390, 320])(
+    "gives all four panels the grid's width, one under another, at %i px",
+    async (width) => {
+      for (const [state, which] of STATES) {
+        const page = await open(pages[which]);
+        await page.setViewportSize({ width, height: 900 });
+
+        const { grid, attention, others } = await panelsOf(page);
+        const panels = [attention, ...others];
+        const titles = panels.map(({ title }) => title);
+
+        expect(titles, state).toEqual(TITLES);
+        for (const [at, panel] of panels.entries()) {
+          near(panel.width, grid.width, `${state}: the width of ${panel.title}`);
+          // Each is under the one before it.
+          const above = panels[at - 1];
+          if (above !== undefined) {
+            const place = `${state}: ${panel.title} is under ${above.title}`;
+            expect(above.bottom, place).toBeLessThanOrEqual(panel.top);
+          }
+        }
+      }
+    },
+  );
+
+  it("keeps what needs attention across the grid, above the other three, in a window of 800 px, where the panels are in two columns", async () => {
+    for (const [state, which] of STATES) {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 800, height: 900 });
+
+      const { grid, attention, others } = await panelsOf(page);
+
+      expectSpans(grid, attention, state);
+      for (const other of others) {
+        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
+      }
+    }
+  });
+});
+
+describe("what needs attention", () => {
+  it("opens every card when there are 5, and folds every card when there are 6", async () => {
+    const five = await open(pages.five);
+    const six = await open(pages.six);
+
+    expect(await cardStates(five)).toEqual({
+      "need-1": true,
+      "need-2": true,
+      "need-3": true,
+      "need-4": true,
+      "need-5": true,
+    });
+    expect(await cardStates(six)).toEqual({
+      "need-1": false,
+      "need-2": false,
+      "need-3": false,
+      "need-4": false,
+      "need-5": false,
+      "need-6": false,
+    });
+    // What a folded card's line says is still there to read: its number, its title, and its count.
+    expect(await six.locator("#need-6 > summary").innerText()).toContain(
+      'Links read as "more info": link text that doesn\'t say where it goes',
+    );
+    expect(await six.locator("#need-1 > summary .sub").innerText()).toBe("4 pages, 4 times");
+    // The folded card's own words are hidden, and open when its line is pressed.
+    expect(await six.locator("#need-6 .place").first().isVisible()).toBe(false);
+    await six.locator("#need-6 > summary").click();
+    expect((await cardStates(six))["need-6"]).toBe(true);
+    expect(await six.locator("#need-6 .place").first().isVisible()).toBe(true);
+  });
+
+  it("shows a card's pages when it is on 3, and folds them behind a line that counts them when it is on 4", async () => {
+    const page = await open(pages.five);
+    const links = (card: string) => page.locator(`#${card} a[href^="#pg-"]`);
+
+    // "click here" is on 4 pages, and its fold of them is closed; "read more" is on 3, in the open.
+    expect(await links("need-1").count()).toBe(4);
+    expect(await links("need-1").first().isVisible()).toBe(false);
+    expect(await page.locator("#need-1 details > summary").innerText()).toBe("The 4 pages");
+    expect(await page.locator("#need-2 details").count()).toBe(0);
+    expect(await links("need-2").count()).toBe(3);
+    for (const link of await links("need-2").all()) expect(await link.isVisible()).toBe(true);
+
+    await page.locator("#need-1 details > summary").click();
+    for (const link of await links("need-1").all()) expect(await link.isVisible()).toBe(true);
+    expect(await links("need-1").allInnerTexts()).toEqual(["Page A", "Page B", "Page C", "Page D"]);
+  });
+
+  it("sets what NVDA said, and the code of a fix, to keep their lines and break a long word", async () => {
+    const page = await open(pages.demo);
+
+    const wraps = await page.evaluate(() =>
+      [".place code", ".fix pre"].map((selector) => {
+        const style = getComputedStyle(document.querySelector(selector) ?? document.body);
+        return [selector, style.whiteSpace, style.overflowWrap];
+      }),
+    );
+
+    // What NVDA said keeps its spaces, and a space where a line wraps takes room in the line rather
+    // than hang past the quote's box (break-spaces, not pre-wrap): see the next two tests.
+    expect(wraps).toEqual([
+      [".place code", "break-spaces", "anywhere"],
+      [".fix pre", "pre-wrap", "anywhere"],
+    ]);
+  });
+
+  it.each([320, 1280])(
+    "lays each line NVDA said under its key, so no quote's box meets its key's or another quote's, at %i px",
+    async (width) => {
+      const page = await open(pages.i2i);
+      await page.setViewportSize({ width, height: 900 });
+
+      const places = await quotesOf(page, "need-1");
+
+      // The header's two lines, Down Arrow's and Tab's, and the main content's one.
+      expect(places.map((lines) => lines.map(({ key }) => key.text))).toEqual([
+        ["Down Arrow:", "Tab:"],
+        ["Down Arrow:"],
+      ]);
+      for (const [at, lines] of places.entries()) {
+        for (const { key, quote } of lines) {
+          const where = `place ${at + 1}, ${key.text.replace(/:$/, "")}`;
+          // Under its key, never beside it on the key's line, and starting where the key starts.
+          expect(quote.top, `${where}: under its key`).toBeGreaterThanOrEqual(key.bottom - 0.5);
+          expect(Math.abs(quote.left - key.left), `${where}: at its key's left`).toBeLessThan(1);
+          for (const other of lines) {
+            expect(meet(quote, other.key), `${where} meets ${other.key.text}`).toBe(false);
+            if (other.quote !== quote) {
+              expect(
+                meet(quote, other.quote),
+                `${where} meets the quote of ${other.key.text}`,
+              ).toBe(false);
+            }
+          }
+        }
+      }
+    },
+  );
+
+  // Where a quote wraps depends on the fonts and on how the system rounds their widths. With
+  // pre-wrap, a line whose last word ended less than a space's width from the box's edge left that
+  // space hanging past the box: at 320 px on Linux in CI, and at 313, 321, and 336 px, among 16
+  // widths, on Windows. axe then can't tell what those letters are drawn on, and calls the box
+  // "partially obscured". So this checks every width from 300 to 480 px, not one.
+  it("keeps every letter of each line NVDA said inside its quote's box, at every width from 300 to 480 px", async () => {
+    const page = await open(pages.i2i);
+    const outside: string[] = [];
+
+    for (let width = 300; width <= 480; width += 1) {
+      await page.setViewportSize({ width, height: 900 });
+      outside.push(...(await lettersOutside(page)).map((line) => `${width} px: ${line}`));
+    }
+
+    expect(outside).toEqual([]);
+  });
+
+  it("opens a folded card from the summary's link to it, and brings it into view", async () => {
+    const page = await open(pages.six);
+    const asWritten = await cardStates(page);
+
+    // The panel names 5 of the 6 cards, each linked to its own, and counts the one it leaves out.
+    const panel = page.locator(".panel.attention");
+    expect(
+      await panel.locator("li a").evaluateAll((all) => all.map((a) => a.getAttribute("href"))),
+    ).toEqual(["#need-1", "#need-2", "#need-3", "#need-4", "#need-5", "#need-h"]);
+    expect(await panel.locator('a[href="#need-h"]').innerText()).toBe(
+      "and 1 more, under What needs attention",
+    );
+
+    await panel.locator('a[href="#need-5"]').click();
+
+    expect(await cardStates(page)).toEqual({ ...asWritten, "need-5": true });
+    await expect.poll(() => inView(page, "#need-5 > summary"), { timeout: 10_000 }).toBe(true);
+    // The link to the rest goes to the section's heading, which is in plain view, so opens nothing.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await panel.locator('a[href="#need-h"]').click();
+    expect(await cardStates(page)).toEqual({ ...asWritten, "need-5": true });
+    await expect.poll(() => inView(page, "#need-h"), { timeout: 10_000 }).toBe(true);
+  });
+
+  it("opens the card an address points to, as the page loads", async () => {
+    const asWritten = await cardStates(await open(pages.six));
+
+    const page = await open(pages.six, "#need-6");
+
+    expect(await cardStates(page)).toEqual({ ...asWritten, "need-6": true });
+    await expect.poll(() => inView(page, "#need-6 > summary"), { timeout: 10_000 }).toBe(true);
+  });
+
+  it("links each of i2i's 32 pages to its card under Every page, which the link brings into view", async () => {
+    const page = await open(pages.i2i);
+    expect(await cardStates(page)).toEqual({ "need-1": true });
+    await page.locator("#need-1 details > summary").click();
+    const links = page.locator('#need-1 a[href^="#pg-"]');
+    expect(await links.count()).toBe(32);
+    // Each link's address is the id of a card that is there.
+    const hrefs = await links.evaluateAll((all) => all.map((a) => a.getAttribute("href") ?? ""));
+    for (const href of hrefs) expect(await page.locator(href).count(), href).toBe(1);
+
+    await links.nth(31).click();
+    await expect
+      .poll(() => inView(page, "#pages .card:last-of-type"), { timeout: 10_000 })
+      .toBe(true);
+    // The link opened nothing: the card and its pages are the only folds open.
+    expect(openFolds(await foldStates(page))).toHaveLength(2);
   });
 });
 

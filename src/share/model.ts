@@ -4,16 +4,17 @@
  * works from what loadShareInput (./load.ts) read, and reads nothing itself.
  *
  * Each section's parts come from their own modules: the standing, the problems, the changes since
- * the run before, the human review and the summary, the page cards (./cards.ts), each run's
- * evidence (./run-evidence.ts), and each run's event log (./timeline.ts), whose events the evidence
- * and the problems' records say in the same words. This puts them together, and works out the top,
- * the sample of what NVDA said, what the results cover, the appendix of transcripts, and the
- * fingerprint check's data.
+ * the run before, the human review and the summary, the page cards (./cards.ts), the cards of what
+ * needs attention (./attention.ts), each run's evidence (./run-evidence.ts), and each run's event
+ * log (./timeline.ts), whose events the evidence and the problems' records say in the same words.
+ * This puts them together, and works out the top, the sample of what NVDA said, what the results
+ * cover, the appendix of transcripts, and the fingerprint check's data.
  *
- * The home folder is replaced in everything the page shows: flags' and reviewers' words here, the
- * problems' in problemsOf, the evidence's in evidenceOf, the reason a screenshot couldn't be taken
- * in cardsOf. The run records and transcripts the page embeds for its fingerprint check are exactly
- * as recorded, since a seal covers every field.
+ * The home folder is replaced in everything the page shows: flags' and reviewers' words here, and
+ * the description of a custom rule, which names its card; the problems' in problemsOf, the
+ * evidence's in evidenceOf, the reason a screenshot couldn't be taken in cardsOf. The run records
+ * and transcripts the page embeds for its fingerprint check are exactly as recorded, since a seal
+ * covers every field.
  *
  * A site is named by its canonical address, and every address the page shows for one of its pages
  * is the page on that address: `shown`, made here, maps the address voicecap read onto it, and the
@@ -35,12 +36,12 @@ import { describeChanges, distinctEnvironments } from "../report/compare.js";
 import { pageName } from "../report/model.js";
 import { redactHome } from "../run/failure.js";
 import { extractBody, MAIN_COMMAND, stepLine } from "../transcripts/format.js";
+import { attentionCards, type AttentionCard, type AttentionPage } from "./attention.js";
 import {
   cardsOf,
   embeddedOf,
-  flaggedOf,
   noLongerListedOf,
-  type FlaggedPage,
+  shownPasses,
   type NoLongerListed,
   type PageCard,
 } from "./cards.js";
@@ -57,7 +58,7 @@ import {
 } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { problemsOf, type EventRows, type ProblemsSection } from "./problems.js";
-import { reviewOf } from "./review.js";
+import { reviewOf, type PageReview } from "./review.js";
 import {
   eventLogGap,
   evidenceOf,
@@ -77,7 +78,7 @@ import {
   type EventWords,
 } from "./timeline.js";
 
-export type { FlaggedPage, FlagQuote, NoLongerListed, PageCard } from "./cards.js";
+export type { NoLongerListed, PageCard } from "./cards.js";
 export type {
   EvidenceRow,
   RunEvidence,
@@ -146,6 +147,12 @@ export interface ShareModel {
   };
   summary: Summary;
   /**
+   * What needs attention: a card for each problem across the pages in scope, most pages first, from
+   * the shown transcripts' flags (the current rules'), the pages the latest run couldn't read, open
+   * issues, and pages changed since their review (see attentionCards).
+   */
+  attention: AttentionCard[];
+  /**
    * The first three lines of each pass on the home page (the page at "/", else the first in scope),
    * from its shown transcripts, each with how long it took ("1.3 s"). Null when that page has none.
    * `page` names the page: its label, else its address, as the page shows it.
@@ -156,7 +163,6 @@ export interface ShareModel {
   } | null;
   pages: PageCard[];
   noLongerListed: NoLongerListed[];
-  flagged: FlaggedPage[];
   /** What sounds different since the run before; null when there's no run before. */
   changes: Changes | null;
   problems: ProblemsSection;
@@ -231,19 +237,6 @@ export function buildShareModel(input: ShareInput): ShareModel {
     latest && before ? changesOf(before, latest, bodyOf(input.transcripts), nameOf) : null;
   // What tools differ can name a setting's path, which can hold the home folder.
   const changes = compared && { ...compared, tools: compared.tools.map(redact) };
-  const summary = summaryOf({
-    standing,
-    review,
-    problems,
-    changes,
-    flags: new Map(standing.pages.map((page) => [page.key, page.shown?.page.flags ?? []])),
-    name: nameOf,
-    linesSpoken: linesSpokenOf(standing),
-    nvdaMs: nvdaMsOf(standing.drawnOn),
-    sessionsWithoutEnd: standing.drawnOn
-      .flatMap((run) => run.sessions)
-      .filter((session) => session.endedAt === null).length,
-  });
   const pages = cardsOf({
     standing,
     review,
@@ -255,15 +248,42 @@ export function buildShareModel(input: ShareInput): ShareModel {
     screenReader: (run) => wordsFor(run).screenReader,
     redact,
   });
+  // A custom rule's card is named by the rule's description, which a person writes in the config
+  // and may hold the home folder: replaced here, as the flags' messages are.
+  const rules = {
+    ...input.flagRules,
+    custom: input.flagRules.custom.map((rule) => ({
+      ...rule,
+      description: redact(rule.description),
+    })),
+  };
+  const attention = attentionCards(
+    attentionPagesOf(standing, pages, review, input.transcripts),
+    rules,
+  );
+  const summary = summaryOf({
+    standing,
+    review,
+    problems,
+    changes,
+    flags: new Map(standing.pages.map((page) => [page.key, page.shown?.page.flags ?? []])),
+    attention,
+    name: nameOf,
+    linesSpoken: linesSpokenOf(standing),
+    nvdaMs: nvdaMsOf(standing.drawnOn),
+    sessionsWithoutEnd: standing.drawnOn
+      .flatMap((run) => run.sessions)
+      .filter((session) => session.endedAt === null).length,
+  });
   const recordOf = recordsOf(input.records);
   const header = headerOf(input, standing);
   return {
     header,
     summary,
+    attention,
     heard: heardOf(standing.pages, input.transcripts, nameOf),
     pages,
     noLongerListed: noLongerListedOf(standing, nameOf, shown),
-    flagged: flaggedOf(standing, pages, input.transcripts, input.flagRules),
     changes,
     problems,
     coverage: coverageOf(standing, redact, shown),
@@ -299,6 +319,27 @@ export function buildShareModel(input: ShareInput): ShareModel {
       offsets: offsetsOf(standing.drawnOn, input.events),
     },
   };
+}
+
+/**
+ * Each page in scope as the cards of what needs attention see it: its card, its review, and the
+ * passes of its shown transcripts, whose lines its flags came from. A page with no transcripts
+ * shown, or whose flags are as its record has them, has none: NVDA's words aren't here.
+ */
+function attentionPagesOf(
+  standing: Standing,
+  cards: PageCard[],
+  review: Map<string, PageReview>,
+  transcripts: TranscriptStore,
+): AttentionPage[] {
+  return cards.map((card, index) => {
+    const shown = standing.pages[index]?.shown ?? null;
+    return {
+      card,
+      review: review.get(card.key) ?? null,
+      passes: shown === null || card.flagsAsRecorded ? null : shownPasses(shown, transcripts),
+    };
+  });
 }
 
 /** The run with its flags' messages as the page shows them: the home folder replaced. */

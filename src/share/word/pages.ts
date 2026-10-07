@@ -1,29 +1,27 @@
 /**
- * The Word copy's "Every page", "What the flags found", and the appendix of transcripts, as blocks
- * (./blocks.ts). Each takes the model, and says the words of the page's renderer (../html/pages.ts)
- * in the same order: the fixed ones come from ../text.ts, the ones worked out from the model from
- * ../words.ts, and the heads of the table of pages and the words of its flags column from
- * `WORD_TEXT`. So the two copies can't say different things.
+ * The Word copy's "Every page" and the appendix of transcripts, as blocks (./blocks.ts). Each takes
+ * the model, and says the words of the page's renderer (../html/pages.ts) in the same order: the
+ * fixed ones come from ../text.ts, the ones worked out from the model from ../words.ts, and the
+ * heads of the table of pages and the words of its flags column from `WORD_TEXT`. So the two copies
+ * can't say different things.
  *
  * Where the page has a card for each page, the Word copy has a row, in one table. It folds nothing:
- * every page, every flagged page's quotes, and every transcript is there in full. What it leaves
- * out has no use on paper: the link on a card to its transcripts, and the strip of bars that draws
- * a page's spoken lines (the spec's charts that become tables don't include it). Nor does it say
- * anything of the page's fingerprint check, which it has none of. A page's screenshot is an image
- * (./blocks.ts): in its entry in the appendix, 400 pixels wide, or, for a page with no entry (it has
- * no transcripts), in its row's result, as wide as that cell holds. Pure.
+ * every page and every transcript is there in full. What it leaves out has no use on paper: the
+ * link on a card to its transcripts, and the strip of bars that draws a page's spoken lines (the
+ * spec's charts that become tables don't include it). Nor does it say anything of the page's
+ * fingerprint check, which it has none of. A page's screenshot is an image (./blocks.ts): in its
+ * entry in the appendix, 400 pixels wide, or, for a page with no entry (it has no transcripts), in
+ * its row's result, as wide as that cell holds. Pure.
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
 import { jpegOfAddress } from "../cards.js";
 import type { Line } from "../line.js";
-import type { AppendixFile, FlaggedPage, NoLongerListed, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
+import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
+import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
 import {
   appendixGist,
   capturedOf,
   fileFingerprint,
-  flagCount,
-  flagsGist,
   fromRun,
   lineCount,
   manualLine,
@@ -40,7 +38,6 @@ import {
   heading,
   image,
   mono,
-  monoCell,
   para,
   table,
   type Block,
@@ -185,43 +182,6 @@ export function wordPages(model: ShareModel): Block[] {
     para(...pagesGist(model)),
     ...(model.pages.length === 0 ? [] : [pagesTable(model.pages, inAppendix)]),
     ...noLongerListedBlocks(model.noLongerListed),
-  ];
-}
-
-// What the flags found.
-
-/**
- * A flagged page: its name and how many flags it has, the run its transcripts are from when it
- * isn't the latest, and a row for each rule that raised a flag. A row is the rule in the
- * fixed-width font, what it found, and the lines NVDA spoke that raised it, each in curly quotes
- * and in the fixed-width font on a line of its own, as the page sets them; or that there is no
- * line to quote.
- */
-function flaggedBlocks({ card, quotes }: FlaggedPage): Block[] {
-  const from = fromRun(card);
-  const rows = quotes.map(({ rule, text, said }) => [
-    monoCell(rule),
-    text,
-    said.length === 0
-      ? cell(FLAGS_TEXT.noLine)
-      : cell(...said.map((line): Line => [{ text: `“${line}”`, mono: true }])),
-  ]);
-  return [
-    heading(2, `${card.name}: ${flagCount(card.flags.length)}`),
-    ...(from === null ? [] : [para(from)]),
-    table(FLAGS_TEXT.head, rows, [22, 33, 45]),
-  ];
-}
-
-/**
- * "What the flags found": the line on how many pages have flags, and from how many rules, then each
- * flagged page in full. With no flagged page it is the line alone.
- */
-export function wordFlags(model: ShareModel): Block[] {
-  return [
-    heading(1, FLAGS_TEXT.title),
-    para(...flagsGist(model)),
-    ...model.flagged.flatMap(flaggedBlocks),
   ];
 }
 

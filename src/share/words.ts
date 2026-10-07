@@ -1,7 +1,7 @@
 /**
  * The sentences of the shareable report that are worked out from its model: the numbers, counts,
  * names, and dates in the plain words each copy says them in. First those of the page's first half
- * (the top, the summary, "How voicecap works", "Every page", "What the flags found", and the
+ * (the top, the summary, "What needs attention", "How voicecap works", "Every page", and the
  * appendix), then those of its second (what changed since the last run, the problems during the
  * runs, the evidence, the story, and the footer).
  *
@@ -34,6 +34,7 @@ import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
 import type { Summary } from "./summary.js";
 import {
+  ATTENTION_TEXT,
   EVIDENCE_TEXT,
   HOW_LEAD,
   HOW_TEXT,
@@ -93,7 +94,7 @@ export function documentTitle({ name, screenReader }: ShareModel["header"]): str
 
 // The summary.
 
-/** One of the summary's six numbers: how it's counted, and what it counts. */
+/** One of the summary's five numbers: how it's counted, and what it counts. */
 export interface NumberTile {
   /** Complete is "ok", a flag or a gap "warn", a plain count "quiet": a copy says it in words too. */
   tone: "ok" | "warn" | "quiet";
@@ -103,12 +104,12 @@ export interface NumberTile {
 }
 
 /**
- * The six numbers, in order. A count out of its total is in the tone of whether it's complete; a
- * copy says each in words, never by tone alone.
+ * The five numbers, in order. A count out of its total is in the tone of whether it's complete; a
+ * copy says each in words, never by tone alone. None counts the pages a person heard NVDA read: a
+ * run started without a terminal can't ask, and a count of 0 read as though no one had heard NVDA.
  */
 export function numbersOf(model: ShareModel): NumberTile[] {
-  const { pagesInScope, transcribed, flagged, rules, listened, linesSpoken, nvdaMs } =
-    model.summary.numbers;
+  const { pagesInScope, transcribed, flagged, rules, linesSpoken, nvdaMs } = model.summary.numbers;
   const { sessionsWithoutEnd: uncounted } = model.summary.numbers;
   const left =
     uncounted === 0
@@ -129,11 +130,6 @@ export function numbersOf(model: ShareModel): NumberTile[] {
       label: "transcribed by NVDA",
     },
     { tone: flagged > 0 ? "warn" : "quiet", value: { count: flagged }, label: flagsLabel },
-    {
-      tone: transcribed > 0 && listened === transcribed ? "ok" : "quiet",
-      value: { part: listened, whole: transcribed },
-      label: "heard live by a person",
-    },
     {
       tone: "quiet",
       value: { count: linesSpoken },
@@ -186,6 +182,79 @@ export function resultsCaption({ done, flagged, never }: Summary["bars"]["result
     .filter(([pages]) => pages > 0)
     .map(([pages, what]) => `${plural(pages, "page")} ${what}`)
     .join(", ");
+}
+
+/** The most cards the summary's panel on what needs attention names, before it counts the rest. */
+const PANEL_CARDS = 5;
+
+/** What the summary's panel on what needs attention says, in its words: see `attentionPanelOf`. */
+export interface AttentionPanel {
+  /** How many problems, on how many pages, ahead of the cards: "1 problem, on 32 pages:". */
+  lead: string;
+  /** The cards it names, the first few, each with its id (the page links its title to its card). */
+  named: { id: string; title: string }[];
+  /**
+   * How many cards it leaves out, "and 2 more, under What needs attention", which is where they all
+   * are; null when it names every one.
+   */
+  more: string | null;
+}
+
+/**
+ * What the summary's panel on what needs attention says: how many problems there are and on how
+ * many pages, over every card; the first `PANEL_CARDS` cards by their titles; and, when there are
+ * more, how many it leaves out, which both copies say beneath the cards, the page linking it to the
+ * section that has them all. Null when no card is left: the panel says the line for no problem
+ * (`noAttentionLine`).
+ */
+export function attentionPanelOf({
+  problems,
+  pages,
+  cards,
+}: Summary["attention"]): AttentionPanel | null {
+  if (cards.length === 0) return null;
+  const named = cards.slice(0, PANEL_CARDS);
+  const rest = cards.length - named.length;
+  return {
+    lead: `${plural(problems, "problem")}, on ${plural(pages, "page")}:`,
+    named,
+    more: rest > 0 ? ATTENTION_TEXT.more(rest) : null,
+  };
+}
+
+/**
+ * What the section on what needs attention and the summary's panel say when no card is left: that
+ * nothing needs attention, as every page was read; or, when some pages were skipped (they are on no
+ * card, and weren't read), that nothing does on the pages read, with how many were skipped. Each
+ * says that every flag was fixed or checked by a person when a page in scope raised one, and that
+ * no flags were raised when none did: a flag never raised was never fixed or checked.
+ */
+export function noAttentionLine({ skipped, flagsRaised }: Summary["attention"]): string {
+  if (!flagsRaised) {
+    return skipped === 0 ? ATTENTION_TEXT.noFlags : ATTENTION_TEXT.noFlagsSkipped(skipped);
+  }
+  return skipped === 0 ? ATTENTION_TEXT.none : ATTENTION_TEXT.noneSkipped(skipped);
+}
+
+// What needs attention.
+
+/**
+ * The line under the heading of "What needs attention": how many problems there are, on how many
+ * pages, and what to do about them, from the summary's own counts; with no card left, the line the
+ * summary's panel says in its place (`noAttentionLine`); and, when no run counts, that there are no
+ * problems to show, as the other sections say of what they would show. No panel says anything then,
+ * and nothing was read, so "every page was read" would not be true.
+ */
+export function attentionGist({ header, summary }: ShareModel): Line {
+  if (header.tested === null) {
+    return [{ text: NO_RUN, bold: true }, " There are no problems to show."];
+  }
+  const { attention } = summary;
+  return [
+    attention.cards.length === 0
+      ? noAttentionLine(attention)
+      : ATTENTION_TEXT.gist(attention.problems, attention.pages),
+  ];
 }
 
 // How voicecap works.
@@ -321,36 +390,6 @@ export function capturedOf({ counts, timeMs }: PageCard): Captured[] | null {
 export function notRecordedLine(text: string): string {
   const line = text.trim();
   return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
-}
-
-// What the flags found.
-
-/** The line that opens "What the flags found": how many pages have flags, and from how many rules. */
-export function flagsGist({ flagged, pages, header }: ShareModel): Line {
-  if (header.tested === null) return [{ text: NO_RUN, bold: true }, " There are no flags to show."];
-  if (pages.every(({ counts }) => counts === null)) {
-    return [{ text: "No page has transcripts yet.", bold: true }, " There are no flags to show."];
-  }
-  if (flagged.length === 0) {
-    return [
-      { text: "No page has flags.", bold: true },
-      " Flags point a person to pages worth a closer listen; none was raised.",
-    ];
-  }
-  const rules = new Set(flagged.flatMap(({ quotes }) => quotes.map(({ rule }) => rule))).size;
-  const has = flagged.length === 1 ? "has" : "have";
-  return [
-    {
-      text: `${plural(flagged.length, "page")} ${has} flags, from ${plural(rules, "rule")}.`,
-      bold: true,
-    },
-    " Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
-  ];
-}
-
-/** How many flags a page has, as a reader says it: "5 flags", "1 flag". */
-export function flagCount(flags: number): string {
-  return plural(flags, "flag");
 }
 
 // The appendix.
@@ -553,7 +592,7 @@ export function flagsLine({
     ...changed.map(({ before, after }) =>
       before.count !== undefined && after.count !== undefined
         ? [...which(after), `, ${count(before.count)} before, ${count(after.count)} now (changed).`]
-        : [...which(after), `, changed: now ${attentionClauses([after], null, null)}.`],
+        : [...which(after), `, changed: now ${attentionClauses([after])}.`],
     ),
     ...unchanged.map((flag) => [...which(flag), ", unchanged."]),
   ];

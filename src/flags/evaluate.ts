@@ -1,8 +1,15 @@
 import type { VoicecapConfig } from "../config/schema.js";
-import type { FlagResult, PassName, StepRecord, StopReason } from "../model.js";
+import {
+  PASS_NAMES,
+  type FlagResult,
+  type PassName,
+  type StepRecord,
+  type StopReason,
+} from "../model.js";
 import { lineMatches } from "../passes/read.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { hashJson } from "../util/hash.js";
+import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
 
@@ -89,8 +96,8 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
   return flags;
 }
 
-/** The most lines `flagQuotes` gives for a flag, and the most the shareable page quotes for a rule. */
-export const QUOTED = 3;
+/** The most lines `flagQuotes` gives for a flag. */
+const QUOTED = 3;
 
 /**
  * Up to 3 lines NVDA spoke that raised `flag`, each once, in the order spoken: the steps of its pass
@@ -141,6 +148,50 @@ export function flagQuotes(passes: PagePasses, rules: FlagRules, flag: FlagResul
   }
 }
 
+/** A line on which a rule that finds items found one. */
+export interface ItemLine {
+  rule: "unlabeled" | "generic-link-text";
+  pass: PassName;
+  /**
+   * What the rule found, lowercased, as its flag's `found` lists it: "unlabeled graphic", "(no
+   * name)".
+   */
+  item: string;
+  /** What NVDA said, on one line (normalizeSpeech). */
+  spoken: string;
+}
+
+/**
+ * Every content step the unlabeled and generic-link-text rules match, in pass then step order: the
+ * item the rule's own matcher returns (lowercased, as found), and the step's speech on one line.
+ * Each rule looks only in its own passes (rules.unlabeled.passes, rules.genericLinkText.passes),
+ * and a rule that's off matches nothing, so the lines are the steps the rules count. A step both
+ * rules match gives a line for each, generic-link-text's first, as evaluateFlags raises them. The
+ * lines don't depend on a flag being raised: a rule with a minimum count may find too few for one.
+ */
+export function flagItemLines(passes: PagePasses, rules: FlagRules): ItemLine[] {
+  const context = speechContext(rules);
+  const { genericLinkText, unlabeled } = rules;
+  const linkOf = genericLinkText.enabled ? genericLinkMatcher(genericLinkText, context) : null;
+  const itemOf = unlabeled.enabled ? unlabeledMatcher(unlabeled, context) : null;
+  const lines: ItemLine[] = [];
+  for (const pass of PASS_NAMES) {
+    const data = passes[pass];
+    if (!data) continue;
+    const links = linkOf !== null && genericLinkText.passes.includes(pass) ? linkOf : null;
+    const items = itemOf !== null && unlabeled.passes.includes(pass) ? itemOf : null;
+    if (links === null && items === null) continue;
+    for (const step of contentSteps(pass, data)) {
+      const spoken = normalizeSpeech(step.spoken);
+      const link = links?.(step.spoken);
+      if (link) lines.push({ rule: "generic-link-text", pass, item: link, spoken });
+      const item = items?.(step.spoken, pass);
+      if (item) lines.push({ rule: "unlabeled", pass, item, spoken });
+    }
+  }
+  return lines;
+}
+
 /** Steps' speech, each on one line and each line once, at most `QUOTED`; silence isn't a line. */
 function quoted(steps: StepRecord[]): string[] {
   const lines: string[] = [];
@@ -175,12 +226,12 @@ export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   return data.steps.filter((step) => step.inDocument !== false);
 }
 
-/** Speech split into items (", " within an utterance, ". " between utterances), lowercased. */
+/**
+ * Speech split into items (", " within an utterance, ". " between utterances), lowercased: as the
+ * cards of what needs attention split it (speechItems), so a rule's item is always one of theirs.
+ */
 function items(speech: string): string[] {
-  return normalizeSpeech(speech)
-    .split(/, |\. /)
-    .map((item) => lower(item).replace(/[.,]$/, ""))
-    .filter((item) => item !== "");
+  return speechItems(speech).map(lower);
 }
 
 /** What NVDA says around a control without naming it: context before it, and its states. */

@@ -1,9 +1,10 @@
 /**
  * The page's cards: one for each page in scope, with its result and the person's review in words,
- * what each pass captured, and its flags. Then NVDA's own words that raised each flag, and the
- * pages the latest list no longer has. Pure: it works from records already read.
+ * what each pass captured, and its flags. Then the passes of the transcripts shown, which NVDA's own
+ * words in "What needs attention" are read from, and the pages the latest list no longer has. Pure:
+ * it works from records already read.
  */
-import { flagQuotes, QUOTED, type FlagRules, type PagePasses } from "../flags/evaluate.js";
+import type { PagePasses } from "../flags/evaluate.js";
 import {
   PASS_NAMES,
   SCREENSHOT_FILE,
@@ -18,7 +19,6 @@ import {
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { jpegSize } from "../util/jpeg.js";
-import { attentionClauses } from "./attention.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
@@ -67,7 +67,10 @@ export interface PageCard {
   /**
    * The person's review, as far as the records show it: "Heard live by <name>" ("Heard live" with no
    * name), "<name> heard part of this session" ("Heard part of this session" with no name),
-   * "Reviewed, no issues", "Issue found", "Fixed", and "Changed since review".
+   * "Reviewed, no issues", "Issue found", "Fixed", and "Changed since review". On a page with a flag
+   * a review settles (any but a read that stopped before the page's end), a review of the
+   * transcripts shown (no change since) is "Checked by <name>, <date>: not an issue" in place of
+   * "Reviewed, no issues".
    */
   reviewChips: string[];
   /** The manual NVDA sessions on the page: the day each was, and who imported it. */
@@ -115,23 +118,6 @@ export interface PageCard {
    * to note.
    */
   needsAttention: boolean;
-}
-
-export interface FlagQuote {
-  rule: string;
-  /** What the rule found, in plain words. */
-  text: string;
-  /**
-   * Up to 3 lines NVDA spoke that raised it, word for word (flagQuotes): none only for a page with
-   * no headings, or Tab reaching nothing, which have no line to quote.
-   */
-  said: string[];
-}
-
-export interface FlaggedPage {
-  card: PageCard;
-  /** One for each rule that raised a flag, in the order the rules raised them. */
-  quotes: FlagQuote[];
 }
 
 export interface NoLongerListed {
@@ -190,7 +176,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       status,
       statusText,
       readStopped,
-      reviewChips: reviewChips(review),
+      reviewChips: reviewChips(review, flags),
       manual: (review?.manual ?? []).map(({ json }) => ({
         // A session's local date, as its record keeps it: "2026-09-25".
         at: longDate(`${json.session.date}T00:00`),
@@ -364,8 +350,14 @@ const REVIEWED: Partial<Record<ReviewStatus, string>> = {
   fixed: "Fixed",
 };
 
-/** The person's review, leading with what they did. What they haven't done has no chip. */
-function reviewChips(review: PageReview | null): string[] {
+/**
+ * The person's review, leading with what they did. What they haven't done has no chip. A review of
+ * a page with flags, of the transcripts shown, checks them: it says who checked, and when, and
+ * that what NVDA said is not an issue ("Checked by Pat Lee, 6 October 2026: not an issue"). A read
+ * that stopped before the page's end isn't a flag a review can check: only a later run that reads
+ * the page to its end settles it, so a page with no other flag has none to check.
+ */
+function reviewChips(review: PageReview | null, flags: FlagResult[]): string[] {
   if (review === null) return [];
   const chips: string[] = [];
   const { listened, latest } = review;
@@ -378,8 +370,16 @@ function reviewChips(review: PageReview | null): string[] {
         : `${listened.name} heard part of this session`,
     );
   }
-  const decision = latest === null ? undefined : REVIEWED[latest.status];
-  if (decision !== undefined) chips.push(decision);
+  if (latest !== null) {
+    const checkable = flags.some((flag) => flag.rule !== "read-not-finished");
+    const checks = latest.status === "reviewed" && checkable && !review.changedSinceReview;
+    const decision = REVIEWED[latest.status];
+    if (checks) {
+      chips.push(`Checked by ${latest.reviewer}, ${longDate(latest.at)}: not an issue`);
+    } else if (decision !== undefined) {
+      chips.push(decision);
+    }
+  }
   if (review.changedSinceReview) chips.push("Changed since review");
   return chips;
 }
@@ -434,39 +434,11 @@ function lowerFirst(text: string): string {
 }
 
 /**
- * Each page with flags, with NVDA's own words that raised them: a row for each rule, what it found
- * in plain words, and up to 3 of the lines it matched in the shown transcripts, as the rule itself
- * matched them with `rules` (flagQuotes).
+ * The passes of a page's shown transcripts, as the flag rules read them: steps and stop reason. A
+ * pass whose JSON transcript can't be read here isn't among them. What needs attention shows the
+ * lines its flags were raised by from these (attentionCards).
  */
-export function flaggedOf(
-  standing: Standing,
-  cards: PageCard[],
-  transcripts: TranscriptStore,
-  rules: FlagRules,
-): FlaggedPage[] {
-  return standing.pages.flatMap((page, index) => {
-    const card = cards[index];
-    const { shown } = page;
-    if (card === undefined || shown === null || card.flags.length === 0) return [];
-    const passes = shownPasses(shown, transcripts);
-    const ruleIds = [...new Set(card.flags.map((flag) => flag.rule))];
-    const quotes = ruleIds.map((rule): FlagQuote => {
-      const flags = card.flags.filter((flag) => flag.rule === rule);
-      const clause = attentionClauses(flags, null, null);
-      // A rule raised in more than one pass quotes each line once, the first pass's first.
-      const said = [...new Set(flags.flatMap((flag) => flagQuotes(passes, rules, flag)))];
-      return {
-        rule,
-        text: `${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`,
-        said: said.slice(0, QUOTED),
-      };
-    });
-    return [{ card, quotes }];
-  });
-}
-
-/** The passes of a page's shown transcripts, as the flag rules read them: steps and stop reason. */
-function shownPasses(
+export function shownPasses(
   shown: { run: RunJson; page: PageRecord },
   transcripts: TranscriptStore,
 ): PagePasses {

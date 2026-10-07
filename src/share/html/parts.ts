@@ -96,7 +96,9 @@ export function notRecorded(text: string): string {
 
 /**
  * A box a keyboard can reach (Tab) and scroll, and a screen reader names: every table that can be
- * wider than the page, and every block of code, sits in one. `inner` is HTML, already escaped.
+ * wider than the page, a session's chart, and every block that keeps its long lines (a transcript,
+ * a stack trace) sits in one. A fix's code, on a card of what needs attention, wraps instead, so it
+ * needs none. `inner` is HTML, already escaped.
  */
 export function scroll(label: string, inner: string): string {
   return `<div class="scroll" tabindex="0" role="region" aria-label="${esc(label)}">${inner}</div>`;

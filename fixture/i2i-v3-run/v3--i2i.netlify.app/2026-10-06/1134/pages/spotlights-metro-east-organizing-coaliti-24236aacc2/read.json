@@ -1,0 +1,508 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition/",
+    "key": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition",
+    "slug": "spotlights-metro-east-organizing-coaliti-24236aacc2",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition/"
+  },
+  "capturedAt": "2026-10-06T12:20:22-05:00",
+  "durationMs": 72800,
+  "stepCount": 57,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 1275
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1276,
+      "offsetMs": 2552
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1287,
+      "offsetMs": 3838
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1277,
+      "offsetMs": 5115
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1276,
+      "offsetMs": 6391
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1282,
+      "offsetMs": 7673
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1279,
+      "offsetMs": 8952
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1282,
+      "offsetMs": 10234
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1274,
+      "offsetMs": 11509
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1273,
+      "offsetMs": 12782
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, METRO EAST ORGANIZING COALITION (MEOC)",
+      "durationMs": 1271,
+      "offsetMs": 14053
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "A Catalyst for Community Transformation and Violence Prevention",
+      "durationMs": 1279,
+      "offsetMs": 15332
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Metro East Organizing Coalition (MEOC) logo",
+      "durationMs": 1280,
+      "offsetMs": 16612
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of figure, MEOC is a grassroots, faith-based, community transformation initiative whose purpose is to build a",
+      "durationMs": 1278,
+      "offsetMs": 17889
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "personal and collective culture of growth and end gun violence and mass incarceration through",
+      "durationMs": 1279,
+      "offsetMs": 19168
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "violence prevention programming and other community mobilization endeavors.",
+      "durationMs": 1273,
+      "offsetMs": 20441
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "heading, level 2, same page, link, Mission",
+      "durationMs": 1278,
+      "offsetMs": 21719
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "MEOC seeks to research, develop, and execute proven strategies steeped in a public health culture.",
+      "durationMs": 1283,
+      "offsetMs": 23002
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "MEOC’s mission is to address gun violence through the integration of community violence",
+      "durationMs": 1285,
+      "offsetMs": 24287
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "intervention, hospital linked violence prevention programs.",
+      "durationMs": 1276,
+      "offsetMs": 25563
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "Recent Developments since joining the i 2i program include:",
+      "durationMs": 1278,
+      "offsetMs": 26841
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, bullet",
+      "durationMs": 1276,
+      "offsetMs": 28117
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "Strategic Growth: Through violence prevention programs and community mobilization efforts, MEOC is",
+      "durationMs": 1275,
+      "offsetMs": 29392
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "strategically positioned for growth.",
+      "durationMs": 1275,
+      "offsetMs": 30667
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1279,
+      "offsetMs": 31945
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "Enhanced Visibility: Post-i 2i, MEOC revamped its online presence, including a website overhaul,",
+      "durationMs": 1274,
+      "offsetMs": 33220
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "increasing visibility and expanding its reach.",
+      "durationMs": 1276,
+      "offsetMs": 34496
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1278,
+      "offsetMs": 35773
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "Tools and Procedures: MEOC developed tools and procedures, enabling systematic human capital growth",
+      "durationMs": 1281,
+      "offsetMs": 37054
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "for sustained impact.",
+      "durationMs": 1276,
+      "offsetMs": 38330
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1278,
+      "offsetMs": 39608
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "Community Empowerment: Actively engaging the community, MEOC empowers individuals to contribute to",
+      "durationMs": 1279,
+      "offsetMs": 40887
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "ending gun violence and addressing mass incarceration.",
+      "durationMs": 1281,
+      "offsetMs": 42167
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 2, Visit Metro East Organizing Coalition (MEOC), link, https: slash slash www dot meoc 618 dot org slash (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 43443
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Photo Gallery",
+      "durationMs": 1272,
+      "offsetMs": 44715
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "tab, selected, Two smiling women in matching gray MEOC T-shirts, photographed close up indoors",
+      "durationMs": 1277,
+      "offsetMs": 45992
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "tab, Black-and-white photo of marchers on a downtown street holding hand-lettered signs demanding",
+      "durationMs": 1274,
+      "offsetMs": 47266
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "tab, economic justice and justice in health and wellness",
+      "durationMs": 1280,
+      "offsetMs": 48546
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "tab, Marchers on a sunny street holding signs reading Everybody's got a right to live' and Systemic",
+      "durationMs": 1275,
+      "offsetMs": 49821
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "tab, racism is immoral', led by a woman in an orange MEOC shirt",
+      "durationMs": 1276,
+      "offsetMs": 51097
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Two smiling women in matching gray MEOC T-shirts, photographed close up indoors (Metro East",
+      "durationMs": 1277,
+      "offsetMs": 52374
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "graphic, Organizing Coalition (MEOC), full size, photo 1 of 3)",
+      "durationMs": 1273,
+      "offsetMs": 53646
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "out of figure, button, Previous photo",
+      "durationMs": 1273,
+      "offsetMs": 54919
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "Photo 1 of 3",
+      "durationMs": 1278,
+      "offsetMs": 56197
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "button, Next photo",
+      "durationMs": 1275,
+      "offsetMs": 57472
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "Keyboard:, press",
+      "durationMs": 1276,
+      "offsetMs": 58747
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "graphic, Left arrow",
+      "durationMs": 1283,
+      "offsetMs": 60031
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "or",
+      "durationMs": 1279,
+      "offsetMs": 61310
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "graphic, Right arrow",
+      "durationMs": 1278,
+      "offsetMs": 62588
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "to change the photo.",
+      "durationMs": 1277,
+      "offsetMs": 63865
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 65142
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 66418
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1278,
+      "offsetMs": 67696
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1275,
+      "offsetMs": 68971
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1273,
+      "offsetMs": 70244
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 71521
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 72800
+    }
+  ]
+}

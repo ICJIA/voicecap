@@ -9,6 +9,7 @@
 import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 
+import { attentionWords } from "../src/share/attention-words.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { lineOfMarkup, lineText } from "../src/share/line.js";
@@ -40,7 +41,7 @@ import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { decode, textOf } from "./helpers/share-html.js";
 import { demoModel, inputOf } from "./helpers/share-model.js";
-import { hrefsOf, tablesIn } from "./helpers/word.js";
+import { hrefsOf, outlineOf, tablesIn } from "./helpers/word.js";
 
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
@@ -78,9 +79,9 @@ describe("wordOutline", () => {
 
     expect(sections).toEqual([
       "Summary",
+      "What needs attention",
       "How voicecap works",
       "Every page",
-      "What the flags found",
       "What changed since the last run",
       "Problems during the runs",
       "What these results cover",
@@ -92,6 +93,8 @@ describe("wordOutline", () => {
     expect(pageSections(page)).toHaveLength(10);
     expect(sections.slice(0, 10)).toEqual(pageSections(page));
     expect(sections.at(-1)).toBe("About this report");
+    // The flags found are cards under what needs attention, which follows the summary.
+    expect(sections).not.toContain("What the flags found");
   });
 
   it("has the same eleven sections for a site where no run counts too", () => {
@@ -100,7 +103,26 @@ describe("wordOutline", () => {
 
     expect(sections).toHaveLength(11);
     expect(sections.slice(0, 10)).toEqual(pageSections(renderSharePage(none, { fontCss: "" })));
+    expect(sections.slice(0, 3)).toEqual(["Summary", "What needs attention", "How voicecap works"]);
     expect(sections.at(-1)).toBe("About this report");
+  });
+
+  it("puts what needs attention after the summary's headings and before How voicecap works, with a heading 2 for each card", async () => {
+    const model = await demoModel();
+    const headings = outlineOf(wordOutline(model));
+    const at = (heading: string) => headings.indexOf(heading);
+    const cards = headings.slice(at("1 What needs attention") + 1, at("1 How voicecap works"));
+
+    expect(at("1 Summary")).toBeLessThan(at("1 What needs attention"));
+    // The summary's own panel of the same name is a heading 2, before the section's heading 1.
+    expect(at("2 What needs attention")).toBeGreaterThan(at("1 Summary"));
+    expect(at("2 What needs attention")).toBeLessThan(at("1 What needs attention"));
+    // A heading 2 for each card, numbered, in the cards' order, and nothing else under the section.
+    expect(cards).toEqual(
+      model.attention.map((card, index) => `2 ${index + 1}. ${attentionWords(card).title}`),
+    );
+    expect(cards).toHaveLength(5);
+    expect(headings).not.toContain("1 What the flags found");
   });
 
   it("starts with what it is, as the one title, and ends with the footer, heading and all", async () => {

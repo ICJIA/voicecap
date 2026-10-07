@@ -4,19 +4,23 @@
  *
  * These are the words on the page that aren't computed from a run's records. The sentences that are
  * (a section's opening line, a card's title) are built from the model in words.ts, which says them
- * around their numbers and names. Both renderers draw from these two modules, the page now and its
- * Word copy later, so this one holds words and nothing more: the steps' icons are named here and
- * drawn by the renderer, and the only markup is the bold and code in the timeline's cells. A few
- * are functions: for a line (./line.ts) with something in bold, in code, or linked out, which holds
- * those as data, never as markup, or for a sentence with a name or a command in it. What only the
- * Word copy says, the heads of its tables and the labels of their rows, is last, in `WORD_TEXT`.
+ * around their numbers and names; the cards of "What needs attention" are worded in
+ * attention-words.ts, which has the advice for each kind of problem. Both renderers draw from these
+ * modules, the page now and its Word copy later, so this one holds words and nothing more: the
+ * steps' icons are named here and drawn by the renderer, and the only markup is the bold and code
+ * in the timeline's cells. A few are functions: for a line (./line.ts) with something in bold, in
+ * code, or linked out, which holds those as data, never as markup, or for a sentence with a name, a
+ * number, or a command in it (the summary's, in `ATTENTION_TEXT`). What only the Word copy says,
+ * the heads of its tables and the labels of their rows, is last, in `WORD_TEXT`.
  *
  * The wording is the design's ("Fixed text: how voicecap works, and how it came to be"), and the
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
 import type { PassName, SessionRecord } from "../model.js";
+import { plural } from "../report/html.js";
 import type { OnlyInOnePage } from "./changes.js";
+import { count } from "./format.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
 
@@ -44,13 +48,13 @@ export const TOP_TEXT = {
 
 /**
  * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
- * by a phrase that says what the bar counts), the line for no page that needs attention, and the
- * words for what a page's latest result can be.
+ * by a phrase that says what the bar counts), and the words for what a page's latest result can
+ * be. What its panel on what needs attention says of the cards, and of there being none, is
+ * `ATTENTION_TEXT`'s.
  */
 export const SUMMARY_TEXT = {
   title: "Summary",
   attention: "What needs attention",
-  noAttention: "No page has flags or an open issue.",
   complete: "How complete the test was",
   todo: "What's still to do",
   whenHow: "When and how",
@@ -71,8 +75,12 @@ export const SUMMARY_TEXT = {
    * as it says `rulesNote`.
    */
   reviewNote: "each out of its total",
-  /** The three counts of the human review, each out of its total. */
-  reviewRows: { heard: "Heard live", reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
+  /**
+   * The two counts of the human review, each out of its total. There is none for the pages a
+   * person heard NVDA read: a run started without a terminal can't ask, and a count of 0 read as
+   * though no one had heard NVDA. The statement is on each page's chip, and in each run's evidence.
+   */
+  reviewRows: { reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
 };
 
 /**
@@ -256,13 +264,63 @@ export const SCREENSHOT_TEXT = {
   unreadable: "Not shown: the run's record of this screenshot couldn't be read.",
 };
 
-/** "What the flags found": its heading, and the words of each flagged page's table. */
-export const FLAGS_TEXT = {
-  title: "What the flags found",
-  /** The heads of the table's columns: the rule, what it found, and the lines NVDA spoke. */
-  head: ["Rule", "What NVDA showed", "NVDA said"],
-  /** Said in place of NVDA's words, for a rule with no line to quote. */
-  noLine: "No line to quote",
+/**
+ * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
+ * were skipped; `noFlags` and `noFlagsSkipped` when no page raised a flag), the labels of a card's
+ * parts, the line of the fold a card's pages are behind, and the small sentences the summary says
+ * about the cards (`sentence`, and `more` for its panel). What a card itself says is
+ * `attentionWords`, in ./attention-words.ts.
+ */
+export const ATTENTION_TEXT = {
+  title: "What needs attention",
+  /**
+   * Under the section's heading when something needs attention: how many problems, on how many
+   * pages, and what to do about them.
+   */
+  gist: (problems: number, pages: number): string =>
+    `${plural(problems, "problem")}, on ${plural(pages, "page")}. Fix each one and run voicecap again, or check it and record that in voicecap review, until nothing is left.`,
+  /**
+   * Said in place of the cards, and in the summary's panel, when no card is left and no page was
+   * skipped. The spec pins it.
+   */
+  none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+  /**
+   * Said in its place when no card is left but some pages were skipped, which are on no card and
+   * weren't read: nothing needs attention on the pages read, and how many were skipped.
+   */
+  noneSkipped: (skipped: number): string =>
+    `Nothing needs attention on the pages read: every flag was fixed or checked by a person. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
+  /**
+   * Said in place of `none` when no page in scope raised a flag, since a flag never raised was never
+   * fixed or checked. The spec pins it.
+   */
+  noFlags: "Nothing needs attention: every page was read, and no flags were raised.",
+  /** Said in place of `noneSkipped` when no page read raised a flag. */
+  noFlagsSkipped: (skipped: number): string =>
+    `Nothing needs attention on the pages read: no flags were raised. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
+  /**
+   * The labels of a card's parts, each followed by what it labels: a card on one page labels it
+   * `page`, and one on more `pages`.
+   */
+  labels: {
+    cause: "Likely cause",
+    why: "Why it matters",
+    fix: "The fix in the code",
+    after: "What NVDA should say then",
+    path: "The path forward",
+    page: "The page",
+    pages: "The pages",
+  },
+  /**
+   * The line of the fold a card's pages are behind, on the page, when there are more than 3: how
+   * many they are, which is their label. The Word copy folds nothing, and labels them `pages`.
+   */
+  pagesFold: (pages: number): string => `The ${count(pages)} pages`,
+  /** The summary panel's last line, when it names fewer cards than there are: how many it leaves out. */
+  more: (rest: number): string => `and ${count(rest)} more, under What needs attention`,
+  /** The summary sentence's part on the problems, as the spec pins it. */
+  sentence: (problems: number, pages: number): string =>
+    `${plural(problems, "problem")} ${problems === 1 ? "needs" : "need"} attention, on ${plural(pages, "page")}.`,
 };
 
 /**
@@ -1017,9 +1075,9 @@ export const WORD_TEXT = {
   top: {
     made: (asOf: string): string => `This copy was made ${asOf}.`,
   },
-  /** The Summary: the table of its six numbers, and the three tables that stand in for its bars. */
+  /** The Summary: the table of its five numbers, and the three tables that stand in for its bars. */
   summary: {
-    /** The heads of the table of the six numbers: the number, and what it counts. */
+    /** The heads of the table of the five numbers: the number, and what it counts. */
     numbersHead: ["Number", "What it counts"],
     /** A count out of its total, in that table: "7 of 7". */
     outOf: (part: string, whole: string): string => `${part} of ${whole}`,

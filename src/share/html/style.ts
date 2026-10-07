@@ -54,6 +54,17 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
+ * - the summary's panels (`.panels`): the first, on what needs attention (`.panel.wide`), takes a
+ *   row of its own, the grid's whole width, in each of its states, and the other three share the
+ *   rows after it. From 1100 pixels the grid has three columns, not four, so those three fill
+ *   their row. Between about 580 and 851 pixels it has two, so the first spans them and the other
+ *   three sit two and one; narrower, every panel is stacked;
+ * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
+ *   code of a fix wrap (`overflow-wrap: anywhere`), so a long line never widens the page, and a
+ *   fold inside a card is on the second color of the panels. Each line NVDA said is a block under
+ *   its key, so no box sits on another whatever the fonts, and keeps its spaces without letting one
+ *   hang past its box where it wraps (`white-space: break-spaces`, where a fix's code has
+ *   `pre-wrap`), so axe can tell what each letter is drawn on;
  * - the folds' triangle is drawn but not read aloud;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the page's middle row grows. In print the
@@ -113,6 +124,9 @@ code { overflow-wrap: anywhere; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
 .panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .panel.attention h3 { color: var(--warn); }
+/* The panel on what needs attention is the one to read: it takes a row of its own, the grid's whole width, and the other three share the rows after it. Four columns of 260px fit from a window 1124px wide, which would leave a column empty beside those three; from 1100px the grid has three, so they fill their row. Narrower, the columns are as they were: three down to about 852px; two from about 851px to 580px, where the other three sit two and one; and one below that. */
+.panel.wide { grid-column: 1 / -1; }
+@media (min-width: 1100px) { .panels { grid-template-columns: repeat(3, 1fr); } }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }
@@ -163,7 +177,6 @@ table.plain { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 table.plain th, table.plain td { text-align: left; padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
 table.plain thead th { border-top: 0; color: var(--muted); font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
 .panel table.plain th, .panel table.plain td { overflow-wrap: anywhere; }
-td.said code { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; margin: 2px 0; }
 .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; margin-top: 14px; }
 .limits > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .limits ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
@@ -229,6 +242,18 @@ details.fold > summary .what { font: 600 1rem var(--display); }
 details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 14px; }
 details.fold > .inside > p { margin: 0; }
 .folds { display: grid; gap: 10px; }
+/* what needs attention: a card's parts, and its pages in a fold of their own. What NVDA said and the code of a fix wrap, so a long line never widens the page. Each line NVDA said is a block under its key, as wide as its words up to the line's whole width, so no box can sit on or over another whatever the fonts; and a space where it wraps takes room in the line (break-spaces) rather than hang past the box, as pre-wrap lets it, which left axe unable to tell what those letters are drawn on. */
+.place, .part, .fix { display: grid; gap: 6px; align-content: start; }
+.place > p, .part > p, .fix > p { margin: 0; }
+.place > p:first-child { font-weight: 600; }
+.place .pass { display: block; color: var(--muted); font: 500 0.82rem var(--mono); margin-bottom: 2px; }
+.place code { display: block; width: fit-content; max-width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; white-space: break-spaces; overflow-wrap: anywhere; }
+.fix pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.82rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fix pre code { font: inherit; }
+.part > ol, .part > ul, .on-pages > ul { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+/* The first page's link is a target that sits under the fold's own line, another target: room between them, as WCAG's target size asks. */
+.on-pages > ul { margin-top: 8px; }
+details.fold details.fold { background: var(--panel-2); }
 details.fold > .run-inside { gap: 22px; }
 .gist { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
 .gist b { color: var(--fg); font-weight: 500; }

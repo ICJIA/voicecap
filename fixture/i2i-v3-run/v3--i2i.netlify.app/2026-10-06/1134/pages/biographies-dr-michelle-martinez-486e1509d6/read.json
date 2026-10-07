@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez/",
+    "key": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez",
+    "slug": "biographies-dr-michelle-martinez-486e1509d6",
+    "finalUrl": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez/"
+  },
+  "capturedAt": "2026-10-06T11:51:24-05:00",
+  "durationMs": 40936,
+  "stepCount": 32,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 1278
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1281,
+      "offsetMs": 2559
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1282,
+      "offsetMs": 3841
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1287,
+      "offsetMs": 5128
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1276,
+      "offsetMs": 6404
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1286,
+      "offsetMs": 7690
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1277,
+      "offsetMs": 8966
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1287,
+      "offsetMs": 10253
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1281,
+      "offsetMs": 11534
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1274,
+      "offsetMs": 12808
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, figure, graphic, Headshot of Dr. Michelle Martinez",
+      "durationMs": 1285,
+      "offsetMs": 14093
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "out of figure, heading, level 1, Dr. Michelle Martinez",
+      "durationMs": 1282,
+      "offsetMs": 15374
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "i 2i Capacity Building Coach",
+      "durationMs": 1283,
+      "offsetMs": 16657
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "Dr. Michelle Martinez is a bilingual (English slash Spanish) clinical psychologist with over 10 years of",
+      "durationMs": 1278,
+      "offsetMs": 17935
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "experience advancing community-based violence prevention and capacity-building efforts across",
+      "durationMs": 1277,
+      "offsetMs": 19212
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "Chicagoland. She is a Mc Nair Scholar and earned her Bachelor’s degree in Psychology from the",
+      "durationMs": 1271,
+      "offsetMs": 20483
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "University of Illinois at Urbana-Champaign, and her Master’s and Doctorate in Clinical Psychology",
+      "durationMs": 1277,
+      "offsetMs": 21761
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "from Midwestern University. Her work is grounded in trauma-informed, culturally responsive, and",
+      "durationMs": 1276,
+      "offsetMs": 23037
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "inclusive approaches supporting individuals and organizations. She has led program evaluation,",
+      "durationMs": 1280,
+      "offsetMs": 24316
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "partnered with stakeholders, and co-founded a national initiative supporting emerging professionals",
+      "durationMs": 1277,
+      "offsetMs": 25594
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "from historically underrepresented communities. Dr. Martinez is also a published author and brings",
+      "durationMs": 1277,
+      "offsetMs": 26871
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "a strong foundation in research to her work advancing scalable, equity-driven strategies that",
+      "durationMs": 1283,
+      "offsetMs": 28154
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "strengthen community systems and promote long-term safety and wellness.",
+      "durationMs": 1277,
+      "offsetMs": 29431
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, link, « Back to Home",
+      "durationMs": 1279,
+      "offsetMs": 30710
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "link, All i 2i team members »",
+      "durationMs": 1274,
+      "offsetMs": 31985
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "out of list, content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 33262
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 34537
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1276,
+      "offsetMs": 35813
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1278,
+      "offsetMs": 37091
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1283,
+      "offsetMs": 38374
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1288,
+      "offsetMs": 39662
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1274,
+      "offsetMs": 40936
+    }
+  ]
+}

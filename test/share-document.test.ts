@@ -55,9 +55,9 @@ const LINKS_OUT = [
 /** The sections' headings, in the spec's order. */
 const SECTIONS = [
   "glance-h",
+  "need-h",
   "how-h",
   "pages-h",
-  "find-h",
   "chg-h",
   "prob-h",
   "lim-h",
@@ -583,6 +583,8 @@ describe("renderSharePage", () => {
       expect(repeated(ids), name).toEqual([]);
       // At least the skip link, and the summary's way into each later section.
       expect(targets.length, name).toBeGreaterThanOrEqual(10);
+      // The summary's panel links to each problem's card (need-1, need-2, ...) and to the section
+      // that has them all (need-h), and the page has both: every one is there, like any other link.
       expect(
         targets.filter((target) => !ids.includes(target)),
         name,

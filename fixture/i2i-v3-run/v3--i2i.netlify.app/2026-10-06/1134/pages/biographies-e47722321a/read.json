@@ -1,0 +1,1012 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/biographies/",
+    "key": "https://v3--i2i.netlify.app/biographies",
+    "slug": "biographies-e47722321a",
+    "finalUrl": "https://v3--i2i.netlify.app/biographies/"
+  },
+  "capturedAt": "2026-10-06T11:39:01-05:00",
+  "durationMs": 165447,
+  "stepCount": 129,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1283,
+      "offsetMs": 1283
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1280,
+      "offsetMs": 2563
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1280,
+      "offsetMs": 3842
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1281,
+      "offsetMs": 5123
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1280,
+      "offsetMs": 6403
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1280,
+      "offsetMs": 7682
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1280,
+      "offsetMs": 8962
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1280,
+      "offsetMs": 10243
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1286,
+      "offsetMs": 11529
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1277,
+      "offsetMs": 12806
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, MEET THE TEAM",
+      "durationMs": 1283,
+      "offsetMs": 14089
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Demetri Alexakos",
+      "durationMs": 1288,
+      "offsetMs": 15377
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Demetri Alexakos",
+      "durationMs": 1282,
+      "offsetMs": 16660
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1284,
+      "offsetMs": 17943
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "link, Demetri Alexakos holds a bachelor’s degree in Political Science from the University of Illinois at",
+      "durationMs": 1283,
+      "offsetMs": 19226
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "link, Chicago and a master’s in Public Policy and Administration from Northwestern University. With over a",
+      "durationMs": 1278,
+      "offsetMs": 20504
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "link, decade of experience in economic development nonprofits on Chicago’s South and Southwest Sides,",
+      "durationMs": 1285,
+      "offsetMs": 21789
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "link, Demetri uses innovative data analysis and Geographic Information System (GIS) visualization to tell",
+      "durationMs": 1277,
+      "offsetMs": 23066
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "link, the story of communities. His work has deepened his understanding of the power of community",
+      "durationMs": 1279,
+      "offsetMs": 24346
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "link, outreach and grassroots advocacy. In his free time, Demetri enjoys exploring diverse neighborhoods,",
+      "durationMs": 1282,
+      "offsetMs": 25628
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "link, finding the perfect spot to hang his hammock between two trees, and attending comedy improv shows,",
+      "durationMs": 1285,
+      "offsetMs": 26913
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "link, embracing the YES, AND... mindset in both work and life.",
+      "durationMs": 1278,
+      "offsetMs": 28191
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Chandrea Chaiyarat",
+      "durationMs": 1288,
+      "offsetMs": 29479
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Chandrea Chaiyarat",
+      "durationMs": 1275,
+      "offsetMs": 30755
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1282,
+      "offsetMs": 32037
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "link, Chandrea Chaiyarat is an accomplished Program Manager specializing in community health work and",
+      "durationMs": 1283,
+      "offsetMs": 33320
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "link, workforce development. In her recent position, she successfully led initiatives related to CHW",
+      "durationMs": 1288,
+      "offsetMs": 34609
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "link, Research, Outcomes, and Workforce Development, demonstrating proficiency in project planning,",
+      "durationMs": 1289,
+      "offsetMs": 35897
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "link, community engagement, and CHW program development. With a master's in human resources development,",
+      "durationMs": 1275,
+      "offsetMs": 37172
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "link, Chandrea has a solid background in training coordination, HR, and professional development. Her",
+      "durationMs": 1289,
+      "offsetMs": 38461
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "link, diverse experience includes roles in security services and an educational commission, highlighting",
+      "durationMs": 1275,
+      "offsetMs": 39736
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "link, her adaptability. Possessing strong communication and organizational skills, Chandrea brings",
+      "durationMs": 1285,
+      "offsetMs": 41021
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "link, valuable expertise to any organization navigating dynamic work environments.",
+      "durationMs": 1286,
+      "offsetMs": 42306
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Clair Daney",
+      "durationMs": 1281,
+      "offsetMs": 43587
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Clair Daney",
+      "durationMs": 1286,
+      "offsetMs": 44873
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1282,
+      "offsetMs": 46155
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "link, Originally from the Washington, D dot C. area, Clair received her master's degree in art therapy from",
+      "durationMs": 1282,
+      "offsetMs": 47437
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "link, the School of the Art Institute of Chicago, became a Licensed Professional Counselor, and provided",
+      "durationMs": 1280,
+      "offsetMs": 48717
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "link, services for Chicago Public Schools students and adults with chronic mental illness before starting",
+      "durationMs": 1281,
+      "offsetMs": 49999
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "link, her career as a grant writer.",
+      "durationMs": 1276,
+      "offsetMs": 51275
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Dr. Cornelius Davis Sr.",
+      "durationMs": 1283,
+      "offsetMs": 52558
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Dr. Cornelius Davis Sr.",
+      "durationMs": 1275,
+      "offsetMs": 53833
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1288,
+      "offsetMs": 55121
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "link, As the capacity Building Coach at the Illinois Criminal Justice Information Authority, Dr. Davis",
+      "durationMs": 1290,
+      "offsetMs": 56410
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "link, brings over two decades of exceptional leadership experience with a strong focus in community",
+      "durationMs": 1289,
+      "offsetMs": 57699
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "link, engagement and strategic planning. Hailing from Chicago, Illinois, Dr. Davis holds both his",
+      "durationMs": 1275,
+      "offsetMs": 58974
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "link, Bachelors (B dot S dot W.) and Masters (M dot Min) from Olivet Nazarene University. He is a proud Blue Demon of",
+      "durationMs": 1286,
+      "offsetMs": 60260
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "link, his alma mater, De Paul University, where he received his Doctorate of Education in Educational",
+      "durationMs": 1280,
+      "offsetMs": 61540
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "link, Leadership. Dr. Davis dedication to lifelong learning and serving is unmatched.",
+      "durationMs": 1275,
+      "offsetMs": 62815
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Aaliyah Gaston",
+      "durationMs": 1286,
+      "offsetMs": 64101
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Aaliyah Gaston",
+      "durationMs": 1290,
+      "offsetMs": 65391
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1273,
+      "offsetMs": 66664
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "link, With extensive event production and management experience, Aaliyah is a proactive self-starter. She",
+      "durationMs": 1286,
+      "offsetMs": 67950
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "link, led impactful strategic initiatives, executing major marketing campaigns for Fortune 100 brands",
+      "durationMs": 1283,
+      "offsetMs": 69233
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "link, like Mc Donald's and New Balance. A trailblazer in fashion-based narrative storytelling, Aaliyah",
+      "durationMs": 1285,
+      "offsetMs": 70518
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "link, launched product lines that reshaped global culture. Passionate about entrepreneurship, she fosters",
+      "durationMs": 1280,
+      "offsetMs": 71798
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "link, productivity and happiness in her community. A dedicated volunteer for the Obama Foundation and",
+      "durationMs": 1286,
+      "offsetMs": 73084
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "link, Director of Public Relations for Community Goods, a Chicago-based arts-education nonprofit, Aaliyah",
+      "durationMs": 1278,
+      "offsetMs": 74361
+    },
+    {
+      "n": 59,
+      "command": "nextLine",
+      "spoken": "link, is a proud Mississippi State University Department of Communications graduate, committed to",
+      "durationMs": 1277,
+      "offsetMs": 75638
+    },
+    {
+      "n": 60,
+      "command": "nextLine",
+      "spoken": "link, creating transformative work that changes lives.",
+      "durationMs": 1276,
+      "offsetMs": 76914
+    },
+    {
+      "n": 61,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, No photograph yet of Andrea Gatewood",
+      "durationMs": 1285,
+      "offsetMs": 78199
+    },
+    {
+      "n": 62,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Andrea Gatewood",
+      "durationMs": 1279,
+      "offsetMs": 79477
+    },
+    {
+      "n": 63,
+      "command": "nextLine",
+      "spoken": "link, ICJIA Community Engagement Manager",
+      "durationMs": 1280,
+      "offsetMs": 80757
+    },
+    {
+      "n": 64,
+      "command": "nextLine",
+      "spoken": "link, Andrea Gatewood serves as the Manager of Community Engagement for the Illinois Criminal Justice",
+      "durationMs": 1281,
+      "offsetMs": 82038
+    },
+    {
+      "n": 65,
+      "command": "nextLine",
+      "spoken": "link, Information Authority. Gatewood holds a bachelor's degree in political science and a master's",
+      "durationMs": 1281,
+      "offsetMs": 83319
+    },
+    {
+      "n": 66,
+      "command": "nextLine",
+      "spoken": "link, degree in Urban Regional Planning from Jackson State University. As the Manager of Community",
+      "durationMs": 1281,
+      "offsetMs": 84600
+    },
+    {
+      "n": 67,
+      "command": "nextLine",
+      "spoken": "link, Engagement for ICJIA programs, she works with both external and internal partners to develop and",
+      "durationMs": 1282,
+      "offsetMs": 85883
+    },
+    {
+      "n": 68,
+      "command": "nextLine",
+      "spoken": "link, implement strategic and comprehensive outreach strategies. She has worked to revitalize communities",
+      "durationMs": 1286,
+      "offsetMs": 87168
+    },
+    {
+      "n": 69,
+      "command": "nextLine",
+      "spoken": "link, through building partnerships, relentless engagement, and a keen focus on advocacy.",
+      "durationMs": 1282,
+      "offsetMs": 88451
+    },
+    {
+      "n": 70,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Brandon Hilton",
+      "durationMs": 1279,
+      "offsetMs": 89730
+    },
+    {
+      "n": 71,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Brandon Hilton",
+      "durationMs": 1284,
+      "offsetMs": 91014
+    },
+    {
+      "n": 72,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1283,
+      "offsetMs": 92297
+    },
+    {
+      "n": 73,
+      "command": "nextLine",
+      "spoken": "link, Bringing over 18 years of HR consulting experience, the professional excels in diverse sectors like",
+      "durationMs": 1275,
+      "offsetMs": 93572
+    },
+    {
+      "n": 74,
+      "command": "nextLine",
+      "spoken": "link, Healthcare, Marketing, Sales, IT, Engineering, Education, Supply Chain, Operations, Accounting, and",
+      "durationMs": 1282,
+      "offsetMs": 94854
+    },
+    {
+      "n": 75,
+      "command": "nextLine",
+      "spoken": "link, Finance. Brandon’s accomplishments include building diverse teams, forging strategic partnerships",
+      "durationMs": 1283,
+      "offsetMs": 96137
+    },
+    {
+      "n": 76,
+      "command": "nextLine",
+      "spoken": "link, in recruitment and operations, and consulting with senior management. Proficient in various HR",
+      "durationMs": 1290,
+      "offsetMs": 97427
+    },
+    {
+      "n": 77,
+      "command": "nextLine",
+      "spoken": "link, facets, he handles talent acquisition, retention, benefits, compensation, employee relations, and",
+      "durationMs": 1284,
+      "offsetMs": 98711
+    },
+    {
+      "n": 78,
+      "command": "nextLine",
+      "spoken": "link, marketing strategies. With a keen eye on budgets and business development, they've contributed to",
+      "durationMs": 1277,
+      "offsetMs": 99988
+    },
+    {
+      "n": 79,
+      "command": "nextLine",
+      "spoken": "link, the growth of new acquisitions. Committed to fostering compliance, the expert develops and trains",
+      "durationMs": 1281,
+      "offsetMs": 101269
+    },
+    {
+      "n": 80,
+      "command": "nextLine",
+      "spoken": "link, employees to enhance retention and company culture. Ultimately, their goal is to propel companies",
+      "durationMs": 1277,
+      "offsetMs": 102546
+    },
+    {
+      "n": 81,
+      "command": "nextLine",
+      "spoken": "link, beyond benchmark goals, optimize resources, and expand target markets swiftly through analytical",
+      "durationMs": 1285,
+      "offsetMs": 103832
+    },
+    {
+      "n": 82,
+      "command": "nextLine",
+      "spoken": "link, research and innovative marketing, all while prioritizing excellent customer service.",
+      "durationMs": 1282,
+      "offsetMs": 105114
+    },
+    {
+      "n": 83,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Dr. Michelle Martinez",
+      "durationMs": 1280,
+      "offsetMs": 106394
+    },
+    {
+      "n": 84,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Dr. Michelle Martinez",
+      "durationMs": 1282,
+      "offsetMs": 107676
+    },
+    {
+      "n": 85,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1282,
+      "offsetMs": 108957
+    },
+    {
+      "n": 86,
+      "command": "nextLine",
+      "spoken": "link, Dr. Michelle Martinez is a bilingual (English slash Spanish) clinical psychologist with over 10 years of",
+      "durationMs": 1279,
+      "offsetMs": 110236
+    },
+    {
+      "n": 87,
+      "command": "nextLine",
+      "spoken": "link, experience advancing community-based violence prevention and capacity-building efforts across",
+      "durationMs": 1282,
+      "offsetMs": 111518
+    },
+    {
+      "n": 88,
+      "command": "nextLine",
+      "spoken": "link, Chicagoland. She is a Mc Nair Scholar and earned her Bachelor’s degree in Psychology from the",
+      "durationMs": 1282,
+      "offsetMs": 112800
+    },
+    {
+      "n": 89,
+      "command": "nextLine",
+      "spoken": "link, University of Illinois at Urbana-Champaign, and her Master’s and Doctorate in Clinical Psychology",
+      "durationMs": 1284,
+      "offsetMs": 114084
+    },
+    {
+      "n": 90,
+      "command": "nextLine",
+      "spoken": "link, from Midwestern University. Her work is grounded in trauma-informed, culturally responsive, and",
+      "durationMs": 1287,
+      "offsetMs": 115371
+    },
+    {
+      "n": 91,
+      "command": "nextLine",
+      "spoken": "link, inclusive approaches supporting individuals and organizations. She has led program evaluation,",
+      "durationMs": 1289,
+      "offsetMs": 116661
+    },
+    {
+      "n": 92,
+      "command": "nextLine",
+      "spoken": "link, partnered with stakeholders, and co-founded a national initiative supporting emerging professionals",
+      "durationMs": 1280,
+      "offsetMs": 117940
+    },
+    {
+      "n": 93,
+      "command": "nextLine",
+      "spoken": "link, from historically underrepresented communities. Dr. Martinez is also a published author and brings",
+      "durationMs": 1284,
+      "offsetMs": 119225
+    },
+    {
+      "n": 94,
+      "command": "nextLine",
+      "spoken": "link, a strong foundation in research to her work advancing scalable, equity-driven strategies that",
+      "durationMs": 1287,
+      "offsetMs": 120512
+    },
+    {
+      "n": 95,
+      "command": "nextLine",
+      "spoken": "link, strengthen community systems and promote long-term safety and wellness.",
+      "durationMs": 1289,
+      "offsetMs": 121801
+    },
+    {
+      "n": 96,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Katherine L. Staten",
+      "durationMs": 1280,
+      "offsetMs": 123081
+    },
+    {
+      "n": 97,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Katherine L. Staten",
+      "durationMs": 1281,
+      "offsetMs": 124361
+    },
+    {
+      "n": 98,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1288,
+      "offsetMs": 125650
+    },
+    {
+      "n": 99,
+      "command": "nextLine",
+      "spoken": "link, Katherine L. Staten has been a health and human service professional for well over 30 years. Her",
+      "durationMs": 1287,
+      "offsetMs": 126937
+    },
+    {
+      "n": 100,
+      "command": "nextLine",
+      "spoken": "link, experience includes administering state and federal social service programming in local communities",
+      "durationMs": 1274,
+      "offsetMs": 128211
+    },
+    {
+      "n": 101,
+      "command": "nextLine",
+      "spoken": "link, and working in communities that impacted national research regarding evidenced-based programming.",
+      "durationMs": 1275,
+      "offsetMs": 129486
+    },
+    {
+      "n": 102,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Courtney Wade",
+      "durationMs": 1286,
+      "offsetMs": 130772
+    },
+    {
+      "n": 103,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Courtney Wade",
+      "durationMs": 1288,
+      "offsetMs": 132060
+    },
+    {
+      "n": 104,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1285,
+      "offsetMs": 133345
+    },
+    {
+      "n": 105,
+      "command": "nextLine",
+      "spoken": "link, Courtney Wade has been in the field of social services and behavioral support and analysis for over",
+      "durationMs": 1290,
+      "offsetMs": 134634
+    },
+    {
+      "n": 106,
+      "command": "nextLine",
+      "spoken": "link, 20 years. Specializing in work with individuals deemed developmentally delayed and with mental",
+      "durationMs": 1286,
+      "offsetMs": 135921
+    },
+    {
+      "n": 107,
+      "command": "nextLine",
+      "spoken": "link, illness, and most recently, accounting and procurement, she has assisted with providing appropriate",
+      "durationMs": 1288,
+      "offsetMs": 137209
+    },
+    {
+      "n": 108,
+      "command": "nextLine",
+      "spoken": "link, housing, jobs, and many other resources to many individuals within the served communities.",
+      "durationMs": 1290,
+      "offsetMs": 138498
+    },
+    {
+      "n": 109,
+      "command": "nextLine",
+      "spoken": "link, figure, graphic, Headshot of Dr. Tasha Williams",
+      "durationMs": 1288,
+      "offsetMs": 139786
+    },
+    {
+      "n": 110,
+      "command": "nextLine",
+      "spoken": "out of figure, link, heading, level 2, Dr. Tasha Williams",
+      "durationMs": 1291,
+      "offsetMs": 141078
+    },
+    {
+      "n": 111,
+      "command": "nextLine",
+      "spoken": "link, i 2i Capacity Building Coach",
+      "durationMs": 1286,
+      "offsetMs": 142364
+    },
+    {
+      "n": 112,
+      "command": "nextLine",
+      "spoken": "link, Dr. Tasha Williams has served as an Assistant Professor of Business, Dean of Business Programs, and",
+      "durationMs": 1289,
+      "offsetMs": 143653
+    },
+    {
+      "n": 113,
+      "command": "nextLine",
+      "spoken": "link, Dean of Juvenile Correctional Programs at various universities and colleges in Illinois. Dr. Tasha",
+      "durationMs": 1278,
+      "offsetMs": 144931
+    },
+    {
+      "n": 114,
+      "command": "nextLine",
+      "spoken": "link, has also served as an Executive Director and Capacity Building Program and Fiscal Manager for",
+      "durationMs": 1276,
+      "offsetMs": 146206
+    },
+    {
+      "n": 115,
+      "command": "nextLine",
+      "spoken": "link, community organizations around the State of Illinois. Dr. Tasha earned her bachelor’s degree from",
+      "durationMs": 1276,
+      "offsetMs": 147482
+    },
+    {
+      "n": 116,
+      "command": "nextLine",
+      "spoken": "link, the University of Missouri St. Louis in 2007, her master’s in business administration (M dot B dot A) with",
+      "durationMs": 1286,
+      "offsetMs": 148768
+    },
+    {
+      "n": 117,
+      "command": "nextLine",
+      "spoken": "link, a concentration in finance from Colorado Technical University in 2009, and her Doctorate in",
+      "durationMs": 1285,
+      "offsetMs": 150053
+    },
+    {
+      "n": 118,
+      "command": "nextLine",
+      "spoken": "link, Education, with a focus on Interdisciplinary Leadership and Higher Education, from Governors State",
+      "durationMs": 1284,
+      "offsetMs": 151337
+    },
+    {
+      "n": 119,
+      "command": "nextLine",
+      "spoken": "link, University in 2017. Dr. Tasha has developed and implemented mentoring programs for youth serving",
+      "durationMs": 1288,
+      "offsetMs": 152625
+    },
+    {
+      "n": 120,
+      "command": "nextLine",
+      "spoken": "link, nonprofit organizations around the State of Illinois. She founded a nonprofit organization called",
+      "durationMs": 1272,
+      "offsetMs": 153897
+    },
+    {
+      "n": 121,
+      "command": "nextLine",
+      "spoken": "link, Save One Life Foundation, which works with reentry youth to provide opportunities for them to",
+      "durationMs": 1282,
+      "offsetMs": 155179
+    },
+    {
+      "n": 122,
+      "command": "nextLine",
+      "spoken": "link, become productive members of society.",
+      "durationMs": 1286,
+      "offsetMs": 156465
+    },
+    {
+      "n": 123,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1288,
+      "offsetMs": 157753
+    },
+    {
+      "n": 124,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 159029
+    },
+    {
+      "n": 125,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1288,
+      "offsetMs": 160317
+    },
+    {
+      "n": 126,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1271,
+      "offsetMs": 161588
+    },
+    {
+      "n": 127,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1287,
+      "offsetMs": 162875
+    },
+    {
+      "n": 128,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1289,
+      "offsetMs": 164163
+    },
+    {
+      "n": 129,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1283,
+      "offsetMs": 165447
+    }
+  ]
+}
