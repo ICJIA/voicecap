@@ -4,6 +4,11 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The summary's four panels are full-width rows,** one under another, in this order: "What needs attention", "How complete the test was", "What's still to do", and "When and how". "What needs attention" had a row of its own, and the other three sat side by side under it, which was a lot to read at once. A row is as wide as the page, but a line of its text stops at 80 characters (`80ch`), however wide the window. Nothing changes in the Word copy, which has no columns. A page already shared is as it was: only pages made from now on change.
+- **The summary's "Since the last run" line groups the pages a flag was resolved on,** and says each flag once. It named every page and what was resolved on it, so a flag resolved on all 32 pages made a line of 32 items. Now: `Since the last run on 6 October: 32 pages sound different, and this flag is resolved: the unnamed items, on all 32 of them.` A flag resolved on one page names it ("the links that don't say where they go, on Common mistakes"); on every page that sounds different, it says "on all 32 of them", or "on both of them" when only two pages sound different; and on some of them, it counts them ("on 3 of them"). Several flags are set apart by semicolons, in the order each first appears. "What changed since the last run" still lists each page, with its rule. The Word copy's summary says it the same way.
+
 ## [0.12.0] - 2026-10-07
 
 "What needs attention" is a section of its own on the shareable page and in its Word copy, with a card for each problem: what NVDA says and where, the likely cause, why it matters, the fix in the code, and the path forward. A review settles the flags it decides about, and the summary has five numbers, with a sentence that counts the problems that come from flags. A page already shared is as it was: only pages made from now on change.

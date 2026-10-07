@@ -972,7 +972,7 @@ describe("renderSummary", () => {
     ]);
   });
 
-  it("gives the panel on what needs attention the class that makes it take a row of its own, with problems, with none, and with a page skipped, and gives no other panel it", async () => {
+  it("gives each panel the class `panel`, the panel on what needs attention a second that colors it when it names problems, and no panel a class for its width", async () => {
     /** One page read, and one that voicecap loaded and skipped: it is on no card. */
     const skipped = buildShareModel(
       inputOf([
@@ -982,9 +982,9 @@ describe("renderSummary", () => {
     const none = buildShareModel(inputOf([shareRun({ id: "r1", pages: [{ path: "/" }] })]));
     // Its classes in each state: the problems' panel keeps the one that colors it.
     const states: [string, ShareModel, string][] = [
-      ["with problems", await demoModel(), "panel attention wide"],
-      ["with none", none, "panel wide"],
-      ["with a page skipped", skipped, "panel wide"],
+      ["with problems", await demoModel(), "panel attention"],
+      ["with none", none, "panel"],
+      ["with a page skipped", skipped, "panel"],
     ];
 
     for (const [state, model, classes] of states) {
@@ -992,7 +992,7 @@ describe("renderSummary", () => {
         ...renderSummary(model).matchAll(/<div class="(panel[^"]*)"><h3>(.*?)<\/h3>/g),
       ].map(([, kind = "", title = ""]) => [textOf(title, ""), kind]);
 
-      // It is first, so its row is the grid's first, and it is the only one that spans.
+      // The grid gives each panel a row of its own, so none needs a class to take one.
       expect(panels, state).toEqual([
         ["What needs attention", classes],
         ["How complete the test was", "panel"],
@@ -1008,7 +1008,7 @@ describe("renderSummary", () => {
 
     expect(model.summary.attention).toMatchObject({ problems: 5, pages: 2 });
     expect(html).toContain(
-      '<div class="panel attention wide"><h3>What needs attention</h3>' +
+      '<div class="panel attention"><h3>What needs attention</h3>' +
         "<p>5 problems, on 2 pages:</p><ul>" +
         '<li><a href="#need-1">A button is read only as &quot;button&quot;: likely an icon button with no name</a></li>' +
         '<li><a href="#need-2">A form field is read only as &quot;edit&quot;: likely a missing label</a></li>' +
@@ -1097,10 +1097,10 @@ describe("renderSummary", () => {
       cards: [],
     });
     expect(html).toContain(
-      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and no flags were raised.</p></div>',
+      '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and no flags were raised.</p></div>',
     );
     expect(renderSummary(checked)).toContain(
-      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p></div>',
+      '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p></div>',
     );
     expect(html).not.toContain("panel attention");
     expect(html).not.toContain("fixed or checked");
@@ -1136,7 +1136,7 @@ describe("renderSummary", () => {
     });
     expect(two.summary.attention).toMatchObject({ problems: 0, skipped: 2, flagsRaised: false });
     expect(renderSummary(one)).toContain(
-      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.</p></div>',
+      '<div class="panel"><h3>What needs attention</h3><p>Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.</p></div>',
     );
     expect(attentionPanelOf(renderSummary(two)).panel).toContain(
       "<p>Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.</p>",

@@ -791,7 +791,9 @@ describe("SHARE_CSS", () => {
       ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
     ];
 
-    expect(grids.length).toBeGreaterThan(10);
+    // Ten grids of cards, tiles, and steps: the summary's panels are no longer one, since they are
+    // a column of rows.
+    expect(grids.length).toBeGreaterThan(9);
     for (const [grid, column = ""] of grids) {
       expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
     }
