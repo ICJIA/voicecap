@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-07
+
 ### Changed
 
 - **The summary's four panels are full-width rows,** one under another, in this order: "What needs attention", "How complete the test was", "What's still to do", and "When and how". "What needs attention" had a row of its own, and the other three sat side by side under it, which was a lot to read at once. A row is as wide as the page, but a line of its text stops at 80 characters (`80ch`), however wide the window. Nothing changes in the Word copy, which has no columns. A page already shared is as it was: only pages made from now on change.
@@ -459,7 +461,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/ICJIA/voicecap/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/ICJIA/voicecap/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/ICJIA/voicecap/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/ICJIA/voicecap/compare/v0.9.1...v0.10.0
