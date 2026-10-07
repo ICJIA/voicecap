@@ -546,8 +546,9 @@ function sentences(input: {
  * What the summary says of the flags gone from the changed pages: one item for each kind of flag,
  * in the order each first appears, with what it found and then where, so a flag on many pages is
  * said once. On one page, it names the page ("the unnamed items, on Home"); on every one of the
- * `changed` pages, it says how many ("the unnamed items, on all 32 of them"); on some, it says how
- * many too ("the unnamed items, on 3 of them"). The section's line names each page.
+ * `changed` pages, it says so ("the unnamed items, on all 32 of them", and "on both of them" when
+ * only two changed); on some, it says how many ("the unnamed items, on 3 of them"). The section's
+ * line names each page.
  */
 function groupsOf(resolved: Resolved[], changed: number): string[] {
   // A kind of flag is what it found, which is its plain name, or its id when it has none.
@@ -559,7 +560,9 @@ function groupsOf(resolved: Resolved[], changed: number): string[] {
   }
   return [...kinds].map(([finds, { pages, first }]) => {
     if (pages === 1) return `${finds}, on ${first}`;
-    return `${finds}, on ${pages === changed ? "all " : ""}${pages} of them`;
+    if (pages !== changed) return `${finds}, on ${pages} of them`;
+    // Every changed page: "both" when there are two, not "all 2".
+    return `${finds}, on ${pages === 2 ? "both" : `all ${pages}`} of them`;
   });
 }
 

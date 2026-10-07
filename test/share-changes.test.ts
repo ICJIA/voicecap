@@ -969,6 +969,33 @@ describe("changesOf: runs that read different passes", () => {
     );
   });
 
+  it("says both of them in that summary too, when the flag was on each of the only two pages that changed", () => {
+    const changes = allThenRead(
+      [
+        {
+          path: "/a",
+          label: "Contact",
+          flags: [flag("unlabeled", "read")],
+          passes: { read: ["a1"] },
+        },
+        {
+          path: "/b",
+          label: "Reports",
+          flags: [flag("unlabeled", "read")],
+          passes: { read: ["b1"] },
+        },
+      ],
+      [
+        { path: "/a", label: "Contact", passes: { read: ["a2"] } },
+        { path: "/b", label: "Reports", passes: { read: ["b2"] } },
+      ],
+    );
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: in the passes both runs read, 2 pages sound different; resolved: the unnamed items, on both of them.",
+    );
+  });
+
   it("doesn't compare the flags of a pass only the earlier run read", () => {
     const changes = allThenRead(
       [
@@ -1432,6 +1459,23 @@ describe("changesOf: the lines that open the section and the summary", () => {
   });
 
   it("says all of them only when a flag was resolved on every changed page, however many pages sound the same", () => {
+    // 7 pages were read in both runs, and 3 sound different: the flag was on all three of those.
+    const changes = resolving(
+      [
+        ["Contact", [unnamed]],
+        ["Reports", [unnamed]],
+        ["Grants", [unnamed]],
+      ],
+      4,
+    );
+
+    expect([changes.changed.length, changes.same]).toEqual([3, 4]);
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: the unnamed items, on all 3 of them.",
+    );
+  });
+
+  it("says both of them, not all 2 of them, when a flag was resolved on each of the only two pages that changed", () => {
     // 7 pages were read in both runs, and 2 sound different: the flag was on both of those.
     const changes = resolving(
       [
@@ -1440,10 +1484,32 @@ describe("changesOf: the lines that open the section and the summary", () => {
       ],
       5,
     );
+    // Two flags, each on both pages, each say so.
+    const twice = resolving([
+      ["Contact", [unnamed, generic]],
+      ["Reports", [unnamed, generic]],
+    ]);
 
     expect([changes.changed.length, changes.same]).toEqual([2, 5]);
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 2 pages sound different, and this flag is resolved: the unnamed items, on all 2 of them.",
+      "Since the last run on 26 September: 2 pages sound different, and this flag is resolved: the unnamed items, on both of them.",
+    );
+    expect(twice.summaryLine).toBe(
+      "Since the last run on 26 September: 2 pages sound different, and these flags are resolved: the unnamed items, on both of them; the links that don't say where they go, on both of them.",
+    );
+  });
+
+  it("says 2 of them, not both of them, when a flag was resolved on two of more changed pages", () => {
+    // "Both" is both of two pages: with four that changed, two of them had the flag.
+    const changes = resolving([
+      ["Contact", [unnamed]],
+      ["Reports", [unnamed]],
+      ["Grants", []],
+      ["Home", []],
+    ]);
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 4 pages sound different, and this flag is resolved: the unnamed items, on 2 of them.",
     );
   });
 
