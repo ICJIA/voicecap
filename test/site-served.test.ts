@@ -283,14 +283,17 @@ describe("the site, served as Netlify serves it", () => {
       "walkthrough",
     ]);
 
+    // The walkthrough files are in the fold of files, which a reader opens first.
+    for (const summary of await page.locator("summary").all()) await summary.click();
     for (const kind of ["word", "walkthrough"]) {
       const file = report?.files.find((each) => each.kind === kind);
       if (file === undefined) throw new Error(`The report has no ${kind} file.`);
       const address = new URL(file.href, server.url).href;
 
+      // The Word copy is linked twice: from the current report, and in the fold.
       const [download] = await Promise.all([
         page.waitForEvent("download"),
-        page.locator(`a[href="${file.href}"]`).click(),
+        page.locator(`a[href="${file.href}"]`).first().click(),
       ]);
 
       // A browser reports no response for a download, so the address is asked for again.
@@ -307,6 +310,57 @@ describe("the site, served as Netlify serves it", () => {
         sha256: file.sha256,
       });
     }
+  });
+
+  it("sends a reader of an older report's page, at either of its addresses, to the site's current report", async () => {
+    // The example site's report of 13 January, and three later ones: it's the fourth newest, so
+    // it's no longer on the site.
+    const home = await newHome();
+    const siteDir = path.join(home, EXAMPLE_FOLDER);
+    const { shares } = await readShares(siteDir);
+    const later = [14, 15, 16].map((day) => ({
+      name: `${EXAMPLE_FOLDER}_2027-01-${day}.html`,
+      bytes: Buffer.from(OLDER_PAGE.replace("An older page.", `The report of ${day} January.`)),
+      at: `2027-01-${day}T10:00:00-06:00`,
+    }));
+    for (const { name, bytes } of later) await writeFile(path.join(siteDir, "share", name), bytes);
+    await writeRecord(siteDir, [
+      ...shares,
+      ...later.map(({ name, bytes, at }, index) =>
+        sealedEntry(index + 2, at, [recordOf(name, bytes)]),
+      ),
+    ]);
+    const kept = await build(home);
+    const keptServer = await serveSite(kept.out);
+    servers.push(keptServer);
+    const current = `${EXAMPLE_FOLDER}/${EXAMPLE_FOLDER}_2027-01-16.html`;
+    const older = `${EXAMPLE_FOLDER}/${EXAMPLE_STEM}`;
+    expect(pagesOf(kept.content)).not.toContain(`${older}.html`);
+
+    // Asked for, each address of the older page answers with a 302 to the current report's page,
+    // which a browser doesn't keep, since the current report changes with each share.
+    for (const address of [`${older}.html`, older]) {
+      const response = await (
+        await newContext()
+      ).request.get(new URL(address, keptServer.url).href, {
+        maxRedirects: 0,
+      });
+      expect(response.status(), address).toBe(302);
+      expect(response.headers()["location"], address).toBe(`/${current}`);
+    }
+    // A reader who follows a link to it lands on the current report, under its own policy.
+    const page = await newPage();
+    const policy = await visit(page, new URL(`${older}.html`, keptServer.url).href);
+    expect(page.url()).toBe(new URL(current, keptServer.url).href);
+    expect(await page.locator("p").textContent()).toBe("The report of 16 January.");
+    expect(policy).toContain(`script-src ${sourceOf(OLDER_SCRIPT)};`);
+    expect(await violationsOf(page)).toEqual([]);
+    // The older report's Word copy isn't sent anywhere: it's simply not there.
+    const word = await page.request.get(
+      new URL(`${EXAMPLE_FOLDER}/${EXAMPLE_STEM}.docx`, keptServer.url).href,
+      { maxRedirects: 0 },
+    );
+    expect(word.status()).toBe(404);
   });
 
   it("carries the theme from the site to a report", async () => {

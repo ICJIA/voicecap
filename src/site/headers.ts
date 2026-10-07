@@ -1,7 +1,8 @@
 /**
  * What the website tells Netlify about its own pages, which each build writes again: the hashes of
  * the code a page holds, the Content Security Policy that allows exactly that code, the text of
- * _headers (each page's policy, and each download's headers), and robots.txt.
+ * _headers (each page's policy, and each download's headers), the text of _redirects (where the
+ * page of a report the site no longer shows sends its reader), and robots.txt.
  *
  * Each page was written by the voicecap version that shared it, so each is hashed from its own
  * bytes. A page holds one style block and one script, and no inline style attribute (see
@@ -153,6 +154,58 @@ export function headersFile(rules: HeaderRule[]): string {
     lines.push("", rule.path, ...rule.headers.map(([name, value]) => `  ${name}: ${value}`));
   }
   return `${lines.join("\n")}\n`;
+}
+
+/**
+ * The first line of _redirects: a comment, which Netlify skips, that says what the file is for.
+ */
+export const REDIRECTS_FIRST_LINE =
+  "# Made by voicecap site: the page of a report the site no longer shows sends its reader on to its site's current report.";
+
+/**
+ * A rule of _redirects: Netlify answers a request for `from` with a 302 to `to`, both exact paths
+ * from the site's top. It does so only when no file is published at `from`.
+ */
+export interface RedirectRule {
+  from: string;
+  to: string;
+}
+
+/**
+ * _redirects as Netlify reads it: REDIRECTS_FIRST_LINE, then each rule on a line of its own, its
+ * path, where it leads, and 302, set apart by spaces. A 302 isn't kept by a browser, as a 301 is, so
+ * a later build can send the same path somewhere else: a site's current report changes with each
+ * share.
+ *
+ * A rule that couldn't be written as one such line, because a part of it would be read as another
+ * part or another rule, throws an Error that names its path: a path, or where it leads, that doesn't
+ * start with "/", or that holds white space or a control character.
+ */
+export function redirectsFile(rules: readonly RedirectRule[]): string {
+  const lines = [REDIRECTS_FIRST_LINE];
+  for (const rule of rules) {
+    const problem = problemWithRedirect(rule);
+    if (problem !== null) {
+      throw new Error(`The _redirects rule for ${quoted(rule.from)} can't be written: ${problem}.`);
+    }
+    lines.push(`${rule.from} ${rule.to} 302`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/**
+ * White space, which sets the parts of a rule apart, or ends it, and a control character, which no
+ * path voicecap writes holds.
+ */
+const SPACE_OR_CONTROL = /[\s\p{Cc}]/u;
+
+/** What keeps a rule from being written as a line of _redirects, or null when nothing does. */
+function problemWithRedirect({ from, to }: RedirectRule): string | null {
+  if (!from.startsWith("/")) return 'its path doesn\'t start with "/"';
+  if (SPACE_OR_CONTROL.test(from)) return "its path holds white space or a control character";
+  if (!to.startsWith("/")) return 'where it leads doesn\'t start with "/"';
+  if (SPACE_OR_CONTROL.test(to)) return "where it leads holds white space or a control character";
+  return null;
 }
 
 /** A CR or an LF. In _headers it ends a line, and what follows is read as a line of its own. */
