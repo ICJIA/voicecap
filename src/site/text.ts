@@ -8,8 +8,19 @@
  * reader, sped up, so every report here is a person's, and nothing says otherwise. The functions
  * are for lines with a name or a date in them.
  */
+import type { ShareResult } from "../model.js";
+import { plural } from "../report/html.js";
 import { dateAndTime } from "../share/format.js";
-import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { ABOUT, ATTENTION_TEXT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+
+/**
+ * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
+ * the 9 pages".
+ */
+function pagesRead({ pages, read }: ShareResult): string {
+  if (read === pages) return pages === 1 ? "1 page" : `all ${plural(pages, "page")}`;
+  return `${read} of the ${plural(pages, "page")}`;
+}
 
 /**
  * A sentence of the page: plain words, commands, which the page sets in the fixed-width font, and
@@ -54,6 +65,21 @@ export const SITE_TEXT = {
   reportLine: (at: string): string => dateAndTime(at),
   /** What heads a site's newest report, ahead of its line. */
   current: "The current report",
+  /**
+   * What a share's copies say of the site, on its current report's card, in the page's own words:
+   * the problems that need attention and the pages they're on, as its summary says them, or that
+   * nothing does; then how many pages NVDA read. Pages skipped, not read, are on no card, so with
+   * none read on a card it's nothing on the pages read, as the page's own line says.
+   */
+  verdict: (result: ShareResult): string => {
+    const reading = `NVDA read ${pagesRead(result)}.`;
+    if (result.problems > 0) {
+      return `${ATTENTION_TEXT.sentence(result.problems, result.problemPages)} ${reading}`;
+    }
+    return result.read === result.pages
+      ? `Nothing needs attention: ${reading}`
+      : `Nothing needs attention on the pages read: ${reading}`;
+  },
   /** Under the current report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
   /** The current report's two links: its page, which opens in the browser, and its Word copy. */

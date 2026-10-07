@@ -71,7 +71,13 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .report > * { min-width: 0; }
 .report > h3, .report > h4 { font-size: 1.3rem; }
 .label { display: block; color: var(--muted); font: 600 0.8rem var(--body); letter-spacing: 0.04em; margin-bottom: 2px; }
-.report > h3 + p, .report > h4 + p { color: var(--muted); }
+.report > .by { color: var(--muted); }
+/* what its copies say of the site: in words, after a sign that only repeats them, in the theme's green, amber, or red, which a screen reader doesn't read */
+.verdict { display: flex; gap: 8px; align-items: baseline; font-weight: 600; font-size: 1.02rem; }
+.verdict::before { flex: none; font-size: 1.1em; }
+.verdict.ok::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
+.verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
+.verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .action { border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); color: var(--fg); border-radius: 10px; padding: 9px 16px; font-weight: 600; text-decoration: none; }
 .action:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); }

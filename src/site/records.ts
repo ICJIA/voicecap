@@ -13,7 +13,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { DEMO_OUT } from "../demo/words.js";
-import type { SharedFile } from "../model.js";
+import type { SharedFile, ShareResult } from "../model.js";
 import { isWebRoot } from "../pages/canonical.js";
 import { linkPath, shareDir, sharesPath } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
@@ -25,6 +25,7 @@ import {
   readShares,
   recordedFiles,
   sealHolds,
+  shareResultOf,
 } from "../share/shares.js";
 import { isRunId } from "../share/walkthrough.js";
 
@@ -46,6 +47,12 @@ export interface SiteEntry {
    * `site` isn't an http(s) root (see `isWebRoot`): it's published all the same.
    */
   site: string | null;
+  /**
+   * What the entry's copies say of the site (from 0.12.3), which the card of a site's current report
+   * shows; null for an entry from before, and for one whose result isn't as voicecap writes one (see
+   * shareResultOf): it's published all the same.
+   */
+  result: ShareResult | null;
   /**
    * The files whose names voicecap would give, in the record's order: at least one, and a run on
    * one is a run id.
@@ -231,6 +238,9 @@ async function readEntries(
       // Not one of the fields an entry needs to be published: an entry from before 0.10.0 has none,
       // and a site that isn't a root names nothing, so the entry is read with none.
       site: isWebRoot(entry.site) ? entry.site : null,
+      // Nor is its result: one from before 0.12.3 has none, and one voicecap wouldn't write says
+      // nothing, so the card says nothing of it.
+      result: shareResultOf(entry.result),
       files,
     });
   }

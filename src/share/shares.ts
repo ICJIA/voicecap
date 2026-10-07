@@ -2,15 +2,16 @@
  * <site>/share/shares.json, the record of what `voicecap share` sent: one entry each time it made
  * copies of the shareable page and its Word copy to send, and of each run's walkthrough file, with
  * when, who by, the root of the site the copies name (their file names are made from it), the runs
- * the copies drew on, and each file's name, size, and SHA-256 (a walkthrough file's also names its
- * run). Entries are chained and sealed as reviews.json's are (see ../reviews/store.ts), and never
- * edited or deleted once they're recorded. An entry recorded before 0.10.0 has no site.
+ * the copies drew on, what the copies say of the site (see shareResultOf), and each file's name,
+ * size, and SHA-256 (a walkthrough file's also names its run). Entries are chained and sealed as
+ * reviews.json's are (see ../reviews/store.ts), and never edited or deleted once they're recorded.
+ * An entry recorded before 0.10.0 has no site, and one recorded before 0.12.3 no result.
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
 
-import type { ShareEntry, SharedFile } from "../model.js";
+import type { ShareEntry, SharedFile, ShareResult } from "../model.js";
 import { sharesPath } from "../run/paths.js";
 import { writeFileAtomic } from "../util/atomic-write.js";
 import { UsageError } from "../util/errors.js";
@@ -57,7 +58,9 @@ export async function appendShare(
   const before = await readShares(siteDir);
   const { seq, prev } = nextInChain(before);
   // Built key by key, in the order the file reads them, whatever order or extras the entry brings.
-  // An entry with no site has no such key, as the entries recorded before 0.10.0 have none.
+  // An entry with no site has no such key, as the entries recorded before 0.10.0 have none, and
+  // one with no result none, as those recorded before 0.12.3.
+  const { result } = entry;
   const unsealed: Omit<ShareEntry, "seal"> = {
     seq,
     prev,
@@ -65,6 +68,16 @@ export async function appendShare(
     by: entry.by,
     ...(entry.site === undefined ? {} : { site: entry.site }),
     runs: entry.runs,
+    ...(result === undefined
+      ? {}
+      : {
+          result: {
+            pages: result.pages,
+            read: result.read,
+            problems: result.problems,
+            problemPages: result.problemPages,
+          },
+        }),
     files: entry.files,
   };
   const sealed: ShareEntry = { ...unsealed, seal: sealOf(unsealed) };
@@ -142,6 +155,28 @@ export function isPlainName(name: string): boolean {
  */
 export function isSeq(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * The result an entry records (from 0.12.3), as voicecap writes one: four whole numbers of 0 or
+ * more, with no more pages read, or with a problem, than there are, and a page with a problem only
+ * when there's a problem. A count it doesn't know is left out, so a later voicecap's isn't a reason
+ * to doubt the four. Null for anything else, and for an entry that records none.
+ */
+export function shareResultOf(value: unknown): ShareResult | null {
+  if (!isObject(value)) return null;
+  const { pages, read, problems, problemPages } = value;
+  const counts = [pages, read, problems, problemPages];
+  if (!counts.every((count) => typeof count === "number" && Number.isSafeInteger(count))) {
+    return null;
+  }
+  const result = { pages, read, problems, problemPages } as ShareResult;
+  const fits =
+    counts.every((count) => (count as number) >= 0) &&
+    result.read <= result.pages &&
+    result.problemPages <= result.pages &&
+    (result.problems > 0 || result.problemPages === 0);
+  return fits ? result : null;
 }
 
 /**
