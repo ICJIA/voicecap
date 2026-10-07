@@ -34,7 +34,7 @@ Task 6 writes the decisions below into the spec.
 ## Decisions this plan makes (the owner reviews them with the plan)
 
 - **D1, one count of problems at the top.** On the demo, the verdict says "5 problems need attention, on 2 pages", counting every card. Today's sentence says "4 problems need attention, on 1 page", counting only the cards that come from flags. Shown together they disagree. So the sentence stops counting problems, and the verdict counts them, every card, as What needs attention, the Word copy, and the website's card do. The sentence keeps who ran it, who heard NVDA, who reviewed, and what review found. The demo's becomes "NVDA read all 7 pages."
-  - **The alternative, if the owner prefers it:** the sentence counts every card too. Task 1's step for the sentence changes, and nothing else does.
+  - **The owner chose this on 2026-10-07** ("Verdict counts"), over the sentence counting every card too. They chose subagent-driven development for the build.
 - **D2, red means a page in scope wasn't read.** The verdict is red when NVDA read fewer pages than are in scope, whether it couldn't read one or skipped it. That's the website card's rule (0.12.3). With no card then, it says "Nothing needs attention on the pages read", as the page's own line does. The spec said "couldn't be read".
 - **D3, the method line keeps "the reading and the deciding".** The spec's copy says "the listening, the reading, and the deciding", which predates the owner's rule of 2026-10-02 against saying a person listened. The page keeps today's words (`summary.second`).
 - **D4, the Word copy matches the page.**
