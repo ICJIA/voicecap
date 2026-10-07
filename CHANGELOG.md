@@ -4,6 +4,12 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **The website's card says what a report found,** so a manager who asks "Did it pass?" has the answer without opening the report. Under the current report's date, in the report's own words: `Nothing needs attention: NVDA read all 9 pages.`, after a green ✓; `1 problem needs attention, on 32 pages. NVDA read all 32 pages.`, after an amber ⚠; and the same in red when NVDA read fewer pages than are in scope (`NVDA read 7 of the 9 pages.`). The sign is drawn by the page's style, so a screen reader reads the words alone. The README's "The website: `voicecap site`" describes it.
+  - **Each share records what its copies say of the site,** as `result` in its `shares.json` entry, sealed with the rest: the pages in scope (`pages`), how many NVDA read (`read`), the problems that need attention (`problems`), and how many different pages they're on (`problemPages`). `voicecap verify` names an entry whose result isn't four whole numbers that fit together.
+  - **A share made before 0.12.3 recorded none,** and its card says nothing of one. Share the site again to give its card one: no new run is needed.
+
 ## [0.12.2] - 2026-10-07
 
 ### Changed
