@@ -34,7 +34,7 @@
   - headings inside a fold start at level 3;
   - axe reports zero violations.
 - **Copy the spec pins, word for word:**
-  - "Nothing needs attention: every page was read, and every flag was fixed or checked by a person."
+  - "Nothing needs attention: every page was read, and every flag was fixed or checked by a person." When no page raised a flag (Ruling R25): "Nothing needs attention: every page was read, and no flags were raised."
   - "Checked by <name>, <date>: not an issue"
   - the summary sentence's "<n> problem needs attention, on <m> pages." ("problems need" for more than one, "page" for one).
 - **Chrome's rule, as a card states it** (from Chromium's `ax_image_annotator.cc` and `ax_image_stopwords.cc`, checked 2026-10-06): Chrome splits an image's alt text at spaces, punctuation, and digits. It drops words of one or two letters, and common words such as "logo" and "image". If fewer than three letters are left, it treats the image as having no name.
