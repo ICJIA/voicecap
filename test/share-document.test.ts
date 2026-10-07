@@ -53,18 +53,26 @@ const LINKS_OUT = [
 ];
 
 /** The sections' headings, in the spec's order. */
-const SECTIONS = [
-  "glance-h",
-  "need-h",
-  "how-h",
-  "pages-h",
+const SECTIONS = ["glance-h", "need-h", "pages-h", "details-h", "app-h"];
+
+/**
+ * The parts of The details, whose headings are one level lower than a section's, in the spec's
+ * order. A site where no run counts has the six that aren't the summary's panels and bars.
+ */
+const DETAILS_PARTS = [
+  "todo-h",
+  "complete-h",
+  "whenhow-h",
   "chg-h",
   "prob-h",
   "lim-h",
+  "rules-h",
+  "review-h",
   "ev-h",
+  "how-h",
   "story-h",
-  "app-h",
 ];
+const NO_RUN_PARTS = ["chg-h", "prob-h", "lim-h", "ev-h", "how-h", "story-h"];
 
 /** The fonts' folder, beside src/share/fonts.ts, which reads it. */
 const FONTS = fileURLToPath(new URL("../src/share/fonts/", import.meta.url));
@@ -249,11 +257,11 @@ function unlistedLinks(markup: string): string[] {
   });
 }
 
-/** How many folds are around each section heading, in page order. */
-function foldsAroundHeadings(markup: string): number[] {
+/** How many folds are around each heading of a level (a section's, by default), in page order. */
+function foldsAroundHeadings(markup: string, heading = "h2"): number[] {
   const around: number[] = [];
   let depth = 0;
-  for (const [tag] of markup.matchAll(/<\/?details\b|<h2\b/g)) {
+  for (const [tag] of markup.matchAll(new RegExp(`</?details\\b|<${heading}\\b`, "g"))) {
     if (tag === "<details") depth += 1;
     else if (tag === "</details") depth -= 1;
     else around.push(depth);
@@ -515,6 +523,16 @@ describe("renderSharePage", () => {
       for (const [, line = ""] of markup.matchAll(/<summary>([\s\S]*?)<\/summary>/g)) {
         expect(line, name).not.toMatch(/<h[1-6]\b/);
       }
+      // The details' parts are h3, between the details' own heading and the appendix's, in the
+      // spec's order, each outside every fold like a section's heading. Every h3 in the details is
+      // one of them: what is inside a part is lower.
+      const details = markup.slice(
+        markup.indexOf('<h2 id="details-h">'),
+        markup.indexOf('<h2 id="app-h">'),
+      );
+      const parts = [...details.matchAll(/<h3 id="([^"]+)"/g)].map(([, id]) => id);
+      expect(parts, name).toEqual(name === "no run that counts" ? NO_RUN_PARTS : DETAILS_PARTS);
+      expect(foldsAroundHeadings(details, "h3"), name).toEqual(parts.map(() => 0));
       // The header, with the site's name, comes before main, and the footer after it.
       expect(markup.indexOf('<header class="mast">'), name).toBeGreaterThan(-1);
       expect(markup.indexOf('<header class="mast">'), name).toBeLessThan(main);
@@ -583,8 +601,9 @@ describe("renderSharePage", () => {
       expect(repeated(ids), name).toEqual([]);
       // At least the skip link, and the summary's way into each later section.
       expect(targets.length, name).toBeGreaterThanOrEqual(10);
-      // The summary's panel links to each problem's card (need-1, need-2, ...) and to the section
-      // that has them all (need-h), and the page has both: every one is there, like any other link.
+      // Every link to a part of the page goes to one that is there: the summary's to each section,
+      // the details' to the problems and to what changed, a card's to its pages, a page's to its
+      // transcripts.
       expect(
         targets.filter((target) => !ids.includes(target)),
         name,
@@ -638,13 +657,14 @@ describe("a run whose record can't be made into a walkthrough file", () => {
       const sentence = `This run's walkthrough file can't be made: ${problem}`;
 
       // The page: the run's fold has its five parts, the last of which says why, and no download.
+      // Each part's heading is an h4, under the evidence's own in the details.
       const html = renderSharePage(model, { fontCss: "" });
       const [fold = ""] = foldsIn(html)
         .filter((each) => each.includes(' id="run-r1"'))
         .map((each) => each.split("</details>")[0] ?? "");
       expect(fold).not.toBe("");
       expect(
-        [...fold.matchAll(/<h3>(.*?)<\/h3>/gs)].map((found) => textOf(found[1] ?? "")),
+        [...fold.matchAll(/<h4>(.*?)<\/h4>/gs)].map((found) => textOf(found[1] ?? "")),
       ).toEqual([
         "Minute by minute in run r1",
         "NVDA's own log, checked against the transcripts in run r1",
@@ -791,9 +811,10 @@ describe("SHARE_CSS", () => {
       ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
     ];
 
-    // Ten grids of cards, tiles, and steps: the summary's panels are no longer one, since they are
-    // a column of rows.
-    expect(grids.length).toBeGreaterThan(9);
+    // Nine grids of cards, tiles, and steps: the summary's panels are no longer one, since they were
+    // a column of rows, and its bars, which were three side by side, are parts of the details now,
+    // one under another.
+    expect(grids.length).toBeGreaterThan(8);
     for (const [grid, column = ""] of grids) {
       expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
     }

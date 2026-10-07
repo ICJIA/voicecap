@@ -54,12 +54,14 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
- * - the summary's panels (`.panels`): one column, so each of the four is a row of its own, the
- *   grid's whole width, one after another in the order they're written (what needs attention
- *   first), in each state of the first and at every width of the window. Side by side, they were
- *   too much to read at once. A line of their text stops at 80 characters of its own size
+ * - the details (`#details`): its parts one under another, 40px apart, since they were once the
+ *   summary's panels in one column and the sections that followed the cards. A part's heading is
+ *   an `h3`, which looks like a section's heading, a step smaller; what is inside a part is one
+ *   level lower than it was, so a rule for the `h3` of a step, a card, or a run's part is now for
+ *   an `h4`, and a session's name, an `h5`. The panel of a part that is a few lines is the
+ *   details' whole width, but a line of its text stops at 80 characters of its own size
  *   (`max-width: 80ch` on a paragraph and on a list), about as wide as 72 of the page's larger
- *   text, while each row stays the grid's whole width;
+ *   text. A box straight under a part's heading sits a little way below it;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
  *   code of a fix wrap (`overflow-wrap: anywhere`), so a long line never widens the page, and a
  *   fold inside a card is on the second color of the panels. Each line NVDA said is a block under
@@ -86,15 +88,15 @@ main { display: grid; gap: 56px; }
   main { align-content: start; }
 }
 /* A name is a whole address (or a host), one word that can be longer than any box: break it there, rather than run out of the box or the window. The masthead, the verify command, and the footer's file names do the same, where they are. */
-main :where(p, li, h3, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
+main :where(p, li, h3, h4, h5, summary, dt, dd, figcaption) { overflow-wrap: anywhere; }
 a { color: var(--accent); } a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 .skip { position: absolute; left: -9999px; } .skip:focus { left: 16px; top: 16px; background: var(--panel); padding: 8px 12px; z-index: 5; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Only the hidden attribute shows or hides what a script does: the top's two buttons, the check's buttons and list, the no-script line. */
 [hidden] { display: none !important; }
-h1, h2, h3 { font-family: var(--display); text-wrap: balance; letter-spacing: 0.005em; }
+h1, h2, h3, h4, h5 { font-family: var(--display); text-wrap: balance; letter-spacing: 0.005em; }
 h2 { font-size: 1.6rem; font-weight: 600; margin: 0 0 6px; }
-h3 { font-size: 1.12rem; font-weight: 600; margin: 0; }
+h3, h4 { font-size: 1.12rem; font-weight: 600; margin: 0; }
 .eyebrow { font: 500 0.78rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .lead { font-size: 1.08rem; max-width: 68ch; margin: 0; }
 .sub { color: var(--muted); font: 400 0.82rem var(--body); }
@@ -118,16 +120,10 @@ code { overflow-wrap: anywhere; }
 .glance { display: grid; gap: 22px; }
 .verdict { font-size: 1.3rem; line-height: 1.45; font-weight: 500; max-width: 60ch; }
 .verdict + .gist { margin: 10px 0 0; }
-/* One column: each panel is a row of its own, the grid's whole width, in the order they are written. Side by side, they were too much to read at once. */
-.panels { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
-.panel h3 { font-size: 0.95rem; }
+.panel h3, .panel h4 { font-size: 0.95rem; }
 .panel p, .panel ul { margin: 0; font-size: 0.93rem; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
-/* The summary's panels are the grid's whole width, which would let a line run to 150 characters: a paragraph, and a list and so its items, stop at 80 characters of their own text (80ch), and the panel's box stays the grid's width. */
-.panels p, .panels ul { max-width: 80ch; }
-.panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
-.panel.attention h3 { color: var(--warn); }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }
@@ -136,9 +132,7 @@ code { overflow-wrap: anywhere; }
 .tile .n small { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
 .tile .k { color: var(--muted); font-size: 0.86rem; }
 .tile.ok .n { color: var(--ok); } .tile.warn .n { color: var(--warn); } .tile.quiet .n { color: var(--fg); }
-.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; }
 .meter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
-.meter h3 { font-size: 0.95rem; }
 .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--panel-2); }
 .bar i { display: block; height: 100%; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.84rem; color: var(--muted); }
@@ -149,6 +143,11 @@ code { overflow-wrap: anywhere; }
 .rule { display: grid; grid-template-columns: 150px 1fr 36px; gap: 10px; align-items: center; font-size: 0.86rem; }
 .rule .track { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; } .rule .track i { display: block; height: 100%; background: var(--warn); }
 .rule .c { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+/* the details: its parts one under another, 40px apart. A part's heading is an h3 that looks like a section's, a step smaller (an h2 is 1.6rem; what is under a part's heading, an h4, is 1.12rem). A box straight under it sits a little way below it, and the panel of a part that is a few lines is the details' whole width, though a line of its text stops at 80 characters of its own size (80ch), or one would run to 150. */
+#details > section { margin-top: 40px; }
+#details > section > h3 { font-size: 1.3rem; margin: 0 0 6px; }
+#details > section > h3 + .panel, #details > section > h3 + .meter { margin-top: 10px; }
+#details > section > h3 + .panel > p, #details > section > h3 + .panel > ul { max-width: 80ch; }
 /* chips */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font: 500 0.74rem/1.2 var(--mono); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); }
@@ -184,7 +183,7 @@ table.plain thead th { border-top: 0; color: var(--muted); font: 500 0.74rem var
 /* evidence */
 .run { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 22px; }
 .run-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; justify-content: space-between; }
-.run-inside h3 { margin-bottom: 8px; }
+.run-inside h4 { margin-bottom: 8px; }
 .run-inside table.plain td { overflow-wrap: anywhere; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 10px; }
 .facts div { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; }
@@ -202,7 +201,7 @@ table.plain thead th { border-top: 0; color: var(--muted); font: 500 0.74rem var
 details.log > summary, details.tx-page > summary { cursor: pointer; }
 /* A session of a run's event log: its name, its summary, its chart, and its folded table of events, each the mockup's. */
 .t-session { display: grid; gap: 10px; } .t-session + .t-session { margin-top: 18px; }
-.t-session > p, .t-session > h4 { margin: 0; } .t-session > h4 { font: 600 0.95rem var(--display); }
+.t-session > p, .t-session > h5 { margin: 0; } .t-session > h5 { font: 600 0.95rem var(--display); }
 details.log > .events { margin-top: 8px; }
 .events { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 .events td { padding: 6px 10px; border-top: 1px solid var(--line); font-size: 0.86rem; } .events td.mono { white-space: nowrap; }
@@ -263,12 +262,12 @@ details.fold > .run-inside { gap: 22px; }
 .flow li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; grid-template-columns: 44px 1fr; gap: 4px 14px; align-content: start; }
 .flow .ico { grid-row: span 2; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); color: var(--accent); }
 .flow .ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.flow h3 { font-size: 1.02rem; }
+.flow h4 { font-size: 1.02rem; }
 .step-n { font: 600 0.85rem var(--mono); color: var(--accent); margin-right: 4px; }
 .flow p { margin: 0; font-size: 0.92rem; }
 .heard { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
-.heard h3 { font-size: 1rem; }
-.heard > .sub { margin: 0; }
+.heard h4 { font-size: 1rem; }
+.heard-fold { margin-top: 14px; }
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px; }
 .lane { margin: 0; display: grid; gap: 8px; align-content: start; }
 .lane figcaption { font-size: 0.86rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
@@ -339,7 +338,7 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 .days time { display: block; font: 600 0.8rem var(--mono); color: var(--accent); }
 .worth { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
 .worth div { background: var(--panel-2); border-radius: 12px; padding: 14px 16px; }
-.worth h3 { font-size: 0.98rem; margin-bottom: 4px; }
+.worth h4 { font-size: 0.98rem; margin-bottom: 4px; }
 .worth p { margin: 0; font-size: 0.9rem; }
 .cite { font-size: 0.84rem; color: var(--muted); }
 @media (max-width: 640px) { .tx-grid { grid-template-columns: 1fr; } dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }

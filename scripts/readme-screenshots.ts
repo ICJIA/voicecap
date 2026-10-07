@@ -12,8 +12,9 @@
  *
  * It writes eight files, drawn in a 1200 × 900 window at twice its size:
  *
- *   report-top.png           the page's masthead, and its summary down to the end of its panels
- *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page
+ *   report-top.png           the page's masthead, and its summary down to its contents
+ *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page,
+ *                            in its fold, opened
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
  *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot: the
  *                            first row with no card for a /biographies/ page (see BIOGRAPHIES)
@@ -360,13 +361,16 @@ export function shooter(into: string, taken: string[]): Shoot {
 async function shootReport(browser: Browser, file: string, shoot: Shoot): Promise<void> {
   const page = await open(browser, file);
   try {
-    // The masthead, the five numbers, and the four panels. The three bars under them are left out.
+    // The masthead, the summary's sentence and the five numbers, and the contents.
     await shoot(
       page,
       "report-top.png",
-      await fromTop(page, "section.glance .panels", SLICE_MARGIN),
+      await fromTop(page, "section.glance nav.toc", SLICE_MARGIN),
     );
-    await shoot(page, "report-heard.png", await around(page, "div.heard", PANEL_MARGIN));
+    // The sample of what NVDA said, in the details, in its fold: the fold is opened first.
+    const heard = "details.heard-fold";
+    await openFolds(page, heard, false);
+    await shoot(page, "report-heard.png", await around(page, heard, PANEL_MARGIN));
 
     // The card, open, with its pages behind their fold: it names how many there are, and their
     // addresses are a long list. Opening the card opens none of the folds inside it.

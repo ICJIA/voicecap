@@ -1,7 +1,7 @@
 /**
  * The parts every section of the shareable page draws with: a fold, a chip, a "Not recorded" line,
  * a scroll box, a line of words, a verdict line, a bar, and the strip of spoken lines. Each returns
- * HTML.
+ * HTML. `demoted` takes some markup and sets its headings one level down.
  *
  * None sets a `style` attribute: the page's Content Security Policy hashes its one style block and
  * allows nothing else. So sizes are attributes, and colors are classes the style block gives
@@ -70,6 +70,25 @@ export function fold(summary: string, body: string, options: FoldOptions = {}): 
   const insideClasses = options.insideClassName ? `inside ${options.insideClassName}` : "inside";
   const id = options.id === undefined ? "" : ` id="${esc(options.id)}"`;
   return `<details class="${esc(classes)}"${id}${options.open ? " open" : ""}${options.hidden ? " hidden" : ""}><summary>${summary}</summary><div class="${esc(insideClasses)}">${body}</div></details>`;
+}
+
+/**
+ * Some markup with every heading one level down: an `h1` to `h5` becomes the next one (`h2` to
+ * `h6`), its closing tag too, with its attributes and words as they were. The details are made
+ * with it: each section that follows the cards is built as it always was, folds and all, and set
+ * one level down to be a part of the details, with what is inside it one level down as well.
+ *
+ * Only a real tag moves. A `<` in a word is written `&lt;`, and in the check's data as a unicode
+ * escape, so the words of a transcript, a card's code, or a heading that someone wrote about
+ * headings stay as they are. Nothing goes below `h6`: it throws rather than leave a heading in the
+ * wrong place.
+ */
+export function demoted(html: string): string {
+  if (/<\/?h6(?=[\s>])/i.test(html)) throw new Error("A heading can't go below h6.");
+  return html.replace(
+    /(<\/?h)([1-5])(?=[\s>])/gi,
+    (_tag, start: string, level: string) => `${start}${Number(level) + 1}`,
+  );
 }
 
 /**

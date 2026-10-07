@@ -324,7 +324,7 @@ describe("renderAttention", () => {
     ]);
   });
 
-  it("folds every card of a site with 40 problems, and the summary's panel names 5 of them and counts 35", () => {
+  it("folds every card of a site with 40 problems", () => {
     const [logo] = i2i.attention;
     if (logo === undefined) throw new Error("i2i has no card.");
     const cards = Array.from({ length: 40 }, (_, at) => ({
@@ -334,18 +334,10 @@ describe("renderAttention", () => {
     }));
     const model = withCards(i2i, cards);
     const html = renderAttention(model);
-    const summary = renderSummary(model);
 
     expect(cardIds(html)).toEqual(cards.map(({ id }) => id));
     expect(openCards(html)).toEqual([]);
     expect(html).toContain(`<p class="gist">${esc(ATTENTION_TEXT.gist(40, 32))}</p>`);
-    // The panel links its first 5 cards, each to the fold of its own, and the rest to the section.
-    expect([...summary.matchAll(/<li><a href="#(need-\d+)">/g)].map(([, id]) => id)).toEqual(
-      cards.slice(0, 5).map(({ id }) => id),
-    );
-    expect(summary).toContain(
-      '<li><a href="#need-h">and 35 more, under What needs attention</a></li>',
-    );
   });
 
   it("never makes a heading of a card, or puts one in a fold's line", async () => {
@@ -478,7 +470,7 @@ describe("renderAttention", () => {
     }
   });
 
-  it("says the line for no problem when no card is left, as the summary's panel does", () => {
+  it("says the line for no problem when no card is left", () => {
     const clean = withCards(i2i, []);
     const html = renderAttention(clean);
 
@@ -487,13 +479,12 @@ describe("renderAttention", () => {
       '<p class="gist">Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p>',
     );
     expect(html).toContain(`<p class="gist">${esc(noAttentionLine(clean.summary.attention))}</p>`);
-    expect(textOf(renderSummary(clean))).toContain(noAttentionLine(clean.summary.attention));
     // No card, so no fold, and no box for the folds.
     expect(html).not.toContain("<details");
     expect(html).not.toContain('class="folds"');
   });
 
-  it("says nothing needs attention on the pages read, and how many were skipped, as the panel does", () => {
+  it("says nothing needs attention on the pages read, and how many were skipped", () => {
     const run = shareRun({
       id: "r1",
       pages: [
@@ -512,10 +503,9 @@ describe("renderAttention", () => {
     expect(model.summary.attention.skipped).toBe(2);
     expect(html).toContain(`<p class="gist">${line}</p>`);
     expect(html).not.toContain("every page was read");
-    expect(textOf(renderSummary(model))).toContain(line);
   });
 
-  it("says no flags were raised, as the panel does, when every page was read and none raised one", () => {
+  it("says no flags were raised when every page was read and none raised one", () => {
     const model = buildShareModel(
       inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
     );
@@ -525,7 +515,6 @@ describe("renderAttention", () => {
     expect(model.summary.attention.flagsRaised).toBe(false);
     expect(renderAttention(model)).toContain(`<p class="gist">${line}</p>`);
     expect(renderAttention(model)).not.toContain("fixed or checked");
-    expect(textOf(renderSummary(model))).toContain(line);
   });
 
   it("says nothing was counted, and never that nothing needs attention, when no run counts", () => {
@@ -566,34 +555,33 @@ describe("renderAttention", () => {
 });
 
 describe("the page with the section", () => {
-  it("puts the section after the summary and before How voicecap works, with nothing of the flags found", () => {
+  it("puts the section after the summary and before Every page, with nothing of the flags found", () => {
     const page = renderSharePage(i2iModel(), { fontCss: "" });
     const markup = markupOf(page);
     const at = (id: string) => markup.indexOf(`<h2 id="${id}">`);
 
     expect(at("glance-h")).toBeGreaterThan(-1);
     expect(at("need-h")).toBeGreaterThan(at("glance-h"));
-    expect(at("need-h")).toBeLessThan(at("how-h"));
+    expect(at("need-h")).toBeLessThan(at("pages-h"));
     // A section of its own: the summary's has ended before it starts.
     expect(markup.indexOf("</section>", at("glance-h"))).toBeLessThan(at("need-h"));
     expect(page).not.toContain("What the flags found");
     expect(page).not.toContain("find-h");
   });
 
-  it("links the summary's cards, and the contents, to parts of the section that are there", async () => {
+  it("leads the contents to the section, which is there with a fold for each card", async () => {
     for (const model of [i2iModel(), await demoModel(), linkModel(PHRASES)]) {
       const markup = markupOf(renderSharePage(model, { fontCss: "" }));
       const ids = attributes(markup, "id");
       const summary = renderSummary(model);
-      const cards = [...summary.matchAll(/<li><a href="#(need-\d+)">/g)].map(([, id]) => id);
 
-      // The panel names the first 5 cards, each linked to its own.
-      expect(cards).toEqual(model.summary.attention.cards.slice(0, 5).map(({ id }) => id));
-      for (const id of [...cards, "need-h"]) expect(ids).toContain(id);
-      // The contents lead to the section first, ahead of How voicecap works.
+      // The summary no longer names the cards, as a panel once did: the section has them all.
+      expect(summary).not.toMatch(/href="#need-\d+"/);
+      for (const id of ["need-h", ...model.summary.attention.cards.map(({ id }) => id)]) {
+        expect(ids).toContain(id);
+      }
+      // The contents lead to the section first, ahead of the rest.
       expect(/<nav class="toc"[^>]*>.*?<a href="#([\w-]+)">/s.exec(summary)?.[1]).toBe("need-h");
-      // The link to the rest, when the panel leaves some out, goes to the section's heading.
-      if (model.attention.length > 5) expect(summary).toContain('<a href="#need-h">and ');
     }
   });
 

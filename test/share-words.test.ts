@@ -605,14 +605,14 @@ describe("how voicecap works", () => {
     );
   });
 
-  it("is what the page's lead and heading for the sample say", async () => {
+  it("is what the page's lead and the line of the fold for the sample say", async () => {
     const model = await demoModel();
     const html = renderHow(model);
 
     expect(paragraphOf(html, "gist")).toBe(lineText(howLead()));
-    expect(textOf(/<div class="heard">\s*<h3>(.*?)<\/h3>/s.exec(html)?.[1] ?? "")).toBe(
-      model.heard ? heardTitle(model.heard) : "",
-    );
+    expect(
+      textOf(/<details class="fold heard-fold"><summary>(.*?)<\/summary>/s.exec(html)?.[1] ?? ""),
+    ).toBe(model.heard ? heardTitle(model.heard) : "");
   });
 });
 

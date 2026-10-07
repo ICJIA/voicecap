@@ -12,8 +12,8 @@
  * page; a site whose config gives it a canonical address and a long name, which the page leads
  * with; and a site whose only run was a replay, as in CI's smoke test. Six more pages are written
  * from models: a run whose event log has all a chart can draw, three of what needs attention, with
- * 5 cards, 6 cards, and i2i's one card on 32 pages, and two whose summary has no problem to name:
- * one where every page was read, and one with a page skipped.
+ * 5 cards, 6 cards, and i2i's one card on 32 pages, and two with no problem to name: one where every
+ * page was read, and one with a page skipped.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -346,8 +346,8 @@ beforeAll(async () => {
   const five = await modelPage(linkModel(PHRASES.slice(0, 5)), "five");
   const six = await modelPage(linkModel(PHRASES.slice(0, 6)), "six");
   const i2i = await modelPage(i2iModel(), "i2i");
-  // Nothing needs attention, with every page read, and with a page skipped: the summary's panel
-  // says a line in place of the cards, and says which pages were skipped.
+  // Nothing needs attention, with every page read, and with a page skipped: no card, and no flag
+  // raised, so the details say so in place of their bar of flags by rule.
   const ofPages = (pagesRead: { path: string; status?: "skipped" }[]) =>
     buildShareModel(inputOf([shareRun({ id: "r1", pages: pagesRead })]));
   const none = await modelPage(ofPages([{ path: "/" }]), "none");
@@ -480,26 +480,33 @@ interface Box {
   width: number;
 }
 
+/** The ids of the headings of the details' three parts that are a panel under a heading. */
+const PANEL_PARTS = ["todo-h", "complete-h", "whenhow-h"];
+
 /**
- * The summary's four panels as they are drawn: the grid they are in, and each panel's title and
- * box, in page order.
+ * The details' three plain parts as they are drawn: the details' own box, and for each part its
+ * title and its panel's box, in page order.
  */
-async function panelsOf(page: Page): Promise<{ grid: Box; panels: (Box & { title: string })[] }> {
-  return page.evaluate(() => {
+async function partsOf(page: Page): Promise<{ details: Box; panels: (Box & { title: string })[] }> {
+  return page.evaluate((ids) => {
     const boxOf = (element: Element) => {
       const { left, right, top, bottom, width } = element.getBoundingClientRect();
       return { left, right, top, bottom, width };
     };
-    const found = document.querySelector(".panels");
-    if (found === null) throw new Error("The page has no grid of panels.");
+    const found = document.querySelector("#details");
+    if (found === null) throw new Error("The page has no details.");
     return {
-      grid: boxOf(found),
-      panels: [...found.querySelectorAll(":scope > .panel")].map((panel) => ({
-        title: panel.querySelector("h3")?.textContent ?? "",
-        ...boxOf(panel),
-      })),
+      details: boxOf(found),
+      panels: ids.map((id) => {
+        const heading = document.getElementById(id);
+        const panel = heading?.parentElement?.querySelector(":scope > .panel");
+        if (heading === null || heading === undefined || !panel) {
+          throw new Error(`The details have no panel under ${id}.`);
+        }
+        return { title: heading.textContent ?? "", ...boxOf(panel) };
+      }),
     };
-  });
+  }, PANEL_PARTS);
 }
 
 /**
@@ -630,6 +637,12 @@ describe("axe, in Chromium", () => {
         expect.poll(() => result(page), { timeout: 10_000 }).toMatch(start);
 
       expect(await theme()).toBe("dark");
+      // The details: its eleven parts, each a heading one level under its own, and the sample of
+      // what NVDA said folded in the one on how voicecap works. Nothing else in them is an h3.
+      expect(await page.locator("#details > h2").count()).toBe(1);
+      expect(await page.locator("#details h3").count()).toBe(11);
+      expect(await page.locator("#details > section > h3").count()).toBe(11);
+      expect(await page.locator("#how-h ~ details.heard-fold").count()).toBe(1);
       if (which === "rich") {
         // Its runs recorded their event logs: each has a chart and a folded table of its events.
         expect(await page.locator("svg.timeline").count()).toBe(2);
@@ -807,18 +820,23 @@ describe("axe, in Chromium", () => {
   );
 
   it.each([1280, 390, 320])(
-    "has no axe violations at %i px on the summary's panels when there is no problem to name, or a page was skipped, dark and light",
+    "has no axe violations at %i px on the details' parts when no flag was raised and nothing needs attention, or a page was skipped, dark and light, folds closed and open",
     async (width) => {
-      // With problems, the panels are checked above, on the pages of what needs attention. Here the
-      // first panel is a plain one, with a line in place of the cards.
+      // With flags and problems, the parts are checked above, on the demo's page and the pages of
+      // what needs attention. Here the bar of flags by rule is a line, not rows, and no card is
+      // left to name.
       for (const which of ["none", "skipped"] as const) {
         const page = await open(pages[which]);
 
-        expect(await page.locator(".panels > .panel").count(), which).toBe(4);
-        expect(await page.locator(".panels > .panel.attention").count(), which).toBe(0);
+        // The three plain parts, each a panel under its heading, and the two bars.
+        expect(await page.locator("#details > section > h3 + .panel").count(), which).toBe(3);
+        expect(await page.locator("#details > section > h3 + .meter").count(), which).toBe(2);
+        expect(await page.locator("#rules-h + .meter .rule").count(), which).toBe(0);
         expect(await axeFindings(page, width), `${which}, dark`).toEqual([]);
         await page.locator("#theme-toggle").click();
         expect(await axeFindings(page, width), `${which}, light`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(await axeFindings(page, width), `${which}, light, folds open`).toEqual([]);
       }
     },
     AXE_TIMEOUT,
@@ -874,6 +892,8 @@ describe("a page in a narrow window", () => {
     ["a paragraph", "main p"],
     ["a list item", "main li"],
     ["a section's heading", "main h3"],
+    ["a part's heading in the details", "#details > section > h3"],
+    ["a heading inside a part of the details", "#details h4"],
     ["a fold's line", "main summary"],
     ["a term", "main dt"],
     ["what a term means", "main dd"],
@@ -1017,7 +1037,9 @@ describe("the footer", () => {
 
     await page.setViewportSize({ width: 1280, height: height + 400 });
 
-    expect(before.length).toBeGreaterThan(5);
+    // The page's sections: the summary, what needs attention, every page, the details, and the
+    // appendix, so a count that found none of them can't pass for this.
+    expect(before.length).toBeGreaterThanOrEqual(4);
     expect(await sections()).toEqual(before);
   });
 
@@ -1417,14 +1439,9 @@ describe("a link into a fold", () => {
   });
 });
 
-describe("the summary's panels", () => {
-  const TITLES = [
-    "What needs attention",
-    "How complete the test was",
-    "What's still to do",
-    "When and how",
-  ];
-  /** A page for each way the first panel is written: naming problems, with none, and with a page skipped. */
+describe("the details' parts", () => {
+  const TITLES = ["What's still to do", "How complete the test was", "When and how"];
+  /** A page for each way the details are written: with problems, with none to name, and with a page skipped. */
   const STATES = [
     ["naming problems", "five"],
     ["with none to name", "none"],
@@ -1437,26 +1454,26 @@ describe("the summary's panels", () => {
     expect(Math.abs(actual - expected), `${what}: ${found}`).toBeLessThanOrEqual(1);
   }
 
-  // Each panel is a row of its own, as wide as the grid, in a wide window (where the grid once had
-  // three or four columns) and in a narrow one.
+  // Each part's panel is a row of its own, as wide as the details, in a wide window and in a narrow
+  // one, one under another in the order the spec sets them out.
   it.each(
     [1280, 1200, 390, 320].flatMap((width) =>
       STATES.map(([state, which]) => [width, state, which] as const),
     ),
   )(
-    "gives each of the four panels the grid's whole width, one under another, in order, at %i px: %s",
+    "gives each of the three plain parts' panels the details' whole width, one under another, in order, at %i px: %s",
     async (width, state, which) => {
       const page = await open(pages[which]);
       await page.setViewportSize({ width, height: 900 });
 
-      const { grid, panels } = await panelsOf(page);
+      const { details, panels } = await partsOf(page);
       const titles = panels.map(({ title }) => title);
 
       expect(titles, state).toEqual(TITLES);
       for (const [at, panel] of panels.entries()) {
-        near(panel.left, grid.left, `${state}: the left edge of ${panel.title}`);
-        near(panel.right, grid.right, `${state}: the right edge of ${panel.title}`);
-        near(panel.width, grid.width, `${state}: the width of ${panel.title}`);
+        near(panel.left, details.left, `${state}: the left edge of ${panel.title}`);
+        near(panel.right, details.right, `${state}: the right edge of ${panel.title}`);
+        near(panel.width, details.width, `${state}: the width of ${panel.title}`);
         // Each is under the one before it: its top is at or below that one's bottom.
         const above = panels[at - 1];
         if (above !== undefined) {
@@ -1467,18 +1484,50 @@ describe("the summary's panels", () => {
     },
   );
 
-  // A panel is the grid's whole width, but a line of its text stops at 80 characters, as wide as 80
-  // "0"s of its own font (`80ch`), or a line of 150 characters is hard to follow. A box set to 80ch
-  // inside each paragraph and list item, from the script, is how wide that is there.
+  // A part's heading looks like a section's, a step smaller: between a section's (an h2) and a
+  // step's or an item's (the h4 inside a part), at every width.
+  it.each([1280, 390, 320])(
+    "sets a part's heading between a section's and an item's in size, at %i px",
+    async (width) => {
+      const page = await open(pages.demo);
+      await page.setViewportSize({ width, height: 900 });
+
+      const sizes = await page.evaluate(() => {
+        const size = (selector: string): number => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          return Number.parseFloat(getComputedStyle(element).fontSize);
+        };
+        return {
+          section: size("#details-h"),
+          part: size("#todo-h"),
+          item: size("#how-h ~ .flow h4"),
+        };
+      });
+
+      expect(sizes.part, "a part, under a section").toBeLessThan(sizes.section);
+      expect(sizes.part, "a part, over an item").toBeGreaterThan(sizes.item);
+    },
+  );
+
+  // A panel is the details' whole width, but a line of its text stops at 80 characters, as wide as
+  // 80 "0"s of its own font (`80ch`), or a line of 150 characters is hard to follow. A box set to
+  // 80ch inside each paragraph and list item, from the script, is how wide that is there.
   it.each([...STATES, ["with i2i's long list of pages", "i2i"] as const])(
-    "keeps a line of the panels' paragraphs and list items to 80 characters, though each panel is the grid's width, at 1280 px: %s",
+    "keeps a line of the plain parts' paragraphs and list items to 80 characters, though each panel is the details' width, at 1280 px: %s",
     async (state, which) => {
       const page = await open(pages[which]);
       await page.setViewportSize({ width: 1280, height: 900 });
 
-      const { grid, panels } = await panelsOf(page);
-      const texts = await page.evaluate(() =>
-        [...document.querySelectorAll(".panels p, .panels li")].map((text) => {
+      const { details, panels } = await partsOf(page);
+      const texts = await page.evaluate((ids) => {
+        const inPanels = ids.flatMap((id) => {
+          const panel = document
+            .getElementById(id)
+            ?.parentElement?.querySelector(":scope > .panel");
+          return [...(panel?.querySelectorAll("p, li") ?? [])];
+        });
+        return inPanels.map((text) => {
           const eighty = document.createElement("span");
           eighty.style.display = "block";
           eighty.style.width = "80ch";
@@ -1490,15 +1539,15 @@ describe("the summary's panels", () => {
             width: text.getBoundingClientRect().width,
             measure,
           };
-        }),
-      );
+        });
+      }, PANEL_PARTS);
 
       // The panels are as wide as ever, so it is the text that is kept short of that.
-      for (const panel of panels) near(panel.width, grid.width, `${state}: ${panel.title}`);
+      for (const panel of panels) near(panel.width, details.width, `${state}: ${panel.title}`);
       expect(texts.length, state).toBeGreaterThan(5);
       for (const { words, width, measure } of texts) {
         expect(measure, `${state}: 80 characters, for "${words}"`).toBeGreaterThan(200);
-        expect(measure, `${state}: 80 characters, for "${words}"`).toBeLessThan(grid.width);
+        expect(measure, `${state}: 80 characters, for "${words}"`).toBeLessThan(details.width);
         expect(width, `${state}: "${words}" is ${width} px wide`).toBeLessThanOrEqual(measure + 1);
       }
     },
@@ -1622,27 +1671,17 @@ describe("what needs attention", () => {
     expect(outside).toEqual([]);
   });
 
-  it("opens a folded card from the summary's link to it, and brings it into view", async () => {
+  it("brings the section into view from the summary's link to it, and opens no card", async () => {
     const page = await open(pages.six);
     const asWritten = await cardStates(page);
 
-    // The panel names 5 of the 6 cards, each linked to its own, and counts the one it leaves out.
-    const panel = page.locator(".panel.attention");
-    expect(
-      await panel.locator("li a").evaluateAll((all) => all.map((a) => a.getAttribute("href"))),
-    ).toEqual(["#need-1", "#need-2", "#need-3", "#need-4", "#need-5", "#need-h"]);
-    expect(await panel.locator('a[href="#need-h"]').innerText()).toBe(
-      "and 1 more, under What needs attention",
-    );
+    // The summary names no card now, as a panel once did: it has the contents' link to the
+    // section, whose heading is in plain view, so the link opens nothing.
+    const toSection = page.locator('.toc a[href="#need-h"]');
+    expect(await toSection.innerText()).toBe("What needs attention");
+    await toSection.click();
 
-    await panel.locator('a[href="#need-5"]').click();
-
-    expect(await cardStates(page)).toEqual({ ...asWritten, "need-5": true });
-    await expect.poll(() => inView(page, "#need-5 > summary"), { timeout: 10_000 }).toBe(true);
-    // The link to the rest goes to the section's heading, which is in plain view, so opens nothing.
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await panel.locator('a[href="#need-h"]').click();
-    expect(await cardStates(page)).toEqual({ ...asWritten, "need-5": true });
+    expect(await cardStates(page)).toEqual(asWritten);
     await expect.poll(() => inView(page, "#need-h"), { timeout: 10_000 }).toBe(true);
   });
 

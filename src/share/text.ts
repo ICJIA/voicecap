@@ -50,7 +50,9 @@ export const TOP_TEXT = {
  * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
  * by a phrase that says what the bar counts), and the words for what a page's latest result can
  * be. What its panel on what needs attention says of the cards, and of there being none, is
- * `ATTENTION_TEXT`'s.
+ * `ATTENTION_TEXT`'s. On the page, the panels and bars are parts of the details (`DETAILS_TEXT`)
+ * now, except the panel on what needs attention and the bar of each page's latest result, which
+ * the page no longer draws. The Word copy still has all of them in its Summary.
  */
 export const SUMMARY_TEXT = {
   title: "Summary",
@@ -81,6 +83,19 @@ export const SUMMARY_TEXT = {
    * though no one had heard NVDA. The statement is on each page's chip, and in each run's evidence.
    */
   reviewRows: { reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
+};
+
+/**
+ * "The details, for reviewers and auditors": the section that gathers how the test was run, what it
+ * covered, and the evidence behind it, after the page's cards. Its heading, the line under it that
+ * says what is in it, and the words of the link to it ("The details", in the links to the page's
+ * sections). The parts under it keep their own headings: the Summary's panels and bars
+ * (`SUMMARY_TEXT`) and the sections that follow the cards.
+ */
+export const DETAILS_TEXT = {
+  title: "The details, for reviewers and auditors",
+  gist: "How the test was run, what it covered, and the evidence behind it.",
+  link: "The details",
 };
 
 /**

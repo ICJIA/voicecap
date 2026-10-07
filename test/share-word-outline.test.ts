@@ -62,17 +62,23 @@ function sectionsOf(blocks: Block[]): string[] {
   );
 }
 
-/** The headings of the page's sections: its `h2`s, as the words a reader gets of them. */
-function pageSections(page: string): string[] {
-  return [...page.matchAll(/<h2 id="[^"]+">(.*?)<\/h2>/g)].map(([, words]) => textOf(words ?? ""));
+/**
+ * The headings of the page's sections and of the parts of its details: its `h2`s and `h3`s that
+ * have an id, as the words a reader gets of them.
+ */
+function pageHeadings(page: string): string[] {
+  return [...page.matchAll(/<h[23] id="[^"]+">(.*?)<\/h[23]>/g)].map(([, words]) =>
+    textOf(words ?? ""),
+  );
 }
 
 describe("wordOutline", () => {
-  // The page has ten sections, and its footer is a landmark with no heading, which a screen reader
-  // announces. In Word, a footer with no heading would belong to the last transcript's heading 3,
-  // in the navigation pane and for a screen reader alike, and only a change of font would mark where
-  // it begins. So the Word copy has eleven level-1 headings: the page's ten, then the footer's.
-  it("has eleven sections: the page's ten, in the page's order, and then a heading of its own for the footer", async () => {
+  // The page's footer is a landmark with no heading, which a screen reader announces. In Word, a
+  // footer with no heading would belong to the last transcript's heading 3, in the navigation pane
+  // and for a screen reader alike, and only a change of font would mark where it begins. So the Word
+  // copy has eleven level-1 headings: ten that the page has too (its sections', and the parts of
+  // its details), then the footer's.
+  it("has eleven sections: ten that the page has too, and then a heading of its own for the footer", async () => {
     const model = await demoModel();
     const sections = sectionsOf(wordOutline(model));
     const page = renderSharePage(model, { fontCss: "" });
@@ -90,8 +96,7 @@ describe("wordOutline", () => {
       "Appendix: every transcript",
       "About this report",
     ]);
-    expect(pageSections(page)).toHaveLength(10);
-    expect(sections.slice(0, 10)).toEqual(pageSections(page));
+    expect(pageHeadings(page)).toEqual(expect.arrayContaining(sections.slice(0, 10)));
     expect(sections.at(-1)).toBe("About this report");
     // The flags found are cards under what needs attention, which follows the summary.
     expect(sections).not.toContain("What the flags found");
@@ -102,7 +107,9 @@ describe("wordOutline", () => {
     const sections = sectionsOf(wordOutline(none));
 
     expect(sections).toHaveLength(11);
-    expect(sections.slice(0, 10)).toEqual(pageSections(renderSharePage(none, { fontCss: "" })));
+    expect(pageHeadings(renderSharePage(none, { fontCss: "" }))).toEqual(
+      expect.arrayContaining(sections.slice(0, 10)),
+    );
     expect(sections.slice(0, 3)).toEqual(["Summary", "What needs attention", "How voicecap works"]);
     expect(sections.at(-1)).toBe("About this report");
   });

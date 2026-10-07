@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { esc } from "../src/report/html.js";
-import { renderSummary, renderTop } from "../src/share/html/top.js";
+import { renderTop, reviewPart, rulesPart } from "../src/share/html/top.js";
 import { lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
@@ -32,7 +32,6 @@ import {
 import { wordHow, wordSummary, wordTop } from "../src/share/word/top.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
-import { textOf } from "./helpers/share-html.js";
 import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
 import { boldIn, hrefsOf, linesIn, outlineOf, tableAt, tablesIn, under } from "./helpers/word.js";
 
@@ -380,19 +379,6 @@ describe("wordSummary", () => {
     expect(wordsOf(forty)).toHaveLength(7);
   });
 
-  it("says the lines the page's panel says, without its links", async () => {
-    for (const model of [await demoModel(), withCards(cleanModel(), problemsOf(7))]) {
-      const html = renderSummary(model);
-      const panel = /<div class="panel attention[^"]*">.*?<\/div>/s.exec(html)?.[0] ?? "";
-      const lines = [...panel.matchAll(/<(?:p|li)>(.*?)<\/(?:p|li)>/gs)].map(([, said = ""]) =>
-        textOf(said, ""),
-      );
-
-      expect(lines.length).toBeGreaterThan(1);
-      expect(wordsOf(under(wordSummary(model), "What needs attention"))).toEqual(lines);
-    }
-  });
-
   it("says nothing needs attention on the pages read, and how many were skipped, when pages were skipped", () => {
     const run = shareRun({
       id: "r1",
@@ -414,10 +400,6 @@ describe("wordSummary", () => {
       cards: [],
     });
     expect(under(wordSummary(model), "What needs attention")).toEqual([para(line)]);
-    // The page's panel says the same line.
-    expect(
-      textOf(renderSummary(model).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? ""),
-    ).toBe(line);
     // With problems, the pages skipped are not part of the panel.
     const problems = under(
       wordSummary(withCards(cleanModel(), problemsOf(2), 3)),
@@ -432,8 +414,6 @@ describe("wordSummary", () => {
     const checked = withSummary(model, {
       attention: { ...model.summary.attention, flagsRaised: true },
     });
-    const panelLine = (shown: ShareModel) =>
-      textOf(renderSummary(shown).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? "");
 
     expect(model.summary.attention).toEqual({
       problems: 0,
@@ -450,13 +430,6 @@ describe("wordSummary", () => {
         "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
       ),
     ]);
-    // The page's panel says the same line.
-    expect(panelLine(model)).toBe(
-      "Nothing needs attention: every page was read, and no flags were raised.",
-    );
-    expect(panelLine(checked)).toBe(
-      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-    );
   });
 
   it("lists how complete the test was, with the line on the run before last", async () => {
@@ -593,27 +566,31 @@ describe("wordSummary", () => {
 
   it("says under each bar's title, before its table, what the page says beside the title", async () => {
     const model = await demoModel();
-    const page = renderSummary(model);
+    // The page's two bars are parts of its details, each with the phrase beside its title.
+    const page = rulesPart(model.summary) + reviewPart(model.summary);
     const summary = wordSummary(model);
     const notes = [
       [
         "Flags by rule",
+        "rules-h",
         SUMMARY_TEXT.rulesNote,
         "Times each rule was raised, across pages and passes.",
       ],
-      ["The human review", SUMMARY_TEXT.reviewNote, "Each out of its total."],
+      ["The human review", "review-h", SUMMARY_TEXT.reviewNote, "Each out of its total."],
     ] as const;
 
     // The page's words, as its summary text has them, so that both copies say the same.
     expect(SUMMARY_TEXT.rulesNote).toBe("times each rule was raised, across pages and passes");
     expect(SUMMARY_TEXT.reviewNote).toBe("each out of its total");
-    for (const [title, note, said] of notes) {
+    for (const [title, id, note, said] of notes) {
       // The last section of the summary ends with its page break, after the table.
       const [first, second] = under(summary, title);
 
       // The page still says it, beside the title. The Word copy says it as a paragraph of its own:
       // the same words, with a capital and a full stop, and then the table.
-      expect(page, title).toContain(`<h3>${esc(title)} <span class="sub">${esc(note)}</span></h3>`);
+      expect(page, title).toContain(
+        `<h3 id="${id}">${esc(title)} <span class="sub">${esc(note)}</span></h3>`,
+      );
       expect([first?.kind, second?.kind], title).toEqual(["para", "table"]);
       expect(wordsOf(first ? [first] : []), title).toEqual([said]);
       expect(said.toLowerCase(), title).toBe(`${note}.`);
