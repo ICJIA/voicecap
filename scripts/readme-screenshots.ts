@@ -14,8 +14,9 @@
  *
  *   report-top.png           the page's masthead, and its summary down to the end of its panels
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page
- *   report-attention.png     "What needs attention", with each fold open
- *   report-pages.png         "Every page": its first cards, each with its page's screenshot
+ *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
+ *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot (the
+ *                            first row with no biography page, so no person's photo or name shows)
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the site's report under "The sites", dark
@@ -73,6 +74,11 @@ const SCALE = 2;
  */
 const SLICE_MARGIN = 16;
 const PANEL_MARGIN = 8;
+/**
+ * What the address of a biography has in it: each page of the i2i team's biographies shows a person's
+ * photo and name. A shot of page cards leaves the rows that have one out.
+ */
+const BIOGRAPHIES = "/biographies/";
 
 /** The eight files this writes, in the order it takes them. */
 export const SCREENSHOTS = [
@@ -229,25 +235,41 @@ async function downTo(page: Page, selector: string, last: string, margin: number
 }
 
 /**
- * `selector`'s element from its top down to the bottom of the first row of `cards`, the elements of
- * a grid: those that start as high as the first one does, and the lowest of them ends the row.
+ * The first row of `cards`, the elements of a grid, with no card that has `avoid` in its text, and
+ * `margin` of the page around it. The cards that start as high as each other are a row, and the row
+ * is as wide as its cards and as tall as the tallest, so none is cut off. Stops when every row has
+ * a card with `avoid` in it.
  */
-async function downToFirstRow(
+export async function firstRowWithout(
   page: Page,
-  selector: string,
   cards: string,
+  avoid: string,
   margin: number,
 ): Promise<Region> {
-  const box = await boxOf(page, selector);
-  const bottom = await page.evaluate((target) => {
-    const found = [...document.querySelectorAll(target)];
-    const [first] = found;
-    if (first === undefined) throw new Error(`${target} isn't on the page.`);
-    const top = first.getBoundingClientRect().top;
-    const row = found.filter((card) => Math.abs(card.getBoundingClientRect().top - top) < 2);
-    return Math.max(...row.map((card) => card.getBoundingClientRect().bottom)) + window.scrollY;
-  }, cards);
-  return withMargin({ ...box, bottom }, margin);
+  const row = await page.evaluate(
+    ({ target, text }) => {
+      const rows: Element[][] = [];
+      let top = Number.NEGATIVE_INFINITY;
+      for (const card of document.querySelectorAll(target)) {
+        const at = card.getBoundingClientRect().top;
+        if (Math.abs(at - top) >= 2) rows.push([]);
+        top = at;
+        rows.at(-1)?.push(card);
+      }
+      const found = rows.find((each) => each.every((card) => !card.textContent?.includes(text)));
+      if (found === undefined) return null;
+      const boxes = found.map((card) => card.getBoundingClientRect());
+      return {
+        left: Math.min(...boxes.map((box) => box.left)) + window.scrollX,
+        top: Math.min(...boxes.map((box) => box.top)) + window.scrollY,
+        right: Math.max(...boxes.map((box) => box.right)) + window.scrollX,
+        bottom: Math.max(...boxes.map((box) => box.bottom)) + window.scrollY,
+      };
+    },
+    { target: cards, text: avoid },
+  );
+  if (row === null) throw new Error(`Every row of ${cards} has "${avoid}" in it.`);
+  return withMargin(row, margin);
 }
 
 /** The edges of `selector`'s element. */
@@ -330,17 +352,19 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
     );
     await shoot(page, "report-heard.png", await around(page, "div.heard", PANEL_MARGIN));
 
-    // The card, and the fold of its pages: each is open.
+    // The card, open, with its pages behind their fold: it names how many there are, and their
+    // addresses are a long list. Opening the card opens none of the folds inside it.
     const attention = "section:has(> #need-h)";
-    await openFolds(page, attention, true);
+    await openFolds(page, `${attention} .folds > details`, false);
     await shoot(page, "report-attention.png", await around(page, attention, SLICE_MARGIN));
 
-    // "Every page": its heading and the first row of cards, each with its page's screenshot. The row
-    // ends before the next one starts, so no card is cut off.
+    // "Every page": a row of its cards, each with its page's screenshot: the first row with no
+    // biography on it, so that no person's photo or name is in the picture. The row ends before the
+    // next one starts, so no card is cut off.
     await shoot(
       page,
       "report-pages.png",
-      await downToFirstRow(page, "section#pages", "#pages .card", PANEL_MARGIN),
+      await firstRowWithout(page, "#pages .card", BIOGRAPHIES, PANEL_MARGIN),
     );
 
     // The run's fold, open, down to the end of its minute by minute: the run's facts, the chart,

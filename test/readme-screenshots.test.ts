@@ -15,6 +15,7 @@ import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  firstRowWithout,
   makeScreenshots,
   refuseLocalAddress,
   SCREENSHOTS,
@@ -192,6 +193,57 @@ describe("a shot of a page", () => {
     await expect(
       shooter(into, taken)(page, "report-heard.png", { ...WHOLE, y: 1900, height: 300 }),
     ).rejects.toThrow(/^report-heard\.png would show "localhost"/);
+  });
+
+  describe("the row of a grid of cards that has none of a kind", () => {
+    /**
+     * Six cards, two to a row, 100 px wide and 50 px tall with 10 px between them, from the page's
+     * top left corner: the rows are at 0, 60, and 120, and the second ends at 110.
+     */
+    async function gridOf(cards: string[]) {
+      return pageOf(
+        `<style>
+           body { margin: 0 }
+           .grid { display: grid; grid-template-columns: repeat(2, 100px); gap: 10px }
+           .card { height: 50px }
+         </style>
+         <div class="grid">${cards.map((text) => `<article class="card">${text}</article>`).join("")}</div>`,
+      );
+    }
+
+    it("is the first row without one, with the margin around it, whichever of its cards has one", async () => {
+      // The first row's second card is a person's page, so the whole row is passed over.
+      const page = await gridOf([
+        "/",
+        "/biographies/aaliyah-gaston/",
+        "/contact/",
+        "/privacy/",
+        "/search/",
+        "/biographies/andrea-gatewood/",
+      ]);
+
+      expect(await firstRowWithout(page, ".card", "/biographies/", 4)).toEqual({
+        x: 0,
+        y: 56,
+        width: 214,
+        height: 58,
+      });
+    });
+
+    it("is the first row when it has none, and stops when every row has one", async () => {
+      const first = await gridOf(["/", "/contact/", "/privacy/", "/search/"]);
+      expect(await firstRowWithout(first, ".card", "/biographies/", 0)).toEqual({
+        x: 0,
+        y: 0,
+        width: 210,
+        height: 50,
+      });
+
+      const every = await gridOf(["/biographies/a/", "/b/", "/biographies/c/", "/biographies/d/"]);
+      await expect(firstRowWithout(every, ".card", "/biographies/", 4)).rejects.toThrow(
+        'Every row of .card has "/biographies/" in it.',
+      );
+    });
   });
 });
 
