@@ -506,7 +506,7 @@ describe("every address the page shows for a page", () => {
 
     expect(model.changes?.line).toContain(resolved);
     expect(model.summary.changesLine).toContain(
-      `this flag is resolved: on ${on("apply/")}, the links that don't say where they go.`,
+      `this flag is resolved: the links that don't say where they go, on ${on("apply/")}.`,
     );
   });
 

@@ -7,6 +7,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 ### Changed
 
 - **The summary's four panels are full-width rows,** one under another, in this order: "What needs attention", "How complete the test was", "What's still to do", and "When and how". "What needs attention" had a row of its own, and the other three sat side by side under it, which was a lot to read at once. Nothing changes in the Word copy, which has no columns. A page already shared is as it was: only pages made from now on change.
+- **The summary's "Since the last run" line groups the pages a flag was resolved on,** and says each flag once. It named every page and what was resolved on it, so a flag resolved on all 32 pages made a line of 32 items. Now: `Since the last run on 6 October: 32 pages sound different, and this flag is resolved: the unnamed items, on all 32 of them.` A flag resolved on one page names it ("the links that don't say where they go, on Common mistakes"), and one resolved on some of the pages that sound different counts them ("on 3 of them"). Several flags are set apart by semicolons, in the order each first appears. "What changed since the last run" still lists each page, with its rule. The Word copy's summary says it the same way.
 
 ## [0.12.0] - 2026-10-07
 

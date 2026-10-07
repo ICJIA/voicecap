@@ -919,7 +919,7 @@ describe("changesOf: runs that read different passes", () => {
       "Since the last run on 26 September: in the passes both runs read, every page read in full in both runs sounds the same.",
     );
     expect(flagged.summaryLine).toBe(
-      "Since the last run on 26 September: in the passes both runs read, 3 pages sound different; resolved: on Common mistakes, the links that don't say where they go.",
+      "Since the last run on 26 September: in the passes both runs read, 3 pages sound different; resolved: the links that don't say where they go, on Common mistakes.",
     );
     expect(plain.summaryLine).toBe(
       "Since the last run on 26 September: in the passes both runs read, 1 page sounds different.",
@@ -928,6 +928,44 @@ describe("changesOf: runs that read different passes", () => {
     expect(same.line).toBe("Every page read in full in both runs sounds exactly the same.");
     expect(flagged.line).toBe(
       "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Common mistakes, the links that don't say where they go (generic-link-text).",
+    );
+  });
+
+  it("groups the resolved flags in that summary too, after its semicolon", () => {
+    const changes = allThenRead(
+      [
+        {
+          path: "/a",
+          label: "Contact",
+          flags: [flag("unlabeled", "read")],
+          passes: { read: ["a1"] },
+        },
+        {
+          path: "/b",
+          label: "Reports",
+          flags: [flag("unlabeled", "read"), flag("generic-link-text", "read")],
+          passes: { read: ["b1"] },
+        },
+        {
+          path: "/c",
+          label: "Home",
+          flags: [flag("unlabeled", "read")],
+          passes: { read: ["c1"] },
+        },
+      ],
+      [
+        { path: "/a", label: "Contact", passes: { read: ["a2"] } },
+        { path: "/b", label: "Reports", passes: { read: ["b2"] } },
+        { path: "/c", label: "Home", passes: { read: ["c2"] } },
+      ],
+    );
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: in the passes both runs read, 3 pages sound different; resolved: the unnamed items, on all 3 of them; the links that don't say where they go, on Reports.",
+    );
+    // The section's line names each page, as it does when the runs read the same passes.
+    expect(changes.line).toBe(
+      "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Contact, the unnamed items (unlabeled); on Reports, the unnamed items (unlabeled); on Reports, the links that don't say where they go (generic-link-text); on Home, the unnamed items (unlabeled).",
     );
   });
 
@@ -1276,6 +1314,37 @@ describe("changesOf: the lines that open the section and the summary", () => {
     pass: "headings",
     message: "The first heading is level 2, not level 1.",
   };
+  /**
+   * What changed when each page, given by its label and the flags it had in the earlier run, sounds
+   * different in the later run and has no flags in it: each flag is resolved, on every changed page
+   * that had it. `same` pages that sound the same in both runs are read too.
+   */
+  const resolving = (pages: [label: string, flags: FlagResult[]][], same = 0) => {
+    const unchanged = (): SharePageSpec[] =>
+      Array.from({ length: same }, (_, at) => ({
+        path: `/same-${at + 1}`,
+        passes: { read: ["The same"] },
+      }));
+    return compare(
+      [
+        ...pages.map(([label, flags], at) => ({
+          path: `/p${at + 1}`,
+          label,
+          flags,
+          passes: { read: [`Before ${at + 1}`] },
+        })),
+        ...unchanged(),
+      ],
+      [
+        ...pages.map(([label], at) => ({
+          path: `/p${at + 1}`,
+          label,
+          passes: { read: [`After ${at + 1}`] },
+        })),
+        ...unchanged(),
+      ],
+    );
+  };
 
   it("says how many pages sound different, and which flags were resolved", () => {
     const changes = compare(
@@ -1292,7 +1361,7 @@ describe("changesOf: the lines that open the section and the summary", () => {
       "Compared with the run on 26 September: 3 of 7 pages sound different, and 4 sound exactly the same. Resolved: on Common mistakes, the links that don't say where they go (generic-link-text).",
     );
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: on Common mistakes, the links that don't say where they go.",
+      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: the links that don't say where they go, on Common mistakes.",
     );
   });
 
@@ -1315,13 +1384,14 @@ describe("changesOf: the lines that open the section and the summary", () => {
       ],
     );
 
-    // People hear these read aloud, so each says where first, and the items are set apart by
-    // semicolons, since a plain name can have a comma of its own.
+    // People hear these read aloud, so the section's line says where first, and the items are set
+    // apart by semicolons, since a plain name can have a comma of its own. The summary says what
+    // was resolved first, and groups it (below): here each flag was on a page of its own.
     expect(changes.line).toBe(
       "Compared with the run on 26 September: 3 of 3 pages sound different, and 0 sound exactly the same. Resolved: on Contact, the unnamed items (unlabeled); on Common mistakes, the links that don't say where they go (generic-link-text); on Home, the heading structure (headings).",
     );
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: on Contact, the unnamed items; on Common mistakes, the links that don't say where they go; on Home, the heading structure.",
+      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: the unnamed items, on Contact; the links that don't say where they go, on Common mistakes; the heading structure, on Home.",
     );
   });
 
@@ -1342,6 +1412,134 @@ describe("changesOf: the lines that open the section and the summary", () => {
     );
   });
 
+  it("says a flag resolved on every changed page once, with how many pages that is: the i2i shape, one problem on 32 pages", () => {
+    const pages = Array.from({ length: 32 }, (_, at): [string, FlagResult[]] => [
+      `Page ${at + 1}`,
+      [unnamed],
+    ]);
+
+    const changes = resolving(pages);
+
+    expect(changes.changed).toHaveLength(32);
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 32 pages sound different, and this flag is resolved: the unnamed items, on all 32 of them.",
+    );
+    // The section's line is as it was: each page, with its rule.
+    expect(changes.line).toBe(
+      "Compared with the run on 26 September: 32 of 32 pages sound different, and 0 sound exactly the same. Resolved: " +
+        `${pages.map(([label]) => `on ${label}, the unnamed items (unlabeled)`).join("; ")}.`,
+    );
+  });
+
+  it("says all of them only when a flag was resolved on every changed page, however many pages sound the same", () => {
+    // 7 pages were read in both runs, and 2 sound different: the flag was on both of those.
+    const changes = resolving(
+      [
+        ["Contact", [unnamed]],
+        ["Reports", [unnamed]],
+      ],
+      5,
+    );
+
+    expect([changes.changed.length, changes.same]).toEqual([2, 5]);
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 2 pages sound different, and this flag is resolved: the unnamed items, on all 2 of them.",
+    );
+  });
+
+  it("says how many of the changed pages a flag was resolved on, when it wasn't all of them", () => {
+    const changes = resolving([
+      ["Contact", [unnamed]],
+      ["Reports", [unnamed]],
+      ["Grants", []],
+      ["Home", [unnamed]],
+    ]);
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 4 pages sound different, and this flag is resolved: the unnamed items, on 3 of them.",
+    );
+    // The section's line still says which three.
+    expect(changes.line).toContain(
+      "Resolved: on Contact, the unnamed items (unlabeled); on Reports, the unnamed items (unlabeled); on Home, the unnamed items (unlabeled).",
+    );
+  });
+
+  it("names the page when a flag was resolved on one page, even when it is the only page that changed", () => {
+    const some = resolving([
+      ["Contact", []],
+      ["Common mistakes", [generic]],
+      ["Home", []],
+    ]);
+    const only = resolving([["Home", [unnamed]]]);
+
+    expect(some.summaryLine).toBe(
+      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: the links that don't say where they go, on Common mistakes.",
+    );
+    // One page is named, not "all 1 of them", though every page that changed had the flag.
+    expect(only.summaryLine).toBe(
+      "Since the last run on 26 September: 1 page sounds different, and this flag is resolved: the unnamed items, on Home.",
+    );
+  });
+
+  it("groups the flags by what they found: each once, in the order its flag first appears, set apart by semicolons", () => {
+    const changes = resolving([
+      ["Contact", [unnamed]],
+      ["Reports", [generic]],
+      ["Grants", [unnamed]],
+      ["Home", []],
+    ]);
+
+    // "The unnamed items" first appears on Contact, before the links on Reports, though it is on
+    // Grants too.
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 4 pages sound different, and these flags are resolved: the unnamed items, on 2 of them; the links that don't say where they go, on Reports.",
+    );
+  });
+
+  it("says all of them for the flag that was on every changed page beside one on a page of its own", () => {
+    const changes = resolving([
+      ["Contact", [unnamed]],
+      ["Reports", [unnamed, generic]],
+      ["Home", [unnamed]],
+    ]);
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 3 pages sound different, and these flags are resolved: the unnamed items, on all 3 of them; the links that don't say where they go, on Reports.",
+    );
+  });
+
+  it("counts a flag only on the pages that are rid of its rule, not those that still have it in another pass", () => {
+    const unnamedTab: FlagResult = { ...unnamed, pass: "tab" };
+    const t = transcripts();
+    const earlier = t.run({
+      id: "r1",
+      createdAt: BEFORE,
+      passes: ["read", "tab"],
+      pages: [
+        { path: "/a", label: "Contact", flags: [unnamed], passes: { read: ["a1"] } },
+        // Gone from the read pass here, but the page still has it in the Tab pass.
+        { path: "/b", label: "Reports", flags: [unnamed], passes: { read: ["b1"] } },
+        { path: "/c", label: "Home", flags: [unnamed], passes: { read: ["c1"] } },
+      ],
+    });
+    const later = t.run({
+      id: "r2",
+      createdAt: AFTER,
+      passes: ["read", "tab"],
+      pages: [
+        { path: "/a", label: "Contact", passes: { read: ["a2"] } },
+        { path: "/b", label: "Reports", flags: [unnamedTab], passes: { read: ["b2"] } },
+        { path: "/c", label: "Home", passes: { read: ["c2"] } },
+      ],
+    });
+
+    const changes = changesOf(earlier, later, t.body, pageName);
+
+    expect(changes.summaryLine).toBe(
+      "Since the last run on 26 September: 3 pages sound different, and this flag is resolved: the unnamed items, on 2 of them.",
+    );
+  });
+
   it.each([
     ["generic-link-text", "the links that don't say where they go"],
     ["unlabeled", "the unnamed items"],
@@ -1358,7 +1556,7 @@ describe("changesOf: the lines that open the section and the summary", () => {
     );
 
     expect(changes.line).toContain(`Resolved: on Home, ${plain} (${rule}).`);
-    expect(changes.summaryLine).toContain(`this flag is resolved: on Home, ${plain}.`);
+    expect(changes.summaryLine).toContain(`this flag is resolved: ${plain}, on Home.`);
   });
 
   it("says nothing of resolved flags when none were", () => {
@@ -1470,7 +1668,7 @@ describe("changesOf: the lines that open the section and the summary", () => {
     // The id is said once, since there is no plain name for it to follow.
     expect(changes.line).toContain("Resolved: on Home, brand-name; on Home, constructor.");
     expect(changes.summaryLine).toBe(
-      "Since the last run on 26 September: 1 page sounds different, and these flags are resolved: on Home, brand-name; on Home, constructor.",
+      "Since the last run on 26 September: 1 page sounds different, and these flags are resolved: brand-name, on Home; constructor, on Home.",
     );
   });
 
