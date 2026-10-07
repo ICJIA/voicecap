@@ -992,6 +992,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.11.0</b>: each run's event log, with the program that took the screen, and a screenshot of each page, on the page and in its Word copy; and footers that stay at the window's bottom.",
   },
   {
+    date: "2026-10-07",
+    release: "0.12.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.12.0</b>: what needs attention, as a card for each problem: what NVDA says and where, the likely cause, the fix in the code, and the path forward; a review settles a flag; and five numbers.",
+  },
+  {
     date: null,
     release: null,
     pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",

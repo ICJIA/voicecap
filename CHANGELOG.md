@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-07
+
 "What needs attention" is a section of its own on the shareable page and in its Word copy, with a card for each problem: what NVDA says and where, the likely cause, why it matters, the fix in the code, and the path forward. A review settles the flags it decides about, and the summary has five numbers, with a sentence that counts the problems that come from flags. A page already shared is as it was: only pages made from now on change.
 
 ### Added
@@ -452,7 +454,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/ICJIA/voicecap/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/ICJIA/voicecap/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/ICJIA/voicecap/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/ICJIA/voicecap/compare/v0.9.0...v0.9.1
