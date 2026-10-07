@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-10-07
+
 ### Added
 
 - **The website's card says what a report found,** so a manager who asks "Did it pass?" has the answer without opening the report. Under the current report's date, in the report's own words: `Nothing needs attention: NVDA read all 9 pages.`, after a green ✓; `1 problem needs attention, on 32 pages. NVDA read all 32 pages.`, after an amber ⚠; and the same in red when NVDA read fewer pages than are in scope (`NVDA read 7 of the 9 pages.`). The sign is drawn by the page's style, so a screen reader reads the words alone. The README's "The website: `voicecap site`" describes it.
@@ -480,7 +482,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.3...HEAD
+[0.12.3]: https://github.com/ICJIA/voicecap/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/ICJIA/voicecap/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/ICJIA/voicecap/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/ICJIA/voicecap/compare/v0.11.0...v0.12.0
