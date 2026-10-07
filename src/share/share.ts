@@ -19,8 +19,9 @@
  * without it.
  *
  * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
- * name, the runs the copies drew on, and each file's size and SHA-256, with a walkthrough file's
- * run. The output ends with a line to paste into the email that sends the pair, so a receiver can
+ * name, the runs the copies drew on, what the copies say of the site (its pages, those NVDA read,
+ * and the problems left and the pages they're on, from the model the copies are made from, for the
+ * website's card), and each file's size and SHA-256, with a walkthrough file's run. The output ends with a line to paste into the email that sends the pair, so a receiver can
  * check a file against the sender's own fingerprint. The line names only the pair: the walkthrough
  * files aren't what's emailed.
  *
@@ -208,6 +209,13 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
         site,
         // The model lists the runs the copies draw on latest first.
         runs: model.evidence.map(({ run }) => run.id).reverse(),
+        // What the copies say of the site, from the same model, for the website's card.
+        result: {
+          pages: model.summary.numbers.pagesInScope,
+          read: model.summary.numbers.transcribed,
+          problems: model.summary.attention.problems,
+          problemPages: model.summary.attention.pages,
+        },
         files: copies.map(recordOf),
       });
     } catch (error) {

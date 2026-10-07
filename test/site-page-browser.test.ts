@@ -69,6 +69,37 @@ function longContent(): SiteContent {
   };
 }
 
+/**
+ * Three sites whose current reports say each kind of verdict: nothing needs attention, problems that
+ * need attention, and pages NVDA didn't read.
+ */
+function verdictContent(): SiteContent {
+  const results: NonNullable<PublishedReport["result"]>[] = [
+    { pages: 9, read: 9, problems: 0, problemPages: 0 },
+    { pages: 32, read: 32, problems: 1, problemPages: 32 },
+    { pages: 9, read: 7, problems: 2, problemPages: 2 },
+  ];
+  return {
+    demo: null,
+    sites: results.map((result, index) => {
+      const folder = `site-${index + 1}.example.illinois.gov`;
+      const report: PublishedReport = {
+        folder,
+        id: `report-${folder}-1`,
+        at: `2026-10-0${index + 1}T10:00:00-05:00`,
+        by: "Pat Lee",
+        files: [
+          published("page", folder, `${folder}_2026-10-0${index + 1}.html`, 100),
+          published("word", folder, `${folder}_2026-10-0${index + 1}.docx`, 40),
+        ],
+        notPublished: [],
+        result,
+      };
+      return { name: folder, folders: [folder], reports: [report] };
+    }),
+  };
+}
+
 /** A demo and 14 sites of one report each: more sites than anyone wants to meet as landmarks. */
 function manyContent(): SiteContent {
   const day = (index: number): string => String(index + 1).padStart(2, "0");
@@ -95,7 +126,7 @@ let folder: string;
  * The page files: the tests' content, a site with names as long as they can be, many sites, and no
  * report at all.
  */
-let files: { page: string; long: string; many: string; empty: string };
+let files: { page: string; long: string; many: string; empty: string; verdicts: string };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
 const reported: string[] = [];
@@ -114,6 +145,7 @@ beforeAll(async () => {
     long: await write("long.html", longContent()),
     many: await write("many.html", manyContent()),
     empty: await write("empty.html", { demo: null, sites: [] }),
+    verdicts: await write("verdicts.html", verdictContent()),
   };
 });
 
@@ -333,11 +365,60 @@ describe("the site's page", () => {
     AXE_TIMEOUT,
   );
 
+  it(
+    "passes axe with zero violations, dark and light, with each kind of verdict on a card",
+    async () => {
+      const page = await open(files.verdicts);
+      expect(await page.locator("p.verdict").count()).toBe(3);
+
+      expect(await axeFindings(page, 1280), "dark").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, 1280), "light").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("draws each kind of verdict's sign before its words, in a color of its own in both themes, which a screen reader doesn't read", async () => {
+    const page = await open(files.verdicts);
+    const signs = () =>
+      page.locator("p.verdict").evaluateAll((lines) =>
+        lines.map((line) => {
+          const before = getComputedStyle(line, "::before");
+          return { content: before.content, color: before.color };
+        }),
+      );
+
+    for (const theme of ["dark", "light"]) {
+      const seen = await signs();
+      // The sign, with no words for a screen reader to read: the line's own words say it.
+      expect(
+        seen.map(({ content }) => content),
+        theme,
+      ).toEqual(['"✓" / ""', '"⚠" / ""', '"⚠" / ""']);
+      expect(new Set(seen.map(({ color }) => color)).size, theme).toBe(3);
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+    // What Chromium's accessibility tree gives a screen reader for each line: its words alone.
+    const client = await page.context().newCDPSession(page);
+    try {
+      const { nodes } = await client.send("Accessibility.getFullAXTree");
+      const texts = nodes
+        .map((node): unknown => node.name?.value)
+        .filter((name): name is string => typeof name === "string")
+        .filter((name) => /needs? attention/.test(name));
+      expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
+      expect(texts).toContain("Nothing needs attention: NVDA read all 9 pages.");
+    } finally {
+      await client.detach();
+    }
+  });
+
   it.each([
     ["the tests' content", 390, "page"],
     ["the tests' content", 320, "page"],
     ["names as long as they can be", 390, "long"],
     ["names as long as they can be", 320, "long"],
+    ["each kind of verdict", 320, "verdicts"],
   ] as const)(
     "passes axe with zero violations, dark and light, at a phone's width: %s, %i px",
     async (_, width, which) => {

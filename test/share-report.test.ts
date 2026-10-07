@@ -471,6 +471,31 @@ describe("shareReport", () => {
     expect(entry.runs).toEqual([first.runId, second.runId]);
   });
 
+  // 0.12.3: the website's card shows it, so a manager sees the result without opening the page.
+  it("records what the copies say of the site: its pages, those read, and the problems left and the pages they're on", async () => {
+    const { options } = await homeWithRun();
+
+    const { entry, files } = await shareReport(options);
+
+    // The scripted site has three pages, and NVDA read them all.
+    expect(entry.result).toMatchObject({ pages: 3, read: 3 });
+    // Its problems are those the page says need attention, on the pages it says.
+    const page = await readFile(files[0]!.path, "utf8");
+    const said = /(\d+) problems?, on (\d+) pages?\. Fix each one/.exec(page);
+    expect(said).not.toBeNull();
+    expect(entry.result).toEqual({
+      pages: 3,
+      read: 3,
+      problems: Number(said?.[1]),
+      problemPages: Number(said?.[2]),
+    });
+    expect(entry.result?.problems).toBeGreaterThan(0);
+    // Sealed with the rest, in the record too.
+    expect(entry.seal).toBe(sealOf(entry));
+    const [recorded] = (await readShares(path.dirname(path.dirname(files[0]!.path)))).shares;
+    expect(recorded?.result).toEqual(entry.result);
+  });
+
   it("takes the name as a review does, when --reviewer gives none", async () => {
     const { options } = await homeWithRun();
 
@@ -782,6 +807,7 @@ describe("shareReport", () => {
       const { entry } = await shareReport({ ...options, now: ON, config: configNaming(DEMO_ROOT) });
 
       expect(entry.site).toBe(DEMO_ROOT);
+      // With what the copies say of the site, from 0.12.3, after the runs.
       expect(Object.keys(entry)).toEqual([
         "seq",
         "prev",
@@ -789,6 +815,7 @@ describe("shareReport", () => {
         "by",
         "site",
         "runs",
+        "result",
         "files",
         "seal",
       ]);

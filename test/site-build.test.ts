@@ -375,6 +375,8 @@ interface SmallShare {
   /** Anything a record might hold: a root, or something no share would write. */
   site?: unknown;
   page?: string;
+  /** What the share says of the site (from 0.12.3), as a record might hold it. */
+  result?: unknown;
 }
 
 /**
@@ -390,12 +392,15 @@ async function homeWithSites(sites: Record<string, (string | SmallShare)[]>): Pr
     const shares: unknown[] = [];
     for (const [index, report] of reports.entries()) {
       const share: SmallShare = typeof report === "string" ? { at: report } : report;
-      const { at, site, page = `${folder}_${index + 1}.html` } = share;
+      const { at, site, page = `${folder}_${index + 1}.html`, result } = share;
       const bytes = Buffer.from(`<!doctype html><title>${folder} ${index + 1}</title>`);
       await mkdir(path.join(siteDir, "share"), { recursive: true });
       await writeFile(path.join(siteDir, "share", page), bytes);
       shares.push(
-        sealedEntry(index + 1, at, [recordOf(page, bytes)], site === undefined ? {} : { site }),
+        sealedEntry(index + 1, at, [recordOf(page, bytes)], {
+          ...(site === undefined ? {} : { site }),
+          ...(result === undefined ? {} : { result }),
+        }),
       );
     }
     await writeRecord(siteDir, shares);
@@ -1274,6 +1279,7 @@ describe("buildSite", () => {
                 at: EXAMPLE_AT,
                 by: "Sam Rivera",
                 site: null,
+                result: null,
                 files: [recordOf(name, bytes)],
               },
             ],
@@ -2698,6 +2704,34 @@ describe("buildSite", () => {
           "",
         ].join("\n"),
       );
+    });
+
+    // 0.12.3: the card of a site's current report says what its copies say of the site.
+    it("gives each report the result its entry records, for its card, and none to one that records none", async () => {
+      const nothing = { pages: 9, read: 9, problems: 0, problemPages: 0 };
+      const home = await homeWithSites({
+        [DVFR]: [
+          { at: DAYS[0] ?? "", result: { pages: 9, read: 9, problems: 1, problemPages: 1 } },
+          { at: DAYS[1] ?? "", result: nothing },
+        ],
+        // From before 0.12.3, and one whose result no share would write.
+        "example.illinois.gov": [DAYS[0] ?? "", { at: DAYS[1] ?? "", result: "all good" }],
+      });
+
+      const { out, content, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([]);
+      expect(content.sites[0]?.reports.map(({ id, result }) => [id, result])).toEqual([
+        [`report-${DVFR}-2`, nothing],
+        [`report-${DVFR}-1`, { pages: 9, read: 9, problems: 1, problemPages: 1 }],
+      ]);
+      for (const report of content.sites[1]?.reports ?? []) {
+        expect(report, report.id).not.toHaveProperty("result");
+      }
+      // The page says the current report's, on its card.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).toContain("Nothing needs attention: NVDA read all 9 pages.");
+      expect(index).not.toContain("1 problem needs attention");
     });
 
     it("writes _redirects with its first line alone when each site's reports are all on the site", async () => {

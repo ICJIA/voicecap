@@ -573,6 +573,108 @@ describe("renderSiteIndex", () => {
     ]);
   });
 
+  // 0.12.3: what a manager asks first, "did it pass?", answered on the card, from what the share
+  // recorded of its copies.
+  describe("the verdict on the current report's card", () => {
+    /** The card of a site whose only report records `result`. */
+    const cardWith = (result: PublishedReport["result"]): string =>
+      articleOf(
+        renderSiteIndex(
+          {
+            demo: null,
+            sites: [{ name: DVFR, folders: [DVFR], reports: [{ ...DVFR_NEWEST, result }] }],
+          },
+          NO_FONTS,
+        ),
+        DVFR_NEWEST.id,
+      );
+    /** The card's verdict line: its markup, or null when it has none. */
+    const verdictOf = (card: string): string | null =>
+      /<p class="verdict [^"]*">[\s\S]*?<\/p>/.exec(card)?.[0] ?? null;
+
+    it("says nothing needs attention, as ok, when no problem is left and every page was read", () => {
+      const card = cardWith({ pages: 9, read: 9, problems: 0, problemPages: 0 });
+
+      expect(verdictOf(card)).toBe(
+        '<p class="verdict ok">Nothing needs attention: NVDA read all 9 pages.</p>',
+      );
+      // Under the report's date, and above who prepared it and its links.
+      expect(textsOf(card, "p")).toEqual([
+        "Nothing needs attention: NVDA read all 9 pages.",
+        "Prepared by Pat Lee",
+        `Open the report of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
+      ]);
+    });
+
+    it("says how many problems need attention, on how many pages, as a warning", () => {
+      expect(verdictOf(cardWith({ pages: 32, read: 32, problems: 1, problemPages: 32 }))).toBe(
+        '<p class="verdict warn">1 problem needs attention, on 32 pages. NVDA read all 32 pages.</p>',
+      );
+      expect(
+        textOf(verdictOf(cardWith({ pages: 3, read: 3, problems: 2, problemPages: 1 })) ?? ""),
+      ).toBe("2 problems need attention, on 1 page. NVDA read all 3 pages.");
+    });
+
+    it("says how many pages NVDA read when it didn't read them all, as bad", () => {
+      expect(verdictOf(cardWith({ pages: 9, read: 7, problems: 2, problemPages: 2 }))).toBe(
+        '<p class="verdict bad">2 problems need attention, on 2 pages. NVDA read 7 of the 9 pages.</p>',
+      );
+      // Pages skipped, not read, are on no card: nothing needs attention on the pages read.
+      expect(
+        textOf(verdictOf(cardWith({ pages: 9, read: 8, problems: 0, problemPages: 0 })) ?? ""),
+      ).toBe("Nothing needs attention on the pages read: NVDA read 8 of the 9 pages.");
+    });
+
+    it("says a site of one page as one", () => {
+      expect(
+        textOf(verdictOf(cardWith({ pages: 1, read: 1, problems: 0, problemPages: 0 })) ?? ""),
+      ).toBe("Nothing needs attention: NVDA read 1 page.");
+    });
+
+    it("says nothing for a report that records no result, or one of no page", () => {
+      // The tests' content records none, as a share from before 0.12.3 doesn't.
+      expect(html).not.toContain('class="verdict');
+      expect(verdictOf(cardWith(undefined))).toBeNull();
+      expect(verdictOf(cardWith({ pages: 0, read: 0, problems: 0, problemPages: 0 }))).toBeNull();
+    });
+
+    it("gives no earlier report a verdict: only the current one answers for the site", () => {
+      const page = renderSiteIndex(
+        {
+          demo: null,
+          sites: [
+            {
+              name: DVFR,
+              folders: [DVFR],
+              reports: [
+                { ...DVFR_NEWEST, result: { pages: 9, read: 9, problems: 0, problemPages: 0 } },
+                { ...DVFR_OLDEST, result: { pages: 9, read: 9, problems: 3, problemPages: 2 } },
+              ],
+            },
+          ],
+        },
+        NO_FONTS,
+      );
+
+      expect(page.match(/class="verdict /g)).toHaveLength(1);
+      expect(earlierItemsOf(page).join("")).not.toContain("attention");
+    });
+
+    it("gives the demo's card its verdict too", () => {
+      const page = renderSiteIndex(
+        {
+          demo: { ...DEMO_REPORT, result: { pages: 7, read: 7, problems: 3, problemPages: 2 } },
+          sites: [],
+        },
+        NO_FONTS,
+      );
+
+      expect(textOf(verdictOf(articleOf(page, DEMO_REPORT.id)) ?? "")).toBe(
+        "3 problems need attention, on 2 pages. NVDA read all 7 pages.",
+      );
+    });
+  });
+
   it("says in the current report when its page or its Word copy isn't here, in place of its link", () => {
     // The example site's Word copy is missing: its page has its link, and the Word copy a line.
     const example = articleOf(html, EXAMPLE_REPORT.id);

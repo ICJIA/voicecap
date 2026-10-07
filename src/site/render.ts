@@ -20,6 +20,7 @@
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
  * focus, and complete without JavaScript.
  */
+import type { ShareResult } from "../model.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
 import { sizeWords } from "../share/format.js";
@@ -53,6 +54,11 @@ export interface PublishedReport {
   files: PublishedFile[];
   /** Each file the record names that isn't published: changed since it was shared, or missing. */
   notPublished: { name: string; reason: "changed" | "missing" }[];
+  /**
+   * What its copies say of the site, as its share recorded it (from 0.12.3): the card of a site's
+   * current report says it. None for a share from before.
+   */
+  result?: ShareResult;
 }
 
 /** Everything the page shows. */
@@ -142,6 +148,19 @@ function timeOf(at: string): string {
   return `<time datetime="${esc(at)}">${esc(SITE_TEXT.reportLine(at))}</time>`;
 }
 
+/**
+ * What a report's copies say of the site, as a line of its card, in words. Its kind is its class:
+ * `ok` when nothing needs attention, `warn` when something does, and `bad` when NVDA didn't read
+ * every page. The page's style draws a sign before it that only repeats the words (✓, ⚠, and ⚠ in
+ * red), as decoration a screen reader doesn't read (see ./style.ts). Nothing for a report that
+ * records no result (one shared before 0.12.3), or one of no page.
+ */
+function verdict(result: ShareResult | undefined): string[] {
+  if (result === undefined || result.pages === 0) return [];
+  const kind = result.read < result.pages ? "bad" : result.problems > 0 ? "warn" : "ok";
+  return [`<p class="verdict ${kind}">${esc(SITE_TEXT.verdict(result))}</p>`];
+}
+
 /** A report's page, or its Word copy, when it's published. */
 function fileOf(shared: PublishedReport, kind: "page" | "word"): PublishedFile | undefined {
   return shared.files.find((file) => file.kind === kind);
@@ -176,7 +195,9 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
   return [
     `<article class="report" id="${esc(shared.id)}">`,
     `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
-    `<p>${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
+    // What a manager asks first: did it pass?
+    ...verdict(shared.result),
+    `<p class="by">${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
     // No paragraph with no link in it.
     ...(links.length === 0 ? [] : [`<p class="actions">${links.join(" ")}</p>`]),
     ...gone.map(

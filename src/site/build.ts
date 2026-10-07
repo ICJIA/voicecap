@@ -854,7 +854,16 @@ async function publishReport(
     files.push(file);
     publishing.rulesOf.set(file, rulesFor(file, copy.bytes));
   }
-  return { folder, id, at: entry.at, by: entry.by, files, notPublished };
+  return {
+    folder,
+    id,
+    at: entry.at,
+    by: entry.by,
+    files,
+    notPublished,
+    // What its copies say of the site, for its card: an entry from before 0.12.3 says nothing.
+    ...(entry.result === null ? {} : { result: entry.result }),
+  };
 }
 
 /**
