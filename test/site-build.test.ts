@@ -45,6 +45,7 @@ import {
   contentSecurityPolicy,
   HEADERS_FIRST_LINE,
   inlineHashes,
+  REDIRECTS_FIRST_LINE,
   ROBOTS_TXT,
 } from "../src/site/headers.js";
 import { netlifyToml, NVMRC } from "../src/site/netlify.js";
@@ -443,10 +444,11 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own three files, and the demo's own pages in demo-site/.
+    // Only those, the site's own four files, and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
         "_headers",
+        "_redirects",
         "index.html",
         "robots.txt",
         ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
@@ -1186,7 +1188,7 @@ describe("buildSite", () => {
 
     it("leaves out a site folder named as one of the site's own files, or as the demo's own pages, and builds the rest", async () => {
       const home = await newHome();
-      for (const folder of ["index.html", "robots.txt", "_headers", DEMO_PAGES]) {
+      for (const folder of ["index.html", "robots.txt", "_headers", "_redirects", DEMO_PAGES]) {
         const siteDir = path.join(home, folder);
         const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
         await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
@@ -1201,7 +1203,7 @@ describe("buildSite", () => {
 
       expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
       expect(leftOut).toEqual(
-        ["_headers", DEMO_PAGES, "index.html", "robots.txt"].map(
+        ["_headers", "_redirects", DEMO_PAGES, "index.html", "robots.txt"].map(
           (folder) =>
             `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
         ),
@@ -1225,6 +1227,9 @@ describe("buildSite", () => {
       expect(
         (await readFile(path.join(out, "_headers"), "utf8")).startsWith(HEADERS_FIRST_LINE),
       ).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
     });
 
     it("leaves out a voicecap-demo that is a file, names it, and builds the sites", async () => {
@@ -2387,6 +2392,7 @@ describe("buildSite", () => {
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
+          "_redirects",
           "index.html",
           "robots.txt",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
@@ -2464,7 +2470,7 @@ describe("buildSite", () => {
       );
     });
 
-    it("orders the sites by name, and each site's reports newest first by the moment, the higher seq on a tie", async () => {
+    it("orders the sites by name, and each site's newest reports newest first by the moment, the higher seq on a tie", async () => {
       const home = await homeWithSites({
         "zeta.illinois.gov": [
           // seq 1 and seq 3 are the same moment, written two ways; seq 2 is later, seq 4 earlier.
@@ -2486,15 +2492,222 @@ describe("buildSite", () => {
         "alpha.illinois.gov",
         "zeta.illinois.gov",
       ]);
+      // The site keeps a site's newest three: seq 4, the earliest, isn't one of them.
       expect(content.sites.map(({ reports }) => reports.map(({ id }) => id))).toEqual([
         ["report-alpha.illinois.gov-2", "report-alpha.illinois.gov-1"],
-        [
-          "report-zeta.illinois.gov-2",
-          "report-zeta.illinois.gov-3",
-          "report-zeta.illinois.gov-1",
-          "report-zeta.illinois.gov-4",
-        ],
+        ["report-zeta.illinois.gov-2", "report-zeta.illinois.gov-3", "report-zeta.illinois.gov-1"],
       ]);
+    });
+  });
+
+  // Added in 0.12.2, at the owner's request: "the only report that matters is the current one". A
+  // site keeps its newest three reports on the site, the newest first. The records keep every share,
+  // and only what's published changes. The page of each older report sends its reader on to the
+  // site's current report, so that a link to it in an email still leads somewhere.
+  describe("what it keeps of a site", () => {
+    /** The times of five shares, a day apart, the earliest first: shares 1 to 5. */
+    const DAYS = [11, 12, 13, 14, 15].map((day) => `2027-01-${day}T10:00:00-06:00`);
+    const DVFR = "dvfr.illinois.gov";
+
+    it("publishes a site's newest three reports, and nothing of its older ones, and says so", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS, "example.illinois.gov": DAYS.slice(0, 2) });
+
+      const { out, content, leftOut, logger } = await build(home);
+
+      expect(content.sites.map(({ name, reports }) => [name, reports.map(({ id }) => id)])).toEqual(
+        [
+          [DVFR, [`report-${DVFR}-5`, `report-${DVFR}-4`, `report-${DVFR}-3`]],
+          [
+            "example.illinois.gov",
+            ["report-example.illinois.gov-2", "report-example.illinois.gov-1"],
+          ],
+        ],
+      );
+      // Only the newest three's files are published, and only they have rules in _headers.
+      expect((await filesUnder(out)).filter((file) => file.startsWith(`${DVFR}/`))).toEqual(
+        [3, 4, 5].map((seq) => `${DVFR}/${DVFR}_${seq}.html`),
+      );
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
+        ([rulePath]) => rulePath,
+      );
+      expect(rules.filter((rulePath) => rulePath.startsWith(`/${DVFR}/`))).toEqual(
+        [5, 4, 3].flatMap((seq) => [`/${DVFR}/${DVFR}_${seq}.html`, `/${DVFR}/${DVFR}_${seq}`]),
+      );
+      // The page shows nothing of the older two, and the record still holds all five.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).not.toContain(`${DVFR}_1.html`);
+      expect(index).not.toContain(`${DVFR}_2.html`);
+      expect((await readShares(path.join(home, DVFR))).shares).toHaveLength(5);
+      // It says so, as what it did rather than as a warning, and counts the reports it published.
+      expect(leftOut).toEqual([]);
+      expect(warned(logger)).toEqual([]);
+      expect(
+        logger.entries.filter(({ level }) => level === "info").map(({ message }) => message),
+      ).toContain(`${DVFR}: 2 older reports aren't on the site, which shows each site's newest 3.`);
+      expect(logger.entries.at(-1)?.message).toBe(
+        `Built the site in ${out}: 5 reports from 2 sites.`,
+      );
+    });
+
+    it("says it of one older report in the singular", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS.slice(1) });
+
+      const { logger } = await build(home);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "info").map(({ message }) => message),
+      ).toContain(`${DVFR}: 1 older report isn't on the site, which shows each site's newest 3.`);
+    });
+
+    it("never reads an older report's files, so says nothing of one that changed", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS });
+      const oldest = path.join(home, DVFR, "share", `${DVFR}_1.html`);
+      await changeAByte(oldest);
+      vi.mocked(readFile).mockClear();
+
+      const { leftOut, logger } = await build(home);
+
+      expect(pathsRead()).not.toContain(oldest);
+      expect(pathsRead()).toContain(path.join(home, DVFR, "share", `${DVFR}_3.html`));
+      expect(leftOut).toEqual([]);
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("keeps the newest three of all the reports of a site's folders together", async () => {
+      const root = `https://${DVFR}/`;
+      const home = await homeWithSites({
+        // A copy of the site on a tester's computer, whose shares name the site, and the site's own
+        // folder, from before shares did: their four reports take turns, a day apart.
+        "127.0.0.1_4848": [
+          { at: DAYS[0] ?? "", site: root },
+          { at: DAYS[2] ?? "", site: root },
+        ],
+        [DVFR]: [DAYS[1] ?? "", DAYS[3] ?? ""],
+      });
+
+      const { out, content } = await build(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: DVFR, folders: ["127.0.0.1_4848", DVFR] },
+      ]);
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${DVFR}-2`,
+        "report-127.0.0.1_4848-2",
+        `report-${DVFR}-1`,
+      ]);
+      // The oldest of all, the copy's first, is the one that isn't published.
+      expect(existsSync(path.join(out, "127.0.0.1_4848", "127.0.0.1_4848_1.html"))).toBe(false);
+      expect(existsSync(path.join(out, "127.0.0.1_4848", "127.0.0.1_4848_2.html"))).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/127.0.0.1_4848/127.0.0.1_4848_1.html /${DVFR}/${DVFR}_2.html 302`,
+          `/127.0.0.1_4848/127.0.0.1_4848_1 /${DVFR}/${DVFR}_2.html 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends each older report's page, at both its addresses, to its site's current report, in _redirects", async () => {
+      const home = await homeWithSites({
+        [DVFR]: DAYS,
+        "example.illinois.gov": DAYS.slice(0, 4),
+      });
+
+      const { out } = await build(home);
+
+      // The sites in the page's order, and each site's older reports the newest first: each page
+      // at its own address, and at the same without ".html", which is how Netlify serves it.
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_2.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_2 /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1 /${DVFR}/${DVFR}_5.html 302`,
+          "/example.illinois.gov/example.illinois.gov_1.html /example.illinois.gov/example.illinois.gov_4.html 302",
+          "/example.illinois.gov/example.illinois.gov_1 /example.illinois.gov/example.illinois.gov_4.html 302",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends an older report's page to the site's front page when the current report's page isn't published", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS.slice(1) });
+      await changeAByte(path.join(home, DVFR, "share", `${DVFR}_4.html`));
+
+      const { out, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${DVFR}/share/${DVFR}_4.html: not published: it no longer matches its fingerprint`,
+      ]);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_1.html / 302`,
+          `/${DVFR}/${DVFR}_1 / 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends only an older report's page on: never its other files, and never an address a newer report publishes", async () => {
+      const home = await homeWithSites({
+        // The first and the fourth name a page of one name: the fourth's is the file there now.
+        [DVFR]: [
+          { at: DAYS[0] ?? "", page: `${DVFR}_same.html` },
+          DAYS[1] ?? "",
+          DAYS[2] ?? "",
+          { at: DAYS[3] ?? "", page: `${DVFR}_same.html` },
+          DAYS[4] ?? "",
+        ],
+      });
+      // The second has a Word copy and a walkthrough file too.
+      const siteDir = path.join(home, DVFR);
+      const word = Buffer.from("A Word copy's bytes.");
+      const walkthrough = Buffer.from("{}");
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2.docx`), word);
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2_walkthrough.json`), walkthrough);
+      const { shares } = await readShares(siteDir);
+      const second = shares[1] as { files: SharedFile[] };
+      await writeRecord(siteDir, [
+        shares[0],
+        sealedEntry(2, DAYS[1] ?? "", [
+          ...second.files,
+          recordOf(`${DVFR}_2.docx`, word),
+          recordOf(`${DVFR}_2_walkthrough.json`, walkthrough),
+        ]),
+        ...shares.slice(2),
+      ]);
+
+      const { out, content } = await build(home);
+
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${DVFR}-5`,
+        `report-${DVFR}-4`,
+        `report-${DVFR}-3`,
+      ]);
+      // The fourth publishes the page the first named, so that address is a page of the site's:
+      // only the second's page is sent on.
+      expect(existsSync(path.join(out, DVFR, `${DVFR}_same.html`))).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_2.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_2 /${DVFR}/${DVFR}_5.html 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("writes _redirects with its first line alone when each site's reports are all on the site", async () => {
+      const home = await newHome();
+
+      const { out } = await build(home);
+
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
     });
   });
 
@@ -2527,9 +2740,14 @@ describe("buildSite", () => {
       );
     }
 
-    /** The ids of the page's reports, in the order the page gives them. */
+    /**
+     * The ids of the page's reports, in the order the page gives them: each site's current report's,
+     * then each of its earlier ones'.
+     */
     function reportsOn(index: string): string[] {
-      return [...index.matchAll(/<article class="report" id="([^"]*)">/g)].map(([, id = ""]) => id);
+      return [...index.matchAll(/<(?:article class="report"|li) id="([^"]*)">/g)].map(
+        ([, id = ""]) => id,
+      );
     }
 
     /**
@@ -2573,12 +2791,14 @@ describe("buildSite", () => {
         `report-${COPY_FOLDER}-2`,
         `report-${COPY_FOLDER}-1`,
       ]);
-      // The page leads with the name: no heading, section, or line by date is named for the folder.
+      // The page leads with the name: no heading, section, or link's words are named for the folder.
       expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
-      expect(listedByDate(index).map(({ site }) => site)).toEqual([NAME, NAME]);
+      expect(index).toContain(`<span class="sr"> of ${NAME}, `);
       expect(index).not.toContain(`site-${COPY_FOLDER}`);
       expect(index).not.toContain(`<h3>${COPY_FOLDER}</h3>`);
-      expect(index).not.toContain(`, ${COPY_FOLDER}, prepared by`);
+      expect(index).not.toContain(` of ${COPY_FOLDER}, `);
+      // One site has no list by date, which would be its own list again.
+      expect(listedByDate(index)).toEqual([]);
     });
 
     it("heads a site by its folder when its newest share names no site readers know it by, though an older share did", async () => {
@@ -2710,15 +2930,9 @@ describe("buildSite", () => {
         { id: `report-${NAME}-1`, folder: NAME, at: JAN_16 },
         { id: `report-${COPY_FOLDER}-1`, folder: COPY_FOLDER, at: JAN_15 },
       ]);
-      // One heading, with the three reports under it in that order, and counted together.
+      // One heading, with the three reports under it in that order: the newest is the current one.
       expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
       expect(reportsOn(index)).toEqual(site?.reports.map(({ id }) => id));
-      expect(index).toContain('<p class="count">3 reports</p>');
-      expect(listedByDate(index).map(({ at, site: named }) => [at, named])).toEqual([
-        [JAN_17, NAME],
-        [JAN_16, NAME],
-        [JAN_15, NAME],
-      ]);
       expect(repeatedIds(index)).toEqual([]);
       expect(logger.entries.at(-1)?.message).toBe(
         `Built the site in ${out}: 3 reports from 1 site.`,
@@ -2735,11 +2949,11 @@ describe("buildSite", () => {
 
       const { content } = await built(home);
 
+      // The newest three: the folder's seq 1, of the day before, isn't one of them.
       expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
         `report-${COPY_FOLDER}-1`,
         `report-${NAME}-3`,
         `report-${NAME}-2`,
-        `report-${NAME}-1`,
       ]);
     });
 
@@ -2778,6 +2992,7 @@ describe("buildSite", () => {
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
+          "_redirects",
           `${COPY_FOLDER}/${page}`,
           `${NAME}/${page}`,
           "index.html",
@@ -2785,9 +3000,11 @@ describe("buildSite", () => {
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
-      // The page links to each, twice (with its report, and by date), and each link leads to the
-      // file of the folder it names.
-      const links = [...index.matchAll(/<a href="([^"#]+\.html)"/g)].map(([, href = ""]) => href);
+      // The page links to each, twice (as the current report or an earlier one, and in the fold of
+      // files), and each link leads to the file of the folder it names.
+      const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)].map(
+        ([, href = ""]) => href,
+      );
       expect(links.toSorted()).toEqual(
         [COPY_FOLDER, NAME].flatMap((folder) => [`${folder}/${page}`, `${folder}/${page}`]).sort(),
       );

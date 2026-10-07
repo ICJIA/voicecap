@@ -7,10 +7,14 @@
  * style block and its script allows nothing else.
  *
  * In order: the head; a skip link to the main content; the bar, whose links go to the views and
- * which holds the theme button; `main`, with the page's heading and lead, the three views (the
- * demo's, the sites', and every report by date), and what to know about a file's fingerprint and a
- * walkthrough file; the footer; and last, the script. What the model or a record supplies goes
- * through `esc`, and so does the fixed text (./text.ts), which is plain words.
+ * which holds the theme button; `main`, with the page's heading and lead, the views (the demo's, the
+ * sites', and, when two sites or more have reports, every report by date), and what to know about a
+ * file's fingerprint and a walkthrough file; the footer; and last, the script. What the model or a
+ * record supplies goes through `esc`, and so does the fixed text (./text.ts), which is plain words.
+ *
+ * A site leads with what a reader came for: its current report, with links to open its page and to
+ * download its Word copy. Its earlier reports are a line each under it, and every report's files,
+ * with their sizes and fingerprints, are in a fold, closed, for whoever checks a copy.
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
@@ -125,40 +129,142 @@ function fileItem(file: PublishedFile): string {
   ].join(" ");
 }
 
+/** Words that only a screen reader gets, as HTML: the page hides them from view (`.sr`). */
+function hidden(text: string): string {
+  return `<span class="sr">${esc(text)}</span>`;
+}
+
+/** What sets two links of a line apart: a dot that a reader sees, and a screen reader doesn't read. */
+const SEPARATOR = '<span class="sep" aria-hidden="true">·</span>';
+
+/** A report's line, as a `time` that holds the moment it names. */
+function timeOf(at: string): string {
+  return `<time datetime="${esc(at)}">${esc(SITE_TEXT.reportLine(at))}</time>`;
+}
+
+/** A report's page, or its Word copy, when it's published. */
+function fileOf(shared: PublishedReport, kind: "page" | "word"): PublishedFile | undefined {
+  return shared.files.find((file) => file.kind === kind);
+}
+
 /**
- * A report: when it was shared, who prepared it, its files, what the record names that isn't
- * here, and, when it has no walkthrough file, that none was shared. A walkthrough file the record
- * names that isn't here is not "none shared": its own line says it isn't here. `level` is the
- * report's heading's.
+ * A site's current report: a heading that says it's the current one, with its line; who prepared
+ * it; and the two links a reader wants, to open its page and to download its Word copy. A screen
+ * reader hears the site's name, `name`, and the report's line after each link's words, so that no
+ * two links on the page read alike. Of the two files, one that isn't published has its line in
+ * place of its link. What else the record names that isn't here is said in the fold (see
+ * filesFold). `level` is the heading's.
  */
-function report(shared: PublishedReport, level: 3 | 4): string {
-  const { files, notPublished } = shared;
-  const hadWalkthrough =
-    files.some(({ kind }) => kind === "walkthrough") ||
-    notPublished.some(({ name }) => fileKind(name) === "walkthrough");
+function currentReport(shared: PublishedReport, level: 3 | 4, name: string): string {
+  const page = fileOf(shared, "page");
+  const word = fileOf(shared, "word");
+  const of = hidden(SITE_TEXT.of(name, shared.at));
+  const links = [
+    ...(page === undefined
+      ? []
+      : [`<a class="action" href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`]),
+    ...(word === undefined
+      ? []
+      : [
+          `<a class="action" href="${esc(word.href)}" download>${esc(SITE_TEXT.download)}${of}</a>`,
+        ]),
+  ];
+  const gone = shared.notPublished.filter(({ name: file }) => {
+    const kind = fileKind(file);
+    return kind === "page" || kind === "word";
+  });
   return [
     `<article class="report" id="${esc(shared.id)}">`,
-    `<h${level}>${esc(SITE_TEXT.reportLine(shared.at))}</h${level}>`,
+    `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
     `<p>${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
-    // No list with nothing in it: a screen reader would announce it.
-    ...(files.length === 0
-      ? []
-      : [`<ul class="files"${IS_A_LIST}>`, ...files.map(fileItem), "</ul>"]),
-    ...notPublished.map(
-      ({ name, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](name))}</p>`,
+    // No paragraph with no link in it.
+    ...(links.length === 0 ? [] : [`<p class="actions">${links.join(" ")}</p>`]),
+    ...gone.map(
+      ({ name: file, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](file))}</p>`,
     ),
-    ...(hadWalkthrough ? [] : [`<p class="quiet">${esc(SITE_TEXT.noWalkthrough)}</p>`]),
     "</article>",
   ].join("\n");
 }
 
 /**
- * The demo's view: its lead, which links to the demo's own pages in demo-site/ (see ./build.ts), and
- * its one report, whose heading is one level below the view's.
+ * A site's reports before its current one, under a heading of their own, a line each: when it was
+ * shared, who prepared it, and its links, to its page and to its Word copy, as the current report's
+ * are. A page that isn't published is said so in its link's place, and a Word copy that isn't is
+ * left out: the fold says why. Nothing, when there are none.
+ */
+function earlierReports(reports: readonly PublishedReport[], name: string): string[] {
+  if (reports.length === 0) return [];
+  const item = (shared: PublishedReport): string => {
+    const page = fileOf(shared, "page");
+    const word = fileOf(shared, "word");
+    const of = hidden(SITE_TEXT.of(name, shared.at));
+    const links = [
+      page === undefined
+        ? esc(SITE_TEXT.pageGone)
+        : `<a href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`,
+      ...(word === undefined
+        ? []
+        : [`<a href="${esc(word.href)}" download>${esc(SITE_TEXT.word)}${of}</a>`]),
+    ];
+    return `<li id="${esc(shared.id)}">${timeOf(shared.at)}, ${esc(SITE_TEXT.listedBy(shared.by))}: ${links.join(` ${SEPARATOR} `)}</li>`;
+  };
+  return [
+    `<h4>${esc(SITE_TEXT.earlier)}</h4>`,
+    `<ul class="earlier"${IS_A_LIST}>`,
+    ...reports.map(item),
+    "</ul>",
+  ];
+}
+
+/**
+ * The fold of every report's files, closed until a reader opens it: what a reviewer or an auditor
+ * checks a copy against. For each report, the newest first: when it was shared and who prepared it;
+ * its files, each with its label, its size, and its fingerprint; what the record names that isn't
+ * here; and, when it has no walkthrough file, that none was shared. A walkthrough file the record
+ * names that isn't here is not "none shared": its own line says it isn't here. The fold is
+ * complete without JavaScript, as `details` is.
+ */
+function filesFold(reports: readonly PublishedReport[]): string {
+  const block = ({ at, by, files, notPublished }: PublishedReport): string => {
+    const hadWalkthrough =
+      files.some(({ kind }) => kind === "walkthrough") ||
+      notPublished.some(({ name }) => fileKind(name) === "walkthrough");
+    return [
+      '<div class="shared">',
+      `<p class="when">${timeOf(at)}, ${esc(SITE_TEXT.listedBy(by))}</p>`,
+      // No list with nothing in it: a screen reader would announce it.
+      ...(files.length === 0
+        ? []
+        : [`<ul class="files"${IS_A_LIST}>`, ...files.map(fileItem), "</ul>"]),
+      ...notPublished.map(
+        ({ name, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](name))}</p>`,
+      ),
+      ...(hadWalkthrough ? [] : [`<p class="quiet">${esc(SITE_TEXT.noWalkthrough)}</p>`]),
+      "</div>",
+    ].join("\n");
+  };
+  return [
+    '<details class="fold">',
+    `<summary>${esc(SITE_TEXT.fold)}</summary>`,
+    '<div class="inside">',
+    ...reports.map(block),
+    "</div>",
+    "</details>",
+  ].join("\n");
+}
+
+/**
+ * The demo's view: its lead, which links to the demo's own pages in demo-site/ (see ./build.ts), its
+ * one report as the current one, whose heading is one level below the view's, and the fold of its
+ * files.
  */
 function demoView(demo: PublishedReport): string {
   const { title, lead } = SITE_TEXT.views.demo;
-  return view("demo", title, [`<p>${sentenceHtml(lead)}</p>`, report(demo, 3)]);
+  return view("demo", title, [
+    `<p>${sentenceHtml(lead)}</p>`,
+    currentReport(demo, 3, SITE_TEXT.demoName),
+    filesFold([demo]),
+  ]);
 }
 
 /**
@@ -173,17 +279,21 @@ function uniqueId(id: string, taken: Set<string>): string {
 }
 
 /**
- * One site: its name, how many reports it has, and its reports as they were given, which may be in
- * more than one folder. Its section has no name. A named section is a region, one more landmark, and
- * with many sites that is a long list of them; the site's heading, an h3, already leads to it. `id`
- * is the section's.
+ * One site: its name; the first of its reports as they were given, which is its current report; the
+ * others, its earlier reports, a line each; and the fold of every report's files. Its reports may
+ * be in more than one folder. The build gives a site's newest reports only, the newest first (see
+ * KEPT_PER_SITE in ./build.ts): here, every report given is shown. Its section has no name. A named
+ * section is a region, one more landmark, and with many sites that is a long list of them; the
+ * site's heading, an h3, already leads to it. `id` is the section's.
  */
 function site({ name, reports }: SiteContent["sites"][number], id: string): string {
+  const [current, ...earlier] = reports;
   return [
     `<section class="site" id="${esc(id)}">`,
     `<h3>${esc(name)}</h3>`,
-    `<p class="count">${esc(SITE_TEXT.reports(reports.length))}</p>`,
-    ...reports.map((each) => report(each, 4)),
+    ...(current === undefined ? [] : [currentReport(current, 4, name)]),
+    ...earlierReports(earlier, name),
+    ...(reports.length === 0 ? [] : [filesFold(reports)]),
     "</section>",
   ].join("\n");
 }
@@ -208,9 +318,18 @@ function sitesView(sites: SiteContent["sites"]): string {
 }
 
 /**
+ * Whether the page lists every report by date: only when two sites or more have reports. With one,
+ * the list would be that site's own again.
+ */
+function listsByDate(content: SiteContent): boolean {
+  return content.sites.length > 1;
+}
+
+/**
  * The view of every report, across the sites (the demo isn't a site's), newest first by the moment
  * each names. Reports of the same moment stay in the order they were given. Each item has its time,
- * its site's name, who prepared it, and a link to its page, or says the page isn't here.
+ * its site's name, who prepared it, and a link to its page, or says the page isn't here. It's on the
+ * page only when two sites or more have reports (see listsByDate).
  */
 function byDateView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.byDate;
@@ -224,13 +343,14 @@ function byDateView(sites: SiteContent["sites"]): string {
       page === undefined
         ? esc(SITE_TEXT.pageGone)
         : `<a href="${esc(page.href)}">${esc(page.name)}</a>`;
-    return `<li><time datetime="${esc(each.at)}">${esc(SITE_TEXT.reportLine(each.at))}</time>, ${esc(name)}, ${esc(SITE_TEXT.listedBy(each.by))}: ${where}</li>`;
+    return `<li>${timeOf(each.at)}, ${esc(name)}, ${esc(SITE_TEXT.listedBy(each.by))}: ${where}</li>`;
   };
-  const inside =
-    reports.length === 0
-      ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
-      : [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"];
-  return view("by-date", title, inside);
+  return view("by-date", title, [
+    `<p>${esc(lead)}</p>`,
+    `<ol class="dates"${IS_A_LIST}>`,
+    ...reports.map(item),
+    "</ol>",
+  ]);
 }
 
 /** The bar: a link to each view that's there, and the theme button, hidden until the script shows it. */
@@ -239,7 +359,7 @@ function bar(content: SiteContent): string {
   const links = [
     ...(content.demo === null ? [] : [{ id: "demo", title: views.demo.title }]),
     { id: "sites", title: views.sites.title },
-    { id: "by-date", title: views.byDate.title },
+    ...(listsByDate(content) ? [{ id: "by-date", title: views.byDate.title }] : []),
   ];
   return [
     '<header class="bar">',
@@ -284,7 +404,7 @@ export function renderSiteIndex(content: SiteContent, assets: { fontCss: string 
     `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
     ...(content.demo === null ? [] : [demoView(content.demo)]),
     sitesView(content.sites),
-    byDateView(content.sites),
+    ...(listsByDate(content) ? [byDateView(content.sites)] : []),
     `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
     `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
     "</main>",

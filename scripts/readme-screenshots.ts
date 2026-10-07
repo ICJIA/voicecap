@@ -19,7 +19,8 @@
  *                            first row with no card for a /biographies/ page (see BIOGRAPHIES)
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
- *   website-dark.png         the website's bar, through the site's report under "The sites", dark
+ *   website-dark.png         the website's bar, through the site under "The sites": its current
+ *                            report, its two earlier ones, and its fold of files, closed, dark
  *   website-light.png        the same, light
  *
  * No shot may show an IP address or `localhost`: before each one is taken, the text inside the part
@@ -30,9 +31,9 @@
  *
  * It draws with Playwright's Chromium (`pnpm exec playwright install chromium`, once). Run it again
  * when the page's or the site's design changes, and commit what it writes. The README links to each
- * file on GitHub, so npm's copy of the README shows them too. The six of the report come out the
- * same every time. The two of the website don't: each run makes the Word copy again, whose bytes
- * differ (it records when it was made), and the website shows its fingerprint.
+ * file on GitHub, so npm's copy of the README shows them too. All eight come out the same every
+ * time. Each run makes the Word copies again, whose bytes differ (each records when it was made),
+ * but the website shows their fingerprints only in its fold of files, which is closed in its shots.
  */
 import { copyFile, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -58,12 +59,18 @@ export const SCREENSHOTS_DIR = path.join(ROOT, "assets", "screenshots");
 export const SOURCE_HOME = path.join(ROOT, "fixture", "i2i-v3-run");
 /**
  * When the pictures show the report as shared: 6 October 2026 at 15:00, a local time, so it's that
- * day anywhere, after the run ended (at 12:32). It's fixed: every share the script makes has it, so
- * the six pictures of the report come out the same each time. The two of the website still differ
- * with each run, since the Word copy's fingerprint does (see above). It isn't when anyone really
- * shared the report.
+ * day anywhere, after the run ended (at 12:32). It's fixed, so the pictures come out the same each
+ * time. It isn't when anyone really shared the report. It's the last of the script's three shares
+ * (see SHARED_BEFORE), so the shared page is the third of the day, named "-3": no picture of the
+ * report shows its name.
  */
 const SHARED_ON = new Date(2026, 9, 6, 15, 0);
+/**
+ * The two shares before it, at 13:00 and 14:00 that day, so that the website shows what a site that
+ * has been shared a few times shows: its current report, and two earlier ones, a line each. They're
+ * fixed too, and aren't when anyone really shared the report.
+ */
+const SHARED_BEFORE = [new Date(2026, 9, 6, 13, 0), new Date(2026, 9, 6, 14, 0)];
 /** Who shares it: the person who ran the review, as the run's record names them. */
 const SHARED_BY = "Christopher Schweda";
 
@@ -130,9 +137,10 @@ function shareConfig(): LoadedConfig {
 
 /**
  * A transcripts home with the report of the run in `source` shared in it, as a person would share
- * it: a copy of `source` (a home with one site's folder, which isn't changed), and the share made in
- * the copy's site folder. A site whose run recorded no canonical address and was read at an IP
- * address isn't shared: voicecap refuses it. Returns the home and the shared page's path.
+ * it: a copy of `source` (a home with one site's folder, which isn't changed), and three shares made
+ * in the copy's site folder, at SHARED_BEFORE's times and then at SHARED_ON. A site whose run
+ * recorded no canonical address and was read at an IP address isn't shared: voicecap refuses it.
+ * Returns the home and the path of the last share's page, which the shots of the report are of.
  */
 export async function sharedHome(
   root: string,
@@ -140,16 +148,19 @@ export async function sharedHome(
 ): Promise<{ home: string; page: string }> {
   const home = path.join(root, "transcripts");
   await cp(source, home, { recursive: true });
-  const shared = await shareReport({
-    out: home,
-    reviewer: SHARED_BY,
-    now: SHARED_ON,
-    config: shareConfig(),
-    logger: silentLogger,
-    // The folder the home is in has no config, and no environment is read.
-    cwd: root,
-    env: {},
-  });
+  const share = (now: Date) =>
+    shareReport({
+      out: home,
+      reviewer: SHARED_BY,
+      now,
+      config: shareConfig(),
+      logger: silentLogger,
+      // The folder the home is in has no config, and no environment is read.
+      cwd: root,
+      env: {},
+    });
+  for (const now of SHARED_BEFORE) await share(now);
+  const shared = await share(SHARED_ON);
   const page = shared.files.find((file) => file.name.endsWith(".html"));
   if (page === undefined) throw new Error("voicecap share wrote no page.");
   return { home, page: page.path };
