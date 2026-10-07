@@ -2,7 +2,7 @@
 
 **Goal:** Make the shareable report's "What needs attention" a card for each problem: what NVDA says and where, the likely cause, why it matters, the fix in the code, what NVDA should say then, and the path forward. A person's review settles a flag, and the summary loses its "heard live" count. Ship it as 0.12.0, then share the i2i v3 report again.
 
-**Architecture:** A pure model in `src/share/attention.ts` groups the page cards' flags (the current rules'), failures, open issues, and changes since review into `AttentionCard`s. It works from the shown transcripts' lines, through a new `flagItemLines` in `src/flags/evaluate.ts`. `attentionWords` in `src/share/text.ts` turns a card into words, which both the page (`src/share/html/attention.ts`) and the Word copy (`src/share/word/attention.ts`) render. The summary takes its problem count and its titles from the cards.
+**Architecture:** A pure model in `src/share/attention.ts` groups the page cards' flags (the current rules'), failures, open issues, and changes since review into `AttentionCard`s. It works from the shown transcripts' lines, through a new `flagItemLines` in `src/flags/evaluate.ts`. `attentionWords` in `src/share/attention-words.ts` (Ruling R12) turns a card into words, and `ATTENTION_TEXT` in `src/share/text.ts` holds the section's fixed strings; both the page (`src/share/html/attention.ts`) and the Word copy (`src/share/word/attention.ts`) render them. The summary takes its problem count and its titles from the cards.
 
 **Tech Stack:** TypeScript strict ESM, Node 22.19+, pnpm, Vitest, Playwright's headless Chromium (axe, folds, the README's screenshots), and docx 9.8.1. No new dependencies.
 
@@ -104,7 +104,7 @@
   export interface AttentionCard {
     id: string;              // "need-1", "need-2", ... in card order
     kind: AttentionKind;
-    /** What NVDA named: a graphic's name as NVDA said it ("i 2i Logo"), the item ("read more", "edit", "graphic"), a repeated phrase, a custom or recorded flag's subject; null for kinds that name nothing. */
+    /** What NVDA named: a graphic's name as NVDA said it ("i 2i Logo"), the item as NVDA said it ("Read more", "edit", "graphic"), a repeated phrase, a custom or recorded flag's subject; null for kinds that name nothing. */
     subject: string | null;
     level: number | null;    // first-heading: the level NVDA said, else null
     places: AttentionPlace[];
@@ -129,14 +129,16 @@
   - A card of status `failed` or `never` with a `failure` goes on the one `unread` card, with its detail set to that failure.
   - A card with `readStopped` set, or with a `read-not-finished` flag, goes on the one `read-stopped` card, once. No review settles it: it stays until a later run reads the page to its end (Ruling R5).
 - **The flag kinds, from `flagItemLines` when `passes` isn't null.** For `unlabeled`, with the item lowercased:
-  - an item that contains "graphic" is `graphic-generic` with subject `graphicName(spoken)` when that isn't null. Otherwise it's `graphic-unnamed`, with the item as its subject;
+  - an item that contains "graphic" is `graphic-generic` with subject `graphicName(spoken)` when that isn't null. Otherwise it's `graphic-unnamed`, with the item, as NVDA said it, as its subject;
   - "button", or an item that contains "button", is `button-unnamed`;
-  - "edit", "combo box", "check box", or "radio button" is `field-unlabeled`, with the item as its subject;
-  - any other item is `unnamed`, with the item as its subject.
+  - "edit", "combo box", "check box", or "radio button" is `field-unlabeled`, with the item, as NVDA said it, as its subject;
+  - any other item is `unnamed`, with the item, as NVDA said it, as its subject.
 
   For `generic-link-text`:
   - "(no name)" is `link-unnamed`;
-  - any other item is `link-generic`, with the item as its subject.
+  - any other item is `link-generic`, with the item, as NVDA said it, as its subject.
+
+  The rules match items lowercased, so a subject takes its capitals from the line: the first of `speechItems(spoken)` that is the item, compared lowercased (the final review's M5). Links that say "Read more" give `Links read as "Read more": …`; grouping still compares subjects lowercased.
 - **The other rules' flags:**
   - `headings` is `first-heading`, with the level from the message (`/level (\d+)/`, or null);
   - `tab-before-main` is `skip-link`;
@@ -171,7 +173,7 @@
   Then the role is "link" if a link role was among the items, else "button" if "button" was. With no role, or no words left, it returns null. Otherwise, the words left, joined by ", " as NVDA said them, with that role.
 - **Times:**
   - item kinds: one for each matched line;
-  - other flags: the flag's `count`, or 1 when it has none, added for each page and pass;
+  - other flags: the flag's `count`, or 1 when it has none, added for each page and pass; but `skip-link` counts 1 for each page and pass, since its flag's count is the Tab stops before the main content, not times found (the final review's M2);
   - `unread`, `issue`, and `changed` cards: one for each page.
 - **Order:**
   - by the number of pages, most first;
@@ -217,7 +219,7 @@
     - status `failed` with the failure "another window took the screen" gives an `unread` card with that detail;
     - `readStopped: "step-limit"` plus a `read-not-finished` flag puts the page on the `read-stopped` card once.
   - **"each rule's kind":**
-    - "link, Read more" on two pages gives one `link-generic` card, subject "read more";
+    - "link, Read more" on two pages gives one `link-generic` card, subject "Read more", as NVDA said it;
     - a lone "link" gives `link-unnamed`;
     - "button" gives `button-unnamed`;
     - a Tab line "edit" gives `field-unlabeled`, subject "edit";
@@ -266,7 +268,7 @@
     title: "What needs attention";
     gist: (problems: number, pages: number) => string;
     none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.";
-    labels: { cause: "Likely cause"; why: "Why it matters"; fix: "The fix in the code"; after: "What NVDA should say then"; path: "The path forward"; pages: "The pages" };
+    labels: { cause: "Likely cause"; why: "Why it matters"; fix: "The fix in the code"; after: "What NVDA should say then"; path: "The path forward"; page: "The page"; pages: "The pages" };  // "The page" on a card with one page (the final review)
     more: (count: number) => string;        // the summary panel's last line (Task 3)
     sentence: (problems: number, pages: number) => string;  // the summary sentence's part (Task 3)
   };
@@ -278,7 +280,7 @@
   - `more(c)`: `and ${c} more, under What needs attention`
   - `sentence(p, m)`: `${p} ${p === 1 ? "problem needs" : "problems need"} attention, on ${pl(m, "page")}.`
   - `count`: `${pl(n, "page")}, ${pl(times, "time")}`
-- **A place's lead:** "In the header", "In the main content", "In the navigation", "In the footer", "In a sidebar", or "In the search", followed by `, on ${pl(k, "page")}`. With no part, it's `On ${pl(k, "page")}`.
+- **A place's lead:** "In the header", "In the main content", "In the navigation", "In the footer", "In a sidebar", or "In the search", followed by `, on ${pl(k, "page")}`. With no part, it's `On ${pl(k, "page")}`. A `read-stopped` card's lead is `The last line read, on ${pl(k, "page")}`, whatever the part. A place with no line to quote is left out, except on a `recorded` card, which says why it has none (the final review's M7).
 - **Quote labels:** a quote's `pass` reads "Down Arrow" for read, "H" for headings, and "Tab" for tab.
 - **`unavailable`** is null, except for `recorded` cards: "NVDA's words aren't available here: this page's transcripts couldn't be read." On a place with more than one page: "NVDA's words aren't available here: these pages' transcripts couldn't be read."
 - **`<subject>`** below is the card's subject, `<role>` is a `field-unlabeled` subject, and `<name>` is a `graphic-generic` subject.
@@ -309,6 +311,8 @@
 - why: `Screen reader users jump from heading to heading to find their way around a page; with none, they have to go through all of it.`
 - fix: `Mark the page's title and its section titles as headings:` with `<h1>Grant opportunities</h1>
 <h2>How to apply</h2>`, then `"heading, level 1, Grant opportunities"`.
+
+**A silence repeated** (a `repeated` card with no subject, the final review's M4): title `Silence, many times in a row: likely a focus trap, or content NVDA can't read`; cause `Likely a focus trap, or content NVDA has no words for: NVDA said nothing, again and again.`; why `A screen reader user hears nothing, again and again, and may not get past it.`; no fix in the code, since nothing was said to hide.
 
 **A `recorded` card on more than one page:** its cause is `These pages' transcripts couldn't be read here, so this card shows what their runs recorded, without NVDA's words.`
 
@@ -341,12 +345,12 @@
 
 **The path.** `<first path>` is the card's first page's `path`.
 - **The flag kinds, except `recorded` and `read-stopped`:**
-  1. Either `Fix it in the <part>, which every page shares: one change fixes it on all <k> pages.`, naming the shared place (header, footer, or navigation, on more than one page) with the most pages, ties by place order; or `Fix it on the page.` (n = 1), or `Fix it on each page.`
+  1. Either `Fix it in the <part>, which these pages share: one change fixes it on all <k> pages.` (the final review's M6: the records show only that these pages share it), naming the shared place (header, footer, or navigation, on more than one page) with the most pages, ties by place order; or `Fix it on the page.` (n = 1), or `Fix it on each page.`
   2. `Run voicecap again on one page (--page <first path>), then on every page.`
   3. `Share again: once no page raises it, this card is gone.`
   4. `Not a problem? Mark the page "Reviewed, no issues" in voicecap review.` (n > 1: `the pages`)
-- **`recorded`:** `Run voicecap again on the page (--page <first path>).` (n > 1: `these pages`)
-- **`read-stopped`:** `Run the page again with --page.` and `If it's just a very long page, raise its step limit.`
+- **`recorded`:** `Run voicecap again on the page (--page <first path>).` (n > 1: `Run voicecap again on these pages, starting with --page <first path>.`, the final review's M3)
+- **`read-stopped`:** `Run the page again with --page.` (n > 1: `Run each page again with --page.`, the final review's M3) and `If it's just a very long page, raise its step limit.`
 - **`unread`:** `Run the page again with --page, with hands off the keyboard and mouse.` (n > 1: `each page`)
 - **`issue`:** `Fix it on the site.` and `Run voicecap again on the page, then mark it "Fixed" in voicecap review.`
 - **`changed`:** `Review it again in voicecap review.` (n > 1: `them`)
@@ -361,7 +365,7 @@
     - **The fixes:**
       - `{ lead: 'In the header, it\'s inside the link that also says "INSTITUTE 2 INNOVATE", so mark it decorative:', code: '<img src="…" alt="">', after: '"INSTITUTE 2 INNOVATE, link"' }`;
       - `{ lead: 'In the main content, it stands on its own, so give it a name in words, not "logo" or a file name, such as the words its <role> says elsewhere:', code: '<img src="…" alt="Institute 2 Innovate">', after: '"graphic, Institute 2 Innovate"' }`.
-    - **The path's first step:** `Fix it in the header, which every page shares: one change fixes it on all 32 pages.`
+    - **The path's first step:** `Fix it in the header, which these pages share: one change fixes it on all 32 pages.`
     - **The path's second step:** `Run voicecap again on one page (--page /), then on every page.`
   - **"every kind has a title, a likely cause, and a reason":** one table-driven test over all 17 kinds. Each title, cause, and reason is non-empty and equal to the table's words for a fixed sample card.
   - **The summary's words:**
@@ -371,7 +375,7 @@
     - `gist(1, 32)` starts with `1 problem, on 32 pages.`
   - **No banned words:** no `ATTENTION_TEXT` string and no `attentionWords` output for the sample cards contains "automated", "listened", or "Guidepup".
 - [ ] **Step 2:** Run `pnpm vitest run test/share-attention-words.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `attentionWords` and `ATTENTION_TEXT` in `src/share/text.ts`, with the words above.
+- [ ] **Step 3: Implement** `attentionWords` in `src/share/attention-words.ts` (Ruling R12) and `ATTENTION_TEXT` in `src/share/text.ts`, with the words above.
 - [ ] **Step 4:** PASS. Then run `pnpm lint && pnpm typecheck && pnpm test`.
 - [ ] **Step 5:** Commit: `Word each card: what NVDA says, the likely cause, the fix, and the path forward`.
 
@@ -390,7 +394,7 @@
   - `SUMMARY_TEXT.noAttention` becomes `ATTENTION_TEXT.none`.
 - Modify: `src/share/html/top.ts`:
   - `attentionPanel`: the line `${pl(problems, "problem")}, on ${pl(pages, "page")}:`, then up to 5 cards, each linked to `#<id>` with its title as the words, then `ATTENTION_TEXT.more(rest)` linked to `#need-h` when there are more than 5;
-  - with no cards, `ATTENTION_TEXT.none`;
+  - with no cards, `ATTENTION_TEXT.none` (later the line for none, `noAttentionLine`: with pages skipped, R16, and with no flag raised, R25);
   - `reviewMeter` drops its heard row.
 - Modify: `src/share/word/top.ts`: `attentionBlocks` (the same lines, without links), `reviewBlocks` (no heard row), and the numbers table's heading, which said "six numbers", now says five.
 - Modify: `src/share/cards.ts`: `reviewChips` takes the page's flags. For a latest entry of `reviewed` on a page with flags, and no change since that review, the chip is `Checked by ${latest.reviewer}, ${longDate(latest.at)}: not an issue` in place of "Reviewed, no issues".

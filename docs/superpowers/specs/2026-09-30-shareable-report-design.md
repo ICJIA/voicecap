@@ -53,7 +53,7 @@ The mockup shows this order. Each section's first sentence is its point.
      - **lines NVDA spoke:** every step of every pass in the transcripts shown;
      - **NVDA time:** the total time the runs the standing draws on held NVDA, from their records.
    - **Four panels:**
-     - **What needs attention:** how many problems there are and the pages they're on, then each problem's title, linked to its card in the section of that name (item 3). For example: "1 problem, on 32 pages: The i2i logo is read as "Unlabeled graphic": its alt text, "i2i Logo", is too generic for Chrome." With none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person."
+     - **What needs attention:** how many problems there are and the pages they're on, then each problem's title, linked to its card in the section of that name (item 3). For example: "1 problem, on 32 pages: The i2i logo is read as "Unlabeled graphic": its alt text, "i2i Logo", is too generic for Chrome." With none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", or, when no page in scope raised a flag, "Nothing needs attention: every page was read, and no flags were raised." (For each with pages skipped, see "How a card clears".)
      - **How complete the test was:** pages read, out of pages in scope; the problems during the runs in one line (how many, of what kind, and whether a later try made each good); whether any was an unexpected error, the kind that could mean a problem in voicecap itself; and pages that couldn't be read after every attempt.
      - **What's still to do:** the real tasks: issues found and not yet fixed, pages that couldn't be read, and flagged pages with no decision recorded.
      - **When and how:** the date, who ran it, the screen reader, browser, and operating system.
@@ -152,7 +152,7 @@ A kind of flag splits into one card for each thing NVDA named, where the words n
 
 The fix comes from what NVDA said, never from the page's code: voicecap keeps no page's HTML (the owner chose this on 2026-10-06). The example is the usual fix for the case NVDA's words show, and the person reviewing decides whether it fits.
 
-**The advice for each kind.** The page's own words are in `src/share/text.ts`; this is what each says.
+**The advice for each kind.** The cards' words are in `src/share/attention-words.ts`, and the section's fixed strings (`ATTENTION_TEXT`: its heading, labels, and lines) in `src/share/text.ts`; this is what each says.
 
 | Kind, and what NVDA says | Likely cause | The fix in the code | What NVDA should say then |
 |---|---|---|---|
@@ -176,11 +176,11 @@ The fix comes from what NVDA said, never from the page's code: voicecap keeps no
 - a page that couldn't be read, or whose read pass stopped before the page's end, when a later run reads it to its end. A review doesn't clear it: the transcripts stop short of what wasn't heard;
 - an issue, when it's marked "Fixed".
 
-With no card left, the section says "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", and the summary's panel says the same.
+With no card left, the section says "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", and the summary's panel says the same. When no page in scope raised a flag, so that no flag was ever fixed or checked, both say "Nothing needs attention: every page was read, and no flags were raised." in its place. When some pages were skipped, which are on no card and weren't read, both say instead "Nothing needs attention on the pages read: every flag was fixed or checked by a person. <n> pages were skipped, not read.", or, with no flag raised, "Nothing needs attention on the pages read: no flags were raised. <n> pages were skipped, not read." ("1 page was skipped" for one).
 
 **The Word copy** has the same cards: each title a heading, the quotes and the code in the fixed-width font, and the pages as a list.
 
-**Where it's built:** the cards' model (grouping, the likely cause, and the advice chosen for each) is pure, in `src/share/attention.ts` beside today's attention lines, from the flags' quotes the model already gathers; the words are in `src/share/text.ts`; and the page and the Word copy render it.
+**Where it's built:** the cards' model (grouping, the likely cause, and the advice chosen for each) is pure, in `src/share/attention.ts` beside today's attention lines, from the flags' quotes the model already gathers; the cards' words are in `src/share/attention-words.ts` (`attentionWords`), with the section's fixed strings (`ATTENTION_TEXT`) in `src/share/text.ts`; and the page and the Word copy render it.
 
 ## What changed since the last run
 
@@ -596,7 +596,7 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
   - i2i's case, from the transcripts of the run of 6 October 2026: a graphic whose alt text Chrome counts as missing, inside a link with words of its own, in the header of every page, is one card with `alt=""`; the same graphic standing alone gets a name in words; and a graphic with no name at all is "missing alt text";
   - a page that couldn't be read, a read that stopped early, an open issue with its note, and a page changed since its review, each as its own card.
 - A review: "Reviewed, no issues" after the run that raised a page's flags takes the page off its card and out of the summary's count, and its card under "Every page" says "Checked by <name>, <date>: not an issue"; a later change to its transcripts brings it back; "Issue found" moves it to an issue card, and "Fixed" clears that.
-- No card left: the line for none, in the section and in the summary's panel.
+- No card left: the line for none, and the line when no flag was raised, each with pages skipped and without, in the section and in the summary's panel.
 - The summary: five numbers; the human-review bar without "heard live"; and the sentence's count of problems and pages.
 - The Word copy's cards, and axe with zero violations with the cards open and with them folded.
 

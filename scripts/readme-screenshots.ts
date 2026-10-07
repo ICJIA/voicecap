@@ -59,7 +59,9 @@ export const SOURCE_HOME = path.join(ROOT, "fixture", "i2i-v3-run");
 /**
  * When the pictures show the report as shared: 6 October 2026 at 15:00, a local time, so it's that
  * day anywhere, after the run ended (at 12:32). It's fixed: every share the script makes has it, so
- * the pictures come out the same each time. It isn't when anyone really shared the report.
+ * the six pictures of the report come out the same each time. The two of the website still differ
+ * with each run, since the Word copy's fingerprint does (see above). It isn't when anyone really
+ * shared the report.
  */
 const SHARED_ON = new Date(2026, 9, 6, 15, 0);
 /** Who shares it: the person who ran the review, as the run's record names them. */
