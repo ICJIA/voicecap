@@ -240,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.12.0 on npm, released 2026-10-07 (tag `v0.12.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.12.1 on npm, released 2026-10-07 (tag `v0.12.1`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -306,9 +306,13 @@ The owner's standing rules, from Phases A and B:
     - **A review settles a flag** ("Checked by <name>, <date>: not an issue"); a stopped read clears only when a later run reads the page to its end.
     - **The summary** has five numbers (no "heard live"), counts problems, and its attention panel takes the full width.
     - **The README's screenshots** come from the i2i v3 run of 6 October 2026 (`fixture/i2i-v3-run`), the owner's main site.
+  - 0.12.1 (2026-10-07) made the summary easier to read, at the owner's request:
+    - its four panels are full-width rows, one under another, with each line of text kept to 80 characters;
+    - its "Since the last run" line groups the pages a flag was resolved on, and says each flag once ("the unnamed items, on all 32 of them").
 - **Being built:** each plan written when the owner says:
-  - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), is next, as 0.13.0. Its spec is `docs/superpowers/specs/2026-10-06-review-replay-design.md` on branch `plan-8-review-replay`, awaiting the owner's review.
-  - plan 6c, NVDA's own log checked against the transcripts, comes after it, as 0.14.0. Tasks 1-2 are built on `plan-6c-nvda-log`; it waits, and resumes by merging main first. Until then, its place on the page says "Not recorded".
+  - plan 9, the page for managers, is next, as 0.13.0. The owner asked on 2026-10-07 for the most critical facts first (the overall result, the screenshots, and the transcripts) and the details last. The page opens with "At a glance": a verdict in words and an icon, a ring of the pages, and four big numbers. Then come the problem cards, then every page with what NVDA said first and its full transcript folded inside, and last the details, for reviewers and auditors. Its spec is the shareable report's, amended on branch `plan-9-page-for-managers`, awaiting the owner's review.
+  - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), comes after it, as 0.14.0. Its spec is `docs/superpowers/specs/2026-10-06-review-replay-design.md` on branch `plan-8-review-replay`, awaiting the owner's review.
+  - plan 6c, NVDA's own log checked against the transcripts, comes after that, as 0.15.0. Tasks 1-2 are built on `plan-6c-nvda-log`; it waits, and resumes by merging main first. Until then, its place on the page says "Not recorded".
   - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.
   - **The owner's decisions of 2026-10-05:** the VoiceOver work on the Mac (Phase C) waits until the PC work is finished: plans 6 and 6c, then a security audit of the PC work. Then Phase C is built, and a separate security audit of the Mac part follows.
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
