@@ -1466,6 +1466,43 @@ describe("the summary's panels", () => {
       }
     },
   );
+
+  // A panel is the grid's whole width, but a line of its text stops at 80 characters, as wide as 80
+  // "0"s of its own font (`80ch`), or a line of 150 characters is hard to follow. A box set to 80ch
+  // inside each paragraph and list item, from the script, is how wide that is there.
+  it.each([...STATES, ["with i2i's long list of pages", "i2i"] as const])(
+    "keeps a line of the panels' paragraphs and list items to 80 characters, though each panel is the grid's width, at 1280 px: %s",
+    async (state, which) => {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 1280, height: 900 });
+
+      const { grid, panels } = await panelsOf(page);
+      const texts = await page.evaluate(() =>
+        [...document.querySelectorAll(".panels p, .panels li")].map((text) => {
+          const eighty = document.createElement("span");
+          eighty.style.display = "block";
+          eighty.style.width = "80ch";
+          text.append(eighty);
+          const measure = eighty.getBoundingClientRect().width;
+          eighty.remove();
+          return {
+            words: (text.textContent ?? "").slice(0, 40),
+            width: text.getBoundingClientRect().width,
+            measure,
+          };
+        }),
+      );
+
+      // The panels are as wide as ever, so it is the text that is kept short of that.
+      for (const panel of panels) near(panel.width, grid.width, `${state}: ${panel.title}`);
+      expect(texts.length, state).toBeGreaterThan(5);
+      for (const { words, width, measure } of texts) {
+        expect(measure, `${state}: 80 characters, for "${words}"`).toBeGreaterThan(200);
+        expect(measure, `${state}: 80 characters, for "${words}"`).toBeLessThan(grid.width);
+        expect(width, `${state}: "${words}" is ${width} px wide`).toBeLessThanOrEqual(measure + 1);
+      }
+    },
+  );
 });
 
 describe("what needs attention", () => {

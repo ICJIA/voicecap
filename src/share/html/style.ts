@@ -57,7 +57,9 @@ export const THEME_CSS = `:root {
  * - the summary's panels (`.panels`): one column, so each of the four is a row of its own, the
  *   grid's whole width, one after another in the order they're written (what needs attention
  *   first), in each state of the first and at every width of the window. Side by side, they were
- *   too much to read at once;
+ *   too much to read at once. A line of their text stops at 80 characters of its own size
+ *   (`max-width: 80ch` on a paragraph and on a list), about as wide as 72 of the page's larger
+ *   text, while each row stays the grid's whole width;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
  *   code of a fix wrap (`overflow-wrap: anywhere`), so a long line never widens the page, and a
  *   fold inside a card is on the second color of the panels. Each line NVDA said is a block under
@@ -122,6 +124,8 @@ code { overflow-wrap: anywhere; }
 .panel h3 { font-size: 0.95rem; }
 .panel p, .panel ul { margin: 0; font-size: 0.93rem; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
+/* The summary's panels are the grid's whole width, which would let a line run to 150 characters: a paragraph, and a list and so its items, stop at 80 characters of their own text (80ch), and the panel's box stays the grid's width. */
+.panels p, .panels ul { max-width: 80ch; }
 .panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .panel.attention h3 { color: var(--warn); }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
