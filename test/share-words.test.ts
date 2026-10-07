@@ -104,6 +104,7 @@ import {
   whereOf,
   whyLine,
 } from "../src/share/words.js";
+import { i2iModel, withCards } from "./helpers/share-attention.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -389,6 +390,7 @@ describe("the summary's panel on what needs attention", () => {
     problems: count,
     pages: count,
     skipped: 0,
+    flagsRaised: true,
     cards: Array.from({ length: count }, (_, at) => ({
       id: `need-${at + 1}`,
       title: `Problem ${at + 1}`,
@@ -400,6 +402,7 @@ describe("the summary's panel on what needs attention", () => {
       problems: 1,
       pages: 32,
       skipped: 0,
+      flagsRaised: true,
       cards: [{ id: "need-1", title: 'The graphic "i 2i Logo" is read as "Unlabeled graphic"' }],
     };
 
@@ -444,15 +447,20 @@ describe("the summary's panel on what needs attention", () => {
   });
 
   it("says nothing when no problem is left: the panel says the line for none", () => {
-    expect(attentionPanelOf({ problems: 0, pages: 0, skipped: 0, cards: [] })).toBeNull();
+    for (const flagsRaised of [true, false]) {
+      expect(
+        attentionPanelOf({ problems: 0, pages: 0, skipped: 0, flagsRaised, cards: [] }),
+      ).toBeNull();
+    }
     expect(ATTENTION_TEXT.none).toBe(
       "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
     );
   });
 
   describe("the line for no problem", () => {
-    const none = (skipped: number) =>
-      noAttentionLine({ problems: 0, pages: 0, skipped, cards: [] });
+    /** The line, with `skipped` pages skipped, for a standing whose pages raised flags or none. */
+    const none = (skipped: number, flagsRaised = true) =>
+      noAttentionLine({ problems: 0, pages: 0, skipped, flagsRaised, cards: [] });
 
     it("says every page was read, and every flag was fixed or checked, when no page was skipped", () => {
       expect(none(0)).toBe(
@@ -468,6 +476,24 @@ describe("the summary's panel on what needs attention", () => {
         "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.",
       );
       expect(none(2)).toBe(ATTENTION_TEXT.noneSkipped(2));
+    });
+
+    it("says no flags were raised, rather than that every flag was fixed or checked, when none was", () => {
+      expect(none(0, false)).toBe(
+        "Nothing needs attention: every page was read, and no flags were raised.",
+      );
+      expect(none(0, false)).toBe(ATTENTION_TEXT.noFlags);
+      expect(none(1, false)).toBe(
+        "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
+      );
+      expect(none(2, false)).toBe(
+        "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
+      );
+      expect(none(1204, false)).toBe(ATTENTION_TEXT.noFlagsSkipped(1204));
+      // It never claims a flag was fixed or checked when there was none.
+      for (const skipped of [0, 1, 2]) {
+        expect(none(skipped, false)).not.toMatch(/fixed or checked/);
+      }
     });
   });
 });
@@ -549,15 +575,21 @@ describe("the opening lines of What needs attention, Every page, and the appendi
   });
 
   it("say that nothing needs attention when no card is left, as the summary's panel does", () => {
+    // No page raised a flag: the line says so, rather than that every flag was fixed or checked.
     const clean = modelOf([done("/a"), done("/b")]);
     const skipped = modelOf([done("/a"), { path: "/pdf", status: "skipped" }]);
+    // Flags were raised, and no card is left of them.
+    const checked = withCards(i2iModel(), []);
 
-    expect(lineText(attentionGist(clean))).toBe(ATTENTION_TEXT.none);
+    expect(clean.summary.attention.flagsRaised).toBe(false);
+    expect(lineText(attentionGist(clean))).toBe(ATTENTION_TEXT.noFlags);
     expect(lineText(attentionGist(clean))).toBe(noAttentionLine(clean.summary.attention));
+    expect(lineText(attentionGist(checked))).toBe(ATTENTION_TEXT.none);
+    expect(lineText(attentionGist(checked))).toBe(noAttentionLine(checked.summary.attention));
     // Some pages weren't read, so it never says every page was.
     expect(lineText(attentionGist(skipped))).toBe(noAttentionLine(skipped.summary.attention));
     expect(lineText(attentionGist(skipped))).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
+      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
     );
   });
 

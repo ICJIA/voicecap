@@ -266,9 +266,10 @@ export const SCREENSHOT_TEXT = {
 
 /**
  * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
- * were skipped), the labels of a card's parts, the line of the fold a card's pages are behind, and
- * the small sentences the summary says about the cards (`sentence`, and `more` for its panel). What
- * a card itself says is `attentionWords`, in ./attention-words.ts.
+ * were skipped; `noFlags` and `noFlagsSkipped` when no page raised a flag), the labels of a card's
+ * parts, the line of the fold a card's pages are behind, and the small sentences the summary says
+ * about the cards (`sentence`, and `more` for its panel). What a card itself says is
+ * `attentionWords`, in ./attention-words.ts.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -289,6 +290,14 @@ export const ATTENTION_TEXT = {
    */
   noneSkipped: (skipped: number): string =>
     `Nothing needs attention on the pages read: every flag was fixed or checked by a person. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
+  /**
+   * Said in place of `none` when no page in scope raised a flag, since a flag never raised was never
+   * fixed or checked. The spec pins it.
+   */
+  noFlags: "Nothing needs attention: every page was read, and no flags were raised.",
+  /** Said in place of `noneSkipped` when no page read raised a flag. */
+  noFlagsSkipped: (skipped: number): string =>
+    `Nothing needs attention on the pages read: no flags were raised. ${plural(skipped, "page was", "pages were")} skipped, not read.`,
   /**
    * The labels of a card's parts, each followed by what it labels: a card on one page labels it
    * `page`, and one on more `pages`.

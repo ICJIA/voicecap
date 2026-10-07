@@ -136,7 +136,8 @@ function tiles(model: ShareModel): string {
 /**
  * "What needs attention": how many problems there are, on how many pages, then the first few by
  * their titles, each linked to its card, and a link to the section for the rest (../words.ts); or
- * the line that says nothing is left, and how many pages weren't read when some were skipped.
+ * the line that says nothing is left (`noAttentionLine`), which says whether any flag was raised,
+ * and how many pages weren't read when some were skipped.
  *
  * It is the critical panel, so in each of its states it has the class that takes a row of its own
  * (`wide`, the grid's whole width: see ./style.ts), above the other three. The problems' panel

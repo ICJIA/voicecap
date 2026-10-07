@@ -381,10 +381,24 @@ describe("wordAttention", () => {
     });
     const model = buildShareModel(inputOf([run]));
 
+    // No page raised a flag, so the line says so.
     expect(model.attention).toEqual([]);
     expect(wordsOf(wordAttention(model))[1]).toBe(
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
+      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
     );
+    expect(wordsOf(wordAttention(model))[1]).toBe(noAttentionLine(model.summary.attention));
+  });
+
+  it("says no flags were raised, as the summary does, when every page was read and none raised one", () => {
+    const model = buildShareModel(
+      inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
+    );
+
+    expect(model.attention).toEqual([]);
+    expect(wordsOf(wordAttention(model))[1]).toBe(
+      "Nothing needs attention: every page was read, and no flags were raised.",
+    );
+    expect(wordsOf(wordAttention(model))[1]).toBe(noAttentionLine(model.summary.attention));
   });
 
   it("says nothing was counted, and never that nothing needs attention, when no run counts", () => {

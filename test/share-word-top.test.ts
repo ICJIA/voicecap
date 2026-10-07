@@ -90,7 +90,13 @@ function withCards(
   skipped = 0,
 ): ShareModel {
   return withSummary(model, {
-    attention: { problems: cards.length, pages: cards.length, skipped, cards },
+    attention: {
+      ...model.summary.attention,
+      problems: cards.length,
+      pages: cards.length,
+      skipped,
+      cards,
+    },
   });
 }
 
@@ -398,9 +404,15 @@ describe("wordSummary", () => {
     });
     const model = buildShareModel(inputOf([run]));
     const line =
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.";
+      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.";
 
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 2, cards: [] });
+    expect(model.summary.attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 2,
+      flagsRaised: false,
+      cards: [],
+    });
     expect(under(wordSummary(model), "What needs attention")).toEqual([para(line)]);
     // The page's panel says the same line.
     expect(
@@ -414,19 +426,35 @@ describe("wordSummary", () => {
     expect(wordsOf(problems)).toEqual(["2 problems, on 2 pages:", "Problem 1", "Problem 2"]);
   });
 
-  it("says nothing needs attention when no problem is left", () => {
+  it("says nothing needs attention when no problem is left, and that no flags were raised when none was", () => {
     const model = cleanModel();
+    // The same, but flags were raised, and each was settled.
+    const checked = withSummary(model, {
+      attention: { ...model.summary.attention, flagsRaised: true },
+    });
+    const panelLine = (shown: ShareModel) =>
+      textOf(renderSummary(shown).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? "");
 
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
+    expect(model.summary.attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 0,
+      flagsRaised: false,
+      cards: [],
+    });
     expect(under(wordSummary(model), "What needs attention")).toEqual([
+      para("Nothing needs attention: every page was read, and no flags were raised."),
+    ]);
+    expect(under(wordSummary(checked), "What needs attention")).toEqual([
       para(
         "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
       ),
     ]);
     // The page's panel says the same line.
-    expect(
-      textOf(renderSummary(model).match(/<h3>What needs attention<\/h3><p>(.*?)<\/p>/)?.[1] ?? ""),
-    ).toBe(
+    expect(panelLine(model)).toBe(
+      "Nothing needs attention: every page was read, and no flags were raised.",
+    );
+    expect(panelLine(checked)).toBe(
       "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
     );
   });

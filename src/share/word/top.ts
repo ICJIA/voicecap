@@ -116,7 +116,8 @@ function numbersTable(model: ShareModel): Block {
  * "What needs attention": how many problems there are, on how many pages, then a list of the first
  * few by their titles and how many more there are, the same lines as the page's panel (../words.ts)
  * but for its links, since the Word copy's sections follow one another; or the line that says
- * nothing is left, and how many pages weren't read when some were skipped.
+ * nothing is left (`noAttentionLine`), which says whether any flag was raised, and how many pages
+ * weren't read when some were skipped.
  */
 function attentionBlocks({ attention }: Summary): Block[] {
   const panel = attentionPanelOf(attention);

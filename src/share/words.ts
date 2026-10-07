@@ -204,7 +204,8 @@ export interface AttentionPanel {
  * What the summary's panel on what needs attention says: how many problems there are and on how
  * many pages, over every card; the first `PANEL_CARDS` cards by their titles; and, when there are
  * more, how many it leaves out, which both copies say beneath the cards, the page linking it to the
- * section that has them all. Null when no card is left: the panel says `ATTENTION_TEXT.none`.
+ * section that has them all. Null when no card is left: the panel says the line for no problem
+ * (`noAttentionLine`).
  */
 export function attentionPanelOf({
   problems,
@@ -224,9 +225,14 @@ export function attentionPanelOf({
 /**
  * What the section on what needs attention and the summary's panel say when no card is left: that
  * nothing needs attention, as every page was read; or, when some pages were skipped (they are on no
- * card, and weren't read), that nothing does on the pages read, with how many were skipped.
+ * card, and weren't read), that nothing does on the pages read, with how many were skipped. Each
+ * says that every flag was fixed or checked by a person when a page in scope raised one, and that
+ * no flags were raised when none did: a flag never raised was never fixed or checked.
  */
-export function noAttentionLine({ skipped }: Summary["attention"]): string {
+export function noAttentionLine({ skipped, flagsRaised }: Summary["attention"]): string {
+  if (!flagsRaised) {
+    return skipped === 0 ? ATTENTION_TEXT.noFlags : ATTENTION_TEXT.noFlagsSkipped(skipped);
+  }
   return skipped === 0 ? ATTENTION_TEXT.none : ATTENTION_TEXT.noneSkipped(skipped);
 }
 

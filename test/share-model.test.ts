@@ -1290,6 +1290,7 @@ describe("buildShareModel", () => {
       problems: 5,
       pages: 2,
       skipped: 0,
+      flagsRaised: true,
       cards: model.attention.map((card) => ({
         id: card.id,
         title: attentionWords(card).title,

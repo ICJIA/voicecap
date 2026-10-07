@@ -31,6 +31,7 @@ import { problemsOf } from "../src/share/problems.js";
 import { reviewOf } from "../src/share/review.js";
 import { standingOf, type Standing } from "../src/share/standing.js";
 import { summaryOf, type Summary } from "../src/share/summary.js";
+import { noAttentionLine } from "../src/share/words.js";
 import { findPage, SITE } from "./helpers/report-data.js";
 import { BIO_READ, BIO_TAB, passesOf } from "./helpers/share-attention.js";
 import {
@@ -1226,6 +1227,7 @@ describe("summaryOf: the sentence", () => {
       problems: 1,
       pages: 1,
       skipped: 0,
+      flagsRaised: false,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     expect(summary.todo).toEqual([
@@ -1271,6 +1273,7 @@ describe("summaryOf: the problems the cards count", () => {
       problems: 1,
       pages: 32,
       skipped: 0,
+      flagsRaised: true,
       cards: [{ id: "need-1", title: LOGO }],
     });
     expect(summary.attention.cards).toEqual(
@@ -1291,9 +1294,19 @@ describe("summaryOf: the problems the cards count", () => {
     expect(model.summary.sentence).toMatch(
       / Every page with flags was reviewed, and no issues were found\.$/,
     );
-    // A review settles a page's flags: the card leaves the list, and the summary's panel.
+    // A review settles a page's flags: the card leaves the list, and the summary's panel. Flags
+    // were raised, and each was checked by a person, so the line for none says so.
     expect(model.attention).toEqual([]);
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
+    expect(model.summary.attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 0,
+      flagsRaised: true,
+      cards: [],
+    });
+    expect(noAttentionLine(model.summary.attention)).toBe(
+      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+    );
   });
 
   it("counts only the pages no review has settled, and the problem stays until the last is", () => {
@@ -1308,6 +1321,7 @@ describe("summaryOf: the problems the cards count", () => {
       problems: 1,
       pages: 1,
       skipped: 0,
+      flagsRaised: true,
       cards: [{ id: "need-1", title: LOGO }],
     });
   });
@@ -1562,6 +1576,7 @@ describe("summaryOf: the panels", () => {
       problems: 3,
       pages: 1,
       skipped: 0,
+      flagsRaised: true,
       cards: [
         { id: "need-1", title: "What the run recorded: click here" },
         { id: "need-2", title: "What the run recorded: edit" },
@@ -1603,6 +1618,7 @@ describe("summaryOf: the panels", () => {
       problems: 3,
       pages: 3,
       skipped: 0,
+      flagsRaised: true,
       cards: [
         { id: "need-1", title: "A page the latest run couldn't read" },
         { id: "need-2", title: "An issue found in review: Home" },
@@ -2029,6 +2045,7 @@ describe("summaryOf: pages that were skipped", () => {
       problems: 0,
       pages: 0,
       skipped: 2,
+      flagsRaised: false,
       cards: [],
     });
     expect(summarize({ runs: [run] }).sentence).toMatch(/ 2 pages were skipped, not read\.$/);
@@ -2171,6 +2188,7 @@ describe("summaryOf: pages the latest run couldn't read, shown from an earlier r
       problems: 1,
       pages: 1,
       skipped: 0,
+      flagsRaised: false,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     expect(summary.todo).toEqual([
@@ -2253,6 +2271,7 @@ describe("summaryOf: pages the latest run couldn't read, shown from an earlier r
       problems: 1,
       pages: 1,
       skipped: 0,
+      flagsRaised: false,
       cards: [{ id: "need-1", title: "A page the latest run couldn't read" }],
     });
     // The kind of failure is the task's: the spot check's, not the full run's.
@@ -2429,6 +2448,156 @@ describe("summaryOf: a read that stopped before the page's end", () => {
   });
 });
 
+describe("summaryOf: a page that reads differently since its review", () => {
+  // A review of other transcripts settles nothing: the page is on the card of pages that read
+  // differently since their review, and is a task until it's reviewed again. The pages a line
+  // already names are left to that line.
+  const HOW = "/how-a-run-works/";
+  const REPORT = "/the-report/";
+  /** A review of the page as it read before: its read pass's fingerprint isn't the one shown. */
+  const stale = (run: RunJson, path: string, status: ReviewStatus = "reviewed"): ReviewEntry =>
+    review(run, path, status, { content: { read: "0".repeat(64) } });
+  const reviewAgain =
+    "Review How a run works again in voicecap review: it reads differently since its review.";
+
+  it("is a task for a page with no flags and no issue, so something is left", () => {
+    const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
+
+    const summary = summarize({ runs: [run], reviews: reviewsOf(stale(run, HOW)) });
+
+    expect(summary.attention.cards.map(({ title }) => title)).toEqual([
+      "A page reads differently since its review",
+    ]);
+    expect(summary.todo).toEqual([reviewAgain]);
+    expect(summary.todo).not.toContain(NOTHING_LEFT);
+  });
+
+  it("is left to the line that already names the page: its flags to decide about, or its issue", () => {
+    const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
+    const flagged = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => (path === HOW ? { flags } : {}),
+    });
+    const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
+
+    // Its flags count again, and the line that asks for a decision on them names it.
+    expect(summarize({ runs: [flagged], reviews: reviewsOf(stale(flagged, HOW)) }).todo).toEqual([
+      "Take a closer listen to How a run works, where flags were raised, and record what you decide.",
+    ]);
+    // An issue found in the transcripts it read before is still open: the line to fix it names it.
+    expect(summarize({ runs: [run], reviews: reviewsOf(stale(run, HOW, "issue")) }).todo).toEqual([
+      "Fix the issue found on How a run works, then record it as fixed.",
+    ]);
+    // An issue found, then a review of other transcripts with no fix: the line to record it names it.
+    const found = reviewsOf(review(run, HOW, "issue", { at: "2026-09-26T15:00:00-05:00" }), {
+      ...stale(run, HOW),
+      at: "2026-09-26T16:00:00-05:00",
+    });
+    expect(summarize({ runs: [run], reviews: found }).todo).toEqual([
+      "Record whether the issue found on How a run works was fixed.",
+    ]);
+  });
+
+  it("says its pages in the plural, and keeps a long list of pages short", () => {
+    const run = sevenPages({ sessions: [{ reviewer: CHRIS }] });
+    const todoOf = (...paths: string[]) =>
+      summarize({ runs: [run], reviews: reviewsOf(...paths.map((path) => stale(run, path))) }).todo;
+
+    expect(todoOf(HOW, REPORT)).toEqual([
+      "Review How a run works and The report again in voicecap review: they read differently since their review.",
+    ]);
+    expect(todoOf("/", "/before-you-start/", HOW, "/reading-transcripts/", REPORT)).toEqual([
+      "Review Home, Before you start, How a run works, and 2 more again in voicecap review: they read differently since their review.",
+    ]);
+  });
+
+  it("comes last, after the pages to decide about", () => {
+    const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
+    const run = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => (path === COMMON ? { flags } : {}),
+    });
+
+    expect(summarize({ runs: [run], reviews: reviewsOf(stale(run, HOW)) }).todo).toEqual([
+      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
+      reviewAgain,
+    ]);
+  });
+});
+
+describe("summaryOf: the line that says nothing needs attention", () => {
+  // With no card left, the line turns on whether any page in scope raised a flag: "every flag was
+  // fixed or checked by a person" speaks of flags, so a standing that raised none says so instead.
+  // The section and the summary's panel say it through noAttentionLine.
+  const flags = [genericFlag("tab", [{ text: "read more", count: 2 }])];
+  const skipped =
+    (...paths: string[]) =>
+    (path: string) =>
+      paths.includes(path) ? { status: "skipped" as const } : {};
+
+  it("says no flags were raised when no page raised one", () => {
+    const summary = summarize({ runs: [sevenPages({ sessions: [{ reviewer: CHRIS }] })] });
+
+    expect(summary.attention).toMatchObject({ problems: 0, skipped: 0, flagsRaised: false });
+    expect(noAttentionLine(summary.attention)).toBe(
+      "Nothing needs attention: every page was read, and no flags were raised.",
+    );
+  });
+
+  it("says every flag was fixed or checked by a person when each page that raised one has a decision", () => {
+    const run = sevenPages({
+      sessions: [{ reviewer: CHRIS }],
+      page: (path) => (path === COMMON ? { flags } : {}),
+    });
+
+    for (const status of ["reviewed", "fixed"] as const) {
+      const summary = summarize({ runs: [run], reviews: reviewsOf(review(run, COMMON, status)) });
+
+      expect(summary.attention, status).toMatchObject({ problems: 0, flagsRaised: true });
+      expect(noAttentionLine(summary.attention), status).toBe(
+        "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+      );
+    }
+  });
+
+  it("says no flags were raised on the pages read, and how many were skipped, when some were", () => {
+    const one = summarize({ runs: [sevenPages({ page: skipped("/") })] });
+    const two = summarize({ runs: [sevenPages({ page: skipped("/", "/the-report/") })] });
+
+    expect(one.attention).toMatchObject({ problems: 0, skipped: 1, flagsRaised: false });
+    expect(noAttentionLine(one.attention)).toBe(
+      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
+    );
+    expect(noAttentionLine(two.attention)).toBe(
+      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
+    );
+  });
+
+  it("says every flag was fixed or checked on the pages read, and how many were skipped, when some were", () => {
+    const run = sevenPages({
+      page: (path) => (path === COMMON ? { flags } : skipped("/")(path)),
+    });
+
+    const summary = summarize({ runs: [run], reviews: reviewsOf(review(run, COMMON, "reviewed")) });
+
+    expect(summary.attention).toMatchObject({ problems: 0, skipped: 1, flagsRaised: true });
+    expect(noAttentionLine(summary.attention)).toBe(
+      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
+    );
+  });
+
+  it("counts the flags of every page in scope that was read, open or settled", () => {
+    const run = sevenPages({ page: (path) => (path === COMMON ? { flags } : {}) });
+
+    expect(summarize({ runs: [run] }).attention.flagsRaised).toBe(true);
+    // A page that wasn't read has no transcripts, so no flags to raise, whatever its record holds.
+    const unread = sevenPages({
+      page: (path) => (path === COMMON ? { status: "failed", flags } : {}),
+    });
+    expect(summarize({ runs: [unread] }).attention.flagsRaised).toBe(false);
+  });
+});
+
 describe("summaryOf: the demo runs of 29 September 2026", () => {
   // voicecap 0.4.1 recorded these: no reviewers, no listener's statement, and flags with no list of
   // what they found. Each of runs 1315 and 1402 lost a page the other read.
@@ -2472,6 +2641,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
       problems: 5,
       pages: 2,
       skipped: 0,
+      flagsRaised: true,
       cards: [
         {
           id: "need-1",
@@ -2551,7 +2721,7 @@ describe("summaryOf: no run counts yet", () => {
           nvdaMs: 0,
           sessionsWithoutEnd: 0,
         },
-        attention: { problems: 0, pages: 0, skipped: 0, cards: [] },
+        attention: { problems: 0, pages: 0, skipped: 0, flagsRaised: false, cards: [] },
         complete: [],
         todo: [],
         whenHow: [],

@@ -504,13 +504,27 @@ describe("renderAttention", () => {
     });
     const model = buildShareModel(inputOf([run]));
     const html = renderAttention(model);
+    // No page raised a flag, so the line says so.
     const line =
-      "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.";
+      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.";
 
     expect(model.attention).toEqual([]);
     expect(model.summary.attention.skipped).toBe(2);
     expect(html).toContain(`<p class="gist">${line}</p>`);
     expect(html).not.toContain("every page was read");
+    expect(textOf(renderSummary(model))).toContain(line);
+  });
+
+  it("says no flags were raised, as the panel does, when every page was read and none raised one", () => {
+    const model = buildShareModel(
+      inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
+    );
+    const line = "Nothing needs attention: every page was read, and no flags were raised.";
+
+    expect(model.attention).toEqual([]);
+    expect(model.summary.attention.flagsRaised).toBe(false);
+    expect(renderAttention(model)).toContain(`<p class="gist">${line}</p>`);
+    expect(renderAttention(model)).not.toContain("fixed or checked");
     expect(textOf(renderSummary(model))).toContain(line);
   });
 

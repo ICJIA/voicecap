@@ -3,7 +3,12 @@
  * panels, and three bars. Pure: every part is worked out from records already read.
  */
 import type { FlagResult, RunJson, SkipReason } from "../model.js";
-import { FLAG_KINDS, type AttentionCard, type ReadFailure } from "./attention.js";
+import {
+  FLAG_KINDS,
+  type AttentionCard,
+  type AttentionKind,
+  type ReadFailure,
+} from "./attention.js";
 import { attentionWords } from "./attention-words.js";
 import type { Changes } from "./changes.js";
 import { dateRange, names } from "./format.js";
@@ -32,15 +37,18 @@ export interface Summary {
   /**
    * "What needs attention": how many problems there are (a card for each) and how many different
    * pages they're on, over every card; how many pages voicecap skipped after loading them and so
-   * never read (the sentence's "skipped, not read"), which are on no card and which the line for
-   * no problem says (`noAttentionLine`, in words.ts); and each card's id and title (its words'
-   * `title`), in the cards' order, for the panel to name and link to its card. The panel names the
-   * first few and counts the rest (`attentionPanelOf`, in words.ts).
+   * never read (the sentence's "skipped, not read"), which are on no card; whether any page in
+   * scope raised a flag (in the transcripts shown), settled or not, since a flag never raised was
+   * never fixed or checked: the line for no problem says both (`noAttentionLine`, in words.ts); and
+   * each card's id and title (its words' `title`), in the cards' order, for the panel to name and
+   * link to its card. The panel names the first few and counts the rest (`attentionPanelOf`, in
+   * words.ts).
    */
   attention: {
     problems: number;
     pages: number;
     skipped: number;
+    flagsRaised: boolean;
     cards: { id: string; title: string }[];
   };
   /** "How complete the test was". */
@@ -189,22 +197,45 @@ export function summaryOf(input: SummaryInput): Summary {
       : [];
   });
   const skippedInLatest = pages.filter((facts) => outcomeOf(facts) === "skipped");
+  /** The pages on the cards of a kind, by their slugs. */
+  const onCards = (kind: AttentionKind): Set<string> =>
+    new Set(
+      input.attention
+        .filter((card) => card.kind === kind)
+        .flatMap((card) => card.pages.map((page) => page.slug)),
+    );
+  const slugsOf = (list: PageFacts[]): Set<string> => new Set(list.map(({ page }) => page.slug));
   // The pages on the read-stopped card: a review doesn't settle a read that stopped before the
   // page's end, since no later run has read the page to its end. Running such a page again is a
   // task of its own, whatever else is to be done with it (a decision on its flags, or an issue to
   // fix): only a page the latest run couldn't read or skipped is left out, since the lines about
   // those already say to read it again or to check whether it belongs on the list.
-  const stopped = new Set(
-    input.attention
-      .filter((card) => card.kind === "read-stopped")
-      .flatMap((card) => card.pages.map((page) => page.slug)),
+  const stopped = onCards("read-stopped");
+  const toReadAgain = slugsOf([
+    ...unread,
+    ...readBefore.map(({ facts }) => facts),
+    ...skippedInLatest,
+  ]);
+  const readStopped = pages.filter(
+    ({ page }) => stopped.has(page.slug) && !toReadAgain.has(page.slug),
   );
-  const named = new Set(
-    [...unread, ...readBefore.map(({ facts }) => facts), ...skippedInLatest].map(
-      ({ page }) => page.slug,
-    ),
+  // The pages on the card of pages that read differently since their review, which a review of
+  // other transcripts doesn't settle: each is to be reviewed again, but a page another task names
+  // is left to that task (a decision on its flags, an issue to fix or to record, a page to read
+  // again or to check), so the list and the cards agree without naming a page twice for it.
+  const reviewedBefore = onCards("changed");
+  const named = slugsOf([
+    ...withIssue,
+    ...toRecord,
+    ...unread,
+    ...readBefore.map(({ facts }) => facts),
+    ...readStopped,
+    ...skippedInLatest,
+    ...undecided,
+  ]);
+  const changed = pages.filter(
+    ({ page }) => reviewedBefore.has(page.slug) && !named.has(page.slug),
   );
-  const readStopped = pages.filter(({ page }) => stopped.has(page.slug) && !named.has(page.slug));
   // The sentence's problems are the cards that come from flags (a read that stopped among them), and
   // the pages on them: counted from the cards, never from `undecided`, since a page whose read
   // stopped keeps its card after a review has decided about it.
@@ -239,6 +270,7 @@ export function summaryOf(input: SummaryInput): Summary {
       problems: input.attention.length,
       pages: distinctPages(input.attention),
       skipped: skipped.length,
+      flagsRaised: flagged.length > 0,
       cards: input.attention.map((card) => ({ id: card.id, title: attentionWords(card).title })),
     },
     complete: [
@@ -258,6 +290,7 @@ export function summaryOf(input: SummaryInput): Summary {
       readStopped,
       skipped: skippedInLatest,
       undecided,
+      changed,
     }),
     whenHow: whenHowOf(latest),
     bars: {
@@ -290,7 +323,7 @@ function emptySummary(): Summary {
       nvdaMs: 0,
       sessionsWithoutEnd: 0,
     },
-    attention: { problems: 0, pages: 0, skipped: 0, cards: [] },
+    attention: { problems: 0, pages: 0, skipped: 0, flagsRaised: false, cards: [] },
     complete: [],
     todo: [],
     whenHow: [],
@@ -505,14 +538,20 @@ interface Tasks {
   skipped: PageFacts[];
   /** Flags no one has decided about. */
   undecided: PageFacts[];
+  /**
+   * The page reads differently since its review, which settles nothing about what it says now:
+   * every page on the changed card but those the tasks above name.
+   */
+  changed: PageFacts[];
 }
 
 /**
  * What's still to do, as a task for each issue to fix or to record the fix of, page to read again
  * (none of its runs read it, the latest couldn't, or its read stopped before the page's end), page
- * that was skipped, and flagged page to decide about; or that nothing is left. Nothing is left only
- * when every issue found is fixed and no page is open, unread, failed or skipped in the latest run,
- * stopped short, or undecided.
+ * that was skipped, flagged page to decide about, and page to review again, since it reads
+ * differently since its review; or that nothing is left. Nothing is left only when every issue
+ * found is fixed and no page is open, unread, failed or skipped in the latest run, stopped short,
+ * undecided, or changed since its review.
  */
 function todoOf({
   withIssue,
@@ -522,6 +561,7 @@ function todoOf({
   readStopped,
   skipped,
   undecided,
+  changed,
 }: Tasks): string[] {
   const todo: string[] = [];
   if (withIssue.length > 0) {
@@ -551,6 +591,7 @@ function todoOf({
       `Take a closer listen to ${pageList(undecided)}, where flags were raised, and record what you decide.`,
     );
   }
+  todo.push(...changedTasks(changed));
   return todo.length > 0
     ? todo
     : [
@@ -602,6 +643,20 @@ function readStoppedTasks(pages: PageFacts[]): string[] {
     pages.length === 1
       ? `Run ${pageList(pages)} again with --page: its reading stopped before the page's end.`
       : `Run ${pageList(pages)} again with --page: their reading stopped before each page's end.`,
+  ];
+}
+
+/**
+ * A task, in one line, for the pages that read differently since their review and that no other
+ * task names: the review was of other transcripts, so each is to be reviewed again. None when there
+ * are none.
+ */
+function changedTasks(pages: PageFacts[]): string[] {
+  if (pages.length === 0) return [];
+  return [
+    pages.length === 1
+      ? `Review ${pageList(pages)} again in voicecap review: it reads differently since its review.`
+      : `Review ${pageList(pages)} again in voicecap review: they read differently since their review.`,
   ];
 }
 

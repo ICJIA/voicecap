@@ -120,7 +120,13 @@ function withCards(
   cards: { id: string; title: string }[],
   skipped = 0,
 ): ShareModel {
-  const attention = { problems: cards.length, pages: cards.length, skipped, cards };
+  const attention = {
+    ...model.summary.attention,
+    problems: cards.length,
+    pages: cards.length,
+    skipped,
+    cards,
+  };
   return { ...model, summary: { ...model.summary, attention } };
 }
 
@@ -1073,16 +1079,31 @@ describe("renderSummary", () => {
     expect(html).not.toContain("<script>");
   });
 
-  it("says nothing needs attention when no problem is left", () => {
+  it("says nothing needs attention when no problem is left, and that no flags were raised when none was", () => {
     const run = shareRun({ id: "r1", pages: [{ path: "/" }] });
     const model = buildShareModel(inputOf([run]));
     const html = renderSummary(model);
+    // The same, but flags were raised, and each was settled.
+    const checked = {
+      ...model,
+      summary: { ...model.summary, attention: { ...model.summary.attention, flagsRaised: true } },
+    };
 
-    expect(model.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 0, cards: [] });
+    expect(model.summary.attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 0,
+      flagsRaised: false,
+      cards: [],
+    });
     expect(html).toContain(
+      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and no flags were raised.</p></div>',
+    );
+    expect(renderSummary(checked)).toContain(
       '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p></div>',
     );
     expect(html).not.toContain("panel attention");
+    expect(html).not.toContain("fixed or checked");
     expect(html).not.toContain("No page has flags or an open issue");
   });
 
@@ -1106,12 +1127,26 @@ describe("renderSummary", () => {
     const one = skipped(1);
     const two = skipped(2);
 
-    expect(one.summary.attention).toEqual({ problems: 0, pages: 0, skipped: 1, cards: [] });
-    expect(two.summary.attention).toMatchObject({ problems: 0, skipped: 2 });
+    expect(one.summary.attention).toEqual({
+      problems: 0,
+      pages: 0,
+      skipped: 1,
+      flagsRaised: false,
+      cards: [],
+    });
+    expect(two.summary.attention).toMatchObject({ problems: 0, skipped: 2, flagsRaised: false });
     expect(renderSummary(one)).toContain(
-      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.</p></div>',
+      '<div class="panel wide"><h3>What needs attention</h3><p>Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.</p></div>',
     );
     expect(attentionPanelOf(renderSummary(two)).panel).toContain(
+      "<p>Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.</p>",
+    );
+    // Had a page raised flags, each settled, it would say every flag was fixed or checked.
+    const checked = {
+      ...two,
+      summary: { ...two.summary, attention: { ...two.summary.attention, flagsRaised: true } },
+    };
+    expect(attentionPanelOf(renderSummary(checked)).panel).toContain(
       "<p>Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.</p>",
     );
     // It never says every page was read, since some weren't, and it isn't the panel of problems.
@@ -1330,6 +1365,7 @@ describe("renderSummary", () => {
           problems: 1,
           pages: 1,
           skipped: 0,
+          flagsRaised: true,
           cards: [{ id: "need-1", title: "<N> & d" }],
         },
         todo: ["Fix <i>this</i>."],

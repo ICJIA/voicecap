@@ -957,6 +957,8 @@ describe("the section's own words", () => {
       "gist",
       "labels",
       "more",
+      "noFlags",
+      "noFlagsSkipped",
       "none",
       "noneSkipped",
       "pagesFold",
@@ -1007,6 +1009,26 @@ describe("the section's own words", () => {
     );
     // It never says every page was read, since some weren't.
     expect(ATTENTION_TEXT.noneSkipped(3)).not.toMatch(/every page was read/);
+  });
+
+  it("says no flags were raised, in the line for no problem, when no page raised one", () => {
+    // The spec pins it, word for word.
+    expect(ATTENTION_TEXT.noFlags).toBe(
+      "Nothing needs attention: every page was read, and no flags were raised.",
+    );
+    expect(ATTENTION_TEXT.noFlagsSkipped(1)).toBe(
+      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
+    );
+    expect(ATTENTION_TEXT.noFlagsSkipped(2)).toBe(
+      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
+    );
+    expect(ATTENTION_TEXT.noFlagsSkipped(1204)).toBe(
+      "Nothing needs attention on the pages read: no flags were raised. 1,204 pages were skipped, not read.",
+    );
+    // Neither claims a flag that was never raised was fixed or checked.
+    for (const line of [ATTENTION_TEXT.noFlags, ATTENTION_TEXT.noFlagsSkipped(2)]) {
+      expect(line).not.toMatch(/fixed or checked/);
+    }
   });
 
   it("says how many cards the summary's panel leaves out", () => {
