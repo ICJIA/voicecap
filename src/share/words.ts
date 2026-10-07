@@ -327,11 +327,11 @@ export function notRecordedLine(text: string): string {
 
 /**
  * The run a page's transcripts are from, with its id in the fixed-width font: its id, and its date
- * for a run before the latest. A page with no card, or whose transcripts are the latest run's,
- * is from `latest`; none when there is no latest run either.
+ * for a run before the latest. A page whose transcripts are the latest run's is from `latest`; none
+ * when there is no latest run either.
  */
-export function originOf(card: PageCard | undefined, latest: string | null): Line | null {
-  if (card?.from) {
+export function originOf(card: PageCard, latest: string | null): Line | null {
+  if (card.from) {
     return ["From run ", { text: card.from.run, mono: true }, `, on ${card.from.date}`];
   }
   return latest === null ? null : ["From run ", { text: latest, mono: true }];

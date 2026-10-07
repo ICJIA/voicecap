@@ -532,7 +532,7 @@ describe("the page with the section", () => {
 
       // At a glance names no card, as a panel once did: the section has them all.
       expect(glance).not.toMatch(/href="#need-\d+"/);
-      for (const id of ["need-h", ...model.summary.attention.cards.map(({ id }) => id)]) {
+      for (const id of ["need-h", ...model.attention.map(({ id }) => id)]) {
         expect(ids).toContain(id);
       }
       // The links lead to the section first, ahead of the rest.

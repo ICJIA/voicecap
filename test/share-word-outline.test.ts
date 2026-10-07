@@ -30,7 +30,9 @@ import { wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordFooter, wordStory } from "../src/share/word/evidence.js";
 import { wordOutline, wordProperties } from "../src/share/word/outline.js";
 import {
+  bodyTags,
   footerWords,
+  keptWithNext,
   linksOf,
   paragraphsOf,
   propertyOf,
@@ -151,9 +153,9 @@ describe("wordOutline", () => {
     expect(pages.slice(0, 5)).toEqual([
       "1 Every page",
       "2 1 /",
-      "3 Read, 18 lines",
-      "3 Headings, 3 lines",
-      "3 Tab, 9 lines",
+      "3 Read transcript of /, 18 lines",
+      "3 Headings transcript of /, 3 lines",
+      "3 Tab transcript of /, 9 lines",
     ]);
     expect(headings.at(-1)).toBe("1 About this report");
     expect(headings.at(-2)).not.toMatch(/transcript/i);
@@ -341,6 +343,55 @@ describe("renderWordCopy", () => {
     ]);
   });
 
+  // Word joins two tables with nothing between them into one: the second's header row lands in the
+  // middle of the first, a screen reader takes it for no header, and the two sets of columns clash.
+  it("leaves no two tables touching in the file, for each site", async () => {
+    for (const model of [await demoModel(), noRunModel(), patsModel(), cleanModel()]) {
+      const blocks = wordOutline(model);
+      const { document } = await unzipDocx(await renderWordCopy(model));
+      const tags = bodyTags(document);
+      // The paragraph that keeps two tables apart has a line of an exact height, which no other
+      // paragraph of the file has.
+      const spacers = (document.match(/<w:p>.*?<\/w:p>/gs) ?? []).filter((paragraph) =>
+        paragraph.includes('w:lineRule="exact"'),
+      );
+      const touching = blocks.filter(
+        (block, at) => block.kind === "table" && blocks[at + 1]?.kind === "table",
+      );
+
+      expect(tags.filter((tag) => tag === "w:tbl").length).toBeGreaterThan(0);
+      for (const [at, tag] of tags.entries()) {
+        if (tag === "w:tbl") expect(tags[at + 1]).not.toBe("w:tbl");
+      }
+      // One for each two tables the outline sets one after the other.
+      expect(spacers).toHaveLength(touching.length);
+    }
+  });
+
+  it("sets a paragraph between the ring's table and the numbers' table, which the outline has one after the other", async () => {
+    const model = await demoModel();
+    const blocks = wordOutline(model);
+    const ring = blocks.findIndex((block) => block.kind === "table" && block.head[0] === "Part");
+    const { document } = await unzipDocx(await renderWordCopy(model));
+    const tags = bodyTags(document);
+    const tables = tablesOf(document);
+    const first = tables.findIndex(({ rows }) => rows[0]?.[0] === "Part");
+    const at = tags.flatMap((tag, index) => (tag === "w:tbl" ? [index] : []))[first] ?? -1;
+
+    expect(blocks[ring + 1]).toMatchObject({ kind: "table", head: ["Number", "What it counts"] });
+    expect(tables[first + 1]?.rows[0]).toEqual(["Number", "What it counts"]);
+    expect(tags.slice(at, at + 3)).toEqual(["w:tbl", "w:p", "w:tbl"]);
+  });
+
+  it("keeps each page's Heard first label with its list in the file, so it is never left at the foot of a page", async () => {
+    const { document } = await unzipDocx(await renderWordCopy(await demoModel()));
+    const labels = paragraphsOf(document).filter(({ text }) => text === "Heard first");
+
+    // Seven pages, each with the label; every one keeps with the list after it.
+    expect(labels).toHaveLength(7);
+    expect(keptWithNext(document).filter((text) => text === "Heard first")).toHaveLength(7);
+  });
+
   it("has a heading 4 in the file under the evidence, in the Heading 4 style, and a transcript's heading 3 under its page's heading 2", async () => {
     const { document } = await unzipDocx(await renderWordCopy(await demoModel()));
     const headings = paragraphsOf(document).filter(({ style }) => /^Heading\d$/.test(style));
@@ -352,9 +403,9 @@ describe("renderWordCopy", () => {
     );
     expect(headings.slice(at("Heading2", "1 /"), at("Heading2", "1 /") + 4)).toEqual([
       { style: "Heading2", text: "1 /" },
-      { style: "Heading3", text: "Read, 18 lines" },
-      { style: "Heading3", text: "Headings, 3 lines" },
-      { style: "Heading3", text: "Tab, 9 lines" },
+      { style: "Heading3", text: "Read transcript of /, 18 lines" },
+      { style: "Heading3", text: "Headings transcript of /, 3 lines" },
+      { style: "Heading3", text: "Tab transcript of /, 9 lines" },
     ]);
   });
 

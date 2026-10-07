@@ -826,8 +826,8 @@ export const TIMELINE_TEXT = {
 export const APPENDIX_TEXT = {
   /**
    * Between a transcript's pass and its page's address, in its heading: "Read transcript of
-   * /about/". The page sets it apart for a screen reader, which reads each heading alone. The Word
-   * copy's heading says neither the words nor the address: it sits under its page's own heading.
+   * /about/". The page sets it apart for a screen reader, which reads each heading alone; the Word
+   * copy has it in view.
    */
   transcriptOf: "transcript of",
   /** For a transcript with no lines. */

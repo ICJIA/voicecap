@@ -25,7 +25,15 @@ import {
   type Block,
   type Picture,
 } from "../src/share/word/blocks.js";
-import { drawingsOf, linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
+import {
+  bodyTags,
+  drawingsOf,
+  keptWithNext,
+  linksOf,
+  paragraphsOf,
+  tablesOf,
+  unzipDocx,
+} from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
@@ -505,6 +513,75 @@ describe("docxOf", () => {
     ]);
   });
 
+  it("puts a small paragraph between two tables that would touch, since Word joins them into one, and between nothing else", async () => {
+    const { document } = await opened([
+      table(["A"], [["a"]]),
+      table(["B"], [["b"]]),
+      table(["C"], [["c"]]),
+      para("after"),
+      table(["D"], [["d"]]),
+      list(["item"]),
+      table(["E"], [["e"]]),
+    ]);
+
+    // One paragraph between each two tables that would touch, and none after a paragraph or a list,
+    // nor after the last table.
+    expect(bodyTags(document)).toEqual([
+      ...["w:tbl", "w:p", "w:tbl", "w:p", "w:tbl", "w:p", "w:tbl", "w:p", "w:tbl"],
+      "w:sectPr",
+    ]);
+    // The two between tables hold nothing; the others are the blocks' own.
+    expect(paragraphsOf(document)).toEqual([
+      { style: "", text: "" },
+      { style: "", text: "" },
+      { style: "", text: "after" },
+      { style: "ListParagraph", text: "item" },
+    ]);
+    expect(tablesOf(document).map(({ rows }) => rows[0]?.[0])).toEqual(["A", "B", "C", "D", "E"]);
+    // Small: a line of exactly 6 pt or less, with no space around it, so two tables are apart and
+    // no more.
+    const spacers = (document.match(/<w:p>.*?<\/w:p>/gs) ?? []).filter((paragraph) =>
+      paragraph.includes('w:lineRule="exact"'),
+    );
+    expect(spacers).toHaveLength(2);
+    for (const spacer of spacers) {
+      const spacing = /<w:spacing ([^>]*)\/>/.exec(spacer)?.[1] ?? "";
+      expect(spacing).toContain('w:before="0"');
+      expect(spacing).toContain('w:after="0"');
+      expect(Number(/w:line="(\d+)"/.exec(spacing)?.[1])).toBeLessThanOrEqual(120);
+    }
+  });
+
+  it("keeps two tables apart, and a label with its list, across a block that writes nothing", async () => {
+    const { document } = await opened([
+      table(["A"], [["a"]]),
+      mono([]),
+      list([]),
+      table(["B"], [["b"]]),
+      para("Heard first"),
+      mono([]),
+      list(["one"]),
+    ]);
+
+    // Fixed-width text with no lines and a list with no items write nothing, so they are not what
+    // stands between the two tables, nor between the label and its list.
+    expect(bodyTags(document)).toEqual(["w:tbl", "w:p", "w:tbl", "w:p", "w:p", "w:sectPr"]);
+    expect(keptWithNext(document)).toEqual(["Heard first"]);
+  });
+
+  it("keeps the paragraph before a list with it, so a label is never left at the foot of a page with its list on the next", async () => {
+    const { document } = await opened([
+      para("Heard first"),
+      list(["one", "two"]),
+      para("after"),
+      para("more"),
+      list(["three"]),
+    ]);
+
+    // A paragraph that leads into a list: the one before the list, and no other paragraph.
+    expect(keptWithNext(document)).toEqual(["Heard first", "more"]);
+  });
+
   it("writes a list as bulleted paragraphs, one for each item", async () => {
     const link = { text: "a link", href: "https://github.com/ICJIA/voicecap" };
     const { document } = await opened([list(["one", ["two, ", link]])]);
@@ -746,27 +823,6 @@ describe("a picture in the Word copy", () => {
     expect(XMLValidator.validate(parts.document)).toBe(true);
     expect(FORBIDDEN.test(parts.document)).toBe(false);
     expect([drawing?.descr, drawing?.name, drawing?.title]).toEqual([cleaned, cleaned, cleaned]);
-  });
-
-  it("is in a table's cell as wide as the cell holds, and never wider than 400 pixels", async () => {
-    // A cell has 1,872 twentieths of a point in a column a fifth of the text's width, less 100 on
-    // each side for its margins: 1,672, which are 111 pixels (a pixel is 15 of them).
-    const withPicture = { ...cell("Screenshot:"), picture: PICTURE };
-    const parts = await opened([
-      table(["Narrow", "Wide", "None"], [[withPicture, withPicture, "none"]], [20, 70, 10]),
-    ]);
-
-    expect(XMLValidator.validate(parts.document)).toBe(true);
-    expect(drawingsOf(parts).map(({ width, height, descr }) => [width, height, descr])).toEqual([
-      [111, 83, ALT],
-      [400, 300, ALT],
-    ]);
-    // The cell's lines are before it, and its picture is a paragraph of its own after them.
-    expect(tablesOf(parts.document)[0]?.rows[1]).toEqual([
-      "Screenshot:\n",
-      "Screenshot:\n",
-      "none",
-    ]);
   });
 });
 

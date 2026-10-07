@@ -1094,7 +1094,8 @@ describe("buildShareModel", () => {
     // The record has no flags: it was written before the rules found these.
     expect(run.pages[0]?.flags).toEqual([]);
     expect(model.pages[0]?.flags).toEqual([LINK_FLAG]);
-    expect(model.summary.numbers.flagged).toBe(1);
+    // The summary counts it by its rule, as the model computes it now.
+    expect(model.summary.bars.flagsByRule).toEqual([{ rule: "generic-link-text", count: 1 }]);
     // The record is embedded exactly as on disk, so its seal still checks out.
     const onDisk = JSON.parse(readFileSync(runJsonPath(siteDir, run.id), "utf8")) as RunJson;
     expect(model.check.runs).toEqual([onDisk]);
@@ -1187,12 +1188,12 @@ describe("buildShareModel", () => {
     const model = buildShareModel(inputOf([run], { flagRules, transcripts: storeOf(() => lines) }));
 
     // The page has the rule's card, named by its description with the home folder replaced, as the
-    // flag's message is, and the summary's list of cards names it so.
+    // flag's message is, and its title says it so.
     expect(model.attention.map((card) => [card.kind, card.subject])).toEqual([
       ["custom", `Text noted in ${redact(notes)}`],
     ]);
-    expect(model.summary.attention.cards).toEqual([
-      { id: "need-1", title: `Text noted in ${redact(notes)}` },
+    expect(model.attention.map((card) => attentionWords(card).title)).toEqual([
+      `Text noted in ${redact(notes)}`,
     ]);
     expect(redact(notes)).not.toBe(notes);
     // Nothing the page shows holds the home folder.
@@ -1281,7 +1282,7 @@ describe("buildShareModel", () => {
     ]);
   });
 
-  it("gives the summary each problem's title and id from its cards, and counts their pages", async () => {
+  it("gives the summary the problems of its cards and the pages they're on, and each card its title", async () => {
     const model = await demoModel();
 
     // The demo's five cards: four on /common-mistakes/, and the page the latest run couldn't read.
@@ -1292,16 +1293,14 @@ describe("buildShareModel", () => {
       "need-4",
       "need-5",
     ]);
-    expect(model.summary.attention).toEqual({
-      problems: 5,
-      pages: 2,
-      skipped: 0,
-      flagsRaised: true,
-      cards: model.attention.map((card) => ({
-        id: card.id,
-        title: attentionWords(card).title,
-      })),
-    });
+    expect(model.attention.map((card) => attentionWords(card).title)).toEqual([
+      'A button is read only as "button": likely an icon button with no name',
+      'A form field is read only as "edit": likely a missing label',
+      'Links read as "click here": link text that doesn\'t say where it goes',
+      "The first heading is level 2, not 1: likely a missing <h1>",
+      "A page the latest run couldn't read",
+    ]);
+    expect(model.summary.attention).toEqual({ problems: 5, pages: 2 });
     // The sentence counts no problems: the verdict does, every card (see `result`, below).
     expect(model.summary.sentence).toBe("NVDA read all 7 pages.");
   });

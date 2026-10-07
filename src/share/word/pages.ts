@@ -164,12 +164,14 @@ function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
 // A page's transcripts.
 
 /**
- * A transcript's heading, a heading 3 under its page's: its pass, and how many lines it has: "Read,
- * 18 lines". A transcript that couldn't be read has no count to give. The page's address isn't in
- * it: the page's own heading is above.
+ * A transcript's heading, a heading 3 under its page's: its pass and its page, and how many lines it
+ * has: "Read transcript of /about/, 18 lines". A transcript that couldn't be read has no count to
+ * give. The page's address is in it, though its own heading is above: every page has a "Read", a
+ * "Headings", and a "Tab", which read alike to someone moving by headings. The page says the same
+ * words in each heading too, hidden from sight; Word can't hide words, so here they are in view.
  */
-function transcriptHeading(pass: PassName, lines: number | null): Block {
-  const title = PASS_TITLE[pass];
+function transcriptHeading(pass: PassName, path: string, lines: number | null): Block {
+  const title = `${PASS_TITLE[pass]} ${APPENDIX_TEXT.transcriptOf} ${path}`;
   return heading(3, lines === null ? title : `${title}, ${lineCount(lines)}`);
 }
 
@@ -180,17 +182,17 @@ function transcriptHeading(pass: PassName, lines: number | null): Block {
  * newline, so splitting it at them gives the `file.lines` lines it has, a blank last one too, and
  * nothing is dropped. A transcript with no lines says so, rather than show an empty block.
  */
-function transcriptBlocks(file: AppendixFile): Block[] {
+function transcriptBlocks(file: AppendixFile, path: string): Block[] {
   const words = file.lines === 0 ? para(APPENDIX_TEXT.noLines) : mono(file.text.split(/\r?\n/));
-  return [transcriptHeading(file.pass, file.lines), para(...fileFingerprint(file)), words];
+  return [transcriptHeading(file.pass, path, file.lines), para(...fileFingerprint(file)), words];
 }
 
 /**
  * A transcript the run recorded but that couldn't be read here, said in words, in its place. The
  * page goes on to say what its fingerprint check does with it; the Word copy has no check.
  */
-function unreadableBlocks(pass: PassName): Block[] {
-  return [transcriptHeading(pass, null), para(sentence(APPENDIX_TEXT.unreadable))];
+function unreadableBlocks(pass: PassName, path: string): Block[] {
+  return [transcriptHeading(pass, path, null), para(sentence(APPENDIX_TEXT.unreadable))];
 }
 
 /**
@@ -211,7 +213,9 @@ function transcriptsBlocks(
     ...(origin === null ? [] : [para(...origin)]),
     ...passes.flatMap((pass) => {
       const file = transcripts.files.find((each) => each.pass === pass);
-      return file === undefined ? unreadableBlocks(pass) : transcriptBlocks(file);
+      return file === undefined
+        ? unreadableBlocks(pass, card.path)
+        : transcriptBlocks(file, card.path);
     }),
     ...(passes.length === 0 ? [para(APPENDIX_TEXT.noFiles)] : []),
   ];

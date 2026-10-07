@@ -17,14 +17,10 @@ export interface Picture {
   alt: string;
 }
 
-/**
- * A table cell: its lines, each a paragraph of its own, then its picture, if it has one, in a
- * paragraph of its own; `mono` sets the lines in the fixed-width font.
- */
+/** A table cell: its lines, each a paragraph of its own; `mono` sets them in the fixed-width font. */
 export interface Cell {
   lines: Line[];
   mono?: true;
-  picture?: Picture;
 }
 
 /** A part of the outline. Nothing in one is escaped: `docxOf` sets each word in a run of its own. */
@@ -133,11 +129,9 @@ export function image(picture: Picture): Block {
 /** The end of a page. */
 export const PAGE_BREAK: Block = { kind: "pageBreak" };
 
-/** A cell's words: its lines, set apart by " / ", and its picture's alt text last. */
+/** A cell's words: its lines, set apart by " / ". */
 function cellWords(of: Cell): string {
-  return [...of.lines.map(lineText), ...(of.picture === undefined ? [] : [of.picture.alt])].join(
-    " / ",
-  );
+  return of.lines.map(lineText).join(" / ");
 }
 
 /**

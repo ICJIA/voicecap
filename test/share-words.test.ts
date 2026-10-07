@@ -637,6 +637,7 @@ describe("a page's transcripts' lines", () => {
   it("names the run a page's transcripts are from, with its id in the fixed-width font", async () => {
     const { pages } = await demoModel();
     const [latest, , older] = pages;
+    if (!latest || !older) throw new Error("The demo lost a page.");
 
     expect(originOf(older, "2026-09-29_1402")).toEqual([
       "From run ",
@@ -647,13 +648,8 @@ describe("a page's transcripts' lines", () => {
       "From run ",
       { text: "2026-09-29_1402", mono: true },
     ]);
-    // A page with no card has the latest run's, and none at all says nothing.
-    expect(originOf(undefined, "2026-09-29_1402")).toEqual([
-      "From run ",
-      { text: "2026-09-29_1402", mono: true },
-    ]);
+    // With no latest run, a page that is the latest run's says nothing.
     expect(originOf(latest, null)).toBeNull();
-    expect(originOf(undefined, null)).toBeNull();
     expect(lineText(originOf(older, null) ?? [])).toBe(
       "From run 2026-09-29_1315, on 29 September 2026",
     );

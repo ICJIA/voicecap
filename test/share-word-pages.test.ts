@@ -247,9 +247,9 @@ describe("wordPages", () => {
     expect(home?.[6]).toEqual(para("From run ", { text: "r1", mono: true }));
     expect(outlineOf(home ?? [])).toEqual([
       "2 1 /",
-      "3 Read, 4 lines",
-      "3 Headings, 2 lines",
-      "3 Tab, 2 lines",
+      "3 Read transcript of /, 4 lines",
+      "3 Headings transcript of /, 2 lines",
+      "3 Tab transcript of /, 2 lines",
     ]);
     expect(files.map(({ pass }) => pass)).toEqual(["read", "headings", "tab"]);
     for (const [index, file] of files.entries()) {
@@ -280,9 +280,9 @@ describe("wordPages", () => {
     );
     expect(outlineOf(home ?? [])).toEqual([
       "2 1 /",
-      "3 Read, 18 lines",
-      "3 Headings, 3 lines",
-      "3 Tab, 9 lines",
+      "3 Read transcript of /, 18 lines",
+      "3 Headings transcript of /, 3 lines",
+      "3 Tab transcript of /, 9 lines",
     ]);
     // Every page of the demo has its own, as its card's model gives them, and three transcripts.
     for (const [index, card] of model.pages.entries()) {
@@ -660,7 +660,7 @@ describe("a page's transcripts", () => {
     const model = await demoModel();
     const [file] = model.appendix.flatMap((entry) => entry.files);
     const [home] = pagePartsOf(wordPages(model), model);
-    const [fingerprint, transcript] = under(home ?? [], "Read, 18 lines");
+    const [fingerprint, transcript] = under(home ?? [], "Read transcript of /, 18 lines");
 
     expect(fingerprint).toEqual(para(...fileFingerprint(file!)));
     expect(fingerprint?.kind === "para" ? monoIn(fingerprint.line) : []).toEqual([file!.sha256]);
@@ -671,22 +671,53 @@ describe("a page's transcripts", () => {
     expect(transcript?.kind === "mono" && transcript.lines).toHaveLength(18);
   });
 
-  it("are headed by their pass and their lines, one level under their page's heading", async () => {
+  it("are headed by their pass, their page, and their lines, one level under their page's heading", async () => {
     const model = await demoModel();
     const outline = outlineOf(wordPages(model));
 
     expect(outline.slice(0, 6)).toEqual([
       "1 Every page",
       "2 1 /",
-      "3 Read, 18 lines",
-      "3 Headings, 3 lines",
-      "3 Tab, 9 lines",
+      "3 Read transcript of /, 18 lines",
+      "3 Headings transcript of /, 3 lines",
+      "3 Tab transcript of /, 9 lines",
       "2 2 /before-you-start/",
     ]);
     // A heading for each page and each of its transcripts: seven pages, three transcripts each.
     expect(outline.filter((each) => each.startsWith("2 "))).toHaveLength(7);
     expect(outline.filter((each) => each.startsWith("3 "))).toHaveLength(21);
     expect(outline[9]).toBe("2 3 /how-a-run-works/");
+  });
+
+  it("name their page in each heading, as the page's hidden words do, so no two read alike to someone moving by headings", async () => {
+    const model = await demoModel();
+    const page = renderPages(model);
+    const headings = outlineOf(wordPages(model))
+      .filter((each) => each.startsWith("3 "))
+      .map((each) => each.slice(2));
+
+    // 21 transcripts, 21 headings, and no two the same: the pass, the words the page says for a
+    // screen reader alone, the page's address, and the lines.
+    expect(headings).toHaveLength(21);
+    expect(new Set(headings).size).toBe(21);
+    for (const [index, card] of model.pages.entries()) {
+      const own = headings.slice(index * 3, index * 3 + 3);
+
+      expect(
+        own.map((each) => each.split(",")[0]),
+        card.path,
+      ).toEqual([
+        `Read ${APPENDIX_TEXT.transcriptOf} ${card.path}`,
+        `Headings ${APPENDIX_TEXT.transcriptOf} ${card.path}`,
+        `Tab ${APPENDIX_TEXT.transcriptOf} ${card.path}`,
+      ]);
+      // The page says the same words and the address in each heading of its page's fold, hidden
+      // from sight; Word can't hide words, so its headings have them in view.
+      expect(page, card.path).toContain(
+        `<span class="sr">${APPENDIX_TEXT.transcriptOf} ${card.path}</span>`,
+      );
+    }
+    expect(APPENDIX_TEXT.transcriptOf).toBe("transcript of");
   });
 
   it("go with the page that has them: a page that failed shows its older run's, and says which", async () => {
@@ -747,7 +778,7 @@ describe("a page's transcripts", () => {
     expect(pages).toContainEqual(mono(hostile));
     expect(pages).toContainEqual(mono(["", "first", "last"]));
     expect(pages).toContainEqual(mono(["<b>"]));
-    expect(wordsOf(pages)).toContain("Read, 5 lines");
+    expect(wordsOf(pages)).toContain("Read transcript of /a, 5 lines");
   });
 
   it("keep every line a transcript has, as many as its heading counts, a blank last line too", () => {
@@ -763,13 +794,13 @@ describe("a page's transcripts", () => {
     // one, and the block has both lines, as the heading says.
     const two = readOf(["a", ""]);
     expect(two.file).toMatchObject({ text: "a\n", lines: 2 });
-    expect(wordsOf(two.pages)).toContain("Read, 2 lines");
+    expect(wordsOf(two.pages)).toContain("Read transcript of /a, 2 lines");
     expect(two.pages).toContainEqual(mono(["a", ""]));
 
     // A transcript that is one blank line has one line, not none.
     const one = readOf([""]);
     expect(one.file).toMatchObject({ text: "", lines: 1 });
-    expect(wordsOf(one.pages)).toContain("Read, 1 line");
+    expect(wordsOf(one.pages)).toContain("Read transcript of /a, 1 line");
     expect(one.pages).toContainEqual(mono([""]));
     expect(wordsOf(one.pages)).not.toContain(APPENDIX_TEXT.noLines);
 
@@ -785,7 +816,7 @@ describe("a page's transcripts", () => {
 
       expect(file?.lines, JSON.stringify(lines)).toBe(lines.length);
       expect(pages, JSON.stringify(lines)).toContainEqual(mono(lines));
-      expect(wordsOf(pages)).toContain(`Read, ${lines.length} lines`);
+      expect(wordsOf(pages)).toContain(`Read transcript of /a, ${lines.length} lines`);
     }
   });
 
@@ -829,7 +860,7 @@ describe("a page's transcripts", () => {
     // first and its lines, the run its transcripts are from, and a heading, fingerprint, and block
     // for each pass.
     expect(pages.length).toBe(2 + 30 * (1 + 1 + 1 + 2 + 1 + 3 * 3));
-    expect(wordsOf(pages)).toContain("Read, 150 lines");
+    expect(wordsOf(pages)).toContain("Read transcript of /page-30, 150 lines");
   });
 
   it("say a transcript with no lines has none, rather than a block with nothing in it", () => {
@@ -837,7 +868,7 @@ describe("a page's transcripts", () => {
       transcripts: storeOf(() => ({ read: LINES.read, headings: [], tab: LINES.tab })),
     });
     const pages = wordPages(model);
-    const empty = under(pages, "Headings, 0 lines");
+    const empty = under(pages, "Headings transcript of /a, 0 lines");
 
     expect(wordsOf(empty)).toEqual([
       "The whole file, its header included: 1 byte, SHA-256 " + "0".repeat(64),
@@ -861,21 +892,21 @@ describe("a page's transcripts", () => {
       })),
     });
 
-    expect(wordsOf(wordPages(model))).toContain("Read, 1 line");
+    expect(wordsOf(wordPages(model))).toContain("Read transcript of /a, 1 line");
   });
 
   it("say a transcript that couldn't be read couldn't be, in its place, and say nothing of the page's fingerprint check", () => {
     const model = lostModel();
     const pages = wordPages(model);
-    const lost = under(pages, "Tab");
+    const lost = under(pages, "Tab transcript of /a");
 
     expect(model.appendix[0]?.unreadable).toEqual(["tab"]);
     expect(outlineOf(pages)).toEqual([
       "1 Every page",
       "2 1 /a",
-      "3 Read, 4 lines",
-      "3 Headings, 2 lines",
-      "3 Tab",
+      "3 Read transcript of /a, 4 lines",
+      "3 Headings transcript of /a, 2 lines",
+      "3 Tab transcript of /a",
     ]);
     expect(wordsOf(lost)).toEqual([
       "This transcript was recorded, but its file couldn't be read here, so it isn't shown.",
@@ -902,9 +933,9 @@ describe("a page's transcripts", () => {
     expect(outlineOf(wordPages(gone))).toEqual([
       "1 Every page",
       "2 1 /a",
-      "3 Read",
-      "3 Headings",
-      "3 Tab",
+      "3 Read transcript of /a",
+      "3 Headings transcript of /a",
+      "3 Tab transcript of /a",
     ]);
     expect(wordPages(gone).some((block) => block.kind === "mono")).toBe(false);
   });

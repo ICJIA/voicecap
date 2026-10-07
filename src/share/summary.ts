@@ -1,9 +1,12 @@
 /**
- * The summary: the result in one sentence that leads with the person's review, five numbers, four
- * panels, and three bars. Pure: every part is worked out from records already read.
+ * The summary: the result in one sentence that leads with the person's review; the numbers At a
+ * glance goes by (the pages in scope and read, the lines NVDA spoke, and how long it ran) and how
+ * many problems need attention and on how many pages; and the lines and bars of the details' parts
+ * (how complete the test was, what's still to do, when and how, flags by rule, and the human
+ * review). Pure: every part is worked out from records already read.
  *
  * The sentence counts no problems. The verdict does (see ./verdict.ts), over every card of What
- * needs attention, as the panel and the cards do, so the page never gives two counts that differ.
+ * needs attention, as the section and the cards do, so the page never gives two counts that differ.
  */
 import type { FlagResult, RunJson, SkipReason } from "../model.js";
 import {
@@ -12,7 +15,6 @@ import {
   type AttentionKind,
   type ReadFailure,
 } from "./attention.js";
-import { attentionWords } from "./attention-words.js";
 import type { Changes } from "./changes.js";
 import { dateRange, names } from "./format.js";
 import { PHRASES, type ProblemsSection } from "./problems.js";
@@ -28,9 +30,6 @@ export interface Summary {
     pagesInScope: number;
     /** Pages with transcripts in the standing. */
     transcribed: number;
-    /** Pages whose transcripts have flags, and how many different rules raised them. */
-    flagged: number;
-    rules: number;
     linesSpoken: number;
     nvdaMs: number;
     /** The sessions `nvdaMs` leaves out: those with no recorded end, whose time no record gives. */
@@ -38,17 +37,11 @@ export interface Summary {
   };
   /**
    * "What needs attention": how many problems there are (a card for each) and how many different
-   * pages they're on, over every card; how many pages voicecap skipped after loading them and so
-   * never read (the sentence's "skipped, not read"), which are on no card; whether any page in
-   * scope raised a flag (in the transcripts shown), settled or not, since a flag never raised was
-   * never fixed or checked; and each card's id and title (its words' `title`), in the cards' order.
+   * pages they're on, over every card. The verdict says both (`ShareModel.result`).
    */
   attention: {
     problems: number;
     pages: number;
-    skipped: number;
-    flagsRaised: boolean;
-    cards: { id: string; title: string }[];
   };
   /** "How complete the test was". */
   complete: string[];
@@ -57,8 +50,6 @@ export interface Summary {
   /** "When and how". */
   whenHow: { label: string; value: string }[];
   bars: {
-    /** Each page's latest result: transcribed with no flags, with flags, or never transcribed. */
-    results: { done: number; flagged: number; never: number };
     /**
      * How many times each rule was raised: once for each page and pass it was raised in, whatever
      * the flag's own count (links, items, stops, or repeats, by rule), most often first.
@@ -80,9 +71,9 @@ export interface SummaryInput {
   /** Each page's flags, by its key: those of the transcripts shown. */
   flags: Map<string, FlagResult[]>;
   /**
-   * The cards of what needs attention (attention.ts), which the summary counts and names. The
-   * panel counts every one. The sentence counts none: it only needs to know whether a problem that
-   * comes from a flag is left, since it says what review found only when none is.
+   * The cards of what needs attention (attention.ts), which the summary counts, every one. The
+   * sentence counts none: it only needs to know whether a problem that comes from a flag is left,
+   * since it says what review found only when none is.
    */
   attention: AttentionCard[];
   /** How a page is called in a sentence. */
@@ -259,19 +250,14 @@ export function summaryOf(input: SummaryInput): Summary {
     numbers: {
       pagesInScope: pages.length,
       transcribed: transcribed.length,
-      flagged: flagged.length,
-      rules: new Set(flagged.flatMap((facts) => facts.flags.map((flag) => flag.rule))).size,
       linesSpoken: input.linesSpoken,
       nvdaMs: input.nvdaMs,
       sessionsWithoutEnd: input.sessionsWithoutEnd,
     },
-    // The panel's problems are every card, and the pages are those on any of them.
+    // The problems are every card, and the pages are those on any of them.
     attention: {
       problems: input.attention.length,
       pages: distinctPages(input.attention),
-      skipped: skipped.length,
-      flagsRaised: flagged.length > 0,
-      cards: input.attention.map((card) => ({ id: card.id, title: attentionWords(card).title })),
     },
     complete: [
       `Pages read: ${transcribed.length} of ${pages.length}.`,
@@ -294,11 +280,6 @@ export function summaryOf(input: SummaryInput): Summary {
     }),
     whenHow: whenHowOf(latest),
     bars: {
-      results: {
-        done: transcribed.length - flagged.length,
-        flagged: flagged.length,
-        never: pages.length - transcribed.length,
-      },
       flagsByRule: flagsByRule(flagged),
       review: {
         reviewed: [reviewed.length, transcribed.length],
@@ -309,7 +290,7 @@ export function summaryOf(input: SummaryInput): Summary {
   };
 }
 
-/** What the summary says when no run counts: no page, number, panel, or bar. */
+/** What the summary says when no run counts: no page, number, problem, line, or bar. */
 function emptySummary(): Summary {
   return {
     sentence: NO_RUN,
@@ -317,18 +298,15 @@ function emptySummary(): Summary {
     numbers: {
       pagesInScope: 0,
       transcribed: 0,
-      flagged: 0,
-      rules: 0,
       linesSpoken: 0,
       nvdaMs: 0,
       sessionsWithoutEnd: 0,
     },
-    attention: { problems: 0, pages: 0, skipped: 0, flagsRaised: false, cards: [] },
+    attention: { problems: 0, pages: 0 },
     complete: [],
     todo: [],
     whenHow: [],
     bars: {
-      results: { done: 0, flagged: 0, never: 0 },
       flagsByRule: [],
       review: { reviewed: [0, 0], fixed: [0, 0] },
     },

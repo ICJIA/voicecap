@@ -20,7 +20,6 @@ import {
   type StopReason,
 } from "../../src/model.js";
 import type { AttentionCard, AttentionPage } from "../../src/share/attention.js";
-import { attentionWords } from "../../src/share/attention-words.js";
 import type { PageCard } from "../../src/share/cards.js";
 import { buildShareModel, type ShareModel } from "../../src/share/model.js";
 import type { PageReview } from "../../src/share/review.js";
@@ -250,8 +249,8 @@ export function linkModel(phrases: string[]): ShareModel {
 
 /**
  * The model with `cards` in place of the cards of what needs attention, and the summary counting
- * them as it counts its own: their problems, the pages they're on, and each one's title. For the
- * cards the records don't easily make, such as one whose words hold markup.
+ * them as it counts its own: their problems and the pages they're on. For the cards the records
+ * don't easily make, such as one whose words hold markup.
  */
 export function withCards(model: ShareModel, cards: AttentionCard[]): ShareModel {
   const pages = new Set(cards.flatMap((card) => card.pages.map(({ slug }) => slug)));
@@ -260,12 +259,7 @@ export function withCards(model: ShareModel, cards: AttentionCard[]): ShareModel
     attention: cards,
     summary: {
       ...model.summary,
-      attention: {
-        ...model.summary.attention,
-        problems: cards.length,
-        pages: pages.size,
-        cards: cards.map((card) => ({ id: card.id, title: attentionWords(card).title })),
-      },
+      attention: { problems: cards.length, pages: pages.size },
     },
   };
 }
