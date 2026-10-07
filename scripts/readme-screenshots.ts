@@ -12,12 +12,15 @@
  *
  * It writes eight files, drawn in a 1200 × 900 window at twice its size:
  *
- *   report-top.png           the page's masthead, and At a glance down to its links
+ *   report-top.png           the page's masthead, and At a glance down to its links: the verdict, the
+ *                            ring of the pages, and the four big numbers
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page,
- *                            in its fold, opened
+ *                            in its fold, in the details, opened
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
- *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot: the
- *                            first row with no card for a /biographies/ page (see BIOGRAPHIES)
+ *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot, what
+ *                            NVDA said first on it ("Heard first"), and its full transcript, in its
+ *                            fold, shut: the first row with no card for a /biographies/ page (see
+ *                            BIOGRAPHIES)
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the site under "The sites": its current
@@ -378,10 +381,11 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
     await openFolds(page, `${attention} .folds > details`, false);
     await shoot(page, "report-attention.png", await around(page, attention, SLICE_MARGIN));
 
-    // "Every page": a row of its cards, each with its page's screenshot: the first row with no card
-    // for a /biographies/ page, which keeps this fixture's team photos and names out of the picture.
-    // The code checks only the address, so look at the shot for photos when the fixture changes. The
-    // row ends before the next one starts, so no card is cut off.
+    // "Every page": a row of its cards, each with its page's screenshot, the lines NVDA said first,
+    // and its full transcript, in its fold, shut: the first row with no card for a /biographies/
+    // page, which keeps this fixture's team photos and names out of the picture. The code checks
+    // only the address, so look at the shot for photos when the fixture changes. The row ends
+    // before the next one starts, so no card is cut off.
     await shoot(
       page,
       "report-pages.png",

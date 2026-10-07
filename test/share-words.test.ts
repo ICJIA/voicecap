@@ -445,7 +445,8 @@ describe("the opening lines of What needs attention and Every page", () => {
     expect(lineText(attentionGist(one))).toBe(`1 problem, on 1 page. ${todo}`);
     // A page that couldn't be read is a problem too, though it has no flag.
     expect(lineText(attentionGist(modelOf([FAILED])))).toBe(`1 problem, on 1 page. ${todo}`);
-    // The numbers are the summary's own: its panel and its sentence count the same cards.
+    // The numbers are the summary's own, which the verdict goes by (`model.result`): the section's
+    // line counts the same cards the verdict does.
     const { problems, pages } = one.summary.attention;
     expect(attentionGist(one)).toEqual([ATTENTION_TEXT.gist(problems, pages)]);
   });
