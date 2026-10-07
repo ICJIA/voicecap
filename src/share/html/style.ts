@@ -54,6 +54,10 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
+ * - the summary's panels (`.panels`): the first, on what needs attention (`.panel.wide`), takes a
+ *   row of its own, the grid's whole width, in each of its states, and the other three share the
+ *   rows after it. From 1100 pixels the grid has three columns, not four, so those three fill
+ *   their row; where the panels are in two columns or stacked, they are as they were;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
  *   code of a fix wrap (`white-space: pre-wrap; overflow-wrap: anywhere`), so a long line never
  *   widens the page, and a fold inside a card is on the second color of the panels;
@@ -116,6 +120,9 @@ code { overflow-wrap: anywhere; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
 .panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .panel.attention h3 { color: var(--warn); }
+/* The panel on what needs attention is the one to read: it takes a row of its own, the grid's whole width, and the other three share the rows after it. Four columns of 260px fit from a window 1124px wide, which would leave a column empty beside those three; from 1100px the grid has three, so they fill their row. Narrower, the columns are as they were. */
+.panel.wide { grid-column: 1 / -1; }
+@media (min-width: 1100px) { .panels { grid-template-columns: repeat(3, 1fr); } }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }

@@ -377,7 +377,7 @@ describe("wordSummary", () => {
   it("says the lines the page's panel says, without its links", async () => {
     for (const model of [await demoModel(), withCards(cleanModel(), problemsOf(7))]) {
       const html = renderSummary(model);
-      const panel = /<div class="panel attention">.*?<\/div>/s.exec(html)?.[0] ?? "";
+      const panel = /<div class="panel attention[^"]*">.*?<\/div>/s.exec(html)?.[0] ?? "";
       const lines = [...panel.matchAll(/<(?:p|li)>(.*?)<\/(?:p|li)>/gs)].map(([, said = ""]) =>
         textOf(said, ""),
       );

@@ -10,9 +10,10 @@
  * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
  * closing script tag; a site whose host is one long word, with no name set and no title on its home
  * page; a site whose config gives it a canonical address and a long name, which the page leads
- * with; and a site whose only run was a replay, as in CI's smoke test. Four more pages are written
- * from models: a run whose event log has all a chart can draw, and three of what needs attention,
- * with 5 cards, 6 cards, and i2i's one card on 32 pages.
+ * with; and a site whose only run was a replay, as in CI's smoke test. Six more pages are written
+ * from models: a run whose event log has all a chart can draw, three of what needs attention, with
+ * 5 cards, 6 cards, and i2i's one card on 32 pages, and two whose summary has no problem to name:
+ * one where every page was read, and one with a page skipped.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -320,6 +321,9 @@ let pages: {
   five: string;
   six: string;
   i2i: string;
+  /** No card to name: every page was read, and one page was read and one skipped. */
+  none: string;
+  skipped: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -342,6 +346,15 @@ beforeAll(async () => {
   const five = await modelPage(linkModel(PHRASES.slice(0, 5)), "five");
   const six = await modelPage(linkModel(PHRASES.slice(0, 6)), "six");
   const i2i = await modelPage(i2iModel(), "i2i");
+  // Nothing needs attention, with every page read, and with a page skipped: the summary's panel
+  // says a line in place of the cards, and says which pages were skipped.
+  const ofPages = (pagesRead: { path: string; status?: "skipped" }[]) =>
+    buildShareModel(inputOf([shareRun({ id: "r1", pages: pagesRead })]));
+  const none = await modelPage(ofPages([{ path: "/" }]), "none");
+  const skipped = await modelPage(
+    ofPages([{ path: "/" }, { path: "/file-1/", status: "skipped" }]),
+    "skipped",
+  );
   pages = {
     demo,
     rich,
@@ -353,6 +366,8 @@ beforeAll(async () => {
     five,
     six,
     i2i,
+    none,
+    skipped,
   };
   hostileRun = hostile;
   replayRunId = replay.runId;
@@ -455,6 +470,44 @@ const overflowOf = (page: Page): Promise<{ beyondTheWindow: number; boxes: strin
       );
     return { beyondTheWindow: root.scrollWidth - root.clientWidth, boxes };
   });
+
+/** A box as it is drawn, in pixels from the window's top left corner. */
+interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+}
+
+/**
+ * The summary's four panels as they are drawn: the grid they are in, and each panel's title and
+ * box in page order, with the first (what needs attention) apart from the three after it.
+ */
+async function panelsOf(page: Page): Promise<{
+  grid: Box;
+  attention: Box & { title: string };
+  others: (Box & { title: string })[];
+}> {
+  const { grid, panels } = await page.evaluate(() => {
+    const boxOf = (element: Element) => {
+      const { left, right, top, bottom, width } = element.getBoundingClientRect();
+      return { left, right, top, bottom, width };
+    };
+    const found = document.querySelector(".panels");
+    if (found === null) throw new Error("The page has no grid of panels.");
+    return {
+      grid: boxOf(found),
+      panels: [...found.querySelectorAll(":scope > .panel")].map((panel) => ({
+        title: panel.querySelector("h3")?.textContent ?? "",
+        ...boxOf(panel),
+      })),
+    };
+  });
+  const [attention, ...others] = panels;
+  if (attention === undefined) throw new Error("The grid has no panels.");
+  return { grid, attention, others };
+}
 
 /**
  * The contrast of each word of each chart of a run's event log, as WCAG measures it: its fill
@@ -691,6 +744,23 @@ describe("axe, in Chromium", () => {
         expect(await axeFindings(page, width), `${which}, light, every fold open`).toEqual([]);
         await page.locator("#open-all").click();
         expect(await axeFindings(page, width), `${which}, light, folds as written`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the summary's panels when there is no problem to name, or a page was skipped, dark and light",
+    async (width) => {
+      // With problems, the panels are checked above, on the pages of what needs attention. Here the
+      // first panel is a plain one, with a line in place of the cards: it takes a row of its own too.
+      for (const which of ["none", "skipped"] as const) {
+        const page = await open(pages[which]);
+
+        expect(await page.locator(".panels > .panel.wide").count(), which).toBe(1);
+        expect(await axeFindings(page, width), `${which}, dark`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light`).toEqual([]);
       }
     },
     AXE_TIMEOUT,
@@ -1285,6 +1355,111 @@ describe("a link into a fold", () => {
     for (const hash of ["#no-such-part", "#prob-h", "#", "#%E0%A4%A"]) {
       const page = await open(pages.demo, hash);
       expect(await foldStates(page), hash).toEqual(asWritten);
+    }
+  });
+});
+
+describe("the summary's panels", () => {
+  const TITLES = [
+    "What needs attention",
+    "How complete the test was",
+    "What's still to do",
+    "When and how",
+  ];
+  /** A page for each way the first panel is written: naming problems, with none, and with a page skipped. */
+  const STATES = [
+    ["naming problems", "five"],
+    ["with none to name", "none"],
+    ["with a page skipped", "skipped"],
+  ] as const;
+
+  /** `actual` is `expected`, to within a pixel: a layout puts an edge a fraction of a pixel off. */
+  function near(actual: number, expected: number, what: string): void {
+    const found = `${actual} px, not ${expected} px`;
+    expect(Math.abs(actual - expected), `${what}: ${found}`).toBeLessThanOrEqual(1);
+  }
+
+  /** The first panel takes the grid's whole width: its left edge, its right edge, and its width. */
+  function expectSpans(grid: Box, attention: Box, state: string): void {
+    near(attention.left, grid.left, `${state}: its left edge`);
+    near(attention.right, grid.right, `${state}: its right edge`);
+    near(attention.width, grid.width, `${state}: its width`);
+  }
+
+  it.each(STATES)(
+    "gives what needs attention the whole width of the grid at 1280 px, above the other three: %s",
+    async (state, which) => {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 1280, height: 900 });
+
+      const { grid, attention, others } = await panelsOf(page);
+
+      expect([attention, ...others].map(({ title }) => title)).toEqual(TITLES);
+      expectSpans(grid, attention, state);
+      // Above the other three: its bottom edge is above every one's top.
+      expect(others).toHaveLength(3);
+      for (const other of others) {
+        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
+      }
+    },
+  );
+
+  it.each(STATES)(
+    "has the other three share the row after what needs attention, side by side, and fill it at 1280 px: %s",
+    async (state, which) => {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 1280, height: 900 });
+
+      const { grid, others } = await panelsOf(page);
+      const [first, , last] = others;
+      const tops = others.map(({ top }) => top);
+      const lefts = others.map(({ left }) => left);
+
+      // One row, in page order, from the grid's left edge to its right: no column is left empty.
+      near(Math.max(...tops), Math.min(...tops), `${state}: one row`);
+      expect(lefts, `${state}: in page order`).toEqual([...lefts].sort((a, b) => a - b));
+      near(first?.left ?? NaN, grid.left, `${state}: the first one's left edge`);
+      near(last?.right ?? NaN, grid.right, `${state}: the last one's right edge`);
+      for (const other of others) expect(other.width).toBeLessThan(grid.width / 2);
+    },
+  );
+
+  it.each([390, 320])(
+    "gives all four panels the grid's width, one under another, at %i px",
+    async (width) => {
+      for (const [state, which] of STATES) {
+        const page = await open(pages[which]);
+        await page.setViewportSize({ width, height: 900 });
+
+        const { grid, attention, others } = await panelsOf(page);
+        const panels = [attention, ...others];
+        const titles = panels.map(({ title }) => title);
+
+        expect(titles, state).toEqual(TITLES);
+        for (const [at, panel] of panels.entries()) {
+          near(panel.width, grid.width, `${state}: the width of ${panel.title}`);
+          // Each is under the one before it.
+          const above = panels[at - 1];
+          if (above !== undefined) {
+            const place = `${state}: ${panel.title} is under ${above.title}`;
+            expect(above.bottom, place).toBeLessThanOrEqual(panel.top);
+          }
+        }
+      }
+    },
+  );
+
+  it("keeps what needs attention across the grid, above the other three, in a window of 800 px, where the panels are in two columns", async () => {
+    for (const [state, which] of STATES) {
+      const page = await open(pages[which]);
+      await page.setViewportSize({ width: 800, height: 900 });
+
+      const { grid, attention, others } = await panelsOf(page);
+
+      expectSpans(grid, attention, state);
+      for (const other of others) {
+        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
+      }
     }
   });
 });

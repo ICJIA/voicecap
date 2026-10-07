@@ -137,18 +137,22 @@ function tiles(model: ShareModel): string {
  * "What needs attention": how many problems there are, on how many pages, then the first few by
  * their titles, each linked to its card, and a link to the section for the rest (../words.ts); or
  * the line that says nothing is left, and how many pages weren't read when some were skipped.
+ *
+ * It is the critical panel, so in each of its states it has the class that takes a row of its own
+ * (`wide`, the grid's whole width: see ./style.ts), above the other three. The problems' panel
+ * keeps `attention`, which colors it.
  */
 function attentionPanel({ attention }: Summary): string {
   const title = `<h3>${esc(SUMMARY_TEXT.attention)}</h3>`;
   const panel = attentionPanelOf(attention);
   if (panel === null) {
-    return `<div class="panel">${title}<p>${esc(noAttentionLine(attention))}</p></div>`;
+    return `<div class="panel wide">${title}<p>${esc(noAttentionLine(attention))}</p></div>`;
   }
   const items = panel.named.map(
     ({ id, title: words }) => `<li><a href="#${esc(id)}">${esc(words)}</a></li>`,
   );
   if (panel.more !== null) items.push(`<li><a href="#need-h">${esc(panel.more)}</a></li>`);
-  return `<div class="panel attention">${title}<p>${esc(panel.lead)}</p><ul>${items.join("")}</ul></div>`;
+  return `<div class="panel attention wide">${title}<p>${esc(panel.lead)}</p><ul>${items.join("")}</ul></div>`;
 }
 
 /**
