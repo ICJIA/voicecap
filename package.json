@@ -1,6 +1,6 @@
 {
   "name": "@icjia/voicecap",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Listen through a website with a real screen reader: voicecap takes NVDA page by page, saves every word it says as transcripts, and records what people reviewed.",
   "keywords": [
     "accessibility",
