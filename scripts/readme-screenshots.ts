@@ -15,8 +15,8 @@
  *   report-top.png           the page's masthead, and its summary down to the end of its panels
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
- *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot (the
- *                            first row with no biography page, so no person's photo or name shows)
+ *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot: the
+ *                            first row with no card for a /biographies/ page (see BIOGRAPHIES)
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the site's report under "The sites", dark
@@ -57,8 +57,9 @@ export const SCREENSHOTS_DIR = path.join(ROOT, "assets", "screenshots");
  */
 export const SOURCE_HOME = path.join(ROOT, "fixture", "i2i-v3-run");
 /**
- * The day the report is shared, the day of the run, after it ended (at 12:32). A local time, so
- * it's that day anywhere.
+ * When the pictures show the report as shared: 6 October 2026 at 15:00, a local time, so it's that
+ * day anywhere, after the run ended (at 12:32). It's fixed: every share the script makes has it, so
+ * the pictures come out the same each time. It isn't when anyone really shared the report.
  */
 const SHARED_ON = new Date(2026, 9, 6, 15, 0);
 /** Who shares it: the person who ran the review, as the run's record names them. */
@@ -76,7 +77,9 @@ const SLICE_MARGIN = 16;
 const PANEL_MARGIN = 8;
 /**
  * What the address of a biography has in it: each page of the i2i team's biographies shows a person's
- * photo and name. A shot of page cards leaves the rows that have one out.
+ * photo and name. The shot of page cards leaves out every row that has a card for such a page, and
+ * nothing else: a page at another address that shows a photo would still be drawn. So when the
+ * fixture changes, look at that shot for photos and names.
  */
 const BIOGRAPHIES = "/biographies/";
 
@@ -358,9 +361,10 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
     await openFolds(page, `${attention} .folds > details`, false);
     await shoot(page, "report-attention.png", await around(page, attention, SLICE_MARGIN));
 
-    // "Every page": a row of its cards, each with its page's screenshot: the first row with no
-    // biography on it, so that no person's photo or name is in the picture. The row ends before the
-    // next one starts, so no card is cut off.
+    // "Every page": a row of its cards, each with its page's screenshot: the first row with no card
+    // for a /biographies/ page, which keeps this fixture's team photos and names out of the picture.
+    // The code checks only the address, so look at the shot for photos when the fixture changes. The
+    // row ends before the next one starts, so no card is cut off.
     await shoot(
       page,
       "report-pages.png",

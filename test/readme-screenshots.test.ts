@@ -215,11 +215,11 @@ describe("a shot of a page", () => {
       // The first row's second card is a person's page, so the whole row is passed over.
       const page = await gridOf([
         "/",
-        "/biographies/aaliyah-gaston/",
+        "/biographies/jane-doe/",
         "/contact/",
         "/privacy/",
         "/search/",
-        "/biographies/andrea-gatewood/",
+        "/biographies/john-roe/",
       ]);
 
       expect(await firstRowWithout(page, ".card", "/biographies/", 4)).toEqual({
