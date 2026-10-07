@@ -77,9 +77,10 @@ describe("wordOutline", () => {
   // footer with no heading would belong to the last transcript's heading 3, in the navigation pane
   // and for a screen reader alike, and only a change of font would mark where it begins. So the Word
   // copy has eleven level-1 headings: ten of its own and the footer's, and but for its Summary, which
-  // the page calls At a glance, each of the ten is a heading the page has too (its sections', and the
+  // the page calls At a glance, and its appendix, which the page doesn't have (each page's transcripts
+  // are folded in its card), each of the ten is a heading the page has too (its sections', and the
   // parts of its details).
-  it("has eleven sections: ten of its own, nine of which the page has too, and then a heading of its own for the footer", async () => {
+  it("has eleven sections: ten of its own, eight of which the page has too, and then a heading of its own for the footer", async () => {
     const model = await demoModel();
     const sections = sectionsOf(wordOutline(model));
     const page = renderSharePage(model, { fontCss: "" });
@@ -97,8 +98,9 @@ describe("wordOutline", () => {
       "Appendix: every transcript",
       "About this report",
     ]);
-    expect(pageHeadings(page)).toEqual(expect.arrayContaining(sections.slice(1, 10)));
+    expect(pageHeadings(page)).toEqual(expect.arrayContaining(sections.slice(1, 9)));
     expect(pageHeadings(page)).toContain("At a glance");
+    expect(pageHeadings(page)).not.toContain("Appendix: every transcript");
     expect(sections.at(-1)).toBe("About this report");
     // The flags found are cards under what needs attention, which follows the summary.
     expect(sections).not.toContain("What the flags found");
@@ -109,10 +111,10 @@ describe("wordOutline", () => {
     const sections = sectionsOf(wordOutline(none));
 
     expect(sections).toHaveLength(11);
-    // The page has no section on what needs attention with no card to name, and At a glance for the
-    // Summary: the other eight are its headings too.
+    // The page has no section on what needs attention with no card to name, At a glance for the
+    // Summary, and no appendix: the other seven are its headings too.
     expect(pageHeadings(renderSharePage(none, { fontCss: "" }))).toEqual(
-      expect.arrayContaining(sections.slice(2, 10)),
+      expect.arrayContaining(sections.slice(2, 9)),
     );
     expect(sections.slice(0, 3)).toEqual(["Summary", "What needs attention", "How voicecap works"]);
     expect(sections.at(-1)).toBe("About this report");

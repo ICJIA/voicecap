@@ -10,10 +10,11 @@
  * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
  * closing script tag; a site whose host is one long word, with no name set and no title on its home
  * page; a site whose config gives it a canonical address and a long name, which the page leads
- * with; and a site whose only run was a replay, as in CI's smoke test. Six more pages are written
+ * with; and a site whose only run was a replay, as in CI's smoke test. Seven more pages are written
  * from models: a run whose event log has all a chart can draw, three of what needs attention, with
- * 5 cards, 6 cards, and i2i's one card on 32 pages, and two with no problem to name: one where every
- * page was read, and one with a page skipped.
+ * 5 cards, 6 cards, and i2i's one card on 32 pages, two with no problem to name: one where every
+ * page was read, and one with a page skipped; and one of 13 pages, whose 11 with nothing to note
+ * fold behind one line, each card holding a fold of its own transcript.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -51,6 +52,7 @@ import {
   inputOf,
   LINES,
   loggedModel,
+  manyPages,
   storeOf,
   TRANSCRIPTS,
 } from "./helpers/share-model.js";
@@ -147,7 +149,7 @@ async function demoPage(): Promise<string> {
  * /about sounds different), and the page with the long address (LONG_PATH) can't be opened, so its
  * transcripts are the first run's. A person said they heard NVDA speaking in both runs, the whole
  * time. Each page that's loaded takes a screenshot (TINY_JPEG): the page shows three of them, each
- * on its card and in the appendix.
+ * on its card.
  */
 async function richPage(): Promise<string> {
   const dir = await setup(["/", "/about", LONG_PATH]);
@@ -324,6 +326,8 @@ let pages: {
   /** No card to name: every page was read, and one page was read and one skipped. */
   none: string;
   skipped: string;
+  /** 13 pages read in full, 2 with flags: the other 11 are folded, each card holding its transcripts. */
+  many: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -355,6 +359,9 @@ beforeAll(async () => {
     ofPages([{ path: "/" }, { path: "/file-1/", status: "skipped" }]),
     "skipped",
   );
+  // More pages than a page shows in the open (12): the cards with nothing to note are folded, and
+  // each holds a fold of its own transcript.
+  const many = await modelPage(manyPages(13, 2), "many");
   pages = {
     demo,
     rich,
@@ -368,6 +375,7 @@ beforeAll(async () => {
     i2i,
     none,
     skipped,
+    many,
   };
   hostileRun = hostile;
   replayRunId = replay.runId;
@@ -647,8 +655,8 @@ describe("axe, in Chromium", () => {
         // Its runs recorded their event logs: each has a chart and a folded table of its events.
         expect(await page.locator("svg.timeline").count()).toBe(2);
         expect(await page.locator("details.log").count()).toBe(2);
-        // And a screenshot of each page, on its card and in the appendix, each with its alt text.
-        expect(await page.locator("img").count()).toBe(6);
+        // And a screenshot of each page, on its card, each with its alt text.
+        expect(await page.locator("img").count()).toBe(3);
         expect(
           await page
             .locator("img")
@@ -820,6 +828,32 @@ describe("axe, in Chromium", () => {
   );
 
   it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the cards with what NVDA said first and their full transcripts, every fold closed and every fold open, dark and light",
+    async (width) => {
+      // The demo's 7 cards, each with a fold of its own, and 13 pages, whose 11 quiet cards are
+      // folded behind one line, each holding a fold of its own: a fold inside a fold.
+      for (const [which, transcripts] of [
+        ["demo", 7],
+        ["many", 13],
+      ] as const) {
+        const page = await open(pages[which]);
+
+        expect(await page.locator("#pages figure.heard-first").count(), which).toBe(transcripts);
+        expect(await page.locator("#pages details.tx-page").count(), which).toBe(transcripts);
+        expect(await axeFindings(page, width), `${which}, dark, every fold closed`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(Object.values(await foldStates(page)).every(Boolean), which).toBe(true);
+        expect(await axeFindings(page, width), `${which}, dark, every fold open`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light, every fold open`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(await axeFindings(page, width), `${which}, light, folds as written`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
     "has no axe violations at %i px on the details' parts when no flag was raised and nothing needs attention, or a page was skipped, dark and light, folds closed and open",
     async (width) => {
       // With flags and problems, the parts are checked above, on the demo's page and the pages of
@@ -881,7 +915,16 @@ describe("a page in a narrow window", () => {
   it.each([1280, 390, 320])(
     "keeps every box's contents, and the page, inside the window at %i px, with folds closed and open",
     async (width) => {
-      for (const which of ["demo", "rich", "longHost", "named", "logged", "six", "i2i"] as const) {
+      for (const which of [
+        "demo",
+        "rich",
+        "longHost",
+        "named",
+        "logged",
+        "six",
+        "i2i",
+        "many",
+      ] as const) {
         const page = await open(pages[which]);
         await page.setViewportSize({ width, height: 900 });
         expect(await overflowOf(page), `${which}, folds closed`).toEqual(FITS);
@@ -917,6 +960,8 @@ describe("a page in a narrow window", () => {
     ["a section's heading", "main h3"],
     ["a part's heading in the details", "#details > section > h3"],
     ["a heading inside a part of the details", "#details h4"],
+    ["a transcript's heading, in a card", "#pages .tx h4"],
+    ["a line NVDA said first, in a card", ".heard-first li"],
     ["a fold's line", "main summary"],
     ["a term", "main dt"],
     ["what a term means", "main dd"],
@@ -1278,9 +1323,9 @@ describe("the footer", () => {
 
     await page.setViewportSize({ width: 1280, height: height + 400 });
 
-    // The demo's sections: At a glance, what needs attention (it has cards), every page, the
-    // details, and the appendix, so a count that found none of them can't pass for this.
-    expect(before).toHaveLength(5);
+    // The demo's sections: At a glance, what needs attention (it has cards), every page, and the
+    // details, so a count that found none of them can't pass for this.
+    expect(before).toHaveLength(4);
     expect(await sections()).toEqual(before);
   });
 
@@ -1411,7 +1456,7 @@ describe("a page's screenshots", () => {
       height: await page.evaluate(() => document.documentElement.scrollHeight),
     });
 
-    // Three pages, a picture on each card and one in each page's entry in the appendix: all drawn.
+    // Three pages, a picture on each card, and none anywhere else: all drawn.
     await expect
       .poll(
         () =>
@@ -1420,7 +1465,7 @@ describe("a page's screenshots", () => {
           ),
         { timeout: 10_000 },
       )
-      .toEqual([16, 16, 16, 16, 16, 16]);
+      .toEqual([16, 16, 16]);
     expect(
       requested.map((url) => (url.startsWith("file:") ? path.resolve(fileURLToPath(url)) : url)),
     ).toEqual([path.resolve(pages.rich)]);
@@ -1535,7 +1580,7 @@ describe("Open every section, and printing", () => {
       );
     }
     // The first two have flags, so their cards are in the open; the other 11 have nothing to note,
-    // so theirs are in a fold. Every page's entry in the appendix is in a fold of its own.
+    // so theirs are in a fold.
     const flag = {
       rule: "generic-link-text",
       pass: "read" as const,
@@ -1568,12 +1613,12 @@ describe("Open every section, and printing", () => {
     await writeFile(file, renderSharePage(model, { fontCss: "" }));
 
     const page = await open(file);
-    // As written, only the two flagged pages' pictures are in the open: the other 24 are folded.
+    // As written, only the two flagged pages' pictures are in the open: the other 11 are folded.
     expect(
       await page.evaluate(
         () => [...document.images].filter((image) => image.closest("details:not([open])")).length,
       ),
-    ).toBe(24);
+    ).toBe(11);
     const before = await foldStates(page);
     const pdf = await page.pdf();
 
@@ -1611,7 +1656,14 @@ describe("Open every section, and printing", () => {
 });
 
 describe("a link into a fold", () => {
-  it("opens the fold a link points into, and brings it into view", async () => {
+  /** The page's address changing to `hash`, as one the browser has just followed. */
+  const goTo = (page: Page, hash: string): Promise<void> =>
+    page.evaluate((id) => {
+      history.replaceState(null, "", `#${id}`);
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    }, hash);
+
+  it("opens the fold an address points into, and brings it into view", async () => {
     const page = await open(pages.demo);
     const fold = `tx-${HOW}`;
     const before = await foldStates(page);
@@ -1621,22 +1673,64 @@ describe("a link into a fold", () => {
     await page.locator('a[href="#prob-h"]').first().click();
     expect(await foldStates(page)).toEqual(before);
 
-    // The page card's "Transcripts and fingerprints" opens its transcripts.
-    await page.locator(`a[href="#${fold}"]`).click();
+    // An address pointing to a page's transcript: the card holds the fold, which opens, and the
+    // page is scrolled to it.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await inView(page, `#${fold} > summary`)).toBe(false);
+    await goTo(page, fold);
     expect(await foldStates(page)).toEqual({ ...before, [fold]: true });
     await expect.poll(() => inView(page, `#${fold} > summary`), { timeout: 10_000 }).toBe(true);
 
-    // An address pointing there, as one the browser has just followed: the fold is shut again,
-    // the page is scrolled away, and the page finds its way back.
+    // Shut again and scrolled away, the same address finds its way back.
     await page.locator(`#${fold} > summary`).click();
     await page.evaluate(() => window.scrollTo(0, 0));
     expect(await inView(page, `#${fold} > summary`)).toBe(false);
-    await page.evaluate((id) => {
-      history.replaceState(null, "", `#${id}`);
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    }, fold);
+    await goTo(page, fold);
     expect((await foldStates(page))[fold]).toBe(true);
     expect(await inView(page, `#${fold} > summary`)).toBe(true);
+  });
+
+  // A link to a page's transcript is an address, such as one sent in an email: no part of the page
+  // links to one now that each card holds its own. On a page of 13, the cards with nothing to note
+  // are folded behind one line, each holding a fold of its own transcript.
+  it("a link to a page's transcript opens its fold, and the fold of quiet pages around it", async () => {
+    // The fold of the 11 quiet pages, and what is open as the page is written: the cards of what
+    // needs attention, which the two flagged pages make.
+    const quiet = "#pages .folds > details";
+    const isOpen = (fold: Element): boolean => (fold as HTMLDetailsElement).open;
+    const asWritten = await open(pages.many);
+    const written = await foldStates(asWritten);
+    const transcripts = Object.keys(written).filter((id) => id.startsWith("tx-"));
+    expect(transcripts).toHaveLength(13);
+    expect(await asWritten.locator(quiet).evaluate(isOpen)).toBe(false);
+    expect(transcripts.filter((id) => written[id])).toEqual([]);
+    // The fourth and the ninth page: both are among the quiet.
+    const first = transcripts[3] ?? "";
+    const second = transcripts[8] ?? "";
+    const openCount = (states: Record<string, boolean>): number => openFolds(states).length;
+
+    // The page opened at a quiet page's transcript: that fold and the quiet fold around it open,
+    // and no other.
+    const page = await open(pages.many, `#${first}`);
+    const afterFirst = await foldStates(page);
+    expect(await page.locator(quiet).evaluate(isOpen)).toBe(true);
+    expect(transcripts.filter((id) => afterFirst[id])).toEqual([first]);
+    expect(openCount(afterFirst)).toBe(openCount(written) + 2);
+    await expect.poll(() => inView(page, `#${first} > summary`), { timeout: 10_000 }).toBe(true);
+
+    // The address changing to another quiet page's: its fold opens too, and the first stays open.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await inView(page, `#${second} > summary`)).toBe(false);
+    await goTo(page, second);
+    const afterSecond = await foldStates(page);
+    expect(transcripts.filter((id) => afterSecond[id])).toEqual([first, second]);
+    expect(openCount(afterSecond)).toBe(openCount(written) + 3);
+    await expect.poll(() => inView(page, `#${second} > summary`), { timeout: 10_000 }).toBe(true);
+
+    // Open every section opens every fold: the quiet one, and all 13 transcripts.
+    await page.locator("#open-all").click();
+    expect(await page.locator("details:not([open])").count()).toBe(0);
+    expect(await page.locator("#pages details[open]").count()).toBe(1 + 13);
   });
 
   it("opens every fold around what a link points to, however deep", async () => {
@@ -2043,17 +2137,22 @@ describe("the fingerprint check, on the page's own data", () => {
     ]);
   });
 
-  it("names a transcript whose text the appendix shows was changed", async () => {
+  it("Check the fingerprints catches a changed character in a card's transcript", async () => {
     const page = await open(pages.demo);
-    // Someone changes what the page shows of the home page's read transcript, and nothing else: the
-    // data and the records still match.
-    await page.evaluate(() => {
-      const shown = document.querySelector("#tx-home pre");
-      if (shown === null) throw new Error("The appendix shows no transcript of the home page.");
-      shown.textContent = `${shown.textContent ?? ""}\nA line no one heard.`;
+    // Someone changes one character of what the home page's card shows of its read transcript, in
+    // its fold, and nothing else: the data and the records still match.
+    const changed = await page.evaluate(() => {
+      const shown = document.querySelector("#pg-home details.tx-page section.tx pre");
+      if (shown === null) throw new Error("The home page's card shows no transcript.");
+      const text = shown.textContent ?? "";
+      const at = text.indexOf("landmark");
+      shown.textContent = `${text.slice(0, at)}L${text.slice(at + 1)}`;
+      return text.slice(at, at + 8);
     });
+    expect(changed).toBe("landmark");
     await page.locator("#fp-run").click();
 
+    // In words: the file named, and that the text shown is not its own.
     await expect
       .poll(() => result(page), { timeout: 10_000 })
       .toBe(
@@ -2061,11 +2160,21 @@ describe("the fingerprint check, on the page's own data", () => {
           "Run 1402 · / · read.txt: the text shown doesn't match its file. " +
           "20 of 21 transcripts match their fingerprints, and both runs' seals check out.",
       );
+    // And in red: the line, and the file's row in the list of every file checked.
     expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
     const rows = await page.locator("#fp-rows tr").allTextContents();
     expect(rows.filter((row) => row.includes("doesn’t match"))).toEqual([
       expect.stringContaining("Run 1402 · / · read.txt"),
     ]);
+    const red = "rgb(242, 117, 117)";
+    expect(await page.locator("#fp-result").evaluate((line) => getComputedStyle(line).color)).toBe(
+      red,
+    );
+    const chips = page.locator("#fp-rows .c-bad");
+    expect(await chips.count()).toBe(1);
+    expect(await chips.evaluate((chip) => getComputedStyle(chip).color)).toBe(red);
+    // The one character, and no other file, is what it names.
+    expect(await page.locator("#fp-count").textContent()).toBe("23 checked, 1 not matching");
   });
 
   it("checks the older run's record for a page shown from it", async () => {
@@ -2121,10 +2230,15 @@ describe("the fingerprint check, on the page's own data", () => {
     expect(await page.locator("#fp-run").isVisible()).toBe(true);
     expect(await page.evaluate(() => "__pwned" in window)).toBe(false);
     expect(await page.locator("script").count()).toBe(2);
-    // The appendix shows each line as text, markup and all.
+    // The home page's card shows each line as text, markup and all, in its fold and in what NVDA
+    // said first: three lines, in quotes, the first two of them markup.
     const read = await page.locator('#tx-home [aria-label^="Read transcript"] pre').textContent();
     for (const line of HOSTILE_LINES) expect(read).toContain(line);
     expect(await page.locator("#tx-home pre b").count()).toBe(0);
+    expect(await page.locator("#pg-home .heard-first li").allTextContents()).toEqual(
+      [HOSTILE_LINES[0], HOSTILE_LINES[1], HOSTILE_LINES[2]].map((line) => `“${line}”`),
+    );
+    expect(await page.locator("#pg-home .heard-first li *").count()).toBe(0);
     // A page's title, with markup in it, is text too. It names no site: the home page's card shows
     // it, and the site is named by its host.
     expect(await page.title()).toBe("example.illinois.gov: how its pages read aloud with NVDA");

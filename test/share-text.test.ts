@@ -350,6 +350,13 @@ describe("the fixed text", () => {
     ]);
   });
 
+  it("words a page's first lines and its full transcript as the spec pins them", () => {
+    const { PAGES_TEXT } = text;
+
+    expect(PAGES_TEXT.heardFirst).toBe("Heard first");
+    expect(PAGES_TEXT.fullTranscript).toBe("The full transcript");
+  });
+
   it("never names a library as how voicecap began", () => {
     expect(everyString().join("\n")).not.toMatch(/guidepup/i);
   });

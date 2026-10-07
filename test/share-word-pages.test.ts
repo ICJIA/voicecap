@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FlagResult, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
-import { renderAppendix, renderPages } from "../src/share/html/pages.js";
+import { renderPages } from "../src/share/html/pages.js";
 import { lineText, type Line } from "../src/share/line.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
@@ -712,7 +712,7 @@ describe("wordAppendix", () => {
     expect(said({ notRecorded: "this run used voicecap 0.4.1." })).toBe(
       "Screenshot: Not recorded: this run used voicecap 0.4.1.",
     );
-    expect(renderAppendix(withCard(model, 0, { screenshot: { notRecorded: "x" } }))).toContain(
+    expect(renderPages(withCard(model, 0, { screenshot: { notRecorded: "x" } }))).toContain(
       '<p class="not-recorded">Not recorded: x</p>',
     );
     // A line that says it isn't shown is as it is: it doesn't say "Not recorded" first.
@@ -979,7 +979,7 @@ describe("wordAppendix", () => {
       "This transcript was recorded, but its file couldn't be read here, so it isn't shown",
     );
     expect(APPENDIX_TEXT.unreadableCheck).toBe(", and the fingerprint check leaves it out");
-    expect(renderAppendix(model)).toContain(
+    expect(renderPages(model)).toContain(
       `<p>${esc(`${APPENDIX_TEXT.unreadable}${APPENDIX_TEXT.unreadableCheck}.`)}</p>`,
     );
     expect(wordsOf(appendix).join("\n")).not.toMatch(/fingerprint check/i);
@@ -1199,7 +1199,6 @@ describe("the two sections together", () => {
     expect(said(wordAppendix(lost))).toContain(`${APPENDIX_TEXT.unreadable}.`);
     // The page says each of these in its own headings and lines.
     expect(renderPages(model)).toContain(PAGES_TEXT.title);
-    expect(renderAppendix(model)).toContain(APPENDIX_TEXT.title);
   });
 
   /** Markup, a quote, and an ampersand: wherever a record's words are said, they stay so. */

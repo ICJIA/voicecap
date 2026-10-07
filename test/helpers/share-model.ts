@@ -1,9 +1,9 @@
 /**
  * What the shareable page's tests build models from: the input of runs built in memory
  * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
- * memory (`storeOf`), screenshots held in memory (`picturesOf`), and a run with its event log held
- * in memory (`loggedRun`). The tests that render the page, and the one that builds its model, share
- * them, so each file says only what it adds.
+ * memory (`storeOf`), screenshots held in memory (`picturesOf`), a run with its event log held in
+ * memory (`loggedRun`), and a site of many pages read in full (`manyPages`). The tests that render
+ * the page, and the one that builds its model, share them, so each file says only what it adds.
  */
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +11,7 @@ import path from "node:path";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import type {
   FileHash,
+  FlagResult,
   NewRunEvent,
   PassName,
   ReviewsFile,
@@ -28,7 +29,7 @@ import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { sealOf } from "../../src/util/hash.js";
 import { TINY_JPEG } from "./jpeg.js";
 import { SITE } from "./report-data.js";
-import { failedAttempt, settingsNested, shareRun } from "./share-data.js";
+import { failedAttempt, settingsNested, shareRun, type SharePageSpec } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
 
 /** The demo site's folder in the transcripts home, which holds its runs of 29 September 2026. */
@@ -108,6 +109,41 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     wordName: "current.docx",
     ...overrides,
   };
+}
+
+/** A flag a run records for a page whose read pass says generic link text. */
+export const LINK_FLAG: FlagResult = {
+  rule: "generic-link-text",
+  pass: "read",
+  count: 1,
+  found: [{ text: "click here", count: 1 }],
+  message: 'Generic link text announced 1 time in the read pass: "click here" ×1.',
+};
+
+/** A flag a run records for a page whose first heading isn't a level 1. */
+const HEADINGS_FLAG: FlagResult = {
+  rule: "headings",
+  pass: "headings",
+  message: "The first heading is level 2, not level 1.",
+};
+
+/**
+ * `total` pages read in full, each with its three transcripts, the first `flagged` of them with
+ * flags: a page folds the cards with nothing to note at 13 pages (`manyPages(13, 2)` has 11 to fold).
+ * Its transcripts are held in memory, so each card has its full transcript.
+ */
+export function manyPages(total: number, flagged: number): ShareModel {
+  const pages = Array.from({ length: total }, (_, index): SharePageSpec => {
+    const address = `/page-${index + 1}`;
+    return {
+      path: address,
+      title: `Page ${address}`,
+      files: TRANSCRIPTS,
+      passes: LINES,
+      ...(index < flagged ? { flags: [LINK_FLAG, HEADINGS_FLAG] } : {}),
+    };
+  });
+  return buildShareModel(inputOf([shareRun({ id: "r1", pages })], { transcripts: storeOf() }));
 }
 
 /**

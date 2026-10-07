@@ -16,17 +16,18 @@ import { renderAttention } from "./attention.js";
 import { SHARE_SCRIPT } from "./client.js";
 import { renderDetails } from "./details.js";
 import { renderFooter } from "./evidence.js";
-import { renderAppendix, renderPages } from "./pages.js";
+import { renderPages } from "./pages.js";
 import { SHARE_CSS } from "./style.js";
 import { renderGlance, renderTop } from "./top.js";
 
 /**
  * The sections inside `main`, in the design's order: At a glance, what needs attention (nothing,
- * with no card to name), every page, and the details, which hold the rest (what changed, the
- * problems, what the results cover, the evidence, how voicecap works, and how it came to be); the
- * appendix of transcripts last.
+ * with no card to name), every page (each card with what NVDA said first and the page's full
+ * transcript, folded), and the details, which hold the rest (what changed, the problems, what the
+ * results cover, the evidence, how voicecap works, and how it came to be). There is no appendix of
+ * transcripts: each page's is in its card.
  */
-const SECTIONS = [renderGlance, renderAttention, renderPages, renderDetails, renderAppendix];
+const SECTIONS = [renderGlance, renderAttention, renderPages, renderDetails];
 
 /**
  * The page, from the model. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in

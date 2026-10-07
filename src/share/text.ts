@@ -237,11 +237,19 @@ export const PASS_WORDS: Record<PassName, string> = {
 };
 
 /**
- * "Every page": its heading, what a card says of each pass and of the page's flags, the name of a
- * page's screenshot, and the table of the pages no longer listed.
+ * "Every page": its heading, what a card says of each pass and of the page's flags, the labels of
+ * what NVDA said first on a page and of its full transcript, the name of a page's screenshot, and
+ * the table of the pages no longer listed.
  */
 export const PAGES_TEXT = {
   title: "Every page",
+  /**
+   * The label of the first lines NVDA said on a page, word for word, which a card shows ahead of
+   * the numbers; and of its full transcript, folded at the card's end, whose line goes on to say
+   * which transcripts are inside (`transcriptsInside`). The spec pins both.
+   */
+  heardFirst: "Heard first",
+  fullTranscript: "The full transcript",
   /** The label of each number on a card: what each pass captured, and how long the page took. */
   captured: { read: "Read", headings: "Headings", tab: "Tab stops", time: "Time" },
   /** What a card says of a pass the shown run didn't read, which is never "0". */
@@ -829,8 +837,10 @@ export const TIMELINE_TEXT = {
 };
 
 /**
- * "Appendix: every transcript": its heading, what a transcript's heading says of its page, and what
- * it says in place of a transcript's words.
+ * A page's transcripts, in the words both copies use: what a transcript's heading says of its page,
+ * and what it says in place of a transcript's words, or of a page's transcript files. The page folds
+ * a page's transcripts in its card, and has no appendix; the Word copy still does, and says its
+ * heading (`title`).
  */
 export const APPENDIX_TEXT = {
   title: "Appendix: every transcript",

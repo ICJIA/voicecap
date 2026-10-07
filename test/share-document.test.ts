@@ -54,9 +54,10 @@ const LINKS_OUT = [
 
 /**
  * The sections' headings, in the spec's order. What needs attention is there only when a card
- * is: with none, the section isn't on the page, and At a glance's verdict says so.
+ * is: with none, the section isn't on the page, and At a glance's verdict says so. The page has no
+ * appendix of transcripts: each page's is folded in its card, so the details are the last section.
  */
-const SECTIONS = ["glance-h", "need-h", "pages-h", "details-h", "app-h"];
+const SECTIONS = ["glance-h", "need-h", "pages-h", "details-h"];
 const sectionsOf = (cards: number): string[] =>
   cards === 0 ? SECTIONS.filter((id) => id !== "need-h") : SECTIONS;
 
@@ -175,9 +176,9 @@ function largeModel(): ShareModel {
 
 /**
  * A run of voicecap 0.11.0, whose three pages took a screenshot each (TINY_JPEG): two were read in
- * full, so each has an entry in the appendix, and the third failed after its picture was taken, so
- * its card is the only place that has it. The page writes each picture where its page has one: five
- * in all.
+ * full, so each has its transcripts folded in its card, and the third failed after its picture was
+ * taken, so its card has no transcripts. The page writes each picture once, on its page's card:
+ * three in all.
  */
 function shotsModel(): ShareModel {
   const run = shareRun({
@@ -361,10 +362,10 @@ describe("renderSharePage", () => {
         name === "no run that counts" ? [] : ['<script type="application/json" id="fp-data">'],
       );
       // Nothing loaded: no source but a screenshot's own address, a JPEG in base64 in an image of the
-      // page (five in all, on the page that has them: see shotsModel); no linked file, no import,
+      // page (three in all, on the page that has them: see shotsModel); no linked file, no import,
       // and every url() the page's own data.
       const images = html.match(IMAGE_TAG) ?? [];
-      expect(images, name).toHaveLength(name === "a run with its screenshots" ? 5 : 0);
+      expect(images, name).toHaveLength(name === "a run with its screenshots" ? 3 : 0);
       for (const tag of images) {
         expect(attributes(tag, "src"), name).toEqual([expect.stringMatching(IMAGE_ADDRESS)]);
       }
@@ -479,7 +480,7 @@ describe("renderSharePage", () => {
     expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBe(added);
   });
 
-  it("grows by each screenshot's base64 at most twice, on its card and in the appendix, and by nothing else for it", () => {
+  it("grows by each screenshot's base64 once, on its card, and by nothing else for it", () => {
     const model = shotsModel();
     const base64 = Buffer.from(TINY_JPEG).toString("base64");
     // The same page with every picture's base64 left out: only what each picture adds is missing.
@@ -497,13 +498,13 @@ describe("renderSharePage", () => {
       page,
     )?.[1];
 
-    // Two pages have an entry in the appendix, so each shows its picture twice; the third has its
-    // card alone, so it shows it once.
+    // Each of the three pages shows its picture once, on its card; the transcripts folded in the two
+    // cards that have them carry no picture.
     expect(model.pages.map((card) => "dataUri" in card.screenshot)).toEqual([true, true, true]);
     expect(model.appendix).toHaveLength(2);
-    expect(page.length - plain.length).toBe(base64.length * (2 + 2 + 1));
-    expect(Buffer.byteLength(page) - Buffer.byteLength(plain)).toBe(base64.length * 5);
-    expect(page.split(base64)).toHaveLength(5 + 1);
+    expect(page.length - plain.length).toBe(base64.length * 3);
+    expect(Buffer.byteLength(page) - Buffer.byteLength(plain)).toBe(base64.length * 3);
+    expect(page.split(base64)).toHaveLength(3 + 1);
     // The check's data holds each picture's fingerprint, in the records, and never the picture.
     expect(data).toEqual(expect.any(String));
     expect(data).not.toContain(base64);
@@ -533,13 +534,11 @@ describe("renderSharePage", () => {
       for (const [, line = ""] of markup.matchAll(/<summary>([\s\S]*?)<\/summary>/g)) {
         expect(line, name).not.toMatch(/<h[1-6]\b/);
       }
-      // The details' parts are h3, between the details' own heading and the appendix's, in the
+      // The details' parts are h3, between the details' own heading and the end of main, in the
       // spec's order, each outside every fold like a section's heading. Every h3 in the details is
       // one of them: what is inside a part is lower.
-      const details = markup.slice(
-        markup.indexOf('<h2 id="details-h">'),
-        markup.indexOf('<h2 id="app-h">'),
-      );
+      const details = markup.slice(markup.indexOf('<h2 id="details-h">'), mainEnd);
+      expect(markup, name).not.toContain('id="app-h"');
       const parts = [...details.matchAll(/<h3 id="([^"]+)"/g)].map(([, id]) => id);
       expect(parts, name).toEqual(name === "no run that counts" ? NO_RUN_PARTS : DETAILS_PARTS);
       expect(foldsAroundHeadings(details, "h3"), name).toEqual(parts.map(() => 0));
@@ -613,8 +612,7 @@ describe("renderSharePage", () => {
       // details, and What needs attention too when there's a card.
       expect(targets.length, name).toBeGreaterThanOrEqual(3);
       // Every link to a part of the page goes to one that is there: At a glance's to each section,
-      // the details' to the problems and to what changed, a card's to its pages, a page's to its
-      // transcripts.
+      // the details' to the problems and to what changed, and a card's to its pages.
       expect(
         targets.filter((target) => !ids.includes(target)),
         name,

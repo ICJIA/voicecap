@@ -76,6 +76,10 @@ export const THEME_CSS = `:root {
  *   its key, so no box sits on another whatever the fonts, and keeps its spaces without letting one
  *   hang past its box where it wraps (`white-space: break-spaces`, where a fix's code has
  *   `pre-wrap`), so axe can tell what each letter is drawn on;
+ * - a page's card (`.card`): what NVDA said first (`.heard-first`), a small label over the lines,
+ *   each in a box of the list the how-it-works sample uses; and the page's full transcript, a fold
+ *   at the card's end on the second color of the panels, whose transcripts (`.tx`) sit one under
+ *   another, each under an `h4`;
  * - the folds' triangle is drawn but not read aloud;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the page's middle row grows. In print the
@@ -195,7 +199,10 @@ code { overflow-wrap: anywhere; }
 .passes dd { margin: 0; font: 600 0.95rem var(--display); font-variant-numeric: tabular-nums; }
 .strip-fig { margin: 0; display: grid; gap: 4px; } .strip { width: 100%; height: 36px; display: block; } .strip rect { fill: var(--accent); opacity: 0.85; }
 .strip-fig figcaption { font-size: 0.74rem; color: var(--muted); }
-.more { font-size: 0.86rem; }
+/* what NVDA said first on a page: its label over the lines, each in a box of the list the how-it-works sample uses */
+.heard-first { margin: 0; display: grid; gap: 6px; }
+.heard-first figcaption { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.heard-first .said-list li { display: block; }
 /* findings, tables */
 .finding { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
 .scroll { overflow-x: auto; }
@@ -243,14 +250,8 @@ dl.spec dt { color: var(--muted); }
 .verify { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; display: grid; gap: 6px; }
 .scroll + .verify { margin-top: 12px; }
 .verify pre { margin: 0; font: 0.84rem var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-/* transcripts */
-.appendix { display: grid; gap: 10px; }
-.appendix details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.appendix summary { padding: 12px 16px; font: 600 1rem var(--display); cursor: pointer; }
-.tx-grid { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 18px; padding: 0 16px 16px; }
-.inside > .tx-grid { padding: 0; }
-.tx-grid > img { box-sizing: border-box; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
-.tx h3 { margin: 10px 0 2px; font: 600 0.95rem var(--display); }
+/* the transcripts folded in a card: each pass under its own heading, one under another (the fold's inside is a grid with a gap) */
+.tx h4 { margin: 0 0 2px; font: 600 0.95rem var(--display); }
 .fp { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tx .scroll { max-height: 280px; overflow: auto; }
@@ -279,7 +280,7 @@ details.fold > .inside > p { margin: 0; }
 .part > ol, .part > ul, .on-pages > ul { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
 /* The first page's link is a target that sits under the fold's own line, another target: room between them, as WCAG's target size asks. */
 .on-pages > ul { margin-top: 8px; }
-details.fold details.fold { background: var(--panel-2); }
+details.fold details.fold, .card details.fold { background: var(--panel-2); }
 details.fold > .run-inside { gap: 22px; }
 .gist { margin: 0 0 16px; color: var(--muted); max-width: 70ch; }
 .gist b { color: var(--fg); font-weight: 500; }
@@ -367,7 +368,7 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 .worth h4 { font-size: 0.98rem; margin-bottom: 4px; }
 .worth p { margin: 0; font-size: 0.9rem; }
 .cite { font-size: 0.84rem; color: var(--muted); }
-@media (max-width: 640px) { .tx-grid { grid-template-columns: 1fr; } dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }
+@media (max-width: 640px) { dl.spec, dl.qa { grid-template-columns: 1fr; } dl.spec dt, dl.qa dt { border-bottom: 0; padding-bottom: 0; } dl.qa dd { border-top: 0; padding-top: 2px; } .rule { grid-template-columns: 120px 1fr 30px; } .passes { grid-template-columns: repeat(2, 1fr); } table.tracks { min-width: 0; } table.tracks tbody th { white-space: normal; width: auto; } table.tracks td { padding: 8px; } }
 /* At a phone's width, down to 320 pixels, the timeline's three columns fit their box: closer together, inside it, without the dots, and in smaller type. */
 @media (max-width: 400px) { table.tracks { border-spacing: 4px 6px; margin: 4px 0 10px; font-size: 0.86rem; } table.tracks caption { padding: 0 0 2px; } table.tracks thead th { padding: 4px 4px 0; letter-spacing: 0.02em; } table.tracks tbody th { padding: 8px 4px; font-size: 0.74rem; } table.tracks tbody th::before { display: none; } table.tracks td { padding: 8px 6px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }

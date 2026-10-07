@@ -20,7 +20,7 @@ import {
   renderFooter,
   renderStory,
 } from "../src/share/html/evidence.js";
-import { renderAppendix, renderPages } from "../src/share/html/pages.js";
+import { renderPages } from "../src/share/html/pages.js";
 import { renderProblems } from "../src/share/html/problems.js";
 import { renderHow, renderTop } from "../src/share/html/top.js";
 import { firstSentenceBold, lineText, type Line } from "../src/share/line.js";
@@ -718,7 +718,7 @@ describe("the opening lines of What needs attention, Every page, and the appendi
     );
   });
 
-  it("are the first lines of the page's sections, with only the page's own sentence added", async () => {
+  it("are the first lines of the page's sections", async () => {
     const models: [string, ShareModel][] = [
       ["the demo's", await demoModel()],
       ["no counted run", noRunModel()],
@@ -740,9 +740,6 @@ describe("the opening lines of What needs attention, Every page, and the appendi
       } else {
         expect(renderAttention(model), name).toBe("");
       }
-      expect(paragraphOf(renderAppendix(model), "gist"), name).toBe(
-        lineText(appendixGist(model, OPEN)),
-      );
     }
   });
 });
@@ -1873,7 +1870,7 @@ describe("the lines of the evidence, the story, and the footer", () => {
     expect(byteCount(2306)).toBe("2,306 bytes");
     // The page's table of a run's files, and the line under each transcript, say it so.
     expect(renderEvidence(model)).toContain("<td>2,306 bytes</td>");
-    expect(renderAppendix(model)).toContain(
+    expect(renderPages(model)).toContain(
       "The whole file, its header included: 2,306 bytes, SHA-256",
     );
     const [file] = model.appendix.flatMap(({ files }) => files);
@@ -1963,9 +1960,7 @@ describe("the section words in text.ts", () => {
     expect(PAGES_TEXT.screenshot).toBe("Screenshot");
     expect(APPENDIX_TEXT.transcriptOf).toBe("transcript of");
     expect(renderPages(model)).toContain(`aria-label="${PAGES_TEXT.screenshot}"`);
-    expect(renderAppendix(model)).toContain(
-      `<span class="sr">${APPENDIX_TEXT.transcriptOf} /</span>`,
-    );
+    expect(renderPages(model)).toContain(`<span class="sr">${APPENDIX_TEXT.transcriptOf} /</span>`);
   });
 
   it("are plain words in the second half too, with no tag or entity", () => {

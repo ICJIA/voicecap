@@ -618,7 +618,8 @@ describe("the page shows no address of a copy on this computer", () => {
     expect(attributes(html, "href")).toContain(DEMO_ROOT);
     expect(html).toContain(`<a href="${DEMO_ROOT}">${DEMO_ROOT}</a></span>`);
     expect(met).toContain(`Heard on this site: ${DEMO_ROOT}, three ways`);
-    expect(met).toContain(`${on("common-mistakes/")}:`);
+    // A page with flags is named on its card of what needs attention, by its address on the root.
+    expect(met).toContain(on("common-mistakes/"));
     expect(met).toContain(`7 pages from the sitemap ${on("sitemap.xml")}.`);
     expect(met).toContain("npx @icjia/voicecap verify");
     expect(met).toContain(`${NAME}_2026-09-29_1402_walkthrough.json`);
@@ -656,8 +657,9 @@ describe("the page shows no address of a copy on this computer", () => {
 
     // Each place a page's address shows is the page on the root.
     expect(met).toContain(on("old/"));
-    expect(met).toContain(`${on("forms/")}:`);
-    expect(met).toContain(`${on("search/?q=nvda")}:`);
+    expect(met).toContain(on("forms/"));
+    // A page with a query that no card names is on its own card by its path, query and all.
+    expect(met).toContain("/search/?q=nvda");
     expect(
       met.some((text) => text.includes(`Resolved: on ${on("apply/")}, the links that don't say`)),
     ).toBe(true);
