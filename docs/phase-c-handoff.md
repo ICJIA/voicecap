@@ -240,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.12.1 on npm, released 2026-10-07 (tag `v0.12.1`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.12.2 on npm, released 2026-10-07 (tag `v0.12.2`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -309,6 +309,11 @@ The owner's standing rules, from Phases A and B:
   - 0.12.1 (2026-10-07) made the summary easier to read, at the owner's request:
     - its four panels are full-width rows, one under another, with each line of text kept to 80 characters;
     - its "Since the last run" line groups the pages a flag was resolved on, and says each flag once ("the unnamed items, on all 32 of them").
+  - 0.12.2 (2026-10-07) trimmed the website, at the owner's request: "the only report that matters is the current one", and "the most recent 3 is all that's needed".
+    - **What a site shows:** its newest three shares. First comes the current report, with buttons to open it and to download its Word copy. The two before it are a line each. Last is every file with its fingerprint, in a closed fold.
+    - **The list by date** shows only when two sites or more have reports.
+    - **An older share** stays in the records, and `verify` checks it as before. Its files aren't published. Its page's address sends a reader on to the site's current report (`_redirects`, a 302).
+  - **Two sites on the website, since 2026-10-07:** i2i's v3 (`v3--i2i.netlify.app`) and Safe From the Start (`sfs.icjia.illinois.gov`). Safe From the Start's 9 pages were read that day with real NVDA and raised no flags.
 - **Being built:** each plan written when the owner says:
   - plan 9, the page for managers, is next, as 0.13.0. The owner asked on 2026-10-07 for the most critical facts first (the overall result, the screenshots, and the transcripts) and the details last. The page opens with "At a glance": a verdict in words and an icon, a ring of the pages, and four big numbers. Then come the problem cards, then every page with what NVDA said first and its full transcript folded inside, and last the details, for reviewers and auditors. Its spec is the shareable report's, amended on branch `plan-9-page-for-managers`, awaiting the owner's review.
   - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), comes after it, as 0.14.0. Its spec is `docs/superpowers/specs/2026-10-06-review-replay-design.md` on branch `plan-8-review-replay`, awaiting the owner's review.
