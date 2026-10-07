@@ -54,11 +54,10 @@ export const THEME_CSS = `:root {
  * - every grid of cards, tiles, or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
- * - the summary's panels (`.panels`): the first, on what needs attention (`.panel.wide`), takes a
- *   row of its own, the grid's whole width, in each of its states, and the other three share the
- *   rows after it. From 1100 pixels the grid has three columns, not four, so those three fill
- *   their row. Between about 580 and 851 pixels it has two, so the first spans them and the other
- *   three sit two and one; narrower, every panel is stacked;
+ * - the summary's panels (`.panels`): one column, so each of the four is a row of its own, the
+ *   grid's whole width, one after another in the order they're written (what needs attention
+ *   first), in each state of the first and at every width of the window. Side by side, they were
+ *   too much to read at once;
  * - what needs attention (`.place`, `.part`, and `.fix`, a card's parts): the lines NVDA said and the
  *   code of a fix wrap (`overflow-wrap: anywhere`), so a long line never widens the page, and a
  *   fold inside a card is on the second color of the panels. Each line NVDA said is a block under
@@ -117,16 +116,14 @@ code { overflow-wrap: anywhere; }
 .glance { display: grid; gap: 22px; }
 .verdict { font-size: 1.3rem; line-height: 1.45; font-weight: 500; max-width: 60ch; }
 .verdict + .gist { margin: 10px 0 0; }
-.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; }
+/* One column: each panel is a row of its own, the grid's whole width, in the order they are written. Side by side, they were too much to read at once. */
+.panels { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
 .panel h3 { font-size: 0.95rem; }
 .panel p, .panel ul { margin: 0; font-size: 0.93rem; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
 .panel.attention { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .panel.attention h3 { color: var(--warn); }
-/* The panel on what needs attention is the one to read: it takes a row of its own, the grid's whole width, and the other three share the rows after it. Four columns of 260px fit from a window 1124px wide, which would leave a column empty beside those three; from 1100px the grid has three, so they fill their row. Narrower, the columns are as they were: three down to about 852px; two from about 851px to 580px, where the other three sit two and one; and one below that. */
-.panel.wide { grid-column: 1 / -1; }
-@media (min-width: 1100px) { .panels { grid-template-columns: repeat(3, 1fr); } }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }

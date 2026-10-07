@@ -482,14 +482,10 @@ interface Box {
 
 /**
  * The summary's four panels as they are drawn: the grid they are in, and each panel's title and
- * box in page order, with the first (what needs attention) apart from the three after it.
+ * box, in page order.
  */
-async function panelsOf(page: Page): Promise<{
-  grid: Box;
-  attention: Box & { title: string };
-  others: (Box & { title: string })[];
-}> {
-  const { grid, panels } = await page.evaluate(() => {
+async function panelsOf(page: Page): Promise<{ grid: Box; panels: (Box & { title: string })[] }> {
+  return page.evaluate(() => {
     const boxOf = (element: Element) => {
       const { left, right, top, bottom, width } = element.getBoundingClientRect();
       return { left, right, top, bottom, width };
@@ -504,9 +500,6 @@ async function panelsOf(page: Page): Promise<{
       })),
     };
   });
-  const [attention, ...others] = panels;
-  if (attention === undefined) throw new Error("The grid has no panels.");
-  return { grid, attention, others };
 }
 
 /**
@@ -817,11 +810,12 @@ describe("axe, in Chromium", () => {
     "has no axe violations at %i px on the summary's panels when there is no problem to name, or a page was skipped, dark and light",
     async (width) => {
       // With problems, the panels are checked above, on the pages of what needs attention. Here the
-      // first panel is a plain one, with a line in place of the cards: it takes a row of its own too.
+      // first panel is a plain one, with a line in place of the cards.
       for (const which of ["none", "skipped"] as const) {
         const page = await open(pages[which]);
 
-        expect(await page.locator(".panels > .panel.wide").count(), which).toBe(1);
+        expect(await page.locator(".panels > .panel").count(), which).toBe(4);
+        expect(await page.locator(".panels > .panel.attention").count(), which).toBe(0);
         expect(await axeFindings(page, width), `${which}, dark`).toEqual([]);
         await page.locator("#theme-toggle").click();
         expect(await axeFindings(page, width), `${which}, light`).toEqual([]);
@@ -1443,93 +1437,35 @@ describe("the summary's panels", () => {
     expect(Math.abs(actual - expected), `${what}: ${found}`).toBeLessThanOrEqual(1);
   }
 
-  /** The first panel takes the grid's whole width: its left edge, its right edge, and its width. */
-  function expectSpans(grid: Box, attention: Box, state: string): void {
-    near(attention.left, grid.left, `${state}: its left edge`);
-    near(attention.right, grid.right, `${state}: its right edge`);
-    near(attention.width, grid.width, `${state}: its width`);
-  }
-
-  it.each(STATES)(
-    "gives what needs attention the whole width of the grid at 1280 px, above the other three: %s",
-    async (state, which) => {
-      const page = await open(pages[which]);
-      await page.setViewportSize({ width: 1280, height: 900 });
-
-      const { grid, attention, others } = await panelsOf(page);
-
-      expect([attention, ...others].map(({ title }) => title)).toEqual(TITLES);
-      expectSpans(grid, attention, state);
-      // Above the other three: its bottom edge is above every one's top.
-      expect(others).toHaveLength(3);
-      for (const other of others) {
-        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
-      }
-    },
-  );
-
-  // At 1200 px, as at 1280, four columns of 260 px would fit the grid, and leave one empty beside
-  // the three: the rule from 1100 px makes it three.
+  // Each panel is a row of its own, as wide as the grid, in a wide window (where the grid once had
+  // three or four columns) and in a narrow one.
   it.each(
-    [1280, 1200].flatMap((width) => STATES.map(([state, which]) => [width, state, which] as const)),
+    [1280, 1200, 390, 320].flatMap((width) =>
+      STATES.map(([state, which]) => [width, state, which] as const),
+    ),
   )(
-    "has the other three share the row after what needs attention, side by side, and fill it at %i px: %s",
+    "gives each of the four panels the grid's whole width, one under another, in order, at %i px: %s",
     async (width, state, which) => {
       const page = await open(pages[which]);
       await page.setViewportSize({ width, height: 900 });
 
-      const { grid, others } = await panelsOf(page);
-      const [first, , last] = others;
-      const tops = others.map(({ top }) => top);
-      const lefts = others.map(({ left }) => left);
+      const { grid, panels } = await panelsOf(page);
+      const titles = panels.map(({ title }) => title);
 
-      // One row, in page order, from the grid's left edge to its right: no column is left empty.
-      near(Math.max(...tops), Math.min(...tops), `${state}: one row`);
-      expect(lefts, `${state}: in page order`).toEqual([...lefts].sort((a, b) => a - b));
-      near(first?.left ?? NaN, grid.left, `${state}: the first one's left edge`);
-      near(last?.right ?? NaN, grid.right, `${state}: the last one's right edge`);
-      for (const other of others) expect(other.width).toBeLessThan(grid.width / 2);
-    },
-  );
-
-  it.each([390, 320])(
-    "gives all four panels the grid's width, one under another, at %i px",
-    async (width) => {
-      for (const [state, which] of STATES) {
-        const page = await open(pages[which]);
-        await page.setViewportSize({ width, height: 900 });
-
-        const { grid, attention, others } = await panelsOf(page);
-        const panels = [attention, ...others];
-        const titles = panels.map(({ title }) => title);
-
-        expect(titles, state).toEqual(TITLES);
-        for (const [at, panel] of panels.entries()) {
-          near(panel.width, grid.width, `${state}: the width of ${panel.title}`);
-          // Each is under the one before it.
-          const above = panels[at - 1];
-          if (above !== undefined) {
-            const place = `${state}: ${panel.title} is under ${above.title}`;
-            expect(above.bottom, place).toBeLessThanOrEqual(panel.top);
-          }
+      expect(titles, state).toEqual(TITLES);
+      for (const [at, panel] of panels.entries()) {
+        near(panel.left, grid.left, `${state}: the left edge of ${panel.title}`);
+        near(panel.right, grid.right, `${state}: the right edge of ${panel.title}`);
+        near(panel.width, grid.width, `${state}: the width of ${panel.title}`);
+        // Each is under the one before it: its top is at or below that one's bottom.
+        const above = panels[at - 1];
+        if (above !== undefined) {
+          const place = `${state}: ${panel.title} is under ${above.title}`;
+          expect(panel.top, place).toBeGreaterThanOrEqual(above.bottom);
         }
       }
     },
   );
-
-  it("keeps what needs attention across the grid, above the other three, in a window of 800 px, where the panels are in two columns", async () => {
-    for (const [state, which] of STATES) {
-      const page = await open(pages[which]);
-      await page.setViewportSize({ width: 800, height: 900 });
-
-      const { grid, attention, others } = await panelsOf(page);
-
-      expectSpans(grid, attention, state);
-      for (const other of others) {
-        expect(attention.bottom, `${state}: above ${other.title}`).toBeLessThanOrEqual(other.top);
-      }
-    }
-  });
 });
 
 describe("what needs attention", () => {

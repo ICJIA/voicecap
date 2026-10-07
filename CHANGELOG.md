@@ -4,6 +4,10 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The summary's four panels are full-width rows,** one under another, in this order: "What needs attention", "How complete the test was", "What's still to do", and "When and how". "What needs attention" had a row of its own, and the other three sat side by side under it, which was a lot to read at once. Nothing changes in the Word copy, which has no columns. A page already shared is as it was: only pages made from now on change.
+
 ## [0.12.0] - 2026-10-07
 
 "What needs attention" is a section of its own on the shareable page and in its Word copy, with a card for each problem: what NVDA says and where, the likely cause, why it matters, the fix in the code, and the path forward. A review settles the flags it decides about, and the summary has five numbers, with a sentence that counts the problems that come from flags. A page already shared is as it was: only pages made from now on change.

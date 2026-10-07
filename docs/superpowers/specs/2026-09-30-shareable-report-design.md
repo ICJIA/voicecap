@@ -52,7 +52,7 @@ The mockup shows this order. Each section's first sentence is its point.
      - **pages with flags,** and how many rules raised them;
      - **lines NVDA spoke:** every step of every pass in the transcripts shown;
      - **NVDA time:** the total time the runs the standing draws on held NVDA, from their records.
-   - **Four panels:**
+   - **Four panels,** each a full-width row, one after another in this order (side by side they were too much to read at once):
      - **What needs attention:** how many problems there are and the pages they're on, then each problem's title, linked to its card in the section of that name (item 3). For example: "1 problem, on 32 pages: The i2i logo is read as "Unlabeled graphic": its alt text, "i2i Logo", is too generic for Chrome." With none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.", or, when no page in scope raised a flag, "Nothing needs attention: every page was read, and no flags were raised." (For each with pages skipped, see "How a card clears".)
      - **How complete the test was:** pages read, out of pages in scope; the problems during the runs in one line (how many, of what kind, and whether a later try made each good); whether any was an unexpected error, the kind that could mean a problem in voicecap itself; and pages that couldn't be read after every attempt.
      - **What's still to do:** the real tasks: issues found and not yet fixed, pages that couldn't be read, flagged pages with no decision recorded, pages whose reading stopped before the page's end (to run again), and pages that read differently since their review (to review again).
