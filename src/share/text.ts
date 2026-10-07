@@ -50,9 +50,10 @@ export const TOP_TEXT = {
  * The Summary: its heading, the titles of its panels and bars (two of the bars' titles are followed
  * by a phrase that says what the bar counts), and the words for what a page's latest result can
  * be. What its panel on what needs attention says of the cards, and of there being none, is
- * `ATTENTION_TEXT`'s. On the page, the panels and bars are parts of the details (`DETAILS_TEXT`)
- * now, except the panel on what needs attention and the bar of each page's latest result, which
- * the page no longer draws. The Word copy still has all of them in its Summary.
+ * `ATTENTION_TEXT`'s. On the page, the Summary is At a glance now (`GLANCE_TEXT`), and its panels
+ * and bars are parts of the details (`DETAILS_TEXT`), except the panel on what needs attention and
+ * the bar of each page's latest result, which the page no longer draws. The Word copy still has
+ * all of them in its Summary.
  */
 export const SUMMARY_TEXT = {
   title: "Summary",
@@ -83,6 +84,23 @@ export const SUMMARY_TEXT = {
    * though no one had heard NVDA. The statement is on each page's chip, and in each run's evidence.
    */
   reviewRows: { reviewed: "Transcripts reviewed", fixed: "Issues fixed" },
+};
+
+/**
+ * "At a glance": its heading, the three parts of the ring of the pages (each is followed by how many
+ * pages are in it), what is said under the number of pages in the ring's middle, and the words
+ * before the links to the page's sections ("On this page"). Those links say their sections' own
+ * words (`ATTENTION_TEXT.title`, `PAGES_TEXT.title`, and `DETAILS_TEXT.link`). The verdict is worded
+ * in `ATTENTION_TEXT` (`headline`, `nothing`, and `nothingOnRead`), by the one rule for it
+ * (`verdictOf`, in ./verdict.ts); the sentence under it is the model's (`Summary.sentence`), and
+ * its numbers are `glanceNumbersOf`'s (./words.ts).
+ */
+export const GLANCE_TEXT = {
+  title: "At a glance",
+  parts: { noProblems: "No problems", needAttention: "Need attention", notRead: "Not read" },
+  /** Under the number of pages in the ring's middle: "pages", and "page" for one. */
+  ringUnit: (pages: number): string => (pages === 1 ? "page" : "pages"),
+  onThisPage: "On this page",
 };
 
 /**
@@ -283,8 +301,12 @@ export const SCREENSHOT_TEXT = {
  * "What needs attention": its heading, the line for no problem (`none`, or `noneSkipped` when pages
  * were skipped; `noFlags` and `noFlagsSkipped` when no page raised a flag), the labels of a card's
  * parts, the line of the fold a card's pages are behind, and the small sentences said about the
- * cards: the verdict's headline (`headline`, and `sentence`, the same with a full stop) and `more`
- * for the summary's panel. What a card itself says is `attentionWords`, in ./attention-words.ts.
+ * cards: the verdict's words (`headline` when something needs attention, `nothing` and
+ * `nothingOnRead` when nothing does, and `sentence`, the headline with a full stop) and `more` for
+ * the Word copy's summary panel. What a card itself says is `attentionWords`, in
+ * ./attention-words.ts.
+ *
+ * The page has no section when no card is left: its verdict says that nothing needs attention.
  */
 export const ATTENTION_TEXT = {
   title: "What needs attention",
@@ -294,10 +316,7 @@ export const ATTENTION_TEXT = {
    */
   gist: (problems: number, pages: number): string =>
     `${plural(problems, "problem")}, on ${plural(pages, "page")}. Fix each one and run voicecap again, or check it and record that in voicecap review, until nothing is left.`,
-  /**
-   * Said in place of the cards, and in the summary's panel, when no card is left and no page was
-   * skipped. The spec pins it.
-   */
+  /** Said in place of the cards when no card is left and no page was skipped. The spec pins it. */
   none: "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
   /**
    * Said in its place when no card is left but some pages were skipped, which are on no card and
@@ -331,15 +350,26 @@ export const ATTENTION_TEXT = {
    * many they are, which is their label. The Word copy folds nothing, and labels them `pages`.
    */
   pagesFold: (pages: number): string => `The ${count(pages)} pages`,
-  /** The summary panel's last line, when it names fewer cards than there are: how many it leaves out. */
+  /**
+   * The Word copy's summary panel's last line, when it names fewer cards than there are: how many it
+   * leaves out.
+   */
   more: (rest: number): string => `and ${count(rest)} more, under What needs attention`,
   /**
    * The verdict's headline when something needs attention (see `verdictOf`, in ./verdict.ts): how
    * many problems, on how many pages, as the spec pins it. It has no full stop, so the page can set
-   * it as a heading, and the website's card can follow it with its own.
+   * it as a line of its own, and the website's card can follow it with its own.
    */
   headline: (problems: number, pages: number): string =>
     `${plural(problems, "problem")} ${problems === 1 ? "needs" : "need"} attention, on ${plural(pages, "page")}`,
+  /** The verdict's headline when no problem is left and NVDA read every page. */
+  nothing: "Nothing needs attention",
+  /**
+   * The verdict's headline when no problem is left but NVDA didn't read every page. A page that
+   * wasn't read is on no card when voicecap skipped it, so nothing needs attention on the pages that
+   * were read.
+   */
+  nothingOnRead: "Nothing needs attention on the pages read",
   /** The headline as a sentence of its own. */
   sentence: (problems: number, pages: number): string =>
     `${ATTENTION_TEXT.headline(problems, pages)}.`,

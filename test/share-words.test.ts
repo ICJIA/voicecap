@@ -731,9 +731,15 @@ describe("the opening lines of What needs attention, Every page, and the appendi
 
     for (const [name, model] of models) {
       expect(paragraphOf(renderPages(model), "gist"), name).toBe(lineText(pagesGist(model)));
-      expect(paragraphOf(renderAttention(model), "gist"), name).toBe(
-        lineText(attentionGist(model)),
-      );
+      // With a card the page has the section, and its line is the model's. With none it has no
+      // section: At a glance's verdict says that nothing needs attention.
+      if (model.attention.length > 0) {
+        expect(paragraphOf(renderAttention(model), "gist"), name).toBe(
+          lineText(attentionGist(model)),
+        );
+      } else {
+        expect(renderAttention(model), name).toBe("");
+      }
       expect(paragraphOf(renderAppendix(model), "gist"), name).toBe(
         lineText(appendixGist(model, OPEN)),
       );

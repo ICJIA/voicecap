@@ -1,7 +1,8 @@
 /**
- * The shareable page's top, its summary, and "How voicecap works", with the parts every section
- * draws with (folds, chips, bars, and the spoken-line strip). The demo runs of 29 September 2026
- * (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in memory cover the rest.
+ * The shareable page's top, its At a glance, and "How voicecap works", with the parts every section
+ * draws with (folds, chips, the ring of the pages, and the spoken-line strip). The demo runs of 29
+ * September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in memory
+ * cover the rest.
  */
 import { describe, expect, it } from "vitest";
 
@@ -9,17 +10,18 @@ import type { FlagResult } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { STEP_ICONS } from "../src/share/html/icons.js";
 import {
-  bar,
   chip,
   count,
   fold,
   notRecorded,
+  ring,
   scroll,
   strip,
   track,
   verdictLine,
+  type RingPart,
 } from "../src/share/html/parts.js";
-import { renderHow, renderSummary, renderTop } from "../src/share/html/top.js";
+import { renderGlance, renderHow, renderTop } from "../src/share/html/top.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
@@ -111,12 +113,40 @@ function withNumbers(model: ShareModel, numbers: Partial<Summary["numbers"]>): S
   };
 }
 
-/** The three renderers' output, in the order the page has them. */
-function pageOf(model: ShareModel): string {
-  return [renderTop(model), renderSummary(model), renderHow(model)].join("\n");
+/** The model with its result changed: what the verdict, the ring's total, and two tiles go by. */
+function withResult(model: ShareModel, result: Partial<ShareModel["result"]>): ShareModel {
+  return { ...model, result: { ...model.result, ...result } };
 }
 
-/** What each of the five tiles shows, and what a screen reader says of its big number. */
+/** One page, read by NVDA, that raised no flag: nothing needs attention, so there is no card. */
+function cleanModel(): ShareModel {
+  const run = shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] });
+  return buildShareModel(inputOf([run]));
+}
+
+/** One page read and one skipped: no card, but a page in scope that NVDA didn't read. */
+function skippedModel(): ShareModel {
+  const run = shareRun({
+    id: "r1",
+    pages: [
+      { path: "/", passes: { read: ["Welcome"] } },
+      { path: "/pdf", status: "skipped" },
+    ],
+  });
+  return buildShareModel(inputOf([run]));
+}
+
+/** A run that counts, and lists no page: there is nothing in it to give a verdict on. */
+function noPagesModel(): ShareModel {
+  return buildShareModel(inputOf([shareRun({ id: "r1", pages: [] })]));
+}
+
+/** The three renderers' output, in the order the page has them. */
+function pageOf(model: ShareModel): string {
+  return [renderTop(model), renderGlance(model), renderHow(model)].join("\n");
+}
+
+/** What each of the tiles shows, and what a screen reader says of its big number. */
 interface Tile {
   kind: string;
   /** The big number as it looks: "7/7", "12m 34s". */
@@ -310,59 +340,149 @@ describe("count", () => {
   });
 });
 
-describe("bar", () => {
-  const results = [
-    { label: "no flags", value: 6, kind: "ok" },
-    { label: "flags", value: 1, kind: "warn" },
-    { label: "never transcribed", value: 0, kind: "bad" },
+describe("ring", () => {
+  /** The three parts of the ring of the pages, as At a glance gives them: one of each kind. */
+  const partsOf = (ok: number, warn: number, bad: number): RingPart[] => [
+    { label: "No problems", value: ok, kind: "ok" },
+    { label: "Need attention", value: warn, kind: "warn" },
+    { label: "Not read", value: bad, kind: "bad" },
   ];
-  const caption = "6 pages without flags, 1 page with flags";
 
-  it("is an SVG bar with a name, its segments as wide as their share, and its numbers in text beside it", () => {
-    expect(bar(results, 7, caption)).toBe(
-      `<svg class="bar" width="100%" height="14" role="img" aria-label="${caption}">` +
-        '<rect class="c-ok" x="0" y="0" width="85.71%" height="100%" fill="currentColor"/>' +
-        '<rect class="c-warn" x="85.71%" y="0" width="14.29%" height="100%" fill="currentColor"/>' +
-        "</svg>" +
-        '<div class="legend"><span class="l-ok"><b>6</b> no flags</span>' +
-        '<span class="l-warn"><b>1</b> flags</span>' +
-        '<span class="l-bad"><b>0</b> never transcribed</span></div>',
+  /** Each arc the markup draws: its kind, its length, the gap after it, and where it starts. */
+  function arcsOf(html: string) {
+    const arc =
+      /<circle class="ring-part (\w+)"[^>]*? stroke-dasharray="([\d.]+) ([\d.]+)" stroke-dashoffset="(-?[\d.]+)"\/>/g;
+    return [...html.matchAll(arc)].map(([, kind = "", length, gap, start]) => ({
+      kind,
+      length: Number(length),
+      gap: Number(gap),
+      start: Number(start),
+    }));
+  }
+
+  /** The legend's items: each one's kind, and what it says. */
+  function legendOf(html: string): [string, string][] {
+    const list = /<ul class="ring-legend" role="list">(.*?)<\/ul>/s.exec(html)?.[1] ?? "";
+    return [...list.matchAll(/<li class="(\w+)">(.*?)<\/li>/gs)].map(([, kind = "", item = ""]) => [
+      kind,
+      textOf(item, ""),
+    ]);
+  }
+
+  it("draws one whole circle for a ring of one part", () => {
+    const html = ring(partsOf(9, 0, 0), 9);
+
+    // Every page is without a problem: the one arc is as long as the ring, with no gap in it.
+    expect(html.match(/class="ring-part/g)).toHaveLength(1);
+    expect(html).toContain('<circle class="ring-part ok"');
+    expect(html).toContain('stroke-dasharray="301.59 0"');
+    expect(arcsOf(html)).toEqual([{ kind: "ok", length: 301.59, gap: 0, start: 0 }]);
+  });
+
+  it("is a box a screen reader skips, with a circle turned to start at the top, and a legend apart from it", () => {
+    const html = ring(partsOf(5, 2, 0), 7);
+    const box = /^<div class="ring" aria-hidden="true">(.*?)<\/div>/s.exec(html)?.[1] ?? "";
+
+    expect(html.startsWith('<div class="ring" aria-hidden="true"><svg viewBox="0 0 120 120"')).toBe(
+      true,
     );
+    // A track the whole way round, and every arc on the same circle: 48 from the middle, 16 wide.
+    expect(box).toContain(
+      '<circle class="ring-track" cx="60" cy="60" r="48" fill="none" stroke-width="16"/>',
+    );
+    for (const part of box.match(/<circle class="ring-part[^>]*>/g) ?? []) {
+      expect(part).toContain('cx="60" cy="60" r="48" fill="none" stroke-width="16"');
+    }
+    // Turned a quarter turn back, so the first arc starts at the top rather than at three o'clock.
+    expect(box).toContain('<g transform="rotate(-90 60 60)">');
+    // The legend is what a screen reader gets, so it isn't inside the box that is hidden from it.
+    expect(box).not.toContain("<ul");
+    expect(html.indexOf("</div>")).toBeLessThan(html.indexOf('<ul class="ring-legend"'));
+    expect(html.endsWith("</ul>")).toBe(true);
   });
 
-  it("leaves the rest of the track empty when the segments are part of the total", () => {
-    const html = bar([{ label: "listened", value: 3, kind: "ok" }], 12, "3 of 12");
-
-    expect(html).toContain('<rect class="c-ok" x="0" y="0" width="25%" height="100%"');
-    expect(html.match(/<rect /g)).toHaveLength(1);
+  it("lays each part's arc after the one before it, as long as its share of the circle", () => {
+    // 5 and 2 of 7: the circle is 301.59 round (2π × 48), so 215.42 and 86.17.
+    expect(arcsOf(ring(partsOf(5, 2, 0), 7))).toEqual([
+      { kind: "ok", length: 215.42, gap: 86.17, start: 0 },
+      { kind: "warn", length: 86.17, gap: 215.42, start: -215.42 },
+    ]);
+    // Three parts, the third beginning where the first two end.
+    expect(arcsOf(ring(partsOf(5, 2, 1), 8))).toEqual([
+      { kind: "ok", length: 188.49, gap: 113.1, start: 0 },
+      { kind: "warn", length: 75.4, gap: 226.19, start: -188.49 },
+      { kind: "bad", length: 37.7, gap: 263.89, start: -263.89 },
+    ]);
   });
 
-  it("never draws past the end of the track", () => {
-    const html = bar(
-      [
-        { label: "a", value: 8, kind: "ok" },
-        { label: "b", value: 8, kind: "warn" },
-      ],
-      10,
-      "too many",
+  it("draws no arc for a part with no pages, and keeps its line in the legend with 0", () => {
+    const html = ring(partsOf(0, 0, 3), 3);
+
+    expect(arcsOf(html)).toEqual([{ kind: "bad", length: 301.59, gap: 0, start: 0 }]);
+    expect(html.match(/class="ring-part/g)).toHaveLength(1);
+    expect(legendOf(html)).toEqual([
+      ["ok", "No problems: 0"],
+      ["warn", "Need attention: 0"],
+      ["bad", "Not read: 3"],
+    ]);
+  });
+
+  it("says each part in its legend, in words and with its count, those of no pages too", () => {
+    const html = ring(partsOf(5, 2, 0), 7);
+
+    expect(legendOf(html)).toEqual([
+      ["ok", "No problems: 5"],
+      ["warn", "Need attention: 2"],
+      ["bad", "Not read: 0"],
+    ]);
+    // The swatch is for the eye: the words and the count say it all, and each item is a list item.
+    expect(
+      html.match(/<li class="\w+"><span class="sw" aria-hidden="true"><\/span>/g),
+    ).toHaveLength(3);
+    expect(html).toContain(
+      '<li class="warn"><span class="sw" aria-hidden="true"></span>Need attention: <b>2</b></li>',
+    );
+    // Counts as the page writes them everywhere: with their thousands set apart.
+    expect(legendOf(ring(partsOf(1200, 4, 0), 1204)).at(0)).toEqual(["ok", "No problems: 1,200"]);
+  });
+
+  it("puts the number of pages in the middle, with its unit, in the singular for one", () => {
+    expect(ring(partsOf(5, 2, 0), 7)).toContain(
+      '</svg><span class="ring-n">7</span><span class="ring-k">pages</span></div>',
+    );
+    expect(ring(partsOf(1, 0, 0), 1)).toContain(
+      '<span class="ring-n">1</span><span class="ring-k">page</span>',
+    );
+    expect(ring(partsOf(1200, 4, 0), 1204)).toContain('<span class="ring-n">1,204</span>');
+  });
+
+  it("draws no arc, and divides by nothing, for a ring of no pages", () => {
+    const html = ring(partsOf(0, 0, 0), 0);
+
+    expect(html).not.toContain("ring-part");
+    expect(html).not.toMatch(/NaN|Infinity/);
+    expect(html).toContain('<span class="ring-n">0</span><span class="ring-k">pages</span>');
+    expect(legendOf(html)).toHaveLength(3);
+  });
+
+  it("never draws an arc past the end of the ring, whatever the parts add up to", () => {
+    // 8 and 8 of 10: the second is cut off where the ring ends, never wrapping on past the top.
+    const [first, second, ...rest] = arcsOf(ring(partsOf(8, 8, 0), 10));
+
+    expect(rest).toEqual([]);
+    expect(first).toEqual({ kind: "ok", length: 241.27, gap: 60.32, start: 0 });
+    expect(second).toEqual({ kind: "warn", length: 60.32, gap: 241.27, start: -241.27 });
+  });
+
+  it("escapes a part's words, keeps its kind to a class name, and sets no style attribute", () => {
+    const html = ring(
+      [{ label: '<i>x</i> & "y"', value: 1, kind: 'ok" onclick="x' as RingPart["kind"] }],
+      1,
     );
 
-    expect(html).toContain('x="0" y="0" width="80%"');
-    expect(html).toContain('x="80%" y="0" width="20%"');
-  });
-
-  it("draws nothing for a total that is nothing, and still gives its numbers in text", () => {
-    const html = bar([{ label: "pages", value: 0, kind: "quiet" }], 0, "No pages");
-
-    expect(html).not.toContain("<rect");
-    expect(html).toContain('<span class="l-q"><b>0</b> pages</span>');
-  });
-
-  it("escapes its caption and its labels, and sets no style attribute", () => {
-    const html = bar([{ label: "<i>x</i>", value: 1, kind: "ok" }], 1, 'a "caption"');
-
-    expect(html).toContain('aria-label="a &quot;caption&quot;"');
-    expect(html).toContain("<b>1</b> &lt;i&gt;x&lt;/i&gt;");
+    expect(html).toContain("&lt;i&gt;x&lt;/i&gt; &amp; &quot;y&quot;: <b>1</b>");
+    expect(html).not.toContain("<i>");
+    expect(html).not.toMatch(/onclick=/);
     expect(html).not.toMatch(/\sstyle=/);
   });
 });
@@ -741,48 +861,168 @@ describe("renderTop", () => {
   });
 });
 
-describe("renderSummary", () => {
+describe("renderGlance", () => {
+  /** Where each link of the "On this page" list goes, by the id of the heading it names, and what it says. */
+  function linksOf(html: string): [string, string][] {
+    const nav = /<nav class="toc" aria-label="On this page">(.*?)<\/nav>/s.exec(html)?.[1] ?? "";
+    return [...nav.matchAll(/<a href="#([\w-]+)">(.*?)<\/a>/g)].map(([, id = "", words = ""]) => [
+      id,
+      words,
+    ]);
+  }
+
+  /** The verdict's class, which is its kind, and its words. */
+  function verdictIn(html: string): [string, string] | undefined {
+    const found = /<p class="verdict (\w+)">(.*?)<\/p>/s.exec(html);
+    return found === null ? undefined : [found[1] ?? "", textOf(found[2] ?? "", "")];
+  }
+
   it("is a section named by its h2, which comes before How voicecap works", async () => {
     const model = await demoModel();
     const html = pageOf(model);
 
-    expect(renderSummary(model)).toMatch(
-      /^<section class="glance" aria-labelledby="glance-h">[\s\S]*<\/section>$/,
+    expect(renderGlance(model)).toMatch(
+      /^<section class="glance" aria-labelledby="glance-h">\s*<h2 id="glance-h">At a glance<\/h2>[\s\S]*<\/section>$/,
     );
-    const summary = html.indexOf('<h2 id="glance-h">Summary</h2>');
+    const glance = html.indexOf('<h2 id="glance-h">At a glance</h2>');
     const how = html.indexOf('<h2 id="how-h">How voicecap works</h2>');
-    expect(summary).toBeGreaterThan(-1);
-    expect(how).toBeGreaterThan(summary);
+    expect(glance).toBeGreaterThan(-1);
+    expect(how).toBeGreaterThan(glance);
     expect(html.match(/<h2[ >]/g)).toHaveLength(2);
-    // Its panels and bars moved to the details: the summary has no heading but its own.
-    expect(renderSummary(model).match(/<h[1-6][ >]/g)).toEqual(["<h2 "]);
+    // Its panels and bars are parts of the details: At a glance has no heading but its own.
+    expect(renderGlance(model).match(/<h[1-6][ >]/g)).toEqual(["<h2 "]);
   });
 
-  it("opens with the result in a sentence, then the line on what voicecap and the person each did", async () => {
-    const html = renderSummary(await demoModel());
-
-    expect(html).toContain('<p class="lead verdict">NVDA read all 7 pages.</p>');
-    expect(html).toContain(
+  it("opens with At a glance, in its order: the verdict, the result, the ring, the numbers, the method, and the links", async () => {
+    const html = renderGlance(await demoModel());
+    const order = [
+      "<h2 ",
+      '<p class="verdict warn">5 problems need attention, on 2 pages</p>',
+      '<p class="lead">NVDA read all 7 pages.</p>',
+      '<div class="ring-row">',
+      '<div class="tiles">',
       '<p class="gist">A human review, sped up: voicecap presses NVDA&#39;s keys and moves from page to page; the person running it does the reading and the deciding.</p>',
-    );
-    expect(html.indexOf("lead verdict")).toBeLessThan(html.indexOf('class="gist"'));
+      '<nav class="toc" aria-label="On this page">',
+    ].map((marker) => html.indexOf(marker));
+
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // Each of the six is there once, in the section's own grid: none inside another.
+    for (const part of ["verdict", "lead", "ring-row", "tiles", "gist", "toc"]) {
+      expect(html.match(new RegExp(`class="${part}[ "]`, "g")), part).toHaveLength(1);
+    }
   });
 
-  it("shows five numbers, as the model has them", async () => {
-    const tiles = tilesOf(renderSummary(await demoModel()));
+  it("says the verdict in words, with its kind as its class, and in no sign of its own", async () => {
+    const demo = await demoModel();
+
+    expect(verdictIn(renderGlance(cleanModel()))).toEqual(["ok", "Nothing needs attention"]);
+    expect(verdictIn(renderGlance(demo))).toEqual([
+      "warn",
+      "5 problems need attention, on 2 pages",
+    ]);
+    expect(verdictIn(renderGlance(skippedModel()))).toEqual([
+      "bad",
+      "Nothing needs attention on the pages read",
+    ]);
+    // A page not read outranks the problems, which the headline still counts.
+    expect(verdictIn(renderGlance(withResult(demo, { read: 6 })))).toEqual([
+      "bad",
+      "5 problems need attention, on 2 pages",
+    ]);
+    // The sign is drawn by the page's style, with no alternative text: in the markup, a sign is a
+    // character that is no text, which axe's contrast check fails.
+    for (const model of [cleanModel(), demo, skippedModel()]) {
+      expect(renderGlance(model)).not.toMatch(/[✓⚠]/);
+    }
+  });
+
+  it("goes by the result for what it says, so the verdict, the ring's middle, and the first tiles can't differ", async () => {
+    const model = withResult(await demoModel(), {
+      pages: 9,
+      read: 9,
+      problems: 1,
+      problemPages: 1,
+    });
+    const html = renderGlance(model);
+
+    expect(verdictIn(html)).toEqual(["warn", "1 problem needs attention, on 1 page"]);
+    expect(html).toContain('<span class="ring-n">9</span><span class="ring-k">pages</span>');
+    expect(tilesOf(html).map(({ shown, label }) => [shown, label])).toEqual([
+      ["9/9", "pages read by NVDA"],
+      ["1", "problem to fix"],
+      ["204", "lines NVDA spoke"],
+      ["12m 34s", "of NVDA time, across 2 runs"],
+    ]);
+  });
+
+  it("draws the ring, with a legend that says each part in words", async () => {
+    const html = renderGlance(await demoModel());
+    const legend = [...html.matchAll(/<li class="\w+">(.*?)<\/li>/gs)].map(([, item = ""]) =>
+      textOf(item, ""),
+    );
+    const at = (marker: string) => html.indexOf(marker);
+
+    expect(legend).toEqual(["No problems: 5", "Need attention: 2", "Not read: 0"]);
+    // Five pages without a problem and two with: an arc each, and none for the page not read.
+    expect(html.match(/class="ring-part ok"/g)).toHaveLength(1);
+    expect(html.match(/class="ring-part warn"/g)).toHaveLength(1);
+    expect(html.match(/class="ring-part bad"/g)).toBeNull();
+    expect(html).toContain('<span class="ring-n">7</span><span class="ring-k">pages</span>');
+    // The ring is for the eye, and the legend is the list a screen reader gets, in its row.
+    expect(html).toContain('<div class="ring" aria-hidden="true">');
+    expect(html).toContain('<ul class="ring-legend" role="list">');
+    expect(at('<div class="ring-row">')).toBeLessThan(at('<div class="ring"'));
+    expect(at('<div class="ring"')).toBeLessThan(at('<ul class="ring-legend"'));
+    expect(at('<ul class="ring-legend"')).toBeLessThan(at('<div class="tiles">'));
+  });
+
+  it("takes the ring's three parts from the model, in the order No problems, Need attention, Not read", async () => {
+    const model = {
+      ...withResult(await demoModel(), { pages: 7, read: 4 }),
+      ring: { noProblems: 3, needAttention: 1, notRead: 3 },
+    };
+    const html = renderGlance(model);
+
+    expect([...html.matchAll(/class="ring-part (\w+)"/g)].map(([, kind]) => kind)).toEqual([
+      "ok",
+      "warn",
+      "bad",
+    ]);
+    expect(
+      [...html.matchAll(/<li class="(\w+)">(.*?)<\/li>/gs)].map(([, kind = "", item = ""]) => [
+        kind,
+        textOf(item, ""),
+      ]),
+    ).toEqual([
+      ["ok", "No problems: 3"],
+      ["warn", "Need attention: 1"],
+      ["bad", "Not read: 3"],
+    ]);
+  });
+
+  it("draws one whole circle when every page has no problems", () => {
+    const html = renderGlance(cleanModel());
+
+    expect(html.match(/class="ring-part/g)).toHaveLength(1);
+    expect(html).toContain('<circle class="ring-part ok"');
+    expect(html).toContain('stroke-dasharray="301.59 0"');
+    expect(html).toContain('<span class="ring-n">1</span><span class="ring-k">page</span>');
+  });
+
+  it("says it in four big numbers", async () => {
+    const tiles = tilesOf(renderGlance(await demoModel()));
 
     expect(tiles.map(({ shown, label }) => [shown, label])).toEqual([
-      ["7", "pages in scope"],
-      ["7/7", "transcribed by NVDA"],
-      ["1", "page with flags, 3 rules"],
+      ["7/7", "pages read by NVDA"],
+      ["5", "problems to fix"],
       ["204", "lines NVDA spoke"],
       ["12m 34s", "of NVDA time, across 2 runs"],
     ]);
     // A screen reader says each fraction and each time in words.
     expect(tiles.map(({ spoken }) => spoken)).toEqual([
-      "7",
       "7 of 7",
-      "1",
+      "5",
       "204",
       "12 minutes 34 seconds",
     ]);
@@ -791,83 +1031,65 @@ describe("renderSummary", () => {
   it("has no tile for the pages a person heard NVDA read", () => {
     // The person heard NVDA on all three of these pages, and no tile says so: it is on each page's
     // chip, and in each run's evidence.
-    const html = renderSummary(richModel());
+    const html = renderGlance(richModel());
 
-    expect(tilesOf(html)).toHaveLength(5);
+    expect(tilesOf(html)).toHaveLength(4);
     expect(html).not.toContain("heard live by a person");
     expect(tilesOf(html).map(({ label }) => label)).not.toContain("heard live by a person");
   });
 
-  it("shows five numbers that follow the model, in other numbers and in the singular", () => {
+  it("shows four numbers that follow the model, in other numbers and in the singular", () => {
     const model = richModel();
-    const { numbers } = model.summary;
-    const tiles = tilesOf(renderSummary(model));
+    const tiles = tilesOf(renderGlance(model));
 
-    expect(numbers).toMatchObject({ pagesInScope: 3, transcribed: 3, flagged: 1, rules: 1 });
-    expect(numbers.linesSpoken).toBe(16);
+    expect(model.result).toEqual({ pages: 3, read: 3, problems: 1, problemPages: 1 });
+    expect(model.summary.numbers.linesSpoken).toBe(16);
     expect(tiles.map(({ shown, label }) => [shown, label])).toEqual([
-      [String(numbers.pagesInScope), "pages in scope"],
-      [`${numbers.transcribed}/${numbers.pagesInScope}`, "transcribed by NVDA"],
-      [String(numbers.flagged), "page with flags, 1 rule"],
-      [String(numbers.linesSpoken), "lines NVDA spoke"],
+      ["3/3", "pages read by NVDA"],
+      ["1", "problem to fix"],
+      ["16", "lines NVDA spoke"],
       ["1h 5m", "of NVDA time, across 1 run"],
     ]);
     expect(tiles.at(-1)?.spoken).toBe("1 hour 5 minutes");
   });
 
-  it("colors a tile by its result, and a tile's words never rest on color", () => {
-    // Complete counts are "ok", flags are "warn", plain counts "quiet".
-    expect(tilesOf(renderSummary(richModel())).map(({ kind }) => kind)).toEqual([
-      "quiet",
-      "ok",
+  it("colors a tile by its result, and a tile's words never rest on color", async () => {
+    const kinds = (model: ShareModel) => tilesOf(renderGlance(model)).map(({ kind }) => kind);
+
+    // Complete is "ok", a problem to fix is "warn", a plain count is "quiet".
+    expect(kinds(await demoModel())).toEqual(["ok", "warn", "quiet", "quiet"]);
+    expect(kinds(cleanModel())).toEqual(["ok", "ok", "quiet", "quiet"]);
+    expect(kinds(withResult(richModel(), { read: 2, problems: 0 }))).toEqual([
       "warn",
+      "ok",
       "quiet",
       "quiet",
     ]);
   });
 
-  it("says a tile's count out of its total when some pages weren't read", () => {
-    const model = richModel();
-    const tiles = tilesOf(
-      renderSummary(withNumbers(model, { transcribed: 2, flagged: 0, rules: 0 })),
-    );
+  it("says the pages read out of those in scope, so nothing looks complete that isn't", () => {
+    const tiles = tilesOf(renderGlance(withResult(richModel(), { read: 2 })));
 
-    expect(tiles.map(({ kind }) => kind)).toEqual(["quiet", "warn", "quiet", "quiet", "quiet"]);
-    expect(tiles[1]?.spoken).toBe("2 of 3");
-    expect(tiles[2]?.label).toBe("pages with flags");
+    expect(tiles[0]).toMatchObject({ kind: "warn", shown: "2/3", spoken: "2 of 3" });
   });
 
   it("words each tile in the singular for one", () => {
-    const one = { pagesInScope: 1, transcribed: 1, flagged: 1, rules: 1, linesSpoken: 1 };
-    const tiles = tilesOf(renderSummary(withNumbers(richModel(), one)));
+    const one = withNumbers(withResult(richModel(), { pages: 1, read: 1, problems: 1 }), {
+      linesSpoken: 1,
+    });
+    const tiles = tilesOf(renderGlance(one));
 
     expect(tiles.map(({ label }) => label)).toEqual([
-      "page in scope",
-      "transcribed by NVDA",
-      "page with flags, 1 rule",
+      "pages read by NVDA",
+      "problem to fix",
       "line NVDA spoke",
       "of NVDA time, across 1 run",
     ]);
-    expect(tiles.map(({ kind }) => kind)).toEqual(["quiet", "ok", "warn", "quiet", "quiet"]);
-    // And in the plural for a rule count that isn't one.
-    expect(tilesOf(renderSummary(withNumbers(richModel(), { rules: 3 })))[2]?.label).toBe(
-      "page with flags, 3 rules",
+    expect(tiles.map(({ kind }) => kind)).toEqual(["ok", "warn", "quiet", "quiet"]);
+    // And in the plural for a count that isn't one.
+    expect(tilesOf(renderGlance(withResult(richModel(), { problems: 3 })))[1]?.label).toBe(
+      "problems to fix",
     );
-  });
-
-  it("shows nothing complete for a run with no pages", () => {
-    const model = richModel();
-    const empty = withNumbers(model, {
-      pagesInScope: 0,
-      transcribed: 0,
-      flagged: 0,
-      rules: 0,
-      linesSpoken: 0,
-    });
-    const html = renderSummary(empty);
-
-    expect(tilesOf(html).map(({ kind }) => kind)).toEqual(Array<string>(5).fill("quiet"));
-    expect(tilesOf(html)[1]?.spoken).toBe("0 of 0");
   });
 
   it("says a time of any length in words, with its units small", () => {
@@ -881,19 +1103,19 @@ describe("renderSummary", () => {
     ];
 
     for (const [ms, shown, spoken] of times) {
-      const html = renderSummary(withNumbers(richModel(), { nvdaMs: ms }));
+      const html = renderGlance(withNumbers(richModel(), { nvdaMs: ms }));
       const [time] = tilesOf(html).slice(-1);
 
       expect(time, shown).toMatchObject({ shown, spoken });
     }
-    expect(renderSummary(withNumbers(richModel(), { nvdaMs: 383_000 }))).toContain(
+    expect(renderGlance(withNumbers(richModel(), { nvdaMs: 383_000 }))).toContain(
       '<span aria-hidden="true">6<small>m</small> 23<small>s</small></span>',
     );
   });
 
   it("says how many sessions the NVDA time leaves out, having no recorded end", () => {
     const label = (sessionsWithoutEnd: number) =>
-      tilesOf(renderSummary(withNumbers(richModel(), { sessionsWithoutEnd }))).at(-1)?.label;
+      tilesOf(renderGlance(withNumbers(richModel(), { sessionsWithoutEnd }))).at(-1)?.label;
 
     expect(label(0)).toBe("of NVDA time, across 1 run");
     expect(label(1)).toBe(
@@ -904,51 +1126,71 @@ describe("renderSummary", () => {
     );
   });
 
-  it("ends with links to every later section by its h2's id", () => {
-    const html = renderSummary(richModel());
-    const nav = /<nav class="toc" aria-label="The full report">(.*?)<\/nav>/s.exec(html)?.[1] ?? "";
+  it("links to what's on the page, by the id of each section's h2, with the one on what needs attention only when there is a card", async () => {
+    const html = renderGlance(await demoModel());
 
-    expect(nav).toContain('<span class="sub">Read the full report:</span>');
-    expect(
-      [...nav.matchAll(/<a href="#([\w-]+)">(.*?)<\/a>/g)].map(([, id, text]) => [id, text]),
-    ).toEqual([
+    expect(html).toContain('<span class="sub">On this page:</span>');
+    expect(linksOf(html)).toEqual([
       ["need-h", "What needs attention"],
-      ["how-h", "How voicecap works"],
       ["pages-h", "Every page"],
-      ["chg-h", "What changed since the last run"],
-      ["prob-h", "Problems during the runs"],
-      ["lim-h", "What these results cover"],
-      ["ev-h", "The evidence"],
-      ["story-h", "How voicecap came to be"],
-      ["app-h", "Every transcript"],
+      ["details-h", "The details"],
     ]);
+    // With no card, there's no section for the link to go to.
+    for (const model of [cleanModel(), skippedModel(), noRunModel()]) {
+      expect(model.attention).toEqual([]);
+      expect(linksOf(renderGlance(model))).toEqual([
+        ["pages-h", "Every page"],
+        ["details-h", "The details"],
+      ]);
+    }
   });
 
-  it("says only that no run counts, with no numbers, when none does", () => {
-    const html = renderSummary(noRunModel());
+  it("says only that no run counts, with no verdict, ring, or numbers, when none does", () => {
+    const html = renderGlance(noRunModel());
 
+    expect(html).toContain('<h2 id="glance-h">At a glance</h2>');
     expect(html).toContain(
-      '<p class="lead verdict">No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.</p>',
+      '<p class="lead">No live run counts yet: voicecap shows only completed, sealed runs with a real screen reader.</p>',
     );
     expect(html).toContain('<p class="gist">A human review, sped up:');
-    expect(html).not.toContain('class="tile');
-    expect(html).not.toContain("<svg");
     // The way into the rest of the page stays.
+    expect(html).toContain('<nav class="toc" aria-label="On this page">');
+    expect(html).not.toContain('class="verdict');
+    expect(html).not.toContain('class="ring');
+    expect(html).not.toContain('class="tiles"');
+    expect(html).not.toContain("<svg");
+  });
+
+  it("gives no verdict, ring, or numbers for a run that counts but lists no page, as the website's card gives none", () => {
+    const model = noPagesModel();
+    const html = renderGlance(model);
+
+    // `verdictOf` says "Nothing needs attention" of no page, which no one read: it's not shown.
+    expect(model.header.tested).not.toBeNull();
+    expect(model.result.pages).toBe(0);
+    expect(html).toContain('<p class="lead">');
     expect(html).toContain('<nav class="toc"');
+    expect(html).not.toContain('class="verdict');
+    expect(html).not.toContain('class="ring');
+    expect(html).not.toContain('class="tiles"');
   });
 
   it("leaves its panels and bars to the details: it has none, with a run that counts or without", async () => {
     for (const model of [await demoModel(), richModel(), noRunModel()]) {
-      const html = renderSummary(model);
+      const html = renderGlance(model);
+      const counted = model.result.pages > 0;
 
       expect(html).not.toMatch(/class="(?:panels?|meters?)[\s"]/);
-      expect(html).not.toMatch(/<(?:svg|details|summary|ul)[\s>]/);
+      expect(html).not.toMatch(/<(?:details|summary)[\s>]/);
+      // The ring is its one picture, and its legend its one list.
+      expect(html.match(/<svg[\s>]/g)?.length ?? 0).toBe(counted ? 1 : 0);
+      expect(html.match(/<ul[\s>]/g)?.length ?? 0).toBe(counted ? 1 : 0);
     }
   });
 
   it("escapes the sentence it's given", () => {
     const model = richModel();
-    const html = renderSummary({
+    const html = renderGlance({
       ...model,
       summary: { ...model.summary, sentence: 'A <b>bold</b> & "quoted" sentence.' },
     });
@@ -1104,7 +1346,7 @@ describe("renderHow", () => {
   });
 });
 
-describe("the top, the summary, and how voicecap works together", () => {
+describe("the top, At a glance, and how voicecap works together", () => {
   /** Each model the three are tried on. */
   const models = async (): Promise<[string, ShareModel][]> => [
     ["the demo's", await demoModel()],
@@ -1146,16 +1388,20 @@ describe("the top, the summary, and how voicecap works together", () => {
     }
   });
 
-  it("draws no picture a screen reader would meet: the steps' icons are all it has, and they're hidden", async () => {
+  it("draws no picture a screen reader would meet: the steps' icons and the ring are all it has, and they're hidden", async () => {
     // A chip is never drawn here: the stages' words are in the fixed text, and `chip` itself
-    // refuses a chip with no words. The bars moved to the details, with their numbers in text.
+    // refuses a chip with no words. The bars moved to the details, with their numbers in text, and
+    // the ring has its own in the legend beside it. A site where nothing counts has no ring.
     for (const [name, model] of await models()) {
       const html = pageOf(model);
-      const svgs = html.match(/<svg /g)?.length ?? 0;
-      const hidden = html.match(/<svg [^>]*aria-hidden="true"/g)?.length ?? 0;
+      const rings = model.result.pages > 0 ? 1 : 0;
+      // The ring's box is hidden from screen readers whole, so its picture needs no attribute of its own.
+      const outside = html.replace(/<div class="ring" aria-hidden="true">.*?<\/div>/gs, "");
+      const hidden = outside.match(/<svg [^>]*aria-hidden="true"/g)?.length ?? 0;
 
-      expect(svgs, name).toBe(HOW_STEPS.length);
-      expect(hidden, name).toBe(svgs);
+      expect(html.match(/<svg /g)?.length ?? 0, name).toBe(HOW_STEPS.length + rings);
+      expect(outside.match(/<svg /g)?.length ?? 0, name).toBe(HOW_STEPS.length);
+      expect(hidden, name).toBe(HOW_STEPS.length);
       expect(html, name).not.toContain('role="img"');
     }
   });

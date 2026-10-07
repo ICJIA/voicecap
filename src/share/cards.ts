@@ -123,7 +123,9 @@ export interface PageCard {
   /**
    * No transcripts, flags, a read that stopped short, a failure or a skip, an open issue, or
    * transcripts that changed since their review: the card is never folded away as having nothing
-   * to note.
+   * to note. It is broader than `ShareModel.ring.needAttention`, which counts only the pages that a
+   * card of What needs attention names: a page whose flags a review settled, and one that wasn't
+   * read, are true here, and aren't counted there.
    */
   needsAttention: boolean;
 }

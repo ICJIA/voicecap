@@ -962,6 +962,8 @@ describe("the section's own words", () => {
       "noFlagsSkipped",
       "none",
       "noneSkipped",
+      "nothing",
+      "nothingOnRead",
       "pagesFold",
       "sentence",
       "title",
@@ -1005,6 +1007,12 @@ describe("the section's own words", () => {
     expect(ATTENTION_TEXT.sentence(1200, 3000)).toBe(
       "1,200 problems need attention, on 3,000 pages.",
     );
+  });
+
+  it("says the verdict's headline when nothing needs attention, and when that is of the pages read, with no full stop", () => {
+    // The page's words are in this one file, so the verdict (src/share/verdict.ts) says them from here.
+    expect(ATTENTION_TEXT.nothing).toBe("Nothing needs attention");
+    expect(ATTENTION_TEXT.nothingOnRead).toBe("Nothing needs attention on the pages read");
   });
 
   it("says nothing needs attention on the pages read, and how many were skipped, for the line for no problem when some were", () => {

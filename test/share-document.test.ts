@@ -52,8 +52,13 @@ const LINKS_OUT = [
   STORY.deque.url,
 ];
 
-/** The sections' headings, in the spec's order. */
+/**
+ * The sections' headings, in the spec's order. What needs attention is there only when a card
+ * is: with none, the section isn't on the page, and At a glance's verdict says so.
+ */
 const SECTIONS = ["glance-h", "need-h", "pages-h", "details-h", "app-h"];
+const sectionsOf = (cards: number): string[] =>
+  cards === 0 ? SECTIONS.filter((id) => id !== "need-h") : SECTIONS;
 
 /**
  * The parts of The details, whose headings are one level lower than a section's, in the spec's
@@ -315,7 +320,7 @@ describe("renderSharePage", () => {
    * The page of each model: the demo's, one built in memory, one where no run counts, one with a
    * run's event log, and one with screenshots, with how many runs each draws on.
    */
-  let pages: { name: string; html: string; runs: number }[];
+  let pages: { name: string; html: string; runs: number; cards: number }[];
   let demoPage: string;
 
   beforeAll(async () => {
@@ -331,6 +336,7 @@ describe("renderSharePage", () => {
       name,
       html: renderSharePage(model, { fontCss }),
       runs: model.evidence.length,
+      cards: model.attention.length,
     }));
     demoPage = pages[0]?.html ?? "";
   });
@@ -504,8 +510,10 @@ describe("renderSharePage", () => {
     expect(data).toContain(TINY_RECORD.sha256);
   });
 
-  it("puts the sections in the spec's order, each h2 outside every fold", () => {
-    for (const { name, html } of pages) {
+  it("puts the sections in the spec's order, each h2 outside every fold, and What needs attention only with a card", () => {
+    // Both kinds are among the pages: the demo's five cards, and a run whose pages need nothing.
+    expect(new Set(pages.map(({ cards }) => cards === 0)).size).toBe(2);
+    for (const { name, html, cards } of pages) {
       const markup = markupOf(html);
       const main = markup.indexOf('<main id="main">');
       const mainEnd = markup.indexOf("</main>");
@@ -514,12 +522,14 @@ describe("renderSharePage", () => {
       expect(
         headings.map(([, id]) => id),
         name,
-      ).toEqual(SECTIONS);
+      ).toEqual(sectionsOf(cards));
       for (const heading of headings) {
         expect(heading.index, name).toBeGreaterThan(main);
         expect(heading.index, name).toBeLessThan(mainEnd);
       }
-      expect(foldsAroundHeadings(markup), name).toEqual(SECTIONS.map(() => 0));
+      expect(foldsAroundHeadings(markup), name).toEqual(sectionsOf(cards).map(() => 0));
+      // The link to the section is there only when the section is.
+      expect(attributes(markup, "href").includes("#need-h"), name).toBe(cards > 0);
       for (const [, line = ""] of markup.matchAll(/<summary>([\s\S]*?)<\/summary>/g)) {
         expect(line, name).not.toMatch(/<h[1-6]\b/);
       }
@@ -599,9 +609,10 @@ describe("renderSharePage", () => {
         .map((href) => decode(href.slice(1)));
 
       expect(repeated(ids), name).toEqual([]);
-      // At least the skip link, and the summary's way into each later section.
-      expect(targets.length, name).toBeGreaterThanOrEqual(10);
-      // Every link to a part of the page goes to one that is there: the summary's to each section,
+      // At least the skip link, and At a glance's way into the later sections: Every page and The
+      // details, and What needs attention too when there's a card.
+      expect(targets.length, name).toBeGreaterThanOrEqual(3);
+      // Every link to a part of the page goes to one that is there: At a glance's to each section,
       // the details' to the problems and to what changed, a card's to its pages, a page's to its
       // transcripts.
       expect(
@@ -811,10 +822,12 @@ describe("SHARE_CSS", () => {
       ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
     ];
 
-    // Nine grids of cards, tiles, and steps: the summary's panels are no longer one, since they were
-    // a column of rows, and its bars, which were three side by side, are parts of the details now,
-    // one under another.
-    expect(grids.length).toBeGreaterThan(8);
+    // Eight grids of cards and steps: the summary's panels are no longer one, since they were a
+    // column of rows, and its bars, which were three side by side, are parts of the details now,
+    // one under another. The tiles of At a glance, four of them, aren't one either: they are two
+    // across and then four, in columns that shrink to nothing (`minmax(0, 1fr)`), so that no
+    // width leaves one tile alone in a row. A test in the browser fits them down to 320 px.
+    expect(grids.length).toBeGreaterThan(7);
     for (const [grid, column = ""] of grids) {
       expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
     }

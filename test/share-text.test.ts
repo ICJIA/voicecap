@@ -325,6 +325,31 @@ describe("the fixed text", () => {
     );
   });
 
+  it("words At a glance as the spec pins it: its heading, the ring's three parts, and the links' lead", () => {
+    const { GLANCE_TEXT, DETAILS_TEXT, ATTENTION_TEXT, PAGES_TEXT } = text;
+
+    expect(GLANCE_TEXT.title).toBe("At a glance");
+    expect(GLANCE_TEXT.parts).toEqual({
+      noProblems: "No problems",
+      needAttention: "Need attention",
+      notRead: "Not read",
+    });
+    expect(GLANCE_TEXT.onThisPage).toBe("On this page");
+    // The words under the number in the ring's middle: "page" for one, and "pages" for none or many.
+    expect([0, 1, 2, 1204].map((pages) => GLANCE_TEXT.ringUnit(pages))).toEqual([
+      "pages",
+      "page",
+      "pages",
+      "pages",
+    ]);
+    // The links say their sections' own words, from wherever those are.
+    expect([ATTENTION_TEXT.title, PAGES_TEXT.title, DETAILS_TEXT.link]).toEqual([
+      "What needs attention",
+      "Every page",
+      "The details",
+    ]);
+  });
+
   it("never names a library as how voicecap began", () => {
     expect(everyString().join("\n")).not.toMatch(/guidepup/i);
   });

@@ -51,9 +51,17 @@ export const THEME_CSS = `:root {
  *   command that verifies the records, the site's name, the name set for it, when it was tested,
  *   and its address, the footer's file names) breaks it where it must (`overflow-wrap: anywhere`),
  *   rather than run out of its box or the window;
- * - every grid of cards, tiles, or steps asks for columns no wider than its own box
- *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
- *   reflow rule is measured;
+ * - every grid of cards or steps asks for columns no wider than its own box
+ *   (`minmax(min(300px, 100%), 1fr)`), and the tiles' columns shrink to nothing (`minmax(0, 1fr)`),
+ *   so nothing runs past a window 320 pixels wide, where WCAG's reflow rule is measured;
+ * - at a glance (`.glance`): its parts in a grid, close together at the top, and further apart from
+ *   the ring on. The verdict is one large line, with its sign drawn before it, in the theme's
+ *   green, amber, or red, with no alternative text (`content: "✓" / ""`), since it only repeats the
+ *   words. The ring and its legend are side by side from 40em wide, and one above the other below;
+ *   the ring's number and unit sit in its hole, one above the other (the ring is a grid, and their
+ *   boxes state the page's background and stand above its picture, so that axe finds a background
+ *   under them); the legend's swatches print in color. The four tiles are one above another, then
+ *   two across, then four, never one alone in a row;
  * - the details (`#details`): its parts one under another, 40px apart, since they were once the
  *   summary's panels in one column and the sections that followed the cards. A part's heading is
  *   an `h3`, which looks like a section's heading, a step smaller; what is inside a part is one
@@ -116,29 +124,47 @@ code { overflow-wrap: anywhere; }
 .file { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
 .file span { border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel); }
 .theme { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: 500 0.82rem var(--body); cursor: pointer; }
-/* summary */
-.glance { display: grid; gap: 22px; }
-.verdict { font-size: 1.3rem; line-height: 1.45; font-weight: 500; max-width: 60ch; }
-.verdict + .gist { margin: 10px 0 0; }
+/* at a glance: the verdict, the result, the ring of the pages, four numbers, the method, and the links. Close together at the top, and further from the ring, the numbers, the method, and the links. */
+.glance { display: grid; gap: 8px; }
+.glance > p { margin: 0; }
+.glance > .ring-row, .glance > .tiles, .glance > .gist, .glance > .toc { margin-top: 16px; }
+/* the verdict: one large line, in words, after a sign that only repeats them, in the theme's green, amber, or red. The sign is drawn here, with no alternative text (content: "✓" / ""), so a screen reader hears the words alone; in the markup, a character that is no text fails axe's contrast check. */
+.verdict { display: flex; gap: 0.4em; align-items: baseline; font: 700 clamp(1.6rem, 4.6vw, 2.4rem)/1.2 var(--display); text-wrap: balance; }
+.verdict::before { flex: none; }
+.verdict.ok::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
+.verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
+.verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
+/* the ring of the pages, and its legend: side by side from 40em wide (which is 640 pixels at the reader's own size, as em is in a media query), one above the other below. The ring is a grid of its own: its picture over all of it, and its number and its unit one above the other in the middle, in the hole. The hole is the page's own background, and the words' boxes say so (background), above the picture (position), with a line tall enough to hold the letters whole: axe finds no background of words on a picture, and the words' contrast with the page is what it is to check. */
+.ring-row { display: grid; gap: 16px 40px; justify-items: start; align-items: center; }
+@media (min-width: 40em) { .ring-row { grid-template-columns: auto 1fr; } }
+.ring { display: grid; grid-template-rows: 1fr auto auto 1fr; justify-items: center; width: 10.5rem; aspect-ratio: 1; }
+.ring svg { grid-area: 1 / 1 / 5 / 2; width: 100%; height: 100%; }
+.ring-track { stroke: var(--panel-2); }
+.ring-part.ok { stroke: var(--ok); } .ring-part.warn { stroke: var(--warn); } .ring-part.bad { stroke: var(--bad); }
+.ring-n, .ring-k { position: relative; background: var(--bg); }
+.ring-n { grid-area: 2 / 1; font: 700 2.2rem/1.5 var(--display); font-variant-numeric: tabular-nums; }
+.ring-k { grid-area: 3 / 1; color: var(--muted); font-size: 0.82rem; }
+.ring-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 1.1rem; }
+.ring-legend li { display: flex; align-items: center; gap: 10px; }
+.ring-legend b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sw { flex: none; width: 14px; height: 14px; border-radius: 4px; background: var(--muted); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.ring-legend .ok .sw { background: var(--ok); } .ring-legend .warn .sw { background: var(--warn); } .ring-legend .bad .sw { background: var(--bad); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
 .panel h3, .panel h4 { font-size: 0.95rem; }
 .panel p, .panel ul { margin: 0; font-size: 0.93rem; }
 .panel ul { padding-left: 18px; display: grid; gap: 4px; }
 .toc { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; border-top: 1px solid var(--line); padding-top: 14px; }
 .toc a { font-weight: 500; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px; }
+/* four tiles: one above another, then two across from 22em (a phone's width), then four from 56em, in columns that shrink to nothing, so no width leaves one alone in a row, or runs past the box. */
+.tiles { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 22em) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 56em) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 14px; display: grid; gap: 4px; align-content: start; }
 .tile .n { font: 700 2.5rem/1 var(--display); font-variant-numeric: tabular-nums; }
 .tile .n small { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
 .tile .k { color: var(--muted); font-size: 0.86rem; }
 .tile.ok .n { color: var(--ok); } .tile.warn .n { color: var(--warn); } .tile.quiet .n { color: var(--fg); }
 .meter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
-.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--panel-2); }
-.bar i { display: block; height: 100%; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.84rem; color: var(--muted); }
-.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: currentColor; vertical-align: -1px; }
-.legend .l-ok { color: var(--ok); } .legend .l-warn { color: var(--warn); } .legend .l-bad { color: var(--bad); } .legend .l-q { color: var(--muted); }
-.legend span b { color: var(--fg); font-weight: 500; }
 .rules { display: grid; gap: 8px; }
 .rule { display: grid; grid-template-columns: 150px 1fr 36px; gap: 10px; align-items: center; font-size: 0.86rem; }
 .rule .track { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; } .rule .track i { display: block; height: 100%; background: var(--warn); }

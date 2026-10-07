@@ -14,10 +14,9 @@ import { attentionCards, type AttentionCard } from "../src/share/attention.js";
 import { attentionWords } from "../src/share/attention-words.js";
 import { renderAttention } from "../src/share/html/attention.js";
 import { renderSharePage } from "../src/share/html/document.js";
-import { renderSummary } from "../src/share/html/top.js";
+import { renderGlance } from "../src/share/html/top.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { ATTENTION_TEXT } from "../src/share/text.js";
-import { noAttentionLine } from "../src/share/words.js";
 import {
   HOME_READ_HEADER,
   HOME_READ_MAIN,
@@ -29,7 +28,7 @@ import {
   reviewed,
   withCards,
 } from "./helpers/share-attention.js";
-import { shareRun } from "./helpers/share-data.js";
+import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, summariesIn, textOf } from "./helpers/share-html.js";
 import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
 
@@ -470,66 +469,22 @@ describe("renderAttention", () => {
     }
   });
 
-  it("says the line for no problem when no card is left", () => {
-    const clean = withCards(i2i, []);
-    const html = renderAttention(clean);
+  it("isn't there without a card: the verdict says that nothing needs attention instead", () => {
+    const read = { path: "/", passes: { read: ["Welcome"] } };
+    const built = (pages: SharePageSpec[], replayed = false) =>
+      buildShareModel(inputOf([shareRun({ id: "r1", replayed, pages })]));
+    const models: [string, ShareModel][] = [
+      // i2i's model with its cards taken away.
+      ["no card left", withCards(i2i, [])],
+      ["every page read, and no flag raised", built([read])],
+      ["a page skipped", built([read, { path: "/pdf", status: "skipped" }])],
+      ["no run counts", built([{ path: "/" }], true)],
+    ];
 
-    expect(clean.attention).toEqual([]);
-    expect(html).toContain(
-      '<p class="gist">Nothing needs attention: every page was read, and every flag was fixed or checked by a person.</p>',
-    );
-    expect(html).toContain(`<p class="gist">${esc(noAttentionLine(clean.summary.attention))}</p>`);
-    // No card, so no fold, and no box for the folds.
-    expect(html).not.toContain("<details");
-    expect(html).not.toContain('class="folds"');
-  });
-
-  it("says nothing needs attention on the pages read, and how many were skipped", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [
-        { path: "/", passes: { read: ["Welcome"] } },
-        { path: "/pdf", status: "skipped" },
-        { path: "/map", status: "skipped" },
-      ],
-    });
-    const model = buildShareModel(inputOf([run]));
-    const html = renderAttention(model);
-    // No page raised a flag, so the line says so.
-    const line =
-      "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.";
-
-    expect(model.attention).toEqual([]);
-    expect(model.summary.attention.skipped).toBe(2);
-    expect(html).toContain(`<p class="gist">${line}</p>`);
-    expect(html).not.toContain("every page was read");
-  });
-
-  it("says no flags were raised when every page was read and none raised one", () => {
-    const model = buildShareModel(
-      inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
-    );
-    const line = "Nothing needs attention: every page was read, and no flags were raised.";
-
-    expect(model.attention).toEqual([]);
-    expect(model.summary.attention.flagsRaised).toBe(false);
-    expect(renderAttention(model)).toContain(`<p class="gist">${line}</p>`);
-    expect(renderAttention(model)).not.toContain("fixed or checked");
-  });
-
-  it("says nothing was counted, and never that nothing needs attention, when no run counts", () => {
-    const model = buildShareModel(
-      inputOf([shareRun({ id: "r1", replayed: true, pages: [{ path: "/" }] })]),
-    );
-    const html = renderAttention(model);
-
-    expect(model.header.tested).toBeNull();
-    expect(html).toContain('<h2 id="need-h">What needs attention</h2>');
-    expect(html).toContain(
-      '<p class="gist"><b>No live run counts yet.</b> There are no problems to show.</p>',
-    );
-    expect(html).not.toContain("Nothing needs attention");
-    expect(html).not.toContain("<details");
+    for (const [name, model] of models) {
+      expect(model.attention, name).toEqual([]);
+      expect(renderAttention(model), name).toBe("");
+    }
   });
 
   it("names each page by its canonical address, never by the address voicecap read", async () => {
@@ -543,7 +498,7 @@ describe("renderAttention", () => {
   });
 
   it("sets no style, loads nothing, and links only to the page's own cards", () => {
-    for (const model of [i2i, linkModel(PHRASES), withCards(i2i, [])]) {
+    for (const model of [i2i, linkModel(PHRASES)]) {
       const html = renderAttention(model);
 
       // A tag with a style or a source: the words of a fix's code say <img src="…">, escaped.
@@ -555,7 +510,7 @@ describe("renderAttention", () => {
 });
 
 describe("the page with the section", () => {
-  it("puts the section after the summary and before Every page, with nothing of the flags found", () => {
+  it("puts the section after At a glance and before Every page, with nothing of the flags found", () => {
     const page = renderSharePage(i2iModel(), { fontCss: "" });
     const markup = markupOf(page);
     const at = (id: string) => markup.indexOf(`<h2 id="${id}">`);
@@ -563,25 +518,43 @@ describe("the page with the section", () => {
     expect(at("glance-h")).toBeGreaterThan(-1);
     expect(at("need-h")).toBeGreaterThan(at("glance-h"));
     expect(at("need-h")).toBeLessThan(at("pages-h"));
-    // A section of its own: the summary's has ended before it starts.
+    // A section of its own: At a glance has ended before it starts.
     expect(markup.indexOf("</section>", at("glance-h"))).toBeLessThan(at("need-h"));
     expect(page).not.toContain("What the flags found");
     expect(page).not.toContain("find-h");
   });
 
-  it("leads the contents to the section, which is there with a fold for each card", async () => {
+  it("leads At a glance's links to the section, which is there with a fold for each card", async () => {
     for (const model of [i2iModel(), await demoModel(), linkModel(PHRASES)]) {
       const markup = markupOf(renderSharePage(model, { fontCss: "" }));
       const ids = attributes(markup, "id");
-      const summary = renderSummary(model);
+      const glance = renderGlance(model);
 
-      // The summary no longer names the cards, as a panel once did: the section has them all.
-      expect(summary).not.toMatch(/href="#need-\d+"/);
+      // At a glance names no card, as a panel once did: the section has them all.
+      expect(glance).not.toMatch(/href="#need-\d+"/);
       for (const id of ["need-h", ...model.summary.attention.cards.map(({ id }) => id)]) {
         expect(ids).toContain(id);
       }
-      // The contents lead to the section first, ahead of the rest.
-      expect(/<nav class="toc"[^>]*>.*?<a href="#([\w-]+)">/s.exec(summary)?.[1]).toBe("need-h");
+      // The links lead to the section first, ahead of the rest.
+      expect(/<nav class="toc"[^>]*>.*?<a href="#([\w-]+)">/s.exec(glance)?.[1]).toBe("need-h");
+    }
+  });
+
+  it("leaves the section out of the page when no card is left, and the link to it, which the verdict makes up for", () => {
+    const clean = buildShareModel(
+      inputOf([shareRun({ id: "r1", pages: [{ path: "/", passes: { read: ["Welcome"] } }] })]),
+    );
+
+    for (const model of [withCards(i2iModel(), []), clean]) {
+      const markup = markupOf(renderSharePage(model, { fontCss: "" }));
+
+      expect(model.attention).toEqual([]);
+      expect(markup).not.toContain('id="need-h"');
+      expect(markup).not.toContain('href="#need-h"');
+      expect(markup).not.toContain("What needs attention");
+      // At a glance goes straight on to every page, with no empty section between.
+      expect(markup).toMatch(/<\/section>\n<section id="pages" aria-labelledby="pages-h">/);
+      expect(attributes(markup, "href")).toContain("#pages-h");
     }
   });
 

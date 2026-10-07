@@ -6,7 +6,8 @@
  *
  * The kind is `bad` when NVDA read fewer pages than are in scope, whether a page couldn't be read or
  * was skipped; else `warn` when something needs attention; else `ok`. The headline says the same in
- * words, so a reader never has the kind alone to go by.
+ * words, so a reader never has the kind alone to go by. The words are the page's, in
+ * `ATTENTION_TEXT` (./text.ts), where every other word of the page is.
  */
 import type { ShareResult } from "../model.js";
 import { ATTENTION_TEXT } from "./text.js";
@@ -20,15 +21,6 @@ export interface Verdict {
   headline: string;
 }
 
-/** The headline when no problem is left and NVDA read every page. */
-const NOTHING = "Nothing needs attention";
-
-/**
- * The headline when no problem is left but NVDA didn't read every page. A page that wasn't read is
- * on no card when voicecap skipped it, so nothing needs attention on the pages that were read.
- */
-const NOTHING_ON_PAGES_READ = "Nothing needs attention on the pages read";
-
 /**
  * The verdict of a result. With a problem, its headline counts the problems (every card of What
  * needs attention) and the pages they're on; with none, it says that nothing needs attention, and,
@@ -38,5 +30,5 @@ const NOTHING_ON_PAGES_READ = "Nothing needs attention on the pages read";
 export function verdictOf({ pages, read, problems, problemPages }: ShareResult): Verdict {
   const kind: VerdictKind = read < pages ? "bad" : problems > 0 ? "warn" : "ok";
   if (problems > 0) return { kind, headline: ATTENTION_TEXT.headline(problems, problemPages) };
-  return { kind, headline: read === pages ? NOTHING : NOTHING_ON_PAGES_READ };
+  return { kind, headline: read === pages ? ATTENTION_TEXT.nothing : ATTENTION_TEXT.nothingOnRead };
 }

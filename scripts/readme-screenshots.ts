@@ -12,7 +12,7 @@
  *
  * It writes eight files, drawn in a 1200 × 900 window at twice its size:
  *
- *   report-top.png           the page's masthead, and its summary down to its contents
+ *   report-top.png           the page's masthead, and At a glance down to its links
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page,
  *                            in its fold, opened
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
@@ -361,7 +361,7 @@ export function shooter(into: string, taken: string[]): Shoot {
 async function shootReport(browser: Browser, file: string, shoot: Shoot): Promise<void> {
   const page = await open(browser, file);
   try {
-    // The masthead, the summary's sentence and the five numbers, and the contents.
+    // The masthead, and At a glance: its verdict, its ring, its four numbers, and its links.
     await shoot(
       page,
       "report-top.png",

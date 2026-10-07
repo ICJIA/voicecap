@@ -1,12 +1,13 @@
 /**
  * The parts every section of the shareable page draws with: a fold, a chip, a "Not recorded" line,
- * a scroll box, a line of words, a verdict line, a bar, and the strip of spoken lines. Each returns
- * HTML. `demoted` takes some markup and sets its headings one level down.
+ * a scroll box, a line of words, a verdict line, a track, the strip of spoken lines, and the ring of
+ * the pages. Each returns HTML. `demoted` takes some markup and sets its headings one level down.
  *
  * None sets a `style` attribute: the page's Content Security Policy hashes its one style block and
  * allows nothing else. So sizes are attributes, and colors are classes the style block gives
  * their colors to (`c-ok`, `c-warn`, `c-bad`, and `c-quiet`, the chips' own), which an SVG shape
- * takes as its fill with `fill="currentColor"`.
+ * takes as its fill with `fill="currentColor"`; the ring's arcs take their kind's class, and the
+ * stroke the style block gives it.
  *
  * What the callers pass is HTML only where a parameter says so (a fold's summary line and body, and
  * what a scroll box holds); it is escaped by whoever builds it. Every other string is text, and
@@ -15,6 +16,7 @@
 import { esc, idFragment, plural } from "../../report/html.js";
 import { count, seconds } from "../format.js";
 import { firstSentenceBold, type Line } from "../line.js";
+import { GLANCE_TEXT } from "../text.js";
 import { notRecordedLine } from "../words.js";
 
 /**
@@ -149,13 +151,6 @@ export function verdictLine(text: string): string {
   return `<p class="prob-verdict">${lineHtml(firstSentenceBold(text))}</p>`;
 }
 
-/** A part of a bar: the number it counts, what it counts, and its color's kind. */
-export interface BarSegment {
-  label: string;
-  value: number;
-  kind: string;
-}
-
 /**
  * A whole number as the page writes it, on any computer: "1,204". It lives in ../format.ts, so a
  * copy with no markup writes it the same way.
@@ -184,25 +179,6 @@ function rectangles(segments: { value: number; kind: string }[], total: number):
       return `<rect class="c-${idFragment(kind)}" x="${percent(start, total)}" y="0" width="${percent(width, total)}" height="100%" fill="currentColor"/>`;
     })
     .join("");
-}
-
-/** The class a legend entry takes: "l-ok", "l-warn", "l-bad", and "l-q" for quiet. */
-const legendClass = (kind: string): string => `l-${kind === "quiet" ? "q" : idFragment(kind)}`;
-
-/**
- * A bar of segments as wide as their shares of `total`, with the numbers it shows in text beside
- * it as a legend: each segment's value and what it counts, so the bar never stands alone. The bar
- * is an image named `caption`, a sentence that gives its numbers too. It's two sibling elements,
- * the SVG and the legend.
- */
-export function bar(segments: BarSegment[], total: number, caption: string): string {
-  const legend = segments
-    .map(
-      ({ label, value, kind }) =>
-        `<span class="${legendClass(kind)}"><b>${count(value)}</b> ${esc(label)}</span>`,
-    )
-    .join("");
-  return `<svg class="bar" width="100%" height="14" role="img" aria-label="${esc(caption)}">${rectangles(segments, total)}</svg><div class="legend">${legend}</div>`;
 }
 
 /**
@@ -263,4 +239,57 @@ export function strip(lines: { ms: number; chars: number }[], label: string): st
 
   const sum = `${plural(lines.length, "line")} over ${spoken(total)}; the longest took ${spoken(longest)}`;
   return `${open} aria-label="${esc(`${label}: ${sum}`)}">${bars.join("")}</svg>`;
+}
+
+/** A part of the ring of the pages: what it counts, how many pages are in it, and its kind. */
+export interface RingPart {
+  label: string;
+  value: number;
+  kind: "ok" | "warn" | "bad";
+}
+
+/** The ring's circle in its picture's 120 by 120 units: its middle, its radius, and how wide it is. */
+const RING = { middle: 60, radius: 48, width: 16 } as const;
+
+/** The circle's own attributes, which its track and every arc share: they are drawn on one circle. */
+const CIRCLE_SHAPE = `cx="${RING.middle}" cy="${RING.middle}" r="${RING.radius}" fill="none" stroke-width="${RING.width}"`;
+
+/** How long the circle is, 2π × 48, to two places: 301.59. Every arc takes its share of it. */
+const CIRCUMFERENCE = decimal(2 * Math.PI * RING.radius);
+
+/**
+ * The ring of the pages, and, apart from it, its legend: two sibling elements.
+ *
+ * The ring is a picture, hidden from screen readers, of one circle with an arc for each part that has
+ * pages in it, as long as its share of `total`, one after another from the top, clockwise, and with
+ * the number of pages in its middle. A part with no pages draws no arc, and no arc runs past the
+ * circle's end, whatever the parts add up to; with the parts adding up to `total`, a ring of one part
+ * is the whole circle.
+ *
+ * An arc is the circle itself, drawn as one dash as long as the arc (`stroke-dasharray`: the dash,
+ * then a gap that makes the length up to the circle's, so that it never repeats), moved forward
+ * along the circle to where the arc starts (`stroke-dashoffset`). A circle starts at three o'clock,
+ * so the picture is turned a quarter turn back. The style block gives the track and each kind its
+ * stroke.
+ *
+ * The legend is what a screen reader gets, and what a reader who can't tell the colors apart does: a
+ * line for every part, those with no pages too, saying its words and its count.
+ */
+export function ring(parts: RingPart[], total: number): string {
+  let start = 0;
+  const arcs = parts.flatMap(({ value, kind }) => {
+    if (!(value > 0) || !(total > 0)) return [];
+    const length = Math.min((CIRCUMFERENCE * value) / total, CIRCUMFERENCE - start);
+    if (!(length > 0)) return [];
+    const arc = `<circle class="ring-part ${idFragment(kind)}" ${CIRCLE_SHAPE} stroke-dasharray="${decimal(length)} ${decimal(CIRCUMFERENCE - length)}" stroke-dashoffset="${decimal(-start)}"/>`;
+    start += length;
+    return [arc];
+  });
+  const picture = `<svg viewBox="0 0 120 120" width="120" height="120"><g transform="rotate(-90 ${RING.middle} ${RING.middle})"><circle class="ring-track" ${CIRCLE_SHAPE}/>${arcs.join("")}</g></svg>`;
+  const middle = `<span class="ring-n">${count(total)}</span><span class="ring-k">${esc(GLANCE_TEXT.ringUnit(total))}</span>`;
+  const legend = parts.map(
+    ({ label, value, kind }) =>
+      `<li class="${idFragment(kind)}"><span class="sw" aria-hidden="true"></span>${esc(label)}: <b>${count(value)}</b></li>`,
+  );
+  return `<div class="ring" aria-hidden="true">${picture}${middle}</div><ul class="ring-legend" role="list">${legend.join("")}</ul>`;
 }

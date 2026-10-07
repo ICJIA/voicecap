@@ -842,6 +842,29 @@ describe("axe, in Chromium", () => {
     AXE_TIMEOUT,
   );
 
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on At a glance, whatever its verdict: problems to fix, none, and a page not read, dark and light",
+    async (width) => {
+      // The ring's number and unit are words laid over its picture, and axe finds no background
+      // of words on a picture unless the words' own boxes say what they're on.
+      for (const [which, kind] of [
+        ["demo", "warn"],
+        ["none", "ok"],
+        ["skipped", "bad"],
+      ] as const) {
+        const page = await open(pages[which]);
+
+        expect(await page.locator("p.verdict").getAttribute("class"), which).toBe(
+          `verdict ${kind}`,
+        );
+        expect(await axeFindings(page, width), `${which}, dark`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light`).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
+
   it("has no axe violations on the page of a site where no run counts yet", async () => {
     const page = await open(pages.replay);
 
@@ -979,6 +1002,224 @@ describe("the top of the page", () => {
   });
 });
 
+describe("At a glance", () => {
+  /** A page for each kind of verdict, with its words and the sign they are drawn after. */
+  const KINDS = [
+    ["problems to fix", "demo", "warn", "⚠", "5 problems need attention, on 2 pages"],
+    ["nothing to fix", "none", "ok", "✓", "Nothing needs attention"],
+    ["a page not read", "skipped", "bad", "⚠", "Nothing needs attention on the pages read"],
+  ] as const;
+
+  /** The boxes of what At a glance draws, as they are laid out. */
+  const boxesOf = (page: Page): Promise<{ ring: Box; number: Box; unit: Box; legend: Box }> =>
+    page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`The page has no ${selector}.`);
+        const { left, right, top, bottom, width } = element.getBoundingClientRect();
+        return { left, right, top, bottom, width };
+      };
+      return {
+        ring: box(".ring"),
+        number: box(".ring-n"),
+        unit: box(".ring-k"),
+        legend: box(".ring-legend"),
+      };
+    });
+
+  it("draws each kind of verdict's sign before its words, in a color of its own in both themes, which a screen reader doesn't read", async () => {
+    const colors: Record<string, string[]> = { dark: [], light: [] };
+
+    for (const [, which, , sign] of KINDS) {
+      const page = await open(pages[which]);
+      for (const theme of ["dark", "light"]) {
+        const before = await page.locator("p.verdict").evaluate((line) => {
+          const style = getComputedStyle(line, "::before");
+          return { content: style.content, color: style.color };
+        });
+
+        // The sign, with no words for a screen reader to read: the line's own words say it.
+        expect(before.content, `${which}, ${theme}`).toBe(`"${sign}" / ""`);
+        colors[theme]?.push(before.color);
+        if (theme === "dark") await page.locator("#theme-toggle").click();
+      }
+    }
+    // Green, amber, and red: the three differ, in each theme.
+    for (const theme of ["dark", "light"]) {
+      expect(new Set(colors[theme]).size, theme).toBe(3);
+    }
+  });
+
+  it("gives a screen reader the verdict's words alone, with no sign in them", async () => {
+    for (const [, which, , , headline] of KINDS) {
+      const page = await open(pages[which]);
+      // What Chromium's accessibility tree gives a screen reader: the words, in a text of their own.
+      const client = await page.context().newCDPSession(page);
+      try {
+        const { nodes } = await client.send("Accessibility.getFullAXTree");
+        const names = nodes
+          .map((node): unknown => node.name?.value)
+          .filter((name): name is string => typeof name === "string");
+
+        expect(names, which).toContain(headline);
+        expect(
+          names.filter((name) => /[✓⚠]/.test(name)),
+          which,
+        ).toEqual([]);
+      } finally {
+        await client.detach();
+      }
+    }
+  });
+
+  it("sets the ring and its legend side by side from 40em wide, and one above the other below it", async () => {
+    const page = await open(pages.demo);
+
+    for (const width of [1280, 800, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      const { ring, legend } = await boxesOf(page);
+
+      expect(
+        legend.left,
+        `${width} px: the legend starts where the ring ends`,
+      ).toBeGreaterThanOrEqual(ring.right);
+      // In the same row: each starts before the other ends.
+      expect(legend.top, `${width} px`).toBeLessThan(ring.bottom);
+      expect(ring.top, `${width} px`).toBeLessThan(legend.bottom);
+    }
+    for (const width of [639, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const { ring, legend } = await boxesOf(page);
+
+      expect(legend.top, `${width} px: the legend is under the ring`).toBeGreaterThanOrEqual(
+        ring.bottom,
+      );
+    }
+  });
+
+  it("puts the number of pages in the middle of the ring, inside its hole, at every width", async () => {
+    const page = await open(pages.demo);
+
+    for (const width of [1280, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const { ring, number, unit } = await boxesOf(page);
+      const middle = { x: (ring.left + ring.right) / 2, y: (ring.top + ring.bottom) / 2 };
+      // The hole is 80 of the ring's 120 units across: its radius is a third of the ring's width.
+      const hole = ring.width / 3;
+
+      expect(ring.width, `${width} px`).toBeGreaterThanOrEqual(120);
+      for (const [name, word] of [
+        ["the number", number],
+        ["its unit", unit],
+      ] as const) {
+        for (const corner of [
+          [word.left, word.top],
+          [word.right, word.top],
+          [word.left, word.bottom],
+          [word.right, word.bottom],
+        ] as const) {
+          const [x, y] = corner;
+          expect(
+            Math.hypot(x - middle.x, y - middle.y),
+            `${width} px: ${name} is inside the ring's hole`,
+          ).toBeLessThan(hole);
+        }
+      }
+      // The number above its unit, both on the ring's vertical middle line.
+      expect(number.bottom, `${width} px`).toBeLessThanOrEqual(unit.top + 1);
+      for (const word of [number, unit]) {
+        expect(Math.abs((word.left + word.right) / 2 - middle.x), `${width} px`).toBeLessThan(1);
+      }
+    }
+  });
+
+  it.each(["dark", "light"])(
+    "draws the ring's arcs from the top, clockwise, as long as each part's share of the pages: %s",
+    async (theme) => {
+      const page = await open(pages.demo);
+      if (theme === "light") await page.locator("#theme-toggle").click();
+      const colorOf = (kind: string): Promise<string> =>
+        page.locator(`.ring-part.${kind}`).evaluate((arc) => getComputedStyle(arc).stroke);
+      const ok = await colorOf("ok");
+      const warn = await colorOf("warn");
+
+      // The demo's 7 pages: 5 without a problem, a share of 257 degrees from the top, then 2 that
+      // need attention, to the top again. A picture of the ring, read where the arcs run (the
+      // circle's radius is 48 of its 120 units), at each angle clockwise from the top.
+      const picture = (await page.locator(".ring").screenshot()).toString("base64");
+      const seen = await page.evaluate(
+        async ({ base64, angles }) => {
+          const image = new Image();
+          image.src = `data:image/png;base64,${base64}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.width;
+          canvas.height = image.height;
+          const context = canvas.getContext("2d");
+          if (context === null) throw new Error("There's no canvas to read a picture with.");
+          context.drawImage(image, 0, 0);
+          const middle = image.width / 2;
+          const radius = (48 / 120) * image.width;
+          return angles.map((angle) => {
+            const turn = (angle * Math.PI) / 180;
+            const x = Math.round(middle + radius * Math.sin(turn));
+            const y = Math.round(middle - radius * Math.cos(turn));
+            const [r = 0, g = 0, b = 0] = context.getImageData(x, y, 1, 1).data;
+            return `rgb(${r}, ${g}, ${b})`;
+          });
+        },
+        { base64: picture, angles: [10, 90, 180, 250, 265, 300, 350] },
+      );
+
+      expect(seen).toEqual([ok, ok, ok, ok, warn, warn, warn]);
+    },
+  );
+
+  it("sets the ring's swatches to print in color, since backgrounds are left off the paper", async () => {
+    const page = await open(pages.demo);
+
+    expect(
+      await page
+        .locator(".ring-legend .sw")
+        .first()
+        .evaluate((swatch) => getComputedStyle(swatch).getPropertyValue("print-color-adjust")),
+    ).toBe("exact");
+  });
+
+  it("lays four tiles out two across and then four, never leaving one alone in a row, at any width", async () => {
+    const page = await open(pages.demo);
+    const rows = (): Promise<{ counts: number[]; cutOff: number }> =>
+      page.evaluate(() => {
+        const tiles = [...document.querySelectorAll(".tiles > .tile")];
+        const tops = tiles.map((tile) => Math.round(tile.getBoundingClientRect().top));
+        return {
+          counts: [...new Set(tops)].map((top) => tops.filter((other) => other === top).length),
+          // A tile whose contents are wider than it is: its number or its words cut off.
+          cutOff: tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).length,
+        };
+      });
+    const acrossAt = new Map<number, number>();
+
+    for (let width = 320; width <= 1400; width += 20) {
+      await page.setViewportSize({ width, height: 900 });
+      const { counts, cutOff } = await rows();
+      const [across = 0] = counts;
+
+      // The same number in every row, so no tile is alone in one: one, two, or four across.
+      expect(
+        counts.every((count) => count === across),
+        `${width} px: ${counts.join(", ")}`,
+      ).toBe(true);
+      expect([1, 2, 4], `${width} px`).toContain(across);
+      expect(cutOff, `${width} px`).toBe(0);
+      acrossAt.set(width, across);
+    }
+    expect(acrossAt.get(1280)).toBe(4);
+    expect(acrossAt.get(400)).toBe(2);
+    expect(acrossAt.get(320)).toBe(1);
+  });
+});
+
 describe("the footer", () => {
   it("keeps each line to 80 characters of its smaller text, as wide as the page's 72, on a wide window", async () => {
     const page = await open(pages.demo);
@@ -1037,9 +1278,9 @@ describe("the footer", () => {
 
     await page.setViewportSize({ width: 1280, height: height + 400 });
 
-    // The page's sections: the summary, what needs attention, every page, the details, and the
-    // appendix, so a count that found none of them can't pass for this.
-    expect(before.length).toBeGreaterThanOrEqual(4);
+    // The demo's sections: At a glance, what needs attention (it has cards), every page, the
+    // details, and the appendix, so a count that found none of them can't pass for this.
+    expect(before).toHaveLength(5);
     expect(await sections()).toEqual(before);
   });
 
@@ -1265,7 +1506,7 @@ describe("Open every section, and printing", () => {
     expect(await button.textContent()).toBe("Open every section");
     await button.click();
     expect(openFolds(await foldStates(page))).toEqual(Object.keys(byHand));
-    expect(await button.textContent()).toBe("Fold the details again");
+    expect(await button.textContent()).toBe("Fold every section again");
 
     await button.click();
     expect(await foldStates(page)).toEqual(byHand);
@@ -1671,12 +1912,12 @@ describe("what needs attention", () => {
     expect(outside).toEqual([]);
   });
 
-  it("brings the section into view from the summary's link to it, and opens no card", async () => {
+  it("brings the section into view from At a glance's link to it, and opens no card", async () => {
     const page = await open(pages.six);
     const asWritten = await cardStates(page);
 
-    // The summary names no card now, as a panel once did: it has the contents' link to the
-    // section, whose heading is in plain view, so the link opens nothing.
+    // At a glance names no card, as a panel once did: it has the link to the section, whose
+    // heading is in plain view, so the link opens nothing.
     const toSection = page.locator('.toc a[href="#need-h"]');
     expect(await toSection.innerText()).toBe("What needs attention");
     await toSection.click();

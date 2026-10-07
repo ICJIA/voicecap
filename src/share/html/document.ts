@@ -18,14 +18,15 @@ import { renderDetails } from "./details.js";
 import { renderFooter } from "./evidence.js";
 import { renderAppendix, renderPages } from "./pages.js";
 import { SHARE_CSS } from "./style.js";
-import { renderSummary, renderTop } from "./top.js";
+import { renderGlance, renderTop } from "./top.js";
 
 /**
- * The sections inside `main`, in the design's order: the summary, what needs attention, every page,
- * and the details, which hold the rest (what changed, the problems, what the results cover, the
- * evidence, how voicecap works, and how it came to be); the appendix of transcripts last.
+ * The sections inside `main`, in the design's order: At a glance, what needs attention (nothing,
+ * with no card to name), every page, and the details, which hold the rest (what changed, the
+ * problems, what the results cover, the evidence, how voicecap works, and how it came to be); the
+ * appendix of transcripts last.
  */
-const SECTIONS = [renderSummary, renderAttention, renderPages, renderDetails, renderAppendix];
+const SECTIONS = [renderGlance, renderAttention, renderPages, renderDetails, renderAppendix];
 
 /**
  * The page, from the model. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
@@ -46,7 +47,7 @@ export function renderSharePage(model: ShareModel, assets: { fontCss: string }):
     '<div class="wrap">',
     renderTop(model),
     '<main id="main">',
-    ...SECTIONS.map((section) => section(model)),
+    ...SECTIONS.map((section) => section(model)).filter((html) => html !== ""),
     "</main>",
     renderFooter(model),
     "</div>",

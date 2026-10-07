@@ -1,6 +1,6 @@
 /**
  * The first parts of the shareable page, in the approved mockup's markup and class names: the top
- * (the header), the Summary, and "How voicecap works"; and five parts of the details, which were
+ * (the header), At a glance, and "How voicecap works"; and five parts of the details, which were
  * the Summary's panels and bars: What's still to do, How complete the test was, When and how, Flags
  * by rule, and The human review. They are open, but for the one fold: the sample of what NVDA said
  * in "How voicecap works". Each takes the model and returns HTML.
@@ -12,9 +12,11 @@
  * canonical address (when it has one), and the page's own sections.
  *
  * Where the mockup is sample data, nothing of it is here. Where it set a style attribute, the
- * page's style block gives the same look instead: the second line under the summary's sentence
- * (`.verdict + .gist`) needs a margin rule. The caption under the sample of what NVDA said is in
- * its fold, where a fold's own rule gives a paragraph none.
+ * page's style block gives the same look instead: the spacing of At a glance's parts, in its grid,
+ * and the sign before the verdict (`.verdict::before`), which only repeats its words, so it is
+ * drawn by the style with no alternative text, never put in the markup, where a character that is
+ * no text fails axe's contrast check. The caption under the sample of what NVDA said is in its
+ * fold, where a fold's own rule gives a paragraph none.
  */
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
@@ -22,28 +24,27 @@ import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
-  CHANGES_TEXT,
-  COVERAGE_TEXT,
+  DETAILS_TEXT,
+  GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
   PAGES_TEXT,
-  PROBLEMS_TEXT,
-  STORY_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WHEN_TO_RUN,
 } from "../text.js";
+import { verdictOf } from "../verdict.js";
 import {
+  glanceNumbersOf,
   heardTitle,
   howLead,
-  numbersOf,
   spokenDuration,
   testedLine,
   topLead,
   type NumberTile,
 } from "../words.js";
 import { STEP_ICONS } from "./icons.js";
-import { count, fold, lineHtml, notRecorded, track } from "./parts.js";
+import { count, fold, lineHtml, notRecorded, ring, track, type RingPart } from "./parts.js";
 
 // The top.
 
@@ -103,7 +104,7 @@ export function renderTop(model: ShareModel): string {
   ].join("\n");
 }
 
-// The summary.
+// At a glance.
 
 const tile = (tone: NumberTile["tone"], big: string, label: string): string =>
   `<div class="tile ${tone}"><span class="n">${big}</span><span class="k">${esc(label)}</span></div>`;
@@ -126,54 +127,75 @@ const bigOf = (value: NumberTile["value"]): string =>
       ? fraction(value.part, value.whole)
       : duration(value.ms);
 
-/** The five numbers (../words.ts), each in a tile. */
+/** The four numbers (../words.ts), each in a tile. */
 function tiles(model: ShareModel): string {
-  const items = numbersOf(model).map(({ tone, value, label }) => tile(tone, bigOf(value), label));
+  const items = glanceNumbersOf(model).map(({ tone, value, label }) =>
+    tile(tone, bigOf(value), label),
+  );
   return `<div class="tiles">${items.join("")}</div>`;
 }
 
 /**
- * The later sections: each heading's id, and the words that link to it. Most are parts of the
- * details now, a level down (an h3), with the ids they had. Where a section's link says its
- * heading's words, they are the heading's in ../text.ts; the links to the evidence and the
- * appendix are shorter than their headings, and are the contents list's own.
+ * The ring of the pages, with its legend, in a row: the pages in scope, by whether they have no
+ * problems, need attention (a card of What needs attention is on them), or weren't read. Its middle
+ * is the number of pages in scope, which the three parts add up to.
  */
-const CONTENTS = [
-  ["need-h", ATTENTION_TEXT.title],
-  ["how-h", HOW_TEXT.title],
-  ["pages-h", PAGES_TEXT.title],
-  ["chg-h", CHANGES_TEXT.title],
-  ["prob-h", PROBLEMS_TEXT.title],
-  ["lim-h", COVERAGE_TEXT.title],
-  ["ev-h", "The evidence"],
-  ["story-h", STORY_TEXT.title],
-  ["app-h", "Every transcript"],
-] as const;
-
-function contents(): string {
-  const links = CONTENTS.map(([id, words]) => `<a href="#${id}">${esc(words)}</a>`);
-  return `<nav class="toc" aria-label="The full report"><span class="sub">Read the full report:</span>${links.join("")}</nav>`;
+function ringRow(model: ShareModel): string {
+  const { parts } = GLANCE_TEXT;
+  const { noProblems, needAttention, notRead } = model.ring;
+  const row: RingPart[] = [
+    { label: parts.noProblems, value: noProblems, kind: "ok" },
+    { label: parts.needAttention, value: needAttention, kind: "warn" },
+    { label: parts.notRead, value: notRead, kind: "bad" },
+  ];
+  return `<div class="ring-row">${ring(row, model.result.pages)}</div>`;
 }
 
 /**
- * The Summary, written for a manager who reads nothing else: the result in a sentence, and the line
- * on what voicecap and the person each did; five numbers; and the way into the rest. Its panels and
- * bars are parts of the details now (`todoPart` and the rest, below).
- *
- * When no run counts, the summary has no pages to count: only its sentence, which says why, and
- * the way into the rest.
+ * The verdict: its words, with its kind as its class (`ok`, `warn`, or `bad`), which the style
+ * block draws its sign for. It is a paragraph, not a heading: the section's own is above it.
  */
-export function renderSummary(model: ShareModel): string {
-  const { summary } = model;
-  const opening = [
-    `<div>`,
-    `    <h2 id="glance-h">${esc(SUMMARY_TEXT.title)}</h2>`,
-    `    <p class="lead verdict">${esc(summary.sentence)}</p>`,
-    `    <p class="gist">${esc(summary.second)}</p>`,
-    `  </div>`,
-  ].join("\n");
-  const parts =
-    model.header.tested === null ? [opening, contents()] : [opening, tiles(model), contents()];
+function verdict(result: ShareModel["result"]): string {
+  const { kind, headline } = verdictOf(result);
+  return `<p class="verdict ${kind}">${esc(headline)}</p>`;
+}
+
+/**
+ * The links to the page's sections: What needs attention, which is there only when there is a card,
+ * Every page, and The details. Each says its section's own words, and goes to its heading's id.
+ */
+function onThisPage(model: ShareModel): string {
+  const sections: [id: string, words: string][] = [];
+  if (model.attention.length > 0) sections.push(["need-h", ATTENTION_TEXT.title]);
+  sections.push(["pages-h", PAGES_TEXT.title], ["details-h", DETAILS_TEXT.link]);
+  const links = sections.map(([id, words]) => `<a href="#${id}">${esc(words)}</a>`);
+  const label = esc(GLANCE_TEXT.onThisPage);
+  return `<nav class="toc" aria-label="${label}"><span class="sub">${label}:</span>${links.join("")}</nav>`;
+}
+
+/**
+ * At a glance, written for a manager who reads nothing else, in this order: the verdict, in words
+ * (the one rule for it is `verdictOf`, and the style block draws its sign); the result in a
+ * sentence; the ring of the pages; four numbers; the line on what voicecap and the person each did;
+ * and the links to the page's sections. Its panels and bars are parts of the details now (`todoPart`
+ * and the rest, below).
+ *
+ * When no run counts, there are no pages to count: it has only its sentence, which says why, the
+ * line on what each did, and the links. The same goes for a run that lists no page: the verdict says
+ * "Nothing needs attention" of a result of no page, which no one read, so it isn't shown, as the
+ * website's card shows none for a report of no page.
+ */
+export function renderGlance(model: ShareModel): string {
+  const { summary, result } = model;
+  const counted = result.pages > 0;
+  const parts = [
+    `<h2 id="glance-h">${esc(GLANCE_TEXT.title)}</h2>`,
+    ...(counted ? [verdict(result)] : []),
+    `<p class="lead">${esc(summary.sentence)}</p>`,
+    ...(counted ? [ringRow(model), tiles(model)] : []),
+    `<p class="gist">${esc(summary.second)}</p>`,
+    onThisPage(model),
+  ];
   return `<section class="glance" aria-labelledby="glance-h">\n  ${parts.join("\n  ")}\n</section>`;
 }
 

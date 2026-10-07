@@ -160,7 +160,8 @@ export interface ShareModel {
    * The ring of the pages: how many have no problems, how many need attention (a card of What needs
    * attention is on them), and how many were not read (they have no transcripts, so no result of
    * their own to speak of, whatever else is said of them). Each page is in one part, so the three
-   * add up to `result.pages`.
+   * add up to `result.pages`. `needAttention` is narrower than `PageCard.needsAttention`, which
+   * is also true of a page whose flags a review settled, and of one that wasn't read.
    */
   ring: { noProblems: number; needAttention: number; notRead: number };
   /**
