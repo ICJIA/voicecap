@@ -1555,6 +1555,14 @@ describe("voicecap review --replay", () => {
     );
   });
 
+  it("lists review in voicecap --help as a way to hear pages again, as well as to record a review", async () => {
+    const help = await cli(["--help"], await emptyFolder());
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "review [options] add an entry to a page's review history, or hear pages again with --replay",
+    );
+  });
+
   it("asks whether NVDA is running only on Windows, and starts without the answer after 5 seconds", async () => {
     const running: NvdaProcess[] = [{ pid: 4242, path: "C:\\Program Files (x86)\\NVDA\\nvda.exe" }];
     await expect(nvdaRunningOn("win32", () => Promise.resolve(running))()).resolves.toBe(true);

@@ -389,7 +389,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
   program
     .command("review")
-    .description("add an entry to a page's review history")
+    .description("add an entry to a page's review history, or hear pages again with --replay")
     // --page and --status are required unless --replay is given, which the action checks:
     // commander can't say "unless".
     .option("--page <url>", "the page: full URL or root-relative path")
