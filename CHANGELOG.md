@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-08
+
 ### Added
 
 - **The website has a second page, "Can I trust this?",** for a manager who shouldn't have to take one person's tool on trust. It says who built voicecap, and shows how what voicecap records can be checked and how voicecap tests itself: four big numbers (the tests that passed for the release, the pages NVDA read in the current reports, the files on the website, and the releases with the public changes behind them), what voicecap does and that its screen reader is the real NVDA, the law (Title II of the ADA, IITAA, and WCAG, each linked to its source), how every word can be checked, how it's tested, what it doesn't do, and every release, newest first. The README's "Can I trust this?", under "The website: `voicecap site`", describes it, with a picture of its top.
@@ -525,7 +527,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/ICJIA/voicecap/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ICJIA/voicecap/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/ICJIA/voicecap/compare/v0.12.2...v0.12.3
