@@ -15,6 +15,7 @@ import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  AVOIDED,
   firstRowWithout,
   makeScreenshots,
   refuseLocalAddress,
@@ -222,7 +223,7 @@ describe("a shot of a page", () => {
         "/biographies/john-roe/",
       ]);
 
-      expect(await firstRowWithout(page, ".card", "/biographies/", 4)).toEqual({
+      expect(await firstRowWithout(page, ".card", ["/biographies/"], 4)).toEqual({
         x: 0,
         y: 56,
         width: 214,
@@ -232,7 +233,7 @@ describe("a shot of a page", () => {
 
     it("is the first row when it has none, and stops when every row has one", async () => {
       const first = await gridOf(["/", "/contact/", "/privacy/", "/search/"]);
-      expect(await firstRowWithout(first, ".card", "/biographies/", 0)).toEqual({
+      expect(await firstRowWithout(first, ".card", ["/biographies/"], 0)).toEqual({
         x: 0,
         y: 0,
         width: 210,
@@ -240,9 +241,57 @@ describe("a shot of a page", () => {
       });
 
       const every = await gridOf(["/biographies/a/", "/b/", "/biographies/c/", "/biographies/d/"]);
-      await expect(firstRowWithout(every, ".card", "/biographies/", 4)).rejects.toThrow(
+      await expect(firstRowWithout(every, ".card", ["/biographies/"], 4)).rejects.toThrow(
         'Every row of .card has "/biographies/" in it.',
       );
+    });
+
+    it("passes over a row that has any of the kinds, whichever of its cards has one and whichever kind it is", async () => {
+      // A contact page in the first row's second card, a person's page in the second row's first,
+      // and neither in the third.
+      const page = await gridOf([
+        "/",
+        "/contact/",
+        "/biographies/jane-doe/",
+        "/privacy/",
+        "/search/",
+        "/about/",
+      ]);
+
+      expect(await firstRowWithout(page, ".card", ["/biographies/", "/contact/"], 4)).toEqual({
+        x: 0,
+        y: 116,
+        width: 214,
+        height: 58,
+      });
+      // Told of one kind alone, it passes over that kind alone, and the other's row is drawn.
+      expect(await firstRowWithout(page, ".card", ["/biographies/"], 4)).toEqual({
+        x: 0,
+        y: 0,
+        width: 214,
+        height: 54,
+      });
+      expect(await firstRowWithout(page, ".card", ["/contact/"], 4)).toEqual({
+        x: 0,
+        y: 56,
+        width: 214,
+        height: 58,
+      });
+    });
+
+    it("stops when every row has one of the kinds, and names them all", async () => {
+      const every = await gridOf(["/contact/", "/b/", "/biographies/c/", "/d/"]);
+
+      await expect(
+        firstRowWithout(every, ".card", ["/biographies/", "/contact/"], 4),
+      ).rejects.toThrow('Every row of .card has "/biographies/" or "/contact/" in it.');
+    });
+
+    it("keeps out a biography's photo and name, and a contact page's test-mode notice, from the shot of the cards", () => {
+      // Each is the address of a page whose screenshot a public README shouldn't lead its cards
+      // with: the i2i team's photos and names, and the branch deploy's notice of its mailer's test
+      // inbox.
+      expect([...AVOIDED]).toEqual(["/biographies/", "/contact/"]);
     });
   });
 });

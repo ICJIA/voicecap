@@ -538,9 +538,10 @@ function testedOf(runs: RunJson[]): string {
  * and NVDA's speech, until NVDA was quiet.
  *
  * A pass is quoted only when its TXT transcript can be read here, as a page's card quotes its read
- * pass (see `cardsOf`): the page shows that file, so the lines it quotes are that file's. A pass
- * whose TXT can't be read gives no lines, though its steps (the JSON) may be there, and is left
- * out, as a pass with nothing to show is.
+ * pass (see `cardsOf`). The lines come from the pass's steps (its JSON), and the TXT only gates
+ * them: the page shows the TXT file, so it quotes nothing of a pass whose file it can't show. Such a
+ * pass gives no lines, though its steps may be there, and is left out, as a pass with nothing to
+ * show is.
  */
 function heardOf(
   pages: PageStanding[],

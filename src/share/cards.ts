@@ -186,9 +186,10 @@ export function cardsOf(input: CardsInput): PageCard[] {
     const name = input.name(page);
     const readSteps =
       shown === null ? [] : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []);
-    // The card's fold shows the read transcript's TXT, so the lines it quotes are that file's. With
-    // the TXT unreadable here its fold says so, and there is nothing to quote beside it, though the
-    // steps of the read pass's JSON can still be read (and draw the strip).
+    // The card's fold shows the read transcript's TXT, so the card quotes nothing of a read pass whose
+    // file it can't show: the lines come from the pass's steps (its JSON), and the TXT only gates
+    // them. With the TXT unreadable here its fold says so, and there is nothing to quote beside it,
+    // though the steps of the read pass's JSON can still be read (and draw the strip).
     const readShown =
       shown !== null && transcripts.txt(shown.run.id, shown.page.slug, "read") !== null;
     return {

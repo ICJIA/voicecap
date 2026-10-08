@@ -1619,7 +1619,7 @@ describe("Every page's cards", () => {
     expect([...shown].sort()).toEqual([1, 2]);
   });
 
-  it("puts one card in a row on Letter paper, which has no room for two of 420 px", async () => {
+  it("puts one card in a row on portrait Letter paper, which has no room for two of 420 px", async () => {
     const page = await open(pages.demo);
     // 8.5 inches at 96 to the inch, with no margin: the paper is narrower than that in all.
     await page.setViewportSize({ width: 816, height: 1056 });
@@ -1628,6 +1628,19 @@ describe("Every page's cards", () => {
     const { rows } = await cardsIn(page, "#pages .card");
 
     expect(across(rows)).toEqual([1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it("puts two cards in a row on landscape Letter paper, which has the room", async () => {
+    const page = await open(pages.demo);
+    // 11 inches at 96 to the inch is 1056 px; the browser's usual margin of 0.4 inch (38 px) on each
+    // side leaves 980, and the page's own 24 px at each side leaves a grid 932 px wide.
+    await page.setViewportSize({ width: 1056 - 2 * 38, height: 816 });
+    await page.emulateMedia({ media: "print" });
+
+    const { rows, grid } = await cardsIn(page, "#pages .card");
+
+    expect(grid).toBeGreaterThanOrEqual(2 * 420 + 16);
+    expect(across(rows)).toEqual([2, 2, 2, 1]);
   });
 
   it("lays the quiet cards' fold out the same way, two a row where there is room and one where there is not", async () => {
