@@ -8,8 +8,8 @@
  * needs attention (./attention.ts), each run's evidence (./run-evidence.ts), and each run's event
  * log (./timeline.ts), whose events the evidence and the problems' records say in the same words.
  * This puts them together, and works out the top, the result the verdict goes by and the ring of
- * the pages, the sample of what NVDA said, what the results cover, the appendix of transcripts, and
- * the fingerprint check's data.
+ * the pages, the sample of what NVDA said, what the results cover, each page's transcripts (the
+ * model's `appendix`, which the page's card folds in), and the fingerprint check's data.
  *
  * The home folder is replaced in everything the page shows: flags' and reviewers' words here, and
  * the description of a custom rule, which names its card; the problems' in problemsOf, the
@@ -89,7 +89,10 @@ export type {
   WalkthroughDownload,
 } from "./run-evidence.js";
 
-/** A transcript file the appendix shows: what NVDA said in a pass, with the file's fingerprint. */
+/**
+ * A transcript file a page's card folds in (the model's `appendix`): what NVDA said in a pass, with
+ * the file's fingerprint.
+ */
 export interface AppendixFile {
   pass: PassName;
   /**

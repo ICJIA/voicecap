@@ -12,6 +12,7 @@ import { esc, idFragment } from "../src/report/html.js";
 import { renderPages } from "../src/share/html/pages.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
@@ -32,6 +33,7 @@ import {
   storeOf,
   TRANSCRIPTS,
   type Lines,
+  withoutReadTxt,
 } from "./helpers/share-model.js";
 
 /** What the model is built from, for runs built in memory, with their transcripts held in memory. */
@@ -732,6 +734,21 @@ describe("renderPages", () => {
     expect(firstLinesIn(home)).toEqual(['link, <b> & "x"']);
   });
 
+  it("sets a step where NVDA said nothing as the marker the transcript writes, never in the quotes of NVDA's words", async () => {
+    const model = withCard(await demoModel(), 0, {
+      heardFirst: ["banner landmark", NO_SPEECH, "link, Back"],
+    });
+    const [home = ""] = cardsIn(renderPages(model));
+
+    // "[no speech]" is a note that NVDA said nothing, not words it said: in curly quotes, it reads
+    // as though NVDA had said those words. The lines it did say keep theirs.
+    expect(home).toContain(
+      '<figure class="heard-first"><figcaption>Heard first</figcaption><ol class="said-list" role="list">' +
+        "<li>“banner landmark”</li><li>[no speech]</li><li>“link, Back”</li></ol></figure>",
+    );
+    expect(home).not.toContain("“[no speech]”");
+  });
+
   it("folds each page's full transcript into its card", async () => {
     const model = await demoModel();
     const html = renderPages(model);
@@ -1113,6 +1130,28 @@ describe("a card's full transcript", () => {
     expect(foldLines(gone)).toEqual([allThree("/a")]);
     expect(gone).not.toContain("heard-first");
     expect(gone).not.toContain("Heard first");
+  });
+
+  it("has no first lines beside a fold that says the read transcript couldn't be read, though the read pass's steps can be", () => {
+    // The split: /split's read.json can be read and its read.txt can't. Its fold shows the TXT, so
+    // the card quotes nothing from a transcript its own fold says is lost. /whole has both.
+    const model = modelOf([done("/split"), done("/whole")], {
+      transcripts: withoutReadTxt(storeOf(), (slug) => slug.startsWith("split")),
+    });
+    const [split = "", whole = ""] = cardsIn(renderPages(model));
+
+    expect(model.appendix.map(({ unreadable }) => unreadable)).toEqual([["read"], []]);
+    // The fold of /split is there, and says its read transcript couldn't be read, in its place.
+    expect(foldLines(split)).toEqual([allThree("/split")]);
+    expect(split.match(/couldn&#39;t be read here/g)).toHaveLength(1);
+    expect(split).toContain(
+      `<h4>Read <span class="sr">transcript of /split</span></h4><p>This transcript was recorded, but its file couldn&#39;t be read here`,
+    );
+    expect(split).not.toContain("heard-first");
+    expect(split).not.toContain("Heard first");
+    // The page whose read transcript is shown still quotes its first lines.
+    expect(whole).toContain('class="heard-first"');
+    expect(firstLinesIn(whole)).toEqual(LINES.read.slice(0, 3));
   });
 
   it("says a transcript with no lines has none, rather than show an empty box", () => {

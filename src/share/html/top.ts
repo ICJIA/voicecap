@@ -163,6 +163,10 @@ function verdict(result: ShareModel["result"]): string {
 /**
  * The links to the page's sections: What needs attention, which is there only when there is a card,
  * Every page, and The details. Each says its section's own words, and goes to its heading's id.
+ *
+ * The navigation is named "On this page", which a screen reader says on reaching it. The same words
+ * stand before the links for the eye, and are hidden from a screen reader (`aria-hidden`), which
+ * would otherwise say them twice, the second time as text.
  */
 function onThisPage(model: ShareModel): string {
   const sections: [id: string, words: string][] = [];
@@ -170,7 +174,7 @@ function onThisPage(model: ShareModel): string {
   sections.push(["pages-h", PAGES_TEXT.title], ["details-h", DETAILS_TEXT.link]);
   const links = sections.map(([id, words]) => `<a href="#${id}">${esc(words)}</a>`);
   const label = esc(GLANCE_TEXT.onThisPage);
-  return `<nav class="toc" aria-label="${label}"><span class="sub">${label}:</span>${links.join("")}</nav>`;
+  return `<nav class="toc" aria-label="${label}"><span class="sub" aria-hidden="true">${label}:</span>${links.join("")}</nav>`;
 }
 
 /**
@@ -187,12 +191,12 @@ function onThisPage(model: ShareModel): string {
  */
 export function renderGlance(model: ShareModel): string {
   const { summary, result } = model;
-  const counted = result.pages > 0;
+  const hasPages = result.pages > 0;
   const parts = [
     `<h2 id="glance-h">${esc(GLANCE_TEXT.title)}</h2>`,
-    ...(counted ? [verdict(result)] : []),
+    ...(hasPages ? [verdict(result)] : []),
     `<p class="lead">${esc(summary.sentence)}</p>`,
-    ...(counted ? [ringRow(model), tiles(model)] : []),
+    ...(hasPages ? [ringRow(model), tiles(model)] : []),
     `<p class="gist">${esc(summary.second)}</p>`,
     onThisPage(model),
   ];

@@ -26,6 +26,7 @@ import {
   capturedOf,
   fileFingerprint,
   fromRun,
+  heardFirstLine,
   lineCount,
   manualLine,
   notRecordedLine,
@@ -149,16 +150,14 @@ function statusLine(card: PageCard): Line {
 
 /**
  * What NVDA said first on the page: a label and the first lines of its read pass, word for word,
- * each in curly quotes, as the page's card has them. A page with none (it was never read, or its
- * read transcript can't be read here) has none: a label with nothing under it says less than
- * nothing.
+ * each in curly quotes (but for a step where it said nothing, which is the marker the transcript
+ * writes, as it is: see `heardFirstLine`), as the page's card has them. A page with none (it was
+ * never read, or its read transcript can't be read here) has none: a label with nothing under it
+ * says less than nothing.
  */
 function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
   if (heardFirst.length === 0) return [];
-  return [
-    para({ text: PAGES_TEXT.heardFirst, bold: true }),
-    list(heardFirst.map((line) => `“${line}”`)),
-  ];
+  return [para({ text: PAGES_TEXT.heardFirst, bold: true }), list(heardFirst.map(heardFirstLine))];
 }
 
 // A page's transcripts.

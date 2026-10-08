@@ -34,7 +34,15 @@ Success:
 
 The owner asked on 2026-10-07 for the page to put what matters most to a manager at the top, the overall result, each page's screenshot, and what NVDA said, and the "information" further down. The aim: a manager who reads nothing else never has to ask "what is this?". The owner approved this order, with a verdict and a page ring at the top, and each page's transcripts in its card. Each section's first sentence is its point.
 
-1. **The top**, as before: the site's canonical name as the headline, "Tested <date and time>", the plain line "How its pages read aloud with NVDA, a free screen reader, tested on <date>.", the line "voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.", then "As of", "Prepared by", "Made with voicecap", the site's address, small, and the two buttons.
+1. **The top.**
+   - The site's canonical name as the headline: the host of its canonical address, such as `dvfr.illinois.gov`, never an IP address or `localhost`, even for a run on a copy on the tester's computer (see "Canonical names"). The `report.siteName` setting, when set, is a line under it; the home page's title is no longer a headline.
+   - The date and time of the latest run beside it: "Tested 29 September 2026, 14:02".
+   - A plain line: "How its pages read aloud with NVDA, a free screen reader, tested on <date>."
+   - A second: "voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said."
+   - "As of <date>", "Prepared by <name>", and "Made with voicecap", linked to https://github.com/ICJIA/voicecap.
+   - The site's canonical address last, small.
+   - NVDA links to https://www.nvaccess.org/.
+   - Two buttons: "Open every section" and the theme.
 
 2. **At a glance**, for a non-technical manager who reads nothing else. All of it is computed from the records, in plain words, in this order:
    - **The verdict:** one large line, said in words and an icon, with a color that only repeats them. One rule words it, `verdictOf` (`src/share/verdict.ts`), for the page, its Word copy, and the website's card, from the four counts of the result (`ShareModel.result`: the pages in scope, how many NVDA read, the problems, and the pages they're on). It has three states, and goes by the first that is true, in this order:
@@ -49,10 +57,10 @@ The owner asked on 2026-10-07 for the page to put what matters most to a manager
      - "Need attention": read, and on a card;
      - "Not read": no transcripts.
 
-     A legend beside it gives each part's words and count. A part with no pages draws no arc, but keeps its legend line, with 0, and with every page in one part the ring is one whole circle. The ring is a picture, hidden from screen readers; a screen reader hears the legend, as a list, and the Word copy has the same as a short table.
+     A legend beside it gives each part's words and count. A part with no pages draws no arc, but keeps its legend line, with 0, and with every page in one part the ring is one whole circle. The ring is a picture, hidden from screen readers; a screen reader hears the legend, as a list named by the total with its unit ("7 pages"), the number the picture shows in its middle, and the Word copy has the same as a short table.
    - **Four big numbers:** pages read by NVDA, out of pages in scope; problems to fix, which is the cards' count; lines NVDA spoke; and NVDA time.
    - **The method line:** "A human review, sped up: voicecap presses NVDA's keys and moves from page to page; the person running it does the reading and the deciding." These are the page's words (`summary.second`; D3). The line describes the method, so it claims no hearing or review the records may not show.
-   - **On this page:** links to "What needs attention" (when there are cards), "Every page", and "The details".
+   - **On this page:** links to "What needs attention" (when there are cards), "Every page", and "The details". A screen reader hears "On this page" once, as the navigation's name; the same words before the links are for the eye.
 
    With no run that counts, or a run that counted no page, there are no pages to count: At a glance has only its sentence ("No live run counts yet: …", for no run), the method line, and On this page, with no verdict, ring, or numbers.
 
@@ -63,27 +71,40 @@ The owner asked on 2026-10-07 for the page to put what matters most to a manager
 4. **Every page.** One card per page:
    - its screenshot, its path, and its title;
    - its status, in words, and its review's chips ("Reviewed, no issues", "Checked by <name>, <date>: not an issue", and so on);
-   - **Heard first:** the first three lines NVDA said on it, in the read pass, word for word, each in curly quotes, as a list a screen reader counts. A page with no transcripts, or whose read transcript can't be read here, has none;
-   - its pass counts and its time, and its spoken-line strip;
+   - **Heard first:** the first three lines NVDA said on it, in the read pass, word for word, each in curly quotes, as a list a screen reader counts. A step where NVDA said nothing is the marker the transcript writes, `[no speech]`, with no quotes, since it isn't words NVDA said. A page with no transcripts, or whose read transcript can't be read here, has none;
+   - its pass counts (read lines, headings, Tab stops) and its time, and its spoken-line strip: one bar per line NVDA spoke, as wide as the line took and as tall as the square root of its length;
    - **the full transcript,** folded, at the card's end: the run its transcripts are from, then a transcript for each pass the run recorded (read, headings, and Tab), word for word, each with its line count, size, and fingerprint. The fingerprint check covers them here (see "Checking the fingerprints in the page"). Every card's fold line reads alike on screen ("The full transcript: read, headings, and Tab transcripts"), so each names its page for a screen reader, in hidden words ("The full transcript of /about/: …"), and each transcript's heading does the same. A page whose transcripts can't be read here has its fold, with the line that says so; a page with no transcripts has no fold.
 
    The appendix of transcripts is gone; this is the one place for each page's words. Over 12 pages, the pages with nothing to note fold behind a line, as before, and each keeps its own transcript fold inside it.
 
-5. **The details, for reviewers and auditors.** One heading, with a line that says what's here: "How the test was run, what it covered, and the evidence behind it." Then each part has its own heading. Short parts are open; their bulk folds as before:
-   - What's still to do;
-   - How complete the test was, with its line on what changed since the last run;
-   - When and how;
-   - What changed since the last run;
-   - Problems during the runs;
-   - What these results cover;
-   - Flags by rule, and the human review: the two bars, which were in the page's old summary;
-   - The evidence behind these results;
-   - How voicecap works, with the six steps and a sample of what NVDA said on this site;
-   - How voicecap came to be.
+5. **The details, for reviewers and auditors.** One heading, with a line that says what's here: "How the test was run, what it covered, and the evidence behind it." Then each part has its own heading, an `h3` under the details' `h2`, and a heading inside a part starts at `h4`. Short parts are open; their bulk folds (see "What's open at first, and what's folded"):
+   - **What's still to do:** the real tasks: issues found and not yet fixed, pages that couldn't be read, flagged pages with no decision recorded, pages whose reading stopped before the page's end (to run again), and pages that read differently since their review (to review again);
+   - **How complete the test was:** pages read, out of pages in scope; the problems during the runs in one line (how many, of what kind, and whether a later try made each good); whether any was an unexpected error, the kind that could mean a problem in voicecap itself; pages that couldn't be read after every attempt; and, when there's a run before, one line on what changed since it, "Since the last run on <date>: …" (see "What changed since the last run");
+   - **When and how:** the date, who ran it, the screen reader, browser, and operating system;
+   - **What changed since the last run:** the pages that sound different from the run before, each with its changes (see "What changed since the last run");
+   - **Problems during the runs:** every failed attempt, explained (see "Problems during the runs");
+   - **What these results cover.** Two panels:
+     - **Covered:** the scope, the passes, and every problem, linked to where it's explained.
+     - **Technical limits:** the screen reader, version, language, and browser the results come from, that flags match NVDA's English phrasing and the person reviewing decides what they mean, and any change of environment between runs.
+   - **Flags by rule, and the human review:** two bars, which were in the page's old summary (its third, each page's latest result, is the page ring now):
+     - flags by rule: how many times each rule was raised, across pages and passes (each flag once: a flag's own count means something different for each rule);
+     - the human review: transcripts reviewed, and issues fixed, each out of its total.
+   - **The evidence behind these results.** A line with the number of runs and whether each completed and was sealed; what a fingerprint is, in two plain sentences; the "Check the fingerprints" button (see "Checking the fingerprints in the page"); and the command that checks the originals. Then one folded panel per run the standing draws on, each with:
+     - the run's facts (started, finished, pages, NVDA restarts, run by, and the listener's statement);
+     - the minute-by-minute timeline, and every event to the millisecond as a table (evidence A);
+     - NVDA's own log checked against the transcripts (evidence C);
+     - the test environment (evidence D);
+     - the fingerprints (SHA-256) and how to check them: `npx @icjia/voicecap verify --site <url>`.
+     - the walkthrough file, to download, with the command that repeats the run (see "Repeating a walkthrough").
+   - **How voicecap works:** six steps, and a sample of what NVDA said on this site (see "Fixed text");
+   - **How voicecap came to be:** why it exists, its timeline on a Windows PC and on a Mac, and a few things worth knowing (see "Fixed text").
 
    The five parts that are counts (What's still to do, How complete the test was, When and how, Flags by rule, and the human review) are there only when a run counts. Without one, the details have the other six.
 
-6. **The footer,** as before.
+6. **The footer.**
+   - What voicecap is, with the link again: "voicecap is free, open-source software that speeds up a person's review of a website with a real screen reader. It presses the screen reader's keys the way a person would, moves from page to page on its own, and saves every word the screen reader says."
+   - When the page was generated, and the time zone its times are in.
+   - The file's own name and its Word copy's.
 
 The Word copy follows the same order (see "The Word copy").
 
@@ -624,9 +645,9 @@ A public site the owner can point anyone to, https://voicecap.netlify.app (appro
 - The page's order: the top, At a glance, What needs attention (only with a card), Every page, The details, and the footer; no appendix.
 - The verdict's three states, word for word, with its icon and color, and the order it tries them in (D2): red, with ⚠, first, when NVDA read fewer pages than are in scope, whether a page couldn't be read or was skipped, with the cards' count of problems in the same words and, with no card, "Nothing needs attention on the pages read"; then "<n> problem needs attention, on <m> pages" (⚠, amber, "problems need" for more than one) when every page was read and cards are left; then "Nothing needs attention" (✓, green) when every page was read and no card is left. A page not read makes it red with cards or without. The page's verdict, its Word copy's, and the website's card are one rule.
 - The sentence doesn't count the problems that need attention (D1): the verdict is the one count of them. The sentence still says how many pages have an issue found in review, couldn't be read, or were skipped.
-- The page ring: its three parts and their counts from the records, its legend, and its text for a screen reader; the Word copy's table of it.
-- The four big numbers, and "On this page" with its links (no "What needs attention" link without a card).
-- Every page: the lines NVDA said first; the full transcript folded in each card; "Check the fingerprints" covering the transcripts there, and catching a changed character in one.
+- The page ring: its three parts and their counts from the records, its legend, and its text for a screen reader, with the legend named by the total ("7 pages") in Chromium's accessibility tree; the Word copy's table of it.
+- The four big numbers, and "On this page" with its links (no "What needs attention" link without a card), said once in Chromium's accessibility tree.
+- Every page: the lines NVDA said first, none beside a read transcript that couldn't be read here (though its steps can be read), and a step of no speech as its marker, without quotes, on the page and in Word; the full transcript folded in each card; "Check the fingerprints" covering the transcripts there, and catching a changed character in one.
 - The details: each part's heading in order, with its gist; the two bars there.
 - The Word copy in the same order, with each page's transcripts under it.
 - The edge cases: a site where no run counts (no verdict, ring, or numbers, and none of the details' five counts); a site of more than 12 pages, where each page with nothing to note keeps its own transcript fold, a link into it opens both folds, and "Open every section" opens them all; a page never read, and a page whose transcripts can't be read here; text that needs escaping in a page's first lines, shown as text on the page and as plain text in Word; and a ring of one part, which is one whole circle.

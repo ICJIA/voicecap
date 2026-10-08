@@ -362,7 +362,8 @@ describe("ring", () => {
 
   /** The legend's items: each one's kind, and what it says. */
   function legendOf(html: string): [string, string][] {
-    const list = /<ul class="ring-legend" role="list">(.*?)<\/ul>/s.exec(html)?.[1] ?? "";
+    const list =
+      /<ul class="ring-legend" role="list" aria-label="[^"]*">(.*?)<\/ul>/s.exec(html)?.[1] ?? "";
     return [...list.matchAll(/<li class="(\w+)">(.*?)<\/li>/gs)].map(([, kind = "", item = ""]) => [
       kind,
       textOf(item, ""),
@@ -399,6 +400,21 @@ describe("ring", () => {
     expect(box).not.toContain("<ul");
     expect(html.indexOf("</div>")).toBeLessThan(html.indexOf('<ul class="ring-legend"'));
     expect(html.endsWith("</ul>")).toBe(true);
+  });
+
+  it("names its legend for a screen reader by the total with its unit, as the ring's middle shows them", () => {
+    // A screen reader skips the ring, so it never gets the number in its middle: its list does, as
+    // its name ("7 pages", then the three parts and their counts).
+    expect(ring(partsOf(5, 2, 0), 7)).toContain(
+      '<ul class="ring-legend" role="list" aria-label="7 pages">',
+    );
+    expect(ring(partsOf(1, 0, 0), 1)).toContain(
+      '<ul class="ring-legend" role="list" aria-label="1 page">',
+    );
+    expect(ring(partsOf(1200, 4, 0), 1204)).toContain(
+      '<ul class="ring-legend" role="list" aria-label="1,204 pages">',
+    );
+    expect(ring(partsOf(0, 0, 0), 0)).toContain('aria-label="0 pages"');
   });
 
   it("lays each part's arc after the one before it, as long as its share of the circle", () => {
@@ -971,10 +987,20 @@ describe("renderGlance", () => {
     expect(html).toContain('<span class="ring-n">7</span><span class="ring-k">pages</span>');
     // The ring is for the eye, and the legend is the list a screen reader gets, in its row.
     expect(html).toContain('<div class="ring" aria-hidden="true">');
-    expect(html).toContain('<ul class="ring-legend" role="list">');
+    expect(html).toContain('<ul class="ring-legend" role="list" aria-label="7 pages">');
     expect(at('<div class="ring-row">')).toBeLessThan(at('<div class="ring"'));
     expect(at('<div class="ring"')).toBeLessThan(at('<ul class="ring-legend"'));
     expect(at('<ul class="ring-legend"')).toBeLessThan(at('<div class="tiles">'));
+  });
+
+  it("names the legend by the number of pages in the ring's middle, so a screen reader gets it too", async () => {
+    const demo = renderGlance(await demoModel());
+    const clean = renderGlance(cleanModel());
+
+    expect(demo).toContain('<span class="ring-n">7</span><span class="ring-k">pages</span>');
+    expect(demo).toContain('<ul class="ring-legend" role="list" aria-label="7 pages">');
+    expect(clean).toContain('<span class="ring-n">1</span><span class="ring-k">page</span>');
+    expect(clean).toContain('<ul class="ring-legend" role="list" aria-label="1 page">');
   });
 
   it("takes the ring's three parts from the model, in the order No problems, Need attention, Not read", async () => {
@@ -1126,10 +1152,25 @@ describe("renderGlance", () => {
     );
   });
 
+  it("says 'On this page' once to a screen reader: the navigation's name, with the visible label hidden from it", async () => {
+    for (const model of [await demoModel(), cleanModel(), noRunModel()]) {
+      const html = renderGlance(model);
+      const nav = /<nav class="toc"[^>]*>.*?<\/nav>/s.exec(html)?.[0] ?? "";
+
+      // The landmark is named, which a screen reader says on reaching it. The words before the
+      // links are for the eye: a screen reader that read them too would say it twice.
+      expect(nav).toMatch(/^<nav class="toc" aria-label="On this page">/);
+      expect(nav).toContain('<span class="sub" aria-hidden="true">On this page:</span>');
+      // Outside what is hidden, the words are in the markup once: the name.
+      const heard = nav.replace(/<span [^>]*aria-hidden="true">.*?<\/span>/g, "");
+      expect(heard.match(/On this page/g)).toHaveLength(1);
+    }
+  });
+
   it("links to what's on the page, by the id of each section's h2, with the one on what needs attention only when there is a card", async () => {
     const html = renderGlance(await demoModel());
 
-    expect(html).toContain('<span class="sub">On this page:</span>');
+    expect(html).toContain('<span class="sub" aria-hidden="true">On this page:</span>');
     expect(linksOf(html)).toEqual([
       ["need-h", "What needs attention"],
       ["pages-h", "Every page"],

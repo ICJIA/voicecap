@@ -53,7 +53,7 @@ import {
   walkthroughProblem,
 } from "../src/share/walkthrough.js";
 import { writeWalkthrough } from "../src/share/write-walkthrough.js";
-import { extractBody } from "../src/transcripts/format.js";
+import { bodyLines, extractBody } from "../src/transcripts/format.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
@@ -91,9 +91,11 @@ import {
   STEP_LIMIT_PROBLEM,
   storeOf,
   TRANSCRIPTS,
+  txtOf,
   type Lines,
   withNestedSettings,
   withOwnFiles,
+  withoutReadTxt,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -1467,6 +1469,33 @@ describe("buildShareModel", () => {
       ]);
     });
 
+    // The card's fold shows the read transcript's TXT, and says so when it can't be read: the lines
+    // it quotes are of that transcript, so with the TXT unreadable there are none to quote, though
+    // the steps in the read pass's JSON can still be read.
+    it("gives none for a page whose read TXT can't be read, though its read JSON can", () => {
+      const run = shareRun({
+        id: "r1",
+        pages: [
+          { path: "/split", files: TRANSCRIPTS, passes: LINES },
+          { path: "/whole", files: TRANSCRIPTS, passes: LINES },
+        ],
+      });
+      const transcripts = withoutReadTxt(storeOf(), (slug) => slug === slugOf("/split"));
+      const model = buildShareModel(inputOf([run], { transcripts }));
+
+      // The steps are there: the card still counts and draws what NVDA said, from its JSON.
+      expect(transcripts.steps("r1", slugOf("/split"), "read")).not.toBeNull();
+      expect(model.pages.map((card) => [card.path, card.heardFirst])).toEqual([
+        ["/split", []],
+        ["/whole", LINES.read.slice(0, 3)],
+      ]);
+      // And the fold says the read transcript couldn't be read, where the other page shows it.
+      expect(model.appendix.map((entry) => [entry.slug, entry.unreadable])).toEqual([
+        [slugOf("/split"), ["read"]],
+        [slugOf("/whole"), []],
+      ]);
+    });
+
     it("takes the lines as the transcript writes them, not the steps that set the pass up", () => {
       const step = (n: number, command: StepRecord["command"], spoken: string): StepRecord => ({
         n,
@@ -1479,20 +1508,21 @@ describe("buildShareModel", () => {
         id: "r1",
         pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
       });
+      const steps = [
+        step(1, "toBottom", "content info landmark, End"),
+        step(2, "toTop", "banner landmark"),
+        // On two lines; a transcript's line is one line.
+        step(3, "nextLine", 'heading, level 1,\nTerms & <conditions> "apply"'),
+        step(4, "nextLine", ""),
+        step(5, "nextLine", "  link, Back  "),
+        step(6, "nextLine", "never reached: only three are kept"),
+      ];
       const transcripts: TranscriptStore = {
-        txt: () => null,
-        steps: (_run, _slug, pass) =>
-          pass === "read"
-            ? [
-                step(1, "toBottom", "content info landmark, End"),
-                step(2, "toTop", "banner landmark"),
-                // On two lines; a transcript's line is one line.
-                step(3, "nextLine", 'heading, level 1,\nTerms & <conditions> "apply"'),
-                step(4, "nextLine", ""),
-                step(5, "nextLine", "  link, Back  "),
-                step(6, "nextLine", "never reached: only three are kept"),
-              ]
-            : null,
+        // The read transcript's TXT is there, as the transcript writes these steps: it is what the
+        // card's fold shows, and the card quotes it only when it can be read.
+        txt: (_run, slug, pass) =>
+          pass === "read" ? txtOf(slug, pass, bodyLines({ pass, steps })) : null,
+        steps: (_run, _slug, pass) => (pass === "read" ? steps : null),
       };
       const [card] = buildShareModel(inputOf([run], { transcripts })).pages;
 
@@ -1688,6 +1718,33 @@ describe("buildShareModel", () => {
     expect(model.appendix[0]?.files.map((file) => file.name)).toEqual(["read.txt", "headings.txt"]);
     expect(model.appendix[0]?.unreadable).toEqual(["tab"]);
     expect(model.check.files.map((file) => file.name)).toEqual(["read.txt", "headings.txt"]);
+  });
+
+  it("has no first lines for a page whose read.txt is gone but whose read.json is there", async () => {
+    const siteDir = await tempOutDir();
+    const run = await sealedRun(siteDir, {
+      id: "2026-09-26_1405",
+      pages: [{ path: "/" }, { path: "/about" }],
+    });
+    const [home, about] = run.pages;
+    if (home === undefined || about === undefined) throw new Error("The run has no two pages.");
+    await rm(path.join(pageDir(siteDir, run.id, about.slug), "read.txt"));
+
+    const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG });
+    const model = buildShareModel(input);
+
+    // The loader reads each file apart: /about's steps can be read, and its TXT, which its card's
+    // fold shows, can't. The card quotes nothing from a transcript its fold says it couldn't read.
+    expect(input.transcripts.steps(run.id, about.slug, "read")?.length).toBeGreaterThan(3);
+    expect(input.transcripts.txt(run.id, about.slug, "read")).toBeNull();
+    expect(model.pages.map((card) => [card.path, card.heardFirst.length])).toEqual([
+      ["/", 3],
+      ["/about", 0],
+    ]);
+    expect(model.appendix.map((entry) => [entry.slug, entry.unreadable])).toEqual([
+      [home.slug, []],
+      [about.slug, ["read"]],
+    ]);
   });
 
   // The page folds each page's transcripts in its card, and has no other place for them, so a page

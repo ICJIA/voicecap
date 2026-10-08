@@ -15,6 +15,7 @@ import {
   type PassName,
   type ReviewStatus,
   type RunJson,
+  type StepRecord,
   type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
@@ -92,7 +93,8 @@ export interface PageCard {
    * The first `HEARD` lines NVDA said as it read the page, from the read pass of the transcripts
    * shown, as the transcript writes each line: the steps of the key that pass presses, so not the
    * Ctrl+End and Ctrl+Home that set it up. Fewer when the pass has fewer, and none for a page with
-   * no transcripts or whose read transcript can't be read here.
+   * no transcripts or whose read transcript can't be read here: the TXT, which the card's fold
+   * shows, even when the pass's JSON can be read.
    */
   heardFirst: string[];
   /**
@@ -184,6 +186,11 @@ export function cardsOf(input: CardsInput): PageCard[] {
     const name = input.name(page);
     const readSteps =
       shown === null ? [] : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []);
+    // The card's fold shows the read transcript's TXT, so the lines it quotes are that file's. With
+    // the TXT unreadable here its fold says so, and there is nothing to quote beside it, though the
+    // steps of the read pass's JSON can still be read (and draw the strip).
+    const readShown =
+      shown !== null && transcripts.txt(shown.run.id, shown.page.slug, "read") !== null;
     return {
       key: page.key,
       slug: page.slug,
@@ -207,10 +214,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
         ms: step.durationMs,
         chars: normalizeSpeech(step.spoken).length,
       })),
-      heardFirst: readSteps
-        .filter((step) => step.command === MAIN_COMMAND.read)
-        .slice(0, HEARD)
-        .map((step) => stepLine(step, "read")),
+      heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
       from:
         shown !== null && shown.run !== standing.latest
@@ -228,6 +232,17 @@ export function cardsOf(input: CardsInput): PageCard[] {
         review?.changedSinceReview === true,
     };
   });
+}
+
+/**
+ * The first `HEARD` lines of a read pass, as the transcript writes each line: the steps of the key
+ * the pass presses, so not the Ctrl+End and Ctrl+Home that set it up.
+ */
+function firstLinesOf(steps: StepRecord[]): string[] {
+  return steps
+    .filter((step) => step.command === MAIN_COMMAND.read)
+    .slice(0, HEARD)
+    .map((step) => stepLine(step, "read"));
 }
 
 /** A JPEG as the address an image of the page has: its bytes in base64, as the page carries them. */

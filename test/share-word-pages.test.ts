@@ -16,6 +16,7 @@ import { APPENDIX_TEXT, PAGES_TEXT, WORD_TEXT } from "../src/share/text.js";
 import { fileFingerprint, pagesGist } from "../src/share/words.js";
 import { heading, image, list, mono, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordPages } from "../src/share/word/pages.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
@@ -25,6 +26,7 @@ import {
   picturesOf,
   storeOf,
   TRANSCRIPTS,
+  withoutReadTxt,
 } from "./helpers/share-model.js";
 import {
   boldIn,
@@ -343,6 +345,20 @@ describe("wordPages", () => {
     expect(wordsOf(home).join("\n")).not.toMatch(/&lt;|&gt;|&amp;|&quot;|&#39;/);
     // The page shows the same words, escaped.
     expect(renderPages(model)).toContain("<li>“link, &lt;b&gt; &amp; &quot;x&quot;”</li>");
+  });
+
+  it("sets a step where NVDA said nothing as the marker the transcript writes, without the quotes of NVDA's words", async () => {
+    const lines = ["banner landmark", NO_SPEECH, "link, Back"];
+    const model = withCard(await demoModel(), 0, { heardFirst: lines });
+    const home = pageAt(model, 0);
+
+    // A note that NVDA said nothing, not words it said: in curly quotes it would read as though NVDA
+    // had said them. The lines it did say keep theirs.
+    expect(home).toContainEqual(list(["“banner landmark”", "[no speech]", "“link, Back”"]));
+    expect(wordsOf(home)).not.toContain("“[no speech]”");
+    // The page sets the same three the same way.
+    const [card = ""] = renderPages(model).split('<article class="card"').slice(1);
+    expect(card).toContain("<li>“banner landmark”</li><li>[no speech]</li><li>“link, Back”</li>");
   });
 
   it("names each page by its number and its path, or its label with its path after it, and gives its title in its paragraph", () => {
@@ -938,6 +954,32 @@ describe("a page's transcripts", () => {
       "3 Tab transcript of /a",
     ]);
     expect(wordPages(gone).some((block) => block.kind === "mono")).toBe(false);
+  });
+
+  it("has no first lines beside a read transcript it says couldn't be read, though the read pass's steps can be", () => {
+    // The split: /split's read.json can be read and its read.txt can't. Its transcripts are under
+    // its heading, and say the read one couldn't be read, so no lines are quoted from it above them.
+    const model = modelOf([done("/split"), done("/whole")], {
+      transcripts: withoutReadTxt(storeOf(), (slug) => slug.startsWith("split")),
+    });
+    const split = pageAt(model, 0);
+    const whole = pageAt(model, 1);
+
+    expect(model.appendix.map(({ unreadable }) => unreadable)).toEqual([["read"], []]);
+    expect(outlineOf(split)).toEqual([
+      "2 1 /split",
+      "3 Read transcript of /split",
+      "3 Headings transcript of /split, 2 lines",
+      "3 Tab transcript of /split, 2 lines",
+    ]);
+    expect(wordsOf(under(split, "Read transcript of /split"))).toEqual([
+      "This transcript was recorded, but its file couldn't be read here, so it isn't shown.",
+    ]);
+    expect(wordsOf(split)).not.toContain("Heard first");
+    expect(split.some((block) => block.kind === "list")).toBe(false);
+    // The page whose read transcript is shown still has its first lines, in curly quotes.
+    expect(wordsOf(whole)).toContain("Heard first");
+    expect(whole).toContainEqual(list(LINES.read.slice(0, 3).map((line) => `“${line}”`)));
   });
 
   it("say a page whose record lists no transcript files has none", () => {

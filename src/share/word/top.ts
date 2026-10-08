@@ -161,12 +161,12 @@ function verdictBlock(result: ShareModel["result"]): Block {
  */
 export function wordGlance(model: ShareModel): Block[] {
   const { summary, result } = model;
-  const counted = result.pages > 0;
+  const hasPages = result.pages > 0;
   return [
     heading(1, GLANCE_TEXT.title),
-    ...(counted ? [verdictBlock(result)] : []),
+    ...(hasPages ? [verdictBlock(result)] : []),
     para(summary.sentence),
-    ...(counted ? [ringTable(model), numbersTable(model)] : []),
+    ...(hasPages ? [ringTable(model), numbersTable(model)] : []),
     para(summary.second),
     PAGE_BREAK,
   ];

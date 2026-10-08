@@ -28,6 +28,7 @@ import {
   capturedOf,
   fileFingerprint,
   fromRun,
+  heardFirstLine,
   lineCount,
   manualLine,
   originOf,
@@ -161,13 +162,14 @@ function stripOf({ strip: lines }: PageCard): string {
 
 /**
  * What NVDA said first on the page: the first lines of its read pass, word for word, each in curly
- * quotes, in a list a screen reader counts, under a label. A page with none (it was never read, or
- * its read transcript can't be read here) has none: a label with nothing under it says less than
- * nothing.
+ * quotes (but for a step where it said nothing, which is the marker the transcript writes, as it
+ * is: see `heardFirstLine`), in a list a screen reader counts, under a label. A page with none (it
+ * was never read, or its read transcript can't be read here) has none: a label with nothing under
+ * it says less than nothing.
  */
 function heardFirstOf({ heardFirst }: PageCard): string {
   if (heardFirst.length === 0) return "";
-  const said = heardFirst.map((line) => `<li>“${esc(line)}”</li>`);
+  const said = heardFirst.map((line) => `<li>${esc(heardFirstLine(line))}</li>`);
   return `<figure class="heard-first"><figcaption>${esc(PAGES_TEXT.heardFirst)}</figcaption><ol class="said-list" role="list">${said.join("")}</ol></figure>`;
 }
 

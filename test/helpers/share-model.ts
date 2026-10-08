@@ -85,6 +85,22 @@ export function storeOf(
   };
 }
 
+/**
+ * The transcripts with the read pass's TXT unreadable for each page `lost` picks by its slug (every
+ * page, by default), though its steps (the read pass's JSON) can still be read: the split of a page
+ * whose read.txt is gone or damaged while its read.json is as it was. A card's fold shows the TXT,
+ * so it says that transcript couldn't be read.
+ */
+export function withoutReadTxt(
+  store: TranscriptStore,
+  lost: (slug: string) => boolean = () => true,
+): TranscriptStore {
+  return {
+    txt: (run, slug, pass) => (pass === "read" && lost(slug) ? null : store.txt(run, slug, pass)),
+    steps: (run, slug, pass) => store.steps(run, slug, pass),
+  };
+}
+
 /** What the model is built from, for runs built in memory, with no transcripts to read. */
 export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): ShareInput {
   return {

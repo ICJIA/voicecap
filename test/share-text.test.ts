@@ -342,6 +342,15 @@ describe("the fixed text", () => {
       "pages",
       "pages",
     ]);
+    // The legend's name for a screen reader, which can't see the number in the ring's middle: the
+    // total with its unit, as the middle shows them, with thousands set apart.
+    expect([0, 1, 2, 7, 1204].map((pages) => GLANCE_TEXT.ringName(pages))).toEqual([
+      "0 pages",
+      "1 page",
+      "2 pages",
+      "7 pages",
+      "1,204 pages",
+    ]);
     // The links say their sections' own words, from wherever those are.
     expect([ATTENTION_TEXT.title, PAGES_TEXT.title, DETAILS_TEXT.link]).toEqual([
       "What needs attention",

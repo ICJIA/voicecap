@@ -64,6 +64,7 @@ import {
   generatedLine,
   generatedStamp,
   glanceNumbersOf,
+  heardFirstLine,
   heardTitle,
   howLead,
   inRun,
@@ -99,6 +100,7 @@ import {
   whereOf,
   whyLine,
 } from "../src/share/words.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -576,6 +578,18 @@ describe("a card's lines", () => {
     // A time with no words of its own says "Not recorded"; a page with no transcripts has none.
     expect(valuesOf({ timeMs: null })?.at(-1)).toBe("Not recorded");
     expect(capturedOf({ ...card, counts: null, timeMs: null })).toBeNull();
+  });
+
+  it("sets what NVDA said in curly quotes, and the marker for a step where it said nothing as it is", () => {
+    expect(heardFirstLine("link, Back")).toBe("“link, Back”");
+    expect(heardFirstLine('heading, level 1, Terms & <conditions> "apply"')).toBe(
+      '“heading, level 1, Terms & <conditions> "apply"”',
+    );
+    // The transcript writes this where NVDA said nothing: a note, not words NVDA said, so it isn't
+    // quoted as though it were. Words that only hold it are NVDA's, and are.
+    expect(heardFirstLine(NO_SPEECH)).toBe("[no speech]");
+    expect(heardFirstLine("[no speech] and more")).toBe("“[no speech] and more”");
+    expect(heardFirstLine("")).toBe("“”");
   });
 
   it("counts lines as a reader says them, in the singular for one", () => {

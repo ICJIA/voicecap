@@ -82,18 +82,25 @@ export const SUMMARY_TEXT = {
 
 /**
  * "At a glance": its heading, the three parts of the ring of the pages (each is followed by how many
- * pages are in it), what is said under the number of pages in the ring's middle, and the words
- * before the links to the page's sections ("On this page"). Those links say their sections' own
- * words (`ATTENTION_TEXT.title`, `PAGES_TEXT.title`, and `DETAILS_TEXT.link`). The verdict is worded
- * in `ATTENTION_TEXT` (`headline`, `nothing`, and `nothingOnRead`), by the one rule for it
- * (`verdictOf`, in ./verdict.ts); the sentence under it is the model's (`Summary.sentence`), and
- * its numbers are `glanceNumbersOf`'s (./words.ts).
+ * pages are in it), what is said under the number of pages in the ring's middle and, for a screen
+ * reader, as the name of the list of the parts, and the words before the links to the page's
+ * sections ("On this page"). Those links say their sections' own words (`ATTENTION_TEXT.title`,
+ * `PAGES_TEXT.title`, and `DETAILS_TEXT.link`). The verdict is worded in `ATTENTION_TEXT`
+ * (`headline`, `nothing`, and `nothingOnRead`), by the one rule for it (`verdictOf`, in
+ * ./verdict.ts); the sentence under it is the model's (`Summary.sentence`), and its numbers are
+ * `glanceNumbersOf`'s (./words.ts).
  */
 export const GLANCE_TEXT = {
   title: "At a glance",
   parts: { noProblems: "No problems", needAttention: "Need attention", notRead: "Not read" },
   /** Under the number of pages in the ring's middle: "pages", and "page" for one. */
   ringUnit: (pages: number): string => (pages === 1 ? "page" : "pages"),
+  /**
+   * The name of the list of the ring's parts, for a screen reader: the total with its unit, as the
+   * ring's middle shows them to the eye, "7 pages". A screen reader skips the ring, so it never gets
+   * that number otherwise.
+   */
+  ringName: (pages: number): string => `${count(pages)} ${GLANCE_TEXT.ringUnit(pages)}`,
   onThisPage: "On this page",
 };
 

@@ -14,6 +14,7 @@
  */
 import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
 import { plural } from "../report/html.js";
+import { NO_SPEECH } from "../transcripts/format.js";
 import { formatDuration } from "../util/time.js";
 import { attentionClauses } from "./attention.js";
 import type { Changes, OnlyInOnePage, PageChange } from "./changes.js";
@@ -97,7 +98,7 @@ export interface NumberTile {
   /** Complete is "ok", a flag or a gap "warn", a plain count "quiet": a copy says it in words too. */
   tone: "ok" | "warn" | "quiet";
   value: { count: number } | { part: number; whole: number } | { ms: number };
-  /** What follows the number: "pages in scope", "transcribed by NVDA". */
+  /** What follows the number: "pages read by NVDA", "problems to fix", "lines NVDA spoke". */
   label: string;
 }
 
@@ -244,6 +245,16 @@ export function pagesGist({ pages, header }: ShareModel): Line {
     { text: headline, bold: true },
     " For each page: its result, the person's review as far as the records show it, and what each pass captured.",
   ];
+}
+
+/**
+ * A first line of a page as its card sets it: in curly quotes, since it is what NVDA said. The
+ * transcript writes `[no speech]` for a step where NVDA said nothing (`NO_SPEECH`): that is a note,
+ * not words NVDA said, so it is set as it is, and never in quotes, which would read as though NVDA
+ * had said those words.
+ */
+export function heardFirstLine(line: string): string {
+  return line === NO_SPEECH ? line : `“${line}”`;
 }
 
 /** How long a page took, as the mockup writes it: "55.1 s", then "1 min 2 s". */

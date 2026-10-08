@@ -273,7 +273,9 @@ const CIRCUMFERENCE = decimal(2 * Math.PI * RING.radius);
  * stroke.
  *
  * The legend is what a screen reader gets, and what a reader who can't tell the colors apart does: a
- * line for every part, those with no pages too, saying its words and its count.
+ * line for every part, those with no pages too, saying its words and its count. The list is named by
+ * the total with its unit (`GLANCE_TEXT.ringName`, "7 pages"), the number the ring shows in its
+ * middle, which a screen reader doesn't get from a picture it skips.
  */
 export function ring(parts: RingPart[], total: number): string {
   let start = 0;
@@ -291,5 +293,6 @@ export function ring(parts: RingPart[], total: number): string {
     ({ label, value, kind }) =>
       `<li class="${idFragment(kind)}"><span class="sw" aria-hidden="true"></span>${esc(label)}: <b>${count(value)}</b></li>`,
   );
-  return `<div class="ring" aria-hidden="true">${picture}${middle}</div><ul class="ring-legend" role="list">${legend.join("")}</ul>`;
+  const name = esc(GLANCE_TEXT.ringName(total));
+  return `<div class="ring" aria-hidden="true">${picture}${middle}</div><ul class="ring-legend" role="list" aria-label="${name}">${legend.join("")}</ul>`;
 }

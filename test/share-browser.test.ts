@@ -1117,6 +1117,87 @@ describe("At a glance", () => {
     }
   });
 
+  /** A node of the accessibility tree Chromium gives a screen reader. */
+  type AxNode = Awaited<ReturnType<typeof axTreeOf>>[number];
+
+  /** The tree itself: every node, with what is hidden from a screen reader in it, marked `ignored`. */
+  async function axTreeOf(page: Page) {
+    const client = await page.context().newCDPSession(page);
+    try {
+      return (await client.send("Accessibility.getFullAXTree")).nodes;
+    } finally {
+      await client.detach();
+    }
+  }
+
+  /** A node's role and its name, when it has them as words. */
+  const axRole = (node: AxNode): unknown => node.role?.value;
+  const axName = (node: AxNode): string | undefined => {
+    const name: unknown = node.name?.value;
+    return typeof name === "string" ? name : undefined;
+  };
+
+  /** The words under a node, in order: the text of each node there that a screen reader gets. */
+  function axWordsUnder(nodes: AxNode[], node: AxNode): string[] {
+    const byId = new Map(nodes.map((each) => [each.nodeId, each]));
+    const walk = (each: AxNode): string[] => [
+      ...(axRole(each) === "StaticText" && !each.ignored ? [axName(each) ?? ""] : []),
+      ...(each.childIds ?? []).flatMap((id) => {
+        const child = byId.get(id);
+        return child === undefined ? [] : walk(child);
+      }),
+    ];
+    return walk(node);
+  }
+
+  it("gives a screen reader the ring's total, with its unit, as the name of the list of its parts", async () => {
+    for (const [which, total, parts] of [
+      ["demo", "7 pages", ["No problems: 5", "Need attention: 2", "Not read: 0"]],
+      ["none", "1 page", ["No problems: 1", "Need attention: 0", "Not read: 0"]],
+    ] as const) {
+      const page = await open(pages[which]);
+      const nodes = await axTreeOf(page);
+      const lists = nodes.filter(
+        (node) => !node.ignored && axRole(node) === "list" && axName(node) === total,
+      );
+
+      // The ring is a picture a screen reader skips, number and all. The list it gets says the
+      // total, as the sighted reader sees it in the ring's hole, and then each part with its count.
+      expect(lists, which).toHaveLength(1);
+      const [legend] = lists;
+      const items = nodes.filter(
+        (node) => axRole(node) === "listitem" && legend?.childIds?.includes(node.nodeId),
+      );
+      expect(
+        items.map((item) => axWordsUnder(nodes, item).join(" ")),
+        which,
+      ).toEqual(parts);
+    }
+  });
+
+  it("says 'On this page' once to a screen reader, as the navigation's name, and not again as words", async () => {
+    for (const [which, links] of [
+      ["demo", ["What needs attention", "Every page", "The details"]],
+      ["none", ["Every page", "The details"]],
+      ["replay", ["Every page", "The details"]],
+    ] as const) {
+      const page = await open(pages[which]);
+      const nodes = await axTreeOf(page);
+      const heard = nodes.filter(
+        (node) => !node.ignored && (axName(node) ?? "").includes("On this page"),
+      );
+
+      // Once: the navigation is named by it. The visible words before its links are for the eye,
+      // since a screen reader that read them too would say it twice.
+      expect(
+        heard.map((node) => [axRole(node), axName(node)]),
+        which,
+      ).toEqual([["navigation", "On this page"]]);
+      const [nav] = heard;
+      expect(nav === undefined ? [] : axWordsUnder(nodes, nav), which).toEqual(links);
+    }
+  });
+
   it("sets the ring and its legend side by side from 40em wide, and one above the other below it", async () => {
     const page = await open(pages.demo);
 
