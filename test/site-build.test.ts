@@ -41,6 +41,7 @@ import { shareReport } from "../src/share/share.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { buildSite, type BuildSiteOptions } from "../src/site/build.js";
+import { readVoicecapFacts, recordFactsOf } from "../src/site/facts.js";
 import {
   contentSecurityPolicy,
   HEADERS_FIRST_LINE,
@@ -54,12 +55,14 @@ import type * as RecordsModule from "../src/site/records.js";
 import { renderSiteIndex } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
+import { renderTrustPage } from "../src/site/trust.js";
+import type * as TrustModule from "../src/site/trust.js";
 import { UsageError } from "../src/util/errors.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, silentLogger, type MemoryLogger } from "../src/util/log.js";
 import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
-import { voicecapVersion } from "../src/util/version.js";
+import { packageRoot, voicecapVersion } from "../src/util/version.js";
 import { linkToFolder } from "./helpers/links.js";
 import {
   DEMO_SHARED_ON,
@@ -80,9 +83,10 @@ import {
   writeRecord,
 } from "./helpers/site-home.js";
 import { filesOf } from "./helpers/site-content.js";
+import { FACTS } from "./helpers/trust-facts.js";
 
 // Every call goes through as it did, and is kept, so that a test can see what was read and what was
-// removed, and can make the page's render or the records' read fail or say something else once.
+// removed, and can make a page's render or the records' read fail or say something else once.
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>();
   return {
@@ -99,6 +103,10 @@ vi.mock("../src/site/records.js", async (importOriginal) => {
 vi.mock("../src/site/render.js", async (importOriginal) => {
   const actual = await importOriginal<typeof RenderModule>();
   return { ...actual, renderSiteIndex: vi.fn(actual.renderSiteIndex) };
+});
+vi.mock("../src/site/trust.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof TrustModule>();
+  return { ...actual, renderTrustPage: vi.fn(actual.renderTrustPage) };
 });
 
 /** The folders these tests made, which are taken away after each test. */
@@ -123,6 +131,7 @@ afterEach(async () => {
   vi.mocked(rm).mockReset();
   vi.mocked(readSiteRecords).mockReset();
   vi.mocked(renderSiteIndex).mockReset();
+  vi.mocked(renderTrustPage).mockReset();
   await Promise.all(
     roots.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})),
   );
@@ -449,13 +458,15 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own four files, and the demo's own pages in demo-site/.
+    // Only those, the site's own five files (its two pages, robots.txt, _redirects, and _headers),
+    // and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
         "_headers",
         "_redirects",
         "index.html",
         "robots.txt",
+        "trust.html",
         ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
@@ -596,6 +607,7 @@ describe("buildSite", () => {
     const home = await newHome();
 
     const { out, content } = await build(home);
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
 
     // The page is what renderSiteIndex makes of the content the result gives, drawn once.
     expect(vi.mocked(renderSiteIndex)).toHaveBeenCalledTimes(1);
@@ -615,13 +627,16 @@ describe("buildSite", () => {
       scripts: [sourceOf(SITE_SCRIPT)],
       styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
     });
-    // The index at both its addresses, the demo's own pages by a rule for each address each
-    // answers at, then each published file in the order the site lists them: a page at both its
-    // addresses, with the policy of its own bytes, and a Word copy or a walkthrough file as a
-    // download.
+    // The index at both its addresses, the trust page at both its own (each with the policy of its
+    // own bytes), the demo's own pages by a rule for each address each answers at, then each
+    // published file in the order the site lists them: a page at both its addresses, with the
+    // policy of its own bytes, and a Word copy or a walkthrough file as a download.
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
+      ["/trust.html", [[CSP, trustPolicy]]],
+      ["/trust", [[CSP, trustPolicy]]],
       ...DEMO_RULES,
     ];
     for (const file of filesOf(content)) {
@@ -637,9 +652,9 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the demo's twenty-three addresses, four pages at two addresses each, and ten
-    // downloads.
-    expect(rules).toHaveLength(2 + 23 + 4 * 2 + 4 + 6);
+    // The index and the trust page at two addresses each, the demo's twenty-three addresses, four
+    // pages at two addresses each, and ten downloads.
+    expect(rules).toHaveLength(2 + 2 + 23 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -655,6 +670,140 @@ describe("buildSite", () => {
       ],
     ]);
     expect(rules.map(([rulePath]) => rulePath)).toContain(`/${EXAMPLE_FOLDER}/${EXAMPLE_STEM}`);
+  });
+
+  it("writes the trust page, with its policy at both its addresses", async () => {
+    const home = await newHome();
+
+    const { out, content } = await build(home, { voicecapFacts: FACTS });
+
+    // The page is what renderTrustPage makes of the facts it was given, the records' facts counted
+    // from the content the result gives, and that content.
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
+    const fontCss = await fontFaceCss();
+    expect(trust).toBe(
+      renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }, { fontCss }),
+    );
+    expect(trust).toContain(`voicecap ${FACTS.version}, released 9 October 2026`);
+
+    // Each of its two addresses has the policy of the page's own bytes: its one style block and its
+    // one script, by their hashes, and nothing else.
+    const policy = contentSecurityPolicy(inlineHashes(trust));
+    expect(policy).toBe(
+      contentSecurityPolicy({
+        scripts: [sourceOf(SITE_SCRIPT)],
+        styles: [sourceOf(`\n${fontCss}\n${SITE_CSS}`)],
+      }),
+    );
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(
+      rules.filter(([rulePath]) => rulePath === "/trust.html" || rulePath === "/trust"),
+    ).toEqual([
+      ["/trust.html", [[CSP, policy]]],
+      ["/trust", [[CSP, policy]]],
+    ]);
+    // They come after the index's two rules, and before the demo's.
+    expect(rules.slice(0, 4).map(([rulePath]) => rulePath)).toEqual([
+      "/",
+      "/index.html",
+      "/trust.html",
+      "/trust",
+    ]);
+
+    // The index's bar links to it, and its own bar says it's the page the reader is on.
+    expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
+      '<a href="trust.html">Can I trust this?</a>',
+    );
+    expect(trust).toContain('<a href="trust.html" aria-current="page">Can I trust this?</a>');
+  });
+
+  // Today the trust page and the index hold the same style block and the same script, so their
+  // policies are alike. Each is made from its own bytes all the same, and the page shows it: a trust
+  // page with code of its own is given the policy of that code, and the index keeps its own.
+  it("gives the trust page the policy of its own bytes, and the index the policy of its own", async () => {
+    const home = await newHome();
+    const script = 'document.documentElement.dataset.trust = "ran";';
+    const style = "body { margin: 4rem; }";
+    const page = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Trust</title><style>${style}</style></head>
+<body><p>A trust page with code of its own.</p><script>${script}</script></body></html>
+`;
+    vi.mocked(renderTrustPage).mockReturnValueOnce(page);
+
+    const { out } = await build(home, { voicecapFacts: FACTS });
+
+    expect(await readFile(path.join(out, "trust.html"), "utf8")).toBe(page);
+    const own = contentSecurityPolicy({ scripts: [sourceOf(script)], styles: [sourceOf(style)] });
+    const indexPolicy = contentSecurityPolicy({
+      scripts: [sourceOf(SITE_SCRIPT)],
+      styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
+    });
+    expect(own).not.toBe(indexPolicy);
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(rules.slice(0, 4)).toEqual([
+      ["/", [[CSP, indexPolicy]]],
+      ["/index.html", [[CSP, indexPolicy]]],
+      ["/trust.html", [[CSP, own]]],
+      ["/trust", [[CSP, own]]],
+    ]);
+  });
+
+  it("writes the same trust page for the same records and facts, whatever the day", async () => {
+    const home = await newHome();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(2020, 0, 2, 3, 4));
+      const first = await build(home, { voicecapFacts: FACTS });
+      const written = await readFile(path.join(first.out, "trust.html"));
+      const headers = await readFile(path.join(first.out, "_headers"), "utf8");
+
+      vi.setSystemTime(new Date(2031, 11, 30, 23, 59));
+      const second = await build(home, { voicecapFacts: FACTS });
+
+      expect(await readFile(path.join(second.out, "trust.html"))).toEqual(written);
+      expect(await readFile(path.join(second.out, "_headers"), "utf8")).toBe(headers);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads voicecap's own facts when none are given", async () => {
+    // The source tree holds no release facts: publish.sh writes them into dist/ once the tests have
+    // passed, so a test never reads a build's.
+    expect(existsSync(path.join(packageRoot(), "src", "release-facts.json"))).toBe(false);
+    const home = await newHome();
+
+    const { out, content } = await build(home);
+
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
+    // The version is the package's, from its package.json.
+    expect(trust).toContain(`voicecap ${voicecapVersion()}`);
+    // What a release records of itself isn't there, and the page says so in its place.
+    expect(trust).toContain("not recorded in this build of voicecap");
+    // It's the page of the facts voicecap reads of itself, and of the records it was built from.
+    expect(trust).toBe(
+      renderTrustPage(
+        { voicecap: await readVoicecapFacts(), records: recordFactsOf(content), content },
+        { fontCss: await fontFaceCss() },
+      ),
+    );
+  });
+
+  // The facts given are the facts: the package isn't read for them, so a build with fixed facts
+  // (the README's pictures) comes out the same on any computer.
+  it("never reads voicecap's own facts when it is given some", async () => {
+    const home = await newHome();
+    const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+    vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+      String(file).endsWith("CHANGELOG.md")
+        ? Promise.reject(Object.assign(new Error("EBUSY: it is held"), { code: "EBUSY" }))
+        : real.readFile(file, options)) as typeof readFile);
+
+    const { out } = await build(home, { voicecapFacts: FACTS });
+
+    expect(await readFile(path.join(out, "trust.html"), "utf8")).toContain(
+      `voicecap ${FACTS.version}`,
+    );
   });
 
   // Netlify's documentation doesn't say whether a rule for /demo-site/* matches /demo-site/ itself,
@@ -1232,6 +1381,54 @@ describe("buildSite", () => {
       expect(
         (await readFile(path.join(out, "_headers"), "utf8")).startsWith(HEADERS_FIRST_LINE),
       ).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
+    });
+
+    // A folder named trust.html would take the page's place; one named trust would be served at the
+    // page's short address, where Netlify serves the page itself. Neither is published, and the
+    // page is the site's own.
+    it("leaves out a site folder named for the trust page", async () => {
+      const home = await newHome();
+      for (const folder of ["trust.html", "trust"]) {
+        const siteDir = path.join(home, folder);
+        const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
+        await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
+        await mkdir(path.join(siteDir, "share"), { recursive: true });
+        await writeFile(path.join(siteDir, "share", `${folder}_1.html`), page);
+        await writeRecord(siteDir, [
+          sealedEntry(1, EXAMPLE_AT, [recordOf(`${folder}_1.html`, page)]),
+        ]);
+      }
+
+      const { out, content, leftOut, logger } = await build(home, { voicecapFacts: FACTS });
+
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      const lines = ["trust", "trust.html"].map(
+        (folder) =>
+          `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
+      );
+      expect(leftOut).toEqual(lines);
+      expect(warned(logger)).toEqual(lines);
+      // Neither folder's report is published: there's no trust/ folder, and trust.html is the trust
+      // page, a file (a folder of that name would have taken its place), with the page's own rules.
+      expect(existsSync(path.join(out, "trust"))).toBe(false);
+      const trust = await readFile(path.join(out, "trust.html"), "utf8");
+      expect(trust).toBe(
+        renderTrustPage(
+          { voicecap: FACTS, records: recordFactsOf(content), content },
+          { fontCss: await fontFaceCss() },
+        ),
+      );
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
+      const policy = contentSecurityPolicy(inlineHashes(trust));
+      expect(rules.filter(([rulePath]) => rulePath.startsWith("/trust"))).toEqual([
+        ["/trust.html", [[CSP, policy]]],
+        ["/trust", [[CSP, policy]]],
+      ]);
+      // The rest of the site is built as ever.
+      expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
       expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
         `${REDIRECTS_FIRST_LINE}\n`,
       );
@@ -2098,6 +2295,25 @@ describe("buildSite", () => {
 
       expect(await treeOf(first.out)).toEqual(before);
     });
+
+    // voicecap's own facts are read with the records, so a CHANGELOG that is there and can't be
+    // read (another program holds it) stops the build before its folder is touched.
+    it("keeps an earlier build when voicecap's own facts can't be read", async () => {
+      const home = await newHome();
+      const first = await build(home);
+      const before = await treeOf(first.out);
+      vi.mocked(rm).mockClear();
+      const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+      vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+        String(file).endsWith("CHANGELOG.md")
+          ? Promise.reject(Object.assign(new Error("EBUSY: it is held"), { code: "EBUSY" }))
+          : real.readFile(file, options)) as typeof readFile);
+
+      await expect(build(home)).rejects.toThrow("EBUSY: it is held");
+
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(first.out)).toEqual(before);
+    });
   });
 
   describe("netlify.toml and .nvmrc", () => {
@@ -2394,13 +2610,15 @@ describe("buildSite", () => {
         "No reports have been shared yet.",
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
-      // any report is shared; and the page's policy at its two addresses, then each of theirs.
+      // any report is shared; and each page's policy at its two addresses (the site's, then the
+      // trust page's), then each of the demo's.
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
           "_redirects",
           "index.html",
           "robots.txt",
+          "trust.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
@@ -2408,7 +2626,7 @@ describe("buildSite", () => {
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
           ([rulePath]) => rulePath,
         ),
-      ).toEqual(["/", "/index.html", ...DEMO_ADDRESSES]);
+      ).toEqual(["/", "/index.html", "/trust.html", "/trust", ...DEMO_ADDRESSES]);
       expect(logger.entries.at(-1)).toEqual({
         level: "info",
         message: `Built the site in ${out}: 0 reports from 0 sites.`,
@@ -3087,6 +3305,7 @@ describe("buildSite", () => {
           `${NAME}/${page}`,
           "index.html",
           "robots.txt",
+          "trust.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
@@ -3104,14 +3323,16 @@ describe("buildSite", () => {
         const shared = await readFile(path.join(home, folder, "share", ...rest));
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
-      // And each page has its own rules in _headers, at both its addresses, after the index's and
-      // the demo's own pages'.
+      // And each page has its own rules in _headers, at both its addresses, after the index's, the
+      // trust page's, and the demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
       expect(rules).toEqual([
         "/",
         "/index.html",
+        "/trust.html",
+        "/trust",
         ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,
@@ -3240,8 +3461,15 @@ describe("the package's entry", () => {
       Api.PublishedFile | null,
       // What `readShares` gives back, so a caller can name it.
       Api.SharesAsRead | null,
-    ] = [null, null, null, null, null, null];
+      // What the trust page says of voicecap (`BuildSiteOptions.voicecapFacts`), of each release
+      // the CHANGELOG records, of what a release recorded of itself, and what it says of the
+      // records.
+      Api.VoicecapFacts | null,
+      Api.VoicecapRelease | null,
+      Api.ReleaseFacts | null,
+      Api.RecordFacts | null,
+    ] = [null, null, null, null, null, null, null, null, null, null];
 
-    expect(types).toHaveLength(6);
+    expect(types).toHaveLength(10);
   });
 });
