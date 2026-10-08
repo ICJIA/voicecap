@@ -9,9 +9,9 @@
  * words is "A, B, and C", or "A and B" (`names`). The one exception is the law's: its compliance
  * dates are the rule's own, quoted, with a link to it. A fact that isn't there is said not to be,
  * in its place ("not recorded in this build of voicecap"), and no line gives a number it doesn't
- * have. The words "0.12.3" in the line for reports whose shares don't say what they found are a
- * part of voicecap's history, not a fact of this build: the version whose shares began to record
- * it.
+ * have. The words "since voicecap 0.11.0", on the card of what each report keeps, are a part of
+ * voicecap's history, not a fact of this build: the version whose reports began to keep a
+ * screenshot of each page, so a report shared before it has none.
  *
  * The wording is voicecap's, as on every page made for managers: voicecap is a person's review of a
  * website with a real screen reader, sped up; a person hears what NVDA says, reads it, and decides.
@@ -41,7 +41,7 @@ const NPM = "https://www.npmjs.com/package/@icjia/voicecap";
  */
 const NOT_RECORDED = "not recorded in this build of voicecap";
 
-/** What the stamp, and the line of the pages NVDA read, say of a website with no report yet. */
+/** What the stamp says of a website with no report yet, not even the demo's. */
 const NO_REPORT = "no report has been shared yet";
 
 /** A day the facts give as YYYY-MM-DD, as the page says it: "9 October 2026". */
@@ -98,16 +98,18 @@ export const TRUST_TEXT = {
       of: "of",
       /**
        * Which current reports the pages are counted in, and what needs attention in them. With no
-       * report, there are none yet; with reports whose shares don't say what they found (shares
-       * made before voicecap 0.12.3), the pages read aren't recorded; and when only some sites'
-       * current reports say it, the line says how many of the sites it counted.
+       * site's report, there are none yet, whether or not the demo's is there (the demo is no
+       * site); with reports none of whose shares says what it found, the pages read aren't
+       * recorded in them, whatever the reason (a share from before voicecap 0.12.3, or one whose
+       * runs counted no page); and when only some sites' current reports say it, the line says how
+       * many of the sites it counted.
        */
       line: ({ sites, reports, reading }: RecordFacts): string => {
         if (reports === 0) {
-          return `pages NVDA read in the current reports on this website: ${NO_REPORT}`;
+          return "pages NVDA read in the current reports on this website: no site's report has been shared yet";
         }
         if (reading === null) {
-          return "pages NVDA read in the current reports: not recorded in their shares, made before voicecap 0.12.3; share a site again to record it";
+          return "pages NVDA read in the current reports: not recorded in the shares on this website";
         }
         const counted =
           reading.sitesCounted < sites
@@ -118,8 +120,20 @@ export const TRUST_TEXT = {
       link: "See the reports",
     },
     files: {
-      /** One file is "file", and one left out is "it". */
+      /**
+       * One file is "file", and one left out is "it". With none published there is nothing to say
+       * "each" of, so the line is only what is counted, and what those left out don't match is
+       * said with them.
+       */
       line: ({ published, leftOut }: RecordFacts["files"]): string => {
+        if (published === 0) {
+          if (leftOut === 0) return "files on this website";
+          const unmatched =
+            leftOut === 1
+              ? "it doesn't match the fingerprint recorded when it was shared"
+              : "they don't match the fingerprints recorded when they were shared";
+          return `files on this website; ${count(leftOut)} left out, because ${unmatched}`;
+        }
         const files =
           published === 1
             ? "file on this website, matching the fingerprint recorded when it was shared"
@@ -178,7 +192,7 @@ export const TRUST_TEXT = {
         heading: "IITAA",
         href: "https://doit.illinois.gov/initiatives/accessibility.html",
         words: [
-          "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to every Illinois public body.",
+          "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to Illinois state agencies and universities.",
         ],
       },
       {
@@ -275,10 +289,11 @@ export const TRUST_TEXT = {
       heading: "The real screen reader",
       words: "voicecap records NVDA itself, the screen reader people use, not an imitation of one.",
     },
+    /** A report shared before voicecap 0.11.0 has no screenshots. */
     record: {
       heading: "Every word on the record",
       words:
-        "Each report keeps every transcript, word for word, with a screenshot of each page NVDA read.",
+        "Each report keeps every transcript, word for word, and, since voicecap 0.11.0, a screenshot of each page NVDA read.",
     },
     fingerprints: {
       heading: "Fingerprints anyone can check",
@@ -291,10 +306,14 @@ export const TRUST_TEXT = {
     tests: {
       heading: (tests: ReleaseFacts["tests"] | null): string =>
         tests === null ? "Its own tests" : `${count(tests.passed)} tests`,
+      /**
+       * With the release's facts, what this release's computer did: the system is that one's, not
+       * every release's.
+       */
       words: (tests: ReleaseFacts["tests"] | null): string =>
         tests === null
           ? `Every release passes them first, and CI runs them on every change. Their count is ${NOT_RECORDED}.`
-          : `Every release passes them first, on ${tests.system}, and CI runs them on every change.`,
+          : `This release passed them first, on ${tests.system}, and CI runs them on every change.`,
     },
     dated: {
       heading: "A public, dated record",

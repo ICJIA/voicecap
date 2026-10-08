@@ -26,7 +26,7 @@ import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTrustPage, type TrustInput } from "../src/site/trust.js";
 import { decode, textOf } from "./helpers/share-html.js";
-import { CONTENT, DVFR, DVFR_NEWEST } from "./helpers/site-content.js";
+import { CONTENT, DEMO_REPORT, DVFR, DVFR_NEWEST } from "./helpers/site-content.js";
 import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
 
 const NO_FONTS = { fontCss: "" };
@@ -388,7 +388,7 @@ describe("renderTrustPage", () => {
     ]);
   });
 
-  it("says no number that the facts it's given don't, but the law's own, each a count", () => {
+  it("says no number that the facts it's given don't, but the law's and one of voicecap's history, each a count", () => {
     // Facts whose numbers are none of FACTS's, so that a number typed into the page would show;
     // each count that can pass a thousand does, so that one not written as a count would show too,
     // with no comma.
@@ -447,6 +447,8 @@ describe("renderTrustPage", () => {
         "2028",
         "50,000",
         "256",
+        // voicecap's history: the version whose reports began to keep a screenshot of each page.
+        "0.11.0",
       ].sort(),
     );
     expect(page).not.toContain("5,012");
@@ -496,7 +498,7 @@ describe("renderTrustPage", () => {
       "voicecap 0.13.2, whose release date isn't recorded in this build · records as of 3 October 2026, 14:05",
     );
 
-    // No report at all.
+    // No report at all, not even the demo's. With no file, there is nothing to say "each" of.
     const empty = pageWith({ records: NO_REPORTS, content: { demo: null, sites: [] } });
     expect(stampOf(empty)).toBe(
       "voicecap 0.13.2, released 9 October 2026 · no report has been shared yet",
@@ -504,15 +506,41 @@ describe("renderTrustPage", () => {
     expect(tileOf(empty, 1)).toMatchObject({
       looks: "—",
       heard: "not recorded",
-      line: "pages NVDA read in the current reports on this website: no report has been shared yet",
+      line: "pages NVDA read in the current reports on this website: no site's report has been shared yet",
     });
-    expect(tileOf(empty, 2)).toMatchObject({
-      looks: "0",
+    expect(tileOf(empty, 2)).toMatchObject({ looks: "0", line: "files on this website" });
+  });
+
+  it("says no site's report has been shared yet when only the demo's has, and counts the demo's time and files", () => {
+    const demoOnly: SiteContent = { demo: DEMO_REPORT, sites: [] };
+    const records = recordFactsOf(demoOnly);
+    // The demo's report is no site's, so no report counts; its time and its three files do.
+    expect(records).toMatchObject({
+      sites: 0,
+      reports: 0,
+      reading: null,
+      files: { published: 3, leftOut: 0 },
+      newest: DEMO_REPORT.at,
+    });
+
+    const page = pageWith({ records, content: demoOnly });
+
+    expect(stampOf(page)).toBe(
+      "voicecap 0.13.2, released 9 October 2026 · records as of 29 September 2026, 15:40",
+    );
+    expect(tileOf(page, 1)).toEqual({
+      looks: "—",
+      heard: "not recorded",
+      line: "pages NVDA read in the current reports on this website: no site's report has been shared yet",
+      link: { href: "index.html#sites", words: "See the reports" },
+    });
+    expect(tileOf(page, 2)).toMatchObject({
+      looks: "3",
       line: "files on this website, each matching the fingerprint recorded when it was shared",
     });
   });
 
-  it("says the pages read aren't recorded when the current reports' shares are older than what records them", () => {
+  it("says the pages read aren't recorded in the shares when no current report's share records them", () => {
     // The tests' content as it is: three reports, none of whose shares records what it found.
     const records = recordFactsOf(CONTENT);
     expect(records).toMatchObject({ reports: 3, reading: null });
@@ -520,7 +548,7 @@ describe("renderTrustPage", () => {
     expect(tileOf(pageWith({ records, content: CONTENT }), 1)).toEqual({
       looks: "—",
       heard: "not recorded",
-      line: "pages NVDA read in the current reports: not recorded in their shares, made before voicecap 0.12.3; share a site again to record it",
+      line: "pages NVDA read in the current reports: not recorded in the shares on this website",
       link: { href: "index.html#sites", words: "See the reports" },
     });
   });
@@ -574,6 +602,25 @@ describe("renderTrustPage", () => {
       2,
       "file on this website, matching the fingerprint recorded when it was shared; 2 left out, because they don't",
       "This website publishes only files that still match the fingerprints recorded when they were shared: 1 today, and 2 left out.",
+    ],
+    // None published: nothing to say "each" of, so what those left out don't match goes with them.
+    [
+      0,
+      0,
+      "files on this website",
+      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today.",
+    ],
+    [
+      0,
+      1,
+      "files on this website; 1 left out, because it doesn't match the fingerprint recorded when it was shared",
+      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 1 left out.",
+    ],
+    [
+      0,
+      2,
+      "files on this website; 2 left out, because they don't match the fingerprints recorded when they were shared",
+      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 2 left out.",
     ],
   ])(
     "says how many files it publishes, and how many it leaves out: %i and %i",
@@ -664,7 +711,7 @@ describe("renderTrustPage", () => {
         tag: "Illinois law",
         heading: "IITAA",
         words: [
-          "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to every Illinois public body.",
+          "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to Illinois state agencies and universities.",
         ],
         links: [{ href: LAW[1], words: "IITAA" }],
       },
@@ -788,7 +835,7 @@ describe("renderTrustPage", () => {
       {
         heading: "Every word on the record",
         words: [
-          "Each report keeps every transcript, word for word, with a screenshot of each page NVDA read.",
+          "Each report keeps every transcript, word for word, and, since voicecap 0.11.0, a screenshot of each page NVDA read.",
         ],
         links: [],
       },
@@ -801,7 +848,7 @@ describe("renderTrustPage", () => {
       },
       {
         heading: "5,012 tests",
-        words: ["Every release passes them first, on Windows, and CI runs them on every change."],
+        words: ["This release passed them first, on Windows, and CI runs them on every change."],
         links: [],
       },
       {
