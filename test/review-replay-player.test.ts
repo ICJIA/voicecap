@@ -1,6 +1,6 @@
 import { setImmediate as nextTurn } from "node:timers/promises";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Key } from "../src/review-replay/keys.js";
 import {
@@ -15,6 +15,7 @@ import {
   type Transcripts,
 } from "../src/review-replay/player.js";
 import type { Voice } from "../src/review-replay/voice.js";
+import { EnvironmentError, errorMessage } from "../src/util/errors.js";
 import { fakeVoice, keyQueue } from "./helpers/replay.js";
 
 // The top of a page's read transcript, as D6 plays it: from Ctrl+Home's line, line 2 of read.txt.
@@ -92,15 +93,23 @@ function play(voice: Voice, keys: KeyQueue = keyQueue(), transcripts: Transcript
   return { playing, keys, shown };
 }
 
-/** A voice whose line never ends, even once it's stopped, as a Windows speech line can hang. */
-function wedgedVoice(): Voice & { stops: number } {
+/**
+ * A voice whose line never ends, even once it's stopped, as a Windows speech line can hang. `fail`
+ * fails that line later on, as when the voice's program ends.
+ */
+function wedgedVoice(): Voice & { stops: number; fail(error: Error): void } {
+  let failLine = (_error: Error): void => {};
   const voice = {
     stops: 0,
-    say: () => new Promise<void>(() => {}),
+    say: () =>
+      new Promise<void>((_resolve, reject) => {
+        failLine = reject;
+      }),
     stop: () => {
       voice.stops += 1;
     },
     close: () => Promise.resolve(),
+    fail: (error: Error) => failLine(error),
   };
   return voice;
 }
@@ -505,21 +514,75 @@ describe("playPage", () => {
   });
 
   it("leaves nothing unhandled when the line it ended on fails after", async () => {
-    let fail = (_error: Error): void => {};
-    const voice: Voice = {
-      say: () =>
-        new Promise<void>((_resolve, reject) => {
-          fail = reject;
-        }),
-      stop: () => {},
-      close: () => Promise.resolve(),
-    };
+    const voice = wedgedVoice();
     const { playing, keys } = play(voice);
     keys.push(CTRL_C);
     await expect(playing).resolves.toEqual({ outcome: "quit", rate: 180 });
     // An unhandled rejection would end voicecap, and Vitest fails the run on one.
-    fail(new Error("The computer's voice stopped."));
+    voice.fail(new Error("The computer's voice stopped."));
     await nextTurn();
+  });
+
+  // While the player waits for a stopped line, it reads no key: not even Ctrl+C, which raw mode
+  // makes a key. So a line that never ends must not hold the page, and the session, for good.
+  it("ends, and says why, when the voice doesn't end a stopped line in time", async () => {
+    const voice = wedgedVoice();
+    const keys = keyQueue();
+    const { out, shown } = screen();
+    const playing = playPage({
+      transcripts: TRANSCRIPTS,
+      rate: 180,
+      voice,
+      keys,
+      out,
+      stopLimitMs: 1,
+    });
+    keys.push(RIGHT);
+    const error = await playing.then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect(error).toBeInstanceOf(EnvironmentError);
+    expect(errorMessage(error)).toBe("The computer's voice stopped answering.");
+    expect(voice.stops).toBe(1);
+    // The key didn't act: the next line was neither shown nor said.
+    expect(shown()).not.toContain("About i2i");
+    // The line it gave up on, failing after, is handled.
+    voice.fail(new Error("The computer's voice stopped."));
+    await nextTurn();
+  });
+
+  it("gives a stopped line five seconds to end, and leaves no timer behind", async () => {
+    vi.useFakeTimers();
+    try {
+      // A line that ends once it's stopped: the wait's timer goes with it.
+      const voice = fakeVoice();
+      const ended = play(voice);
+      await voice.starting;
+      ended.keys.push(RIGHT);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken]);
+      expect(vi.getTimerCount()).toBe(0);
+      ended.keys.push(ENTER);
+      await expect(ended.playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+      expect(vi.getTimerCount()).toBe(0);
+
+      // A line that doesn't end: the page waits five seconds for it, and no longer.
+      const stuck = play(wedgedVoice());
+      stuck.keys.push(RIGHT);
+      let outcome: unknown = "still waiting";
+      stuck.playing.then(
+        () => (outcome = "resolved"),
+        (reason: unknown) => (outcome = reason),
+      );
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(outcome).toBe("still waiting");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(outcome).toBeInstanceOf(EnvironmentError);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the speed for the next page", async () => {

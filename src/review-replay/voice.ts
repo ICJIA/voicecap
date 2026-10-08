@@ -32,6 +32,13 @@ export interface Voice {
   close(): Promise<void>;
 }
 
+/**
+ * Why a replay ends when the voice was asked to stop a line and hasn't ended it within the
+ * player's limit. Windows' script answers a stop within about 40 ms, so a voice that hasn't in
+ * seconds is stuck, and the player reads no key while it waits for the line.
+ */
+export const VOICE_STOPPED_ANSWERING = "The computer's voice stopped answering.";
+
 /** What a voice needs of the program it starts. Node's ChildProcess has it. */
 export interface VoiceChild {
   stdin: Writable;
@@ -365,8 +372,11 @@ function onEveryError(child: VoiceChild, hear: (error: Error) => void): void {
   });
 }
 
-/** Whether `promise` settles within `ms` milliseconds. */
-async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+/**
+ * Whether `promise` settles within `ms` milliseconds: true once it resolves, false once `ms` pass
+ * first. A rejection within `ms` comes through as it is. Either way the timer is cleared.
+ */
+export async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   const late = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), ms);

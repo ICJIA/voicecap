@@ -8,10 +8,11 @@
  * and the person's keys, and shows each line as it becomes the one playing.
  */
 import type { PassName } from "../model.js";
+import { EnvironmentError } from "../util/errors.js";
 import type { OutputStream } from "../util/log.js";
 import type { Key, KeySource } from "./keys.js";
 import { REPLAY_TEXT } from "./text.js";
-import type { Voice } from "./voice.js";
+import { VOICE_STOPPED_ANSWERING, settlesWithin, type Voice } from "./voice.js";
 
 /** A line of a transcript, as the player shows it and the voice says it. */
 export interface PlayLine {
@@ -30,6 +31,12 @@ export type Transcripts = Partial<Record<PassName, PlayLine[]>>;
 
 /** The voice's speed, in words a minute (D4): 180 to start, from 60 to 540, 20 for each + or −. */
 export const RATE = { start: 180, min: 60, max: 540, step: 20 } as const;
+
+/**
+ * How long a line the voice was asked to stop may take to end, before the voice counts as stuck.
+ * Windows' script answers a stop within about 40 ms.
+ */
+const STOP_LIMIT_MS = 5_000;
 
 /** What a key asks the player to do. */
 export type PlayerKey =
@@ -175,7 +182,7 @@ export function playerKeyOf(key: Key): PlayerKey | null {
  * name as it starts playing, "Paused." as the person pauses, and each notice. A key that leaves
  * the line where it was (Space to go on, + or −) has it said again, from its start, without
  * showing it again. Keys pressed while a line is said wait their turn, as sayLine says. A voice
- * that stops working rejects it.
+ * that stops working, or stops answering, rejects it.
  */
 export async function playPage(options: {
   transcripts: Transcripts;
@@ -184,8 +191,10 @@ export async function playPage(options: {
   voice: Voice;
   keys: KeySource;
   out: OutputStream;
+  /** How long a stopped line may take to end: STOP_LIMIT_MS, unless a test says otherwise. */
+  stopLimitMs?: number;
 }): Promise<{ outcome: "decide" | "quit"; rate: number }> {
-  const { voice, keys, out } = options;
+  const { voice, keys, out, stopLimitMs = STOP_LIMIT_MS } = options;
   const show = (text: string): void => {
     out.write(`${text}\n`);
   };
@@ -210,7 +219,7 @@ export async function playPage(options: {
     let heard: PlayerKey | "spoken";
     if (state.paused) heard = await nextKey(keys);
     else if (spoken === "") heard = "spoken";
-    else heard = await sayLine(voice, keys, spoken, state.rate);
+    else heard = await sayLine(voice, keys, spoken, state.rate, stopLimitMs);
 
     if (heard === "spoken") {
       state = onLineSpoken(state);
@@ -240,12 +249,17 @@ export async function playPage(options: {
  * key acts once the line's say() has resolved, since the voice says one line at a time. Ctrl+C,
  * and the keys' end, don't wait for that: a Windows speech line has no time limit, and the session
  * closes the voice after, which ends a line still waiting.
+ *
+ * No key is read while the player waits for a stopped line, Ctrl+C included, so it waits at most
+ * `stopLimitMs`. A line that hasn't ended by then means the voice is stuck: it rejects with
+ * VOICE_STOPPED_ANSWERING, and the key doesn't act.
  */
 async function sayLine(
   voice: Voice,
   keys: KeySource,
   spoken: string,
   rate: number,
+  stopLimitMs: number,
 ): Promise<PlayerKey | "spoken"> {
   const saying = voice.say(spoken, rate);
   for (;;) {
@@ -259,7 +273,10 @@ async function sayLine(
     const asked = key === null ? "quit" : playerKeyOf(key);
     if (asked === null) continue;
     voice.stop();
-    if (asked !== "quit") await saying;
+    if (asked === "quit") return asked;
+    if (!(await settlesWithin(saying, stopLimitMs))) {
+      throw new EnvironmentError(VOICE_STOPPED_ANSWERING);
+    }
     return asked;
   }
 }
