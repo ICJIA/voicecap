@@ -1069,6 +1069,13 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.13.0</b>: the page for managers: At a glance, with a verdict and a ring of the pages; each page's first lines and full transcript in its card; and the details last.",
   },
   {
+    date: "2026-10-08",
+    release: "0.14.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.14.0</b>: the review replay: <code>voicecap review --replay</code> reads each page's saved transcript aloud at a normal speed, line by line, with keys to jump to a flagged line and to the other transcripts, and records each decision.",
+  },
+  {
     date: null,
     release: null,
     pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",

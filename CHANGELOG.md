@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-08
+
 ### Added
 
 - **`voicecap review --replay`: hear pages again, at a speed a person can follow, and decide as you go.** NVDA speaks far too fast during a run to follow, which is why voicecap saves every word it says as transcripts. This is a review session that reads each page's saved transcript aloud, line by line, in the computer's own voice (Windows' built-in voice, through System.Speech, or `say` on a Mac), at a normal speed, and then asks what the person decided. These are the saved words, not NVDA reading the page again, so it needs no NVDA, browser, or network. It's still the person's review: voicecap plays what NVDA said, and the person hears it, reads it, and decides. The README's "Reviews: the audit trail" describes it.
@@ -542,7 +544,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/ICJIA/voicecap/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/ICJIA/voicecap/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ICJIA/voicecap/compare/v0.12.3...v0.13.0
