@@ -353,7 +353,8 @@ describe("the facts the trust page's picture states", () => {
     expect(parseChangelog(later)).toHaveLength(parseChangelog(changelog).length + 3);
     expect(exampleFacts(own, workflow)).toEqual(exampleFacts(changelog, workflow));
     expect(exampleFacts(later, workflow)).toEqual(exampleFacts(changelog, workflow));
-    expect(EXAMPLE_FACTS.releases).toHaveLength(parseChangelog(changelog).length + 1);
+    // Fixed at 21: the example and the 20 real releases to 0.13.1, so no release can change it (R-T9).
+    expect(EXAMPLE_FACTS.releases).toHaveLength(21);
   });
 
   it("stop, naming the release, when the CHANGELOG has no entry for 0.13.1", async () => {

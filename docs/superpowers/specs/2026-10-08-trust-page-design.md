@@ -52,11 +52,11 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
    - Each report checks its own fingerprints in your browser ("Check the fingerprints").
    - The website publishes only files that match their recorded fingerprints.
    - Each report's walkthrough file repeats its run.
-   - Each part links to where it's shown or described.
+   - Four of these five points link to where they're shown or described (not the one on the files the website publishes).
 7. **How it's tested.**
    - **Before each release:** every test (the number), the lint, the type checks, and a check that the package installs and runs.
    - **CI, on every change:** the same on every combination in its matrix (the systems and Node versions), plus a run of the CLI with its replay driver.
-   - **Every page voicecap writes is checked with axe** in a real browser, in both themes and at a phone's width.
+   - **The shareable page (the report you open from this website) and this website itself are checked with axe** in a real browser, in both themes and at a phone's width.
    - **A run with real NVDA** happens at a PC before a release that changes how NVDA is driven.
 8. **What it doesn't do.** The honest limits:
    - It doesn't decide what's accessible: a person does.

@@ -777,8 +777,12 @@ describe("renderTrustPage", () => {
           "On every change: the same tests on Ubuntu, macOS, and Windows, with Node 22 and 24: 6 combinations, and a run of the command line with its replay driver.",
       },
       {
+        // Only the pages whose tests run axe in both themes and at a phone's width: the shareable
+        // page (test/share-browser.test.ts) and this website's two pages
+        // (test/site-page-browser.test.ts). A run's own report and the demo site's pages aren't
+        // checked that way, so they aren't named.
         words:
-          "Every page voicecap writes is checked with axe, an accessibility testing engine, in a real browser, in both themes and at a phone's width.",
+          "The shareable page (the report you open from this website) and this website itself are checked with axe, an accessibility testing engine, in a real browser, in both themes and at a phone's width.",
       },
       {
         words:
