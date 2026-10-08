@@ -30,7 +30,7 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 
 **The stamp,** under the page's heading, says where the numbers come from: "voicecap 0.13.2, released 9 October 2026 · records as of 8 October 2026, 07:03". The second date is the newest share's. The page is a pure function of the package and the records, so building the same records twice writes the same bytes, as the website's own page does.
 
-**When a fact isn't there,** the page says so in its place, and never makes one up. A build of voicecap that wasn't released (a developer's, or CI's) has no test count, and says "not recorded in this build of voicecap". A website with no reports says that no report has been shared yet.
+**When a fact isn't there,** the page says so in its place, and never makes one up. A build of voicecap that wasn't released (a developer's, or CI's) has no test count, and says "not recorded in this build of voicecap". A website with no report at all says in the stamp that no report has been shared yet. One with no site's report (the demo's is an example, not a site's) says in the pages tile that "no site's report has been shared yet", and one whose sites' current reports recorded no result says "pages NVDA read in the current reports: not recorded in the shares on this website".
 
 ## The page, top to bottom
 
@@ -38,13 +38,13 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 2. **"Built to be checked. See for yourself."** The lead: every claim on this page can be checked without taking anyone's word for it, the builder's included. The stamp. Then four big numbers, each with a line that says what it counts and a link to where it's shown:
    - the tests that passed for this release;
    - the pages NVDA read in the current reports on this website;
-   - the files on this website, every one matching its fingerprint;
+   - the files on this website, every one matching its fingerprint (with none published, its line is only "files on this website");
    - the releases, and the public changes (commits), since the first commit's date.
 3. **What it does.** One job: hear a website the way a screen reader user hears it. Real NVDA reads every page three ways (line by line, heading by heading, and control by control), voicecap saves every word, and a person reviews what it said. It's a human review, sped up.
 4. **Real NVDA, not a simulation.** voicecap drives NVDA, the free screen reader most blind Windows users use, and records exactly what it says. Every transcript is NVDA's own words.
 5. **The law: "Title II. IITAA. WCAG."** The lead: "Government information must work for everyone. Two laws say so; one rulebook defines 'works.'" Then three cards, worded as the audit tool's page words them (the owner confirms the wording when reviewing this spec), each heading linked to its source:
    - **Title II of the ADA** (federal law, [ada.gov's page on the rule](https://www.ada.gov/resources/2024-03-08-web-rule/)): "The Department of Justice rule for state and local government. It names WCAG 2.1 Level AA as the standard, and its compliance dates are April 26, 2027 for entities serving 50,000 people or more and April 26, 2028 for smaller ones and special districts."
-   - **IITAA** (Illinois law, [DoIT's accessibility page](https://doit.illinois.gov/initiatives/accessibility.html)): "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to every Illinois public body."
+   - **IITAA** (Illinois law, [DoIT's accessibility page](https://doit.illinois.gov/initiatives/accessibility.html)): "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to Illinois state agencies and universities."
    - **WCAG** (the rulebook, [W3C's WCAG page](https://www.w3.org/WAI/standards-guidelines/wcag/)): "The Web Content Accessibility Guidelines, the international rulebook both laws point to." For voicecap: what NVDA says is how a screen reader user meets a page, so its transcripts show, word for word, how a page's images, headings, links, and controls come across against that rulebook; the person reviewing decides.
 6. **The evidence can be checked.**
    - Every transcript and screenshot has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.
@@ -66,9 +66,9 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 9. **"One person built this."** Built by Christopher Schweda at ICJIA. The objection answered in six cards:
    - the code is public, on GitHub, free (MIT);
    - it uses the real screen reader;
-   - every word is on the record;
+   - every word is on the record: each report keeps every transcript "and, since voicecap 0.11.0, a screenshot of each page NVDA read" (a report shared before 0.11.0 has none);
    - anyone can check the fingerprints;
-   - the tests (the number);
+   - the tests (the number): "This release passed them first, on <system>, and CI runs them on every change.";
    - a public, dated record of every change (the releases and commits).
 10. **How it got here.** Every release, newest first, with its date and its first line, from the CHANGELOG: the newest five shown, the rest in a fold.
 11. **The footer:** the website's, with links to GitHub, the CHANGELOG, and the npm package, and the version.
