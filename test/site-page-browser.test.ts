@@ -44,6 +44,8 @@ function longContent(): SiteContent {
       {
         name: folder,
         folders: [folder],
+        // The link to the site, beside its long name.
+        address: `https://${folder}/`,
         reports: [
           {
             folder,
@@ -95,7 +97,7 @@ function verdictContent(): SiteContent {
         notPublished: [],
         result,
       };
-      return { name: folder, folders: [folder], reports: [report] };
+      return { name: folder, folders: [folder], reports: [report], address: `https://${folder}/` };
     }),
   };
 }
@@ -407,7 +409,7 @@ describe("the site's page", () => {
         .filter((name): name is string => typeof name === "string")
         .filter((name) => /needs? attention/.test(name));
       expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
-      expect(texts).toContain("Nothing needs attention: NVDA read all 9 pages.");
+      expect(texts).toContain("Nothing needs attention");
     } finally {
       await client.detach();
     }
@@ -516,11 +518,12 @@ describe("the site's page", () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
-    // The skip link, the bar's three links and its button, the link to the demo's pages, the
-    // current reports' links (the demo's two, the first site's two, and the second site's one: its
-    // Word copy is missing), the earlier report's one (its Word copy changed), the three folds'
-    // summaries, each report's page by date, and the footer's link.
-    const closed = 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
+    // The skip link, the bar's three links and its button, the link to the demo's pages, the link
+    // to the first site itself (the second has no address people visit), the current reports'
+    // links (the demo's two, the first site's two, and the second site's one: its Word copy is
+    // missing), the earlier report's one (its Word copy changed), the three folds' summaries, each
+    // report's page by date, and the footer's link.
+    const closed = 1 + 3 + 1 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -539,7 +542,7 @@ describe("the site's page", () => {
       await page.locator(`nav a[href="#${view}"]`).click();
 
       const result = await page.evaluate((id) => {
-        const heading = document.querySelector(`#${id} > h2`);
+        const heading = document.querySelector(`#${id} > .view-head > h2`);
         const bar = document.querySelector(".bar");
         if (heading === null || bar === null) return "the view or the bar isn't there";
         const box = heading.getBoundingClientRect();
@@ -695,7 +698,7 @@ describe("the site's page", () => {
     // The second page does have the sites, each with its heading.
     const many = await open(files.many);
     expect(await many.locator("section.site").count()).toBe(14);
-    expect(await many.locator("section.site > h3").count()).toBe(14);
+    expect(await many.locator("section.site > .site-head > h3").count()).toBe(14);
   });
 });
 

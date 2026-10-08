@@ -4,6 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The website's headings say more at a glance, and each site links to the site itself.** The README's "The website: `voicecap site`" describes it, and its two pictures of the website are drawn again.
+  - **Each site's name has "Visit the site" beside it:** a link to the site, at the address that names it, its canonical address from its newest share, such as `https://sfs.icjia.illinois.gov/`. A screen reader hears the site's name after the link's words ("Visit the site at sfs.icjia.illinois.gov"), so no two sites' links sound alike. A site headed by its folder's name has no such link. The page links a site only to the root of a web site, as a share records one: never to an address on someone's computer, or one with a name and password, a query, or a hash in it.
+  - **Each heading has a picture before it,** which a screen reader skips: a globe for "The sites", a browser window for each site, a calendar for "Every report, by date", and a play button for "The demo". Beside "The sites" and "Every report, by date" is how many they hold ("2 sites", "6 reports"), and beside a site's "Earlier reports", how many there are, for the eye: their list says it to a screen reader.
+  - **The verdict on a site's card is a pill, and how many pages NVDA read is a bar.** The card said both in one line (`Nothing needs attention: NVDA read all 9 pages.`). Now the verdict's headline is a pill tinted in its color, after its sign (`Nothing needs attention`). Under it is a bar in the same color, as long as the share of the pages NVDA read, with the words beside it (`NVDA read all 9 pages.`). The sign and the bar only repeat the words, so a screen reader hears the words alone.
+  - **`buildSite`'s `SiteContent` gives each site its `address`,** the root its heading links to, absent for a site its folder names.
+  - **Only the website's own page changes,** so no report needs to be shared again: the website's next build shows it.
+
 ## [0.13.0] - 2026-10-08
 
 ### Changed

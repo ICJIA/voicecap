@@ -2728,9 +2728,10 @@ describe("buildSite", () => {
       for (const report of content.sites[1]?.reports ?? []) {
         expect(report, report.id).not.toHaveProperty("result");
       }
-      // The page says the current report's, on its card.
+      // The page says the current report's, on its card: the verdict's headline, then the pages read.
       const index = await readFile(path.join(out, "index.html"), "utf8");
-      expect(index).toContain("Nothing needs attention: NVDA read all 9 pages.");
+      expect(index).toContain('<p class="verdict ok">Nothing needs attention</p>');
+      expect(index).toContain("<p>NVDA read all 9 pages.</p>");
       expect(index).not.toContain("1 problem needs attention");
     });
 
@@ -2767,11 +2768,13 @@ describe("buildSite", () => {
       return { ...result, index: await readFile(path.join(result.out, "index.html"), "utf8") };
     }
 
-    /** The page's sites, in order: each section's id, then its heading. */
+    /** The page's sites, in order: each section's id, then its heading, after the site's picture. */
     function sitesOn(index: string): [id: string, heading: string][] {
-      return [...index.matchAll(/<section class="site" id="([^"]*)">\n<h3>([^<]*)<\/h3>/g)].map(
-        ([, id = "", heading = ""]): [string, string] => [id, heading],
-      );
+      return [
+        ...index.matchAll(
+          /<section class="site" id="([^"]*)">\n<div class="site-head"><svg\b[\s\S]*?<\/svg><h3>([^<]*)<\/h3>/g,
+        ),
+      ].map(([, id = "", heading = ""]): [string, string] => [id, heading]);
     }
 
     /**
@@ -2833,6 +2836,57 @@ describe("buildSite", () => {
       expect(index).not.toContain(` of ${COPY_FOLDER}, `);
       // One site has no list by date, which would be its own list again.
       expect(listedByDate(index)).toEqual([]);
+    });
+
+    // 0.13.1. A site's heading links to the site itself: the root that names it.
+    it("gives a site the root that names it, to link its heading to, and a site its folder heads none", async () => {
+      const home = await homeWithSites({
+        // Shared once before the site's address was known, and again after.
+        [COPY_FOLDER]: [
+          { at: JAN_15, site: READ },
+          { at: JAN_16, site: ROOT },
+        ],
+        // Its newest share is of a copy on this computer: an older share's root names nothing.
+        "a-local.example.gov": [
+          { at: JAN_15, site: "https://alpha.illinois.gov/" },
+          { at: JAN_16, site: "http://localhost:3000/" },
+        ],
+        // Shared before 0.10.0, which recorded no site.
+        "example.illinois.gov": [JAN_15],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, address }) => ({ name, address }))).toEqual([
+        { name: "a-local.example.gov", address: undefined },
+        { name: NAME, address: ROOT },
+        { name: "example.illinois.gov", address: undefined },
+      ]);
+      expect(index.match(/<a class="visit" href="([^"]*)">/g)).toEqual([
+        `<a class="visit" href="${ROOT}">`,
+      ]);
+      expect(index).not.toContain("alpha.illinois.gov");
+    });
+
+    it("gives a site of two folders the root its newest share records", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_16, site: ROOT }],
+        localhost_3000: [{ at: JAN_15, site: "https://dvfr.illinois.gov/old/" }],
+      });
+
+      const { content } = await built(home);
+
+      expect(
+        content.sites.map(({ name, folders, address }) => ({ name, folders, address })),
+      ).toEqual([{ name: NAME, folders: [COPY_FOLDER, "localhost_3000"], address: ROOT }]);
+      // And the other way round: the newer share is the second folder's.
+      const turned = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_15, site: ROOT }],
+        localhost_3000: [{ at: JAN_16, site: "https://dvfr.illinois.gov/old/" }],
+      });
+      expect((await built(turned)).content.sites.map(({ address }) => address)).toEqual([
+        "https://dvfr.illinois.gov/old/",
+      ]);
     });
 
     it("heads a site by its folder when its newest share names no site readers know it by, though an older share did", async () => {

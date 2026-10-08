@@ -12,20 +12,26 @@
  * file's fingerprint and a walkthrough file; the footer; and last, the script. What the model or a
  * record supplies goes through `esc`, and so does the fixed text (./text.ts), which is plain words.
  *
- * A site leads with what a reader came for: its current report, with links to open its page and to
- * download its Word copy. Its earlier reports are a line each under it, and every report's files,
- * with their sizes and fingerprints, are in a fold, closed, for whoever checks a copy.
+ * A site leads with what a reader came for: its name, with a link to the site itself, then its
+ * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
+ * page and to download its Word copy. Its earlier reports are a line each under it, and every
+ * report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks a
+ * copy. Each view's heading and each site's name has a picture before it, and the views of the
+ * sites and of every report by date say beside their headings how many they hold (from 0.13.1).
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
  * focus, and complete without JavaScript.
  */
 import type { ShareResult } from "../model.js";
+import { recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
 import { sizeWords } from "../share/format.js";
+import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
 import { SITE_SCRIPT } from "./client.js";
+import { SITE_ICONS } from "./icons.js";
 import { SITE_CSS } from "./style.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 
@@ -68,9 +74,10 @@ export interface SiteContent {
   /**
    * By name. A site's name is the canonical name its newest share records (see the build in
    * ./build.ts), or else its folder's name; the site folders that have one name are one site, with
-   * `folders` their names, and `reports` those of all of them, the newest first.
+   * `folders` their names, and `reports` those of all of them, the newest first. `address` is where
+   * people visit it (from 0.13.1): the root that gives it its name. None for a site its folder names.
    */
-  sites: { name: string; folders: string[]; reports: PublishedReport[] }[];
+  sites: { name: string; folders: string[]; reports: PublishedReport[]; address?: string }[];
 }
 
 /**
@@ -110,12 +117,16 @@ function sentenceHtml(sentence: Sentence): string {
 
 /**
  * One of the three views: a section named by its heading, an h2, which makes it a region, one of
- * the page's landmarks. `inside` is HTML, already escaped.
+ * the page's landmarks. The heading has its picture before it (`icon`, which a screen reader skips),
+ * and, beside it, how many the view holds, in words (`count`), when it says. The count isn't in the
+ * heading, which keeps its own words: a screen reader reads it after. `inside` is HTML, already
+ * escaped.
  */
-function view(id: string, title: string, inside: string[]): string {
+function view(id: string, title: string, icon: string, inside: string[], count?: string): string {
+  const beside = count === undefined ? "" : `<span class="count">${esc(count)}</span>`;
   return [
     `<section class="view" id="${esc(id)}" aria-labelledby="${esc(headingId(id))}">`,
-    `<h2 id="${esc(headingId(id))}">${esc(title)}</h2>`,
+    `<div class="view-head">${icon}<h2 id="${esc(headingId(id))}">${esc(title)}</h2>${beside}</div>`,
     ...inside,
     "</section>",
   ].join("\n");
@@ -150,16 +161,22 @@ function timeOf(at: string): string {
 }
 
 /**
- * What a report's copies say of the site, as a line of its card, in words. Its kind is its class:
- * `ok` when nothing needs attention, `warn` when something does, and `bad` when NVDA didn't read
- * every page. The page's style draws a sign before it that only repeats the words (✓, ⚠, and ⚠ in
- * red), as decoration a screen reader doesn't read (see ./style.ts). Nothing for a report that
- * records no result (one shared before 0.12.3), or one of no page.
+ * What a report's copies say of the site, as two lines of its card. The first is the verdict's
+ * headline, as a pill. Its kind is its class: `ok` when nothing needs attention, `warn` when
+ * something does, and `bad` when NVDA didn't read every page. The page's style draws a sign before
+ * it that only repeats the words (✓, ⚠, and ⚠ in red), as decoration a screen reader doesn't read
+ * (see ./style.ts). The second is how many pages NVDA read: a bar as long as their share of the
+ * pages, in the verdict's color, which a screen reader skips (the shareable page's `track`), with
+ * the words beside it. Nothing for a report that records no result (one shared before 0.12.3), or
+ * one of no page.
  */
 function verdict(result: ShareResult | undefined): string[] {
   if (result === undefined || result.pages === 0) return [];
-  const { kind } = verdictOf(result);
-  return [`<p class="verdict ${kind}">${esc(SITE_TEXT.verdict(result))}</p>`];
+  const { kind, headline } = verdictOf(result);
+  return [
+    `<p class="verdict ${kind}">${esc(headline)}</p>`,
+    `<div class="reading">${track(result.read, result.pages, kind)}<p>${esc(SITE_TEXT.reading(result))}</p></div>`,
+  ];
 }
 
 /** A report's page, or its Word copy, when it's published. */
@@ -212,7 +229,9 @@ function currentReport(shared: PublishedReport, level: 3 | 4, name: string): str
  * A site's reports before its current one, under a heading of their own, a line each: when it was
  * shared, who prepared it, and its links, to its page and to its Word copy, as the current report's
  * are. A page that isn't published is said so in its link's place, and a Word copy that isn't is
- * left out: the fold says why. Nothing, when there are none.
+ * left out: the fold says why. Beside the heading is how many there are, for the eye alone: their
+ * list says it to a screen reader, and a bare number after the heading would say nothing more.
+ * Nothing, when there are none.
  */
 function earlierReports(reports: readonly PublishedReport[], name: string): string[] {
   if (reports.length === 0) return [];
@@ -231,7 +250,7 @@ function earlierReports(reports: readonly PublishedReport[], name: string): stri
     return `<li id="${esc(shared.id)}">${timeOf(shared.at)}, ${esc(SITE_TEXT.listedBy(shared.by))}: ${links.join(` ${SEPARATOR} `)}</li>`;
   };
   return [
-    `<h4>${esc(SITE_TEXT.earlier)}</h4>`,
+    `<div class="sub-head"><h4>${esc(SITE_TEXT.earlier)}</h4><span class="count" aria-hidden="true">${reports.length}</span></div>`,
     `<ul class="earlier"${IS_A_LIST}>`,
     ...reports.map(item),
     "</ul>",
@@ -282,7 +301,7 @@ function filesFold(reports: readonly PublishedReport[]): string {
  */
 function demoView(demo: PublishedReport): string {
   const { title, lead } = SITE_TEXT.views.demo;
-  return view("demo", title, [
+  return view("demo", title, SITE_ICONS.demo, [
     `<p>${sentenceHtml(lead)}</p>`,
     currentReport(demo, 3, SITE_TEXT.demoName),
     filesFold([demo]),
@@ -301,18 +320,32 @@ function uniqueId(id: string, taken: Set<string>): string {
 }
 
 /**
- * One site: its name; the first of its reports as they were given, which is its current report; the
- * others, its earlier reports, a line each; and the fold of every report's files. Its reports may
- * be in more than one folder. The build gives a site's newest reports only, the newest first (see
- * KEPT_PER_SITE in ./build.ts): here, every report given is shown. Its section has no name. A named
- * section is a region, one more landmark, and with many sites that is a long list of them; the
- * site's heading, an h3, already leads to it. `id` is the section's.
+ * The link to a site itself, beside its name: its words, then the site's name, which only a screen
+ * reader hears, and an arrow, which it doesn't. Only to the root of a site people visit, as a share
+ * records one (see recordedCanonical): never an address on someone's computer, one with a name and
+ * password in it, or anything that isn't a web address. It opens where the page is, as the page's
+ * other links do, and the site's Referrer-Policy (see ./netlify.ts) keeps the page's own address
+ * from the site. Nothing, for a site with no such address.
  */
-function site({ name, reports }: SiteContent["sites"][number], id: string): string {
+function visit(name: string, address: string | undefined): string {
+  if (address === undefined || recordedCanonical(address) !== address) return "";
+  return `<a class="visit" href="${esc(address)}">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
+}
+
+/**
+ * One site: its name, after its picture, with the link to the site itself beside it when there's an
+ * address people visit; the first of its reports as they were given, which is its current report;
+ * the others, its earlier reports, a line each; and the fold of every report's files. Its reports
+ * may be in more than one folder. The build gives a site's newest reports only, the newest first
+ * (see KEPT_PER_SITE in ./build.ts): here, every report given is shown. Its section has no name. A
+ * named section is a region, one more landmark, and with many sites that is a long list of them;
+ * the site's heading, an h3, already leads to it. `id` is the section's.
+ */
+function site({ name, reports, address }: SiteContent["sites"][number], id: string): string {
   const [current, ...earlier] = reports;
   return [
     `<section class="site" id="${esc(id)}">`,
-    `<h3>${esc(name)}</h3>`,
+    `<div class="site-head">${SITE_ICONS.site}<h3>${esc(name)}</h3>${visit(name, address)}</div>`,
     ...(current === undefined ? [] : [currentReport(current, 4, name)]),
     ...earlierReports(earlier, name),
     ...(reports.length === 0 ? [] : [filesFold(reports)]),
@@ -329,14 +362,19 @@ function site({ name, reports }: SiteContent["sites"][number], id: string): stri
 function sitesView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.sites;
   const taken = new Set<string>();
-  const inside =
-    sites.length === 0
-      ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
-      : [
-          `<p>${esc(lead)}</p>`,
-          ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
-        ];
-  return view("sites", title, inside);
+  if (sites.length === 0) {
+    return view("sites", title, SITE_ICONS.sites, [`<p>${esc(SITE_TEXT.noReports)}</p>`]);
+  }
+  return view(
+    "sites",
+    title,
+    SITE_ICONS.sites,
+    [
+      `<p>${esc(lead)}</p>`,
+      ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
+    ],
+    SITE_TEXT.siteCount(sites.length),
+  );
 }
 
 /**
@@ -367,12 +405,13 @@ function byDateView(sites: SiteContent["sites"]): string {
         : `<a href="${esc(page.href)}">${esc(page.name)}</a>`;
     return `<li>${timeOf(each.at)}, ${esc(name)}, ${esc(SITE_TEXT.listedBy(each.by))}: ${where}</li>`;
   };
-  return view("by-date", title, [
-    `<p>${esc(lead)}</p>`,
-    `<ol class="dates"${IS_A_LIST}>`,
-    ...reports.map(item),
-    "</ol>",
-  ]);
+  return view(
+    "by-date",
+    title,
+    SITE_ICONS.byDate,
+    [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"],
+    SITE_TEXT.reportCount(reports.length),
+  );
 }
 
 /** The bar: a link to each view that's there, and the theme button, hidden until the script shows it. */
