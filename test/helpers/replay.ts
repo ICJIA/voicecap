@@ -258,6 +258,26 @@ export async function untilSaying(
 }
 
 /**
+ * Has `voice` (a fakeVoice that isn't `auto`) say each line it's given to its end, until `done`
+ * settles: as a person who presses nothing more hears them all.
+ */
+export async function sayingEach(
+  voice: ReturnType<typeof fakeVoice>,
+  done: Promise<unknown>,
+): Promise<void> {
+  const over = done.then(
+    () => "over" as const,
+    () => "over" as const,
+  );
+  for (;;) {
+    const next = await Promise.race([voice.starting.then(() => "line" as const), over]);
+    if (next === "over") return;
+    // A key may have stopped it meanwhile.
+    if (voice.speaking) voice.finish();
+  }
+}
+
+/**
  * What a person does when a replay session asks them something: the keys they press there, in
  * order, or a function that does it, for a test that does something else at that moment too. A
  * note's keys go with its choice: "2", "B", "a", "d", Enter is one answer.
@@ -267,10 +287,12 @@ export type Answer = readonly (Key | string)[] | (() => void);
 /**
  * The screen a replay session writes to, kept as the terminal would show it (`text()`), with a
  * person at `keys` who answers each time the session asks: each time it shows REPLAY_TEXT.question,
- * or the two lines about the person's own NVDA, the next of `answers` is given. So no answer is
- * pressed while a page plays, where the player would take it as a key. Once the answers have run
- * out, the next time it asks ends the keys, as a person walking away would, so a session that asks
- * more than a test answers ends rather than waits.
+ * or the two lines about the person's own NVDA, the next of `answers` is given. Keys are pressed on
+ * the turn after the session asks, once a voice that says each line at once has said the question
+ * (Ruling R10), so they answer it rather than stop it; a function is called at once, for a test
+ * that presses keys at another moment. So no answer is pressed while a page plays, where the player
+ * would take it as a key. Once the answers have run out, the next time it asks ends the keys, as a
+ * person walking away would, so a session that asks more than a test answers ends rather than waits.
  */
 export function answering(
   keys: { push(...keys: (Key | string)[]): void; end(): void },
@@ -289,7 +311,7 @@ export function answering(
         answered += 1;
         if (answer === undefined) keys.end();
         else if (typeof answer === "function") answer();
-        else keys.push(...answer);
+        else setImmediate(() => keys.push(...answer));
       }
       return true;
     },

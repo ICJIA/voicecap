@@ -5,7 +5,9 @@
  *
  * It's in two parts. The state machine (startState, onKey, onLineSpoken) is pure: it says which
  * line is playing, and what to tell the person, and nothing else. playPage drives it with a voice
- * and the person's keys, and shows each line as it becomes the one playing.
+ * and the person's keys, shows each line as it becomes the one playing, and says the page's own
+ * lines too (Ruling R10). sayLine says one line, a transcript's or the session's own, and stops it
+ * for a key, as the rules for keys say.
  */
 import type { PassName } from "../model.js";
 import { EnvironmentError } from "../util/errors.js";
@@ -206,11 +208,16 @@ export function playerKeyOf(key: Key): PlayerKey | null {
  * It gives which, and the voice's speed, which the next page keeps.
  *
  * It shows each line once, as it becomes the one playing, and says it unless it's paused or has
- * no words: a silent line ("[no speech]") is shown, and passed at once. It shows a transcript's
- * name as it starts playing, "Paused." as the person pauses, and each notice. A key that leaves
- * the line where it was (Space to go on, + or −) has it said again, from its start, without
- * showing it again. Keys pressed while a line is said wait their turn, as sayLine says. A voice
- * that stops working, or stops answering, rejects it.
+ * no words: a silent line ("[no speech]") is shown, and passed at once. It shows the page's line
+ * (`title`) first, a transcript's name as it starts playing, "Paused." as the person pauses, and
+ * each notice, and says each of them too, before the line playing (Ruling R10): with NVDA muted,
+ * a person who follows by ear alone hears only the voice. A key that leaves the line where it was
+ * (Space to go on, + or −) has it said again, from its start, without showing it again.
+ *
+ * Keys pressed while a line is said wait their turn, as sayLine says. A key that stops one of the
+ * page's own lines acts as it would on the line playing, and the rest of them aren't said; on a
+ * page that's over before it starts (no read lines), it only stops them, or ends the session. A
+ * voice that stops working, or stops answering, rejects it.
  */
 export async function playPage(options: {
   transcripts: Transcripts;
@@ -219,40 +226,66 @@ export async function playPage(options: {
   voice: Voice;
   keys: KeySource;
   out: OutputStream;
+  /** The line that names the page, shown and said before its transcripts (R10). */
+  title?: string;
   /** How long a stopped line may take to end: STOP_LIMIT_MS, unless a test says otherwise. */
   stopLimitMs?: number;
 }): Promise<{ outcome: "decide" | "quit"; rate: number }> {
   const { voice, keys, out, stopLimitMs = STOP_LIMIT_MS } = options;
-  const show = (text: string): void => {
+  /** The page's own lines still to be said, before the line playing: each is shown at once. */
+  const asides: string[] = [];
+  /** Shows one of the page's own lines, to be said before the line playing (R10). */
+  const tell = (text: string): void => {
     out.write(`${text}\n`);
+    asides.push(text);
   };
   const lines = (state: PlayerState): PlayLine[] => linesOf(state.transcripts, state.pass);
   // While the page plays, the index always names one of the pass's lines.
   const lineOf = (state: PlayerState): PlayLine => lines(state)[state.index]!;
   const showLine = (state: PlayerState): void => {
     const { n, text, marks } = lineOf(state);
-    show(REPLAY_TEXT.line(n, text, marks));
+    out.write(`${REPLAY_TEXT.line(n, text, marks)}\n`);
   };
-  /** Shows a transcript's name and size as it starts playing, then its first line. */
+  /** Shows a transcript's name and size as it starts playing, and says it, then its first line. */
   const showPass = (state: PlayerState): void => {
-    show(REPLAY_TEXT.pass(state.pass, lines(state).length));
+    tell(REPLAY_TEXT.pass(state.pass, lines(state).length));
     showLine(state);
+  };
+  /** Says `text`, and gives what ended it as the player's key. */
+  const say = async (text: string, rate: number): Promise<PlayerKey | "spoken"> => {
+    const heard = await sayLine({ voice, keys, text, rate, stops: worthAKey, stopLimitMs });
+    if (heard === "spoken") return heard;
+    return heard === null ? "quit" : (playerKeyOf(heard) ?? "quit");
   };
 
   let state = startState(options.transcripts, options.rate);
-  if (state.notice !== null) show(state.notice);
+  if (options.title !== undefined) tell(options.title);
+  if (state.notice !== null) tell(state.notice);
   if (state.outcome === "playing") showPass(state);
-  while (state.outcome === "playing") {
-    const { spoken } = lineOf(state);
+  for (;;) {
     let heard: PlayerKey | "spoken";
-    if (state.paused) heard = await nextKey(keys);
-    else if (spoken === "") heard = "spoken";
-    else heard = await sayLine(voice, keys, spoken, state.rate, stopLimitMs);
-
-    if (heard === "spoken") {
-      state = onLineSpoken(state);
-      if (state.outcome === "playing") showLine(state);
-      continue;
+    const aside = asides.shift();
+    if (aside !== undefined) {
+      heard = await say(aside, state.rate);
+      if (heard === "spoken") continue;
+      // A key stops the page's own lines as it stops one of its transcript's.
+      asides.length = 0;
+      // A page with no read lines is over before it starts: there's no line for the key to act on.
+      if (state.outcome !== "playing") {
+        if (heard === "quit") return { outcome: "quit", rate: state.rate };
+        continue;
+      }
+    } else {
+      if (state.outcome !== "playing") break;
+      const { spoken } = lineOf(state);
+      if (state.paused) heard = await nextKey(keys);
+      else if (spoken === "") heard = "spoken";
+      else heard = await say(spoken, state.rate);
+      if (heard === "spoken") {
+        state = onLineSpoken(state);
+        if (state.outcome === "playing") showLine(state);
+        continue;
+      }
     }
     const before = state;
     state = onKey(state, heard);
@@ -260,36 +293,45 @@ export async function playPage(options: {
     // H, T, or R: the transcript it names plays from its start, the one playing included.
     if (heard === state.pass) showPass(state);
     else if (state.index !== before.index) showLine(state);
-    if (state.paused && !before.paused) show(REPLAY_TEXT.paused);
-    if (state.notice !== null) show(state.notice);
+    if (state.paused && !before.paused) tell(REPLAY_TEXT.paused);
+    if (state.notice !== null) tell(state.notice);
   }
-  return { outcome: state.outcome, rate: state.rate };
+  return { outcome: state.outcome === "quit" ? "quit" : "decide", rate: state.rate };
 }
 
+/** Whether the player has a use for a key, so it stops the line being said. */
+const worthAKey = (key: Key): boolean => playerKeyOf(key) !== null;
+
 /**
- * Says a line, and gives what ended it: "spoken" once the voice has said it to the end, or what
- * the key that came for it asks.
+ * Says `text`, and gives what ended it: "spoken" once the voice has said it to the end, or the key
+ * that stopped it, null for the keys' end. A transcript's lines and the session's own lines are
+ * all said this way (Ruling R10).
  *
- * The line always starts, even with a key waiting already; that key then acts on it at once. A key
- * is taken only once it's waiting (keys.waiting()), never raced for, so a key that comes as the
- * line ends stays for the next line, or for the question after the page. A key the player has no
- * use for is taken and left out, and the line goes on. For any other key the voice stops, and the
- * key acts once the line's say() has resolved, since the voice says one line at a time. Ctrl+C,
- * and the keys' end, don't wait for that: a Windows speech line has no time limit, and the session
- * closes the voice after, which ends a line still waiting.
+ * The line always starts, even with a key waiting already; that key then stops it at once (Ruling
+ * R4). A key is taken only once it's waiting (keys.waiting()), never raced for, so a key that comes
+ * as the line ends stays for what comes next. A key `stops` has no use for is taken and left out,
+ * and the line goes on; Ctrl+C, and the keys' end, always stop it. For any other key the voice
+ * stops, and the key is given once the line's say() has resolved, since the voice says one line at
+ * a time. Ctrl+C, and the keys' end, don't wait for that: a Windows speech line has no time limit,
+ * and the session closes the voice after, which ends a line still waiting (Ruling R6).
  *
- * No key is read while the player waits for a stopped line, Ctrl+C included, so it waits at most
+ * No key is read while it waits for a stopped line, Ctrl+C included, so it waits at most
  * `stopLimitMs`. A line that hasn't ended by then means the voice is stuck: it rejects with
- * VOICE_STOPPED_ANSWERING, and the key doesn't act.
+ * VOICE_STOPPED_ANSWERING, and the key is given to no one (Ruling R7).
  */
-async function sayLine(
-  voice: Voice,
-  keys: KeySource,
-  spoken: string,
-  rate: number,
-  stopLimitMs: number,
-): Promise<PlayerKey | "spoken"> {
-  const saying = voice.say(spoken, rate);
+export async function sayLine(options: {
+  voice: Voice;
+  keys: KeySource;
+  text: string;
+  /** The voice's speed, in words a minute. */
+  rate: number;
+  /** Whether a key stops the line. Default: every key. */
+  stops?: (key: Key) => boolean;
+  /** How long a stopped line may take to end: STOP_LIMIT_MS, unless a test says otherwise. */
+  stopLimitMs?: number;
+}): Promise<"spoken" | Key | null> {
+  const { voice, keys, text, rate, stops = () => true, stopLimitMs = STOP_LIMIT_MS } = options;
+  const saying = voice.say(text, rate);
   for (;;) {
     // A key waiting already comes first, so it acts on the line it was pressed during.
     const first = await Promise.race([
@@ -298,14 +340,14 @@ async function sayLine(
     ]);
     if (first === "spoken") return first;
     const key = await keys.next();
-    const asked = key === null ? "quit" : playerKeyOf(key);
-    if (asked === null) continue;
+    const ends = key === null || key.name === "ctrl-c";
+    if (!ends && !stops(key)) continue;
     voice.stop();
-    if (asked === "quit") return asked;
+    if (ends) return key;
     if (!(await settlesWithin(saying, stopLimitMs))) {
       throw new EnvironmentError(VOICE_STOPPED_ANSWERING);
     }
-    return asked;
+    return key;
   }
 }
 

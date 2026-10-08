@@ -35,7 +35,14 @@ import { pageDir, runDir, runJsonPath } from "../src/run/paths.js";
 import { listRuns } from "../src/run/store.js";
 import { EnvironmentError, UsageError, errorMessage } from "../src/util/errors.js";
 import { createMemoryLogger } from "../src/util/log.js";
-import { answering, fakeVoice, keyQueue, type Answer } from "./helpers/replay.js";
+import {
+  answering,
+  fakeVoice,
+  keyQueue,
+  sayingEach,
+  untilSaying,
+  type Answer,
+} from "./helpers/replay.js";
 import {
   homeWithCountedRun,
   options as runOptions,
@@ -149,26 +156,31 @@ function replay(
 }
 
 /**
- * `voice`, with `pressed` pressed as it starts saying its `n`th line, counted from 1: so they come
- * while that line is said, as a person presses keys mid-page.
+ * `voice`, with `pressed` pressed as it starts saying `line` the first time: so they come while that
+ * line is said, as a person presses keys mid-page.
  */
 function pressingAt(
   voice: FakeVoice,
-  n: number,
+  line: string,
   keys: KeyQueue,
   ...pressed: (Key | string)[]
 ): Voice {
-  let lines = 0;
+  let pressing = true;
   return {
     say: (text, wpm) => {
-      lines += 1;
-      if (lines === n) keys.push(...pressed);
+      if (pressing && text === line) {
+        pressing = false;
+        keys.push(...pressed);
+      }
       return voice.say(text, wpm);
     },
     stop: () => voice.stop(),
     close: () => voice.close(),
   };
 }
+
+/** What `voice` said, line by line. */
+const saidBy = (voice: FakeVoice): string[] => voice.said.map(({ text }) => text);
 
 /** A line the player shows: a transcript's name as it starts playing, or a line as it's read. */
 const PLAYED = /^(?:[ \d]{3}\d {2}|(?:Read|Headings|Tab) transcript, \d+ lines?:$)/;
@@ -222,10 +234,11 @@ describe("replayReview", () => {
       [["1"], ["2", "B", "a", "d", ENTER], ["4"]],
       { options: { all: true } },
     );
-    // When the report is written, the voice has closed, and the count isn't said yet.
+    // When the report is written, nothing is being said, and the count isn't shown or said yet.
     writeReport.mockImplementation(() => {
-      expect(voice.closed).toBe(true);
-      expect(out.text()).not.toContain("Recorded");
+      expect(voice.speaking).toBe(false);
+      expect(out.text()).not.toContain("Recorded 2 decisions.");
+      expect(saidBy(voice)).not.toContain("Recorded 2 decisions.");
       return Promise.resolve(null);
     });
     await expect(session).resolves.toEqual({ decisions: 2, outcome: "done" });
@@ -252,14 +265,156 @@ describe("replayReview", () => {
       REPLAY_TEXT.keys,
       "Page 1 of 3: / (no flags)",
       REPLAY_TEXT.question,
+      "Recorded: reviewed, no issues.",
       "Page 2 of 3: /about (no flags)",
       REPLAY_TEXT.question,
       "Note (Enter for none): Bad",
+      "Recorded: issue found.",
       "Page 3 of 3: /resources (5 flags)",
       REPLAY_TEXT.question,
+      "Skipped.",
       "Recorded 2 decisions.",
     ]);
     expect(lastLines(out.text(), 1)).toEqual(["Recorded 2 decisions."]);
+  });
+
+  // With NVDA muted, a person who follows by ear alone hears only the voice (Ruling R10).
+  it("says its own lines too, as it shows them, and its last lines after the last page", async () => {
+    const at = await countedHome();
+    /** What the voice says of a session that plays /about, and records "issue", with "Ok". */
+    const heard = [
+      REPLAY_TEXT.keysSpoken,
+      "Page 1 of 1: /about (no flags)",
+      "Read transcript, 3 lines:",
+      "heading, level 1, About us",
+      "We are an example.",
+      "© 2026 Example Agency",
+      REPLAY_TEXT.questionSpoken,
+      REPLAY_TEXT.note,
+      "Recorded: issue found.",
+      "Recorded 1 decision.",
+    ];
+    const answer: Answer = ["2", "O", "k", ENTER];
+
+    const { session, out, voice } = replay(at, [answer], { options: { page: "/about" } });
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "done" });
+    expect(saidBy(voice)).toEqual(heard);
+    expect(voice.said.filter(({ wpm }) => wpm !== 180)).toEqual([]);
+    // Each is shown too, and the voice is closed after the last.
+    expect(sessionLines(out.text())).toEqual([
+      REPLAY_TEXT.keys,
+      "Page 1 of 1: /about (no flags)",
+      REPLAY_TEXT.question,
+      "Note (Enter for none): Ok",
+      "Recorded: issue found.",
+      "Recorded 1 decision.",
+    ]);
+    expect(voice.closed).toBe(true);
+
+    // With NVDA running at the start: its two lines are only shown, since NVDA reads them, and the
+    // last lines turn NVDA back over to the person.
+    const running = replay(at, [[ENTER], answer], {
+      options: { page: "/about" },
+      deps: { nvdaRunning: () => Promise.resolve(true) },
+    });
+    await expect(running.session).resolves.toEqual({ decisions: 1, outcome: "done" });
+    expect(saidBy(running.voice)).toEqual([...heard, REPLAY_TEXT.nvdaBack]);
+    expect(sessionLines(running.out.text())).toEqual([
+      ...REPLAY_TEXT.nvda,
+      REPLAY_TEXT.keys,
+      "Page 1 of 1: /about (no flags)",
+      REPLAY_TEXT.question,
+      "Note (Enter for none): Ok",
+      "Recorded: issue found.",
+      "Recorded 1 decision.",
+      REPLAY_TEXT.nvdaBack,
+    ]);
+  });
+
+  it("answers with a digit pressed while the question is said, and stops it", async () => {
+    const at = await countedHome();
+    const keys = keyQueue();
+    const voice = fakeVoice();
+    // Nothing is pressed when the question shows: the person waits for it to be said.
+    const { session } = replay(at, [() => {}], { keys, voice, options: { page: "/about" } });
+    await untilSaying(voice, REPLAY_TEXT.questionSpoken);
+    keys.push("1");
+    await nextTurn();
+    await sayingEach(voice, session);
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "done" });
+    expect(voice.stops).toBe(1);
+    const said = saidBy(voice);
+    expect(said.slice(said.indexOf(REPLAY_TEXT.questionSpoken))).toEqual([
+      REPLAY_TEXT.questionSpoken,
+      "Recorded: reviewed, no issues.",
+      "Recorded 1 decision.",
+    ]);
+    const { pages } = await readReviews(at.siteDir);
+    expect(pages[ABOUT]).toMatchObject([{ status: "reviewed", reviewer: "Pat Reviewer" }]);
+  });
+
+  it("stops one of its own lines for a key, which then does what it does there", async () => {
+    const at = await countedHome();
+    const keys = keyQueue();
+    const voice = fakeVoice();
+    const { session } = replay(at, [() => {}], { keys, voice });
+    const title = "Page 1 of 1: /resources (5 flags)";
+
+    // The keys' line: a key stops it, and is dropped, as the keys before a page are.
+    await untilSaying(voice, REPLAY_TEXT.keysSpoken);
+    keys.push("x");
+    await nextTurn();
+    expect(voice.stops).toBe(1);
+    await untilSaying(voice, title);
+    expect(saidBy(voice)).toEqual([REPLAY_TEXT.keysSpoken, title]);
+    // The page's line: N stops it, and goes to the page's next flagged line, said next.
+    keys.push("n");
+    await nextTurn();
+    expect(voice.stops).toBe(2);
+    expect(saidBy(voice).at(-1)).toBe("link, Read more");
+    // Enter decides; at the question, Enter answers nothing: it's left out, and the question goes
+    // on. A digit stops it, and answers.
+    keys.push(ENTER);
+    await nextTurn();
+    expect(saidBy(voice).at(-1)).toBe(REPLAY_TEXT.questionSpoken);
+    keys.push(ENTER);
+    await nextTurn();
+    expect(voice.stops).toBe(3);
+    expect(voice.speaking).toBe(true);
+    keys.push("4");
+    await nextTurn();
+    expect(voice.stops).toBe(4);
+    // The line after the answer: a key stops it, and then the count is said.
+    expect(saidBy(voice).at(-1)).toBe("Skipped.");
+    keys.push(RIGHT);
+    await nextTurn();
+    expect(voice.stops).toBe(5);
+    expect(saidBy(voice).at(-1)).toBe("Recorded no decisions.");
+    // Ctrl+C stops the last lines, and the session is done all the same: every page was decided.
+    keys.push(CTRL_C);
+    await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    expect(voice.stops).toBe(6);
+    expect(voice.closed).toBe(true);
+    expect(saidBy(voice)).toEqual([
+      REPLAY_TEXT.keysSpoken,
+      title,
+      "link, Read more",
+      REPLAY_TEXT.questionSpoken,
+      "Skipped.",
+      "Recorded no decisions.",
+    ]);
+  });
+
+  it("only shows its last lines when the session ends before its last page is decided", async () => {
+    const at = await countedHome();
+    const { session, out, voice } = replay(at, [[ENTER], [CTRL_C]], {
+      deps: { nvdaRunning: () => Promise.resolve(true) },
+    });
+    await expect(session).resolves.toEqual({ decisions: 0, outcome: "quit" });
+    expect(lastLines(out.text(), 2)).toEqual(["Recorded no decisions.", REPLAY_TEXT.nvdaBack]);
+    expect(saidBy(voice)).not.toContain("Recorded no decisions.");
+    expect(saidBy(voice)).not.toContain(REPLAY_TEXT.nvdaBack);
+    expect(voice.closed).toBe(true);
   });
 
   it("answers the question only with 1 to 4", async () => {
@@ -329,7 +484,7 @@ describe("replayReview", () => {
     expect(existsSync(path.join(at.siteDir, "reviews.json"))).toBe(false);
     expect(await filesIn(at.home)).toEqual(before);
     expect(writeReport).not.toHaveBeenCalled();
-    expect(lastLines(out.text(), 2)).toEqual([REPLAY_TEXT.question, "Recorded no decisions."]);
+    expect(lastLines(out.text(), 2)).toEqual(["Skipped.", "Recorded no decisions."]);
   });
 
   it("waits for Enter while NVDA is running", async () => {
@@ -366,10 +521,15 @@ describe("replayReview", () => {
       REPLAY_TEXT.keys,
       "Page 1 of 1: /resources (5 flags)",
       REPLAY_TEXT.question,
+      "Skipped.",
       "Recorded no decisions.",
+      REPLAY_TEXT.nvdaBack,
     ]);
+    // NVDA's two lines aren't said: NVDA reads them.
+    for (const line of REPLAY_TEXT.nvda) expect(saidBy(running.voice)).not.toContain(line);
 
-    // When NVDA isn't running, or the check can't tell, the session starts at once.
+    // When NVDA isn't running, or the check can't tell, the session starts at once, and there's
+    // no NVDA to turn back on at the end.
     const checks: [string, () => Promise<boolean>][] = [
       ["not running", () => Promise.resolve(false)],
       ["can't tell", () => Promise.reject(new Error("The process list couldn't be read."))],
@@ -380,6 +540,7 @@ describe("replayReview", () => {
       await expect(session, what).resolves.toEqual({ decisions: 0, outcome: "done" });
       expect(out.text(), what).not.toContain(REPLAY_TEXT.nvda[0]);
       expect(out.text(), what).not.toContain(REPLAY_TEXT.nvda[1]);
+      expect(out.text(), what).not.toContain(REPLAY_TEXT.nvdaBack);
       expect(voice.said, what).not.toEqual([]);
       // It's asked once, and given nothing: it only asks.
       expect(nvdaRunning.mock.calls, what).toEqual([[]]);
@@ -422,16 +583,20 @@ describe("replayReview", () => {
     const voice = fakeVoice({ auto: true });
     const stopped = new EnvironmentError("The computer's voice stopped.");
     // Page 1 is reviewed; then the voice stops working, so page 2's first line fails.
-    const { session, out, writeReport } = replay(
-      at,
-      [
-        () => {
-          keys.push("1");
-          voice.fail(stopped);
-        },
-      ],
-      { options: { all: true }, keys, voice },
-    );
+    const failing: Voice = {
+      say: (text, wpm) => {
+        if (text === "heading, level 1, About us") voice.fail(stopped);
+        return voice.say(text, wpm);
+      },
+      stop: () => voice.stop(),
+      close: () => voice.close(),
+    };
+    const { session, out, writeReport } = replay(at, [["1"]], {
+      options: { all: true },
+      keys,
+      voice,
+      deps: { startVoice: () => Promise.resolve(failing) },
+    });
     await expect(session).rejects.toBe(stopped);
     const { pages } = await readReviews(at.siteDir);
     expect(Object.keys(pages)).toEqual([HOME_PAGE]);
@@ -467,7 +632,7 @@ describe("replayReview", () => {
       {
         way: "Ctrl+C while a page plays",
         // Pressed as the page's second line is said, so the player takes it.
-        says: (keys, voice) => pressingAt(voice, 2, keys, CTRL_C),
+        says: (keys, voice) => pressingAt(voice, "link, Read more", keys, CTRL_C),
         answers: () => [["1"]],
         ends: { decisions: 0, outcome: "quit" },
       },
@@ -579,8 +744,10 @@ describe("replayReview", () => {
       REPLAY_TEXT.keys,
       "Page 1 of 2: / (no flags)",
       REPLAY_TEXT.question,
+      "Skipped.",
       "Page 2 of 2: /resources (5 flags)",
       REPLAY_TEXT.question,
+      "Skipped.",
       "Recorded no decisions.",
     ]);
   });
@@ -608,7 +775,8 @@ describe("replayReview", () => {
     const keys = keyQueue();
     const voice = fakeVoice({ auto: true });
     // + while page 1's first line is said: 20 words a minute faster, from there on.
-    const pressing = pressingAt(voice, 1, keys, "+");
+    const first = "link, Skip to main content";
+    const pressing = pressingAt(voice, first, keys, "+");
     const { session } = replay(at, [["4"], ["4"], ["4"]], {
       options: { all: true, rate: 240 },
       keys,
@@ -616,12 +784,20 @@ describe("replayReview", () => {
       deps: { startVoice: () => Promise.resolve(pressing) },
     });
     await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
-    const [first, again, ...rest] = voice.said;
-    expect(first?.wpm).toBe(240);
-    expect(again).toEqual({ text: first?.text, wpm: 260 });
-    expect(rest.map(({ wpm }) => wpm)).toEqual(rest.map(() => 260));
+    const at240 = saidBy(voice).indexOf(first);
+    // Everything before it, the session's own lines included, at the session's speed.
+    expect(voice.said.slice(0, at240 + 1).map(({ wpm }) => wpm)).toEqual(
+      voice.said.slice(0, at240 + 1).map(() => 240),
+    );
+    // Then the new speed, said at it, and the line again, at it, and everything after.
+    const after = voice.said.slice(at240 + 1);
+    expect(after.slice(0, 2)).toEqual([
+      { text: "Speed: 260 words a minute.", wpm: 260 },
+      { text: first, wpm: 260 },
+    ]);
+    expect(after.map(({ wpm }) => wpm)).toEqual(after.map(() => 260));
     // /resources' last line, on page 3.
-    expect(voice.said.at(-1)).toEqual({ text: "End", wpm: 260 });
+    expect(voice.said).toContainEqual({ text: "End", wpm: 260 });
   });
 
   it("finds the home as review does: --out, else VOICECAP_TRANSCRIPTS", async () => {
@@ -676,8 +852,9 @@ describe("replayReview", () => {
 
 /**
  * A key meant for one thing never acts on the next: the keys already waiting are dropped before
- * NVDA's two lines and before each page, and so is every key pressed just after an answer, before
- * the next page. A Ctrl+C, or the keys ending, among them still ends the session.
+ * NVDA's two lines, before the keys' line, and before each page, and so is every key pressed just
+ * after an answer, before the next page, or just after the Enter at NVDA's two lines. A Ctrl+C, or
+ * the keys ending, among them still ends the session.
  */
 describe("replayReview's dropped keys", () => {
   it("drops a key left from an answer, so the next page plays to its end", async () => {
@@ -733,15 +910,7 @@ describe("replayReview's dropped keys", () => {
     );
     await again;
     // From here, the voice says each line to its end.
-    for (;;) {
-      const next = await Promise.race([
-        voice.starting.then(() => "line" as const),
-        running.session.then(() => "ended" as const),
-      ]);
-      if (next === "ended") break;
-      // A key may have stopped it meanwhile.
-      if (voice.speaking) voice.finish();
-    }
+    await sayingEach(voice, running.session);
     await expect(running.session).resolves.toEqual({ decisions: 0, outcome: "done" });
     // /resources' last line was said, and no line was stopped.
     expect(voice.said.map(({ text }) => text)).toContain("End");
@@ -767,9 +936,12 @@ describe("replayReview's dropped keys", () => {
     expect(lastLines(out.text(), 2)).toEqual([REPLAY_TEXT.question, "Recorded 1 decision."]);
 
     // After the last page, no page is left for a key to act on, so the session doesn't wait for
-    // one: it's done.
+    // one: it's done. The Ctrl+C stopped the line after the answer, which may still be ending, so
+    // the last lines are only shown.
     const last = replay(at, [["4", CTRL_C]], { options: { page: "/about", settleMs: 60_000 } });
     await expect(last.session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    expect(saidBy(last.voice).at(-1)).toBe("Skipped.");
+    expect(lastLines(last.out.text(), 2)).toEqual(["Skipped.", "Recorded no decisions."]);
   });
 
   it("takes and drops every key pressed just after an answer, before the next page", async () => {
@@ -865,13 +1037,15 @@ describe("replayReview's dropped keys", () => {
     keys.push(ENTER);
     await expect(running.session).resolves.toEqual({ decisions: 0, outcome: "done" });
 
-    // With NVDA not running, the same keys don't end page 1 before it's heard.
+    // With NVDA not running, the same keys neither cut the keys' line short nor end page 1 before
+    // it's heard.
     const early = keyQueue();
     early.push("1", ENTER);
     const { session, voice } = replay(at, [["4"]], { keys: early });
     await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
     // /resources' last line: the page was said to its end, with no line stopped.
-    expect(voice.said.at(-1)).toEqual({ text: "End", wpm: 180 });
+    expect(saidBy(voice)).toContain(REPLAY_TEXT.keysSpoken);
+    expect(voice.said).toContainEqual({ text: "End", wpm: 180 });
     expect(voice.stops).toBe(0);
   });
 
@@ -889,16 +1063,16 @@ describe("replayReview's dropped keys", () => {
           shows: [],
         },
         {
-          way: "Ctrl+C before page 1",
+          way: "Ctrl+C before the keys' line",
           press: (keys) => keys.push("x", CTRL_C),
           nvda: false,
-          shows: [REPLAY_TEXT.keys],
+          shows: [],
         },
         {
-          way: "the keys' end before page 1",
+          way: "the keys' end before the keys' line",
           press: (keys) => keys.end(),
           nvda: false,
-          shows: [REPLAY_TEXT.keys],
+          shows: [],
         },
       ];
     for (const { way, press, nvda, shows } of ways) {

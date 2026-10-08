@@ -16,7 +16,7 @@ import {
 } from "../src/review-replay/player.js";
 import type { Voice } from "../src/review-replay/voice.js";
 import { EnvironmentError, errorMessage } from "../src/util/errors.js";
-import { fakeVoice, keyQueue, untilSaying } from "./helpers/replay.js";
+import { fakeVoice, keyQueue, sayingEach, untilSaying } from "./helpers/replay.js";
 
 // The top of a page's read transcript, as D6 plays it: from Ctrl+Home's line, line 2 of read.txt.
 const SKIP: PlayLine = {
@@ -316,22 +316,102 @@ describe("playPage", () => {
         "   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic",
       ),
     );
+    // The transcript's name too, as it starts (R10).
     expect(voice.said).toEqual([
+      { text: "Read transcript, 3 lines:", wpm: 180 },
       { text: "Skip to main content, link", wpm: 180 },
       { text: "banner landmark, About i2i, link", wpm: 180 },
       { text: "link, Unlabeled graphic, i 2i Logo", wpm: 180 },
     ]);
   });
 
+  // With NVDA muted, a person who follows by ear alone hears only the voice (R10).
+  it("says the page's line and the transcript's name before its lines, as it shows them", async () => {
+    const voice = fakeVoice({ auto: true });
+    const { out, shown } = screen();
+    const playing = playPage({
+      transcripts: TRANSCRIPTS,
+      rate: 180,
+      voice,
+      keys: keyQueue(),
+      out,
+      title: "Page 1 of 2: / (1 flag)",
+    });
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Page 1 of 2: / (1 flag)",
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      ABOUT.spoken,
+      LOGO.spoken,
+    ]);
+    expect(shown()).toBe(
+      screenOf(
+        "Page 1 of 2: / (1 flag)",
+        "Read transcript, 3 lines:",
+        "   2  [to top] Skip to main content, link",
+        "   3  banner landmark, About i2i, link",
+        "   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic",
+      ),
+    );
+  });
+
+  it("stops one of the page's own lines for a key, which acts as it would on the line playing", async () => {
+    const voice = fakeVoice();
+    const keys = keyQueue();
+    const { out, shown } = screen();
+    const playing = playPage({
+      transcripts: TRANSCRIPTS,
+      rate: 180,
+      voice,
+      keys,
+      out,
+      title: "Page 1 of 2: / (1 flag)",
+    });
+    // N, during the page's line: the next flagged line after line 2, the one playing, is said
+    // next, and the transcript's name isn't.
+    await untilSaying(voice, "Page 1 of 2: / (1 flag)");
+    keys.push("n");
+    await nextTurn();
+    expect(voice.said.at(-1)?.text).toBe(LOGO.spoken);
+    // + during that line: the new speed is said, at that speed.
+    keys.push("+");
+    await nextTurn();
+    expect(voice.said.at(-1)?.text).toBe("Speed: 200 words a minute.");
+    // Enter, during the notice, stops it, and decides.
+    keys.push(ENTER);
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 200 });
+    expect(voice.said).toEqual([
+      { text: "Page 1 of 2: / (1 flag)", wpm: 180 },
+      { text: LOGO.spoken, wpm: 180 },
+      { text: "Speed: 200 words a minute.", wpm: 200 },
+    ]);
+    expect(voice.stops).toBe(3);
+    expect(shown()).toBe(
+      screenOf(
+        "Page 1 of 2: / (1 flag)",
+        "Read transcript, 3 lines:",
+        "   2  [to top] Skip to main content, link",
+        "   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic",
+        "Speed: 200 words a minute.",
+      ),
+    );
+  });
+
   it("stops the voice for a key, then acts", async () => {
     const voice = fakeVoice();
     const { playing, keys, shown } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push(RIGHT, RIGHT, RIGHT);
     // So a key lost on the way ends the page with quit, rather than leaving it waiting.
     keys.end();
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken, LOGO.spoken]);
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      ABOUT.spoken,
+      LOGO.spoken,
+    ]);
     expect(voice.stops).toBe(3);
     expect(voice.speaking).toBe(false);
     // Each line is shown once, as it becomes the one playing.
@@ -354,14 +434,18 @@ describe("playPage", () => {
       close: () => voice.close(),
     };
     const { playing, keys, shown } = play(asking);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push(RIGHT);
     await nextTurn();
-    expect(voice.said).toHaveLength(1);
+    expect(voice.said.at(-1)?.text).toBe(SKIP.spoken);
     expect(shown()).not.toContain("About i2i");
     voice.finish();
     await voice.starting;
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken]);
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      ABOUT.spoken,
+    ]);
     expect(shown()).toContain("   3  banner landmark, About i2i, link\n");
     keys.push(ENTER);
     await nextTurn();
@@ -372,15 +456,24 @@ describe("playPage", () => {
   it("pauses, and says the line again on Space", async () => {
     const voice = fakeVoice();
     const { playing, keys, shown } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push(SPACE);
     await nextTurn();
     expect(voice.stops).toBe(1);
-    expect(voice.speaking).toBe(false);
     expect(shown()).toContain("Paused. Press Space to go on.\n");
+    // It says so too (R10), and then nothing, until Space.
+    expect(voice.said.at(-1)?.text).toBe("Paused. Press Space to go on.");
+    voice.finish();
+    await nextTurn();
+    expect(voice.speaking).toBe(false);
     keys.push(SPACE);
     await voice.starting;
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, SKIP.spoken]);
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      "Paused. Press Space to go on.",
+      SKIP.spoken,
+    ]);
     keys.push(ENTER);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
     // The line is shown once, when it became the one playing, and not when it was said again.
@@ -396,7 +489,7 @@ describe("playPage", () => {
   it("moves while paused without speaking", async () => {
     const voice = fakeVoice();
     const { playing, keys, shown } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push(SPACE, RIGHT);
     await nextTurn();
     expect(shown()).toBe(
@@ -407,11 +500,17 @@ describe("playPage", () => {
         "   3  banner landmark, About i2i, link",
       ),
     );
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken]);
+    // Right Arrow stopped "Paused." as it was said, and moved without speaking the line.
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      "Paused. Press Space to go on.",
+    ]);
+    expect(voice.speaking).toBe(false);
     // Space speaks from the line it moved to.
     keys.push(SPACE);
     await voice.starting;
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken]);
+    expect(voice.said.at(-1)?.text).toBe(ABOUT.spoken);
     keys.end();
     await expect(playing).resolves.toEqual({ outcome: "quit", rate: 180 });
   });
@@ -421,7 +520,11 @@ describe("playPage", () => {
     const { playing, shown } = play(voice, keyQueue(), WITH_SILENT);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
     expect(shown()).toContain("   3  [no speech]\n");
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, LOGO.spoken]);
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      LOGO.spoken,
+    ]);
   });
 
   // A silent line is passed at once while the page plays, so ← must pass over it, or it could
@@ -440,6 +543,7 @@ describe("playPage", () => {
     keys.push(ENTER);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
     expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
       SKIP.spoken,
       LOGO.spoken,
       SKIP.spoken,
@@ -461,7 +565,7 @@ describe("playPage", () => {
   it("shows the transcript it switches to, each notice, and the line it moves to", async () => {
     const voice = fakeVoice();
     const { playing, keys, shown } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push("n", "n", "r", "h", "t", "-");
     await nextTurn();
     expect(shown()).toBe(
@@ -478,16 +582,19 @@ describe("playPage", () => {
         "Speed: 160 words a minute.",
       ),
     );
-    // A key that leaves the line where it was says that line again, from its start.
+    // Each transcript's name and each notice is said too (R10), and each key, coming while one of
+    // them is said, stops it, and acts.
     expect(voice.said).toEqual([
+      { text: "Read transcript, 3 lines:", wpm: 180 },
       { text: SKIP.spoken, wpm: 180 },
       { text: LOGO.spoken, wpm: 180 },
-      { text: LOGO.spoken, wpm: 180 },
-      { text: SKIP.spoken, wpm: 180 },
-      { text: WELCOME.spoken, wpm: 180 },
-      { text: WELCOME.spoken, wpm: 180 },
-      { text: WELCOME.spoken, wpm: 160 },
+      { text: "No flagged line after this one.", wpm: 180 },
+      { text: "Read transcript, 3 lines:", wpm: 180 },
+      { text: "Headings transcript, 2 lines:", wpm: 180 },
+      { text: "No lines in the Tab transcript.", wpm: 180 },
+      { text: "Speed: 160 words a minute.", wpm: 160 },
     ]);
+    expect(voice.stops).toBe(6);
     keys.push(ENTER);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 160 });
   });
@@ -495,18 +602,27 @@ describe("playPage", () => {
   it("leaves out a key it has no use for, and the line goes on", async () => {
     const voice = fakeVoice();
     const { playing, keys } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.push("x", { name: "escape" });
     await nextTurn();
     expect(voice.stops).toBe(0);
     expect(voice.speaking).toBe(true);
-    expect(voice.said).toHaveLength(1);
+    expect(voice.said.at(-1)?.text).toBe(SKIP.spoken);
     // Taken, so a stray key never waits to answer the question after the page.
     await expect(soon(keys.waiting())).resolves.toBe("still waiting");
-    // While paused, too: it neither goes on nor ends the page.
-    keys.push(SPACE, "x");
+    // The same while "Paused." is said: it goes on.
+    keys.push(SPACE);
     await nextTurn();
-    expect(voice.said).toHaveLength(1);
+    keys.push("x");
+    await nextTurn();
+    expect(voice.stops).toBe(1);
+    expect(voice.speaking).toBe(true);
+    expect(voice.said.at(-1)?.text).toBe("Paused. Press Space to go on.");
+    // And while paused, with nothing said: it neither goes on nor ends the page.
+    voice.finish();
+    keys.push("x");
+    await nextTurn();
+    expect(voice.said).toHaveLength(3);
     await expect(soon(playing)).resolves.toBe("still waiting");
     keys.push(ENTER);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
@@ -515,14 +631,19 @@ describe("playPage", () => {
   it("loses no key between lines", async () => {
     const voice = fakeVoice();
     const { playing, keys, shown } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     // The first line is said to the end, so the voice won, and the key comes during the second.
     voice.finish();
     await voice.starting;
     keys.push(RIGHT);
     await nextTurn();
     expect(voice.stops).toBe(1);
-    expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken, LOGO.spoken]);
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      "Read transcript, 3 lines:",
+      SKIP.spoken,
+      ABOUT.spoken,
+      LOGO.spoken,
+    ]);
     expect(shown()).toContain("   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic\n");
     keys.push(ENTER);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
@@ -539,31 +660,50 @@ describe("playPage", () => {
 
   it("asks at once, and says why, when the read transcript has no lines", async () => {
     const voice = fakeVoice({ auto: true });
-    const keys = keyQueue();
-    keys.push(RIGHT);
-    const { playing, shown } = play(voice, keys, { read: [], headings: [WELCOME] });
+    const { playing, shown } = play(voice, keyQueue(), { read: [], headings: [WELCOME] });
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
     expect(shown()).toBe(screenOf("No lines in the read transcript."));
-    expect(voice.said).toEqual([]);
-    // It took no key.
-    await expect(soon(keys.next())).resolves.toEqual(RIGHT);
+    // Said too (R10).
+    expect(voice.said).toEqual([{ text: "No lines in the read transcript.", wpm: 180 }]);
+
+    // A key the page acts on stops it, and the page is over all the same; Ctrl+C ends the session.
+    const endings: [Key, "decide" | "quit"][] = [
+      [RIGHT, "decide"],
+      [ENTER, "decide"],
+      [CTRL_C, "quit"],
+    ];
+    for (const [key, outcome] of endings) {
+      const stopped = fakeVoice();
+      const page = play(stopped, keyQueue(), { read: [], headings: [WELCOME] });
+      await untilSaying(stopped, "No lines in the read transcript.");
+      page.keys.push(key);
+      await expect(page.playing, key.name).resolves.toEqual({ outcome, rate: 180 });
+      expect(stopped.stops, key.name).toBe(1);
+      expect(stopped.said, key.name).toHaveLength(1);
+    }
   });
 
   it("ends with quit when the keys end, and rejects when the voice fails", async () => {
     const voice = fakeVoice();
     const { playing, keys } = play(voice);
-    await voice.starting;
+    await untilSaying(voice, SKIP.spoken);
     keys.end();
     await expect(playing).resolves.toEqual({ outcome: "quit", rate: 180 });
 
-    // The keys end while it's paused, too.
+    // The keys end while it's paused, too, and while it says one of the page's own lines.
     const pausing = fakeVoice();
     const paused = play(pausing);
-    await pausing.starting;
+    await untilSaying(pausing, SKIP.spoken);
     paused.keys.push(SPACE);
     await nextTurn();
+    pausing.finish();
     paused.keys.end();
     await expect(paused.playing).resolves.toEqual({ outcome: "quit", rate: 180 });
+    const telling = fakeVoice();
+    const told = play(telling);
+    await untilSaying(telling, "Read transcript, 3 lines:");
+    told.keys.end();
+    await expect(told.playing).resolves.toEqual({ outcome: "quit", rate: 180 });
 
     const failing = fakeVoice();
     const failed = play(failing);
@@ -634,10 +774,14 @@ describe("playPage", () => {
       // A line that ends once it's stopped: the wait's timer goes with it.
       const voice = fakeVoice();
       const ended = play(voice);
-      await voice.starting;
+      await untilSaying(voice, SKIP.spoken);
       ended.keys.push(RIGHT);
       await vi.advanceTimersByTimeAsync(0);
-      expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, ABOUT.spoken]);
+      expect(voice.said.map(({ text }) => text)).toEqual([
+        "Read transcript, 3 lines:",
+        SKIP.spoken,
+        ABOUT.spoken,
+      ]);
       expect(vi.getTimerCount()).toBe(0);
       ended.keys.push(ENTER);
       await expect(ended.playing).resolves.toEqual({ outcome: "decide", rate: 180 });
@@ -662,15 +806,20 @@ describe("playPage", () => {
   });
 
   it("keeps the speed for the next page", async () => {
-    const voice = fakeVoice({ auto: true });
-    const keys = keyQueue();
+    const voice = fakeVoice();
+    const { playing, keys, shown } = play(voice);
+    await untilSaying(voice, SKIP.spoken);
     keys.push("+");
-    const { playing, shown } = play(voice, keys);
+    await nextTurn();
+    await sayingEach(voice, playing);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 200 });
     expect(shown()).toContain("Speed: 200 words a minute.\n");
-    // The line playing as the key came is said again at the new speed, and the rest at it too.
+    // The new speed is said at that speed, then the line playing as the key came again, from its
+    // start, and the rest at it too.
     expect(voice.said).toEqual([
+      { text: "Read transcript, 3 lines:", wpm: 180 },
       { text: SKIP.spoken, wpm: 180 },
+      { text: "Speed: 200 words a minute.", wpm: 200 },
       { text: SKIP.spoken, wpm: 200 },
       { text: ABOUT.spoken, wpm: 200 },
       { text: LOGO.spoken, wpm: 200 },

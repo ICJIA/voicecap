@@ -1211,6 +1211,8 @@ Read transcript, 31 lines:
 
 The read transcript plays the steps that carry the page's content, as the flags read them: it starts at the line Ctrl+Home said (line 2 here), and leaves out the line Ctrl+End said and the repeats at the page's end.
 
+**What you hear.** The voice says voicecap's own lines too, each as it shows it, so you can follow the session by ear alone, with your own NVDA muted: the keys, once, before the first page, in words; each page's line, and each transcript's name as it starts; each notice, such as `No flagged line after this one.` or `Speed: 200 words a minute.`; the question, and the note's prompt; a short line once your answer is taken, such as `Recorded: issue found.` or `Skipped.`; and after the last page, how many decisions it recorded, with a reminder to turn your NVDA's speech back on when it was running. A key you press while the voice says one of these stops it, and then does what it does there: on a page, it acts as it would on the line playing; at the question, a digit answers, and any other key is left out while the question goes on; at the note, the key you type is the note's first. Left Arrow and Right Arrow move among the transcript's lines only. Some lines are only shown: the two lines about your own NVDA, which your NVDA reads; an error, since the voice may be what failed; and the last lines of a session you end with Ctrl+C.
+
 **The keys.** These work while a page plays:
 
 | Key | What it does |
@@ -1250,7 +1252,7 @@ NVDA is running, and it will read these lines too, over the replay's voice.
 Mute it (NVDA+S changes its speech mode) or quit it, then press Enter.
 ```
 
-voicecap never stops, starts, or changes your NVDA: that's for you to do. When it can't tell whether NVDA is running (its look hasn't answered in 5 seconds), it starts without the message.
+voicecap never stops, starts, or changes your NVDA: that's for you to do, and when the session ends, voicecap reminds you to turn its speech back on. When it can't tell whether NVDA is running (its look hasn't answered in 5 seconds), it starts without the message.
 
 **Where it runs.** On Windows and on a Mac, each with its own voice. On another computer, or when no voice is found, `--replay` stops and says so, with exit code 2, before anything is recorded. Ctrl+C ends a session with exit code 130 (see [Exit codes](#exit-codes)).
 

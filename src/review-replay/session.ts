@@ -6,16 +6,23 @@
  * decision was recorded (D8). It's still the person's review: the session plays what NVDA said,
  * and the person hears it, reads it, and decides.
  *
+ * The voice says the session's own lines too, each as it's shown, so a person who follows by ear
+ * alone, with their own NVDA muted, can (Ruling R10): the keys, once; each page's line; the
+ * question, and the note's prompt; a short line once each answer is taken; and, after the last
+ * page, how many decisions were recorded, with a reminder to turn NVDA's speech back on when it was
+ * running. A key pressed while one is said stops it, and does what it does there. NVDA's two lines
+ * are only shown, since NVDA reads them, and so is an error, since the voice may be what failed.
+ *
  * It writes nothing else. The person's own NVDA is only ever asked about (`nvdaRunning`): never
  * stopped, started, or changed. The keys are left open at the end, for whoever opened them to
  * close.
  *
- * A key meant for one thing never acts on the next. Before NVDA's two lines, and before each
- * page, the keys already waiting are taken and dropped, and so is every key pressed in the half
- * second after an answer, when a page follows, or after the Enter that goes on from NVDA's two
- * lines: an Enter pressed after a digit, out of habit, or pressed twice while nothing is heard yet,
- * would otherwise end the next page before it was heard, and one typed while the voice started
- * would pass the wait for Enter before the person had read why it waits.
+ * A key meant for one thing never acts on the next. Before NVDA's two lines, before the keys' line,
+ * and before each page, the keys already waiting are taken and dropped, and so is every key pressed
+ * in the half second after an answer, when a page follows, or after the Enter that goes on from
+ * NVDA's two lines: an Enter pressed after a digit, out of habit, or pressed twice while nothing is
+ * heard yet, would otherwise end the next page before it was heard, and one typed while the voice
+ * started would pass the wait for Enter before the person had read why it waits.
  *
  * The usage errors it stops with sit here, where they're thrown, as pages.ts keeps its own.
  */
@@ -34,9 +41,9 @@ import { loadShareInput } from "../share/load.js";
 import { buildShareModel } from "../share/model.js";
 import { UsageError } from "../util/errors.js";
 import type { Logger, OutputStream } from "../util/log.js";
-import { readNote, type KeySource } from "./keys.js";
-import { replayPagesOf } from "./pages.js";
-import { playPage } from "./player.js";
+import { readNote, type Key, type KeySource } from "./keys.js";
+import { replayPagesOf, type ReplayPage } from "./pages.js";
+import { playPage, sayLine } from "./player.js";
 import { REPLAY_TEXT } from "./text.js";
 import type { Voice } from "./voice.js";
 
@@ -127,6 +134,27 @@ const DECISIONS: ReadonlyMap<string, Decision> = new Map([
   ["4", "skip"],
 ]);
 
+/** Whether a key answers the question, so it stops the voice saying it: 1 to 4 (D3). */
+const answers = (key: Key): boolean => key.name === "char" && DECISIONS.has(key.char);
+
+/** A session under way: what it works with, and what it has done so far. */
+interface Hearing {
+  out: OutputStream;
+  keys: KeySource;
+  voice: Voice;
+  /** The voice's speed, in words a minute: --rate's, then as the person changes it with + and −. */
+  rate: number;
+  /** How many decisions were recorded. */
+  decisions: number;
+  /** NVDA was running, and the person went on from its two lines, having muted or quit it. */
+  nvdaMuted: boolean;
+  /**
+   * Ctrl+C, or the keys' end, stopped one of the session's own lines without waiting for it to end
+   * (Ruling R6): the voice may still be saying it.
+   */
+  cutShort: boolean;
+}
+
 /**
  * Plays each page `options` picks, asks after each one what the person decided, and records each
  * decision through addReview, with `regenerateReport: false` and the run whose transcripts played.
@@ -139,10 +167,10 @@ const DECISIONS: ReadonlyMap<string, Decision> = new Map([
  * to give.
  *
  * Once the voice has started, every way out closes it, writes the live report once when a decision
- * was recorded, and says how many were: the last page, Ctrl+C or the keys ending (anywhere: while
- * a page plays, at the question, in a note, while it waits for Enter, or among the keys it drops),
- * and a failure, such as the voice stopping mid-page or addReview refusing, which then comes
- * through. A page whose note was cut short records nothing.
+ * was recorded, and says how many were (endSession): the last page, Ctrl+C or the keys ending
+ * (anywhere: while a page plays, at the question, in a note, while it waits for Enter, or among the
+ * keys it drops), and a failure, such as the voice stopping mid-page or addReview refusing, which
+ * then comes through. A page whose note was cut short records nothing.
  */
 export async function replayReview(
   options: ReplayOptions,
@@ -185,50 +213,25 @@ export async function replayReview(
   }
 
   const voice = await deps.startVoice();
-  let decisions = 0;
+  const hearing: Hearing = {
+    out,
+    keys,
+    voice,
+    rate: options.rate,
+    decisions: 0,
+    nvdaMuted: false,
+    cutShort: false,
+  };
+  /** How the session ended: unset when it failed. */
+  let outcome: ReplayResult["outcome"] | undefined;
   try {
-    // NVDA would read each line the session shows, over the voice, until it's muted or quit.
-    if (await nvdaIsRunning(deps.nvdaRunning)) {
-      // An Enter typed while the voice started mustn't pass the wait before the lines are read.
-      if (!(await dropWaitingKeys(keys))) return { decisions, outcome: "quit" };
-      for (const line of REPLAY_TEXT.nvda) show(line);
-      if (!(await enterPressed(keys))) return { decisions, outcome: "quit" };
-      // With NVDA muted, nothing is heard until the voice starts, which invites a second Enter: it
-      // would end page 1 before it was heard.
-      if (!(await settle(keys, options.settleMs ?? SETTLE_MS))) {
-        return { decisions, outcome: "quit" };
-      }
-    }
-    show(REPLAY_TEXT.keys);
-    let { rate } = options;
-    for (const [index, page] of pages.entries()) {
-      // A key left from before, such as a second Enter, would end the page before it's heard.
-      if (!(await dropWaitingKeys(keys))) return { decisions, outcome: "quit" };
-      show(REPLAY_TEXT.page(index + 1, pages.length, page.path, page.flags));
-      const played = await playPage({ transcripts: page.transcripts, rate, voice, keys, out });
-      // The speed the person chose with + and − carries on to the next page.
-      rate = played.rate;
-      if (played.outcome === "quit") return { decisions, outcome: "quit" };
-
-      show(REPLAY_TEXT.question);
-      const decision = await decisionOf(keys);
-      if (decision === null) return { decisions, outcome: "quit" };
-      if (decision !== "skip") {
-        let note: string | null = null;
-        if (decision !== "reviewed") {
-          out.write(REPLAY_TEXT.note);
-          const typed = await readNote(keys, out);
-          if (typed === null) {
-            // The note's line is still open: it's ended, so the count has a line of its own.
-            out.write("\n");
-            return { decisions, outcome: "quit" };
-          }
-          // Enter alone is no note.
-          note = typed === "" ? null : typed;
-        }
+    outcome = await hearPages(hearing, pages, {
+      nvdaRunning: deps.nvdaRunning,
+      settleMs: options.settleMs ?? SETTLE_MS,
+      record: async (page, status, note) => {
         await addReview({
           page: page.url,
-          status: decision,
+          status,
           note,
           reviewer: reviewer.name,
           run: page.run,
@@ -240,28 +243,192 @@ export async function replayReview(
           logger,
           regenerateReport: false,
         });
-        decisions += 1;
-      }
-      // Keys pressed just after the answer, as an Enter after the digit, are dropped too, before
-      // the next page. After the last, there's no page left for them to act on.
-      const more = index + 1 < pages.length;
-      if (more && !(await settle(keys, options.settleMs ?? SETTLE_MS))) {
-        return { decisions, outcome: "quit" };
-      }
-    }
-    return { decisions, outcome: "done" };
+      },
+    });
+    return { decisions: hearing.decisions, outcome };
   } finally {
-    // The voice first, so nothing is said while the report is written. A line still being said is
-    // ended by close(), which doesn't wait for it.
-    await voice.close();
-    try {
-      if (decisions > 0) {
-        await (deps.writeReport ?? regenerateLiveReport)({ outDir: siteDir, config, logger });
-      }
-    } finally {
-      show(REPLAY_TEXT.recorded(decisions));
-    }
+    await endSession(hearing, outcome, () =>
+      (deps.writeReport ?? regenerateLiveReport)({ outDir: siteDir, config, logger }),
+    );
   }
+}
+
+/**
+ * Plays each page in turn, asks after each one what the person decided, and records the decision
+ * (`record`). It gives "quit" when the person ends the session before its last page is decided.
+ */
+async function hearPages(
+  hearing: Hearing,
+  pages: readonly ReplayPage[],
+  context: {
+    nvdaRunning: () => Promise<boolean>;
+    settleMs: number;
+    record: (
+      page: ReplayPage,
+      status: Exclude<Decision, "skip">,
+      note: string | null,
+    ) => Promise<void>;
+  },
+): Promise<ReplayResult["outcome"]> {
+  const { keys } = hearing;
+  // NVDA would read each line the session shows, over the voice, until it's muted or quit. Its two
+  // lines are only shown: NVDA reads them.
+  if (await nvdaIsRunning(context.nvdaRunning)) {
+    // An Enter typed while the voice started mustn't pass the wait before the lines are read.
+    if (!(await dropWaitingKeys(keys))) return "quit";
+    for (const line of REPLAY_TEXT.nvda) show(hearing, line);
+    if (!(await enterPressed(keys))) return "quit";
+    hearing.nvdaMuted = true;
+    // With NVDA muted, nothing is heard until the voice starts, which invites a second Enter: it
+    // would end page 1 before it was heard.
+    if (!(await settle(keys, context.settleMs))) return "quit";
+  }
+  // Keys typed while the voice started would cut the keys' line short.
+  if (!(await dropWaitingKeys(keys))) return "quit";
+  // The keys, once. A key stops the line, and is dropped, as the keys before a page are.
+  if (ends(await tell(hearing, REPLAY_TEXT.keys, { spoken: REPLAY_TEXT.keysSpoken }))) {
+    return "quit";
+  }
+  for (const [index, page] of pages.entries()) {
+    // A key left from before, such as a second Enter, would end the page before it's heard.
+    if (!(await dropWaitingKeys(keys))) return "quit";
+    const played = await playPage({
+      transcripts: page.transcripts,
+      rate: hearing.rate,
+      voice: hearing.voice,
+      keys,
+      out: hearing.out,
+      title: REPLAY_TEXT.page(index + 1, pages.length, page.path, page.flags),
+    });
+    // The speed the person chose with + and − carries on to the next page.
+    hearing.rate = played.rate;
+    if (played.outcome === "quit") return "quit";
+
+    const answer = await ask(hearing);
+    if (answer === null) return "quit";
+    if (answer.decision !== "skip") {
+      await context.record(page, answer.decision, answer.note);
+      hearing.decisions += 1;
+    }
+    // Keys pressed just after the answer, as an Enter after the digit, are dropped too, before
+    // the next page. After the last, there's no page left for them to act on.
+    const more = index + 1 < pages.length;
+    if (more && !(await settle(keys, context.settleMs))) return "quit";
+    // Said once the keys pressed just after the answer are dropped, so an Enter pressed out of habit
+    // doesn't cut it short. After the last page, the session is done, however it's stopped.
+    const told = await tell(hearing, REPLAY_TEXT.answered[answer.decision]);
+    if (more && ends(told)) return "quit";
+  }
+  return "done";
+}
+
+/**
+ * Asks what the person decided about the page they heard, and says the question too (R10): a
+ * digit, 1 to 4, stops it and answers, and no other key answers it, Enter included (D3). For 2 and
+ * 3 it asks for a note, and says its prompt too: a key stops it, and is the note's first. Null when
+ * the person ends the session, a note cut short included.
+ */
+async function ask(hearing: Hearing): Promise<{ decision: Decision; note: string | null } | null> {
+  const { out, keys } = hearing;
+  const asked = await tell(hearing, REPLAY_TEXT.question, {
+    spoken: REPLAY_TEXT.questionSpoken,
+    stops: answers,
+  });
+  const decision = asked === "spoken" ? await decisionOf(keys) : decisionFrom(asked);
+  if (decision === null) return null;
+  if (decision === "reviewed" || decision === "skip") return { decision, note: null };
+
+  out.write(REPLAY_TEXT.note);
+  const prompted = await say(hearing, REPLAY_TEXT.note);
+  const typed =
+    prompted === null
+      ? null
+      : await readNote(keys, out, prompted === "spoken" ? undefined : prompted);
+  if (typed === null) {
+    // The note's line is still open: it's ended, so the count has a line of its own.
+    out.write("\n");
+    return null;
+  }
+  // Enter alone is no note.
+  return { decision, note: typed === "" ? null : typed };
+}
+
+/**
+ * Ends the session, however it ended: the voice closed, the live report written once when a
+ * decision was recorded (D8), and how many were shown, with a reminder to turn NVDA's speech back
+ * on when it was muted for the session.
+ *
+ * After the last page, nothing is being said, and the voice says those last lines too, once the
+ * report is written (R10): a key stops the line it's pressed during, and Ctrl+C, or the keys' end,
+ * the rest. Ended any other way, the voice is closed first: a line may still be being said, which
+ * close() ends without waiting for it, so nothing is said while the report is written; and the last
+ * lines are only shown, as an error is, since the voice may be what failed.
+ */
+async function endSession(
+  hearing: Hearing,
+  outcome: ReplayResult["outcome"] | undefined,
+  writeReport: () => Promise<unknown>,
+): Promise<void> {
+  const sayLast = outcome === "done" && !hearing.cutShort;
+  const last = [
+    REPLAY_TEXT.recorded(hearing.decisions),
+    ...(hearing.nvdaMuted ? [REPLAY_TEXT.nvdaBack] : []),
+  ];
+  try {
+    if (!sayLast) await hearing.voice.close();
+    try {
+      if (hearing.decisions > 0) await writeReport();
+    } finally {
+      for (const line of last) show(hearing, line);
+    }
+    if (!sayLast) return;
+    for (const line of last) {
+      if (ends(await say(hearing, line))) break;
+    }
+  } finally {
+    // Safe to call twice: after the last lines, or when the report or the voice failed first.
+    await hearing.voice.close();
+  }
+}
+
+/** Shows one of the session's own lines. */
+function show(hearing: Hearing, text: string): void {
+  hearing.out.write(`${text}\n`);
+}
+
+/**
+ * Says one of the session's own lines (R10), through sayLine, as a page's lines are said: a key it
+ * `stops` for stops it (every key, by default), and so do Ctrl+C and the keys' end; any other key
+ * is taken and left out, and the line goes on. It gives "spoken", or the key that stopped the line,
+ * null for the keys' end.
+ */
+async function say(
+  hearing: Hearing,
+  text: string,
+  stops?: (key: Key) => boolean,
+): Promise<"spoken" | Key | null> {
+  const { voice, keys, rate } = hearing;
+  const heard = await sayLine({ voice, keys, text, rate, stops });
+  if (ends(heard)) hearing.cutShort = true;
+  return heard;
+}
+
+/**
+ * Shows one of the session's own lines, and says it too, as `say` does. `spoken` is what the voice
+ * says, for a line whose signs or spacing a voice reads badly.
+ */
+async function tell(
+  hearing: Hearing,
+  shown: string,
+  options: { spoken?: string; stops?: (key: Key) => boolean } = {},
+): Promise<"spoken" | Key | null> {
+  show(hearing, shown);
+  return say(hearing, options.spoken ?? shown, options.stops);
+}
+
+/** Whether what stopped a line ends the session: Ctrl+C, or the keys' end. */
+function ends(heard: "spoken" | Key | null): boolean {
+  return heard === null || (heard !== "spoken" && heard.name === "ctrl-c");
 }
 
 /**
@@ -297,6 +464,11 @@ async function decisionOf(keys: KeySource): Promise<Decision | null> {
     const decision = key.name === "char" ? DECISIONS.get(key.char) : undefined;
     if (decision !== undefined) return decision;
   }
+}
+
+/** The answer a key that stopped the question gives: null for Ctrl+C, or the keys' end. */
+function decisionFrom(key: Key | null): Decision | null {
+  return key?.name === "char" ? (DECISIONS.get(key.char) ?? null) : null;
 }
 
 /**

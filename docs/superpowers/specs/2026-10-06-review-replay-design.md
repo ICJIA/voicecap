@@ -62,7 +62,28 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 - A line that isn't paused always starts. A key already waiting then stops it at once, and acts (Ruling R4).
 - Ctrl+C, or the keys ending, ends the session without waiting for the line to stop: closing the voice ends it (Ruling R6).
 - A line the voice was asked to stop gets 5 seconds to end. A voice that hasn't stopped it by then is stuck, and the session ends with "The computer's voice stopped answering." (Ruling R7).
-- A key meant for one thing never acts on the next (Ruling R9). The keys left waiting before a page, or before NVDA's two lines, are dropped. So are the keys pressed in the half second after an answer, when a page follows: an Enter pressed after the digit, out of habit, would otherwise end the next page before it was heard. So are the keys pressed in the half second after the Enter that goes on from NVDA's two lines: with NVDA muted, nothing is heard until the voice starts, so a second Enter is likely, and it would end page 1 unheard (Ruling R12). A Ctrl+C among them still ends the session.
+- A key meant for one thing never acts on the next (Ruling R9). The keys left waiting before a page, before NVDA's two lines, or before the keys' line, are dropped. So are the keys pressed in the half second after an answer, when a page follows: an Enter pressed after the digit, out of habit, would otherwise end the next page before it was heard. So are the keys pressed in the half second after the Enter that goes on from NVDA's two lines: with NVDA muted, nothing is heard until the voice starts, so a second Enter is likely, and it would end page 1 unheard (Ruling R12). A Ctrl+C among them still ends the session.
+
+**What the voice says (Ruling R10).** The person's own NVDA is muted or quit for the session, so a person who follows by ear alone hears only the voice. So the voice says the session's own lines too, each as it's shown, at the session's speed:
+- the keys, once, before the first page, in words: "Keys: Space pauses, and goes on. Left Arrow and Right Arrow, a line back or ahead. …", since a voice reads the arrows and dots of the line shown badly;
+- each page's line, before its transcripts, and each transcript's name and size as it starts playing ("Read transcript, 31 lines:");
+- each notice: "No flagged line after this one.", "No lines in the Tab transcript.", "Speed: 200 words a minute.", and "Paused. Press Space to go on.";
+- the question, with a pause after each answer ("What did you decide? 1, Reviewed, no issues. 2, Issue found. 3, Fixed. 4, Skip."), and the note's prompt;
+- once an answer is taken, a short line in voicecap's own words: "Recorded: reviewed, no issues.", "Recorded: issue found.", "Recorded: fixed.", or "Skipped.". When a page follows, it's said once the keys pressed just after the answer are dropped, so an Enter pressed out of habit doesn't stop it. It's never `addReview`'s own line, which names the address the run read;
+- after the last page, how many decisions were recorded, and, when the person's NVDA was running at the start and they went on from its two lines, "Turn NVDA's speech back on (NVDA+S changes its speech mode), or start it again if you quit it.". That reminder is shown on every way out after those two lines.
+
+Each is said through the same `sayLine` as a transcript's lines, so the rules for keys above hold for them too, and a key stops the line, then does what it does there:
+- On a page, a key acts as it would on the line playing (the page's line and the transcript's name come before its first line), and the rest of the page's own lines aren't said. A key the page has no use for is taken and left out, and the line goes on.
+- At the question, a digit, 1 to 4, stops it and answers. Any other key, Enter included, is taken and left out, and the question goes on (D3).
+- At the note's prompt, a key stops it, and is the note's first.
+- The keys' line, and the line after an answer, are stopped by any key, which is then dropped, as the keys before a page are (R9).
+- After the last page, a key stops the line it's pressed during; Ctrl+C, or the keys ending, stops the rest.
+
+← and → move among the transcript's lines only, never onto these. What's only shown:
+- NVDA's two lines: NVDA is running then, and reads them.
+- What's shown before the voice starts: the pages left out, and nothing to hear.
+- An error: the voice may be what failed.
+- The last lines of a session that ends some other way than after its last page (Ctrl+C, the keys ending, or a failure), or whose line after the last answer Ctrl+C stopped: a line may still be being said, and the voice is closed first, without waiting for it (R6).
 
 **The voice:**
 - On Windows, its built-in voice (System.Speech), through a small PowerShell script that ships with voicecap.
@@ -120,6 +141,7 @@ Six modules in `src/review-replay/`, each with one job, and the command:
   - N, with no flagged line left;
   - the end of a transcript leading to the question.
 - **Decisions:** each answer recorded through `addReview` with the run and the reviewer; Skip recording nothing; Ctrl+C keeping what's recorded; the report written once.
+- **What the voice says (R10):** the session's own lines, in order, with and without NVDA found; a key stopping one, and then doing what it does there; a digit answering the question while it's said; and the last lines only shown when the session ends before its last page is decided.
 - **The voices:**
   - each starts its program with no shell, and the text goes only to standard input;
   - the Windows script's JSON lines;
@@ -165,6 +187,7 @@ The plan (`docs/superpowers/plans/2026-10-08-review-replay-plan-8.md`) corrected
 - **R7:** a stopped line gets 5 seconds, then "The computer's voice stopped answering." ends the session.
 - **R8:** the place rules mark the place they quote, and the other rules mark every line with the quoted words.
 - **R9:** keys left before a page or NVDA's two lines are dropped, and so are the keys pressed in the half second after an answer.
+- **R10:** the voice says the session's own lines too, as they're shown: the keys, each page's line and each transcript's name, each notice, the question and the note's prompt, a line once each answer is taken, and after the last page the count, with the reminder to turn NVDA's speech back on. A key stops each, as it stops a transcript's line, and does what it does there. NVDA's two lines, and errors, are only shown.
 - **R12:** the final review's fixes, made before the merge:
   - the check for the person's own NVDA counts each `nvda.exe` that `tasklist` lists, which compiles nothing, so it answers in time when NVDA runs;
   - the keys pressed in the half second after the Enter that goes on from NVDA's two lines are dropped too, so a second Enter can't end page 1 unheard;

@@ -165,13 +165,20 @@ export function terminalKeys(input: NodeJS.ReadableStream, signal?: AbortSignal)
  * The note a person types after "Issue found" or "Fixed", on the line already shown. Each
  * character is written as it's typed, and Backspace takes the last one off the line and out of the
  * note. Enter ends the line and gives the note, trimmed: an empty string when nothing was typed.
- * Ctrl+C, or the keys ending, gives null.
+ * Ctrl+C, or the keys ending, gives null. `first` is a key already taken for the note, the one that
+ * stopped the voice saying its prompt: it comes before the keys still to come.
  */
-export async function readNote(keys: KeySource, out: OutputStream): Promise<string | null> {
+export async function readNote(
+  keys: KeySource,
+  out: OutputStream,
+  first?: Key,
+): Promise<string | null> {
   // One entry for each character, so Backspace takes off a whole character, an emoji included.
   const typed: string[] = [];
+  let given = first;
   for (;;) {
-    const key = await keys.next();
+    const key = given ?? (await keys.next());
+    given = undefined;
     if (key === null || key.name === "ctrl-c") return null;
     if (key.name === "enter") {
       out.write("\n");

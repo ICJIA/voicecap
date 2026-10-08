@@ -379,6 +379,19 @@ describe("readNote", () => {
     expect(shown()).toBe("ab\n");
   });
 
+  // The key that stopped the voice saying the prompt is the note's first (R10).
+  it("takes a key it's given as the first, before the keys that come", async () => {
+    const keys = keyQueue();
+    const { out, shown } = screen();
+    keys.push("a", "d", { name: "enter" });
+    await expect(readNote(keys, out, { name: "char", char: "B" })).resolves.toBe("Bad");
+    expect(shown()).toBe("Bad\n");
+
+    // Enter, or Ctrl+C, as that key, ends the note as either would after it.
+    await expect(readNote(keyQueue(), out, { name: "enter" })).resolves.toBe("");
+    await expect(readNote(keyQueue(), out, { name: "ctrl-c" })).resolves.toBeNull();
+  });
+
   it("reads a note typed at a terminal", async () => {
     const input = ttyInput();
     const keys = terminalKeys(input);
@@ -514,6 +527,33 @@ describe("REPLAY_TEXT", () => {
     expect(REPLAY_TEXT.nothingAll).toBe("Nothing to hear: no page has transcripts yet.");
     expect(REPLAY_TEXT.noTerminal).toBe(
       "--replay needs a terminal: it takes each key as you press it, and shows each line as it's read. Run it in a terminal window, with nothing redirected.",
+    );
+  });
+
+  // Ruling R10: with NVDA muted, the voice says the session's own lines too.
+  it("says the keys and the question in words a voice reads well", () => {
+    expect(REPLAY_TEXT.keysSpoken).toBe(
+      "Keys: Space pauses, and goes on. Left Arrow and Right Arrow, a line back or ahead. N, the next flagged line. H, T, and R, the headings, Tab, and read transcripts. Plus and minus, faster and slower. Enter, decide. Control C, end.",
+    );
+    expect(REPLAY_TEXT.questionSpoken).toBe(
+      "What did you decide? 1, Reviewed, no issues. 2, Issue found. 3, Fixed. 4, Skip.",
+    );
+    // Neither has a sign a voice reads badly, or reads as something else: only words, and the
+    // stops between them.
+    for (const spoken of [REPLAY_TEXT.keysSpoken, REPLAY_TEXT.questionSpoken]) {
+      expect(spoken).toMatch(/^[\w ,.:?]+$/);
+    }
+  });
+
+  it("says each answer as it's taken, in its own words, and turns NVDA back over to the person", () => {
+    expect(REPLAY_TEXT.answered).toEqual({
+      reviewed: "Recorded: reviewed, no issues.",
+      issue: "Recorded: issue found.",
+      fixed: "Recorded: fixed.",
+      skip: "Skipped.",
+    });
+    expect(REPLAY_TEXT.nvdaBack).toBe(
+      "Turn NVDA's speech back on (NVDA+S changes its speech mode), or start it again if you quit it.",
     );
   });
 });

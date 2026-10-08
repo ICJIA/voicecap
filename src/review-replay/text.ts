@@ -5,6 +5,10 @@
  * (pages.ts, session.ts, and the command's own checks in src/cli/main.ts), and the voices' error
  * messages, in voice.ts.
  *
+ * The voice says most of the session's own lines too, as they're shown (Ruling R10). It says each
+ * as it's written, but for the keys and the question, whose signs and spacing a voice reads badly:
+ * those have a `Spoken` form, in words.
+ *
  * The wording is the spec's where the spec pins it (the page's line, the question, the two lines
  * about the person's own NVDA), and the plan's for the rest. The replay reads a page's saved words
  * aloud; it isn't NVDA reading the page again. voicecap is a person's review, sped up: the person
@@ -49,11 +53,29 @@ export const REPLAY_TEXT = {
   /** The keys, shown once before the first page. */
   keys: "Keys: Space pauses and goes on · ← → a line back or ahead · N the next flagged line · H T R the headings, Tab, and read transcripts · + − faster, slower · Enter decide · Ctrl+C end",
 
+  /** The keys as the voice says them, in words: a voice reads the arrows and dots badly. */
+  keysSpoken:
+    "Keys: Space pauses, and goes on. Left Arrow and Right Arrow, a line back or ahead. N, the next flagged line. H, T, and R, the headings, Tab, and read transcripts. Plus and minus, faster and slower. Enter, decide. Control C, end.",
+
   /** Asked after a page. Only 1 to 4 answer it, so Enter alone never records a decision. */
   question: "What did you decide?  1 Reviewed, no issues   2 Issue found   3 Fixed   4 Skip",
 
+  /** The question as the voice says it, with a pause after each answer, so they don't run on. */
+  questionSpoken: "What did you decide? 1, Reviewed, no issues. 2, Issue found. 3, Fixed. 4, Skip.",
+
   /** The prompt for a note, after "Issue found" or "Fixed". It ends with a space, to type after. */
   note: "Note (Enter for none): ",
+
+  /**
+   * Said once an answer is taken, so a person who only hears the session knows it was. Never
+   * addReview's own line, which names the address the run read.
+   */
+  answered: {
+    reviewed: "Recorded: reviewed, no issues.",
+    issue: "Recorded: issue found.",
+    fixed: "Recorded: fixed.",
+    skip: "Skipped.",
+  },
 
   /**
    * Said before the first page when the person's own NVDA is running: it would read these lines
@@ -63,6 +85,13 @@ export const REPLAY_TEXT = {
     "NVDA is running, and it will read these lines too, over the replay's voice.",
     "Mute it (NVDA+S changes its speech mode) or quit it, then press Enter.",
   ],
+
+  /**
+   * Said after the count, at the end, when the person's own NVDA was running and they went on from
+   * its two lines: it's muted, or quit, until they turn it back on.
+   */
+  nvdaBack:
+    "Turn NVDA's speech back on (NVDA+S changes its speech mode), or start it again if you quit it.",
 
   /** Said before the first page when pages were picked but have no transcripts to play. */
   leftOut: (paths: readonly string[]): string =>

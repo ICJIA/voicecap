@@ -1396,12 +1396,18 @@ describe("voicecap review --replay", () => {
     expect(heard.keyboard.rawModes).toEqual([true, false]);
     expect(heard.screen).toContain("Page 1 of 1: /about (no flags)\n");
     expect(heard.screen).toContain("Recorded 1 decision.\n");
-    // /about's lines, at the speed a session starts at, in the voice the CLI was given, which is
-    // closed after.
+    // /about's lines, and the session's own, at the speed a session starts at, in the voice the CLI
+    // was given, which is closed after.
     expect(heard.voice.said.map(({ text, wpm }) => [text, wpm])).toEqual([
+      [REPLAY_TEXT.keysSpoken, 180],
+      ["Page 1 of 1: /about (no flags)", 180],
+      ["Read transcript, 3 lines:", 180],
       ["heading, level 1, About us", 180],
       ["We are an example.", 180],
       ["© 2026 Example Agency", 180],
+      [REPLAY_TEXT.questionSpoken, 180],
+      ["Recorded: reviewed, no issues.", 180],
+      ["Recorded 1 decision.", 180],
     ]);
     expect(heard.voice.closed).toBe(true);
     expect(heard.nvdaRunning).toHaveBeenCalledTimes(1);
