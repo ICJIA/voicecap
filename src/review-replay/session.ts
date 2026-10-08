@@ -10,8 +10,16 @@
  * stopped, started, or changed. The keys are left open at the end, for whoever opened them to
  * close.
  *
+ * A key meant for one thing never acts on the next. Before NVDA's two lines, and before each
+ * page, the keys already waiting are taken and dropped, and so is every key pressed in the half
+ * second after an answer, when a page follows: an Enter pressed after a digit, out of habit, would
+ * otherwise end the next page before it was heard, and one typed while the voice started would
+ * pass the wait for Enter before the person had read why it waits.
+ *
  * The usage errors it stops with sit here, where they're thrown, as pages.ts keeps its own.
  */
+import { setImmediate as nextTurn } from "node:timers/promises";
+
 import { loadConfig } from "../config/load.js";
 import type { ReviewStatus } from "../model.js";
 import { resolvePageArgument } from "../pages/page-argument.js";
@@ -51,6 +59,11 @@ export interface ReplayOptions {
   cwd: string;
   /** Where VOICECAP_TRANSCRIPTS and VOICECAP_REVIEWER are read from. */
   env: NodeJS.ProcessEnv;
+  /**
+   * How long after an answer the keys pressed are taken and dropped, before the next page starts,
+   * in milliseconds: SETTLE_MS, unless a test says otherwise.
+   */
+  settleMs?: number;
 }
 
 /** What the session works with: the terminal, the person's keys, the voice, and the checks. */
@@ -89,6 +102,13 @@ const NOTHING_TO_HEAR = {
     "No run here counts yet (a replayed, interrupted, or unsealed run doesn't count), so there are no transcripts to hear.",
 };
 
+/**
+ * How long after an answer the keys pressed are dropped, before the next page starts. Many press
+ * Enter after a digit, and at a normal speed it comes once the answer is recorded, which takes
+ * tens of milliseconds: the next page's player would take it as "decide".
+ */
+const SETTLE_MS = 500;
+
 /** What the person decided about a page, as the key they pressed says it. */
 type Decision = Extract<ReviewStatus, "reviewed" | "issue" | "fixed"> | "skip";
 
@@ -116,9 +136,9 @@ const DECISIONS: ReadonlyMap<string, Decision> = new Map([
  *
  * Once the voice has started, every way out closes it, writes the live report once when a decision
  * was recorded, and says how many were: the last page, Ctrl+C or the keys ending (anywhere: while
- * a page plays, at the question, in a note, or while it waits for Enter), and a failure, such as
- * the voice stopping mid-page or addReview refusing, which then comes through. A page whose note
- * was cut short records nothing.
+ * a page plays, at the question, in a note, while it waits for Enter, or among the keys it drops),
+ * and a failure, such as the voice stopping mid-page or addReview refusing, which then comes
+ * through. A page whose note was cut short records nothing.
  */
 export async function replayReview(
   options: ReplayOptions,
@@ -165,12 +185,16 @@ export async function replayReview(
   try {
     // NVDA would read each line the session shows, over the voice, until it's muted or quit.
     if (await nvdaIsRunning(deps.nvdaRunning)) {
+      // An Enter typed while the voice started mustn't pass the wait before the lines are read.
+      if (!(await dropWaitingKeys(keys))) return { decisions, outcome: "quit" };
       for (const line of REPLAY_TEXT.nvda) show(line);
       if (!(await enterPressed(keys))) return { decisions, outcome: "quit" };
     }
     show(REPLAY_TEXT.keys);
     let { rate } = options;
     for (const [index, page] of pages.entries()) {
+      // A key left from before, such as a second Enter, would end the page before it's heard.
+      if (!(await dropWaitingKeys(keys))) return { decisions, outcome: "quit" };
       show(REPLAY_TEXT.page(index + 1, pages.length, page.path, page.flags));
       const played = await playPage({ transcripts: page.transcripts, rate, voice, keys, out });
       // The speed the person chose with + and − carries on to the next page.
@@ -180,34 +204,41 @@ export async function replayReview(
       show(REPLAY_TEXT.question);
       const decision = await decisionOf(keys);
       if (decision === null) return { decisions, outcome: "quit" };
-      if (decision === "skip") continue;
-      let note: string | null = null;
-      if (decision !== "reviewed") {
-        out.write(REPLAY_TEXT.note);
-        const typed = await readNote(keys, out);
-        if (typed === null) {
-          // The note's line is still open: it's ended, so the count has a line of its own.
-          out.write("\n");
-          return { decisions, outcome: "quit" };
+      if (decision !== "skip") {
+        let note: string | null = null;
+        if (decision !== "reviewed") {
+          out.write(REPLAY_TEXT.note);
+          const typed = await readNote(keys, out);
+          if (typed === null) {
+            // The note's line is still open: it's ended, so the count has a line of its own.
+            out.write("\n");
+            return { decisions, outcome: "quit" };
+          }
+          // Enter alone is no note.
+          note = typed === "" ? null : typed;
         }
-        // Enter alone is no note.
-        note = typed === "" ? null : typed;
+        await addReview({
+          page: page.url,
+          status: decision,
+          note,
+          reviewer: reviewer.name,
+          run: page.run,
+          site: options.site,
+          out: options.out,
+          cwd,
+          env,
+          config: loaded,
+          logger,
+          regenerateReport: false,
+        });
+        decisions += 1;
       }
-      await addReview({
-        page: page.url,
-        status: decision,
-        note,
-        reviewer: reviewer.name,
-        run: page.run,
-        site: options.site,
-        out: options.out,
-        cwd,
-        env,
-        config: loaded,
-        logger,
-        regenerateReport: false,
-      });
-      decisions += 1;
+      // Keys pressed just after the answer, as an Enter after the digit, are dropped too, before
+      // the next page. After the last, there's no page left for them to act on.
+      const more = index + 1 < pages.length;
+      if (more && !(await settle(keys, options.settleMs ?? SETTLE_MS))) {
+        return { decisions, outcome: "quit" };
+      }
     }
     return { decisions, outcome: "done" };
   } finally {
@@ -256,5 +287,46 @@ async function decisionOf(keys: KeySource): Promise<Decision | null> {
     if (key === null || key.name === "ctrl-c") return null;
     const decision = key.name === "char" ? DECISIONS.get(key.char) : undefined;
     if (decision !== undefined) return decision;
+  }
+}
+
+/**
+ * Takes and drops the keys already waiting: pressed before, and not yet taken. False when the
+ * person ended the session among them: Ctrl+C, or the keys ending.
+ */
+function dropWaitingKeys(keys: KeySource): Promise<boolean> {
+  // A key waiting is taken at once, without a turn of the event loop, so every key waiting now is
+  // taken before the next turn comes.
+  return dropKeysUntil(keys, nextTurn());
+}
+
+/**
+ * Takes and drops every key pressed for `ms` milliseconds. False, at once, when the person ends the
+ * session among them: Ctrl+C, or the keys ending.
+ */
+async function settle(keys: KeySource, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const over = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  try {
+    return await dropKeysUntil(keys, over);
+  } finally {
+    // Ended early by Ctrl+C, the wait leaves no timer behind.
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Takes and drops each key that's waiting, or comes, until `until` resolves. False, at once, when
+ * one of them is Ctrl+C, or the keys end.
+ */
+async function dropKeysUntil(keys: KeySource, until: Promise<unknown>): Promise<boolean> {
+  const over = until.then(() => "over" as const);
+  for (;;) {
+    const first = await Promise.race([keys.waiting().then(() => "key" as const), over]);
+    if (first === "over") return true;
+    const key = await keys.next();
+    if (key === null || key.name === "ctrl-c") return false;
   }
 }

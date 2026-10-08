@@ -108,7 +108,9 @@ function pageFile(at: CountedHome, key: string, file: string): string {
 /**
  * A session at `at`, by Pat Reviewer, at 180 words a minute, with a person who gives `answers`
  * (see answering), a voice that says each line at once, NVDA not running, and a report that's
- * only counted, not written. `options` and `deps` change any of them.
+ * only counted, not written. The next page follows an answer with no wait (`settleMs: 0`): a
+ * test's keys come only when the session asks, so none comes during it. `options` and `deps`
+ * change any of them.
  */
 function replay(
   at: Place,
@@ -138,11 +140,34 @@ function replay(
       cwd: at.cwd,
       // Never the transcripts home or reviewer name of whoever runs the tests.
       env: {},
+      settleMs: 0,
       ...given.options,
     },
     { out, keys, logger, startVoice, nvdaRunning, writeReport, ...given.deps },
   );
   return { session, out, keys, voice, logger, startVoice, nvdaRunning, writeReport };
+}
+
+/**
+ * `voice`, with `pressed` pressed as it starts saying its `n`th line, counted from 1: so they come
+ * while that line is said, as a person presses keys mid-page.
+ */
+function pressingAt(
+  voice: FakeVoice,
+  n: number,
+  keys: KeyQueue,
+  ...pressed: (Key | string)[]
+): Voice {
+  let lines = 0;
+  return {
+    say: (text, wpm) => {
+      lines += 1;
+      if (lines === n) keys.push(...pressed);
+      return voice.say(text, wpm);
+    },
+    stop: () => voice.stop(),
+    close: () => voice.close(),
+  };
 }
 
 /** A line the player shows: a transcript's name as it starts playing, or a line as it's read. */
@@ -421,13 +446,15 @@ describe("replayReview", () => {
     const at = await countedHome();
     const gone = new EnvironmentError("The computer's voice stopped.");
     /**
-     * Each way out: what the person does, whether NVDA is running, and how the session ends. A
-     * way that ends the session leaves keys after it that a session going on would take: "1" would
-     * record a decision, so it can't go unseen.
+     * Each way out: what the person does, the voice the session is given (the fake itself unless
+     * it says otherwise), whether NVDA is running, and how the session ends. A way that ends the
+     * session leaves keys after it that a session going on would take: "1" would record a
+     * decision, so it can't go unseen.
      */
     const ways: {
       way: string;
       answers: (keys: KeyQueue, voice: FakeVoice) => Answer[];
+      says?: (keys: KeyQueue, voice: FakeVoice) => Voice;
       nvda?: boolean;
       ends: ReplayResult | Error | RegExp;
     }[] = [
@@ -439,10 +466,9 @@ describe("replayReview", () => {
       },
       {
         way: "Ctrl+C while a page plays",
-        answers: (keys) => {
-          keys.push(CTRL_C);
-          return [["1"]];
-        },
+        // Pressed as the page's second line is said, so the player takes it.
+        says: (keys, voice) => pressingAt(voice, 2, keys, CTRL_C),
+        answers: () => [["1"]],
         ends: { decisions: 0, outcome: "quit" },
       },
       {
@@ -482,13 +508,17 @@ describe("replayReview", () => {
         ends: /never overwrites review history/,
       },
     ];
-    for (const { way, answers, nvda = false, ends } of ways) {
+    for (const { way, answers, says, nvda = false, ends } of ways) {
       const keys = keyQueue();
       const voice = fakeVoice({ auto: true });
+      const started = says?.(keys, voice) ?? voice;
       const { session, out } = replay(at, answers(keys, voice), {
         keys,
         voice,
-        deps: { nvdaRunning: () => Promise.resolve(nvda) },
+        deps: {
+          startVoice: () => Promise.resolve(started),
+          nvdaRunning: () => Promise.resolve(nvda),
+        },
       });
       if (ends instanceof Error) await expect(session, way).rejects.toBe(ends);
       else if (ends instanceof RegExp) await expect(session, way).rejects.toThrow(ends);
@@ -576,11 +606,14 @@ describe("replayReview", () => {
   it("plays at the session's speed, and keeps the person's speed for the next page", async () => {
     const at = await countedHome();
     const keys = keyQueue();
+    const voice = fakeVoice({ auto: true });
     // + while page 1's first line is said: 20 words a minute faster, from there on.
-    keys.push("+");
-    const { session, voice } = replay(at, [["4"], ["4"], ["4"]], {
+    const pressing = pressingAt(voice, 1, keys, "+");
+    const { session } = replay(at, [["4"], ["4"], ["4"]], {
       options: { all: true, rate: 240 },
       keys,
+      voice,
+      deps: { startVoice: () => Promise.resolve(pressing) },
     });
     await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
     const [first, again, ...rest] = voice.said;
@@ -638,5 +671,193 @@ describe("replayReview", () => {
     );
     expect(uncounted.startVoice).not.toHaveBeenCalled();
     expect(uncounted.out.text()).toBe("");
+  });
+});
+
+/**
+ * A key meant for one thing never acts on the next: the keys already waiting are dropped before
+ * NVDA's two lines and before each page, and so is every key pressed just after an answer, before
+ * the next page. A Ctrl+C, or the keys ending, among them still ends the session.
+ */
+describe("replayReview's dropped keys", () => {
+  it("drops a key left from an answer, so the next page plays to its end", async () => {
+    const at = await countedHome();
+    // 1, then Enter, as many press at a numbered prompt.
+    const { session, out, voice } = replay(at, [["1", ENTER], ["4"], ["4"]], {
+      options: { all: true },
+    });
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "done" });
+    // /about's every line was shown and said, to its last, before its question.
+    const about = out.text().split("Page 2 of 3: /about (no flags)\n")[1];
+    expect(about?.slice(0, about.indexOf(REPLAY_TEXT.question))).toBe(
+      [
+        "Read transcript, 3 lines:",
+        "   2  [to top] heading, level 1, About us",
+        "   3  We are an example.",
+        "   4  © 2026 Example Agency",
+        "",
+      ].join("\n"),
+    );
+    expect(voice.said.map(({ text }) => text)).toContain("© 2026 Example Agency");
+    expect(voice.stops).toBe(0);
+  });
+
+  it("ends on a Ctrl+C pressed just after an answer, keeping the decision", async () => {
+    const at = await countedHome();
+    const { session, out, writeReport } = replay(at, [["1", CTRL_C]], { options: { all: true } });
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "quit" });
+    expect(writeReport).toHaveBeenCalledTimes(1);
+    expect(out.text()).not.toContain("Page 2 of 3");
+    expect(lastLines(out.text(), 2)).toEqual([REPLAY_TEXT.question, "Recorded 1 decision."]);
+
+    // After the last page, no page is left for a key to act on, so the session doesn't wait for
+    // one: it's done.
+    const last = replay(at, [["4", CTRL_C]], { options: { page: "/about", settleMs: 60_000 } });
+    await expect(last.session).resolves.toEqual({ decisions: 0, outcome: "done" });
+  });
+
+  it("takes and drops every key pressed just after an answer, before the next page", async () => {
+    const at = await countedHome();
+    // Watched, not replaced: the timers run as they would.
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      // After a decision, and after Skip.
+      const answers: [answer: string, decisions: number, recorded: string][] = [
+        ["1", 1, "Recorded 1 decision."],
+        ["4", 0, "Recorded no decisions."],
+      ];
+      for (const [answer, decisions, recorded] of answers) {
+        timers.mockClear();
+        cleared.mockClear();
+        const keys = keyQueue();
+        // A wait longer than any test, so only a key can end it.
+        const { session, out, voice } = replay(at, [[answer]], {
+          options: { all: true, settleMs: 60_000 },
+          keys,
+        });
+        // The wait has begun once its timer is set.
+        const wait = (): number => timers.mock.calls.findIndex(([, ms]) => ms === 60_000);
+        await vi.waitFor(() => expect(wait()).not.toBe(-1), { timeout: 10_000 });
+        const said = voice.said.length;
+        // An Enter after the digit, and any other key: each is taken, and dropped.
+        keys.push(ENTER, "x", RIGHT, "2");
+        await expect(soon(session), answer).resolves.toBe("still waiting");
+        await expect(soon(keys.waiting()), answer).resolves.toBe("still waiting");
+        expect(out.text(), answer).not.toContain("Page 2 of 3");
+        expect(voice.said, answer).toHaveLength(said);
+        // Ctrl+C ends the session at once, without the rest of the wait, keeping any decision.
+        keys.push(CTRL_C);
+        await expect(session, answer).resolves.toEqual({ decisions, outcome: "quit" });
+        expect(lastLines(out.text(), 2), answer).toEqual([REPLAY_TEXT.question, recorded]);
+        // The wait's timer was cleared, so it doesn't hold voicecap open once the session ends.
+        expect(cleared, answer).toHaveBeenCalledWith(timers.mock.results[wait()]?.value);
+      }
+    } finally {
+      timers.mockRestore();
+      cleared.mockRestore();
+    }
+  });
+
+  it("waits half a second after an answer, by default, before the next page", async () => {
+    const at = await countedHome();
+    const keys = keyQueue();
+    let answered = 0;
+    let asked = 0;
+    const { session } = replay(
+      at,
+      [
+        () => {
+          answered = performance.now();
+          keys.push("1");
+        },
+        () => {
+          asked = performance.now();
+          keys.push(CTRL_C);
+        },
+      ],
+      { options: { all: true, settleMs: undefined }, keys },
+    );
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "quit" });
+    // From page 1's answer to page 2's question: the wait, with addReview before it, and page 2
+    // said at once.
+    expect(asked - answered).toBeGreaterThanOrEqual(490);
+  });
+
+  it("drops the keys pressed before it asks, so none passes the NVDA wait or ends page 1 unheard", async () => {
+    const at = await countedHome();
+    // Typed while the voice started: an Enter among them.
+    const keys = keyQueue();
+    keys.push("1", ENTER);
+    let warned = (): void => {};
+    const warning = new Promise<void>((resolve) => {
+      warned = resolve;
+    });
+    const running = replay(at, [() => warned(), ["4"]], {
+      keys,
+      deps: { nvdaRunning: () => Promise.resolve(true) },
+    });
+    const first = await Promise.race([
+      warning.then(() => "warned" as const),
+      running.session.then(() => "ended" as const),
+    ]);
+    expect(first).toBe("warned");
+    // It waits for an Enter pressed after NVDA's two lines: those before were taken, and dropped.
+    await expect(soon(running.session)).resolves.toBe("still waiting");
+    await expect(soon(keys.waiting())).resolves.toBe("still waiting");
+    expect(running.voice.said).toEqual([]);
+    keys.push(ENTER);
+    await expect(running.session).resolves.toEqual({ decisions: 0, outcome: "done" });
+
+    // With NVDA not running, the same keys don't end page 1 before it's heard.
+    const early = keyQueue();
+    early.push("1", ENTER);
+    const { session, voice } = replay(at, [["4"]], { keys: early });
+    await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    // /resources' last line: the page was said to its end, with no line stopped.
+    expect(voice.said.at(-1)).toEqual({ text: "End", wpm: 180 });
+    expect(voice.stops).toBe(0);
+  });
+
+  it("quits on a Ctrl+C, or the keys' end, among the keys it drops", async () => {
+    const at = await countedHome();
+    /**
+     * Each: the keys pressed before the session asks anything, and what it shows before it ends.
+     */
+    const ways: { way: string; press: (keys: KeyQueue) => void; nvda: boolean; shows: string[] }[] =
+      [
+        {
+          way: "Ctrl+C before NVDA's lines",
+          press: (keys) => keys.push("x", CTRL_C, ENTER),
+          nvda: true,
+          shows: [],
+        },
+        {
+          way: "Ctrl+C before page 1",
+          press: (keys) => keys.push("x", CTRL_C),
+          nvda: false,
+          shows: [REPLAY_TEXT.keys],
+        },
+        {
+          way: "the keys' end before page 1",
+          press: (keys) => keys.end(),
+          nvda: false,
+          shows: [REPLAY_TEXT.keys],
+        },
+      ];
+    for (const { way, press, nvda, shows } of ways) {
+      const keys = keyQueue();
+      press(keys);
+      // Were the session to go on, these answers would record a decision.
+      const answers: Answer[] = nvda ? [[ENTER], ["1"]] : [["1"]];
+      const { session, out, voice } = replay(at, answers, {
+        keys,
+        deps: { nvdaRunning: () => Promise.resolve(nvda) },
+      });
+      await expect(session, way).resolves.toEqual({ decisions: 0, outcome: "quit" });
+      expect(sessionLines(out.text()), way).toEqual([...shows, "Recorded no decisions."]);
+      expect(voice.said, way).toEqual([]);
+      expect(voice.closed, way).toBe(true);
+    }
   });
 });

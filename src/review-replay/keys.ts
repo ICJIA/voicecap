@@ -23,7 +23,8 @@ export interface KeySource {
   /**
    * Resolves once a key is waiting, or the keys have ended, without taking the key. The player
    * races it against the voice, so a key is taken only when it acts, and none is lost between
-   * lines or pages.
+   * lines or pages, but for the keys the session drops on purpose as a page starts and just after
+   * an answer (session.ts).
    */
   waiting(): Promise<void>;
   /** Stops reading keys and gives the terminal back. It's safe to call twice. */
