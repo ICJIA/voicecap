@@ -16,13 +16,13 @@
  * did, not as a warning.
  *
  * The page names a site by its canonical name: the one its newest share records, or else its
- * folder's own name (see siteName). Site folders that have one name are one site, their reports
- * listed together, the newest first. Only what the page shows changes: each file is still published
- * in its own folder, `<folder>/<name>`, so two folders that name one site can have files of one
- * name, and neither takes the other's place. A site headed by its folder's name when that's an IP
- * address or a local address (its shares are from before 0.10.0, which recorded no site) is
- * published all the same, and warned of, with what to do: share it again with its canonical
- * address.
+ * folder's own name (see siteNamed). A site named by a root has a link to that root beside its
+ * heading, the newest one when its folders have several. Site folders that have one name are one site, their
+ * reports listed together, the newest first. Only what the page shows changes: each file is still
+ * published in its own folder, `<folder>/<name>`, so two folders that name one site can have files
+ * of one name, and neither takes the other's place. A site headed by its folder's name when that's
+ * an IP address or a local address (its shares are from before 0.10.0, which recorded no site) is
+ * published all the same, and warned of, with what to do: share it again with its canonical address.
  *
  * Each build empties its folder, so a folder given by mistake must never be one with records, or
  * anyone's work, in it. A folder is built into only when it's new, empty, or one an earlier build
@@ -40,18 +40,20 @@
  * to delete the folder and build again (see holdsOnlyABuilds).
  * The files an operating system adds to a folder someone opens (.DS_Store, Thumbs.db, desktop.ini)
  * hold nothing of anyone's: they aren't counted, and are emptied with the rest. Every refusal comes
- * before anything is touched. The records are read before the folder is emptied, so an earlier
- * build is kept when they can't be.
+ * before anything is touched. The records, and the facts the trust page states of voicecap (see
+ * ./facts.ts), are read before the folder is emptied, so an earlier build is kept when they can't
+ * be.
  *
  * Besides each report's files, a build writes the demo's own pages in demo-site/ (the demo site
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
- * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), robots.txt,
- * _redirects, and _headers, which gives each page its Content Security Policy, made from the hashes
- * of that page's own bytes, the demo's pages theirs at each address they answer at (see
- * demoSiteRules), and each download its Content-Disposition. In the home it writes .gitattributes
- * and .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of
- * Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None
- * of them is ever written again.
+ * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
+ * page (trust.html: see ./trust.ts), robots.txt, _redirects, and _headers, which gives each page
+ * its Content Security Policy, made from the hashes of that page's own bytes (the site's page at
+ * "/" and "/index.html", and the trust page at "/trust.html" and "/trust"), the demo's pages
+ * theirs at each address they answer at (see demoSiteRules), and each download its
+ * Content-Disposition. In the home it writes .gitattributes and .gitignore when they aren't there,
+ * as a run does, so a home's first build keeps _site/ out of Git with the rest of what voicecap
+ * keeps out, then netlify.toml and .nvmrc the first time. None of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -82,6 +84,7 @@ import { sha256 } from "../util/hash.js";
 import { createConsoleLogger, type Logger } from "../util/log.js";
 import { OS_LITTER } from "../util/os-litter.js";
 import { voicecapVersion } from "../util/version.js";
+import { readVoicecapFacts, recordFactsOf, type VoicecapFacts } from "./facts.js";
 import {
   contentSecurityPolicy,
   demoSiteRules,
@@ -103,6 +106,7 @@ import {
   type PublishedReport,
   type SiteContent,
 } from "./render.js";
+import { renderTrustPage } from "./trust.js";
 
 export interface BuildSiteOptions {
   /** The transcripts home. Default: VOICECAP_TRANSCRIPTS, else "transcripts". */
@@ -112,6 +116,15 @@ export interface BuildSiteOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   logger?: Logger;
+  /**
+   * What the trust page says of voicecap: its version, its releases, and what its release recorded
+   * of itself (see ./facts.ts). Default: what the package that runs the build says of itself
+   * (readVoicecapFacts), read with the records, before the folder is emptied. Given, these are all
+   * the page says of voicecap, and the package's own package.json, CHANGELOG, and
+   * release-facts.json aren't read for them: only the facts come from outside, and the page is
+   * still drawn by the voicecap that runs the build.
+   */
+  voicecapFacts?: VoicecapFacts;
 }
 
 export interface BuildSiteResult {
@@ -145,13 +158,24 @@ const DEMO_NOT_FOUND = "404.html";
  * starts with.
  */
 const DEMO_BASE = DEMO_CANONICAL.replace(/\/$/, "");
+/** The trust page's file, beside the site's page (see ./trust.ts). */
+const TRUST_FILE = "trust.html";
+/**
+ * The address the trust page answers at besides its own: the same without ".html", which is how
+ * Netlify serves a page too (see rulesFor).
+ */
+const TRUST_SHORT = TRUST_FILE.slice(0, -".html".length);
 /**
  * The site's own files and folders at its top, which a site folder of the same name would take the
  * place of. The demo's pages are one: a site folder named so would be published among them, and a
- * file of one name would take another's place.
+ * file of one name would take another's place. The trust page is two names: a folder named for its
+ * file would take its place, and one named for its short address would be served where the page
+ * itself is.
  */
 const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
+  TRUST_FILE,
+  TRUST_SHORT,
   "robots.txt",
   HEADERS_FILE,
   REDIRECTS_FILE,
@@ -192,12 +216,12 @@ function unreadable(error: unknown): Unpublished {
 
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
- * file of each site's newest shares that still matches its record, and write the site's page,
- * robots.txt, _redirects, and _headers beside them, then .gitattributes, .gitignore, netlify.toml,
- * and .nvmrc in the home when they aren't there. Each thing left out is warned of, each site's
- * older shares are counted, and the last line says what was built. Refuses with a UsageError when
- * the home isn't a folder, and when the folder to build in is one that must not be emptied (see the
- * top of this file).
+ * file of each site's newest shares that still matches its record, and write the site's page, the
+ * trust page, robots.txt, _redirects, and _headers beside them, then .gitattributes, .gitignore,
+ * netlify.toml, and .nvmrc in the home when they aren't there. Each thing left out is warned of,
+ * each site's older shares are counted, and the last line says what was built. Refuses with a
+ * UsageError when the home isn't a folder, and when the folder to build in is one that must not be
+ * emptied (see the top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -225,10 +249,12 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     );
   }
 
-  // What can fail for want of a record, a font, or a version is read before the folder is emptied.
+  // What can fail for want of a record, a font, a version, or the package's own facts is read
+  // before the folder is emptied. Facts that are given are never read for: they are the facts.
   const records = await readSiteRecords(home);
   const fontCss = await fontFaceCss();
   const version = voicecapVersion();
+  const voicecap = options.voicecapFacts ?? (await readVoicecapFacts());
 
   await rm(out, { recursive: true, force: true, maxRetries: 3 });
   await mkdir(out, { recursive: true });
@@ -241,7 +267,12 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   // Every share of the site folders, in the records' order, and each site's shares, by the site's
   // name: folders that name one site are one site.
   const inRecordOrder: Share[] = [];
-  const named = new Map<string, { folders: string[]; shares: Share[] }>();
+  // `rooted` is the newest of its folders' newest shares that records a root people visit, which
+  // gives the site its name: the page's link to the site, beside its heading, goes there.
+  const named = new Map<
+    string,
+    { folders: string[]; shares: Share[]; rooted?: { share: Share; root: string } }
+  >();
   // The site folders headed by their own name, which is an IP address or a local address.
   const headedByAnAddress: string[] = [];
   for (const [order, { folder, entries }] of records.sites.entries()) {
@@ -255,22 +286,31 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     const shares = entries.map((entry): Share => ({ order, folder, entry }));
     inRecordOrder.push(...shares);
     // The folder's newest share names its site.
-    const name = siteName(folder, shares.toSorted(newestFirst)[0]?.entry.site ?? null);
+    const newest = shares.toSorted(newestFirst)[0];
+    const { name, root } = siteNamed(folder, newest?.entry.site ?? null);
     if (name === folder && namesAnAddress(folder)) headedByAnAddress.push(folder);
     const site = named.get(name) ?? { folders: [], shares: [] };
     site.folders.push(folder);
     site.shares.push(...shares);
+    if (
+      root !== null &&
+      newest !== undefined &&
+      (site.rooted === undefined || newestFirst(newest, site.rooted.share) < 0)
+    ) {
+      site.rooted = { share: newest, root };
+    }
     named.set(name, site);
   }
   // Each site's newest shares, the newest first, which the site keeps, and the older ones it leaves
   // off: of all its folders' shares together.
   const kept = [...named]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, { folders, shares }]) => {
+    .map(([name, { folders, shares, rooted }]) => {
       const newest = shares.toSorted(newestFirst);
       return {
         name,
         folders,
+        address: rooted?.root,
         shares: newest.slice(0, KEPT_PER_SITE),
         older: newest.slice(KEPT_PER_SITE),
       };
@@ -285,13 +325,14 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     const id = `report-${folder}-${entry.seq}`;
     reportOf.set(share, await publishReport(publishing, entry, folder, id));
   }
-  const sites: SiteContent["sites"] = kept.map(({ name, folders, shares }) => ({
+  const sites: SiteContent["sites"] = kept.map(({ name, folders, address, shares }) => ({
     name,
     folders,
     reports: shares.flatMap((share) => {
       const report = reportOf.get(share);
       return report === undefined ? [] : [report];
     }),
+    ...(address === undefined ? {} : { address }),
   }));
   const demo =
     records.demo === null
@@ -301,7 +342,13 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   await publishDemoSite(out, demoFiles);
 
   const index = renderSiteIndex(content, { fontCss });
+  // The trust page counts the records' facts from what was just published, so it's drawn after it.
+  const trust = renderTrustPage(
+    { voicecap, records: recordFactsOf(content), content },
+    { fontCss },
+  );
   await writeFile(path.join(out, "index.html"), index);
+  await writeFile(path.join(out, TRUST_FILE), trust);
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
   await writeFile(path.join(out, REDIRECTS_FILE), redirectsFile(redirectRules(kept, sites)));
   // The demo's own pages' rules are made from the files just published, so that none is left out.
@@ -311,7 +358,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   );
   await writeFile(
     path.join(out, HEADERS_FILE),
-    headersFile(headerRules(content, index, demoRules, publishing.rulesOf)),
+    headersFile(headerRules(content, { index, trust }, demoRules, publishing.rulesOf)),
   );
   // A home that has no .gitignore gets voicecap's now, with _site/ in it, so the check below warns
   // only of a .gitignore that was there and doesn't keep the site out.
@@ -416,14 +463,15 @@ function redirectRules(
 
 /**
  * The name the site shows a site folder's reports under, given the root its newest share records for
- * its site: that root's canonical name, and otherwise the folder's own. A share that records no root
- * (one from before 0.10.0), or one that names the site by no address readers know it by (a share
- * made with no canonical address records the address voicecap read, which `recordedCanonical`
- * turns away: an IP address, or a local address), leaves the folder's name.
+ * its site: that root's canonical name, with the root, where people visit the site; and otherwise
+ * the folder's own name, with no root. A share that records no root (one from before 0.10.0), or one
+ * that names the site by no address readers know it by (a share made with no canonical address
+ * records the address voicecap read, which `recordedCanonical` turns away: an IP address, or a
+ * local address), leaves the folder's name.
  */
-function siteName(folder: string, site: string | null): string {
+function siteNamed(folder: string, site: string | null): { name: string; root: string | null } {
   const root = recordedCanonical(site);
-  return root === null ? folder : canonicalName(root);
+  return { name: root === null ? folder : canonicalName(root), root };
 }
 
 /**
@@ -913,21 +961,25 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 }
 
 /**
- * The rules of _headers: the index at both its addresses, the demo's own pages' rules (`demoRules`,
- * made by demoSiteRules: a rule for each address a page answers at), then each published file's, in
- * the order the site lists them (the demo's report first, then each site's reports as they're
- * shown). A path has one rule, however many reports list its file.
+ * The rules of _headers: the index at both its addresses, the trust page at both its own, each with
+ * the policy of that page's own bytes (`pages`, the text of each), the demo's own pages' rules
+ * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at), then each
+ * published file's, in the order the site lists them (the demo's report first, then each site's
+ * reports as they're shown). A path has one rule, however many reports list its file.
  */
 function headerRules(
   content: SiteContent,
-  index: string,
+  pages: { index: string; trust: string },
   demoRules: readonly HeaderRule[],
   rulesOf: ReadonlyMap<PublishedFile, HeaderRule[]>,
 ): HeaderRule[] {
-  const policy = contentSecurityPolicy(inlineHashes(index));
+  const indexPolicy = contentSecurityPolicy(inlineHashes(pages.index));
+  const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust));
   const rules: HeaderRule[] = [
-    { path: "/", headers: [[POLICY_HEADER, policy]] },
-    { path: "/index.html", headers: [[POLICY_HEADER, policy]] },
+    { path: "/", headers: [[POLICY_HEADER, indexPolicy]] },
+    { path: "/index.html", headers: [[POLICY_HEADER, indexPolicy]] },
+    { path: `/${TRUST_FILE}`, headers: [[POLICY_HEADER, trustPolicy]] },
+    { path: `/${TRUST_SHORT}`, headers: [[POLICY_HEADER, trustPolicy]] },
     ...demoRules,
   ];
   const seen = new Set(rules.map((rule) => rule.path));

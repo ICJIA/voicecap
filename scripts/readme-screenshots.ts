@@ -10,7 +10,7 @@
  *   pnpm readme:screenshots [folder]     # writes the screenshots into [folder], by default
  *                                        # assets/screenshots, and prints each file's path
  *
- * It writes eight files, drawn in a 1200 × 900 window at twice its size:
+ * It writes nine files, drawn in a 1200 × 900 window at twice its size:
  *
  *   report-top.png           the page's masthead, and At a glance down to its links: the verdict, the
  *                            ring of the pages, and the four big numbers
@@ -27,6 +27,10 @@
  *   website-dark.png         the website's bar, through the site under "The sites": its current
  *                            report, its two earlier ones, and its fold of files, closed, dark
  *   website-light.png        the same, light
+ *   website-trust.png        the website's other page, "Can I trust this?", from its bar down through
+ *                            its four big numbers, dark. What it says of voicecap (the version, the
+ *                            releases, the tests) is the script's own example (see EXAMPLE_FACTS), and
+ *                            what it says of the records is counted from the website built here
  *
  * No shot may show an IP address or `localhost`: before each one is taken, the text inside the part
  * of the page it will draw is read, and a shot that would show one stops the script. Nothing is
@@ -36,10 +40,11 @@
  *
  * It draws with Playwright's Chromium (`pnpm exec playwright install chromium`, once). Run it again
  * when the page's or the site's design changes, and commit what it writes. The README links to each
- * file on GitHub, so npm's copy of the README shows them too. All eight come out the same every
+ * file on GitHub, so npm's copy of the README shows them too. All nine come out the same every
  * time. Each run makes the Word copies again, whose bytes differ (each records when it was made),
  * but the website shows their fingerprints only in its fold of files, which is closed in its shots.
  */
+import { readFileSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -50,8 +55,10 @@ import { chromium, type Browser, type Page } from "playwright";
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import { shareReport } from "../src/share/share.js";
 import { buildSite } from "../src/site/build.js";
+import { parseChangelog, type VoicecapFacts, type VoicecapRelease } from "../src/site/facts.js";
 import { hashJson } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
+import { ciOf } from "./release-facts.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 /** Where the screenshots go when no folder is given. */
@@ -79,6 +86,68 @@ const SHARED_BEFORE = [new Date(2026, 9, 6, 13, 0), new Date(2026, 9, 6, 14, 0)]
 /** Who shares it: the person who ran the review, as the run's record names them. */
 const SHARED_BY = "Christopher Schweda";
 
+/**
+ * The release the trust page's picture is of: an example, not a release anyone made. It's 0.13.2,
+ * the release that adds the page, dated on a fixed day, as the times of the shares are (see
+ * SHARED_ON).
+ */
+const EXAMPLE_RELEASE: VoicecapRelease = {
+  version: "0.13.2",
+  date: "2026-10-09",
+  headline: 'The website\'s "Can I trust this?" page',
+};
+/**
+ * The newest release of the CHANGELOG that the picture takes as it is, for the releases it counts
+ * under the example's own: this one and every release before it.
+ */
+const NEWEST_REAL_RELEASE = "0.13.1";
+
+/**
+ * `EXAMPLE_FACTS`, made from the text of a CHANGELOG (`changelog`) and of CI's workflow
+ * (`workflow`): a function, so that a test can make them from a CHANGELOG with later releases in
+ * it. Throws when the CHANGELOG has no entry for 0.13.1, or CI's matrix can't be read.
+ */
+export function exampleFacts(changelog: string, workflow: string): VoicecapFacts {
+  const real = parseChangelog(changelog);
+  // The CHANGELOG lists its releases newest first, so the real ones the picture takes are the last
+  // of the list, from NEWEST_REAL_RELEASE.
+  const from = real.findIndex((release) => release.version === NEWEST_REAL_RELEASE);
+  if (from < 0) {
+    throw new Error(
+      `The CHANGELOG has no entry for ${NEWEST_REAL_RELEASE}, so the trust page's picture has no real releases to count.`,
+    );
+  }
+  return {
+    version: EXAMPLE_RELEASE.version,
+    released: EXAMPLE_RELEASE.date,
+    releases: [EXAMPLE_RELEASE, ...real.slice(from)],
+    release: {
+      tests: { passed: 5000, skipped: 2, files: 120, system: "Windows" },
+      commits: { count: 480, first: "2026-09-26" },
+      ci: ciOf(workflow),
+    },
+  };
+}
+
+/**
+ * What the trust page's picture says of voicecap. These numbers are the script's own, as the times
+ * the report is shared at are: they are no release's, and the package's own facts (see
+ * ../src/site/facts.ts) are never read for the picture, so it comes out the same each time. A real
+ * page's numbers are always generated.
+ *
+ *   - the version and the day: an example release's, 0.13.2, released 9 October 2026;
+ *   - the releases: that example, then the CHANGELOG's real releases, from 0.13.1 on back. A release
+ *     made later, and 0.13.2's own entry once the CHANGELOG has one, aren't taken, so the picture's
+ *     count of releases is the same today and after 0.13.2's own entry lands, and after any later
+ *     release;
+ *   - what the release recorded: 5,000 tests passed on Windows (2 skipped, in 120 files), 480
+ *     public changes since 26 September 2026, and CI's real matrix, read from its workflow.
+ */
+export const EXAMPLE_FACTS: VoicecapFacts = exampleFacts(
+  readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8"),
+  readFileSync(path.join(ROOT, ".github", "workflows", "ci.yml"), "utf8"),
+);
+
 /** A browser window as wide as a laptop's, drawn at twice its size, so the text is sharp. */
 const VIEWPORT = { width: 1200, height: 900 };
 const SCALE = 2;
@@ -102,7 +171,7 @@ const PANEL_MARGIN = 8;
  */
 export const AVOIDED = ["/biographies/", "/contact/"] as const;
 
-/** The eight files this writes, in the order it takes them. */
+/** The nine files this writes, in the order it takes them. */
 export const SCREENSHOTS = [
   "report-top.png",
   "report-heard.png",
@@ -112,6 +181,7 @@ export const SCREENSHOTS = [
   "report-fingerprints.png",
   "website-dark.png",
   "website-light.png",
+  "website-trust.png",
 ] as const;
 
 /**
@@ -435,28 +505,44 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
   }
 }
 
-/** The website's two shots, from its index at `file`: its bar through the site's report, twice. */
-async function shootWebsite(browser: Browser, file: string, shoot: Shoot): Promise<void> {
-  const page = await open(browser, file);
+/**
+ * The website's three shots, from its pages in `folder`: its bar through the site's report, twice
+ * (its index), then the top of the trust page, through its four big numbers. Each page is opened in
+ * a window of its own, so the light theme the first is left in never reaches the second.
+ */
+async function shootWebsite(browser: Browser, folder: string, shoot: Shoot): Promise<void> {
+  const index = await open(browser, path.join(folder, "index.html"));
   try {
     // The site is dark until a reader picks light, and picking it keeps it, so dark comes first.
     // The home holds one site, v3--i2i.netlify.app, and no share of the demo, so the page's first
     // site is its only one, and "The sites" is the first view under the bar.
-    await shoot(page, "website-dark.png", await fromTop(page, "section.site", SLICE_MARGIN));
-    await page.locator("#theme-toggle").click();
-    await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
-    await shoot(page, "website-light.png", await fromTop(page, "section.site", SLICE_MARGIN));
+    await shoot(index, "website-dark.png", await fromTop(index, "section.site", SLICE_MARGIN));
+    await index.locator("#theme-toggle").click();
+    await index.waitForFunction(() => document.documentElement.dataset.theme === "light");
+    await shoot(index, "website-light.png", await fromTop(index, "section.site", SLICE_MARGIN));
   } finally {
-    await page.context().close();
+    await index.context().close();
+  }
+
+  const trust = await open(browser, path.join(folder, "trust.html"));
+  try {
+    // Dark, as the page opens: its bar, its banner and lead and the stamp of where its numbers come
+    // from, and the four big numbers, which are the page's top. The numbers about voicecap are
+    // EXAMPLE_FACTS', and the pages, the files, and the stamp's second date are the report's.
+    await shoot(trust, "website-trust.png", await fromTop(trust, "ul.tiles", SLICE_MARGIN));
+  } finally {
+    await trust.context().close();
   }
 }
 
 /**
- * Make the eight screenshots in `out` (made when it isn't there), and give each one's path. They
- * are taken in a temporary folder first and copied to `out` once all eight are, so a shot that is
+ * Make the nine screenshots in `out` (made when it isn't there), and give each one's path. They
+ * are taken in a temporary folder first and copied to `out` once all nine are, so a shot that is
  * refused leaves `out` as it was. `source` is the transcripts home the report is shared from (see
  * sharedHome): a test gives one whose run has no canonical address, which voicecap refuses to share,
- * so that nothing is written.
+ * so that nothing is written. The website is built with EXAMPLE_FACTS, so the package's own facts
+ * (its version, its releases, what its release recorded) are never what the trust page's picture
+ * shows.
  */
 export async function makeScreenshots(
   out: string,
@@ -471,6 +557,7 @@ export async function makeScreenshots(
       cwd: root,
       env: {},
       logger: silentLogger,
+      voicecapFacts: EXAMPLE_FACTS,
     });
     if (site.leftOut.length > 0) {
       throw new Error(
@@ -485,7 +572,7 @@ export async function makeScreenshots(
     const browser = await chromium.launch();
     try {
       await shootReport(browser, sharedPage, shoot);
-      await shootWebsite(browser, path.join(site.out, "index.html"), shoot);
+      await shootWebsite(browser, site.out, shoot);
     } finally {
       await browser.close();
     }

@@ -12,7 +12,6 @@ import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime } from "../share/format.js";
 import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
-import { verdictOf } from "../share/verdict.js";
 
 /**
  * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
@@ -35,8 +34,17 @@ export const SITE_TEXT = {
   title: "Screen reader test results",
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   skip: "Skip to main content",
-  /** The label of the bar's navigation, whose links are the views' headings. */
-  nav: "Views",
+  /**
+   * The label of the bar's navigation, which every page of the website has. Its links are the views'
+   * headings, on the website's own page, and the link to the trust page ({@link trust}): the website
+   * itself, so the label names that.
+   */
+  nav: "This website",
+  /**
+   * The words of the bar's last link, to the trust page. The bar of every page says them, so they're
+   * here with the rest of the bar's words, and not with the trust page's own.
+   */
+  trust: "Can I trust this?",
   /** The three views: each one's heading, which is also its link in the bar, and its lead. */
   views: {
     demo: {
@@ -67,17 +75,26 @@ export const SITE_TEXT = {
   /** What heads a site's newest report, ahead of its line. */
   current: "The current report",
   /**
-   * What a share's copies say of the site, on its current report's card, in the page's own words:
-   * the verdict's headline (the problems that need attention and the pages they're on, or that
-   * nothing does), then how many pages NVDA read. Pages skipped, not read, are on no card, so with
-   * none read on a card it's nothing on the pages read, as the page's own line says. The headline
-   * is followed by a full stop when there are problems, and by a colon when there are none.
+   * How many pages NVDA read, on a site's current report's card, beside its bar: the line after the
+   * verdict's headline (verdictOf in ../share/verdict.ts), which says the problems that need
+   * attention and the pages they're on, or that nothing does.
    */
-  verdict: (result: ShareResult): string => {
-    const { headline } = verdictOf(result);
-    const reading = `NVDA read ${pagesRead(result)}.`;
-    return result.problems > 0 ? `${headline}. ${reading}` : `${headline}: ${reading}`;
-  },
+  reading: (result: ShareResult): string => `NVDA read ${pagesRead(result)}.`,
+  /**
+   * The word after how many sites have reports, beside the sites' heading, where the number is the
+   * big part: "2 sites", "1 site".
+   */
+  siteUnit: (count: number): string => (count === 1 ? "site" : "sites"),
+  /** The word after how many reports are listed by date, beside that view's heading: "6 reports". */
+  reportUnit: (count: number): string => (count === 1 ? "report" : "reports"),
+  /** The link to a site itself, beside its name. */
+  visit: "Visit the site",
+  /**
+   * What a screen reader hears after the link's words, and a reader doesn't see: " at
+   * dvfr.illinois.gov, in a new tab". So no two sites' links read alike, and a screen reader knows
+   * the site opens in a tab of its own, as the link's arrow shows the eye.
+   */
+  visitAt: (site: string): string => ` at ${site}, in a new tab`,
   /** Under the current report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
   /** The current report's two links: its page, which opens in the browser, and its Word copy. */

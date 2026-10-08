@@ -19,6 +19,30 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
   - **It runs on Windows and on a Mac,** each with its own voice, and shows `Starting the computer's voice.` while the voice starts, which can take a few seconds. On another computer, or with no voice found, it stops and says so, with exit code 2, before anything is recorded; a voice that stops working mid-session ends it with exit code 2 too, keeping what was recorded. When the Windows voice's PowerShell ends, the message that says the voice stopped, or didn't start, carries the first lines PowerShell wrote to its error output, which say why. Ctrl+C ends a session with exit code 130.
   - **Without `--replay`, `review` is as it was.** `--page` and `--status` are still required, and voicecap now says so itself (`--page is required, unless --replay is given.`), since `--replay` needs neither; `review --help` says so too. `--all` and `--rate` go with `--replay`. `voicecap --help` now says `review` can hear pages again, and has `voicecap review --replay` among its examples.
 
+## [0.13.2] - 2026-10-08
+
+### Added
+
+- **The website has a second page, "Can I trust this?",** for a manager who shouldn't have to take one person's tool on trust. It says who built voicecap, and shows how what voicecap records can be checked and how voicecap tests itself: four big numbers (the tests that passed for the release, the pages NVDA read in the current reports, the files on the website, and the releases with the public changes behind them), what voicecap does and that its screen reader is the real NVDA, the law (Title II of the ADA, IITAA, and WCAG, each linked to its source), how every word can be checked, how it's tested, what it doesn't do, and every release, newest first. The README's "Can I trust this?", under "The website: `voicecap site`", describes it, with a picture of its top.
+  - **A link to it, "Can I trust this?", ends the bar of every page of the website.** The page is `trust.html`, which the site serves at `/trust` too, under a Content Security Policy of its own at both addresses. It's in the website's own design: dark at first, with a button for a light version, complete without JavaScript, and checked with axe in both themes. On that page, the link is the page the reader is on: bold, underlined more heavily, and marked as the current page for a screen reader. The bar's navigation is named "This website" for a screen reader, since it now holds a link to another page as well as the views. With one more link in it, the bar takes a second line at a smaller text size than before, and the room kept clear for it, above whatever has focus, now grows faster than the text.
+  - **Every number and date about voicecap on it is generated,** and none is typed in, with two exceptions. From each release, `publish.sh` records `dist/release-facts.json` once the tests have passed and the build is done: how many tests passed, how many were skipped, in how many files, and on which system; how many commits are behind the release and the date of the first; and the systems and Node versions of CI's matrix. The package's version and its CHANGELOG (each release, its date, and the first line of its entry) are read at each build of the website, with the records: the sites and reports, the pages NVDA read in each site's current report and the problems that need attention, and the files the website publishes and leaves out. The two exceptions are quoted: the law's compliance dates, from the rule, with a link to it, and the one fact of voicecap's history, that a report keeps a screenshot of each page NVDA read since voicecap 0.11.0.
+  - **A fact that isn't there says so in its place.** A build of voicecap that wasn't released has no release facts, so its page says `not recorded in this build of voicecap` and shows a dash where a number would be, and never a guess.
+  - **`buildSite` takes `voicecapFacts`,** what the page says of voicecap, and reads it from the voicecap that runs the build when none is given. The types `VoicecapFacts`, `VoicecapRelease`, `ReleaseFacts`, and `RecordFacts` are exported. The README's picture of the page shows example facts, which the script that makes the README's pictures sets, so it comes out the same at every release; `pnpm readme:screenshots` now makes nine pictures.
+  - **A site folder named `trust.html` or `trust` is left out of the website,** as one named `index.html` is: the first would take the page's place, and the second is the page's other address. `voicecap site --help` names `trust.html` too.
+  - **Only the website's own pages change:** the website shows the page at its next build, with no report shared again. Netlify builds with the newest 0.13.x, so the website's next build has it, with no change to `netlify.toml`.
+
+## [0.13.1] - 2026-10-08
+
+### Changed
+
+- **The website's headings say more at a glance, and each site links to the site itself.** The README's "The website: `voicecap site`" describes it, and its two pictures of the website are drawn again.
+  - **Each site's name has "Visit the site" beside it:** a link to the site, at the address that names it, its canonical address from its newest share, such as `https://sfs.icjia.illinois.gov/`. It opens the site in a new tab, so a reader can switch between the report and the site itself. A screen reader hears the site's name and the new tab after the link's words ("Visit the site at sfs.icjia.illinois.gov, in a new tab"), so no two sites' links sound alike. A site headed by its folder's name has no such link. The page links a site only to the root of a web site, as a share records one, at the host its heading names: never to an address on someone's computer, or one with a name and password, a query, or a hash in it.
+  - **Each view's heading is a banner,** tinted in the accent color: a large picture in a circle, which a screen reader skips (a globe for "The sites", a calendar for "Every report, by date", and a play button for "The demo"), the heading in larger type, and, at the end of the line, how many the view holds, as a big number with its word ("2 sites", "6 reports").
+  - **Each site's name is larger too,** after a browser window's picture in a circle, with a line between one site and the next. A name too long for its line wraps beside its picture, never under it. Beside a site's "Earlier reports" is how many there are, for the eye: their list says it to a screen reader.
+  - **The verdict on a site's card is a pill, and how many pages NVDA read is a bar.** The card said both in one line (`Nothing needs attention: NVDA read all 9 pages.`). Now the verdict's headline is a pill tinted in its color, after its sign (`Nothing needs attention`). Under it is a bar in the same color, as long as the share of the pages NVDA read, with the words beside it (`NVDA read all 9 pages.`). The sign and the bar only repeat the words, so a screen reader hears the words alone.
+  - **`buildSite`'s `SiteContent` gives each site its `address`,** the root its "Visit the site" link goes to, absent for a site its folder names.
+  - **Only the website's own page changes:** the website's next build shows it. A site whose newest share is from before 0.10.0 recorded no address, so it gets its link once it's shared again.
+
 ## [0.13.0] - 2026-10-08
 
 ### Changed
@@ -518,7 +542,9 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
+[0.13.1]: https://github.com/ICJIA/voicecap/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ICJIA/voicecap/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/ICJIA/voicecap/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/ICJIA/voicecap/compare/v0.12.1...v0.12.2
