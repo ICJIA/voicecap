@@ -55,6 +55,15 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 
 **It needs a terminal.** Without one (a script, CI), or with the output redirected, `--replay` stops and says so. `review` without `--replay` is unchanged: `--page` and `--status` are still required.
 
+**The person's own NVDA.** An NVDA that's running reads each line as it appears in the terminal, so the person would hear it over the replay's voice. On Windows, before the first page, voicecap looks for a running `nvda.exe`, from the same list of processes as `doctor`'s check of the person's NVDA. When it finds one, it says so, and waits:
+
+```
+NVDA is running, and it will read these lines too, over the replay's voice.
+Mute it (NVDA+S changes its speech mode) or quit it, then press Enter.
+```
+
+The session starts on Enter. voicecap never stops, starts, or changes the person's NVDA during a replay. When it can't tell whether NVDA is running, it starts anyway.
+
 ## Safety
 
 - **No shell:** the words reach the voice on its standard input, never in a command line, so no transcript can run a command. On Windows, voicecap starts `powershell.exe` with `-NoProfile -NonInteractive -File <its own script>`. It sends each line as a line of JSON on standard input (`{ "say": "...", "rate": n }`, `{ "stop": true }`), and the script answers on standard output when a line is spoken. On a Mac, voicecap starts `say -r <rate> -f -` and writes the line to its input. Nothing is started through `cmd /c` or any shell.
@@ -64,8 +73,8 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 
 - **`src/review-replay/voice.ts`:** a `Voice` (`say(text, rate): Promise<void>`, `stop(): void`, `close(): Promise<void>`), with a Windows voice, a Mac voice, and a fake for the tests. The Windows script is `src/review-replay/speak.ps1`, copied into `dist`.
 - **`src/review-replay/player.ts`:** a pure state machine (the transcript's lines, the current line, flagged lines, the pass, paused, the rate), driven by keys, plus a loop that drives it with a `Voice` and a key source.
-- **`src/review-replay/session.ts`:** which pages, in what order; each page's lines and flags from its shown transcripts, with the flag rules' own matching (plan 7's `flagItemLines` and `flagQuotes`); the decision question; `addReview` with `regenerateReport: false` for each decision; one report at the end.
-- **`src/cli/main.ts`:** `review` gains `--replay`, `--all`, and `--rate`. With `--replay`, `--status` and `--note` aren't taken.
+- **`src/review-replay/session.ts`:** which pages, in what order; the check for the person's own NVDA before the first page; each page's lines and flags from its shown transcripts, with the flag rules' own matching (plan 7's `flagItemLines` and `flagQuotes`); the decision question; `addReview` with `regenerateReport: false` for each decision; one report at the end.
+- **`src/cli/main.ts`:** `review` gains `--replay`, `--all`, and `--rate`. With `--replay`, `--status`, `--note`, and `--run` aren't taken: a page plays from its shown transcripts.
 
 ## Tests
 
@@ -81,13 +90,14 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
   - the rate mapping;
   - a voice that fails to start, ending the session before anything is recorded.
 - **No terminal:** `--replay` stops with its message.
-- **At the PC,** with the owner: `voicecap review --replay --page /` on the i2i v3 site. The owner hears the home page, jumps to the flagged logo line, and records a decision. That isn't hands-off: the person is at the keyboard by design.
+- **The person's own NVDA:** with one running, the message, and the session waiting for Enter; with none, no message; when voicecap can't tell, the session starts; and in every case, no NVDA is stopped or started.
+- **At the PC,** with the owner, on a temporary copy of `fixture/i2i-v3-run`, so no real record changes. That's the real i2i v3 run of 6 October 2026, from before the site's logo was fixed, so its home page still has the flagged logo line (i2i's own records have had no flags since that fix). The command is `voicecap review --replay --page / --out <the copy>`. The owner hears the home page, jumps to the flagged logo line, and records a decision. That isn't hands-off: the person is at the keyboard by design, and voicecap starts no NVDA.
 
 ## Docs and release
 
 - **The README:** the replay in the review section; the keys; and that it reads the saved words, not NVDA again.
 - **The CHANGELOG,** and the timeline row at the release.
-- **The release:** 0.13.0, built right after plan 7 (0.12.0) and before plan 6c, which then ships as 0.14.0. That's the owner's order, 2026-10-06.
+- **The release:** 0.14.0. That's the owner's order of 2026-10-07: plan 9, the page for managers, first, as 0.13.0 (released 2026-10-08); then this; then plan 6c, as 0.15.0.
 
 ## Not included
 
