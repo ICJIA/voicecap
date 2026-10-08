@@ -741,6 +741,29 @@ describe("replayReview", () => {
     expect(pages[RESOURCES]).toMatchObject([{ status: "reviewed", reviewer: "Pat Reviewer" }]);
   });
 
+  it("ends the note's line when the voice fails while it says the note's prompt", async () => {
+    const at = await countedHome();
+    const voice = fakeVoice({ auto: true });
+    const stopped = new EnvironmentError("The computer's voice stopped.");
+    const failing: Voice = {
+      say: (text, wpm) => {
+        if (text === REPLAY_TEXT.note) voice.fail(stopped);
+        return voice.say(text, wpm);
+      },
+      stop: () => voice.stop(),
+      close: () => voice.close(),
+    };
+    const { session, out } = replay(at, [["2"]], {
+      options: { page: "/about" },
+      voice,
+      deps: { startVoice: () => Promise.resolve(failing) },
+    });
+    await expect(session).rejects.toBe(stopped);
+    // The prompt's line is ended, so the count has a line of its own.
+    expect(lastLines(out.text(), 2)).toEqual([REPLAY_TEXT.note, "Recorded no decisions."]);
+    expect(voice.closed).toBe(true);
+  });
+
   it("keeps its own failure when the report can't be written either, and says so", async () => {
     const at = await countedHome();
     const voice = fakeVoice({ auto: true });

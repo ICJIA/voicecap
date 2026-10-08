@@ -56,7 +56,7 @@ A page picked with nothing to hear (no run that counts read it, or its read tran
 - **Enter:** stop, and decide.
 - **Ctrl+C:** end the session. What was recorded stays recorded, and the report is written again.
 
-While paused, ←, →, N, H, T, and R move to their line, show it, and don't speak it, so a person can step through the lines in silence. Space speaks from there (D7).
+While paused, ←, →, N, H, T, and R move to their line, show it, and don't speak it, so a person can step through the lines in silence (a transcript's name, and any notice, are still said: Ruling R10). Space speaks from there (D7).
 
 Keys typed while a line is spoken wait their turn: each acts once the voice has stopped for it.
 - A line that isn't paused always starts. A key already waiting then stops it at once, and acts (Ruling R4).
@@ -73,7 +73,8 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 - after the last page, how many decisions were recorded, and, when the person's NVDA was running at the start and they went on from its two lines, "Turn NVDA's speech back on (NVDA+S changes its speech mode), or start it again if you quit it.". That reminder is shown on every way out after those two lines.
 
 Each is said through the same `sayLine` as a transcript's lines, so the rules for keys above hold for them too, and a key stops the line, then does what it does there:
-- On a page, a key acts as it would on the line playing (the page's line and the transcript's name come before its first line), and the rest of the page's own lines aren't said. A key the page has no use for is taken and left out, and the line goes on.
+- On a page, a key acts as it would on the line playing, and the rest of the page's own lines aren't said. A key the page has no use for is taken and left out, and the line goes on.
+- But the page's line and a transcript's name come before that transcript's first line, which isn't heard yet. While they're said, before that line starts, → only ends them, so the first line is the next one said, and N looks for a flagged line from the first line itself, so neither passes over it unheard (Ruling R14). Space, Enter, Ctrl+C, H, T, R, + and − mean what they always do, and a digit is still left out. A notice once the transcript's lines have started ("No flagged line after this one.", "Speed: …", "Paused. …") acts on the line playing, which the person has heard.
 - At the question, a digit, 1 to 4, stops it and answers. Any other key, Enter included, is taken and left out, and the question goes on (D3).
 - At the note's prompt, a key stops it, and is the note's first.
 - The keys' line, and the line after an answer, are stopped by any key, which is then dropped, as the keys before a page are (R9).
@@ -196,3 +197,4 @@ The plan (`docs/superpowers/plans/2026-10-08-review-replay-plan-8.md`) corrected
   - while a page plays, ← and → pass over a line where NVDA said nothing, so ← can reach the lines before one, and → moves one line with words;
   - closing the keys never fails, even with the terminal gone, so the session's own result stands, and the closed window is no longer watched however closing them goes;
   - a report that can't be written, after a session that failed, is a warning, and the session's own error is the one shown.
+- **R14:** the fix wave's re-review: while the page's line or a transcript's name is said, before that transcript's first line, → goes to the first line, and N looks for a flagged line from it, so neither passes over it unheard; and a voice that fails while saying the note's prompt ends the prompt's line first, so the count has a line of its own.

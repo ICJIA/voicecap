@@ -344,7 +344,15 @@ async function ask(hearing: Hearing): Promise<{ decision: Decision; note: string
     if (decision === "reviewed" || decision === "skip") return { decision, note: null };
 
     out.write(REPLAY_TEXT.note);
-    const prompted = await say(hearing, REPLAY_TEXT.note);
+    let prompted: "spoken" | Key | null;
+    try {
+      prompted = await say(hearing, REPLAY_TEXT.note);
+    } catch (error) {
+      // The note's line is still open, for the person to type on: it's ended, so the count has a
+      // line of its own, and the error comes after.
+      out.write("\n");
+      throw error;
+    }
     const typed =
       prompted === null
         ? null

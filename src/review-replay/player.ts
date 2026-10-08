@@ -219,8 +219,10 @@ export function playerKeyOf(key: Key): PlayerKey | null {
  *
  * Keys pressed while a line is said wait their turn, as sayLine says. A key that stops one of the
  * page's own lines acts as it would on the line playing, and the rest of them aren't said; on a
- * page that's over before it starts (no read lines), it only stops them, or ends the session. A
- * voice that stops working, or stops answering, rejects it.
+ * page that's over before it starts (no read lines), it only stops them, or ends the session.
+ * While they come before a transcript's first line, which isn't heard yet, Right Arrow only ends
+ * them, so that line is said next, and N looks for a flagged line from that line itself (Ruling
+ * R14). A voice that stops working, or stops answering, rejects it.
  */
 export async function playPage(options: {
   transcripts: Transcripts;
@@ -249,10 +251,16 @@ export async function playPage(options: {
     const { n, text, marks } = lineOf(state);
     out.write(`${REPLAY_TEXT.line(n, text, marks)}\n`);
   };
+  /**
+   * Set while the page's own lines are said before a transcript's first line, which isn't heard
+   * yet: from the transcript's start until the voice reaches its lines (Ruling R14).
+   */
+  let announcing = false;
   /** Shows a transcript's name and size as it starts playing, and says it, then its first line. */
   const showPass = (state: PlayerState): void => {
     tell(REPLAY_TEXT.pass(state.pass, lines(state).length));
     showLine(state);
+    announcing = true;
   };
   /** Says `text`, and gives what ended it as the player's key. */
   const say = async (text: string, rate: number): Promise<PlayerKey | "spoken"> => {
@@ -278,8 +286,18 @@ export async function playPage(options: {
         if (heard === "quit") return { outcome: "quit", rate: state.rate };
         continue;
       }
+      // Before the transcript's first line is heard, Right Arrow only ends what's said of it, and N
+      // looks from that line itself, so neither passes over it unheard (R14).
+      const onFirst =
+        heard === "ahead" || (heard === "next-flag" && lineOf(state).marks.length > 0);
+      if (announcing && onFirst) {
+        state = { ...state, notice: null };
+        continue;
+      }
     } else {
       if (state.outcome !== "playing") break;
+      // The voice has reached the transcript's lines: a key acts on the line playing from here.
+      announcing = false;
       const { spoken } = lineOf(state);
       if (state.paused) heard = await nextKey(keys);
       else if (spoken === "") heard = "spoken";

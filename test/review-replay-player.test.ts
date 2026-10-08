@@ -356,7 +356,7 @@ describe("playPage", () => {
     );
   });
 
-  it("stops one of the page's own lines for a key, which acts as it would on the line playing", async () => {
+  it("stops one of the page's own lines for a key, which then acts on the page", async () => {
     const voice = fakeVoice();
     const keys = keyQueue();
     const { out, shown } = screen();
@@ -368,8 +368,8 @@ describe("playPage", () => {
       out,
       title: "Page 1 of 2: / (1 flag)",
     });
-    // N, during the page's line: the next flagged line after line 2, the one playing, is said
-    // next, and the transcript's name isn't.
+    // N, during the page's line: the first flagged line from line 2, the first, on is said next,
+    // and the transcript's name isn't.
     await untilSaying(voice, "Page 1 of 2: / (1 flag)");
     keys.push("n");
     await nextTurn();
@@ -396,6 +396,82 @@ describe("playPage", () => {
         "Speed: 200 words a minute.",
       ),
     );
+  });
+
+  /**
+   * A page started with `transcripts`, its line ("Page 1 of 1: / (1 flag)") being said, and nothing
+   * of its transcript said yet.
+   */
+  async function announcing(transcripts: Transcripts) {
+    const voice = fakeVoice();
+    const keys = keyQueue();
+    const { out, shown } = screen();
+    const title = "Page 1 of 1: / (1 flag)";
+    const playing = playPage({ transcripts, rate: 180, voice, keys, out, title });
+    await untilSaying(voice, title);
+    return { voice, keys, playing, shown, title };
+  }
+
+  // The page's own lines come before its transcript's first line, which isn't heard yet: a key
+  // meant to pass over them mustn't pass over that line too (Ruling R14).
+  it("goes to the first line on Right Arrow during the page's own lines, before it's said", async () => {
+    const { voice, keys, playing, shown, title } = await announcing(TRANSCRIPTS);
+    keys.push(RIGHT);
+    await nextTurn();
+    // Line 2, the first, is said next: not line 3, and not the transcript's name.
+    expect(voice.said.map(({ text }) => text)).toEqual([title, SKIP.spoken]);
+    keys.push(ENTER);
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+    expect(shown()).toBe(
+      screenOf(title, "Read transcript, 3 lines:", "   2  [to top] Skip to main content, link"),
+    );
+
+    // The same during a transcript's name, as it starts after H: its first heading is said next.
+    const switching = fakeVoice();
+    const page = play(switching);
+    await untilSaying(switching, SKIP.spoken);
+    page.keys.push("h");
+    await nextTurn();
+    expect(switching.said.at(-1)?.text).toBe("Headings transcript, 2 lines:");
+    page.keys.push(RIGHT);
+    await nextTurn();
+    expect(switching.said.at(-1)?.text).toBe(WELCOME.spoken);
+    page.keys.push(ENTER);
+    await expect(page.playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+  });
+
+  it("finds a flagged first line on N during the page's own lines, before it's said", async () => {
+    const more: PlayLine = {
+      n: 4,
+      text: "link, Read more",
+      spoken: "link, Read more",
+      marks: ["read more"],
+    };
+    const { voice, keys, playing, title } = await announcing({
+      read: [{ ...LOGO, n: 2 }, { ...ABOUT, n: 3 }, more],
+    });
+    keys.push("n");
+    await nextTurn();
+    // The first line raised a flag, so it's the one said next: N looks from it, not after it.
+    expect(voice.said.map(({ text }) => text)).toEqual([title, LOGO.spoken]);
+    keys.push(ENTER);
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+  });
+
+  // A notice once the transcript's lines have started acts on the line playing, which was heard.
+  it("keeps Right Arrow for the line playing during a notice in the middle of a page", async () => {
+    const voice = fakeVoice();
+    const { playing, keys } = play(voice);
+    await untilSaying(voice, ABOUT.spoken);
+    keys.push("+");
+    await nextTurn();
+    expect(voice.said.at(-1)?.text).toBe("Speed: 200 words a minute.");
+    // Right Arrow, during it, goes a line ahead of line 3, the line playing.
+    keys.push(RIGHT);
+    await nextTurn();
+    expect(voice.said.at(-1)?.text).toBe(LOGO.spoken);
+    keys.push(ENTER);
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 200 });
   });
 
   it("stops the voice for a key, then acts", async () => {
