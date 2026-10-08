@@ -13,27 +13,21 @@ import { CHECK_SCRIPT } from "../check.js";
 import type { ShareModel } from "../model.js";
 import { documentTitle } from "../words.js";
 import { renderAttention } from "./attention.js";
-import { renderChanges } from "./changes.js";
 import { SHARE_SCRIPT } from "./client.js";
-import { renderCoverage, renderEvidence, renderFooter, renderStory } from "./evidence.js";
-import { renderAppendix, renderPages } from "./pages.js";
-import { renderProblems } from "./problems.js";
+import { renderDetails } from "./details.js";
+import { renderFooter } from "./evidence.js";
+import { renderPages } from "./pages.js";
 import { SHARE_CSS } from "./style.js";
-import { renderHow, renderSummary, renderTop } from "./top.js";
+import { renderGlance, renderTop } from "./top.js";
 
-/** The sections inside `main`, in the design's order. */
-const SECTIONS = [
-  renderSummary,
-  renderAttention,
-  renderHow,
-  renderPages,
-  renderChanges,
-  renderProblems,
-  renderCoverage,
-  renderEvidence,
-  renderStory,
-  renderAppendix,
-];
+/**
+ * The sections inside `main`, in the design's order: At a glance, what needs attention (nothing,
+ * with no card to name), every page (each card with what NVDA said first and the page's full
+ * transcript, folded), and the details, which hold the rest (what changed, the problems, what the
+ * results cover, the evidence, how voicecap works, and how it came to be). There is no appendix of
+ * transcripts: each page's is in its card.
+ */
+const SECTIONS = [renderGlance, renderAttention, renderPages, renderDetails];
 
 /**
  * The page, from the model. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
@@ -54,7 +48,7 @@ export function renderSharePage(model: ShareModel, assets: { fontCss: string }):
     '<div class="wrap">',
     renderTop(model),
     '<main id="main">',
-    ...SECTIONS.map((section) => section(model)),
+    ...SECTIONS.map((section) => section(model)).filter((html) => html !== ""),
     "</main>",
     renderFooter(model),
     "</div>",

@@ -89,7 +89,7 @@ async function check(
   return plain(await library.checkAll(data, digest, shown, pictures));
 }
 
-/** What the appendix shows of each file: its body, the file without its header, as the page has it. */
+/** What a card's fold shows of each file: its body, the file without its header, as the page has it. */
 const asShown: Shown = (file) => extractBody(file.text).join("\n");
 
 const TRANSCRIPTS = ["read.txt", "headings.txt", "tab.txt"] as const;
@@ -546,7 +546,7 @@ describe("checkAll", () => {
 });
 
 describe("checkAll: the transcripts shown", () => {
-  /** What the appendix shows, with the text of the file `changed` names changed to `to`. */
+  /** What the page shows, with the text of the file `changed` names changed to `to`. */
   const showing =
     (changed: { slug: string; name: string }, to: (text: string) => string): Shown =>
     (file) =>
@@ -694,7 +694,8 @@ describe("checkAll, with the screenshots a page shows", () => {
   });
 
   it("checks every copy the page has of a screenshot, and names the screenshot once", async () => {
-    // The card's copy is as it was, and the appendix's has been changed.
+    // One copy is as it was, and another the page has of it has been changed: a copy someone added,
+    // since the page itself shows each picture once, on its card.
     const pictures: Pictures = (shot) =>
       shot.slug === "home" ? [TINY_JPEG, changed] : [TINY_JPEG];
 
@@ -852,11 +853,11 @@ describe("the check's script text", () => {
 });
 
 /**
- * Each transcript as the page's appendix shows it: a section that names its file, with the file's
- * body in a `<pre>` (a browser drops the newline right after `<pre>`, so a blank first line needs
- * one more), or no `<pre>` for a transcript with no lines.
+ * Each transcript as a page's card shows it in its fold: a section that names its file, with the
+ * file's body in a `<pre>` (a browser drops the newline right after `<pre>`, so a blank first line
+ * needs one more), or no `<pre>` for a transcript with no lines.
  */
-function appendixOf(data: CheckData): string {
+function transcriptsIn(data: CheckData): string {
   return data.files
     .map((file) => {
       const body = extractBody(file.text).join("\n");
@@ -869,14 +870,15 @@ function appendixOf(data: CheckData): string {
 }
 
 /**
- * Each screenshot the data lists as the page shows it, twice: on the card of its page, and in its
- * place in the appendix. Each is an image that names its page and file, whose address holds its
- * bytes in base64.
+ * Each screenshot the data lists as the page shows it: on the card of its page, and again as a
+ * second copy, such as someone could add (the page itself shows each once, but the check holds every
+ * copy there is to the fingerprint). Each is an image that names its page and file, whose address
+ * holds its bytes in base64.
  */
 function picturesIn(data: CheckData): string {
   return data.screenshots
     .flatMap((shot) =>
-      ["card", "appendix"].map(
+      ["card", "copy"].map(
         (place) =>
           `<img class="${place}" src="data:image/jpeg;base64,${Buffer.from(TINY_JPEG).toString("base64")}" alt="" width="16" height="12" data-slug="${esc(shot.slug)}" data-file="${esc(shot.name)}">`,
       ),
@@ -885,9 +887,8 @@ function picturesIn(data: CheckData): string {
 }
 
 /**
- * A stand-in for the page's evidence section and its appendix: the elements the check's wiring
- * names, its data, each transcript as the appendix shows it, and each screenshot as the page shows
- * it.
+ * A stand-in for the page's evidence section and its cards: the elements the check's wiring names,
+ * its data, each transcript as a card's fold shows it, and each screenshot as the page shows it.
  */
 function checkPage(data: CheckData): string {
   return `<!doctype html>
@@ -899,7 +900,7 @@ function checkPage(data: CheckData): string {
 <details id="fp-list" hidden><summary>Every file checked <span id="fp-count"></span></summary>
 <table><thead><tr><th scope="col">File</th><th scope="col">Recorded fingerprint</th><th scope="col">Result</th></tr></thead><tbody id="fp-rows"></tbody></table></details>
 <script type="application/json" id="fp-data">${checkDataJson(data)}</script>
-${appendixOf(data)}
+${transcriptsIn(data)}
 ${picturesIn(data)}
 <script>${CHECK_SCRIPT}</script>
 </body></html>
@@ -1230,7 +1231,7 @@ describe("the check in a browser", () => {
     );
 
     it("names a screenshot changed by one character of its base64, whichever copy it's in", async () => {
-      for (const place of ["card", "appendix"]) {
+      for (const place of ["card", "copy"]) {
         const page = await open({ shots: true });
         await page.evaluate((copy) => {
           const image = document.querySelector(`img.${copy}[data-slug="home"]`);
@@ -1309,13 +1310,15 @@ describe("the check in a browser", () => {
       "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
       "and the run's seal checks out.";
 
-    it("finds every transcript and screenshot matching, a page's picture on its card and in the appendix both", async () => {
+    it("finds every transcript and screenshot matching, a page's picture on its card and its transcripts in the card's fold", async () => {
       const page = await open({ generated: true });
 
-      // Each page's picture twice, each naming its page and file.
-      expect(await page.locator("img[data-file]").count()).toBe(6);
+      // Each page's picture once, on its card, naming its page and file; the fold in the card holds
+      // the page's transcripts, and no picture.
+      expect(await page.locator("img[data-file]").count()).toBe(3);
       expect(await page.locator("#pg-home img[data-file]").count()).toBe(1);
-      expect(await page.locator("#tx-home img[data-file]").count()).toBe(1);
+      expect(await page.locator("#pg-home details#tx-home section.tx[data-file]").count()).toBe(3);
+      expect(await page.locator("#tx-home img[data-file]").count()).toBe(0);
       await page.locator("#fp-run").click();
 
       await expect.poll(() => result(page), { timeout: 10_000 }).toBe(GENERATED_MATCHING);
@@ -1323,33 +1326,51 @@ describe("the check in a browser", () => {
       expect(await page.locator("#fp-count").textContent()).toBe("13 checked, 0 not matching");
     });
 
-    it.each(["#pg-home", "#tx-home"])(
-      "names the page's screenshot when one character of its base64 is changed in %s",
-      async (where) => {
-        const page = await open({ generated: true });
-        await page.evaluate((selector) => {
-          const image = document.querySelector(`${selector} img`);
-          if (image === null) throw new Error(`${selector} has no picture.`);
-          const address = image.getAttribute("src") ?? "";
-          const at = "data:image/jpeg;base64,".length + 40;
-          image.setAttribute(
-            "src",
-            `${address.slice(0, at)}${address[at] === "A" ? "B" : "A"}${address.slice(at + 1)}`,
-          );
-        }, where);
-        await page.locator("#fp-run").click();
+    it("names the page's screenshot when one character of its base64 is changed on its card", async () => {
+      const page = await open({ generated: true });
+      await page.evaluate(() => {
+        const image = document.querySelector("#pg-home img");
+        if (image === null) throw new Error("The home page's card has no picture.");
+        const address = image.getAttribute("src") ?? "";
+        const at = "data:image/jpeg;base64,".length + 40;
+        image.setAttribute(
+          "src",
+          `${address.slice(0, at)}${address[at] === "A" ? "B" : "A"}${address.slice(at + 1)}`,
+        );
+      });
+      await page.locator("#fp-run").click();
 
-        await expect
-          .poll(() => result(page), { timeout: 10_000 })
-          .toBe(
-            "Checked just now, in this browser. " +
-              "Run 1405 · / · screenshot.jpg doesn't match its fingerprint. " +
-              "9 of 9 transcripts match their fingerprints, and 2 of 3 screenshots match their fingerprints, " +
-              "and the run's seal checks out.",
-          );
-        expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
-        expect(await page.locator("#fp-count").textContent()).toBe("13 checked, 1 not matching");
-      },
-    );
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1405 · / · screenshot.jpg doesn't match its fingerprint. " +
+            "9 of 9 transcripts match their fingerprints, and 2 of 3 screenshots match their fingerprints, " +
+            "and the run's seal checks out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("13 checked, 1 not matching");
+    });
+
+    it("names a transcript changed by one character in its card's fold", async () => {
+      const page = await open({ generated: true });
+      await page.evaluate(() => {
+        const shown = document.querySelector("#pg-home details#tx-home section.tx pre");
+        if (shown === null) throw new Error("The home page's card shows no transcript.");
+        const text = shown.textContent ?? "";
+        shown.textContent = `${text.slice(0, -1)}${text.endsWith("x") ? "y" : "x"}`;
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1405 · / · read.txt: the text shown doesn't match its file. " +
+            "8 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
+            "and the run's seal checks out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+    });
   });
 });

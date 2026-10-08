@@ -1,7 +1,9 @@
 /**
- * The first three parts of the shareable page, in the approved mockup's markup and class names:
- * the top (the header), the Summary, and "How voicecap works". They are open: nothing in them is
- * folded. Each takes the model and returns HTML.
+ * The first parts of the shareable page, in the approved mockup's markup and class names: the top
+ * (the header), At a glance, and "How voicecap works"; and five parts of the details, which were
+ * the Summary's panels and bars: What's still to do, How complete the test was, When and how, Flags
+ * by rule, and The human review. They are open, but for the one fold: the sample of what NVDA said
+ * in "How voicecap works". Each takes the model and returns HTML.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts),
  * which is plain words, and so does each line worked out from the model (../words.ts), through
@@ -10,9 +12,11 @@
  * canonical address (when it has one), and the page's own sections.
  *
  * Where the mockup is sample data, nothing of it is here. Where it set a style attribute, the
- * page's style block gives the same look instead: the second line under the summary's sentence
- * (`.verdict + .gist`) and the caption under the sample of what NVDA said (`.heard > .sub`) each
- * need a margin rule.
+ * page's style block gives the same look instead: the spacing of At a glance's parts, in its grid,
+ * and the sign before the verdict (`.verdict::before`), which only repeats its words, so it is
+ * drawn by the style with no alternative text, never put in the markup, where a character that is
+ * no text fails axe's contrast check. The caption under the sample of what NVDA said is in its
+ * fold, where a fold's own rule gives a paragraph none.
  */
 import { esc } from "../../report/html.js";
 import { formatDuration } from "../../util/time.js";
@@ -20,31 +24,28 @@ import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
 import {
   ATTENTION_TEXT,
-  CHANGES_TEXT,
-  COVERAGE_TEXT,
+  DETAILS_TEXT,
+  GLANCE_TEXT,
   HOW_STEPS,
   HOW_TEXT,
   PAGES_TEXT,
-  PROBLEMS_TEXT,
-  STORY_TEXT,
   SUMMARY_TEXT,
   TOP_TEXT,
   WHEN_TO_RUN,
 } from "../text.js";
+import { verdictOf } from "../verdict.js";
 import {
-  attentionPanelOf,
+  glanceNumbersOf,
+  heardFirstLine,
   heardTitle,
   howLead,
-  noAttentionLine,
-  numbersOf,
-  resultsCaption,
   spokenDuration,
   testedLine,
   topLead,
   type NumberTile,
 } from "../words.js";
 import { STEP_ICONS } from "./icons.js";
-import { bar, count, lineHtml, notRecorded, track } from "./parts.js";
+import { count, fold, lineHtml, notRecorded, ring, track, type RingPart } from "./parts.js";
 
 // The top.
 
@@ -104,7 +105,7 @@ export function renderTop(model: ShareModel): string {
   ].join("\n");
 }
 
-// The summary.
+// At a glance.
 
 const tile = (tone: NumberTile["tone"], big: string, label: string): string =>
   `<div class="tile ${tone}"><span class="n">${big}</span><span class="k">${esc(label)}</span></div>`;
@@ -127,39 +128,106 @@ const bigOf = (value: NumberTile["value"]): string =>
       ? fraction(value.part, value.whole)
       : duration(value.ms);
 
-/** The five numbers (../words.ts), each in a tile. */
+/** The four numbers (../words.ts), each in a tile. */
 function tiles(model: ShareModel): string {
-  const items = numbersOf(model).map(({ tone, value, label }) => tile(tone, bigOf(value), label));
+  const items = glanceNumbersOf(model).map(({ tone, value, label }) =>
+    tile(tone, bigOf(value), label),
+  );
   return `<div class="tiles">${items.join("")}</div>`;
 }
 
 /**
- * "What needs attention": how many problems there are, on how many pages, then the first few by
- * their titles, each linked to its card, and a link to the section for the rest (../words.ts); or
- * the line that says nothing is left (`noAttentionLine`), which says whether any flag was raised,
- * and how many pages weren't read when some were skipped.
- *
- * It is the critical panel, and the first of the four, each a row of the grid (see ./style.ts). The
- * problems' panel has `attention` as well as `panel`, which colors it.
+ * The ring of the pages, with its legend, in a row: the pages in scope, by whether NVDA read them
+ * with no problems, read them with problems (a card of What needs attention is on them), or didn't
+ * read them. Its middle is the number of pages in scope, which the three parts add up to.
  */
-function attentionPanel({ attention }: Summary): string {
-  const title = `<h3>${esc(SUMMARY_TEXT.attention)}</h3>`;
-  const panel = attentionPanelOf(attention);
-  if (panel === null) {
-    return `<div class="panel">${title}<p>${esc(noAttentionLine(attention))}</p></div>`;
-  }
-  const items = panel.named.map(
-    ({ id, title: words }) => `<li><a href="#${esc(id)}">${esc(words)}</a></li>`,
-  );
-  if (panel.more !== null) items.push(`<li><a href="#need-h">${esc(panel.more)}</a></li>`);
-  return `<div class="panel attention">${title}<p>${esc(panel.lead)}</p><ul>${items.join("")}</ul></div>`;
+function ringRow(model: ShareModel): string {
+  const { parts } = GLANCE_TEXT;
+  const { noProblems, needAttention, notRead } = model.ring;
+  const row: RingPart[] = [
+    { label: parts.noProblems, value: noProblems, kind: "ok" },
+    { label: parts.needAttention, value: needAttention, kind: "warn" },
+    { label: parts.notRead, value: notRead, kind: "bad" },
+  ];
+  return `<div class="ring-row">${ring(row, model.result.pages)}</div>`;
+}
+
+/**
+ * The verdict: its words, with its kind as its class (`ok`, `warn`, or `bad`), which the style
+ * block draws its sign for. It is a paragraph, not a heading: the section's own is above it.
+ */
+function verdict(result: ShareModel["result"]): string {
+  const { kind, headline } = verdictOf(result);
+  return `<p class="verdict ${kind}">${esc(headline)}</p>`;
+}
+
+/**
+ * The links to the page's sections: What needs attention, which is there only when there is a card,
+ * Every page, and The details. Each says its section's own words, and goes to its heading's id.
+ *
+ * The navigation is named "On this page", which a screen reader says on reaching it. The same words
+ * stand before the links for the eye, and are hidden from a screen reader (`aria-hidden`), which
+ * would otherwise say them twice, the second time as text.
+ */
+function onThisPage(model: ShareModel): string {
+  const sections: [id: string, words: string][] = [];
+  if (model.attention.length > 0) sections.push(["need-h", ATTENTION_TEXT.title]);
+  sections.push(["pages-h", PAGES_TEXT.title], ["details-h", DETAILS_TEXT.link]);
+  const links = sections.map(([id, words]) => `<a href="#${id}">${esc(words)}</a>`);
+  const label = esc(GLANCE_TEXT.onThisPage);
+  return `<nav class="toc" aria-label="${label}"><span class="sub" aria-hidden="true">${label}:</span>${links.join("")}</nav>`;
+}
+
+/**
+ * At a glance, written for a manager who reads nothing else, in this order: the verdict, in words
+ * (the one rule for it is `verdictOf`, and the style block draws its sign); the result in a
+ * sentence; the ring of the pages; four numbers; the line on what voicecap and the person each did;
+ * and the links to the page's sections. Its panels and bars are parts of the details now (`todoPart`
+ * and the rest, below).
+ *
+ * When no run counts, there are no pages to count: it has only its sentence, which says why, the
+ * line on what each did, and the links. The same goes for a run that lists no page: the verdict says
+ * "Nothing needs attention" of a result of no page, which no one read, so it isn't shown, as the
+ * website's card shows none for a report of no page.
+ */
+export function renderGlance(model: ShareModel): string {
+  const { summary, result } = model;
+  const hasPages = result.pages > 0;
+  const parts = [
+    `<h2 id="glance-h">${esc(GLANCE_TEXT.title)}</h2>`,
+    ...(hasPages ? [verdict(result)] : []),
+    `<p class="lead">${esc(summary.sentence)}</p>`,
+    ...(hasPages ? [ringRow(model), tiles(model)] : []),
+    `<p class="gist">${esc(summary.second)}</p>`,
+    onThisPage(model),
+  ];
+  return `<section class="glance" aria-labelledby="glance-h">\n  ${parts.join("\n  ")}\n</section>`;
+}
+
+// The details' parts that were the summary's panels and bars.
+
+/**
+ * A part of the details: a section named by its own heading, an `h3` since the details' own is the
+ * `h2`, with its box under the heading. `title` and `box` are HTML, already escaped. Every part is
+ * open, and the box is the panel or meter the summary once drew it in.
+ */
+const detailsPart = (id: string, title: string, box: string): string =>
+  `<section aria-labelledby="${id}"><h3 id="${id}">${title}</h3>${box}</section>`;
+
+/** A panel of a list: the box of a part that is a few lines. */
+const panelOf = (items: string[]): string => `<div class="panel"><ul>${items.join("")}</ul></div>`;
+
+/** "What's still to do": the model's lines of what is left to do. */
+export function todoPart({ todo }: Summary): string {
+  const items = todo.map((line) => `<li>${esc(line)}</li>`);
+  return detailsPart("todo-h", esc(SUMMARY_TEXT.todo), panelOf(items));
 }
 
 /**
  * "How complete the test was": the model's lines, with a way to the problems beside the line that
  * says them, and the run before's line, when there is one, last.
  */
-function completePanel(model: ShareModel): string {
+export function completePart(model: ShareModel): string {
   const { complete, changesLine } = model.summary;
   const items = complete.map(
     (line) =>
@@ -168,37 +236,20 @@ function completePanel(model: ShareModel): string {
   if (changesLine !== null) {
     items.push(`<li>${esc(changesLine)} <a href="#chg-h">What changed</a></li>`);
   }
-  return `<div class="panel"><h3>${esc(SUMMARY_TEXT.complete)}</h3><ul>${items.join("")}</ul></div>`;
+  return detailsPart("complete-h", esc(SUMMARY_TEXT.complete), panelOf(items));
 }
 
-function todoPanel({ todo }: Summary): string {
-  const items = todo.map((line) => `<li>${esc(line)}</li>`);
-  return `<div class="panel"><h3>${esc(SUMMARY_TEXT.todo)}</h3><ul>${items.join("")}</ul></div>`;
-}
-
-function whenHowPanel({ whenHow }: Summary): string {
+/** "When and how": the date, who ran it, and the tools, as the model has them. */
+export function whenHowPart({ whenHow }: Summary): string {
   const items = whenHow.map(({ label, value }) => `<li><b>${esc(label)}</b>: ${esc(value)}</li>`);
-  return `<div class="panel"><h3>${esc(SUMMARY_TEXT.whenHow)}</h3><ul>${items.join("")}</ul></div>`;
-}
-
-/** "Every page's latest result": no flags, flags, and never transcribed, as one bar. */
-function resultsMeter({ bars }: Summary): string {
-  const { done, flagged, never } = bars.results;
-  const caption = resultsCaption(bars.results);
-  const segments = [
-    { label: "no flags", value: done, kind: "ok" },
-    { label: "flags", value: flagged, kind: "warn" },
-    { label: "never transcribed", value: never, kind: "bad" },
-  ];
-  const html = bar(segments, done + flagged + never, caption === "" ? "No pages" : caption);
-  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.results)}</h3>${html}</div>`;
+  return detailsPart("whenhow-h", esc(SUMMARY_TEXT.whenHow), panelOf(items));
 }
 
 /**
  * "Flags by rule": a row for each rule, as long as its count is against the most. A rule's count is
- * how many times it was raised, once for each page and pass.
+ * how many times it was raised, once for each page and pass, as the phrase after the title says.
  */
-function rulesMeter({ bars }: Summary): string {
+export function rulesPart({ bars }: Summary): string {
   const { flagsByRule } = bars;
   const most = flagsByRule.reduce((top, { count: times }) => Math.max(top, times), 0);
   const rows = flagsByRule.map(
@@ -209,7 +260,8 @@ function rulesMeter({ bars }: Summary): string {
     rows.length === 0
       ? `<p class="sub">${esc(SUMMARY_TEXT.noFlagsRaised)}</p>`
       : `<div class="rules">${rows.join("")}</div>`;
-  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.rules)} <span class="sub">${esc(SUMMARY_TEXT.rulesNote)}</span></h3>${body}</div>`;
+  const title = `${esc(SUMMARY_TEXT.rules)} <span class="sub">${esc(SUMMARY_TEXT.rulesNote)}</span>`;
+  return detailsPart("rules-h", title, `<div class="meter">${body}</div>`);
 }
 
 /** A count out of its total in a row: "3/3" as it looks, and "3 of 3" as a screen reader says it. */
@@ -220,7 +272,7 @@ const tally = (part: number, whole: number): string =>
  * "The human review": each count out of its total, so nothing looks complete that isn't. It has no
  * row for the pages a person heard NVDA read, which is on each page's chip.
  */
-function reviewMeter({ bars }: Summary): string {
+export function reviewPart({ bars }: Summary): string {
   const { reviewRows } = SUMMARY_TEXT;
   const rows: [string, [number, number]][] = [
     [reviewRows.reviewed, bars.review.reviewed],
@@ -230,59 +282,12 @@ function reviewMeter({ bars }: Summary): string {
     const tone = part >= whole ? "ok" : "warn";
     return `<div class="rule"><span>${esc(label)}</span>${track(part, whole, tone)}${tally(part, whole)}</div>`;
   });
-  return `<div class="meter"><h3>${esc(SUMMARY_TEXT.review)} <span class="sub">${esc(SUMMARY_TEXT.reviewNote)}</span></h3><div class="rules">${html.join("")}</div></div>`;
-}
-
-/**
- * The later sections, in page order: each h2's id, and the words that link to it. Where a
- * section's link says its heading's words, they are the heading's in ../text.ts; the links to the
- * evidence and the appendix are shorter than their headings, and are the contents list's own.
- */
-const CONTENTS = [
-  ["need-h", ATTENTION_TEXT.title],
-  ["how-h", HOW_TEXT.title],
-  ["pages-h", PAGES_TEXT.title],
-  ["chg-h", CHANGES_TEXT.title],
-  ["prob-h", PROBLEMS_TEXT.title],
-  ["lim-h", COVERAGE_TEXT.title],
-  ["ev-h", "The evidence"],
-  ["story-h", STORY_TEXT.title],
-  ["app-h", "Every transcript"],
-] as const;
-
-function contents(): string {
-  const links = CONTENTS.map(([id, words]) => `<a href="#${id}">${esc(words)}</a>`);
-  return `<nav class="toc" aria-label="The full report"><span class="sub">Read the full report:</span>${links.join("")}</nav>`;
-}
-
-/**
- * The Summary, written for a manager who reads nothing else: the result in a sentence, and the line
- * on what voicecap and the person each did; five numbers; four panels; three bars; and the way
- * into the rest.
- *
- * When no run counts, the summary has no pages to count: only its sentence, which says why, and
- * the way into the rest.
- */
-export function renderSummary(model: ShareModel): string {
-  const { summary } = model;
-  const opening = [
-    `<div>`,
-    `    <h2 id="glance-h">${esc(SUMMARY_TEXT.title)}</h2>`,
-    `    <p class="lead verdict">${esc(summary.sentence)}</p>`,
-    `    <p class="gist">${esc(summary.second)}</p>`,
-    `  </div>`,
-  ].join("\n");
-  const parts =
-    model.header.tested === null
-      ? [opening, contents()]
-      : [
-          opening,
-          tiles(model),
-          `<div class="panels">${[attentionPanel(summary), completePanel(model), todoPanel(summary), whenHowPanel(summary)].join("")}</div>`,
-          `<div class="meters">${[resultsMeter(summary), rulesMeter(summary), reviewMeter(summary)].join("")}</div>`,
-          contents(),
-        ];
-  return `<section class="glance" aria-labelledby="glance-h">\n  ${parts.join("\n  ")}\n</section>`;
+  const title = `${esc(SUMMARY_TEXT.review)} <span class="sub">${esc(SUMMARY_TEXT.reviewNote)}</span>`;
+  return detailsPart(
+    "review-h",
+    title,
+    `<div class="meter"><div class="rules">${html.join("")}</div></div>`,
+  );
 }
 
 // How voicecap works.
@@ -298,8 +303,12 @@ function steps(): string {
 
 /**
  * A sample of what NVDA said on this site: the first lines of each pass on its home page, as the
- * transcripts shown have them, each with how long it took. Without a sample (no home page with
- * transcripts, or none whose lines can be read), it says so.
+ * transcripts shown have them, each with how long it took. Each line is set as a card's "Heard
+ * first" sets its lines: in quotes, but for a step where NVDA said nothing, which is the marker the
+ * transcript writes, as it is (`heardFirstLine`). It is a fold, behind a line that is its
+ * title (the page, and how many ways through it), so the steps and the band on when to run voicecap
+ * are what is open. Without a sample (no home page with transcripts, or none whose lines can be
+ * read), there is nothing to fold: it says so, in the open, so a gap is never behind a click.
  */
 function heard(sample: ShareModel["heard"]): string {
   if (sample === null) {
@@ -308,17 +317,15 @@ function heard(sample: ShareModel["heard"]): string {
   const lanes = sample.passes.map(({ pass, lines }) => {
     const { key, words } = HOW_TEXT.ways[pass];
     const said = lines.map(
-      ({ text, took }) => `<li><span>“${esc(text)}”</span><span class="t">${esc(took)}</span></li>`,
+      ({ text, took }) =>
+        `<li><span>${esc(heardFirstLine(text))}</span><span class="t">${esc(took)}</span></li>`,
     );
     return `<figure class="lane"><figcaption><kbd>${esc(key)}</kbd> ${esc(words)}</figcaption><ol class="said-list" role="list">${said.join("")}</ol></figure>`;
   });
-  return [
-    `<div class="heard">`,
-    `    <h3>${esc(heardTitle(sample))}</h3>`,
-    `    <div class="lanes">${lanes.join("")}</div>`,
-    `    <p class="sub">${esc(HOW_TEXT.heardNote)}</p>`,
-    `  </div>`,
-  ].join("\n");
+  const body = `<div class="lanes">${lanes.join("")}</div><p class="sub">${esc(HOW_TEXT.heardNote)}</p>`;
+  return fold(`<span class="what">${esc(heardTitle(sample))}</span>`, body, {
+    className: "heard-fold",
+  });
 }
 
 /**
@@ -347,7 +354,8 @@ function when(): string {
 
 /**
  * "How voicecap works": the lead, the six steps with their pictures, a sample of what NVDA said on
- * this site, and when to run voicecap.
+ * this site (folded), and when to run voicecap. It is built with its own h2 and h3, as every
+ * section is; the details set it a level down (`demoted`) to be one of its parts.
  */
 export function renderHow(model: ShareModel): string {
   return [

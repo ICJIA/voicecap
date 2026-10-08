@@ -1,6 +1,7 @@
 /**
  * "What needs attention", in the page's own markup and class names: its heading, the line under it,
  * and a card for each problem, which is a fold behind its title and how many pages and times it is.
+ * With no card the section isn't there: At a glance's verdict says that nothing needs attention.
  * A card says, in this order, where on its pages NVDA said it and what it said in each pass; its
  * likely cause; why it matters; the fix in the code, with what NVDA should say once it's made; the
  * path forward; and its pages, each linked to its card under "Every page". The cards start open
@@ -80,7 +81,8 @@ function pagesOf(card: AttentionCard): string {
 
 /**
  * A card as a fold: its line is its number, its title, and how many pages and times it is; opened,
- * it says each of its parts. The fold has the card's id, so the summary's link to the card opens it.
+ * it says each of its parts. The fold has the card's id, so an address that points to the card
+ * opens it.
  */
 function cardOf(card: AttentionCard, number: number, open: boolean): string {
   const words = attentionWords(card);
@@ -105,17 +107,20 @@ function cardOf(card: AttentionCard, number: number, open: boolean): string {
 
 /**
  * "What needs attention": its heading, the line under it (`attentionGist`: how many problems and
- * what to do, or that none is left), and a card for each problem, in the cards' order. With 5 cards
- * or fewer each is open; with more, each is folded behind its title, which the summary's panel links
- * to, and opens.
+ * what to do), and a card for each problem, in the cards' order. With 5 cards or fewer each is open;
+ * with more, each is folded behind its title, which a link to the card opens.
+ *
+ * With no card it is nothing, not a section that says so: At a glance's verdict says that nothing
+ * needs attention (`verdictOf`), and its links leave this section out.
  */
 export function renderAttention(model: ShareModel): string {
+  if (model.attention.length === 0) return "";
   const open = model.attention.length <= MOST_CARDS_OPEN;
   const folds = model.attention.map((card, index) => cardOf(card, index + 1, open));
   const parts = [
     `<h2 id="need-h">${esc(ATTENTION_TEXT.title)}</h2>`,
     `<p class="gist">${lineHtml(attentionGist(model))}</p>`,
-    ...(folds.length === 0 ? [] : [`<div class="folds">${folds.join("")}</div>`]),
+    `<div class="folds">${folds.join("")}</div>`,
   ];
   return `<section aria-labelledby="need-h">\n  ${parts.join("\n  ")}\n</section>`;
 }

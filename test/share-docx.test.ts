@@ -12,6 +12,7 @@ import { buildShareModel } from "../src/share/model.js";
 import {
   PAGE_BREAK,
   cell,
+  demoted,
   heading,
   image,
   list,
@@ -24,7 +25,15 @@ import {
   type Block,
   type Picture,
 } from "../src/share/word/blocks.js";
-import { drawingsOf, linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
+import {
+  bodyTags,
+  drawingsOf,
+  keptWithNext,
+  linksOf,
+  paragraphsOf,
+  tablesOf,
+  unzipDocx,
+} from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
@@ -91,6 +100,7 @@ describe("the Word copy's blocks", () => {
   it("makes each kind of block as plain data", () => {
     expect(title("Demo")).toEqual({ kind: "title", text: "Demo" });
     expect(heading(2, "Next")).toEqual({ kind: "heading", level: 2, text: "Next" });
+    expect(heading(4, "Deep")).toEqual({ kind: "heading", level: 4, text: "Deep" });
     expect(para("a ", { text: "b", bold: true })).toEqual({
       kind: "para",
       line: ["a ", { text: "b", bold: true }],
@@ -162,6 +172,42 @@ describe("the Word copy's blocks", () => {
       "Next",
       "Inside",
     ]);
+  });
+
+  it("sets the headings of some blocks one level down, and leaves every other block as it is", () => {
+    const blocks = [
+      heading(1, "Section"),
+      para("Words."),
+      heading(2, "Part"),
+      list(["one"]),
+      heading(3, "Piece"),
+      mono(["x"]),
+      PAGE_BREAK,
+    ];
+
+    expect(demoted(blocks)).toEqual([
+      heading(2, "Section"),
+      para("Words."),
+      heading(3, "Part"),
+      list(["one"]),
+      heading(4, "Piece"),
+      mono(["x"]),
+      PAGE_BREAK,
+    ]);
+    // The blocks it was given are not changed, and no blocks come out as no blocks.
+    expect(blocks[0]).toEqual(heading(1, "Section"));
+    expect(demoted([])).toEqual([]);
+  });
+
+  it("refuses to set a heading below level 4, since Word has no heading it can be", () => {
+    const refusal = "A heading can't go below level 4.";
+
+    expect(() => demoted([heading(4, "Too deep")])).toThrow(refusal);
+    expect(() => demoted([heading(1, "Fine"), para("Words."), heading(4, "Too deep")])).toThrow(
+      refusal,
+    );
+    // Level 3 is the last that can be set down.
+    expect(demoted([heading(3, "Last")])).toEqual([heading(4, "Last")]);
   });
 });
 
@@ -370,14 +416,38 @@ describe("docxOf", () => {
 
   it("sets the titles and headings in black, bold, and in order of size", async () => {
     const { styles } = await opened(BLOCKS);
-    const sizes = ["Title", "Heading1", "Heading2", "Heading3"].map((id) => {
+    const sizes = ["Title", "Heading1", "Heading2", "Heading3", "Heading4"].map((id) => {
       const style = styleXml(styles, id);
       expect(style).toContain('<w:color w:val="000000"/>');
       expect(style).toContain("<w:b/>");
       return Number(/<w:sz w:val="(\d+)"\/>/.exec(style)?.[1]);
     });
     expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
-    expect(new Set(sizes).size).toBe(4);
+    expect(new Set(sizes).size).toBe(5);
+  });
+
+  it("sets a level-4 heading in the Heading 4 style, kept with what follows it and an outline level of its own", async () => {
+    const { document, styles } = await opened([
+      heading(1, "Section"),
+      heading(2, "Part"),
+      heading(3, "Piece"),
+      heading(4, "Detail"),
+      para("Words."),
+    ]);
+    const style = styleXml(styles, "Heading4");
+
+    expect(paragraphsOf(document)).toEqual([
+      { style: "Heading1", text: "Section" },
+      { style: "Heading2", text: "Part" },
+      { style: "Heading3", text: "Piece" },
+      { style: "Heading4", text: "Detail" },
+      { style: "", text: "Words." },
+    ]);
+    // Heading 4 is as the others are: a style of Word's own that its navigation pane lists at the
+    // fourth level, kept with the paragraph that follows.
+    expect(style).toContain('<w:outlineLvl w:val="3"/>');
+    expect(style).toContain("<w:keepNext/>");
+    expect(style).toContain("<w:keepLines/>");
   });
 
   it("sets a piece in bold, in the fixed-width font, and linked, each as a run of its own", async () => {
@@ -441,6 +511,75 @@ describe("docxOf", () => {
       { style: "", text: "" },
       { style: "", text: "after" },
     ]);
+  });
+
+  it("puts a small paragraph between two tables that would touch, since Word joins them into one, and between nothing else", async () => {
+    const { document } = await opened([
+      table(["A"], [["a"]]),
+      table(["B"], [["b"]]),
+      table(["C"], [["c"]]),
+      para("after"),
+      table(["D"], [["d"]]),
+      list(["item"]),
+      table(["E"], [["e"]]),
+    ]);
+
+    // One paragraph between each two tables that would touch, and none after a paragraph or a list,
+    // nor after the last table.
+    expect(bodyTags(document)).toEqual([
+      ...["w:tbl", "w:p", "w:tbl", "w:p", "w:tbl", "w:p", "w:tbl", "w:p", "w:tbl"],
+      "w:sectPr",
+    ]);
+    // The two between tables hold nothing; the others are the blocks' own.
+    expect(paragraphsOf(document)).toEqual([
+      { style: "", text: "" },
+      { style: "", text: "" },
+      { style: "", text: "after" },
+      { style: "ListParagraph", text: "item" },
+    ]);
+    expect(tablesOf(document).map(({ rows }) => rows[0]?.[0])).toEqual(["A", "B", "C", "D", "E"]);
+    // Small: a line of exactly 6 pt or less, with no space around it, so two tables are apart and
+    // no more.
+    const spacers = (document.match(/<w:p>.*?<\/w:p>/gs) ?? []).filter((paragraph) =>
+      paragraph.includes('w:lineRule="exact"'),
+    );
+    expect(spacers).toHaveLength(2);
+    for (const spacer of spacers) {
+      const spacing = /<w:spacing ([^>]*)\/>/.exec(spacer)?.[1] ?? "";
+      expect(spacing).toContain('w:before="0"');
+      expect(spacing).toContain('w:after="0"');
+      expect(Number(/w:line="(\d+)"/.exec(spacing)?.[1])).toBeLessThanOrEqual(120);
+    }
+  });
+
+  it("keeps two tables apart, and a label with its list, across a block that writes nothing", async () => {
+    const { document } = await opened([
+      table(["A"], [["a"]]),
+      mono([]),
+      list([]),
+      table(["B"], [["b"]]),
+      para("Heard first"),
+      mono([]),
+      list(["one"]),
+    ]);
+
+    // Fixed-width text with no lines and a list with no items write nothing, so they are not what
+    // stands between the two tables, nor between the label and its list.
+    expect(bodyTags(document)).toEqual(["w:tbl", "w:p", "w:tbl", "w:p", "w:p", "w:sectPr"]);
+    expect(keptWithNext(document)).toEqual(["Heard first"]);
+  });
+
+  it("keeps the paragraph before a list with it, so a label is never left at the foot of a page with its list on the next", async () => {
+    const { document } = await opened([
+      para("Heard first"),
+      list(["one", "two"]),
+      para("after"),
+      para("more"),
+      list(["three"]),
+    ]);
+
+    // A paragraph that leads into a list: the one before the list, and no other paragraph.
+    expect(keptWithNext(document)).toEqual(["Heard first", "more"]);
   });
 
   it("writes a list as bulleted paragraphs, one for each item", async () => {
@@ -685,27 +824,6 @@ describe("a picture in the Word copy", () => {
     expect(FORBIDDEN.test(parts.document)).toBe(false);
     expect([drawing?.descr, drawing?.name, drawing?.title]).toEqual([cleaned, cleaned, cleaned]);
   });
-
-  it("is in a table's cell as wide as the cell holds, and never wider than 400 pixels", async () => {
-    // A cell has 1,872 twentieths of a point in a column a fifth of the text's width, less 100 on
-    // each side for its margins: 1,672, which are 111 pixels (a pixel is 15 of them).
-    const withPicture = { ...cell("Screenshot:"), picture: PICTURE };
-    const parts = await opened([
-      table(["Narrow", "Wide", "None"], [[withPicture, withPicture, "none"]], [20, 70, 10]),
-    ]);
-
-    expect(XMLValidator.validate(parts.document)).toBe(true);
-    expect(drawingsOf(parts).map(({ width, height, descr }) => [width, height, descr])).toEqual([
-      [111, 83, ALT],
-      [400, 300, ALT],
-    ]);
-    // The cell's lines are before it, and its picture is a paragraph of its own after them.
-    expect(tablesOf(parts.document)[0]?.rows[1]).toEqual([
-      "Screenshot:\n",
-      "Screenshot:\n",
-      "none",
-    ]);
-  });
 });
 
 describe("the Word copy of a site whose pages took screenshots", () => {
@@ -722,9 +840,9 @@ describe("the Word copy of a site whose pages took screenshots", () => {
   }
 
   /**
-   * Five pages of a run of voicecap 0.11.0: Home and About were read in full (each has an entry in
-   * the appendix), Never failed after its picture was taken (it has none), Skipped took no picture
-   * since it wasn't read, and Error's picture couldn't be taken.
+   * Five pages of a run of voicecap 0.11.0: Home and About were read in full (each has its
+   * transcripts), Never failed after its picture was taken (it has no transcripts), Skipped took no
+   * picture since it wasn't read, and Error's picture couldn't be taken.
    */
   function siteOf(): { run: RunJson; pictures: Map<string, Uint8Array> } {
     const read = { files: TRANSCRIPTS, passes: LINES };
@@ -768,21 +886,21 @@ describe("the Word copy of a site whose pages took screenshots", () => {
     const [home, about, never] = run.pages.map((page) => pictures.get(`r1/${page.slug}`));
 
     expect(XMLValidator.validate(parts.document)).toBe(true);
-    // The row of the page that has no entry in the appendix comes first, then the entries'.
+    // Each page has its picture in its own blocks, in the pages' order, whether it was read or not.
     expect(drawings.map(({ descr }) => descr)).toEqual([
-      alt(`${SITE}never/`),
       alt("Home"),
       alt(`${SITE}about/`),
+      alt(`${SITE}never/`),
     ]);
-    // 400 pixels wide in an entry, with the height its record gives; as wide as its cell in a row.
+    // 400 pixels wide, with the height its record gives.
     expect(drawings.map(({ width, height }) => [width, height])).toEqual([
-      [117, 88],
       [400, 300],
       [400, 265],
+      [400, 300],
     ]);
     expect(new Set(drawings.map(({ id }) => id)).size).toBe(3);
     expect(parts.media.size).toBe(3);
-    for (const [index, bytes] of [never, home, about].entries()) {
+    for (const [index, bytes] of [home, about, never].entries()) {
       const file = parts.media.get(drawings[index]?.file ?? "") ?? new Uint8Array();
       expect(Buffer.compare(file, bytes ?? new Uint8Array()), alt(String(index))).toBe(0);
     }
@@ -795,18 +913,15 @@ describe("the Word copy of a site whose pages took screenshots", () => {
     );
     const { document } = await unzipDocx(await renderWordCopy(model));
     const said = paragraphsOf(document).map(({ text }) => text);
-    // The table of every page: its head's second cell says "Page".
-    const rows = tablesOf(document).find((each) => each.rows[0]?.[1] === "Page")?.rows ?? [];
-    const skipped = rows.find((row) => row[1]?.includes("/skipped/"));
 
-    // A page with an entry in the appendix says it there, a page without one in its row.
+    // A page says it in its own blocks, whether it was read or not.
     expect(said).toContain(
       "Screenshot: Not recorded: the screenshot couldn't be taken (timed out after 5s).",
     );
-    expect(skipped?.[2]).toContain(
+    expect(said).toContain(
       "Screenshot: Not recorded: no screenshot was taken, since the page wasn't read.",
     );
     // The pages with a picture have the label alone, and the picture after it.
-    expect(said.filter((text) => text === "Screenshot:")).toHaveLength(2);
+    expect(said.filter((text) => text === "Screenshot:")).toHaveLength(3);
   });
 });

@@ -97,7 +97,7 @@ export const SHARE_SCRIPT = String.raw`
     button.addEventListener("click", function () {
       if (opened === null) {
         opened = openEvery();
-        button.textContent = "Fold the details again";
+        button.textContent = "Fold every section again";
       } else {
         putBack(opened);
         opened = null;

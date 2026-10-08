@@ -1,6 +1,12 @@
 /**
- * The summary: the result in one sentence that leads with the person's review, five numbers, four
- * panels, and three bars. Pure: every part is worked out from records already read.
+ * The summary: the result in one sentence that leads with the person's review; the numbers At a
+ * glance goes by (the pages in scope and read, the lines NVDA spoke, and how long it ran) and how
+ * many problems need attention and on how many pages; and the lines and bars of the details' parts
+ * (how complete the test was, what's still to do, when and how, flags by rule, and the human
+ * review). Pure: every part is worked out from records already read.
+ *
+ * The sentence counts no problems. The verdict does (see ./verdict.ts), over every card of What
+ * needs attention, as the section and the cards do, so the page never gives two counts that differ.
  */
 import type { FlagResult, RunJson, SkipReason } from "../model.js";
 import {
@@ -9,13 +15,11 @@ import {
   type AttentionKind,
   type ReadFailure,
 } from "./attention.js";
-import { attentionWords } from "./attention-words.js";
 import type { Changes } from "./changes.js";
 import { dateRange, names } from "./format.js";
 import { PHRASES, type ProblemsSection } from "./problems.js";
 import type { PageReview } from "./review.js";
 import type { PageStanding, Standing } from "./standing.js";
-import { ATTENTION_TEXT } from "./text.js";
 
 export interface Summary {
   /** The result in one sentence, leading with the person's review as far as the records show it. */
@@ -26,9 +30,6 @@ export interface Summary {
     pagesInScope: number;
     /** Pages with transcripts in the standing. */
     transcribed: number;
-    /** Pages whose transcripts have flags, and how many different rules raised them. */
-    flagged: number;
-    rules: number;
     linesSpoken: number;
     nvdaMs: number;
     /** The sessions `nvdaMs` leaves out: those with no recorded end, whose time no record gives. */
@@ -36,20 +37,11 @@ export interface Summary {
   };
   /**
    * "What needs attention": how many problems there are (a card for each) and how many different
-   * pages they're on, over every card; how many pages voicecap skipped after loading them and so
-   * never read (the sentence's "skipped, not read"), which are on no card; whether any page in
-   * scope raised a flag (in the transcripts shown), settled or not, since a flag never raised was
-   * never fixed or checked: the line for no problem says both (`noAttentionLine`, in words.ts); and
-   * each card's id and title (its words' `title`), in the cards' order, for the panel to name and
-   * link to its card. The panel names the first few and counts the rest (`attentionPanelOf`, in
-   * words.ts).
+   * pages they're on, over every card. The verdict says both (`ShareModel.result`).
    */
   attention: {
     problems: number;
     pages: number;
-    skipped: number;
-    flagsRaised: boolean;
-    cards: { id: string; title: string }[];
   };
   /** "How complete the test was". */
   complete: string[];
@@ -58,8 +50,6 @@ export interface Summary {
   /** "When and how". */
   whenHow: { label: string; value: string }[];
   bars: {
-    /** Each page's latest result: transcribed with no flags, with flags, or never transcribed. */
-    results: { done: number; flagged: number; never: number };
     /**
      * How many times each rule was raised: once for each page and pass it was raised in, whatever
      * the flag's own count (links, items, stops, or repeats, by rule), most often first.
@@ -81,8 +71,9 @@ export interface SummaryInput {
   /** Each page's flags, by its key: those of the transcripts shown. */
   flags: Map<string, FlagResult[]>;
   /**
-   * The cards of what needs attention (attention.ts), which the summary counts and names. The
-   * sentence counts those that come from flags, and the panel every one.
+   * The cards of what needs attention (attention.ts), which the summary counts, every one. The
+   * sentence counts none: it only needs to know whether a problem that comes from a flag is left,
+   * since it says what review found only when none is.
    */
   attention: AttentionCard[];
   /** How a page is called in a sentence. */
@@ -236,9 +227,9 @@ export function summaryOf(input: SummaryInput): Summary {
   const changed = pages.filter(
     ({ page }) => reviewedBefore.has(page.slug) && !named.has(page.slug),
   );
-  // The sentence's problems are the cards that come from flags (a read that stopped among them), and
-  // the pages on them: counted from the cards, never from `undecided`, since a page whose read
-  // stopped keeps its card after a review has decided about it.
+  // The problems that come from flags (a read that stopped among them) are counted from the cards,
+  // never from `undecided`, since a page whose read stopped keeps its card after a review has
+  // decided about it.
   const flagCards = input.attention.filter((card) => FLAG_KINDS.has(card.kind));
 
   return {
@@ -250,7 +241,7 @@ export function summaryOf(input: SummaryInput): Summary {
       reviewed,
       withIssue,
       issuesFound,
-      flagProblems: { cards: flagCards.length, pages: distinctPages(flagCards) },
+      flagProblems: flagCards.length,
       unread,
       skipped,
       latest,
@@ -259,19 +250,14 @@ export function summaryOf(input: SummaryInput): Summary {
     numbers: {
       pagesInScope: pages.length,
       transcribed: transcribed.length,
-      flagged: flagged.length,
-      rules: new Set(flagged.flatMap((facts) => facts.flags.map((flag) => flag.rule))).size,
       linesSpoken: input.linesSpoken,
       nvdaMs: input.nvdaMs,
       sessionsWithoutEnd: input.sessionsWithoutEnd,
     },
-    // The panel's problems are every card, and the pages are those on any of them.
+    // The problems are every card, and the pages are those on any of them.
     attention: {
       problems: input.attention.length,
       pages: distinctPages(input.attention),
-      skipped: skipped.length,
-      flagsRaised: flagged.length > 0,
-      cards: input.attention.map((card) => ({ id: card.id, title: attentionWords(card).title })),
     },
     complete: [
       `Pages read: ${transcribed.length} of ${pages.length}.`,
@@ -294,11 +280,6 @@ export function summaryOf(input: SummaryInput): Summary {
     }),
     whenHow: whenHowOf(latest),
     bars: {
-      results: {
-        done: transcribed.length - flagged.length,
-        flagged: flagged.length,
-        never: pages.length - transcribed.length,
-      },
       flagsByRule: flagsByRule(flagged),
       review: {
         reviewed: [reviewed.length, transcribed.length],
@@ -309,7 +290,7 @@ export function summaryOf(input: SummaryInput): Summary {
   };
 }
 
-/** What the summary says when no run counts: no page, number, panel, or bar. */
+/** What the summary says when no run counts: no page, number, problem, line, or bar. */
 function emptySummary(): Summary {
   return {
     sentence: NO_RUN,
@@ -317,18 +298,15 @@ function emptySummary(): Summary {
     numbers: {
       pagesInScope: 0,
       transcribed: 0,
-      flagged: 0,
-      rules: 0,
       linesSpoken: 0,
       nvdaMs: 0,
       sessionsWithoutEnd: 0,
     },
-    attention: { problems: 0, pages: 0, skipped: 0, flagsRaised: false, cards: [] },
+    attention: { problems: 0, pages: 0 },
     complete: [],
     todo: [],
     whenHow: [],
     bars: {
-      results: { done: 0, flagged: 0, never: 0 },
       flagsByRule: [],
       review: { reviewed: [0, 0], fixed: [0, 0] },
     },
@@ -357,8 +335,11 @@ interface SentenceParts {
   withIssue: PageFacts[];
   /** Pages that ever had an issue found in review. */
   issuesFound: PageFacts[];
-  /** The problems that come from flags (cards), and how many different pages they're on. */
-  flagProblems: { cards: number; pages: number };
+  /**
+   * How many problems that come from flags are left (cards). The sentence doesn't count them, but
+   * it says what review found only when there are none.
+   */
+  flagProblems: number;
   /** Pages with no transcripts whose attempts all failed. */
   unread: PageFacts[];
   /** Pages with no transcripts that voicecap skipped after loading them. */
@@ -436,18 +417,17 @@ function sentenceOf(parts: SentenceParts): string {
 
   const sentences = [`${sentence}.`];
   const issues = withIssue.length;
-  const problems = flagProblems.cards;
   if (issues > 0) {
     sentences.push(
       `${issues} ${issues === 1 ? "page has" : "pages have"} an issue a screen reader user would hear, found in review.`,
     );
   }
-  if (problems > 0) sentences.push(ATTENTION_TEXT.sentence(problems, flagProblems.pages));
   // Nothing open: say what was found, as far as each page's history says. "No issues were found" is
   // said only when no page ever had an issue entry, and "every issue was fixed" only when every page
   // that did has a "fixed" entry after its last issue. An issue that was reviewed again with no fix
-  // recorded is neither, so nothing is said. Pages that weren't read have no flags to speak of.
-  if (issues === 0 && problems === 0 && total > 0) {
+  // recorded is neither, so nothing is said. Pages that weren't read have no flags to speak of. It
+  // isn't said while a problem that comes from a flag is left: the verdict counts those.
+  if (issues === 0 && flagProblems === 0 && total > 0) {
     if (issuesFound.length === 0) {
       sentences.push(
         flagged.length > 0

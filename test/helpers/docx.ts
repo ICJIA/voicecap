@@ -138,6 +138,31 @@ export function paragraphsOf(documentXml: string): { style: string; text: string
 }
 
 /**
+ * What the body holds, in order, as the tag of each child: "w:p" for a paragraph outside a table,
+ * "w:tbl" for a table, and "w:sectPr", the page's setup, last. Word joins two tables with nothing
+ * between them into one, so a test reads what stands between two.
+ */
+export function bodyTags(documentXml: string): string[] {
+  return bodyOf(documentXml).map(({ tag }) => tag);
+}
+
+/**
+ * The words of each paragraph outside a table that keeps with the paragraph after it: its own
+ * properties set `w:keepNext` (a value of off, false, or 0 takes it back), not its style's.
+ */
+export function keptWithNext(documentXml: string): string[] {
+  return bodyOf(documentXml)
+    .filter((element) => element.tag === "w:p")
+    .filter((paragraph) => {
+      const [marker] = childrenOf(childrenOf(paragraph, "w:pPr")[0], "w:keepNext");
+      return (
+        marker !== undefined && !["off", "false", "0"].includes(marker.attributes["w:val"] ?? "")
+      );
+    })
+    .map((paragraph) => paragraphOf(paragraph).text);
+}
+
+/**
  * Each table: whether its first row repeats as a header, and each row's cells' words (a cell's
  * paragraphs joined by "\n").
  */

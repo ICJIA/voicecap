@@ -1,8 +1,8 @@
 /**
  * The sentences of the shareable page as strings and lines with no markup and nothing escaped: the
- * words both copies say. The first half (the top, the summary, "How voicecap works", "What needs
- * attention", "Every page", and the appendix), then the second (what changed since the last run, the
- * problems during the runs, the evidence, the story, and the footer). The demo runs of 29 September
+ * words both copies say. The first half (the top, At a glance, "How voicecap works", "What needs
+ * attention", and "Every page" with its transcripts), then the second (what changed since the last
+ * run, the problems during the runs, the evidence, the story, and the footer). The demo runs of 29 September
  * 2026 are the real case; runs built in memory cover the rest. Each is also set beside what the page
  * says, so the two can't disagree.
  */
@@ -20,14 +20,13 @@ import {
   renderFooter,
   renderStory,
 } from "../src/share/html/evidence.js";
-import { renderAppendix, renderPages } from "../src/share/html/pages.js";
+import { renderPages } from "../src/share/html/pages.js";
 import { renderProblems } from "../src/share/html/problems.js";
 import { renderHow, renderTop } from "../src/share/html/top.js";
 import { firstSentenceBold, lineText, type Line } from "../src/share/line.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import { KIND_ROWS, type Problem } from "../src/share/problems.js";
-import type { Summary } from "../src/share/summary.js";
 import {
   APPENDIX_TEXT,
   ATTENTION_TEXT,
@@ -50,9 +49,7 @@ import {
   WORD_TEXT,
 } from "../src/share/text.js";
 import {
-  appendixGist,
   attentionGist,
-  attentionPanelOf,
   byteCount,
   capturedOf,
   changedRules,
@@ -66,6 +63,8 @@ import {
   fromRun,
   generatedLine,
   generatedStamp,
+  glanceNumbersOf,
+  heardFirstLine,
   heardTitle,
   howLead,
   inRun,
@@ -73,9 +72,7 @@ import {
   kindTitle,
   lineCount,
   manualLine,
-  noAttentionLine,
   notRecordedLine,
-  numbersOf,
   onlyInOneLead,
   onPage,
   originOf,
@@ -85,7 +82,6 @@ import {
   problemTitle,
   readCopyNote,
   recordTime,
-  resultsCaption,
   runTitle,
   sameLines,
   sentence,
@@ -104,7 +100,7 @@ import {
   whereOf,
   whyLine,
 } from "../src/share/words.js";
-import { i2iModel, withCards } from "./helpers/share-attention.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, termsOf, textOf } from "./helpers/share-html.js";
 import {
@@ -181,6 +177,11 @@ function withNumbers(
     ...model,
     summary: { ...model.summary, numbers: { ...model.summary.numbers, ...numbers } },
   };
+}
+
+/** The model with some of the result the verdict goes by changed. */
+function withResult(model: ShareModel, result: Partial<ShareModel["result"]>): ShareModel {
+  return { ...model, result: { ...model.result, ...result } };
 }
 
 /** The first paragraph of the class in some markup, as the words a reader gets of it. */
@@ -275,78 +276,7 @@ describe("when it was tested", () => {
   });
 });
 
-describe("the summary's numbers", () => {
-  it("are the five, in order, with what each counts", async () => {
-    const model = await demoModel();
-
-    expect(numbersOf(model).map(({ label }) => label)).toEqual([
-      "pages in scope",
-      "transcribed by NVDA",
-      expect.stringMatching(/^pages? with flags/),
-      "lines NVDA spoke",
-      expect.stringMatching(/^of NVDA time, across 2 runs/),
-    ]);
-  });
-
-  it("don't count the pages a person heard NVDA read", async () => {
-    const labels = numbersOf(await demoModel()).map(({ label }) => label);
-
-    // A run started without a terminal can't ask, and a count of 0 read as though no one had heard
-    // NVDA: the statement stays on each page's chips and in each run's evidence.
-    expect(labels).toHaveLength(5);
-    expect(labels).not.toContain("heard live by a person");
-    expect(labels.join("\n")).not.toMatch(/heard/i);
-  });
-
-  it("give each its tone and its value, a count out of its total as both", async () => {
-    expect(numbersOf(await demoModel())).toEqual([
-      { tone: "quiet", value: { count: 7 }, label: "pages in scope" },
-      { tone: "ok", value: { part: 7, whole: 7 }, label: "transcribed by NVDA" },
-      { tone: "warn", value: { count: 1 }, label: "page with flags, 3 rules" },
-      { tone: "quiet", value: { count: 204 }, label: "lines NVDA spoke" },
-      { tone: "quiet", value: { ms: 754_000 }, label: "of NVDA time, across 2 runs" },
-    ]);
-  });
-
-  it("word each label in the singular for one", async () => {
-    const one = { pagesInScope: 1, transcribed: 1, flagged: 1, rules: 1, linesSpoken: 1 };
-    const tiles = numbersOf(withNumbers(await demoModel(), one));
-
-    expect(tiles.map(({ label }) => label)).toEqual([
-      "page in scope",
-      "transcribed by NVDA",
-      "page with flags, 1 rule",
-      "line NVDA spoke",
-      "of NVDA time, across 2 runs",
-    ]);
-    expect(tiles.map(({ tone }) => tone)).toEqual(["quiet", "ok", "warn", "quiet", "quiet"]);
-  });
-
-  it("call a count out of its total complete only when it is, and name no rule when none has flags", async () => {
-    const some = { pagesInScope: 3, transcribed: 2, flagged: 0, rules: 0 };
-    const tiles = numbersOf(withNumbers(await demoModel(), some));
-
-    expect(tiles.map(({ tone }) => tone)).toEqual(["quiet", "warn", "quiet", "quiet", "quiet"]);
-    expect(tiles[2]?.label).toBe("pages with flags");
-    // Nothing in scope is nothing complete.
-    const none = numbersOf(withNumbers(await demoModel(), { pagesInScope: 0, transcribed: 0 }));
-    expect(none.map(({ tone }) => tone).slice(0, 2)).toEqual(["quiet", "quiet"]);
-    expect(none[1]?.value).toEqual({ part: 0, whole: 0 });
-  });
-
-  it("say how many sessions the NVDA time leaves out, having no recorded end", async () => {
-    const label = async (sessionsWithoutEnd: number) =>
-      numbersOf(withNumbers(await demoModel(), { sessionsWithoutEnd })).at(-1)?.label;
-
-    expect(await label(0)).toBe("of NVDA time, across 2 runs");
-    expect(await label(1)).toBe(
-      "of NVDA time, across 2 runs; 1 session without a recorded end isn't counted",
-    );
-    expect(await label(2)).toBe(
-      "of NVDA time, across 2 runs; 2 sessions without a recorded end aren't counted",
-    );
-  });
-
+describe("a time and a share in words", () => {
   it("have a time of any length in words", () => {
     const times: [number, string][] = [
       [850, "850 milliseconds"],
@@ -371,130 +301,80 @@ describe("the summary's numbers", () => {
       "13%",
     ]);
   });
-
-  it("caption the bar of results with the pages each kind counts, and none that count nothing", () => {
-    expect(resultsCaption({ done: 5, flagged: 1, never: 0 })).toBe(
-      "5 pages without flags, 1 page with flags",
-    );
-    expect(resultsCaption({ done: 4, flagged: 2, never: 1 })).toBe(
-      "4 pages without flags, 2 pages with flags, 1 page never transcribed",
-    );
-    expect(resultsCaption({ done: 0, flagged: 0, never: 3 })).toBe("3 pages never transcribed");
-    expect(resultsCaption({ done: 0, flagged: 0, never: 0 })).toBe("");
-  });
 });
 
-describe("the summary's panel on what needs attention", () => {
-  /** The summary's own for `count` cards, each its own problem on its own page. */
-  const attentionOf = (count: number): Summary["attention"] => ({
-    problems: count,
-    pages: count,
-    skipped: 0,
-    flagsRaised: true,
-    cards: Array.from({ length: count }, (_, at) => ({
-      id: `need-${at + 1}`,
-      title: `Problem ${at + 1}`,
-    })),
-  });
-
-  it("says how many problems there are, on how many pages, then names each by its title", () => {
-    const one = {
-      problems: 1,
-      pages: 32,
-      skipped: 0,
-      flagsRaised: true,
-      cards: [{ id: "need-1", title: 'The graphic "i 2i Logo" is read as "Unlabeled graphic"' }],
-    };
-
-    expect(attentionPanelOf(one)).toEqual({
-      lead: "1 problem, on 32 pages:",
-      named: one.cards,
-      more: null,
-    });
-    // The singular and the plural of each, and thousands set apart.
-    expect(attentionPanelOf({ ...attentionOf(2), pages: 1 })?.lead).toBe("2 problems, on 1 page:");
-    expect(attentionPanelOf({ ...attentionOf(2), problems: 1204, pages: 3000 })?.lead).toBe(
-      "1,204 problems, on 3,000 pages:",
-    );
-  });
-
-  it("names five cards, then counts the rest", () => {
-    const seven = attentionPanelOf(attentionOf(7));
-
-    expect(seven?.named.map(({ id }) => id)).toEqual([
-      "need-1",
-      "need-2",
-      "need-3",
-      "need-4",
-      "need-5",
+describe("glanceNumbersOf", () => {
+  it("gives At a glance its four numbers, in order, with what each counts", async () => {
+    expect(glanceNumbersOf(await demoModel())).toEqual([
+      { tone: "ok", value: { part: 7, whole: 7 }, label: "pages read by NVDA" },
+      { tone: "warn", value: { count: 5 }, label: "problems to fix" },
+      { tone: "quiet", value: { count: 204 }, label: "lines NVDA spoke" },
+      { tone: "quiet", value: { ms: 754_000 }, label: "of NVDA time, across 2 runs" },
     ]);
-    expect(seven?.more).toBe("and 2 more, under What needs attention");
-    // Five fit; a sixth is the first to be counted, not named.
-    expect(attentionPanelOf(attentionOf(5))?.named).toHaveLength(5);
-    expect(attentionPanelOf(attentionOf(5))?.more).toBeNull();
-    expect(attentionPanelOf(attentionOf(6))?.named).toHaveLength(5);
-    expect(attentionPanelOf(attentionOf(6))?.more).toBe("and 1 more, under What needs attention");
-    expect(attentionPanelOf(attentionOf(1))?.more).toBeNull();
   });
 
-  it("counts every problem and every page in its lead, however many it names (a site with 40)", () => {
-    const forty = attentionPanelOf(attentionOf(40));
+  it("takes the pages read and the problems from the result the verdict goes by", async () => {
+    const model = withResult(await demoModel(), {
+      pages: 9,
+      read: 7,
+      problems: 2,
+      problemPages: 2,
+    });
+    const [read, problems] = glanceNumbersOf(model);
 
-    expect(forty?.lead).toBe("40 problems, on 40 pages:");
-    expect(forty?.named).toHaveLength(5);
-    expect(forty?.more).toBe("and 35 more, under What needs attention");
-    expect(forty?.more).toBe(ATTENTION_TEXT.more(35));
+    expect(read).toEqual({
+      tone: "warn",
+      value: { part: 7, whole: 9 },
+      label: "pages read by NVDA",
+    });
+    expect(problems).toEqual({ tone: "warn", value: { count: 2 }, label: "problems to fix" });
   });
 
-  it("says nothing when no problem is left: the panel says the line for none", () => {
-    for (const flagsRaised of [true, false]) {
-      expect(
-        attentionPanelOf({ problems: 0, pages: 0, skipped: 0, flagsRaised, cards: [] }),
-      ).toBeNull();
-    }
-    expect(ATTENTION_TEXT.none).toBe(
-      "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
+  it("calls the pages read complete only when every page was read, and quiet with no page", async () => {
+    const tone = async (result: Partial<ShareModel["result"]>) =>
+      glanceNumbersOf(withResult(await demoModel(), result))[0]?.tone;
+
+    expect(await tone({ pages: 3, read: 3 })).toBe("ok");
+    expect(await tone({ pages: 3, read: 2 })).toBe("warn");
+    expect(await tone({ pages: 3, read: 0 })).toBe("warn");
+    // Nothing in scope is nothing complete.
+    expect(await tone({ pages: 0, read: 0 })).toBe("quiet");
+  });
+
+  it("calls the problems to fix warn above 0 and ok at 0, and words the label in the singular for one", async () => {
+    const tile = async (problems: number) =>
+      glanceNumbersOf(withResult(await demoModel(), { problems }))[1];
+
+    expect(await tile(0)).toEqual({ tone: "ok", value: { count: 0 }, label: "problems to fix" });
+    expect(await tile(1)).toEqual({ tone: "warn", value: { count: 1 }, label: "problem to fix" });
+    expect(await tile(2)).toEqual({ tone: "warn", value: { count: 2 }, label: "problems to fix" });
+  });
+
+  it("words the lines in the singular for one, and says how many sessions the NVDA time leaves out", async () => {
+    const tiles = async (numbers: Partial<ShareModel["summary"]["numbers"]>) =>
+      glanceNumbersOf(withNumbers(await demoModel(), numbers)).slice(2);
+
+    expect((await tiles({ linesSpoken: 1 }))[0]).toEqual({
+      tone: "quiet",
+      value: { count: 1 },
+      label: "line NVDA spoke",
+    });
+    expect((await tiles({ sessionsWithoutEnd: 0 }))[1]?.label).toBe("of NVDA time, across 2 runs");
+    expect((await tiles({ sessionsWithoutEnd: 1 }))[1]?.label).toBe(
+      "of NVDA time, across 2 runs; 1 session without a recorded end isn't counted",
+    );
+    expect((await tiles({ sessionsWithoutEnd: 2 }))[1]?.label).toBe(
+      "of NVDA time, across 2 runs; 2 sessions without a recorded end aren't counted",
     );
   });
 
-  describe("the line for no problem", () => {
-    /** The line, with `skipped` pages skipped, for a standing whose pages raised flags or none. */
-    const none = (skipped: number, flagsRaised = true) =>
-      noAttentionLine({ problems: 0, pages: 0, skipped, flagsRaised, cards: [] });
+  it("doesn't count the pages a person heard NVDA read", async () => {
+    const labels = glanceNumbersOf(await demoModel()).map(({ label }) => label);
 
-    it("says every page was read, and every flag was fixed or checked, when no page was skipped", () => {
-      expect(none(0)).toBe(
-        "Nothing needs attention: every page was read, and every flag was fixed or checked by a person.",
-      );
-    });
-
-    it("says nothing needs attention on the pages read, and how many were skipped, when some were", () => {
-      expect(none(1)).toBe(
-        "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 1 page was skipped, not read.",
-      );
-      expect(none(2)).toBe(
-        "Nothing needs attention on the pages read: every flag was fixed or checked by a person. 2 pages were skipped, not read.",
-      );
-      expect(none(2)).toBe(ATTENTION_TEXT.noneSkipped(2));
-    });
-
-    it("says no flags were raised, rather than that every flag was fixed or checked, when none was", () => {
-      expect(none(0, false)).toBe(
-        "Nothing needs attention: every page was read, and no flags were raised.",
-      );
-      expect(none(0, false)).toBe(ATTENTION_TEXT.noFlags);
-      expect(none(1, false)).toBe(
-        "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
-      );
-      expect(none(2, false)).toBe(
-        "Nothing needs attention on the pages read: no flags were raised. 2 pages were skipped, not read.",
-      );
-      expect(none(1204, false)).toBe(ATTENTION_TEXT.noFlagsSkipped(1204));
-      // It never claims a flag was fixed or checked when there was none.
-      for (const skipped of [0, 1, 2]) {
-        expect(none(skipped, false)).not.toMatch(/fixed or checked/);
-      }
-    });
+    // A run started without a terminal can't ask, and a count of 0 read as though no one had heard
+    // NVDA: the statement stays on each page's chips and in each run's evidence.
+    expect(labels).toHaveLength(4);
+    expect(labels.join(" ")).not.toMatch(/heard/i);
   });
 });
 
@@ -524,20 +404,18 @@ describe("how voicecap works", () => {
     );
   });
 
-  it("is what the page's lead and heading for the sample say", async () => {
+  it("is what the page's lead and the line of the fold for the sample say", async () => {
     const model = await demoModel();
     const html = renderHow(model);
 
     expect(paragraphOf(html, "gist")).toBe(lineText(howLead()));
-    expect(textOf(/<div class="heard">\s*<h3>(.*?)<\/h3>/s.exec(html)?.[1] ?? "")).toBe(
-      model.heard ? heardTitle(model.heard) : "",
-    );
+    expect(
+      textOf(/<details class="fold heard-fold"><summary>(.*?)<\/summary>/s.exec(html)?.[1] ?? ""),
+    ).toBe(model.heard ? heardTitle(model.heard) : "");
   });
 });
 
-describe("the opening lines of What needs attention, Every page, and the appendix", () => {
-  const OPEN = "Open a page to read them.";
-
+describe("the opening lines of What needs attention and Every page", () => {
   it("say how many pages were read in full, and how many weren't, the count in bold", async () => {
     const demo = await demoModel();
     const html = /<p class="gist">(.*?)<\/p>/s.exec(renderPages(demo))?.[1] ?? "";
@@ -569,75 +447,13 @@ describe("the opening lines of What needs attention, Every page, and the appendi
     expect(lineText(attentionGist(one))).toBe(`1 problem, on 1 page. ${todo}`);
     // A page that couldn't be read is a problem too, though it has no flag.
     expect(lineText(attentionGist(modelOf([FAILED])))).toBe(`1 problem, on 1 page. ${todo}`);
-    // The numbers are the summary's own: its panel and its sentence count the same cards.
+    // The numbers are the summary's own, which the verdict goes by (`model.result`): the section's
+    // line counts the same cards the verdict does.
     const { problems, pages } = one.summary.attention;
     expect(attentionGist(one)).toEqual([ATTENTION_TEXT.gist(problems, pages)]);
   });
 
-  it("say that nothing needs attention when no card is left, as the summary's panel does", () => {
-    // No page raised a flag: the line says so, rather than that every flag was fixed or checked.
-    const clean = modelOf([done("/a"), done("/b")]);
-    const skipped = modelOf([done("/a"), { path: "/pdf", status: "skipped" }]);
-    // Flags were raised, and no card is left of them.
-    const checked = withCards(i2iModel(), []);
-
-    expect(clean.summary.attention.flagsRaised).toBe(false);
-    expect(lineText(attentionGist(clean))).toBe(ATTENTION_TEXT.noFlags);
-    expect(lineText(attentionGist(clean))).toBe(noAttentionLine(clean.summary.attention));
-    expect(lineText(attentionGist(checked))).toBe(ATTENTION_TEXT.none);
-    expect(lineText(attentionGist(checked))).toBe(noAttentionLine(checked.summary.attention));
-    // Some pages weren't read, so it never says every page was.
-    expect(lineText(attentionGist(skipped))).toBe(noAttentionLine(skipped.summary.attention));
-    expect(lineText(attentionGist(skipped))).toBe(
-      "Nothing needs attention on the pages read: no flags were raised. 1 page was skipped, not read.",
-    );
-  });
-
-  it("say there are no problems to show, with the count in bold, when no run counts", () => {
-    const none = attentionGist(noRunModel());
-
-    expect(lineText(none)).toBe("No live run counts yet. There are no problems to show.");
-    expect(none[0]).toEqual({ text: "No live run counts yet.", bold: true });
-    // Nothing was read, so it never says nothing needs attention.
-    expect(lineText(none)).not.toContain("Nothing needs attention");
-  });
-
-  it("say how many pages and transcripts there are, and any that couldn't be read", async () => {
-    const demo = await demoModel();
-
-    expect(lineText(appendixGist(demo))).toBe(
-      "7 pages, 21 transcripts. What NVDA said on each page, word for word, with each file's fingerprint.",
-    );
-    expect(appendixGist(demo)[0]).toEqual({ text: "7 pages, 21 transcripts.", bold: true });
-    expect(lineText(appendixGist(lostModel()))).toBe(
-      "1 page, 2 transcripts. What NVDA said on each page, word for word, with each file's fingerprint. 1 transcript couldn't be read, and says so under its page.",
-    );
-    const gone = modelOf([done("/a")], { transcripts: storeOf(() => ({})) });
-    expect(lineText(appendixGist(gone))).toBe(
-      "1 page, no transcripts shown. What NVDA said on each page, word for word, with each file's fingerprint. 3 transcripts couldn't be read, and each says so under its page.",
-    );
-    expect(lineText(appendixGist(modelOf([FAILED])))).toBe(
-      "No transcripts to show. No page has been read in full yet.",
-    );
-    expect(lineText(appendixGist(noRunModel()))).toBe(
-      "No live run counts yet. There are no transcripts to show.",
-    );
-  });
-
-  it("put the sentence the page gives about opening a page where the page has it, and nowhere else", async () => {
-    expect(lineText(appendixGist(await demoModel(), OPEN))).toBe(
-      "7 pages, 21 transcripts. What NVDA said on each page, word for word, with each file's fingerprint. Open a page to read them.",
-    );
-    expect(lineText(appendixGist(lostModel(), OPEN))).toBe(
-      "1 page, 2 transcripts. What NVDA said on each page, word for word, with each file's fingerprint. Open a page to read them. 1 transcript couldn't be read, and says so under its page.",
-    );
-    // Nothing to open when there's nothing to show.
-    expect(lineText(appendixGist(modelOf([FAILED]), OPEN))).toBe(
-      "No transcripts to show. No page has been read in full yet.",
-    );
-  });
-
-  it("are the first lines of the page's sections, with only the page's own sentence added", async () => {
+  it("are the first lines of the page's sections", async () => {
     const models: [string, ShareModel][] = [
       ["the demo's", await demoModel()],
       ["no counted run", noRunModel()],
@@ -650,12 +466,15 @@ describe("the opening lines of What needs attention, Every page, and the appendi
 
     for (const [name, model] of models) {
       expect(paragraphOf(renderPages(model), "gist"), name).toBe(lineText(pagesGist(model)));
-      expect(paragraphOf(renderAttention(model), "gist"), name).toBe(
-        lineText(attentionGist(model)),
-      );
-      expect(paragraphOf(renderAppendix(model), "gist"), name).toBe(
-        lineText(appendixGist(model, OPEN)),
-      );
+      // With a card the page has the section, and its line is the model's. With none it has no
+      // section: At a glance's verdict says that nothing needs attention.
+      if (model.attention.length > 0) {
+        expect(paragraphOf(renderAttention(model), "gist"), name).toBe(
+          lineText(attentionGist(model)),
+        );
+      } else {
+        expect(renderAttention(model), name).toBe("");
+      }
     }
   });
 });
@@ -761,6 +580,18 @@ describe("a card's lines", () => {
     expect(capturedOf({ ...card, counts: null, timeMs: null })).toBeNull();
   });
 
+  it("sets what NVDA said in curly quotes, and the marker for a step where it said nothing as it is", () => {
+    expect(heardFirstLine("link, Back")).toBe("“link, Back”");
+    expect(heardFirstLine('heading, level 1, Terms & <conditions> "apply"')).toBe(
+      '“heading, level 1, Terms & <conditions> "apply"”',
+    );
+    // The transcript writes this where NVDA said nothing: a note, not words NVDA said, so it isn't
+    // quoted as though it were. Words that only hold it are NVDA's, and are.
+    expect(heardFirstLine(NO_SPEECH)).toBe("[no speech]");
+    expect(heardFirstLine("[no speech] and more")).toBe("“[no speech] and more”");
+    expect(heardFirstLine("")).toBe("“”");
+  });
+
   it("counts lines as a reader says them, in the singular for one", () => {
     expect(lineCount(0)).toBe("0 lines");
     expect(lineCount(1)).toBe("1 line");
@@ -817,10 +648,11 @@ describe("a card's lines", () => {
   });
 });
 
-describe("the appendix's lines", () => {
+describe("a page's transcripts' lines", () => {
   it("names the run a page's transcripts are from, with its id in the fixed-width font", async () => {
     const { pages } = await demoModel();
     const [latest, , older] = pages;
+    if (!latest || !older) throw new Error("The demo lost a page.");
 
     expect(originOf(older, "2026-09-29_1402")).toEqual([
       "From run ",
@@ -831,13 +663,8 @@ describe("the appendix's lines", () => {
       "From run ",
       { text: "2026-09-29_1402", mono: true },
     ]);
-    // A page with no card has the latest run's, and none at all says nothing.
-    expect(originOf(undefined, "2026-09-29_1402")).toEqual([
-      "From run ",
-      { text: "2026-09-29_1402", mono: true },
-    ]);
+    // With no latest run, a page that is the latest run's says nothing.
     expect(originOf(latest, null)).toBeNull();
-    expect(originOf(undefined, null)).toBeNull();
     expect(lineText(originOf(older, null) ?? [])).toBe(
       "From run 2026-09-29_1315, on 29 September 2026",
     );
@@ -1786,7 +1613,7 @@ describe("the lines of the evidence, the story, and the footer", () => {
     expect(byteCount(2306)).toBe("2,306 bytes");
     // The page's table of a run's files, and the line under each transcript, say it so.
     expect(renderEvidence(model)).toContain("<td>2,306 bytes</td>");
-    expect(renderAppendix(model)).toContain(
+    expect(renderPages(model)).toContain(
       "The whole file, its header included: 2,306 bytes, SHA-256",
     );
     const [file] = model.appendix.flatMap(({ files }) => files);
@@ -1876,9 +1703,7 @@ describe("the section words in text.ts", () => {
     expect(PAGES_TEXT.screenshot).toBe("Screenshot");
     expect(APPENDIX_TEXT.transcriptOf).toBe("transcript of");
     expect(renderPages(model)).toContain(`aria-label="${PAGES_TEXT.screenshot}"`);
-    expect(renderAppendix(model)).toContain(
-      `<span class="sr">${APPENDIX_TEXT.transcriptOf} /</span>`,
-    );
+    expect(renderPages(model)).toContain(`<span class="sr">${APPENDIX_TEXT.transcriptOf} /</span>`);
   });
 
   it("are plain words in the second half too, with no tag or entity", () => {

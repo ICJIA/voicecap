@@ -9,30 +9,24 @@ import { WORD_TEXT } from "../text.js";
 import { documentTitle } from "../words.js";
 import { wordAttention } from "./attention.js";
 import type { Block } from "./blocks.js";
-import { wordChanges } from "./changes.js";
-import { wordCoverage, wordEvidence, wordFooter, wordStory } from "./evidence.js";
-import { wordAppendix, wordPages } from "./pages.js";
-import { wordProblems } from "./problems.js";
-import { wordHow, wordSummary, wordTop } from "./top.js";
+import { wordDetails } from "./details.js";
+import { wordFooter } from "./evidence.js";
+import { wordPages } from "./pages.js";
+import { wordGlance, wordTop } from "./top.js";
 
 /**
  * The sections, in the page's order (html/document.ts): the top, then the sections inside the
- * page's `main` as the design orders them, then the footer. The footer has a heading of its own
- * here, which the page's has not (it is a landmark), so the outline has one level-1 heading more
- * than the page has sections.
+ * page's `main` as the design orders them (At a glance, what needs attention when a card is left,
+ * every page with its transcripts, and the details, which hold the rest), then the footer. The
+ * footer has a heading of its own here, which the page's has not (it is a landmark), so the outline
+ * has one level-1 heading more than the page has sections.
  */
 const SECTIONS: ((model: ShareModel) => Block[])[] = [
   wordTop,
-  wordSummary,
+  wordGlance,
   wordAttention,
-  wordHow,
   wordPages,
-  wordChanges,
-  wordProblems,
-  wordCoverage,
-  wordEvidence,
-  wordStory,
-  wordAppendix,
+  wordDetails,
   wordFooter,
 ];
 

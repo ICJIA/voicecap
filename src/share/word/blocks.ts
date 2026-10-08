@@ -17,20 +17,16 @@ export interface Picture {
   alt: string;
 }
 
-/**
- * A table cell: its lines, each a paragraph of its own, then its picture, if it has one, in a
- * paragraph of its own; `mono` sets the lines in the fixed-width font.
- */
+/** A table cell: its lines, each a paragraph of its own; `mono` sets them in the fixed-width font. */
 export interface Cell {
   lines: Line[];
   mono?: true;
-  picture?: Picture;
 }
 
 /** A part of the outline. Nothing in one is escaped: `docxOf` sets each word in a run of its own. */
 export type Block =
   | { kind: "title"; text: string }
-  | { kind: "heading"; level: 1 | 2 | 3; text: string }
+  | { kind: "heading"; level: 1 | 2 | 3 | 4; text: string }
   | { kind: "para"; line: Line }
   | { kind: "list"; items: Line[] }
   | { kind: "table"; head: string[]; rows: Cell[][]; widths?: number[] }
@@ -50,9 +46,25 @@ export function title(text: string): Block {
   return { kind: "title", text };
 }
 
-/** A heading: level 1 for a section, and 2 and 3 inside one, in order and never skipping a level. */
-export function heading(level: 1 | 2 | 3, text: string): Block {
+/**
+ * A heading: level 1 for a section, and 2 to 4 inside one, in order and never skipping a level. The
+ * document's styles (../docx.ts) go no further than Heading 4.
+ */
+export function heading(level: 1 | 2 | 3 | 4, text: string): Block {
   return { kind: "heading", level, text };
+}
+
+/**
+ * Some blocks with each heading one level down: a section's level 1 is a part's level 2, and what
+ * is inside it goes down with it, so no heading skips a level. Every other block is as it is.
+ * Throws for a heading that is level 4 already, since the document has no level 5.
+ */
+export function demoted(blocks: Block[]): Block[] {
+  return blocks.map((block) => {
+    if (block.kind !== "heading") return block;
+    if (block.level === 4) throw new Error("A heading can't go below level 4.");
+    return { ...block, level: (block.level + 1) as 2 | 3 | 4 };
+  });
 }
 
 /** A paragraph of one line, made of pieces of words. */
@@ -117,11 +129,9 @@ export function image(picture: Picture): Block {
 /** The end of a page. */
 export const PAGE_BREAK: Block = { kind: "pageBreak" };
 
-/** A cell's words: its lines, set apart by " / ", and its picture's alt text last. */
+/** A cell's words: its lines, set apart by " / ". */
 function cellWords(of: Cell): string {
-  return [...of.lines.map(lineText), ...(of.picture === undefined ? [] : [of.picture.alt])].join(
-    " / ",
-  );
+  return of.lines.map(lineText).join(" / ");
 }
 
 /**

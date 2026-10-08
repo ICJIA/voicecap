@@ -52,19 +52,33 @@ const LINKS_OUT = [
   STORY.deque.url,
 ];
 
-/** The sections' headings, in the spec's order. */
-const SECTIONS = [
-  "glance-h",
-  "need-h",
-  "how-h",
-  "pages-h",
+/**
+ * The sections' headings, in the spec's order. What needs attention is there only when a card
+ * is: with none, the section isn't on the page, and At a glance's verdict says so. The page has no
+ * appendix of transcripts: each page's is folded in its card, so the details are the last section.
+ */
+const SECTIONS = ["glance-h", "need-h", "pages-h", "details-h"];
+const sectionsOf = (cards: number): string[] =>
+  cards === 0 ? SECTIONS.filter((id) => id !== "need-h") : SECTIONS;
+
+/**
+ * The parts of The details, whose headings are one level lower than a section's, in the spec's
+ * order. A site where no run counts has the six that aren't the summary's panels and bars.
+ */
+const DETAILS_PARTS = [
+  "todo-h",
+  "complete-h",
+  "whenhow-h",
   "chg-h",
   "prob-h",
   "lim-h",
+  "rules-h",
+  "review-h",
   "ev-h",
+  "how-h",
   "story-h",
-  "app-h",
 ];
+const NO_RUN_PARTS = ["chg-h", "prob-h", "lim-h", "ev-h", "how-h", "story-h"];
 
 /** The fonts' folder, beside src/share/fonts.ts, which reads it. */
 const FONTS = fileURLToPath(new URL("../src/share/fonts/", import.meta.url));
@@ -162,9 +176,9 @@ function largeModel(): ShareModel {
 
 /**
  * A run of voicecap 0.11.0, whose three pages took a screenshot each (TINY_JPEG): two were read in
- * full, so each has an entry in the appendix, and the third failed after its picture was taken, so
- * its card is the only place that has it. The page writes each picture where its page has one: five
- * in all.
+ * full, so each has its transcripts folded in its card, and the third failed after its picture was
+ * taken, so its card has no transcripts. The page writes each picture once, on its page's card:
+ * three in all.
  */
 function shotsModel(): ShareModel {
   const run = shareRun({
@@ -249,11 +263,11 @@ function unlistedLinks(markup: string): string[] {
   });
 }
 
-/** How many folds are around each section heading, in page order. */
-function foldsAroundHeadings(markup: string): number[] {
+/** How many folds are around each heading of a level (a section's, by default), in page order. */
+function foldsAroundHeadings(markup: string, heading = "h2"): number[] {
   const around: number[] = [];
   let depth = 0;
-  for (const [tag] of markup.matchAll(/<\/?details\b|<h2\b/g)) {
+  for (const [tag] of markup.matchAll(new RegExp(`</?details\\b|<${heading}\\b`, "g"))) {
     if (tag === "<details") depth += 1;
     else if (tag === "</details") depth -= 1;
     else around.push(depth);
@@ -286,6 +300,26 @@ function rulesOf(css: string): { subjects: string[]; declarations: string }[] {
   );
 }
 
+/**
+ * The column each grid of a style sheet asks for, as the first part of its `minmax(…, 1fr)` in
+ * `repeat(auto-fit, …)` or `repeat(auto-fill, …)`: the part up to the comma that isn't inside
+ * brackets, so a minimum with brackets of its own (`min(100%, max(420px, calc(…)))`) is read whole.
+ */
+function minimumsOf(css: string): string[] {
+  return [...css.matchAll(/repeat\(auto-(?:fit|fill), minmax\(/g)].map((found) => {
+    const start = (found.index ?? 0) + found[0].length;
+    let depth = 0;
+    let end = start;
+    for (; end < css.length; end += 1) {
+      const char = css[end];
+      if (char === "(") depth += 1;
+      else if (char === ")") depth -= 1;
+      else if (char === "," && depth === 0) break;
+    }
+    return css.slice(start, end);
+  });
+}
+
 interface Checked {
   files: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
@@ -307,7 +341,7 @@ describe("renderSharePage", () => {
    * The page of each model: the demo's, one built in memory, one where no run counts, one with a
    * run's event log, and one with screenshots, with how many runs each draws on.
    */
-  let pages: { name: string; html: string; runs: number }[];
+  let pages: { name: string; html: string; runs: number; cards: number }[];
   let demoPage: string;
 
   beforeAll(async () => {
@@ -323,6 +357,7 @@ describe("renderSharePage", () => {
       name,
       html: renderSharePage(model, { fontCss }),
       runs: model.evidence.length,
+      cards: model.attention.length,
     }));
     demoPage = pages[0]?.html ?? "";
   });
@@ -347,10 +382,10 @@ describe("renderSharePage", () => {
         name === "no run that counts" ? [] : ['<script type="application/json" id="fp-data">'],
       );
       // Nothing loaded: no source but a screenshot's own address, a JPEG in base64 in an image of the
-      // page (five in all, on the page that has them: see shotsModel); no linked file, no import,
+      // page (three in all, on the page that has them: see shotsModel); no linked file, no import,
       // and every url() the page's own data.
       const images = html.match(IMAGE_TAG) ?? [];
-      expect(images, name).toHaveLength(name === "a run with its screenshots" ? 5 : 0);
+      expect(images, name).toHaveLength(name === "a run with its screenshots" ? 3 : 0);
       for (const tag of images) {
         expect(attributes(tag, "src"), name).toEqual([expect.stringMatching(IMAGE_ADDRESS)]);
       }
@@ -465,7 +500,7 @@ describe("renderSharePage", () => {
     expect(Buffer.byteLength(page) - Buffer.byteLength(bare)).toBe(added);
   });
 
-  it("grows by each screenshot's base64 at most twice, on its card and in the appendix, and by nothing else for it", () => {
+  it("grows by each screenshot's base64 once, on its card, and by nothing else for it", () => {
     const model = shotsModel();
     const base64 = Buffer.from(TINY_JPEG).toString("base64");
     // The same page with every picture's base64 left out: only what each picture adds is missing.
@@ -483,21 +518,23 @@ describe("renderSharePage", () => {
       page,
     )?.[1];
 
-    // Two pages have an entry in the appendix, so each shows its picture twice; the third has its
-    // card alone, so it shows it once.
+    // Each of the three pages shows its picture once, on its card; the transcripts folded in the two
+    // cards that have them carry no picture.
     expect(model.pages.map((card) => "dataUri" in card.screenshot)).toEqual([true, true, true]);
     expect(model.appendix).toHaveLength(2);
-    expect(page.length - plain.length).toBe(base64.length * (2 + 2 + 1));
-    expect(Buffer.byteLength(page) - Buffer.byteLength(plain)).toBe(base64.length * 5);
-    expect(page.split(base64)).toHaveLength(5 + 1);
+    expect(page.length - plain.length).toBe(base64.length * 3);
+    expect(Buffer.byteLength(page) - Buffer.byteLength(plain)).toBe(base64.length * 3);
+    expect(page.split(base64)).toHaveLength(3 + 1);
     // The check's data holds each picture's fingerprint, in the records, and never the picture.
     expect(data).toEqual(expect.any(String));
     expect(data).not.toContain(base64);
     expect(data).toContain(TINY_RECORD.sha256);
   });
 
-  it("puts the sections in the spec's order, each h2 outside every fold", () => {
-    for (const { name, html } of pages) {
+  it("puts the sections in the spec's order, each h2 outside every fold, and What needs attention only with a card", () => {
+    // Both kinds are among the pages: the demo's five cards, and a run whose pages need nothing.
+    expect(new Set(pages.map(({ cards }) => cards === 0)).size).toBe(2);
+    for (const { name, html, cards } of pages) {
       const markup = markupOf(html);
       const main = markup.indexOf('<main id="main">');
       const mainEnd = markup.indexOf("</main>");
@@ -506,15 +543,25 @@ describe("renderSharePage", () => {
       expect(
         headings.map(([, id]) => id),
         name,
-      ).toEqual(SECTIONS);
+      ).toEqual(sectionsOf(cards));
       for (const heading of headings) {
         expect(heading.index, name).toBeGreaterThan(main);
         expect(heading.index, name).toBeLessThan(mainEnd);
       }
-      expect(foldsAroundHeadings(markup), name).toEqual(SECTIONS.map(() => 0));
+      expect(foldsAroundHeadings(markup), name).toEqual(sectionsOf(cards).map(() => 0));
+      // The link to the section is there only when the section is.
+      expect(attributes(markup, "href").includes("#need-h"), name).toBe(cards > 0);
       for (const [, line = ""] of markup.matchAll(/<summary>([\s\S]*?)<\/summary>/g)) {
         expect(line, name).not.toMatch(/<h[1-6]\b/);
       }
+      // The details' parts are h3, between the details' own heading and the end of main, in the
+      // spec's order, each outside every fold like a section's heading. Every h3 in the details is
+      // one of them: what is inside a part is lower.
+      const details = markup.slice(markup.indexOf('<h2 id="details-h">'), mainEnd);
+      expect(markup, name).not.toContain('id="app-h"');
+      const parts = [...details.matchAll(/<h3 id="([^"]+)"/g)].map(([, id]) => id);
+      expect(parts, name).toEqual(name === "no run that counts" ? NO_RUN_PARTS : DETAILS_PARTS);
+      expect(foldsAroundHeadings(details, "h3"), name).toEqual(parts.map(() => 0));
       // The header, with the site's name, comes before main, and the footer after it.
       expect(markup.indexOf('<header class="mast">'), name).toBeGreaterThan(-1);
       expect(markup.indexOf('<header class="mast">'), name).toBeLessThan(main);
@@ -581,10 +628,11 @@ describe("renderSharePage", () => {
         .map((href) => decode(href.slice(1)));
 
       expect(repeated(ids), name).toEqual([]);
-      // At least the skip link, and the summary's way into each later section.
-      expect(targets.length, name).toBeGreaterThanOrEqual(10);
-      // The summary's panel links to each problem's card (need-1, need-2, ...) and to the section
-      // that has them all (need-h), and the page has both: every one is there, like any other link.
+      // At least the skip link, and At a glance's way into the later sections: Every page and The
+      // details, and What needs attention too when there's a card.
+      expect(targets.length, name).toBeGreaterThanOrEqual(3);
+      // Every link to a part of the page goes to one that is there: At a glance's to each section,
+      // the details' to the problems and to what changed, and a card's to its pages.
       expect(
         targets.filter((target) => !ids.includes(target)),
         name,
@@ -638,13 +686,14 @@ describe("a run whose record can't be made into a walkthrough file", () => {
       const sentence = `This run's walkthrough file can't be made: ${problem}`;
 
       // The page: the run's fold has its five parts, the last of which says why, and no download.
+      // Each part's heading is an h4, under the evidence's own in the details.
       const html = renderSharePage(model, { fontCss: "" });
       const [fold = ""] = foldsIn(html)
         .filter((each) => each.includes(' id="run-r1"'))
         .map((each) => each.split("</details>")[0] ?? "");
       expect(fold).not.toBe("");
       expect(
-        [...fold.matchAll(/<h3>(.*?)<\/h3>/gs)].map((found) => textOf(found[1] ?? "")),
+        [...fold.matchAll(/<h4>(.*?)<\/h4>/gs)].map((found) => textOf(found[1] ?? "")),
       ).toEqual([
         "Minute by minute in run r1",
         "NVDA's own log, checked against the transcripts in run r1",
@@ -656,15 +705,16 @@ describe("a run whose record can't be made into a walkthrough file", () => {
       expect(attributes(markupOf(html), "download")).toEqual([]);
       expect(html).toContain('id="fp-data"');
 
-      // The Word copy: the same sentence under the part's heading, and nothing else under it.
+      // The Word copy: the same sentence under the part's heading, a heading 4 under the run's in
+      // the details, and nothing else under it: the next part of the details follows.
       const { document } = await unzipDocx(await renderWordCopy(model));
       const paragraphs = paragraphsOf(document);
       const at = paragraphs.findIndex(
-        ({ style, text }) => style === "Heading3" && text === "Walkthrough file in run r1",
+        ({ style, text }) => style === "Heading4" && text === "Walkthrough file in run r1",
       );
       expect(at).toBeGreaterThan(-1);
       expect(paragraphs[at + 1]?.text).toBe(sentence);
-      expect(paragraphs[at + 2]?.style).toBe("Heading1");
+      expect(paragraphs[at + 2]).toEqual({ style: "Heading2", text: "How voicecap works" });
       expect(paragraphs.some(({ text }) => text.includes("--walkthrough"))).toBe(false);
     },
   );
@@ -787,16 +837,25 @@ describe("SHARE_CSS", () => {
     // repeat(auto-fit, minmax(300px, 1fr)) keeps a 300 px column in a window of 272 px (a phone's
     // 320 less the page's margins), and the page scrolls sideways. minmax(min(300px, 100%), 1fr)
     // lets the column shrink to its box.
-    const grids = [
-      ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
-    ];
+    const columns = minimumsOf(SHARE_CSS);
 
-    // Ten grids of cards, tiles, and steps: the summary's panels are no longer one, since they are
-    // a column of rows.
-    expect(grids.length).toBeGreaterThan(9);
-    for (const [grid, column = ""] of grids) {
-      expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
+    // Eight grids of cards and steps: the summary's panels are no longer one, since they were a
+    // column of rows, and its bars, which were three side by side, are parts of the details now,
+    // one under another. The tiles of At a glance, four of them, aren't one either: they are two
+    // across and then four, in columns that shrink to nothing (`minmax(0, 1fr)`), so that no
+    // width leaves one tile alone in a row. A test in the browser fits them down to 320 px.
+    expect(columns.length).toBeGreaterThan(7);
+    // The page's cards are the one grid with a minimum of its own (D5): two a row, where each gets
+    // 420 px (half the box less half the 16 px gap, but never less than 420), else one, as wide as
+    // the box. The box caps it too, like the rest.
+    const CARDS = "min(100%, max(420px, calc((100% - 16px) / 2)))";
+    expect(columns.filter((column) => column === CARDS)).toHaveLength(1);
+    for (const column of columns.filter((each) => each !== CARDS)) {
+      expect(column).toMatch(/^min\(\d+px, 100%\)$/);
     }
+    expect(SHARE_CSS).toMatch(
+      /\.cards \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, max\(420px, calc\(\(100% - 16px\) \/ 2\)\)\), 1fr\)\); gap: 16px;[^}]*\}/,
+    );
   });
 
   it("keeps the mockup's print rules, and holds nothing from outside or of its samples", () => {

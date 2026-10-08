@@ -12,11 +12,16 @@
  *
  * It writes eight files, drawn in a 1200 × 900 window at twice its size:
  *
- *   report-top.png           the page's masthead, and its summary down to the end of its panels
- *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page
+ *   report-top.png           the page's masthead, and At a glance down to its links: the verdict, the
+ *                            ring of the pages, and the four big numbers
+ *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page,
+ *                            in its fold, in the details, opened
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
- *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot: the
- *                            first row with no card for a /biographies/ page (see BIOGRAPHIES)
+ *   report-pages.png         "Every page": a row of its cards (two, in this window), each with its
+ *                            page's screenshot, what NVDA said first on it ("Heard first"), and its
+ *                            full transcript, in its fold, shut: the first row with no card for a
+ *                            page at an address in AVOIDED, which keeps out a /biographies/ page's
+ *                            photo and name, and a /contact/ page's test-mode notice
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the site under "The sites": its current
@@ -85,12 +90,17 @@ const SCALE = 2;
 const SLICE_MARGIN = 16;
 const PANEL_MARGIN = 8;
 /**
- * What the address of a biography has in it: each page of the i2i team's biographies shows a person's
- * photo and name. The shot of page cards leaves out every row that has a card for such a page, and
- * nothing else: a page at another address that shows a photo would still be drawn. So when the
- * fixture changes, look at that shot for photos and names.
+ * What the address of a page has in it that keeps its card out of the shot of page cards. The shot
+ * leaves out every row that has a card for a page at one of these addresses, and nothing else: a
+ * page at another address that shows the same would still be drawn. So when the fixture changes,
+ * look at that shot.
+ *
+ * - `/biographies/`: each page of the i2i team's biographies shows a person's photo and name.
+ * - `/contact/`: its screenshot carries the branch deploy's test-mode notice, a red "SITE BUILD
+ *   NOTICE" that names the mailer's test inbox and a checklist in the site's docs, which a public
+ *   README shouldn't lead its cards with.
  */
-const BIOGRAPHIES = "/biographies/";
+export const AVOIDED = ["/biographies/", "/contact/"] as const;
 
 /** The eight files this writes, in the order it takes them. */
 export const SCREENSHOTS = [
@@ -251,19 +261,20 @@ async function downTo(page: Page, selector: string, last: string, margin: number
 }
 
 /**
- * The first row of `cards`, the elements of a grid, with no card that has `avoid` in its text, and
- * `margin` of the page around it. The cards that start as high as each other are a row, and the row
- * is as wide as its cards and as tall as the tallest, so none is cut off. Stops when every row has
- * a card with `avoid` in it.
+ * The first row of `cards`, the elements of a grid, with no card that has any of `avoid` in its
+ * text, and `margin` of the page around it. The cards that start as high as each other are a row,
+ * and the row is as wide as its cards and as tall as the tallest, so none is cut off. Stops when
+ * every row has a card with one of `avoid` in it. The page's shot of its cards gives AVOIDED, each
+ * address kept out for a reason of its own.
  */
 export async function firstRowWithout(
   page: Page,
   cards: string,
-  avoid: string,
+  avoid: readonly string[],
   margin: number,
 ): Promise<Region> {
   const row = await page.evaluate(
-    ({ target, text }) => {
+    ({ target, texts }) => {
       const rows: Element[][] = [];
       let top = Number.NEGATIVE_INFINITY;
       for (const card of document.querySelectorAll(target)) {
@@ -272,7 +283,12 @@ export async function firstRowWithout(
         top = at;
         rows.at(-1)?.push(card);
       }
-      const found = rows.find((each) => each.every((card) => !card.textContent?.includes(text)));
+      const found = rows.find((each) =>
+        each.every((card) => {
+          const words = card.textContent ?? "";
+          return !texts.some((text) => words.includes(text));
+        }),
+      );
       if (found === undefined) return null;
       const boxes = found.map((card) => card.getBoundingClientRect());
       return {
@@ -282,9 +298,12 @@ export async function firstRowWithout(
         bottom: Math.max(...boxes.map((box) => box.bottom)) + window.scrollY,
       };
     },
-    { target: cards, text: avoid },
+    { target: cards, texts: avoid },
   );
-  if (row === null) throw new Error(`Every row of ${cards} has "${avoid}" in it.`);
+  if (row === null) {
+    const names = avoid.map((each) => `"${each}"`).join(" or ");
+    throw new Error(`Every row of ${cards} has ${names} in it.`);
+  }
   return withMargin(row, margin);
 }
 
@@ -360,13 +379,16 @@ export function shooter(into: string, taken: string[]): Shoot {
 async function shootReport(browser: Browser, file: string, shoot: Shoot): Promise<void> {
   const page = await open(browser, file);
   try {
-    // The masthead, the five numbers, and the four panels. The three bars under them are left out.
+    // The masthead, and At a glance: its verdict, its ring, its four numbers, and its links.
     await shoot(
       page,
       "report-top.png",
-      await fromTop(page, "section.glance .panels", SLICE_MARGIN),
+      await fromTop(page, "section.glance nav.toc", SLICE_MARGIN),
     );
-    await shoot(page, "report-heard.png", await around(page, "div.heard", PANEL_MARGIN));
+    // The sample of what NVDA said, in the details, in its fold: the fold is opened first.
+    const heard = "details.heard-fold";
+    await openFolds(page, heard, false);
+    await shoot(page, "report-heard.png", await around(page, heard, PANEL_MARGIN));
 
     // The card, open, with its pages behind their fold: it names how many there are, and their
     // addresses are a long list. Opening the card opens none of the folds inside it.
@@ -374,14 +396,17 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
     await openFolds(page, `${attention} .folds > details`, false);
     await shoot(page, "report-attention.png", await around(page, attention, SLICE_MARGIN));
 
-    // "Every page": a row of its cards, each with its page's screenshot: the first row with no card
-    // for a /biographies/ page, which keeps this fixture's team photos and names out of the picture.
-    // The code checks only the address, so look at the shot for photos when the fixture changes. The
-    // row ends before the next one starts, so no card is cut off.
+    // "Every page": a row of its cards, each with its page's screenshot, the lines NVDA said first,
+    // and its full transcript, in its fold, shut: the first row with no card for a /biographies/ or
+    // a /contact/ page (AVOIDED). The first keeps this fixture's team photos and names out of the
+    // picture, and the second the branch deploy's test-mode notice, which names the mailer's test
+    // inbox. The code checks only the address, so look at the shot for photos, names, and that
+    // notice when the fixture changes. The row ends before the next one starts, so no card is cut
+    // off.
     await shoot(
       page,
       "report-pages.png",
-      await firstRowWithout(page, "#pages .card", BIOGRAPHIES, PANEL_MARGIN),
+      await firstRowWithout(page, "#pages .card", AVOIDED, PANEL_MARGIN),
     );
 
     // The run's fold, open, down to the end of its minute by minute: the run's facts, the chart,

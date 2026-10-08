@@ -1,26 +1,37 @@
 /**
- * The first three parts of the Word copy, as blocks (./blocks.ts): the top, the Summary, and "How
- * voicecap works". Each takes the model, and says the words of the page's renderer (../html/top.ts)
- * in the same order, but for the top, which puts its title, the site's name, and when it was tested
- * first (see wordTop): the fixed ones come from ../text.ts, the ones worked out from the model from
- * ../words.ts, and the heads and row labels of the tables that stand in for the page's tiles and
- * bars from `WORD_TEXT`. So the two copies can't say different things.
+ * The first parts of the Word copy, as blocks (./blocks.ts): the top, At a glance, and "How voicecap
+ * works"; and five parts of the details, which were the Summary's panels and bars (they are
+ * exported for ./details.ts, which sets them among the details' other parts). Each takes the model,
+ * and says the words of the page's renderer (../html/top.ts) in the same order, but for the top,
+ * which puts its title, the site's name, and when it was tested first (see wordTop): the fixed ones
+ * come from ../text.ts, the ones worked out from the model from ../words.ts, and the heads and row
+ * labels of the tables that stand in for the page's ring, tiles, and bars from `WORD_TEXT`. So the
+ * two copies can't say different things.
  *
- * The Word copy folds nothing and draws no pictures: the page's five tiles are a table, each of its
- * three bars is a table of counts and shares, and the steps and the stages are tables too. It has
- * no buttons, and no links to its own sections, which follow one another. Pure.
+ * The Word copy folds nothing and draws no pictures: the page's ring is a table of its three parts,
+ * its four tiles are a table, each of the two bars is a table of counts and shares, and the steps
+ * and the stages are tables too. It has no buttons, and no links to its own sections, which follow
+ * one another. Pure.
  */
 import { count } from "../format.js";
 import type { Line } from "../line.js";
 import type { ShareModel } from "../model.js";
 import type { Summary } from "../summary.js";
-import { HOW_STEPS, HOW_TEXT, SUMMARY_TEXT, TOP_TEXT, WHEN_TO_RUN, WORD_TEXT } from "../text.js";
 import {
-  attentionPanelOf,
+  GLANCE_TEXT,
+  HOW_STEPS,
+  HOW_TEXT,
+  SUMMARY_TEXT,
+  TOP_TEXT,
+  WHEN_TO_RUN,
+  WORD_TEXT,
+} from "../text.js";
+import { verdictOf } from "../verdict.js";
+import {
+  glanceNumbersOf,
+  heardFirstLine,
   heardTitle,
   howLead,
-  noAttentionLine,
-  numbersOf,
   sentence,
   shareOf,
   spokenDuration,
@@ -97,7 +108,7 @@ export function wordTop(model: ShareModel): Block[] {
   ];
 }
 
-// The summary.
+// At a glance.
 
 /** A number as the table says it: a count, a count out of its total, or a time in words. */
 function numberOf(value: NumberTile["value"]): string {
@@ -106,75 +117,85 @@ function numberOf(value: NumberTile["value"]): string {
   return spokenDuration(value.ms);
 }
 
-/** The five numbers (../words.ts) as a table: how each is counted, and what it counts. */
+/** The four numbers (../words.ts) as a table: how each is counted, and what it counts. */
 function numbersTable(model: ShareModel): Block {
-  const rows = numbersOf(model).map(({ value, label }) => [numberOf(value), label]);
+  const rows = glanceNumbersOf(model).map(({ value, label }) => [numberOf(value), label]);
   return table(WORD_TEXT.summary.numbersHead, rows, [30, 70]);
 }
 
 /**
- * "What needs attention": how many problems there are, on how many pages, then a list of the first
- * few by their titles and how many more there are, the same lines as the page's panel (../words.ts)
- * but for its links, since the Word copy's sections follow one another; or the line that says
- * nothing is left (`noAttentionLine`), which says whether any flag was raised, and how many pages
- * weren't read when some were skipped.
+ * The ring of the pages as a table: a row for each of its three parts and the pages in it, as the
+ * page's legend says them. A part with no pages keeps its row, with 0.
  */
-function attentionBlocks({ attention }: Summary): Block[] {
-  const panel = attentionPanelOf(attention);
-  const lines =
-    panel === null
-      ? [para(noAttentionLine(attention))]
-      : [
-          para(panel.lead),
-          list([
-            ...panel.named.map(({ title }) => title),
-            ...(panel.more === null ? [] : [panel.more]),
-          ]),
-        ];
-  return [heading(2, SUMMARY_TEXT.attention), ...lines];
+function ringTable({ ring }: ShareModel): Block {
+  const { parts } = GLANCE_TEXT;
+  const rows = [
+    [parts.noProblems, count(ring.noProblems)],
+    [parts.needAttention, count(ring.needAttention)],
+    [parts.notRead, count(ring.notRead)],
+  ];
+  return table(WORD_TEXT.glance.ringHead, rows, [70, 30]);
 }
+
+/**
+ * The verdict, in bold: its sign, then its words. The one rule for the words is `verdictOf`, which
+ * the page and the website's card go by too. The page draws the sign with its style, with no
+ * alternative text; a document has no style to draw it with, so here it is the first character of
+ * the line.
+ */
+function verdictBlock(result: ShareModel["result"]): Block {
+  const { kind, headline } = verdictOf(result);
+  return para({ text: `${WORD_TEXT.glance.signs[kind]} ${headline}`, bold: true });
+}
+
+/**
+ * At a glance, written for a manager who reads nothing else, in the page's order: the verdict, in
+ * bold; the result in a sentence; the ring of the pages and four numbers, as tables; and the line on
+ * what voicecap and the person each did. A page break follows, so At a glance has the first page
+ * with the top. The page's links to its sections are left out, since a document's follow one
+ * another, as are its panels and bars, which are parts of the details now.
+ *
+ * When no run counts, there are no pages to count: it has only its sentence, which says why, and the
+ * line on what each did, and the page break. It has no more when a run counts and lists no page, as
+ * on the page: the verdict would say "Nothing needs attention" of a result of no page, which no one
+ * read.
+ */
+export function wordGlance(model: ShareModel): Block[] {
+  const { summary, result } = model;
+  const hasPages = result.pages > 0;
+  return [
+    heading(1, GLANCE_TEXT.title),
+    ...(hasPages ? [verdictBlock(result)] : []),
+    para(summary.sentence),
+    ...(hasPages ? [ringTable(model), numbersTable(model)] : []),
+    para(summary.second),
+    PAGE_BREAK,
+  ];
+}
+
+// The details' parts that were the summary's panels and bars.
 
 /**
  * "How complete the test was": the model's lines, then the line on the run before, when there is
  * one.
  */
-function completeBlocks({ complete, changesLine }: Summary): Block[] {
+export function completeBlocks({ complete, changesLine }: Summary): Block[] {
   const lines = changesLine === null ? complete : [...complete, changesLine];
   return [heading(2, SUMMARY_TEXT.complete), list(lines)];
 }
 
 /** "What's still to do": a list, a line for each task. */
-function todoBlocks({ todo }: Summary): Block[] {
+export function todoBlocks({ todo }: Summary): Block[] {
   return [heading(2, SUMMARY_TEXT.todo), list(todo)];
 }
 
 /** "When and how": a list, a line for each of the date, who ran it, and what it ran on. */
-function whenHowBlocks({ whenHow }: Summary): Block[] {
+export function whenHowBlocks({ whenHow }: Summary): Block[] {
   const items = whenHow.map(({ label, value }): Line => [
     { text: label, bold: true },
     `: ${value}`,
   ]);
   return [heading(2, SUMMARY_TEXT.whenHow), list(items)];
-}
-
-/**
- * "Every page's latest result": a row for each kind of result, zeros too, with its pages and their
- * share of all the pages.
- */
-function resultsBlocks({ bars }: Summary): Block[] {
-  const { done, flagged, never } = bars.results;
-  const total = done + flagged + never;
-  const { results } = WORD_TEXT.summary;
-  const kinds = [
-    [results.done, done],
-    [results.flagged, flagged],
-    [results.never, never],
-  ] as const;
-  const rows = kinds.map(([label, pages]) => [label, count(pages), shareOf(pages, total)]);
-  return [
-    heading(2, SUMMARY_TEXT.results),
-    table(WORD_TEXT.summary.resultsHead, rows, [50, 25, 25]),
-  ];
 }
 
 /**
@@ -190,7 +211,7 @@ function noteBlock(phrase: string): Block {
  * row for each rule, its name in the fixed-width font as the page sets it, with how many times it
  * was raised and its share of every flag raised; or that no flag was.
  */
-function rulesBlocks({ bars }: Summary): Block[] {
+export function rulesBlocks({ bars }: Summary): Block[] {
   const { flagsByRule } = bars;
   const total = flagsByRule.reduce((sum, { count: times }) => sum + times, 0);
   const rows = flagsByRule.map(({ rule, count: times }) => [
@@ -210,7 +231,7 @@ function rulesBlocks({ bars }: Summary): Block[] {
  * total and its share, so nothing looks complete that isn't. It has no row for the pages a person
  * heard NVDA read, which is on each page's chip.
  */
-function reviewBlocks({ bars }: Summary): Block[] {
+export function reviewBlocks({ bars }: Summary): Block[] {
   const { reviewRows } = SUMMARY_TEXT;
   const { reviewed, fixed } = bars.review;
   const kinds = [
@@ -230,37 +251,6 @@ function reviewBlocks({ bars }: Summary): Block[] {
   ];
 }
 
-/**
- * The Summary, written for a manager who reads nothing else: the result in a sentence, in bold, and
- * the line on what voicecap and the person each did; the five numbers; what needs attention, how
- * complete the test was, what's still to do, and when and how it was run; the three bars; and a
- * page break, so the summary has the first page to itself.
- *
- * When no run counts, the summary has no pages to count: only its two lines, which say why, and no
- * page break.
- */
-export function wordSummary(model: ShareModel): Block[] {
-  const { summary } = model;
-  const opening = [
-    heading(1, SUMMARY_TEXT.title),
-    para({ text: summary.sentence, bold: true }),
-    para(summary.second),
-  ];
-  if (model.header.tested === null) return opening;
-  return [
-    ...opening,
-    numbersTable(model),
-    ...attentionBlocks(summary),
-    ...completeBlocks(summary),
-    ...todoBlocks(summary),
-    ...whenHowBlocks(summary),
-    ...resultsBlocks(summary),
-    ...rulesBlocks(summary),
-    ...reviewBlocks(summary),
-    PAGE_BREAK,
-  ];
-}
-
 // How voicecap works.
 
 /** The six steps as a table: each one's number, its title in bold, and what it means. */
@@ -275,9 +265,11 @@ function stepsTable(): Block {
 
 /**
  * What NVDA said on this site: its heading, a table with a column for each pass and a row for each
- * line, each cell “what it said” and (how long it took), and what those words and times are. A
- * pass with fewer lines than another has empty cells below its last. Without a sample (no home page
- * with transcripts, or none whose lines can be read), the line that says none is available.
+ * line, each cell “what it said” and (how long it took), and what those words and times are. A step
+ * where NVDA said nothing is the marker the transcript writes, with no quotes, as a card's "Heard
+ * first" has it (`heardFirstLine`). A pass with fewer lines than another has empty cells below its
+ * last. Without a sample (no home page with transcripts, or none whose lines can be read), the line
+ * that says none is available.
  */
 function heardBlocks(sample: ShareModel["heard"]): Block[] {
   if (sample === null) return [heading(2, HOW_TEXT.heard), para(HOW_TEXT.noSample)];
@@ -289,7 +281,7 @@ function heardBlocks(sample: ShareModel["heard"]): Block[] {
   const rows = Array.from({ length: longest }, (_, at) =>
     sample.passes.map(({ lines }) => {
       const line = lines[at];
-      return line === undefined ? cell() : `“${line.text}” (${line.took})`;
+      return line === undefined ? cell() : `${heardFirstLine(line.text)} (${line.took})`;
     }),
   );
   return [heading(2, heardTitle(sample)), table(head, rows), para(HOW_TEXT.heardNote)];

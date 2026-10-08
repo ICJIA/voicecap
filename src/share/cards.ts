@@ -15,9 +15,11 @@ import {
   type PassName,
   type ReviewStatus,
   type RunJson,
+  type StepRecord,
   type StopReason,
 } from "../model.js";
 import { normalizeSpeech } from "../passes/steps.js";
+import { MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { jpegSize } from "../util/jpeg.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
@@ -88,6 +90,14 @@ export interface PageCard {
   /** One bar per read-pass line: how long it took, and its length in characters. */
   strip: { ms: number; chars: number }[];
   /**
+   * The first `HEARD` lines NVDA said as it read the page, from the read pass of the transcripts
+   * shown, as the transcript writes each line: the steps of the key that pass presses, so not the
+   * Ctrl+End and Ctrl+Home that set it up. Fewer when the pass has fewer, and none for a page with
+   * no transcripts or whose read transcript can't be read here: the TXT, which the card's fold
+   * shows, even when the pass's JSON can be read.
+   */
+  heardFirst: string[];
+  /**
    * The page as the browser showed it once it had loaded, before the screen reader read it: the
    * JPEG as an image's address (`dataUri`), its words for a screen reader, and its size in pixels as
    * its record gives it, a little less than half the browser window's, since the window's own bar
@@ -115,7 +125,9 @@ export interface PageCard {
   /**
    * No transcripts, flags, a read that stopped short, a failure or a skip, an open issue, or
    * transcripts that changed since their review: the card is never folded away as having nothing
-   * to note.
+   * to note. It is broader than `ShareModel.ring.needAttention`, which counts only the pages that a
+   * card of What needs attention names: a page whose flags a review settled, and one that wasn't
+   * read, are true here, and aren't counted there.
    */
   needsAttention: boolean;
 }
@@ -147,6 +159,12 @@ interface CardsInput {
   redact: (text: string) => string;
 }
 
+/**
+ * How many lines of a pass a sample of what NVDA said has: the home page's sample of each pass
+ * (see `heardOf`, in ./model.ts), and each page's first lines of the read pass (`heardFirst`).
+ */
+export const HEARD = 3;
+
 /** A card for each page in scope, in the latest run's page order. */
 export function cardsOf(input: CardsInput): PageCard[] {
   const { standing, transcripts } = input;
@@ -166,6 +184,14 @@ export function cardsOf(input: CardsInput): PageCard[] {
         ? standing.latest && versionOf(standing.latest)
         : sessionVersion(source.run, source.page.session);
     const name = input.name(page);
+    const readSteps =
+      shown === null ? [] : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []);
+    // The card's fold shows the read transcript's TXT, so the card quotes nothing of a read pass whose
+    // file it can't show: the lines come from the pass's steps (its JSON), and the TXT only gates
+    // them. With the TXT unreadable here its fold says so, and there is nothing to quote beside it,
+    // though the steps of the read pass's JSON can still be read (and draw the strip).
+    const readShown =
+      shown !== null && transcripts.txt(shown.run.id, shown.page.slug, "read") !== null;
     return {
       key: page.key,
       slug: page.slug,
@@ -185,13 +211,11 @@ export function cardsOf(input: CardsInput): PageCard[] {
       counts: shown === null ? null : countsOf(shown.page),
       timeMs:
         shown === null ? null : (shown.page.durationMs ?? { notRecorded: notRecordedBy(version) }),
-      strip:
-        shown === null
-          ? []
-          : (transcripts.steps(shown.run.id, shown.page.slug, "read") ?? []).map((step) => ({
-              ms: step.durationMs,
-              chars: normalizeSpeech(step.spoken).length,
-            })),
+      strip: readSteps.map((step) => ({
+        ms: step.durationMs,
+        chars: normalizeSpeech(step.spoken).length,
+      })),
+      heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
       from:
         shown !== null && shown.run !== standing.latest
@@ -209,6 +233,17 @@ export function cardsOf(input: CardsInput): PageCard[] {
         review?.changedSinceReview === true,
     };
   });
+}
+
+/**
+ * The first `HEARD` lines of a read pass, as the transcript writes each line: the steps of the key
+ * the pass presses, so not the Ctrl+End and Ctrl+Home that set it up.
+ */
+function firstLinesOf(steps: StepRecord[]): string[] {
+  return steps
+    .filter((step) => step.command === MAIN_COMMAND.read)
+    .slice(0, HEARD)
+    .map((step) => stepLine(step, "read"));
 }
 
 /** A JPEG as the address an image of the page has: its bytes in base64, as the page carries them. */

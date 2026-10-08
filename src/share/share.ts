@@ -210,12 +210,7 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
         // The model lists the runs the copies draw on latest first.
         runs: model.evidence.map(({ run }) => run.id).reverse(),
         // What the copies say of the site, from the same model, for the website's card.
-        result: {
-          pages: model.summary.numbers.pagesInScope,
-          read: model.summary.numbers.transcribed,
-          problems: model.summary.attention.problems,
-          problemPages: model.summary.attention.pages,
-        },
+        result: model.result,
         files: copies.map(recordOf),
       });
     } catch (error) {
