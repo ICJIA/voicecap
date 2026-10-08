@@ -8,10 +8,10 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -88,6 +88,13 @@ function git(cwd: string, args: string[], at?: string): string {
   });
 }
 
+/**
+ * Whether this checkout is a shallow clone, which has only part of the history, as CI's checkout
+ * has unless it fetches all of it: the command refuses to count the commits behind it.
+ */
+const shallowCheckout =
+  inCheckout && git(REPOSITORY, ["rev-parse", "--is-shallow-repository"]).trim() === "true";
+
 describe("testsOf", () => {
   it("reads a passing run's counts", () => {
     expect(testsOf(PASSING)).toEqual({ passed: 5012, skipped: 2, files: 125 });
@@ -153,6 +160,23 @@ describe("ciOf", () => {
     expect(() => ciOf("matrix:\n  os: [ubuntu-latest]\n  node-version: [22]\n")).toThrow(noNode);
     // It reads lists written in brackets, and stops at another kind rather than read half of one.
     expect(() => ciOf("matrix:\n  os:\n    - ubuntu-latest\n  node: [22]\n")).toThrow(noOs);
+  });
+
+  it("throws for a matrix with an include or an exclude, which changes the combinations its lists make", () => {
+    const lists = "matrix:\n  os: [ubuntu-latest, windows-latest]\n  node: [22, 24]\n";
+    // An include adds a combination, or changes one, and an exclude takes one away.
+    const include = `${lists}  include:\n    - os: macos-latest\n      node: 24\n`;
+    expect(() => ciOf(include)).toThrow(/"include:"/);
+    const exclude = `${lists}  exclude:\n    - os: windows-latest\n      node: 22\n`;
+    expect(() => ciOf(exclude)).toThrow(/"exclude:"/);
+    // Written in brackets, on one line, too.
+    expect(() => ciOf(`${lists}  include: [{ os: macos-latest, node: 24 }]\n`)).toThrow(
+      /"include:"/,
+    );
+    // An empty one changes nothing, nor does one in a comment.
+    const read = { systems: ["Ubuntu", "Windows"], node: ["22", "24"] };
+    expect(ciOf(`${lists}  include: []\n  exclude: [ ]  # none\n`)).toEqual(read);
+    expect(ciOf(`${lists}  # exclude:\n  #   - os: windows-latest\n`)).toEqual(read);
   });
 
   it("throws for a system that isn't ubuntu, macos, or windows", () => {
@@ -234,6 +258,32 @@ describe("writeReleaseFacts", () => {
     expect(facts.commits).toEqual({ count: 3, first: "2026-09-20" });
   });
 
+  it.skipIf(!gitAvailable)(
+    "refuses a shallow clone, whose commits it can't count, and writes nothing",
+    async () => {
+      const dir = await newFolder();
+      const source = path.join(dir, "source");
+      await mkdir(source);
+      git(source, ["init", "-q"]);
+      git(source, ["commit", "-q", "--allow-empty", "-m", "First"], "2026-09-26T10:00:00");
+      git(source, ["commit", "-q", "--allow-empty", "-m", "Second"], "2026-10-01T10:00:00");
+      // A clone of the newest commit alone. Git ignores --depth when it's given a folder's path, so
+      // it's given the folder's file:// URL.
+      const clone = path.join(dir, "clone");
+      git(dir, ["clone", "-q", "--depth", "1", pathToFileURL(source).href, clone]);
+      // The clone sees one commit of the two, and would count 1, from 1 October.
+      expect(git(clone, ["rev-list", "--count", "HEAD"]).trim()).toBe("1");
+      const report = path.join(dir, "vitest.json");
+      const out = path.join(dir, "dist", "release-facts.json");
+      await writeFile(report, JSON.stringify(PASSING));
+
+      await expect(
+        writeReleaseFacts({ report, workflow: CI_WORKFLOW, out, cwd: clone, platform: "win32" }),
+      ).rejects.toThrow(/is a shallow clone[^\n]*git fetch --unshallow/);
+      expect(existsSync(path.dirname(out))).toBe(false);
+    },
+  );
+
   it("writes nothing when the run failed", async () => {
     const dir = await newFolder();
     const report = path.join(dir, "vitest.json");
@@ -276,12 +326,25 @@ describe("writeReleaseFacts", () => {
 });
 
 describe("the command", () => {
-  it.skipIf(!inCheckout)("records the facts and says so in one line", async () => {
+  it.skipIf(!inCheckout)("records the facts in one line, or refuses a shallow clone", async () => {
     const dir = await newFolder();
     const report = path.join(dir, "vitest.json");
     const out = path.join(dir, "facts", "release-facts.json");
     await writeFile(report, JSON.stringify(PASSING));
 
+    if (shallowCheckout) {
+      // A checkout of part of the history can't count the commits behind it: the command says how
+      // to fetch the rest, and writes nothing.
+      const run = spawnSync(process.execPath, [SCRIPT, report, out], {
+        encoding: "utf8",
+        windowsHide: true,
+      });
+      expect(run.status).toBe(1);
+      expect(run.stdout).toBe("");
+      expect(run.stderr).toMatch(/is a shallow clone[^\n]*git fetch --unshallow[^\n]*\n$/);
+      expect(existsSync(path.dirname(out))).toBe(false);
+      return;
+    }
     const said = execFileSync(process.execPath, [SCRIPT, report, out], {
       encoding: "utf8",
       windowsHide: true,

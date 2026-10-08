@@ -359,7 +359,7 @@ describe("renderTrustPage", () => {
     const passed = pageWith({ voicecap: withTests({ passed: 5013 }) });
     expect(tileOf(passed, 0).looks).toBe("5,013");
     expect(pointsOf(sectionOf(passed, "tested"))[0]?.words).toMatch(
-      /^Before each release: 5,013 tests passed on Windows,/,
+      /^Before this release: the lint and the type checks, then 5,013 tests passed on Windows,/,
     );
     expect(cardsOf(sectionOf(passed, "builder"))[4]?.heading).toBe("5,013 tests");
     expect(passed).not.toContain("5,012");
@@ -478,7 +478,8 @@ describe("renderTrustPage", () => {
     });
     expect(pointsOf(sectionOf(unreleased, "tested")).slice(0, 2)).toEqual([
       {
-        words: `Before each release: every test, the lint, the type checks, and a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
+        // With no count, it's what every release does, in the order publish.sh does it.
+        words: `Before each release: the lint and the type checks, then every test, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`,
       },
       { words: `On every change: the same tests, on every system in its CI; ${NOT_RECORDED}.` },
     ]);
@@ -566,16 +567,20 @@ describe("renderTrustPage", () => {
   });
 
   it.each([
-    [0, ", where nothing needs attention"],
-    [1, ", where 1 problem needs attention"],
-    [2, ", where 2 problems need attention"],
-    [1204, ", where 1,204 problems need attention"],
+    [41, 0, ", where nothing needs attention"],
+    [41, 1, ", where 1 problem needs attention"],
+    [41, 2, ", where 2 problems need attention"],
+    [41, 1204, ", where 1,204 problems need attention"],
+    // With fewer read than are in scope, nothing needs attention only on the pages read, as
+    // voicecap's verdict says it (src/share/verdict.ts); problems are counted as they are.
+    [40, 0, ", where nothing needs attention on the pages read"],
+    [40, 2, ", where 2 problems need attention"],
   ])(
-    "says what needs attention in the pages it counted, when the problems are %i",
-    (problems, ending) => {
+    "says what needs attention in the pages it counted, when %i of 41 were read and the problems are %i",
+    (read, problems, ending) => {
       const records: RecordFacts = {
         ...RECORDS,
-        reading: { read: 41, pages: 41, problems, sitesCounted: 2 },
+        reading: { read, pages: 41, problems, sitesCounted: 2 },
       };
 
       expect(tileOf(pageWith({ records }), 1).line).toBe(
@@ -594,16 +599,16 @@ describe("renderTrustPage", () => {
     [
       11,
       1,
-      "files on this website, each matching the fingerprint recorded when it was shared; 1 left out, because it doesn't",
+      "files on this website, each matching the fingerprint recorded when it was shared; 1 left out, missing or changed since it was shared",
       "This website publishes only files that still match the fingerprints recorded when they were shared: 11 today, and 1 left out.",
     ],
     [
       1,
       2,
-      "file on this website, matching the fingerprint recorded when it was shared; 2 left out, because they don't",
+      "file on this website, matching the fingerprint recorded when it was shared; 2 left out, missing or changed since they were shared",
       "This website publishes only files that still match the fingerprints recorded when they were shared: 1 today, and 2 left out.",
     ],
-    // None published: nothing to say "each" of, so what those left out don't match goes with them.
+    // None published: nothing to say "each" of, and those left out are said as they are with some.
     [
       0,
       0,
@@ -613,13 +618,13 @@ describe("renderTrustPage", () => {
     [
       0,
       1,
-      "files on this website; 1 left out, because it doesn't match the fingerprint recorded when it was shared",
+      "files on this website; 1 left out, missing or changed since it was shared",
       "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 1 left out.",
     ],
     [
       0,
       2,
-      "files on this website; 2 left out, because they don't match the fingerprints recorded when they were shared",
+      "files on this website; 2 left out, missing or changed since they were shared",
       "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 2 left out.",
     ],
   ])(
@@ -674,7 +679,8 @@ describe("renderTrustPage", () => {
     expect(tilesOf(html).map(({ line }) => line)).toEqual([
       "tests passed on Windows before this release: every one must pass, or nothing is published",
       "pages NVDA read in the current reports on this website, where 1 problem needs attention",
-      "files on this website, each matching the fingerprint recorded when it was shared; 2 left out, because they don't",
+      // One Word copy changed since it was shared, and one is missing: "left out" is both.
+      "files on this website, each matching the fingerprint recorded when it was shared; 2 left out, missing or changed since they were shared",
       "releases, and 412 public changes, since 26 September 2026: every step on the record",
     ]);
   });
@@ -768,8 +774,10 @@ describe("renderTrustPage", () => {
     expect(textsOf(tested, "p")[0]).toBe("the tests");
     expect(pointsOf(tested)).toEqual([
       {
+        // The count and the system are this release's own run's, in the order publish.sh runs
+        // its checks: the lint and the type checks first, the check of the package last.
         words:
-          "Before each release: 5,012 tests passed on Windows, with 2 skipped, in 125 files, then the lint, the type checks, and a check that the package installs and runs. If one test fails, nothing is published.",
+          "Before this release: the lint and the type checks, then 5,012 tests passed on Windows, with 2 skipped, in 125 files, then a check that the package installs and runs. If one test fails, nothing is published.",
       },
       {
         // Three systems by two Node versions: 6 combinations.

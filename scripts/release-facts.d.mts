@@ -30,11 +30,15 @@ export function systemName(platform: string): string;
 /** The counts of the passing run in `report`, a parsed Vitest JSON report. Throws for any other. */
 export function testsOf(report: unknown): TestCounts;
 
-/** Where CI runs, from the text of .github/workflows/ci.yml. Throws when it can't be read. */
+/**
+ * Where CI runs, from the text of .github/workflows/ci.yml. Throws when it can't be read, and when
+ * its matrix has an `include:` or an `exclude:` with anything in it.
+ */
 export function ciOf(workflow: string): CiMatrix;
 
 /**
- * Writes the release's facts to `out` and gives them. When it can't, it rejects and writes nothing.
+ * Writes the release's facts to `out` and gives them. When it can't, it rejects and writes nothing:
+ * a shallow clone, for one, can't count the commits behind the release.
  */
 export function writeReleaseFacts(options: {
   /** The Vitest JSON report of the run of the tests. */

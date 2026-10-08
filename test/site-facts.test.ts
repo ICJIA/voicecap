@@ -7,9 +7,10 @@
  * and leaves out, and when the newest was shared.
  *
  * Every fact is read or counted, never typed, and one that isn't there is null, never a guess: a
- * file that is missing, hand-edited, or not voicecap's gives "not recorded", never a wrong number
- * and never a throw. The files these tests read are the repository's own package.json and
- * CHANGELOG, read and not changed, and temporary ones made here and taken away after.
+ * release-facts.json that is missing, or isn't in the form publish.sh writes, gives "not recorded",
+ * is never taken in part, and never throws. The files these tests read are the repository's own
+ * package.json and CHANGELOG, read and not changed, and temporary ones made here and taken away
+ * after.
  */
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

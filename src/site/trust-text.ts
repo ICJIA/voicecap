@@ -49,10 +49,16 @@ const day = (date: string): string => longDate(`${date}T00:00`);
 
 /**
  * What needs attention in the pages counted, at the end of their line: ", where nothing needs
- * attention", ", where 1 problem needs attention", or ", where 3 problems need attention".
+ * attention", ", where 1 problem needs attention", or ", where 3 problems need attention". As
+ * voicecap's verdict says it (verdictOf, in ../share/verdict.ts), when NVDA read fewer pages than
+ * are in scope, nothing needs attention only "on the pages read".
  */
-function attention(problems: number): string {
-  if (problems === 0) return ", where nothing needs attention";
+function attention({ read, pages, problems }: NonNullable<RecordFacts["reading"]>): string {
+  if (problems === 0) {
+    return read < pages
+      ? ", where nothing needs attention on the pages read"
+      : ", where nothing needs attention";
+  }
   if (problems === 1) return ", where 1 problem needs attention";
   return `, where ${count(problems)} problems need attention`;
 }
@@ -115,31 +121,28 @@ export const TRUST_TEXT = {
           reading.sitesCounted < sites
             ? `, in ${count(reading.sitesCounted)} of its ${count(sites)} sites`
             : "";
-        return `pages NVDA read in the current reports on this website${counted}${attention(reading.problems)}`;
+        return `pages NVDA read in the current reports on this website${counted}${attention(reading)}`;
       },
       link: "See the reports",
     },
     files: {
       /**
        * One file is "file", and one left out is "it". With none published there is nothing to say
-       * "each" of, so the line is only what is counted, and what those left out don't match is
-       * said with them.
+       * "each" of, so the line is only what is counted. Those left out are "missing or changed
+       * since they were shared", with files published or with none: the build leaves out a file
+       * that no longer matches its fingerprint, and one that's gone, isn't a regular file, or can't
+       * be read, which the website's own page calls missing.
        */
       line: ({ published, leftOut }: RecordFacts["files"]): string => {
-        if (published === 0) {
-          if (leftOut === 0) return "files on this website";
-          const unmatched =
-            leftOut === 1
-              ? "it doesn't match the fingerprint recorded when it was shared"
-              : "they don't match the fingerprints recorded when they were shared";
-          return `files on this website; ${count(leftOut)} left out, because ${unmatched}`;
-        }
         const files =
-          published === 1
-            ? "file on this website, matching the fingerprint recorded when it was shared"
-            : "files on this website, each matching the fingerprint recorded when it was shared";
+          published === 0
+            ? "files on this website"
+            : published === 1
+              ? "file on this website, matching the fingerprint recorded when it was shared"
+              : "files on this website, each matching the fingerprint recorded when it was shared";
         if (leftOut === 0) return files;
-        return `${files}; ${count(leftOut)} left out, because ${leftOut === 1 ? "it doesn't" : "they don't"}`;
+        const since = leftOut === 1 ? "since it was shared" : "since they were shared";
+        return `${files}; ${count(leftOut)} left out, missing or changed ${since}`;
       },
       link: "How to check a copy",
     },
@@ -252,10 +255,16 @@ export const TRUST_TEXT = {
   tested: {
     kicker: "the tests",
     heading: "It tests itself before every release.",
+    /**
+     * The checks publish.sh runs, in its order: the lint and the type checks, then every test, then
+     * the check that the package installs and runs. With the release's facts, the count and the
+     * system are this release's own run's, so the line is of this release; without them, it's what
+     * each release does, with no number.
+     */
     release: (tests: ReleaseFacts["tests"] | null): string =>
       tests === null
-        ? `Before each release: every test, the lint, the type checks, and a check that the package installs and runs. The count is ${NOT_RECORDED}.`
-        : `Before each release: ${count(tests.passed)} tests passed on ${tests.system}, with ${count(tests.skipped)} skipped, in ${count(tests.files)} files, then the lint, the type checks, and a check that the package installs and runs. If one test fails, nothing is published.`,
+        ? `Before each release: the lint and the type checks, then every test, then a check that the package installs and runs. The count is ${NOT_RECORDED}.`
+        : `Before this release: the lint and the type checks, then ${count(tests.passed)} tests passed on ${tests.system}, with ${count(tests.skipped)} skipped, in ${count(tests.files)} files, then a check that the package installs and runs. If one test fails, nothing is published.`,
     /** CI's matrix: the systems it runs on, the Node versions, and how many pairs they make. */
     change: (ci: ReleaseFacts["ci"] | null): string =>
       ci === null

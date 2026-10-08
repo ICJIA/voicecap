@@ -13,10 +13,10 @@
  *   - CI: the systems and the Node versions in the matrix of .github/workflows/ci.yml.
  *
  * A run that failed, was cut short, or ran no tests is refused: nothing is written, and the
- * command exits 1 and says why, so a failed run's counts never ship. Plain Node, with no
- * dependencies and no shell (git runs through execFileSync, and CI's matrix is read with regular
- * expressions), so publish.sh needs nothing more to run it. scripts/release-facts.d.mts types it
- * for the tests.
+ * command exits 1 and says why, so a failed run's counts never ship. So is a shallow clone, which
+ * can't count the commits behind the release. Plain Node, with no dependencies and no shell (git
+ * runs through execFileSync, and CI's matrix is read with regular expressions), so publish.sh
+ * needs nothing more to run it. scripts/release-facts.d.mts types it for the tests.
  */
 import { execFileSync } from "node:child_process";
 import console from "node:console";
@@ -136,12 +136,31 @@ function matrixList(workflow, key) {
 }
 
 /**
+ * Throws when `workflow`'s matrix has an `include:` or an `exclude:` with anything in it: an
+ * include adds a combination or changes one, and an exclude takes one away, so the combinations
+ * would no longer be its `os` list by its `node` list, as the page counts them. An empty one,
+ * `include: []`, changes nothing, and one in a comment isn't read.
+ */
+function refuseIncludeAndExclude(workflow) {
+  for (const [, key = "", rest = ""] of workflow.matchAll(/^[ \t]*(include|exclude):(.*)$/gm)) {
+    if (!/^\[[ \t]*\][ \t]*(?:#.*)?$/.test(rest.trim())) {
+      throw new Error(
+        `The workflow's matrix has "${key}:" with something in it, so its combinations aren't ` +
+          "its os list by its node list, and their count would be wrong.",
+      );
+    }
+  }
+}
+
+/**
  * Where CI runs, from `workflow`, the text of .github/workflows/ci.yml: the matrix's `os` list as
  * the systems' names (ubuntu-latest is Ubuntu, macos-latest macOS, windows-latest Windows), and its
  * `node` list as the versions it names, as the text of each. Throws when either list is not there,
- * or when an `os` entry is not one of the three.
+ * when an `os` entry is not one of the three, or when the matrix has an `include:` or an `exclude:`
+ * with anything in it (see refuseIncludeAndExclude).
  */
 export function ciOf(workflow) {
+  refuseIncludeAndExclude(workflow);
   const runners = matrixList(workflow, "os");
   const node = matrixList(workflow, "node");
   const systems = runners.map((runner) => {
@@ -169,9 +188,18 @@ function git(cwd, args) {
 
 /**
  * The commits behind HEAD in the repository at `cwd`: how many, and the date of the first. A
- * history with more than one root (one that took in another) is dated by the earliest.
+ * history with more than one root (one that took in another) is dated by the earliest. A shallow
+ * clone (`git clone --depth 1`, as CI's checkout is unless it fetches the whole history) has only
+ * its newest commits, and would give too few and too late a date with nothing to show it: it's
+ * refused, with how to fetch the rest.
  */
 function commitsOf(cwd) {
+  if (git(cwd, ["rev-parse", "--is-shallow-repository"]).trim() === "true") {
+    throw new Error(
+      `The repository at ${cwd} is a shallow clone, so the commits behind the release can't be ` +
+        "counted: fetch its whole history (git fetch --unshallow) and run it again.",
+    );
+  }
   const count = Number.parseInt(git(cwd, ["rev-list", "--count", "HEAD"]).trim(), 10);
   if (!Number.isInteger(count) || count < 1) {
     throw new Error("Git did not give a count of the commits behind HEAD.");
@@ -206,7 +234,8 @@ async function readReport(file) {
  * them: the counts of the run in the Vitest JSON report at `report`, the commits behind HEAD in
  * the repository at `cwd`, and the matrix of the workflow at `workflow`. `platform` is the
  * `process.platform` the tests ran on. Everything is read and checked before anything is written,
- * so a run that failed, a report that is not there, or a repository git cannot read writes nothing.
+ * so a run that failed, a report that is not there, a repository git cannot read, or a shallow
+ * clone writes nothing.
  */
 export async function writeReleaseFacts({ report, workflow, out, cwd, platform }) {
   const tests = testsOf(await readReport(report));

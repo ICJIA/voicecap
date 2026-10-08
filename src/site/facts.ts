@@ -19,10 +19,12 @@
  * leaves out, and when the newest was shared.
  *
  * A fact that isn't there is null, never a guess. A release-facts.json that is missing, isn't JSON,
- * or isn't wholly what publish.sh writes (a schema that isn't 1, a count that isn't a whole number,
- * a date that isn't one) gives no release facts at all, so a hand-edited or foreign file shows
- * "not recorded" and never a wrong number. A CHANGELOG entry that isn't a dated release is
- * skipped. Nothing here reads a clock, the network, or the computer, except that
+ * or isn't in the form publish.sh writes (a schema that isn't 1, a count that isn't a whole number,
+ * a date that isn't one) gives no release facts at all: it's never taken in part, and the page
+ * says they aren't recorded. Nothing seals the file, so one in that form is read as it is, edited
+ * by hand or not. A website built with voicecap from npm reads it as it was published, since it
+ * comes inside the package, whose integrity npm checks when it installs it; nothing here checks
+ * that. A CHANGELOG entry that isn't a dated release is skipped. Nothing here reads a clock, the network, or the computer, except that
  * `readVoicecapFacts` reads the three files: the same package and records give the same facts.
  */
 import { readFile } from "node:fs/promises";
@@ -73,7 +75,10 @@ export interface VoicecapFacts {
   released: string | null;
   /** Every dated entry of the CHANGELOG, the newest first. */
   releases: VoicecapRelease[];
-  /** What the release recorded of itself, or null when there is no release-facts.json to trust. */
+  /**
+   * What the release recorded of itself, or null when there is no release-facts.json in the form
+   * publish.sh writes.
+   */
   release: ReleaseFacts | null;
 }
 
@@ -203,9 +208,10 @@ export function parseChangelog(text: string): VoicecapRelease[] {
  * null when `value` isn't all of it, as it is written: a schema of 1; every count a whole number
  * of 0 or more that a number holds exactly; the first commit's date as YYYY-MM-DD, of a day the
  * calendar has; the system a name; and CI's systems and Node versions each a list of at least one
- * name. A file that was edited by hand or isn't voicecap's is never taken in part: it gives no
- * facts, and the page says they aren't recorded. What's given is made of new objects with only
- * these fields, whatever else the file holds.
+ * name. A file in any other form is never taken in part: it gives no facts, and the page says they
+ * aren't recorded. Nothing here can tell a file in this form that was edited by hand from the one
+ * publish.sh wrote. What's given is made of new objects with only these fields, whatever else the
+ * file holds.
  */
 export function parseReleaseFacts(value: unknown): ReleaseFacts | null {
   if (!isObject(value) || value.schema !== 1) return null;
@@ -229,7 +235,7 @@ export function parseReleaseFacts(value: unknown): ReleaseFacts | null {
  * its CHANGELOG, and the JSON of its release-facts.json (`releaseFacts`; anything, or undefined
  * when there's no such file). The version is the package.json's, and a package.json without one
  * is a broken package: this throws. Nothing else here can: a CHANGELOG that doesn't fit gives
- * fewer releases or no release date, and release facts that can't be trusted give none.
+ * fewer releases or no release date, and release facts not in the form publish.sh writes give none.
  */
 export function voicecapFactsOf(
   packageJson: unknown,
