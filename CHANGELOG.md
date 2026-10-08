@@ -4,7 +4,7 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [0.13.0] - 2026-10-07
+## [0.13.0] - 2026-10-08
 
 ### Changed
 

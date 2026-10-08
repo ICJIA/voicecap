@@ -1062,7 +1062,7 @@ export const TIMELINE: TimelineRow[] = [
     both: "<b>0.12.0</b>: what needs attention, as a card for each problem: what NVDA says and where, the likely cause, the fix in the code, and the path forward; a review settles a flag; and five numbers.",
   },
   {
-    date: "2026-10-07",
+    date: "2026-10-08",
     release: "0.13.0",
     pc: null,
     mac: null,
