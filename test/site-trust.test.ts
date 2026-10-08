@@ -594,38 +594,38 @@ describe("renderTrustPage", () => {
       11,
       0,
       "files on this website, each matching the fingerprint recorded when it was shared",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 11 today.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today.",
     ],
     [
       11,
       1,
       "files on this website, each matching the fingerprint recorded when it was shared; 1 left out, missing or changed since it was shared",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 11 today, and 1 left out.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 1 left out.",
     ],
     [
       1,
       2,
       "file on this website, matching the fingerprint recorded when it was shared; 2 left out, missing or changed since they were shared",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 1 today, and 2 left out.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 1 today, and 2 left out.",
     ],
     // None published: nothing to say "each" of, and those left out are said as they are with some.
     [
       0,
       0,
       "files on this website",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 0 today.",
     ],
     [
       0,
       1,
       "files on this website; 1 left out, missing or changed since it was shared",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 1 left out.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 0 today, and 1 left out.",
     ],
     [
       0,
       2,
       "files on this website; 2 left out, missing or changed since they were shared",
-      "This website publishes only files that still match the fingerprints recorded when they were shared: 0 today, and 2 left out.",
+      "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 0 today, and 2 left out.",
     ],
   ])(
     "says how many files it publishes, and how many it leaves out: %i and %i",
@@ -735,7 +735,7 @@ describe("renderTrustPage", () => {
     expect(law).toContain(`<h3><a href="${LAW[0]}">Title II of the ADA</a></h3>`);
   });
 
-  it("says how every word can be checked, with where each part is shown", () => {
+  it("says how every word can be checked, with where four of its five points are shown or described", () => {
     const evidence = sectionOf(html, "evidence");
 
     expect(textsOf(evidence, "p")[0]).toBe("the evidence");
@@ -756,11 +756,12 @@ describe("renderTrustPage", () => {
       },
       {
         words:
-          "This website publishes only files that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
+          "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
       },
       {
         words:
-          "Each report's walkthrough file repeats its run, page for page, so anyone can run it again and compare.",
+          // A report shared with 0.7.0 offers none, so the point is of each one a report offers.
+          "Each walkthrough file a report offers repeats its run, page for page, so anyone can run it again and compare.",
         link: { href: README.walkthrough, words: "The walkthrough file" },
       },
     ]);

@@ -209,7 +209,10 @@ export const TRUST_TEXT = {
       },
     ],
   },
-  /** How every word can be checked, a point each, with a link to where each is shown. */
+  /**
+   * How every word can be checked, a point each. Four of the five link to where they're shown or
+   * described; the one on the files this website publishes has no link.
+   */
   evidence: {
     kicker: "the evidence",
     heading: "Every word can be checked.",
@@ -235,12 +238,20 @@ export const TRUST_TEXT = {
       ] satisfies Line,
       link: "See the reports",
     },
-    /** How many files the website publishes, and leaves out: "11 today, and 2 left out". */
+    /**
+     * How many of the files shared with its reports the website publishes, and leaves out: "11
+     * today, and 2 left out". Its own pages, and the demo's, have no fingerprint recorded in a
+     * share, so the point is of the reports' files.
+     */
     published: ({ published, leftOut }: RecordFacts["files"]): string =>
-      `This website publishes only files that still match the fingerprints recorded when they were shared: ${count(published)} today${leftOut > 0 ? `, and ${count(leftOut)} left out` : ""}.`,
+      `Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: ${count(published)} today${leftOut > 0 ? `, and ${count(leftOut)} left out` : ""}.`,
+    /**
+     * Of each walkthrough file a report offers, with no version named: a report shared with
+     * voicecap 0.7.0, the first to share, offers none.
+     */
     walkthrough: {
       words: [
-        "Each report's walkthrough file repeats its run, page for page, so anyone can run it again and compare.",
+        "Each walkthrough file a report offers repeats its run, page for page, so anyone can run it again and compare.",
       ] satisfies Line,
       link: {
         words: "The walkthrough file",

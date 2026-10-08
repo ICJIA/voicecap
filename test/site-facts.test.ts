@@ -117,11 +117,13 @@ describe("parseChangelog", () => {
     // Between "Prepare x.y.z" and "Release vx.y.z" the CHANGELOG's newest entry is a version ahead
     // of package.json, so the installed version is one of the entries, not always the first.
     expect(releases.map((release) => release.version)).toContain(version);
-    for (const { date, headline } of releases) {
+    for (const { version, date, headline } of releases) {
       expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(headline).not.toBe("");
       // Plain text: no code marks, no bold, and no link markup left in it.
       expect(headline).not.toMatch(/`|\*\*|\]\(/);
+      // The trust page prints each headline, so none may name Guidepup or say a person listened.
+      expect(headline, version).not.toMatch(/guidepup|listen/i);
     }
   });
 

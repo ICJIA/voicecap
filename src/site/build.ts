@@ -48,12 +48,12 @@
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
  * page (trust.html: see ./trust.ts), robots.txt, _redirects, and _headers, which gives each page
- * its Content Security Policy, made from the hashes of that page's own bytes (the site's two pages
- * each at their own address and at the same without ".html"), the demo's pages theirs at each
- * address they answer at (see demoSiteRules), and each download its Content-Disposition. In the
- * home it writes .gitattributes and .gitignore when they aren't there, as a run does, so a home's
- * first build keeps _site/ out of Git with the rest of what voicecap keeps out, then netlify.toml
- * and .nvmrc the first time. None of them is ever written again.
+ * its Content Security Policy, made from the hashes of that page's own bytes (the site's page at
+ * "/" and "/index.html", and the trust page at "/trust.html" and "/trust"), the demo's pages
+ * theirs at each address they answer at (see demoSiteRules), and each download its
+ * Content-Disposition. In the home it writes .gitattributes and .gitignore when they aren't there,
+ * as a run does, so a home's first build keeps _site/ out of Git with the rest of what voicecap
+ * keeps out, then netlify.toml and .nvmrc the first time. None of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -120,8 +120,9 @@ export interface BuildSiteOptions {
    * What the trust page says of voicecap: its version, its releases, and what its release recorded
    * of itself (see ./facts.ts). Default: what the package that runs the build says of itself
    * (readVoicecapFacts), read with the records, before the folder is emptied. Given, these are all
-   * the page says of voicecap and the package isn't read for them, so the same records and the same
-   * facts write the same bytes, whatever package builds them.
+   * the page says of voicecap, and the package's own package.json, CHANGELOG, and
+   * release-facts.json aren't read for them: only the facts come from outside, and the page is
+   * still drawn by the voicecap that runs the build.
    */
   voicecapFacts?: VoicecapFacts;
 }
@@ -340,8 +341,8 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const content: SiteContent = { demo, sites };
   await publishDemoSite(out, demoFiles);
 
-  // The trust page counts the records' facts from what was just published, so it's drawn after it.
   const index = renderSiteIndex(content, { fontCss });
+  // The trust page counts the records' facts from what was just published, so it's drawn after it.
   const trust = renderTrustPage(
     { voicecap, records: recordFactsOf(content), content },
     { fontCss },

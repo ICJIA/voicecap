@@ -14,7 +14,7 @@ It has the website's look: one self-contained file, dark at first with a switch 
 
 ## Every number and date is generated
 
-Nothing on the page is a number or a date about voicecap typed by hand. Each comes from one of two places, and the page says which. The one exception is the law's own compliance dates (part 5), which are the rule's, quoted with a link to it.
+Nothing on the page is a number or a date about voicecap typed by hand. Each comes from one of two places, and the page says which. There are two exceptions, both quoted: the law's own compliance dates (part 5), which are the rule's, with a link to it; and "since voicecap 0.11.0", on the card of what each report keeps (part 9), a part of voicecap's history and not a fact of this build: the version whose reports began to keep a screenshot of each page.
 
 **From voicecap itself, recorded with each release.** A release writes `dist/release-facts.json` into the package:
 - **the tests:** how many passed, how many were skipped, and in how many files, from that release's own run of the tests (publish.sh runs every test before anything is published);
@@ -26,7 +26,7 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 - **every release:** each `## [x.y.z] - date` entry of the CHANGELOG that ships in the package, with its first line, so a new release, and what it added, appear on their own;
 - **the sites:** how many sites have reports on the website, and how many reports;
 - **the pages NVDA read** in the sites' current reports, and the problems that need attention there, from what each share recorded (`result`);
-- **the files:** how many the build published, each matching the fingerprint recorded when it was shared, and how many it left out because they didn't.
+- **the files:** how many the build published, each matching the fingerprint recorded when it was shared, and how many it left out, missing or changed since they were shared.
 
 **The stamp,** under the page's heading, says where the numbers come from: "voicecap 0.13.2, released 9 October 2026 · records as of 8 October 2026, 07:03". The second date is the newest share's. The page is a pure function of the package and the records, so building the same records twice writes the same bytes, as the website's own page does.
 
@@ -38,10 +38,10 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 2. **"Built to be checked. See for yourself."** The lead: every claim on this page can be checked without taking anyone's word for it, the builder's included. The stamp. Then four big numbers, each with a line that says what it counts and a link to where it's shown:
    - the tests that passed for this release;
    - the pages NVDA read in the current reports on this website;
-   - the files on this website, every one matching its fingerprint (with none published, its line is only "files on this website");
+   - the files on this website, every one matching its fingerprint, and then, when some were left out, how many, "missing or changed since they were shared" (with none published, the line is only "files on this website", with those left out after it when there are any);
    - the releases, and the public changes (commits), since the first commit's date.
 3. **What it does.** One job: hear a website the way a screen reader user hears it. Real NVDA reads every page three ways (line by line, heading by heading, and control by control), voicecap saves every word, and a person reviews what it said. It's a human review, sped up.
-4. **Real NVDA, not a simulation.** voicecap drives NVDA, the free screen reader most blind Windows users use, and records exactly what it says. Every transcript is NVDA's own words.
+4. **Real NVDA, not a simulation.** voicecap drives NVDA, the free screen reader many blind people use on Windows, and records exactly what it says. Every transcript is NVDA's own words.
 5. **The law: "Title II. IITAA. WCAG."** The lead: "Government information must work for everyone. Two laws say so; one rulebook defines 'works.'" Then three cards, worded as the audit tool's page words them (the owner confirms the wording when reviewing this spec), each heading linked to its source:
    - **Title II of the ADA** (federal law, [ada.gov's page on the rule](https://www.ada.gov/resources/2024-03-08-web-rule/)): "The Department of Justice rule for state and local government. It names WCAG 2.1 Level AA as the standard, and its compliance dates are April 26, 2027 for entities serving 50,000 people or more and April 26, 2028 for smaller ones and special districts."
    - **IITAA** (Illinois law, [DoIT's accessibility page](https://doit.illinois.gov/initiatives/accessibility.html)): "The Illinois Information Technology Accessibility Act, our state's own accessibility law, older than the federal rule, also built on WCAG 2.1 AA. It applies to Illinois state agencies and universities."
@@ -50,11 +50,11 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
    - Every transcript and screenshot has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.
    - `voicecap verify` checks a whole audit record.
    - Each report checks its own fingerprints in your browser ("Check the fingerprints").
-   - The website publishes only files that match their recorded fingerprints.
-   - Each report's walkthrough file repeats its run.
+   - Of the files shared with its reports, the website publishes only those that still match their recorded fingerprints.
+   - Each walkthrough file a report offers repeats its run.
    - Four of these five points link to where they're shown or described (not the one on the files the website publishes).
 7. **How it's tested.**
-   - **Before each release:** every test (the number), the lint, the type checks, and a check that the package installs and runs.
+   - **Before this release:** the lint and the type checks, then every test (the number, and the system it ran on), then a check that the package installs and runs. Without the release's facts, it says "Before each release", with no number.
    - **CI, on every change:** the same on every combination in its matrix (the systems and Node versions), plus a run of the CLI with its replay driver.
    - **The shareable page (the report you open from this website) and this website itself are checked with axe** in a real browser, in both themes and at a phone's width.
    - **A run with real NVDA** happens at a PC before a release that changes how NVDA is driven.
@@ -78,15 +78,14 @@ Nothing on the page is a number or a date about voicecap typed by hand. Each com
 The page follows voicecap's rules:
 - voicecap is a human review, sped up, and never "automated" ("automated" may describe another tool, such as axe, never voicecap);
 - a person hears, reads, and decides, and never "listened";
-- no mention of an AI assistant;
 - Guidepup isn't named, as on every page made for managers.
 
 ## How it's built
 
 - **`scripts/release-facts.mjs`:** writes `dist/release-facts.json` from the test run's JSON report, `git`, and the CI matrix. publish.sh runs it after the tests pass and the build is done, and its pack check requires the file.
 - **`src/site/facts.ts`:** reads `release-facts.json` and the package's `package.json` and CHANGELOG, beside voicecap's `dist`, and counts the records' facts from what the build published (`SiteContent` and what it left out). Pure, except for reading those files.
-- **`src/site/trust.ts`:** renders the page from the facts. **`src/site/text.ts`** gains its words, and **`src/site/style.ts`** its styles (the stat tiles, the cards, the release list).
-- **`src/site/render.ts`:** the bar gains the link on every page.
+- **`src/site/trust.ts`:** renders the page from the facts, in the words of **`src/site/trust-text.ts`**. **`src/site/text.ts`** gains the bar's link to it ("Can I trust this?") and the bar's new label, and **`src/site/style.ts`** the page's styles (the stat tiles, the cards, the release list).
+- **`src/site/frame.ts`:** what every page of the website shares: the bar, which gains the link on every page, the footer, and the shell around a page's main part, so the two pages' bars can't drift apart. **`src/site/render.ts`** draws the website's own page in it.
 - **`src/site/build.ts`:** writes `trust.html`, and `_headers` gives it its policy at both addresses.
 
 ## Tests

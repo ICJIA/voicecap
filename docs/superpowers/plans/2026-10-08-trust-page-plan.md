@@ -1,6 +1,6 @@
 # "Can I trust this?" Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Build it task by task; each step is a checkbox (`- [ ]`).
 
 **Goal:** a second page on the website, `trust.html` (also served at `/trust`), linked as "Can I trust this?" in the bar of every page of the site, that says who built voicecap and shows how it can be checked and how it's tested, with every number and date about voicecap generated from the release and the records. Ship it as 0.13.2.
 
@@ -46,7 +46,6 @@
 - **Wording:**
   - voicecap is a human review, sped up, and never "automated". "Automated" may describe another tool, such as axe, never voicecap.
   - A person hears, reads, and decides; never say a person "listened".
-  - No mention of an AI assistant, anywhere.
   - Guidepup isn't named on the page.
 - **The builder line, word for word:** "Built by Christopher Schweda at ICJIA."
 - **Every number and date about voicecap is generated,** never typed in the page's code or words. A missing fact says "not recorded in this build of voicecap" (D2). The one exception is the law's compliance dates, quoted from the rule with a link to it.
@@ -61,7 +60,7 @@
 - **The bar of every page** has "Can I trust this?", with `aria-current="page"` on the trust page's own bar.
 - **No new dependencies.** The facts script reads CI's matrix with a regular expression, not a YAML parser, and runs `git` with `execFileSync`, never through a shell.
 - **Commits:** a plain subject line with no trailers of any kind, and no push until the release.
-- **What subagents never do:** start NVDA or any desktop program; run voicecap except through the test suite; publish; push; or touch the owner's transcripts home.
+- **What the build never does:** start NVDA or any desktop program; run voicecap except through the test suite; publish; push; or touch the owner's transcripts home.
 
 ## Review Focus
 
@@ -382,7 +381,7 @@
 
 ## The release (the controller, with the owner)
 
-1. Run the final review on the most capable model, then one fix wave and its scoped re-review (subagent-driven development).
+1. Review the whole branch, then make one round of fixes and review them.
 2. Merge into main: `git switch main && git merge --no-ff 0.13.2-trust-page`. Then "Prepare 0.13.2": the CHANGELOG's `## [0.13.2] - <date>`, and its compare links.
 3. Push main, and get CI green on all six jobs.
 4. Run `./publish.sh --dry-run patch`. Check that it printed "Recorded the release's facts…" with the test count, and that `dist/release-facts.json` holds that count, the commit count, and CI's matrix.

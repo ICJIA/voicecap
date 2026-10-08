@@ -120,9 +120,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * Whether `text` is a day the calendar has, written YYYY-MM-DD, so that a page never names
- * "2026-13-45". The day is made from its numbers and written out again: a month, a day, or a year
- * the calendar lacks comes back as another day (the 30th of February as the 2nd of March), and a
- * day it has comes back as the same text.
+ * "2026-13-45". The day is made from its numbers and written out again: a month or a day the
+ * calendar lacks comes back as another day (the 30th of February as the 2nd of March), and a day
+ * it has comes back as the same text. A day of the years 0000 to 0099 comes back as another too,
+ * since Date.UTC takes a year below 100 for one in the 1900s, so those years are refused as well:
+ * no release of voicecap is dated in them.
  */
 function isDate(text: string): boolean {
   const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
