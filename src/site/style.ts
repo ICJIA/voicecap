@@ -38,7 +38,17 @@
  *   reflow rule is measured;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the main part grows, keeping its measure.
- *   In print the page is laid out as it was.
+ *   In print the page is laid out as it was;
+ * - the trust page (./trust.ts) has the website's banner for its heading, an h1, then a kicker,
+ *   which is small, in capitals, and spaced out, as the shareable page's eyebrow is; the stamp of
+ *   where its numbers come from; and four big numbers, each in a tile with its line and its link,
+ *   which ends the tile so the links of a row line up. The tiles are one a row on a phone, two from
+ *   36em, and four from 60em, in columns that shrink to nothing. Each part after it has a line
+ *   above it, and its kicker over a large heading; its points are panels, one under another; its
+ *   cards are three a row where each has 17rem, and one a row on a phone; and its releases run
+ *   down a line, the earlier ones in the website's fold. A big number that isn't recorded is a
+ *   dash, in the quieter color. A law's tag is an outline with nothing behind it, so its words are
+ *   on the card's own color.
  */
 import { THEME_CSS } from "../share/html/style.js";
 
@@ -153,6 +163,56 @@ details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 18px; }
 .dates time { font-weight: 600; }
 /* how to check a file */
 .note { color: var(--muted); max-width: 72ch; margin-bottom: 12px; }
+/* the trust page: its banner holds the page's heading, an h1, beside its picture, and its kicker, its lead, the stamp of where its numbers come from, and its four big numbers follow it */
+.hero { display: grid; gap: 16px; }
+.hero > * { min-width: 0; }
+.view-head h1 { min-width: 0; margin: 0; font-size: clamp(1.9rem, 6vw, 3.2rem); line-height: 1.05; }
+.hero > .lead, .part > .lead { margin-bottom: 0; }
+/* a kicker: a few words that say what follows, small, in capitals, and spaced out, as the shareable page's eyebrow is, in lines of an even length where it wraps */
+.kicker { font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-wrap: balance; }
+.stamp { justify-self: start; padding: 10px 16px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; background: var(--panel); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* four big numbers: one a row on a phone, two from 36em, and four from 60em, in columns that shrink to nothing, so none runs past its box */
+.tiles { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 36em) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 60em) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* a big number's tile: the number, its line, and its link, which ends the tile, so that the links of a row of tiles line up */
+.tile { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 18px 18px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.tile > * { min-width: 0; }
+.tile > .n { font: 700 clamp(2.2rem, 5vw, 2.75rem)/1.1 var(--display); font-variant-numeric: tabular-nums; color: var(--accent); }
+.tile > .n > .of { font-size: 0.5em; font-weight: 600; color: var(--muted); }
+/* a number that isn't recorded is a dash, quieter than a number */
+.tile > .n.none { color: var(--muted); }
+.tile > .k { color: var(--muted); }
+.tile > a { justify-self: start; margin-top: 4px; font-weight: 600; }
+/* each part after the banner: a line above it, its kicker over a large heading, then what it says */
+.part { display: grid; gap: 16px; margin-top: 56px; padding-top: 48px; border-top: 1px solid var(--line); }
+.part > * { min-width: 0; }
+.part > .kicker { margin-bottom: -8px; }
+.part > h2 { font-size: clamp(1.8rem, 4.6vw, 2.6rem); font-weight: 700; line-height: 1.08; }
+/* a part's points, one under another: each a panel with a line down its side in the accent color, and the link to where it's shown after its words */
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 54rem; }
+.points > li { display: grid; gap: 8px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; }
+.points > li > * { min-width: 0; }
+.points > li > a { justify-self: start; font-weight: 600; }
+/* cards: three a row where each has 17rem, fewer where they don't, and one a row on a phone */
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 14px; }
+.card { display: grid; gap: 10px; align-content: start; padding: 18px 20px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.card > * { min-width: 0; }
+.card > h3 { font-size: 1.25rem; line-height: 1.2; }
+.card > p { color: var(--muted); }
+.card > a { justify-self: start; font-weight: 600; }
+/* what kind of rule a law's card is: its words in capitals, in the accent color, in an outline with nothing behind it */
+.tag { justify-self: start; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 999px; font: 600 0.72rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+/* the releases, the newest first: each one's version and day, then its headline, along a line down the side */
+.releases { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 54rem; }
+.releases > li { display: grid; gap: 2px; padding-left: 16px; border-left: 2px solid var(--line); }
+.releases > li > * { min-width: 0; }
+.releases .on { color: var(--muted); font-variant-numeric: tabular-nums; }
+.releases .version { color: var(--fg); font-family: var(--mono); font-weight: 600; }
+.part > details.fold { max-width: 54rem; }
+.more > a { font-weight: 600; }
+/* the line of links to voicecap, at the end of the page's main part */
+.links { margin-top: 56px; color: var(--muted); }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-block: 18px 40px; display: grid; gap: 6px; }
 /* A line of the footer is no longer to read than a note's: 80 characters of its smaller text are as wide as the notes' 72. */
 footer > * { min-width: 0; max-width: 80ch; }

@@ -1628,12 +1628,19 @@ describe("SITE_CSS", () => {
     // An em in a media query is the reader's own text size, so the bar sticks only from a window as
     // wide, in that size, as 640 pixels is at 16: wide enough for its links. A width in pixels would
     // stick it in a window that a larger size makes narrow, where its links wrap into so many lines
-    // that it grows taller than the room kept clear for it. The one other is no width at all:
-    // `screen`, for the footer at the window's bottom, which print leaves as it was.
+    // that it grows taller than the room kept clear for it. The trust page's four big numbers go
+    // two across from 36em, and four from 60em, by the same measure. The one other is no width at
+    // all: `screen`, for the footer at the window's bottom, which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );
-    expect(queries).toEqual(["print", "(min-width: 40em)", "screen"]);
+    expect(queries).toEqual([
+      "print",
+      "(min-width: 40em)",
+      "(min-width: 36em)",
+      "(min-width: 60em)",
+      "screen",
+    ]);
   });
 
   it("tells the link of the page the reader is on from the others by more than color: bold, and underlined more heavily", () => {
