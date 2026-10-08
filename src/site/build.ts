@@ -16,13 +16,13 @@
  * did, not as a warning.
  *
  * The page names a site by its canonical name: the one its newest share records, or else its
- * folder's own name (see siteName). Site folders that have one name are one site, their reports
- * listed together, the newest first. Only what the page shows changes: each file is still published
- * in its own folder, `<folder>/<name>`, so two folders that name one site can have files of one
- * name, and neither takes the other's place. A site headed by its folder's name when that's an IP
- * address or a local address (its shares are from before 0.10.0, which recorded no site) is
- * published all the same, and warned of, with what to do: share it again with its canonical
- * address.
+ * folder's own name (see siteNamed). A site named by a root has a link to that root beside its
+ * heading, the newest one when its folders have several. Site folders that have one name are one site, their
+ * reports listed together, the newest first. Only what the page shows changes: each file is still
+ * published in its own folder, `<folder>/<name>`, so two folders that name one site can have files
+ * of one name, and neither takes the other's place. A site headed by its folder's name when that's
+ * an IP address or a local address (its shares are from before 0.10.0, which recorded no site) is
+ * published all the same, and warned of, with what to do: share it again with its canonical address.
  *
  * Each build empties its folder, so a folder given by mistake must never be one with records, or
  * anyone's work, in it. A folder is built into only when it's new, empty, or one an earlier build
@@ -241,7 +241,12 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   // Every share of the site folders, in the records' order, and each site's shares, by the site's
   // name: folders that name one site are one site.
   const inRecordOrder: Share[] = [];
-  const named = new Map<string, { folders: string[]; shares: Share[] }>();
+  // `rooted` is the newest of its folders' newest shares that records a root people visit, which
+  // gives the site its name: the page's link to the site, beside its heading, goes there.
+  const named = new Map<
+    string,
+    { folders: string[]; shares: Share[]; rooted?: { share: Share; root: string } }
+  >();
   // The site folders headed by their own name, which is an IP address or a local address.
   const headedByAnAddress: string[] = [];
   for (const [order, { folder, entries }] of records.sites.entries()) {
@@ -255,22 +260,31 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     const shares = entries.map((entry): Share => ({ order, folder, entry }));
     inRecordOrder.push(...shares);
     // The folder's newest share names its site.
-    const name = siteName(folder, shares.toSorted(newestFirst)[0]?.entry.site ?? null);
+    const newest = shares.toSorted(newestFirst)[0];
+    const { name, root } = siteNamed(folder, newest?.entry.site ?? null);
     if (name === folder && namesAnAddress(folder)) headedByAnAddress.push(folder);
     const site = named.get(name) ?? { folders: [], shares: [] };
     site.folders.push(folder);
     site.shares.push(...shares);
+    if (
+      root !== null &&
+      newest !== undefined &&
+      (site.rooted === undefined || newestFirst(newest, site.rooted.share) < 0)
+    ) {
+      site.rooted = { share: newest, root };
+    }
     named.set(name, site);
   }
   // Each site's newest shares, the newest first, which the site keeps, and the older ones it leaves
   // off: of all its folders' shares together.
   const kept = [...named]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, { folders, shares }]) => {
+    .map(([name, { folders, shares, rooted }]) => {
       const newest = shares.toSorted(newestFirst);
       return {
         name,
         folders,
+        address: rooted?.root,
         shares: newest.slice(0, KEPT_PER_SITE),
         older: newest.slice(KEPT_PER_SITE),
       };
@@ -285,13 +299,14 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     const id = `report-${folder}-${entry.seq}`;
     reportOf.set(share, await publishReport(publishing, entry, folder, id));
   }
-  const sites: SiteContent["sites"] = kept.map(({ name, folders, shares }) => ({
+  const sites: SiteContent["sites"] = kept.map(({ name, folders, address, shares }) => ({
     name,
     folders,
     reports: shares.flatMap((share) => {
       const report = reportOf.get(share);
       return report === undefined ? [] : [report];
     }),
+    ...(address === undefined ? {} : { address }),
   }));
   const demo =
     records.demo === null
@@ -416,14 +431,15 @@ function redirectRules(
 
 /**
  * The name the site shows a site folder's reports under, given the root its newest share records for
- * its site: that root's canonical name, and otherwise the folder's own. A share that records no root
- * (one from before 0.10.0), or one that names the site by no address readers know it by (a share
- * made with no canonical address records the address voicecap read, which `recordedCanonical`
- * turns away: an IP address, or a local address), leaves the folder's name.
+ * its site: that root's canonical name, with the root, where people visit the site; and otherwise
+ * the folder's own name, with no root. A share that records no root (one from before 0.10.0), or one
+ * that names the site by no address readers know it by (a share made with no canonical address
+ * records the address voicecap read, which `recordedCanonical` turns away: an IP address, or a
+ * local address), leaves the folder's name.
  */
-function siteName(folder: string, site: string | null): string {
+function siteNamed(folder: string, site: string | null): { name: string; root: string | null } {
   const root = recordedCanonical(site);
-  return root === null ? folder : canonicalName(root);
+  return { name: root === null ? folder : canonicalName(root), root };
 }
 
 /**

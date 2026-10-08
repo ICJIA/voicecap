@@ -32,6 +32,7 @@ import {
   CONTENT,
   DEMO_REPORT,
   DVFR,
+  DVFR_ADDRESS,
   DVFR_NEWEST,
   DVFR_OLDEST,
   EXAMPLE,
@@ -172,6 +173,14 @@ function earlierItemsOf(html: string): string[] {
 /** The bar's navigation. */
 const barOf = (markup: string): string => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
 
+/**
+ * What heads a view's section, or a site's: its title row (its picture and its heading), then what's
+ * beside it. The head is one line of the page's markup.
+ */
+function headOf(html: string, kind: "view" | "site"): string {
+  return new RegExp(`<div class="${kind}-head">(.*)</div>`).exec(html)?.[1] ?? "";
+}
+
 /** The sites' names in a list of reports by date, as the list gives them. */
 function namesByDate(html: string): (string | undefined)[] {
   return textsOf(sectionOf(html, "by-date"), "li").map((item) => item.split(", ")[2]);
@@ -251,11 +260,17 @@ describe("renderSiteIndex", () => {
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("links only to its files, its own anchors, the demo's pages, and voicecap's GitHub page", () => {
+  it("links only to its files, its own anchors, the demo's pages, voicecap's GitHub page, and each site's own address", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
-    const allowed = [...anchors, DEMO_PAGES_HREF, GITHUB, ...files.map(({ href }) => href)];
+    const allowed = [
+      ...anchors,
+      DEMO_PAGES_HREF,
+      GITHUB,
+      DVFR_ADDRESS,
+      ...files.map(({ href }) => href),
+    ];
 
     expect(links.filter(({ href }) => !allowed.includes(href))).toEqual([]);
     // Each anchor lands on something in the page, and each published file is offered.
@@ -388,8 +403,9 @@ describe("renderSiteIndex", () => {
     // The first is the current report, and the others are the earlier ones, in the order given.
     expect([...articlesOf(site).keys()]).toEqual([reports[0]?.id]);
     expect(reportIdsOf(site)).toEqual(reports.map(({ id }) => id));
-    // No count: the current report and the lines under it say how many there are.
-    expect(site).not.toContain('class="count"');
+    // One count, from 0.13.1: beside the earlier reports' heading, how many they are, for the eye.
+    expect(site.match(/class="count"/g)).toHaveLength(1);
+    expect(site).toContain('<span class="count" aria-hidden="true">2</span>');
     // Each report's files are at its own folder's address: the current one's link and each
     // earlier one's, then each in the fold, in the same order.
     const pages = reports.map(({ folder }) => `${folder}/${folder}_page.html`);
@@ -573,8 +589,126 @@ describe("renderSiteIndex", () => {
     ]);
   });
 
+  // 0.13.1: each site's heading leads to the site itself, at the address its records give.
+  it("links a site to the site itself beside its heading, and a site known by its folder alone to nothing", () => {
+    const head = headOf(sectionOf(html, `site-${DVFR}`), "site");
+
+    expect(textsOf(head, "h3")).toEqual([DVFR]);
+    expect(linksOf(head)).toEqual([{ href: DVFR_ADDRESS, download: false }]);
+    // After the site's name. What a reader sees of the link is its words, and a screen reader hears
+    // the site's name after them, so no two sites' links read alike.
+    expect(head.indexOf("<a ")).toBeGreaterThan(head.indexOf("</h3>"));
+    expect(textsOf(withoutHidden(head), "a")).toEqual(["Visit the site"]);
+    expect(textsOf(head, "a")).toEqual([`Visit the site at ${DVFR}, in a new tab`]);
+    // It opens the site in a new tab, so a reader can go between the report and the site, and the
+    // site gets no hold on this page.
+    expect(head).toMatch(
+      /<a class="visit" href="[^"]*" target="_blank" rel="noopener noreferrer">/,
+    );
+    // The other site's records give no address people visit: its heading stands alone.
+    const other = headOf(sectionOf(html, `site-${EXAMPLE}`), "site");
+    expect(textsOf(other, "h3")).toEqual([EXAMPLE]);
+    expect(linksOf(other)).toEqual([]);
+  });
+
+  it("links a site only to the root of a web site, as a record gives one, at the host its heading names", () => {
+    const withAddress = (address: string, name = DVFR): string =>
+      headOf(
+        sectionOf(
+          renderSiteIndex(
+            {
+              demo: null,
+              sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
+            },
+            NO_FONTS,
+          ),
+          `site-${name}`,
+        ),
+        "site",
+      );
+
+    // A site at a path of its host is a root too.
+    const demo = "https://voicecap.netlify.app/demo-site/";
+    expect(linksOf(withAddress(demo, "voicecap.netlify.app"))).toEqual([
+      { href: demo, download: false },
+    ]);
+    // A root at another host than the heading names would send its reader to another site.
+    expect(linksOf(withAddress(demo))).toEqual([]);
+    for (const address of [
+      "javascript:alert(1)",
+      "ftp://dvfr.illinois.gov/",
+      "dvfr.illinois.gov",
+      "https://dvfr.illinois.gov/about",
+      "https://dvfr.illinois.gov/?q=1",
+      "https://user:secret@dvfr.illinois.gov/",
+      'https://dvfr.illinois.gov/"><b>x</b>/',
+      // An address on a tester's computer is no site's name, and no reader can visit it.
+      "http://127.0.0.1:4848/",
+      "http://localhost:3000/",
+    ]) {
+      const head = withAddress(address);
+      expect(linksOf(head), address).toEqual([]);
+      expect(textsOf(head, "h3"), address).toEqual([DVFR]);
+    }
+  });
+
+  it("puts a picture before each view's heading, which a screen reader skips, and says beside it how many sites, and reports, it holds", () => {
+    for (const id of ["demo", "sites", "by-date"]) {
+      expect(headOf(sectionOf(html, id), "view"), id).toMatch(
+        /^<div class="title"><svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h2 id="heading-[^"]*">[^<]*<\/h2><\/div>/,
+      );
+    }
+    // The number is the count's big part, and its word follows it, so a screen reader hears both.
+    expect(headOf(sectionOf(html, "sites"), "view")).toContain(
+      '</div><span class="count"><b>2</b> sites</span>',
+    );
+    // In words, after the heading, which keeps its own: two sites, and their three reports by
+    // date. The demo is one report, of no site.
+    expect(textsOf(headOf(sectionOf(html, "sites"), "view"), "span")).toEqual(["2 sites"]);
+    expect(textsOf(headOf(sectionOf(html, "by-date"), "view"), "span")).toEqual(["3 reports"]);
+    expect(headOf(sectionOf(html, "demo"), "view")).not.toContain("<span");
+    // One of each is one.
+    const one = renderSiteIndex(sitesAt([DVFR, "2026-10-03T14:05:00-05:00"]), NO_FONTS);
+    expect(textsOf(headOf(sectionOf(one, "sites"), "view"), "span")).toEqual(["1 site"]);
+    // With no report shared, there's nothing to count.
+    const none = renderSiteIndex({ demo: null, sites: [] }, NO_FONTS);
+    expect(headOf(sectionOf(none, "sites"), "view")).not.toContain("<span");
+  });
+
+  it("puts a picture before each site's name, which a screen reader skips, in a row of their own", () => {
+    for (const folder of [DVFR, EXAMPLE]) {
+      expect(headOf(sectionOf(html, `site-${folder}`), "site"), folder).toMatch(
+        /^<div class="title"><svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h3>[^<]*<\/h3><\/div>/,
+      );
+    }
+  });
+
+  it("counts a site's earlier reports beside their heading, for the eye: their list says how many to a screen reader", () => {
+    const withEarlier = (...earlier: PublishedReport[]): string =>
+      sectionOf(
+        renderSiteIndex(
+          {
+            demo: null,
+            sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, ...earlier] }],
+          },
+          NO_FONTS,
+        ),
+        `site-${DVFR}`,
+      );
+    const head = (site: string): string =>
+      /<div class="sub-head">([\s\S]*?)<\/div>/.exec(site)?.[1] ?? "";
+
+    expect(head(withEarlier(DVFR_OLDEST))).toBe(
+      '<h4>Earlier reports</h4><span class="count" aria-hidden="true">1</span>',
+    );
+    expect(head(withEarlier(DVFR_OLDEST, { ...DVFR_OLDEST, id: `report-${DVFR}-0` }))).toBe(
+      '<h4>Earlier reports</h4><span class="count" aria-hidden="true">2</span>',
+    );
+  });
+
   // 0.12.3: what a manager asks first, "did it pass?", answered on the card, from what the share
-  // recorded of its copies.
+  // recorded of its copies. From 0.13.1 the verdict's headline is a pill, and how many pages NVDA
+  // read is a bar with its words beside it.
   describe("the verdict on the current report's card", () => {
     /** The card of a site whose only report records `result`. */
     const cardWith = (result: PublishedReport["result"]): string =>
@@ -591,51 +725,90 @@ describe("renderSiteIndex", () => {
     /** The card's verdict line: its markup, or null when it has none. */
     const verdictOf = (card: string): string | null =>
       /<p class="verdict [^"]*">[\s\S]*?<\/p>/.exec(card)?.[0] ?? null;
+    /** The card's line of the pages NVDA read: its bar's markup, and its words. Null when it has none. */
+    const readingOf = (card: string): { bar: string; words: string } | null => {
+      const reading = /<div class="reading">(<svg\b[\s\S]*?<\/svg>)<p>([\s\S]*?)<\/p><\/div>/.exec(
+        card,
+      );
+      return reading === null ? null : { bar: reading[1] ?? "", words: textOf(reading[2] ?? "") };
+    };
+    /** What a bar draws: each part's kind and width. */
+    const partsOf = (bar: string): { kind: string; width: string }[] =>
+      [...bar.matchAll(/<rect class="c-([a-z]+)"[^>]*\swidth="([^"]*)"/g)].map(
+        ([, kind = "", width = ""]) => ({ kind, width }),
+      );
 
     it("says nothing needs attention, as ok, when no problem is left and every page was read", () => {
       const card = cardWith({ pages: 9, read: 9, problems: 0, problemPages: 0 });
 
-      expect(verdictOf(card)).toBe(
-        '<p class="verdict ok">Nothing needs attention: NVDA read all 9 pages.</p>',
-      );
+      expect(verdictOf(card)).toBe('<p class="verdict ok">Nothing needs attention</p>');
+      expect(readingOf(card)?.words).toBe("NVDA read all 9 pages.");
       // Under the report's date, and above who prepared it and its links.
       expect(textsOf(card, "p")).toEqual([
-        "Nothing needs attention: NVDA read all 9 pages.",
+        "Nothing needs attention",
+        "NVDA read all 9 pages.",
         "Prepared by Pat Lee",
         `Open the report of ${DVFR}, 3 October 2026, 14:05 Download the Word copy of ${DVFR}, 3 October 2026, 14:05`,
       ]);
     });
 
     it("says how many problems need attention, on how many pages, as a warning", () => {
-      expect(verdictOf(cardWith({ pages: 32, read: 32, problems: 1, problemPages: 32 }))).toBe(
-        '<p class="verdict warn">1 problem needs attention, on 32 pages. NVDA read all 32 pages.</p>',
+      const card = cardWith({ pages: 32, read: 32, problems: 1, problemPages: 32 });
+
+      expect(verdictOf(card)).toBe(
+        '<p class="verdict warn">1 problem needs attention, on 32 pages</p>',
       );
+      expect(readingOf(card)?.words).toBe("NVDA read all 32 pages.");
       expect(
         textOf(verdictOf(cardWith({ pages: 3, read: 3, problems: 2, problemPages: 1 })) ?? ""),
-      ).toBe("2 problems need attention, on 1 page. NVDA read all 3 pages.");
+      ).toBe("2 problems need attention, on 1 page");
     });
 
     it("says how many pages NVDA read when it didn't read them all, as bad", () => {
-      expect(verdictOf(cardWith({ pages: 9, read: 7, problems: 2, problemPages: 2 }))).toBe(
-        '<p class="verdict bad">2 problems need attention, on 2 pages. NVDA read 7 of the 9 pages.</p>',
+      const card = cardWith({ pages: 9, read: 7, problems: 2, problemPages: 2 });
+
+      expect(verdictOf(card)).toBe(
+        '<p class="verdict bad">2 problems need attention, on 2 pages</p>',
       );
+      expect(readingOf(card)?.words).toBe("NVDA read 7 of the 9 pages.");
       // Pages skipped, not read, are on no card: nothing needs attention on the pages read.
-      expect(
-        textOf(verdictOf(cardWith({ pages: 9, read: 8, problems: 0, problemPages: 0 })) ?? ""),
-      ).toBe("Nothing needs attention on the pages read: NVDA read 8 of the 9 pages.");
+      const skipped = cardWith({ pages: 9, read: 8, problems: 0, problemPages: 0 });
+      expect(textOf(verdictOf(skipped) ?? "")).toBe("Nothing needs attention on the pages read");
+      expect(readingOf(skipped)?.words).toBe("NVDA read 8 of the 9 pages.");
     });
 
     it("says a site of one page as one", () => {
-      expect(
-        textOf(verdictOf(cardWith({ pages: 1, read: 1, problems: 0, problemPages: 0 })) ?? ""),
-      ).toBe("Nothing needs attention: NVDA read 1 page.");
+      expect(readingOf(cardWith({ pages: 1, read: 1, problems: 0, problemPages: 0 }))?.words).toBe(
+        "NVDA read 1 page.",
+      );
+    });
+
+    it("draws the pages NVDA read as a bar as long as their share of the pages, in the verdict's color, which a screen reader skips", () => {
+      const barWith = (result: PublishedReport["result"]): string =>
+        readingOf(cardWith(result))?.bar ?? "";
+
+      const all = barWith({ pages: 9, read: 9, problems: 0, problemPages: 0 });
+      expect(all).toMatch(/^<svg class="track"[^>]*\saria-hidden="true"/);
+      expect(partsOf(all)).toEqual([{ kind: "ok", width: "100%" }]);
+      expect(partsOf(barWith({ pages: 32, read: 32, problems: 1, problemPages: 32 }))).toEqual([
+        { kind: "warn", width: "100%" },
+      ]);
+      // Seven of nine pages, to two decimals.
+      expect(partsOf(barWith({ pages: 9, read: 7, problems: 2, problemPages: 2 }))).toEqual([
+        { kind: "bad", width: "77.78%" },
+      ]);
+      // With none read, the bar is empty.
+      expect(partsOf(barWith({ pages: 9, read: 0, problems: 0, problemPages: 0 }))).toEqual([]);
     });
 
     it("says nothing for a report that records no result, or one of no page", () => {
       // The tests' content records none, as a share from before 0.12.3 doesn't.
       expect(html).not.toContain('class="verdict');
-      expect(verdictOf(cardWith(undefined))).toBeNull();
-      expect(verdictOf(cardWith({ pages: 0, read: 0, problems: 0, problemPages: 0 }))).toBeNull();
+      expect(html).not.toContain('class="reading"');
+      for (const result of [undefined, { pages: 0, read: 0, problems: 0, problemPages: 0 }]) {
+        expect(verdictOf(cardWith(result))).toBeNull();
+        expect(readingOf(cardWith(result))).toBeNull();
+      }
     });
 
     it("gives no earlier report a verdict: only the current one answers for the site", () => {
@@ -657,6 +830,7 @@ describe("renderSiteIndex", () => {
       );
 
       expect(page.match(/class="verdict /g)).toHaveLength(1);
+      expect(page.match(/class="reading"/g)).toHaveLength(1);
       expect(earlierItemsOf(page).join("")).not.toContain("attention");
     });
 
@@ -668,10 +842,10 @@ describe("renderSiteIndex", () => {
         },
         NO_FONTS,
       );
+      const card = articleOf(page, DEMO_REPORT.id);
 
-      expect(textOf(verdictOf(articleOf(page, DEMO_REPORT.id)) ?? "")).toBe(
-        "3 problems need attention, on 2 pages. NVDA read all 7 pages.",
-      );
+      expect(textOf(verdictOf(card) ?? "")).toBe("3 problems need attention, on 2 pages");
+      expect(readingOf(card)?.words).toBe("NVDA read all 7 pages.");
     });
   });
 
@@ -1066,8 +1240,22 @@ describe("renderSiteIndex", () => {
     };
     // A site's name is text, and its section's id too: made safe, as a folder's name is.
     const name = 'a"b&c<s>x</s>';
+    // A second site, linked: a root may hold an ampersand, which URL leaves as it is. Its name is
+    // its host, as the build gives a site its name, since a link goes only to the heading's host.
+    const linked = { ...report, folder: "a.example.gov", id: "report-a.example.gov-1" };
     const page = renderSiteIndex(
-      { demo: null, sites: [{ name, folders: ['a"b&c'], reports: [report] }] },
+      {
+        demo: null,
+        sites: [
+          { name, folders: ['a"b&c'], reports: [report] },
+          {
+            name: "a.example.gov",
+            folders: ["a.example.gov"],
+            reports: [linked],
+            address: "https://a.example.gov/a&b/",
+          },
+        ],
+      },
       NO_FONTS,
     );
 
@@ -1093,9 +1281,16 @@ describe("renderSiteIndex", () => {
     expect(markup).toContain(
       '<span class="sr"> of a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, 3 October 2026, 14:05</span>',
     );
-    // Nothing the record holds became markup: no element it names, and no attribute it adds.
+    // The link to the second site: its address, and the site's name after its words.
+    expect(markup).toContain(
+      '<a class="visit" href="https://a.example.gov/a&amp;b/" target="_blank" rel="noopener noreferrer">',
+    );
+    expect(markup).toContain('<span class="sr"> at a.example.gov, in a new tab</span>');
+    // Nothing the record holds became markup: no element it names, and no attribute it adds. The
+    // page's own <b> holds a count's number, so the record's two are looked for as they'd appear.
     const { elements, attributes } = namesIn(markup);
-    expect(elements.filter((element) => ["img", "b", "u", "i", "s"].includes(element))).toEqual([]);
+    expect(elements.filter((element) => ["img", "u", "i", "s"].includes(element))).toEqual([]);
+    for (const own of ["<b>x</b>", "<b>0</b>"]) expect(markup).not.toContain(own);
     expect(attributes.filter((name) => /^(?:on|style$|src)/.test(name))).toEqual([]);
   });
 
