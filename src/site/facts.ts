@@ -24,8 +24,9 @@
  * says they aren't recorded. Nothing seals the file, so one in that form is read as it is, edited
  * by hand or not. A website built with voicecap from npm reads it as it was published, since it
  * comes inside the package, whose integrity npm checks when it installs it; nothing here checks
- * that. A CHANGELOG entry that isn't a dated release is skipped. Nothing here reads a clock, the network, or the computer, except that
- * `readVoicecapFacts` reads the three files: the same package and records give the same facts.
+ * that. A CHANGELOG entry that isn't a dated release is skipped. Nothing here reads a clock, the
+ * network, or the computer, except that `readVoicecapFacts` reads the three files: the same
+ * package and records give the same facts.
  */
 import { readFile } from "node:fs/promises";
 
