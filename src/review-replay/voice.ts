@@ -89,6 +89,15 @@ export function sapiRate(wpm: number): number {
  * reads them, and SpeakAsync says them. It waits for its input 40 ms at a time, so a line that's
  * done is answered within 40 ms.
  *
+ * A line is done when System.Speech raises SpeakCompleted for it, which it does once for each
+ * line, and the script takes that event from PowerShell's event queue. A line whose audio fails,
+ * as it would with the audio device removed, is completed too, not thrown, with the failure as the
+ * event's Error: that line's done carries the error, so the replay ends and says why instead of
+ * going on in silence. A line the script stopped completes with an OperationCanceledException, and
+ * is done with no error. A line cancelled when no stop was asked for counts as failed. At the end,
+ * the script stops listening for the event first: PowerShell takes over a second to exit while it
+ * still listens.
+ *
  * Its statements are joined with single spaces, as NVDA_PROCESSES is. There's no double quote in
  * it, which the command line would quote again, and every statement ends with ; or a closing
  * brace.
@@ -100,6 +109,7 @@ export const SPEAK_SCRIPT = [
   "$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer;",
   "if (@($voice.GetInstalledVoices() | Where-Object { $_.Enabled }).Count -eq 0) { throw 'no voice is installed' };",
   "$voice.SetOutputToDefaultAudioDevice();",
+  "Register-ObjectEvent -InputObject $voice -EventName SpeakCompleted -SourceIdentifier spoke;",
   "} catch {",
   "[Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ error = $_.Exception.Message }));",
   "exit 1",
@@ -107,18 +117,24 @@ export const SPEAK_SCRIPT = [
   "[Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ ready = $true; voice = $voice.Voice.Name }));",
   "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput());",
   "$next = $in.ReadLineAsync();",
-  "$prompt = $null;",
+  "$stopping = $false;",
   "while ($true) {",
-  "if ($null -ne $prompt -and $prompt.IsCompleted) { $prompt = $null; [Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ done = $true })) };",
+  "foreach ($spoke in @(Get-Event -SourceIdentifier spoke -ErrorAction SilentlyContinue)) {",
+  "Remove-Event -EventIdentifier $spoke.EventIdentifier;",
+  "$failure = $spoke.SourceEventArgs.Error;",
+  "if ($null -eq $failure -or ($stopping -and $failure -is [OperationCanceledException])) { [Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ done = $true })) }",
+  "else { [Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ done = $true; error = $failure.Message })) }",
+  "};",
   "if (-not $next.Wait(40)) { continue };",
   "$line = $next.Result;",
   "if ($null -eq $line) { break };",
   "$next = $in.ReadLineAsync();",
   "$message = ConvertFrom-Json -InputObject $line;",
-  "if ($message.stop) { $voice.SpeakAsyncCancelAll(); continue };",
-  "try { $voice.Rate = [int]$message.rate; $prompt = $voice.SpeakAsync([string]$message.say) }",
+  "if ($message.stop) { $stopping = $true; $voice.SpeakAsyncCancelAll(); continue };",
+  "try { $stopping = $false; $voice.Rate = [int]$message.rate; [void]$voice.SpeakAsync([string]$message.say) }",
   "catch { [Console]::Out.WriteLine((ConvertTo-Json -Compress -InputObject @{ done = $true; error = $_.Exception.Message })) }",
   "};",
+  "Unregister-Event -SourceIdentifier spoke;",
   "$voice.SpeakAsyncCancelAll();",
   "$voice.Dispose()",
 ].join(" ");

@@ -373,13 +373,49 @@ describe.runIf(process.platform === "win32")("the real script, on Windows", () =
   // The script reads each line's words as they were written, outside ASCII too, and as data only.
   it("hands the script each line's words as they're written", async (ctx) => {
     const echo = silent.replace(
-      "$prompt = $voice.SpeakAsync([string]$message.say)",
+      "[void]$voice.SpeakAsync([string]$message.say)",
       "throw [string]$message.say",
     );
     expect(echo).not.toBe(silent);
     const voice = await startOrSkip(ctx, echo);
     const words = `José … “quoted” ‘single’ 👋 "; Remove-Item x # {"stop":true}`;
     await rejectsWith(voice.say(words, 180), `The computer's voice couldn't say a line: ${words}.`);
+    await voice.close();
+  }, 60_000);
+
+  /** Checks that `saying` rejects as a line the voice couldn't say. */
+  async function couldntSay(saying: Promise<void>): Promise<void> {
+    const error = await saying.then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect(error).toBeInstanceOf(EnvironmentError);
+    // The rest is Windows' own message, in Windows' language.
+    expect(errorMessage(error)).toMatch(/^The computer's voice couldn't say a line: \S.*\.$/);
+  }
+
+  // System.Speech completes a line whose audio fails, as it would with its audio device removed,
+  // rather than throwing. Here the audio goes to a stream too small for it, so nothing is heard.
+  it("rejects a line whose audio fails, rather than counting it as said", async (ctx) => {
+    const failing = SPEAK_SCRIPT.replace(
+      "SetOutputToDefaultAudioDevice()",
+      "SetOutputToWaveStream([System.IO.MemoryStream]::new([byte[]]::new(64)))",
+    );
+    expect(failing).not.toBe(SPEAK_SCRIPT);
+    const voice = await startOrSkip(ctx, failing);
+    await couldntSay(voice.say("Skip to main content, link", 180));
+    await voice.close();
+  }, 60_000);
+
+  // Only a stop the replay asked for ends a line early without an error.
+  it("rejects a line cancelled when no stop was asked for", async (ctx) => {
+    const cancelling = silent.replace(
+      "[void]$voice.SpeakAsync([string]$message.say)",
+      "[void]$voice.SpeakAsync([string]$message.say); $voice.SpeakAsyncCancelAll()",
+    );
+    expect(cancelling).not.toBe(silent);
+    const voice = await startOrSkip(ctx, cancelling);
+    await couldntSay(voice.say("word ".repeat(400), 180));
     await voice.close();
   }, 60_000);
 });
