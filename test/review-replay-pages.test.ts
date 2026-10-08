@@ -2,7 +2,9 @@
  * Which pages the replay plays, and the lines it plays of each (src/review-replay/pages.ts). By
  * default, the pages a card of What needs attention names, among those NVDA read (D2); with `all`,
  * every page; with a page's key, that page. Each pass plays the steps the flag rules read, each
- * line with its number in the TXT transcript, and a mark for each flag it raised (D5, D6).
+ * line with its number in the TXT transcript, and a mark for each flag it raised (D5, D6). A rule
+ * whose quote stands for a place on the page marks that place, not the same words said elsewhere
+ * (Ruling R8, flagQuotedSteps in src/flags/evaluate.ts).
  *
  * The cases are the scripted site's counted run, the i2i v3 run of 6 October 2026 (read in place,
  * or from a temporary copy when a test takes a file away), and runs built in memory.
@@ -16,13 +18,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
+import {
+  evaluateFlags,
+  flagQuotedSteps,
+  flagQuotes,
+  type PagePasses,
+} from "../src/flags/evaluate.js";
 import type { DriverCommand, FlagResult, ReviewStatus, RunJson, StepRecord } from "../src/model.js";
+import { normalizeSpeech } from "../src/passes/steps.js";
 import {
   replayPagesOf,
   transcriptsOf,
   type ReplayChoice,
   type ReplayPage,
 } from "../src/review-replay/pages.js";
+import type { PlayLine } from "../src/review-replay/player.js";
 import { addReview } from "../src/reviews/review.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, namedByAttention } from "../src/share/model.js";
@@ -132,6 +142,83 @@ function step(n: number, command: DriverCommand, spoken: string, inDocument?: bo
     ...(inDocument === undefined ? {} : { inDocument }),
   };
 }
+
+/** A Tab stop on a link in the page, in the main content or not. */
+function stop(n: number, name: string, inMain = false): StepRecord {
+  return {
+    ...step(n, "nextFocusable", `${name}, link`, true),
+    focused: { tag: "a", role: "link", name, inMain, href: "/" },
+  };
+}
+
+/**
+ * Passes that say the same words at more than one place. The read stopped at its step limit on a
+ * "Read more" link it had read twice before. The first heading's words come again later. Tab stops
+ * five times before the main content, with no skip link, and two of those stops come again in the
+ * footer.
+ */
+const PLACES: PagePasses = {
+  read: {
+    steps: [
+      step(1, "toBottom", "Footer"),
+      step(2, "toTop", "Welcome"),
+      step(3, "nextLine", "link, Read more"),
+      step(4, "nextLine", "Text"),
+      step(5, "nextLine", "link, Read more"),
+      step(6, "nextLine", "link, Read more"),
+    ],
+    stopReason: "step-cap",
+  },
+  headings: {
+    steps: [
+      step(1, "nextHeading", "heading, level 2, News"),
+      step(2, "nextHeading", "heading, level 3, Grants"),
+      step(3, "nextHeading", "heading, level 2, News"),
+      step(4, "nextHeading", "no next heading"),
+    ],
+    stopReason: "no-next-heading",
+  },
+  tab: {
+    steps: [
+      stop(1, "Home"),
+      stop(2, "About"),
+      stop(3, "Home"),
+      stop(4, "Contact"),
+      stop(5, "Search"),
+      stop(6, "Apply", true),
+      stop(7, "About"),
+      stop(8, "Home"),
+      step(9, "nextFocusable", "Address and search bar, edit", false),
+    ],
+    stopReason: "left-document",
+  },
+};
+
+/** The rules PLACES is read with: a missing skip link is flagged from 3 stops before the main. */
+const PLACE_RULES = {
+  ...DEFAULT_CONFIG.flags,
+  tabBeforeMain: { ...DEFAULT_CONFIG.flags.tabBeforeMain, maxStops: 3 },
+};
+
+/**
+ * The flags those rules raise on PLACES: generic-link-text in the read pass, read-not-finished,
+ * headings, and tab-before-main.
+ */
+const PLACE_FLAGS = evaluateFlags(PLACES, PLACE_RULES);
+
+/** PLACES' lines to play, with their marks. */
+const placeLines = () => transcriptsOf(PLACES, PLACE_FLAGS, PLACE_RULES);
+
+/** The flag `rule` raised on PLACES. */
+function placeFlag(rule: string): FlagResult {
+  const flag = PLACE_FLAGS.find((each) => each.rule === rule);
+  if (flag === undefined) throw new Error(`No ${rule} flag`);
+  return flag;
+}
+
+/** Each marked line of a transcript: its number, and its marks. */
+const markedLines = (lines: PlayLine[] | undefined) =>
+  (lines ?? []).filter((line) => line.marks.length > 0).map(({ n, marks }) => [n, marks]);
 
 describe("replayPagesOf", () => {
   let counted: Awaited<ReturnType<typeof countedHome>>;
@@ -561,5 +648,94 @@ describe("transcriptsOf", () => {
         { n: 5, text: "End", spoken: "End", marks: [] },
       ],
     });
+  });
+
+  // Ruling R8: a quote that stands for a place is marked there, not wherever its words come again.
+  it("marks the last line of a read that stopped short, not the same words before it", () => {
+    // Each "Read more" link is marked with what the generic-link-text rule found, wherever it was
+    // said; only the line the read stopped on is marked as where it stopped.
+    expect(PLACE_FLAGS.map((flag) => `${flag.rule}/${flag.pass}`)).toEqual([
+      "generic-link-text/read",
+      "read-not-finished/read",
+      "headings/headings",
+      "tab-before-main/tab",
+    ]);
+    expect(placeLines().read).toEqual([
+      { n: 2, text: "[to top] Welcome", spoken: "Welcome", marks: [] },
+      { n: 3, text: "link, Read more", spoken: "link, Read more", marks: ["read more"] },
+      { n: 4, text: "Text", spoken: "Text", marks: [] },
+      { n: 5, text: "link, Read more", spoken: "link, Read more", marks: ["read more"] },
+      {
+        n: 6,
+        text: "link, Read more",
+        spoken: "link, Read more",
+        marks: ["read more", "read-not-finished"],
+      },
+    ]);
+  });
+
+  it("marks the first heading, not a later heading with the same words", () => {
+    expect(markedLines(placeLines().headings)).toEqual([[1, ["headings"]]]);
+    expect(placeLines().headings?.map((line) => line.spoken)).toEqual([
+      "heading, level 2, News",
+      "heading, level 3, Grants",
+      "heading, level 2, News",
+    ]);
+  });
+
+  it("marks the first 3 stops before the main content where they were, not again after it", () => {
+    // Five stops before the main content (1 to 5) say four things, so the flag's three quotes are
+    // stops 1, 2, and 4. Stop 3 says what stop 1 did. The footer's stops 7 and 8 say what stops 2
+    // and 1 did.
+    expect(markedLines(placeLines().tab)).toEqual([
+      [1, ["tab-before-main"]],
+      [2, ["tab-before-main"]],
+      [4, ["tab-before-main"]],
+    ]);
+    expect(placeLines().tab?.map((line) => line.spoken)).toEqual([
+      "Home, link",
+      "About, link",
+      "Home, link",
+      "Contact, link",
+      "Search, link",
+      "Apply, link",
+      "About, link",
+      "Home, link",
+    ]);
+  });
+});
+
+describe("flagQuotedSteps", () => {
+  it("gives where a flag's quotes were said, for a rule whose quotes stand for a place", () => {
+    const at = (rule: string) => flagQuotedSteps(PLACES, placeFlag(rule));
+    expect(at("read-not-finished")).toEqual([6]);
+    expect(at("headings")).toEqual([1]);
+    expect(at("tab-before-main")).toEqual([1, 2, 4]);
+
+    // The lines at those steps are the lines flagQuotes quotes, in the same order.
+    for (const rule of ["read-not-finished", "headings", "tab-before-main"]) {
+      const flag = placeFlag(rule);
+      const steps = PLACES[flag.pass!]?.steps ?? [];
+      const said = (at(rule) ?? []).map((n) =>
+        normalizeSpeech(steps.find((each) => each.n === n)?.spoken ?? ""),
+      );
+      expect(said, rule).toEqual(flagQuotes(PLACES, PLACE_RULES, flag));
+    }
+
+    // None for a pass it isn't given.
+    expect(flagQuotedSteps({}, placeFlag("headings"))).toEqual([]);
+  });
+
+  it("gives nothing for a rule whose quotes stand for their words", () => {
+    const flag = (rule: string): FlagResult => ({ rule, pass: "read", message: "Something." });
+    for (const rule of [
+      "generic-link-text",
+      "unlabeled",
+      "repeated-phrase",
+      "tab-no-stops",
+      "pdf-links",
+    ]) {
+      expect(flagQuotedSteps(PLACES, flag(rule)), rule).toBeNull();
+    }
   });
 });
