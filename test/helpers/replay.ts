@@ -1,14 +1,14 @@
 /**
- * Stand-ins for the review replay's tests: a person's keys, the terminal they type them on, and
- * the program a voice starts. Each stands in for one thing the replay reads or writes, so a test
- * says what the person does and sees without a real keyboard, voice, or screen. The tests of the
- * player and the session add theirs here.
+ * Stand-ins for the review replay's tests: a person's keys, the terminal they type them on, the
+ * program a voice starts, and the voice itself. Each stands in for one thing the replay reads or
+ * writes, so a test says what the person does and sees without a real keyboard, voice, or screen.
+ * The session's tests add theirs here.
  */
 import { EventEmitter } from "node:events";
 import { PassThrough, Readable, Writable } from "node:stream";
 
 import type { Key, KeySource } from "../../src/review-replay/keys.js";
-import type { VoiceChild } from "../../src/review-replay/voice.js";
+import type { Voice, VoiceChild } from "../../src/review-replay/voice.js";
 
 /**
  * Keys a test presses by hand, given as `terminalKeys` gives a terminal's: in order, with a key
@@ -151,4 +151,91 @@ export function fakeChild(): VoiceChild & {
     },
   };
   return child;
+}
+
+/**
+ * The computer's voice, worked by hand. Each line it's given is kept in `said`, with its speed,
+ * and is being said until the test calls `finish()` or the player calls `stop()` (counted in
+ * `stops`). With `auto`, each line is said at once. As a real voice does, it says one line at a
+ * time (a second say() while a line is being said throws), `close()` ends the line being said, and
+ * every say() after `close()` rejects. `fail` rejects the line being said, and every line after,
+ * with its error, as a voice that has stopped working does.
+ *
+ * `speaking` says whether a line is being said. `starting` resolves once one is: at once while a
+ * line is being said, or else when the next say() is called.
+ */
+export function fakeVoice(options: { auto?: boolean } = {}): Voice & {
+  said: { text: string; wpm: number }[];
+  stops: number;
+  closed: boolean;
+  speaking: boolean;
+  finish(): void;
+  fail(error: Error): void;
+  starting: Promise<void>;
+} {
+  /** What settles the line being said, until it ends. */
+  let line: { resolve: () => void; reject: (error: Error) => void } | null = null;
+  /** Set once the voice has stopped working: every line from then on rejects with it. */
+  let failure: Error | null = null;
+  /** What the next say() resolves, for a test that waits for a line to start. */
+  let started = (): void => {};
+  let nextStart = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+
+  /** Ends the line being said, if any, and gives what settles it. */
+  const end = (): typeof line => {
+    const ending = line;
+    line = null;
+    return ending;
+  };
+
+  const voice = {
+    said: [] as { text: string; wpm: number }[],
+    stops: 0,
+    closed: false,
+    get speaking(): boolean {
+      return line !== null;
+    },
+    get starting(): Promise<void> {
+      return line !== null ? Promise.resolve() : nextStart;
+    },
+    say(text: string, wpm: number): Promise<void> {
+      if (line !== null) throw new Error("The voice is already saying a line.");
+      if (voice.closed) return Promise.reject(new Error("The voice was closed."));
+      if (failure !== null) return Promise.reject(failure);
+      voice.said.push({ text, wpm });
+      const saying =
+        options.auto === true
+          ? Promise.resolve()
+          : new Promise<void>((resolve, reject) => {
+              line = { resolve, reject };
+            });
+      const announce = started;
+      nextStart = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      announce();
+      return saying;
+    },
+    stop(): void {
+      voice.stops += 1;
+      end()?.resolve();
+    },
+    finish(): void {
+      const ending = end();
+      if (ending === null) throw new Error("finish() was called with no line being said.");
+      ending.resolve();
+    },
+    fail(error: Error): void {
+      failure = error;
+      end()?.reject(error);
+    },
+    close(): Promise<void> {
+      voice.closed = true;
+      end()?.resolve();
+      return Promise.resolve();
+    },
+  };
+  return voice;
 }
