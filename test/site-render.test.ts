@@ -1615,17 +1615,21 @@ describe("SITE_CSS", () => {
 
   it("keeps the bar in view from 40em wide, which is 640 pixels at 16, and wraps what is long", () => {
     expect(SITE_CSS).toMatch(/@media \(min-width: 40em\) \{[^}]*\.bar \{[^}]*position: sticky;/);
-    expect(SITE_CSS).toMatch(/scroll-padding-top: [\d.]+rem/);
+    // The room kept clear below it grows faster than the text, 80 pixels at 16 and 368 at 48: at a
+    // larger size the bar's links, and then its button, take lines of their own, so the bar grows
+    // faster than the text too. The browser tests check the bar is shorter than it, up to 56.
+    expect(SITE_CSS).toContain("html { scroll-padding-top: max(5rem, 9rem - 64px); }");
     expect(SITE_CSS).toContain("overflow-wrap: anywhere");
     // Only from 40em wide: the bar has no position of its own before it.
     expect(SITE_CSS.match(/position: sticky/g)).toHaveLength(1);
     expect(SITE_CSS.indexOf("position: sticky")).toBeGreaterThan(
       SITE_CSS.indexOf("@media (min-width: 40em)"),
     );
-    // An em in a media query is the reader's own text size, so the bar sticks only where it fits on
-    // one line at that size. A width in pixels would stick it where a larger size makes it wrap, and
-    // grow taller than the space kept clear for it. The one other is no width at all: `screen`, for
-    // the footer at the window's bottom, which print leaves as it was.
+    // An em in a media query is the reader's own text size, so the bar sticks only from a window as
+    // wide, in that size, as 640 pixels is at 16: wide enough for its links. A width in pixels would
+    // stick it in a window that a larger size makes narrow, where its links wrap into so many lines
+    // that it grows taller than the room kept clear for it. The one other is no width at all:
+    // `screen`, for the footer at the window's bottom, which print leaves as it was.
     const queries = [...SITE_CSS.matchAll(/@media ([^{]*)\{/g)].map(([, query = ""]) =>
       query.trim(),
     );
@@ -1633,8 +1637,10 @@ describe("SITE_CSS", () => {
   });
 
   it("tells the link of the page the reader is on from the others by more than color: bold, and underlined more heavily", () => {
+    // The line is 0.15em thick, not a number of pixels: the others' underline is the browser's own,
+    // which grows with the text, so a fixed thickness would be the lighter of the two at a large size.
     expect(SITE_CSS).toMatch(
-      /\n\.bar nav a\[aria-current="page"\] \{[^}]*font-weight: 700;[^}]*text-decoration: underline;[^}]*text-decoration-thickness: 2px;/,
+      /\n\.bar nav a\[aria-current="page"\] \{[^}]*font-weight: 700;[^}]*text-decoration: underline;[^}]*text-decoration-thickness: 0\.15em;/,
     );
   });
 });

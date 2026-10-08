@@ -9,15 +9,18 @@
  * Policy that hashes this block allows nothing else. Beyond those rules:
  * - the bar is `position: sticky` from 40em wide, which is 640 pixels at the browser's own text size
  *   of 16. An em in a media query is that size, so for a reader who has made it larger the bar
- *   sticks only from a wider window, where it fits on one line, or, with text more than twice the
- *   default size, has the theme button on a second line, which is still shorter than the room kept
- *   clear for it up to two and a half times the default size, the most the tests try. Narrower, it
- *   scrolls with the page, so it never covers half a phone's screen, or grows taller than the room
- *   kept clear for it. Where it sticks, `scroll-padding-top` keeps whatever has focus, or a link
- *   points to, below it;
+ *   sticks only from a wider window. Narrower, it scrolls with the page, so it never covers half a
+ *   phone's screen. Where it sticks, `scroll-padding-top` keeps whatever has focus, or a link
+ *   points to, below it. The bar's words stop where the main part's do, so with text more than
+ *   twice the default size the bar takes more than one line, and grows faster than the text. The
+ *   room kept clear grows faster still, `max(5rem, 9rem - 64px)`: 80 pixels at the default size and
+ *   368 at three times it. The bar is shorter than that room at every size up to four times the
+ *   default size, and the tests check it, and that nothing that has focus is under it, up to three
+ *   and a half times;
  * - the link of the page the reader is on in the bar (`aria-current="page"`, which the trust page's
  *   bar has on its own link) is bold and underlined more heavily than the other links, which the
- *   browser underlines too, so it is told apart by more than its color;
+ *   browser underlines too, so it is told apart by more than its color. Its line is 0.15em thick,
+ *   in proportion to the text as theirs is, so it stays the heavier at a larger size;
  * - a name or a fingerprint is one word, longer than any box, so the text it can be in breaks it
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
  * - each view's heading, and each site's name, has a picture before it in the accent color, and a
@@ -59,13 +62,13 @@ main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflo
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; padding-block: 0.5rem; background: var(--panel); border-bottom: 1px solid var(--line); }
 .bar nav { display: flex; flex-wrap: wrap; gap: 0 22px; }
 .bar nav a { display: inline-block; padding: 0.25rem 0.125rem; font-weight: 500; }
-/* the page the reader is on: bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color */
-.bar nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; }
+/* the page the reader is on: bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color; the line is in proportion to the text, as the browser's own is */
+.bar nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.15em; }
 .theme { border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: 500 0.82rem var(--body); cursor: pointer; }
-/* In view while the page scrolls, from 40em wide: 640 pixels at the default text size, and wider as the reader's text gets larger, so it is one line where it sticks (two, with text more than twice the default size, and still shorter than the room kept clear for it up to two and a half times). What has focus, or what a link points to, is kept below it. */
+/* In view while the page scrolls, from 40em wide: 640 pixels at the default text size, and wider as the reader's text gets larger. What has focus, or what a link points to, is kept below it, in a room that grows faster than the text: at a larger size the bar's words take more lines, so the bar grows faster than the text itself. */
 @media (min-width: 40em) {
   .bar { position: sticky; top: 0; z-index: 3; }
-  html { scroll-padding-top: 5rem; }
+  html { scroll-padding-top: max(5rem, 9rem - 64px); }
 }
 /* the page */
 main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 36px 16px 56px; }

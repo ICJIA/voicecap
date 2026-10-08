@@ -631,6 +631,7 @@ describe("the site's page", () => {
           weight: style.fontWeight,
           line: style.textDecorationLine,
           thickness: style.textDecorationThickness,
+          size: style.fontSize,
         };
       }),
     );
@@ -644,9 +645,15 @@ describe("the site's page", () => {
     const others = links.filter(({ current }) => current !== "page");
 
     // Only the link to the trust page is the page the reader is on. The others are medium, with the
-    // browser's own underline; it is bold, with a heavier one.
+    // browser's own underline (`auto`, which grows with the text); it is bold, with a heavier one,
+    // 0.15 of its text's size thick, so that it stays heavier as the text grows.
     expect(here.map(({ words }) => words)).toEqual(["Can I trust this?"]);
-    expect(here.map(look)).toEqual([{ weight: "700", line: "underline", thickness: "2px" }]);
+    expect(here.map(({ weight, line }) => ({ weight, line }))).toEqual([
+      { weight: "700", line: "underline" },
+    ]);
+    expect(here.map(({ thickness, size }) => parseFloat(thickness) / parseFloat(size))).toEqual([
+      expect.closeTo(0.15, 3),
+    ]);
     expect(others.map(look)).toEqual(
       Array.from({ length: 3 }, () => ({ weight: "500", line: "underline", thickness: "auto" })),
     );
@@ -814,9 +821,11 @@ describe("the bar at a larger default text size", () => {
   /**
    * Sizes a reader can set the browser's text to, in pixels: its own is 16. A browser starts a page
    * at that size, and an em in a media query is that size too, so each of these is a browser of its
-   * own, started with the size set.
+   * own, started with the size set. They go to three and a half times the default size: past twice
+   * it the bar's links, and then its button, take lines of their own, and the bar has to stay
+   * shorter than the room kept clear for it all the same.
    */
-  const SIZES = [24, 32, 40];
+  const SIZES = [24, 32, 40, 48, 56];
   const sized = new Map<number, Browser>();
 
   beforeAll(async () => {
@@ -830,7 +839,7 @@ describe("the bar at a larger default text size", () => {
   });
 
   it.each(SIZES)(
-    "sticks only where it fits on one line, and hides nothing that has focus, at %i pixels",
+    "sticks from 40em wide, is shorter than the room kept clear for it, and hides nothing that has focus, at %i pixels",
     async (size) => {
       const own = sized.get(size);
       if (own === undefined) throw new Error(`No browser was started for a text size of ${size}.`);
@@ -852,7 +861,7 @@ describe("the bar at a larger default text size", () => {
 
         expect(bar.text, where).toBe(`${size}px`);
         expect(bar.position, where).toBe(width >= sticksFrom ? "sticky" : "static");
-        // Where it sticks it's one line, shorter than the space kept clear for it.
+        // Where it sticks it's shorter than the room kept clear for it, however many lines it takes.
         if (width >= sticksFrom) expect(bar.height, where).toBeLessThan(bar.padding);
         expect(await stopsUnderTheBar(page), where).toEqual([]);
       }
