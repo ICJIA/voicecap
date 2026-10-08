@@ -240,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.13.0 on npm, released 2026-10-08 (tag `v0.13.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.13.1 on npm, released 2026-10-08 (tag `v0.13.1`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -331,9 +331,16 @@ The owner's standing rules, from Phases A and B:
     - **The details, for reviewers and auditors,** come last, with what the summary's panels and the later sections held. The Word copy follows the same order.
     - **The owner's choices after the final review:** two cards a row, where an opened transcript had read in a box about 200 px wide; and the ring's labels, where "Need attention" could contradict the verdict.
     - sfs and i2i v3 were shared again with 0.13.0 on 2026-10-08 (entries 3 and 6). The website builds with `@0.13`.
+  - 0.13.1 (2026-10-08) is the website's headings. The owner asked that day to make them "more infographic-ish", with "a direct link to each site", then "even bigger".
+    - **Each view's heading is a banner:** a large picture in a circle, the heading in large type, and how many the view holds as a big number with its word ("2 sites").
+    - **Each site's name is larger,** with "Visit the site", a link to the root that names the site. It opens in a new tab (the owner's ask, so a reader can switch between the report and the site), and a screen reader hears "Visit the site at sfs.icjia.illinois.gov, in a new tab". A site its folder names has no link.
+    - **A card's verdict is a pill,** over a bar of the pages NVDA read with its words.
+    - The owner reviewed it on a Netlify draft deploy, `headings-preview--voicecap.netlify.app` (`netlify deploy --no-build --alias headings-preview`, never `--prod`).
 - **Being built:** each plan written when the owner says:
-  - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), is next, as 0.14.0. Its spec is `docs/superpowers/specs/2026-10-06-review-replay-design.md` on branch `plan-8-review-replay`, awaiting the owner's review. Merge main into that branch first.
-  - plan 6c, NVDA's own log checked against the transcripts, comes after that, as 0.15.0. Tasks 1-2 are built on `plan-6c-nvda-log`; it waits, and resumes by merging main first. Until then, its place on the page says "Not recorded".
+  - the "Can I trust this?" page on the website, as 0.13.2: who built voicecap, how it can be checked, and how it's tested, modeled on audit.icjia.app/trust, with every number generated from the release and the records. Its spec is `docs/superpowers/specs/2026-10-08-trust-page-design.md` on branch `0.13.2-trust-page` (worktree `voicecap-trust`), awaiting the owner's review.
+  - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), as 0.14.0. Its spec was approved and its plan (`docs/superpowers/plans/2026-10-08-review-replay-plan-8.md`) is being built, subagent-driven, on `plan-8-review-replay`.
+  - plan 10, axe's findings on each page's card, beside its transcripts, as 0.15.0 (queued by the owner on 2026-10-08): captured on the page load NVDA reads, sealed with the run, apart from voicecap's verdict.
+  - plan 6c, NVDA's own log checked against the transcripts, after those, as 0.16.0. Tasks 1-2 are built on `plan-6c-nvda-log`; it waits, and resumes by merging main first. Until then, its place on the page says "Not recorded".
   - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.
   - **The owner's decisions of 2026-10-05:** the VoiceOver work on the Mac (Phase C) waits until the PC work is finished: plans 6 and 6c, then a security audit of the PC work. Then Phase C is built, and a separate security audit of the Mac part follows.
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
