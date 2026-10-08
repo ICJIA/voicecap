@@ -1269,6 +1269,8 @@ describe("wordStory", () => {
         ["4 October"],
         ["5 October"],
         ["6 October"],
+        ["7 October"],
+        ["8 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1300,7 +1302,7 @@ describe("wordStory", () => {
 
         expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
         expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["6 October"]);
+        expect(cellLines(rows[at - 1]?.[0])).toEqual(["8 October"]);
         expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
       } finally {
         TIMELINE.splice(at, 1);
@@ -1499,7 +1501,7 @@ describe("wordFooter", () => {
     expect(blocks.map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para"]);
     expect(blocks[0]).toEqual(heading(1, "About this report"));
     expect(blocks[0]).toEqual(heading(1, WORD_TEXT.footer.heading));
-    // No page break: the heading and its paragraphs run on from the last transcript.
+    // No page break: the heading and its paragraphs run on from the details.
     expect(blocks.some(({ kind }) => kind === "pageBreak")).toBe(false);
   });
 
@@ -1509,7 +1511,7 @@ describe("wordFooter", () => {
 
     expect(page).toMatch(/^<footer>/);
     expect(page).not.toMatch(/<h[1-6]/);
-    // In Word, a footer with no heading would belong to the last transcript's heading 3.
+    // In Word, a footer with no heading would belong to the heading before it, in the details.
     expect(wordFooter(model)[0]).toEqual(heading(1, "About this report"));
     expect(wordFooter(noRunModel())[0]).toEqual(heading(1, "About this report"));
   });

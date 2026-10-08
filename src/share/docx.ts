@@ -5,11 +5,11 @@
  * pays for loading it.
  *
  * The document is US Letter with 1-inch margins, black on white, in Word's own styles: Title, and
- * Heading 1 to Heading 3. Body text is Calibri 11 pt, a table's text 10 pt, and fixed-width text
+ * Heading 1 to Heading 4. Body text is Calibri 11 pt, a table's text 10 pt, and fixed-width text
  * Consolas 9 pt, in a paragraph style named Mono. A table has a header row, in bold on light gray,
  * that repeats on every page; a link is blue and underlined. The footer of every page says where
- * the page is in the document. A picture is a JPEG, 400 pixels wide with its height in proportion
- * (or as wide as the table cell it's in, when that's narrower), whose alt text is its description.
+ * the page is in the document. A picture is a JPEG, 400 pixels wide with its height in proportion,
+ * whose alt text is its description.
  *
  * What the library leaves to us:
  * - It writes every character as it is, those XML forbids too, and a file with one of them in it is
@@ -75,11 +75,11 @@ const BORDER: DocxModule.IBorderOptions = { style: "single", size: 4, color: "A6
 const CELL_MARGINS = { top: 50, bottom: 50, left: 100, right: 100 };
 /** The space between two paragraphs of one cell. */
 const CELL_GAP = 60;
+/** The height of the paragraph that keeps two tables apart: 6 pt. */
+const TABLE_GAP = 120;
 
-/** How wide a picture is on the page, in pixels, unless the table cell it's in is narrower. */
+/** How wide a picture is on the page, in pixels. */
 const PICTURE_WIDTH = 400;
-/** A pixel in twentieths of a point, at 96 to the inch: what a cell's width is counted in. */
-const TWIPS_PER_PIXEL = 15;
 
 const DESCRIPTION = "Made with voicecap";
 
@@ -113,6 +113,7 @@ const STYLES: DocxModule.IStylesOptions = {
     heading1: headingStyle(0, 32, 360, 120),
     heading2: headingStyle(1, 28, 240, 80),
     heading3: headingStyle(2, 24, 200, 60),
+    heading4: headingStyle(3, 22, 160, 40),
     // A list's items sit together, with the space after the list rather than between its items.
     listParagraph: { paragraph: { contextualSpacing: true } },
   },
@@ -210,18 +211,18 @@ function lineOf(d: Docx, line: Line, within: Look = {}): LineChild[] {
 }
 
 /**
- * A picture as a run of a paragraph: a JPEG `width` pixels wide, as high as its proportions make it.
- * Its alt text is its description, and its name and title too, so every reader of the file has the
- * words; each is cleaned as every word is.
+ * A picture as a run of a paragraph: a JPEG `PICTURE_WIDTH` pixels wide, as high as its proportions
+ * make it. Its alt text is its description, and its name and title too, so every reader of the file
+ * has the words; each is cleaned as every word is.
  */
-function pictureRun(d: Docx, picture: Picture, width: number): DocxModule.ImageRun {
+function pictureRun(d: Docx, picture: Picture): DocxModule.ImageRun {
   const alt = clean(picture.alt);
   return new d.ImageRun({
     type: "jpg",
     data: picture.jpeg,
     transformation: {
-      width,
-      height: Math.max(1, Math.round((width * picture.height) / picture.width)),
+      width: PICTURE_WIDTH,
+      height: Math.max(1, Math.round((PICTURE_WIDTH * picture.height) / picture.width)),
     },
     altText: { name: alt, description: alt, title: alt },
   });
@@ -229,35 +230,32 @@ function pictureRun(d: Docx, picture: Picture, width: number): DocxModule.ImageR
 
 /**
  * A cell's paragraphs, one for each line, and one for no line: Word needs a cell to hold a
- * paragraph. A cell's picture follows them in a paragraph of its own, as wide as the cell holds
- * (`room`, in pixels, inside its margins) but never wider than a picture is on the page.
+ * paragraph.
  */
-function cellParagraphs(
-  d: Docx,
-  cell: Cell,
-  header: boolean,
-  room: number,
-): DocxModule.Paragraph[] {
+function cellParagraphs(d: Docx, cell: Cell, header: boolean): DocxModule.Paragraph[] {
   const lines: Line[] = cell.lines.length === 0 ? [[]] : cell.lines;
   const last = lines.length - 1;
-  const words = lines.map(
+  return lines.map(
     (line, index) =>
       new d.Paragraph({
         style: cell.mono ? MONO_STYLE : TABLE_STYLE,
-        spacing: { before: 0, after: index === last && !cell.picture ? 0 : CELL_GAP },
+        spacing: { before: 0, after: index === last ? 0 : CELL_GAP },
         children: lineOf(d, line, header ? { bold: true } : {}),
       }),
   );
-  if (cell.picture === undefined) return words;
-  const width = Math.max(1, Math.min(PICTURE_WIDTH, room));
-  return [
-    ...words,
-    new d.Paragraph({
-      style: TABLE_STYLE,
-      spacing: { before: 0, after: 0 },
-      children: [pictureRun(d, cell.picture, width)],
-    }),
-  ];
+}
+
+/**
+ * The paragraph between two tables that would touch, with nothing in it. Word joins two tables with
+ * nothing between them into one: the second's header row lands in the middle of the first, a screen
+ * reader takes it for no header, and the two sets of columns clash. It is one line of an exact
+ * height with no space around it, its mark set in 1 pt, so the tables are apart and no more.
+ */
+function gapOf(d: Docx): DocxModule.Paragraph {
+  return new d.Paragraph({
+    spacing: { before: 0, after: 0, line: TABLE_GAP, lineRule: d.LineRuleType.EXACT },
+    run: { size: 2 },
+  });
 }
 
 /**
@@ -286,9 +284,6 @@ function columnWidths(shares: number[] | undefined, columns: number): number[] {
 function tableOf(d: Docx, block: Extract<Block, { kind: "table" }>): DocxModule.Table {
   const widths = columnWidths(block.widths, block.head.length);
   const headings = block.head.map((text): Cell => ({ lines: [[text]] }));
-  // What a column holds of a picture: its width less its cell's margins, in whole pixels.
-  const roomIn = (column: number): number =>
-    Math.floor(((widths[column] ?? 0) - CELL_MARGINS.left - CELL_MARGINS.right) / TWIPS_PER_PIXEL);
   const rowOf = (cells: Cell[], header: boolean) =>
     new d.TableRow({
       // Only the header row says so: the library writes an "off" for any other.
@@ -301,7 +296,7 @@ function tableOf(d: Docx, block: Extract<Block, { kind: "table" }>): DocxModule.
             shading: header
               ? { type: d.ShadingType.CLEAR, color: "auto", fill: HEADER_FILL }
               : undefined,
-            children: cellParagraphs(d, cell, header, roomIn(column)),
+            children: cellParagraphs(d, cell, header),
           }),
       ),
     });
@@ -324,9 +319,26 @@ function tableOf(d: Docx, block: Extract<Block, { kind: "table" }>): DocxModule.
 }
 
 /**
+ * The block after the one at `index` that writes something, which is what follows it in the
+ * document: fixed-width text with no lines and a list with no items write nothing (see `blockOf`).
+ */
+function nextWritten(blocks: Block[], index: number): Block | undefined {
+  for (let at = index + 1; at < blocks.length; at += 1) {
+    const block = blocks[at];
+    const nothing =
+      (block?.kind === "mono" && block.lines.length === 0) ||
+      (block?.kind === "list" && block.items.length === 0);
+    if (!nothing) return block;
+  }
+  return undefined;
+}
+
+/**
  * A block as what the document holds: a paragraph or a table, or more than one, or none. `next` is
- * the block after it: a paragraph that a picture follows is kept with it, so a line that names the
- * picture is never left at the foot of a page with the picture on the next.
+ * the block after it that writes something. A paragraph that a picture or a list follows is kept
+ * with it, so a line that names the picture, or a label that leads into the list, is never left at
+ * the foot of a page with what it names on the next. A table that a table follows has a small
+ * paragraph after it (`gapOf`), so no two tables touch.
  */
 function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
   switch (block.kind) {
@@ -342,6 +354,7 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
         1: d.HeadingLevel.HEADING_1,
         2: d.HeadingLevel.HEADING_2,
         3: d.HeadingLevel.HEADING_3,
+        4: d.HeadingLevel.HEADING_4,
       } as const;
       return [
         new d.Paragraph({ heading: levels[block.level], children: runsOf(d, block.text, {}) }),
@@ -350,7 +363,7 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
     case "para":
       return [
         new d.Paragraph({
-          keepNext: next?.kind === "image" ? true : undefined,
+          keepNext: next?.kind === "image" || next?.kind === "list" ? true : undefined,
           children: lineOf(d, block.line),
         }),
       ];
@@ -359,7 +372,7 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
         (item) => new d.Paragraph({ bullet: { level: 0 }, children: lineOf(d, item) }),
       );
     case "table":
-      return [tableOf(d, block)];
+      return [tableOf(d, block), ...(next?.kind === "table" ? [gapOf(d)] : [])];
     case "mono":
       return block.lines.length === 0
         ? []
@@ -370,7 +383,7 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
             }),
           ];
     case "image":
-      return [new d.Paragraph({ children: [pictureRun(d, block, PICTURE_WIDTH)] })];
+      return [new d.Paragraph({ children: [pictureRun(d, block)] })];
     case "pageBreak":
       return [new d.Paragraph({ children: [new d.PageBreak()] })];
   }
@@ -418,7 +431,7 @@ export async function docxOf(blocks: Block[], properties: WordProperties): Promi
           },
         },
         footers: { default: footerOf(d, properties.footer) },
-        children: blocks.flatMap((block, index) => blockOf(d, block, blocks[index + 1])),
+        children: blocks.flatMap((block, index) => blockOf(d, block, nextWritten(blocks, index))),
       },
     ],
   });

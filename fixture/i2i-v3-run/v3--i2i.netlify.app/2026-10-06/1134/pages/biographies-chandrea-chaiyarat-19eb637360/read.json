@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat/",
+    "key": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat",
+    "slug": "biographies-chandrea-chaiyarat-19eb637360",
+    "finalUrl": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat/"
+  },
+  "capturedAt": "2026-10-06T11:44:50-05:00",
+  "durationMs": 38377,
+  "stepCount": 30,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1274,
+      "offsetMs": 1274
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1288,
+      "offsetMs": 2562
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1280,
+      "offsetMs": 3841
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1282,
+      "offsetMs": 5123
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1280,
+      "offsetMs": 6403
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1278,
+      "offsetMs": 7681
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1280,
+      "offsetMs": 8961
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1283,
+      "offsetMs": 10244
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1280,
+      "offsetMs": 11524
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1277,
+      "offsetMs": 12801
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, figure, graphic, Headshot of Chandrea Chaiyarat",
+      "durationMs": 1282,
+      "offsetMs": 14083
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "out of figure, heading, level 1, Chandrea Chaiyarat",
+      "durationMs": 1271,
+      "offsetMs": 15354
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "i 2i Capacity Building Coach",
+      "durationMs": 1279,
+      "offsetMs": 16633
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "Chandrea Chaiyarat is an accomplished Program Manager specializing in community health work and",
+      "durationMs": 1281,
+      "offsetMs": 17914
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "workforce development. In her recent position, she successfully led initiatives related to CHW",
+      "durationMs": 1281,
+      "offsetMs": 19195
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "Research, Outcomes, and Workforce Development, demonstrating proficiency in project planning,",
+      "durationMs": 1277,
+      "offsetMs": 20472
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "community engagement, and CHW program development. With a master's in human resources development,",
+      "durationMs": 1282,
+      "offsetMs": 21754
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "Chandrea has a solid background in training coordination, HR, and professional development. Her",
+      "durationMs": 1278,
+      "offsetMs": 23032
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "diverse experience includes roles in security services and an educational commission, highlighting",
+      "durationMs": 1278,
+      "offsetMs": 24309
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "her adaptability. Possessing strong communication and organizational skills, Chandrea brings",
+      "durationMs": 1281,
+      "offsetMs": 25591
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "valuable expertise to any organization navigating dynamic work environments.",
+      "durationMs": 1281,
+      "offsetMs": 26871
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, link, « Back to Home",
+      "durationMs": 1288,
+      "offsetMs": 28159
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "link, All i 2i team members »",
+      "durationMs": 1273,
+      "offsetMs": 29433
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "out of list, content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1279,
+      "offsetMs": 30711
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1274,
+      "offsetMs": 31986
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1275,
+      "offsetMs": 33261
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1278,
+      "offsetMs": 34540
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 35816
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1280,
+      "offsetMs": 37096
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1282,
+      "offsetMs": 38377
+    }
+  ]
+}

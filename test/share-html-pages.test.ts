@@ -1,16 +1,18 @@
 /**
- * The shareable page's "Every page", "What the flags found", and "Appendix: every transcript". The
- * demo runs of 29 September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs
- * built in memory, with their transcripts held in memory too, cover the rest. The tests are on the
- * markup: it is the mockup's, so its classes and its order are the contract.
+ * The shareable page's "Every page": a card for each page, with what NVDA said first on the page and
+ * its full transcript folded in the card (the page has no appendix of transcripts). The demo runs of
+ * 29 September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in
+ * memory, with their transcripts held in memory too, cover the rest. The tests are on the markup:
+ * it is the mockup's, so its classes and its order are the contract.
  */
 import { describe, expect, it } from "vitest";
 
 import type { FlagResult, PassName, RunJson } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
-import { renderAppendix, renderFlags, renderPages } from "../src/share/html/pages.js";
+import { renderPages } from "../src/share/html/pages.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
+import { NO_SPEECH } from "../src/transcripts/format.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
@@ -25,9 +27,13 @@ import {
   demoModel,
   inputOf as inputWithoutTranscripts,
   LINES,
+  LINK_FLAG,
+  manyPages,
   picturesOf,
   storeOf,
   TRANSCRIPTS,
+  type Lines,
+  withoutReadTxt,
 } from "./helpers/share-model.js";
 
 /** What the model is built from, for runs built in memory, with their transcripts held in memory. */
@@ -45,20 +51,6 @@ function modelOf(pages: SharePageSpec[], overrides: Partial<ShareInput> = {}): S
   return buildShareModel(inputOf([shareRun({ id: "r1", pages })], overrides));
 }
 
-const LINK_FLAG: FlagResult = {
-  rule: "generic-link-text",
-  pass: "read",
-  count: 1,
-  found: [{ text: "click here", count: 1 }],
-  message: 'Generic link text announced 1 time in the read pass: "click here" ×1.',
-};
-
-const HEADINGS_FLAG: FlagResult = {
-  rule: "headings",
-  pass: "headings",
-  message: "The first heading is level 2, not level 1.",
-};
-
 /** A flag that has no line of NVDA's to quote: Tab reached nothing. */
 const NO_STOPS_FLAG: FlagResult = {
   rule: "tab-no-stops",
@@ -66,14 +58,19 @@ const NO_STOPS_FLAG: FlagResult = {
   message: "Tab reached no focusable elements on the page.",
 };
 
-/** `total` pages read in full, the first `flagged` of them with flags. */
-function manyPages(total: number, flagged: number): ShareModel {
-  return modelOf(
-    Array.from({ length: total }, (_, index) =>
-      done(`/page-${index + 1}`, index < flagged ? { flags: [LINK_FLAG, HEADINGS_FLAG] } : {}),
-    ),
-  );
-}
+/**
+ * The line of a card's fold of its page's transcripts as a screen reader gets it, when the page has
+ * all three: "The full transcript of /about/: read, headings, and Tab transcripts". A sighted
+ * reader sees the same without "of /about/", which is set apart for a screen reader alone.
+ */
+const allThree = (path: string): string =>
+  `The full transcript of ${path}: read, headings, and Tab transcripts`;
+
+/** Pages whose read pass has fewer than the three lines a card shows first. */
+const LESS = { two: { read: ["One", "Two"] }, one: { read: ["Only"] } } satisfies Record<
+  string,
+  Lines
+>;
 
 /** A site whose only run was a replay, so no run counts. */
 function noRunModel(): ShareModel {
@@ -91,6 +88,44 @@ function withCard(model: ShareModel, index: number, patch: Partial<PageCard>): S
 /** The cards of the "Every page" section, each as its markup. */
 function cardsIn(html: string): string[] {
   return html.split('<article class="card"').slice(1);
+}
+
+/**
+ * The section split at its fold of the pages with nothing to note: what comes before it (the cards
+ * in the open, each with its own transcript fold), and from the fold on. With no such fold, all of
+ * it comes before.
+ */
+function splitAtQuietFold(html: string): [before: string, inside: string] {
+  const at = html.indexOf('<div class="folds">');
+  return at < 0 ? [html, ""] : [html.slice(0, at), html.slice(at)];
+}
+
+/** The lines of the section's folds of pages with nothing to note: none, or one. */
+const quietLines = (html: string): string[] =>
+  summariesIn(html).filter((line) => line.startsWith("The other"));
+
+/**
+ * The summary markup of each of the section's folds of a page's full transcript, in the markup's
+ * order.
+ */
+const foldSummaries = (html: string): string[] =>
+  [...html.matchAll(/<details class="fold tx-page"[^>]*><summary>(.*?)<\/summary>/gs)].map(
+    ([, line = ""]) => line,
+  );
+
+/**
+ * The lines of those folds, each as a screen reader gets it: the words set apart for it too, and no
+ * space where a tag was.
+ */
+const foldLines = (html: string): string[] => foldSummaries(html).map((line) => textOf(line, ""));
+
+/** The paths of a model's pages, in the page's order. */
+const pathsOf = (model: ShareModel): string[] => model.pages.map(({ path }) => path);
+
+/** A page's first lines as a card shows them, each as its text without the quotes it is set in. */
+function firstLinesIn(card: string): string[] {
+  const figure = /<figure class="heard-first">(.*?)<\/figure>/s.exec(card)?.[1] ?? "";
+  return [...figure.matchAll(/<li>“(.*?)”<\/li>/g)].map(([, line = ""]) => decode(line));
 }
 
 describe("renderPages", () => {
@@ -154,7 +189,7 @@ describe("renderPages", () => {
     expect(renderPages(modelOf([done("/")]))).not.toContain("No longer listed");
   });
 
-  it("shows a card as the mockup's: its path, result, flags, review, counts, time, strip, and link", async () => {
+  it("shows a card as the mockup's: its path, result, flags, review, counts, time, strip, and transcript", async () => {
     const model = await demoModel();
     const html = renderPages(model);
     const cards = cardsIn(html);
@@ -162,7 +197,8 @@ describe("renderPages", () => {
 
     expect(cards).toHaveLength(7);
     expect(model.pages[6]?.path).toBe("/common-mistakes/");
-    // The mockup's seventh card, in its order: the heading, the chips, the four numbers, the strip, the link.
+    // The mockup's seventh card, in its order: the heading, the chips, the four numbers, the strip,
+    // and the full transcript, folded where the card's link to the appendix was.
     expect(flagged).toContain('<h3><span class="num">7</span> /common-mistakes/</h3>');
     expect(flagged).toContain(
       '<div class="chips"><span class="chip c-ok">Transcribed</span><span class="sr">Flags raised: </span>' +
@@ -177,17 +213,26 @@ describe("renderPages", () => {
     expect(flagged).toContain(
       "</svg><figcaption>Read pass: one bar per line NVDA spoke, as wide as it took</figcaption></figure>",
     );
-    expect(flagged).toContain(
-      '<a class="more" href="#tx-common-mistakes-db8c98dbfa" aria-label="Transcripts and fingerprints for /common-mistakes/">Transcripts and fingerprints</a>',
-    );
+    expect(flagged).toContain('<details class="fold tx-page" id="tx-common-mistakes-db8c98dbfa">');
+    // The card links to nothing: its transcript is in the card, not in an appendix to go to.
+    expect(flagged).not.toContain("<a ");
+    expect(flagged).not.toContain("Transcripts and fingerprints");
     // One bar for each line NVDA spoke in the read pass, as the strip's own words say.
     expect(flagged.match(/<rect /g)).toHaveLength(22);
     expect(flagged).toContain("Read pass: 22 lines over");
-    // The order the mockup has: heading, chips, numbers, strip, link.
-    const order = ["<h3>", 'class="chips"', 'class="passes"', 'class="strip-fig"', 'class="more"'];
+    // The order: heading, chips, the first lines, numbers, strip, transcript.
+    const order = [
+      "<h3>",
+      'class="chips"',
+      'class="heard-first"',
+      'class="passes"',
+      'class="strip-fig"',
+      'class="fold tx-page"',
+    ];
     expect(order.map((part) => flagged.indexOf(part))).toEqual(
       order.map((part) => flagged.indexOf(part)).sort((a, b) => a - b),
     );
+    expect(order.every((part) => flagged.includes(part))).toBe(true);
 
     // The first card: 18 lines, 2 headings, 8 Tab stops, and 55.1 s, with no flags.
     expect(cards[0]).toContain(
@@ -290,7 +335,9 @@ describe("renderPages", () => {
         '<span class="chip c-quiet">Sam Roe heard part of this session</span></div>',
     );
     // A page nobody has reviewed has no review chip: nothing says what a person hasn't done.
-    expect(cardsIn(renderPages(model))[1]).not.toMatch(/Heard|Reviewed|Issue found/);
+    const chips = /<div class="chips">(.*?)<\/div>/s.exec(cardsIn(renderPages(model))[1] ?? "");
+    expect(chips?.[1]).toEqual(expect.any(String));
+    expect(chips?.[1]).not.toMatch(/Heard|Reviewed|Issue found/);
   });
 
   it("keeps part of a session quiet when no name was recorded, too", async () => {
@@ -418,14 +465,15 @@ describe("renderPages", () => {
     expect(model.pages[2]).toMatchObject({ path: "/how-a-run-works/", status: "failed" });
     expect(failed).toContain("<p>During the headings pass, another window took the screen.</p>");
     expect(failed).toContain('<p class="sub">From run 2026-09-29_1315, on 29 September 2026</p>');
-    // The older run's counts, time, and strip, with the link to the transcripts it shows.
+    // The older run's counts, time, and strip, with the transcripts it shows folded in the card.
     expect(failed).toContain(
       "<dd>18 lines</dd></div><div><dt>Headings</dt><dd>4</dd></div><div><dt>Tab stops</dt><dd>3</dd></div><div><dt>Time</dt><dd>51.5 s</dd>",
     );
     expect(failed.match(/<rect /g)).toHaveLength(18);
-    expect(failed).toContain('href="#tx-how-a-run-works-fd116f9328"');
-    // The page read in the latest run says neither.
-    expect(cards[0]).not.toContain("From run");
+    expect(failed).toContain('id="tx-how-a-run-works-fd116f9328"');
+    // The page read in the latest run says neither: no line of its own for where its transcripts
+    // are from (its fold names its run, the latest, as every fold does).
+    expect(cards[0]).not.toContain('<p class="sub">From run');
     expect(cards[0]).not.toContain("<p>");
 
     // A failure in the model's words is escaped.
@@ -469,30 +517,38 @@ describe("renderPages", () => {
       "<p>During the headings pass",
       "From run 2026-09-29_1315",
       "Manual NVDA session",
+      'class="heard-first"',
       'class="passes"',
       'class="strip-fig"',
-      'class="more"',
+      'class="fold tx-page"',
     ];
     const places = parts.map((part) => card.indexOf(part));
 
     expect(places.every((place) => place >= 0)).toBe(true);
-    // The picture's place first, as the mockup's picture is, then the card's words in this order.
+    // The picture's place first, as the mockup's picture is, then the card's words in this order:
+    // what the mockup had no place for, what NVDA said first, the numbers, the strip, and last
+    // the page's full transcript.
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("leaves out the strip and the link a page has nothing for", async () => {
+  it("leaves out the strip, and the first lines and the fold, a page has nothing for", async () => {
     const model = await demoModel();
-    const [bare = ""] = cardsIn(renderPages(withCard(model, 0, { strip: [] })));
+    const [bare = ""] = cardsIn(renderPages(withCard(model, 0, { strip: [], heardFirst: [] })));
     const [cut = ""] = cardsIn(
       renderPages({ ...model, appendix: model.appendix.filter(({ slug }) => slug !== "home") }),
     );
 
-    // No lines, no strip: a strip of no lines would say "no lines" of a page that has some.
+    // No lines, no strip: a strip of no lines would say "no lines" of a page that has some. And no
+    // first lines: a label with nothing under it would say less than nothing.
     expect(bare).not.toContain("strip-fig");
-    expect(bare).toContain('<a class="more"');
-    // A page with no transcripts in the appendix has nothing to link to.
-    expect(cut).not.toContain('class="more"');
+    expect(bare).not.toContain("heard-first");
+    expect(bare).not.toContain("Heard first");
+    expect(bare).toContain('class="fold tx-page"');
+    // A page with no entry in the appendix has no transcripts to fold, and keeps the rest.
+    expect(cut).not.toContain("tx-page");
+    expect(cut).not.toContain("<details");
     expect(cut).toContain("strip-fig");
+    expect(cut).toContain('class="heard-first"');
   });
 
   it("names a page by its label, and escapes every name and path", () => {
@@ -526,24 +582,30 @@ describe("renderPages", () => {
   });
 
   it("folds the pages with nothing to note at 13 pages, never at 12", () => {
-    const twelve = renderPages(manyPages(12, 2));
-    const thirteen = renderPages(manyPages(13, 2));
+    const twelveOf = manyPages(12, 2);
+    const thirteenOf = manyPages(13, 2);
+    const twelve = renderPages(twelveOf);
+    const thirteen = renderPages(thirteenOf);
 
+    // At 12, every card is in the open, each with a fold of its own transcript and no other.
     expect(cardsIn(twelve)).toHaveLength(12);
-    expect(twelve).not.toContain("<details");
-    expect(twelve).not.toContain("The other");
+    expect(quietLines(twelve)).toEqual([]);
+    expect(twelve).not.toContain('<div class="folds">');
+    expect(foldLines(twelve)).toEqual(pathsOf(twelveOf).map(allThree));
 
-    // At 13, the 11 with nothing to note fold behind one line, closed, with their cards inside.
-    expect(foldsIn(thirteen)).toHaveLength(1);
-    expect(summariesIn(thirteen)).toEqual([
-      "The other 11 pages: nothing to note, all read in full",
-    ]);
+    // At 13, the 11 with nothing to note fold behind one line, closed, with their cards inside, and
+    // each card still holds its own fold: 13 transcripts, and the one fold around 11 of them.
+    expect(quietLines(thirteen)).toEqual(["The other 11 pages: nothing to note, all read in full"]);
+    expect(foldsIn(thirteen)).toHaveLength(1 + 13);
     expect(thirteen).toContain(
       '<div class="folds"><details class="fold"><summary><span class="what">The other 11 pages:</span> <span class="sub">nothing to note, all read in full</span></summary>',
     );
-    const [before = "", inside = ""] = thirteen.split("<details");
+    const [before, inside] = splitAtQuietFold(thirteen);
     expect(cardsIn(before)).toHaveLength(2);
     expect(cardsIn(inside)).toHaveLength(11);
+    expect(foldLines(before)).toEqual(pathsOf(thirteenOf).slice(0, 2).map(allThree));
+    expect(quietLines(inside)).toEqual(["The other 11 pages: nothing to note, all read in full"]);
+    expect(foldLines(inside)).toEqual(pathsOf(thirteenOf).slice(2).map(allThree));
     // The cards keep their numbers, in the page's order, wherever they are.
     expect(
       [...before.matchAll(/<span class="num">(\d+)<\/span>/g)].map((found) => found[1]),
@@ -555,7 +617,7 @@ describe("renderPages", () => {
     expect(thirteen.indexOf('<h2 id="pages-h">')).toBeLessThan(thirteen.indexOf("<details"));
 
     // One page to fold is "the other page".
-    expect(summariesIn(renderPages(manyPages(13, 12)))).toEqual([
+    expect(quietLines(renderPages(manyPages(13, 12)))).toEqual([
       "The other page: nothing to note, all read in full",
     ]);
   });
@@ -581,7 +643,7 @@ describe("renderPages", () => {
     });
     const model = buildShareModel(inputOf([earlier, latest]));
     const html = renderPages(model);
-    const [before = "", inside = ""] = html.split("<details");
+    const [before, inside] = splitAtQuietFold(html);
 
     expect(model.pages).toHaveLength(13);
     expect(model.pages.filter((card) => card.needsAttention).map((card) => card.path)).toEqual([
@@ -595,12 +657,15 @@ describe("renderPages", () => {
       (card) => /<span class="num">\d+<\/span> (\S+)</.exec(card)?.[1],
     );
     expect(shown).toEqual(["/flagged", "/failed", "/skipped", "/never"]);
-    expect(summariesIn(html)).toEqual(["The other 9 pages: nothing to note, all read in full"]);
+    expect(quietLines(html)).toEqual(["The other 9 pages: nothing to note, all read in full"]);
     expect(cardsIn(inside).every((card) => card.includes("quiet-"))).toBe(true);
     // Their numbers are their places among all 13 pages.
     expect(
       [...before.matchAll(/<span class="num">(\d+)<\/span>/g)].map((found) => found[1]),
     ).toEqual(["4", "8", "9", "10"]);
+    // Three of the four have transcripts to fold (the failed and the skipped page show the older
+    // run's); the page that was never transcribed has none.
+    expect(foldLines(before)).toEqual(["/flagged", "/failed", "/skipped"].map(allThree));
   });
 
   it("folds nothing when every page needs attention, and everything when none does", () => {
@@ -609,43 +674,215 @@ describe("renderPages", () => {
         Array.from({ length: 13 }, (_, index) => done(`/p-${index}`, { flags: [LINK_FLAG] })),
       ),
     );
-    expect(flagged).not.toContain("<details");
+    expect(quietLines(flagged)).toEqual([]);
+    expect(flagged).not.toContain('<div class="folds">');
     expect(cardsIn(flagged)).toHaveLength(13);
 
     const quiet = renderPages(manyPages(13, 0));
-    expect(summariesIn(quiet)).toEqual(["The other 13 pages: nothing to note, all read in full"]);
+    expect(quietLines(quiet)).toEqual(["The other 13 pages: nothing to note, all read in full"]);
     // No cards outside the fold: no empty box where they'd be.
-    expect(cardsIn(quiet.split("<details")[0] ?? "")).toHaveLength(0);
-    expect(quiet.split("<details")[0]).not.toContain('class="cards"');
+    const [outside = ""] = splitAtQuietFold(quiet);
+    expect(cardsIn(outside)).toHaveLength(0);
+    expect(outside).not.toContain('class="cards"');
   });
 
-  it("links each card to its transcripts in the appendix", async () => {
-    for (const model of [await demoModel(), manyPages(3, 1)]) {
-      const pages = renderPages(model);
-      const appendix = renderAppendix(model);
-      const cards = cardsIn(pages);
+  it("shows each page's first lines, word for word", async () => {
+    const model = await demoModel();
+    const cards = cardsIn(renderPages(model));
+    const [home = ""] = cards;
 
-      expect(cards).toHaveLength(model.pages.length);
-      for (const [index, card] of model.pages.entries()) {
-        const target = `tx-${idFragment(card.slug)}`;
-        expect(cards[index]).toContain(`href="#${target}"`);
-        // The link goes to a fold of the appendix, which opens when a link points to it.
-        expect(appendix).toContain(`<details class="fold" id="${target}">`);
-      }
+    // The home page's first three lines: under a label that says what they are, in a list a screen
+    // reader counts, each in curly quotes, in the order NVDA said them.
+    expect(model.pages[0]?.heardFirst).toEqual([
+      "banner landmark, voicecap demo",
+      "Tour, navigation landmark, list, with 1 item, link, Next: Before you start",
+      "out of list, main landmark, heading, level 1, Welcome to the voicecap demo",
+    ]);
+    expect(home).toContain(
+      '<figure class="heard-first"><figcaption>Heard first</figcaption><ol class="said-list" role="list">' +
+        "<li>“banner landmark, voicecap demo”</li>" +
+        "<li>“Tour, navigation landmark, list, with 1 item, link, Next: Before you start”</li>" +
+        "<li>“out of list, main landmark, heading, level 1, Welcome to the voicecap demo”</li>" +
+        "</ol></figure>",
+    );
+    // Every page of the demo has its own, as its card's model gives them, and one list each.
+    for (const [index, card] of model.pages.entries()) {
+      expect(card.heardFirst, card.path).toHaveLength(3);
+      expect(firstLinesIn(cards[index] ?? ""), card.path).toEqual(card.heardFirst);
+      expect(cards[index]?.match(/<figure class="heard-first">/g), card.path).toHaveLength(1);
     }
-    // A page never transcribed has no transcripts to link to, and no fold of its own.
+
+    // A page with fewer lines shows what it has: two, and one.
+    const few = modelOf([done("/two"), done("/one")], {
+      transcripts: storeOf((slug) => (slug.startsWith("two") ? LESS.two : LESS.one)),
+    });
+    const [two = "", one = ""] = cardsIn(renderPages(few));
+    expect(firstLinesIn(two)).toEqual(LESS.two.read);
+    expect(firstLinesIn(one)).toEqual(LESS.one.read);
+  });
+
+  it("escapes a first line", async () => {
+    const model = withCard(await demoModel(), 0, { heardFirst: ['link, <b> & "x"'] });
+    const [home = ""] = cardsIn(renderPages(model));
+
+    // The words NVDA said are text on the page, never taken for markup.
+    expect(home).toContain(
+      '<figure class="heard-first"><figcaption>Heard first</figcaption><ol class="said-list" role="list">' +
+        "<li>“link, &lt;b&gt; &amp; &quot;x&quot;”</li></ol></figure>",
+    );
+    expect(home).not.toContain("<b>");
+    expect(firstLinesIn(home)).toEqual(['link, <b> & "x"']);
+  });
+
+  it("sets a step where NVDA said nothing as the marker the transcript writes, never in the quotes of NVDA's words", async () => {
+    const model = withCard(await demoModel(), 0, {
+      heardFirst: ["banner landmark", NO_SPEECH, "link, Back"],
+    });
+    const [home = ""] = cardsIn(renderPages(model));
+
+    // "[no speech]" is a note that NVDA said nothing, not words it said: in curly quotes, it reads
+    // as though NVDA had said those words. The lines it did say keep theirs.
+    expect(home).toContain(
+      '<figure class="heard-first"><figcaption>Heard first</figcaption><ol class="said-list" role="list">' +
+        "<li>“banner landmark”</li><li>[no speech]</li><li>“link, Back”</li></ol></figure>",
+    );
+    expect(home).not.toContain("“[no speech]”");
+  });
+
+  it("folds each page's full transcript into its card", async () => {
+    const model = await demoModel();
+    const html = renderPages(model);
+    const cards = cardsIn(html);
+
+    expect(cards).toHaveLength(7);
+    expect(model.appendix.map(({ slug }) => slug)).toEqual(model.pages.map(({ slug }) => slug));
+    for (const [index, card] of model.pages.entries()) {
+      const markup = cards[index] ?? "";
+      const id = `tx-${idFragment(card.slug)}`;
+      const sections = markup.split('<section class="tx"').slice(1);
+
+      // The card holds its page's fold: closed, with the id its page's transcripts are known by,
+      // and a line that says what's inside, as many transcripts as there are.
+      expect(markup, card.path).toContain(` id="pg-${idFragment(card.slug)}">`);
+      expect(markup, card.path).toContain(`<details class="fold tx-page" id="${id}"><summary>`);
+      expect(markup, card.path).not.toContain(" open>");
+      expect(foldLines(markup), card.path).toEqual([allThree(card.path)]);
+      expect(markup, card.path).toContain(
+        `<summary><span class="what">The full transcript<span class="sr"> of ${esc(card.path)}</span>:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>`,
+      );
+      // Its three transcripts keep the names the fingerprint check finds them by, and a heading
+      // each, one level under the card's own.
+      expect(sections, card.path).toHaveLength(3);
+      for (const [at, file] of (model.appendix[index]?.files ?? []).entries()) {
+        expect(sections[at], card.path).toMatch(
+          new RegExp(
+            `^ data-run="${file.run}" data-slug="${file.slug}" data-file="${file.name}"><h4>`,
+          ),
+        );
+      }
+      expect(markup.match(/<h[1-6]>/g), card.path).toEqual(["<h3>", "<h4>", "<h4>", "<h4>"]);
+    }
+    // The page's words are in its cards and nowhere else: 7 folds, and 21 transcripts in them.
+    expect(foldsIn(html)).toHaveLength(7);
+    expect(html.match(/<section class="tx"/g)).toHaveLength(21);
+
+    // A picture is on its card once, and never in the fold: one img[data-file] for each page with a
+    // screenshot, whether the page was read or not.
+    const run = shareRun({
+      id: "r1",
+      voicecapVersion: "0.11.0",
+      pages: [
+        done("/read", { screenshot: TINY_RECORD }),
+        done("/also", { screenshot: TINY_RECORD }),
+        {
+          path: "/never",
+          status: "failed",
+          failedAttempts: [failedAttempt({ n: 1 })],
+          screenshot: TINY_RECORD,
+        },
+      ],
+    });
+    const shots = buildShareModel(inputOf([run], { screenshots: picturesOf([run]) }));
+    const uri = shots.pages.map(({ screenshot }) =>
+      "dataUri" in screenshot ? screenshot.dataUri : "",
+    );
+    const withPictures = renderPages(shots);
+
+    expect(uri.every((address) => address.startsWith("data:image/jpeg;base64,"))).toBe(true);
+    expect(withPictures.match(/<img\b[^>]*\sdata-file="screenshot\.jpg"/g)).toHaveLength(3);
+    expect(cardsIn(withPictures).map((card) => attributes(card, "src"))).toEqual([
+      [uri[0]],
+      [uri[1]],
+      [uri[2]],
+    ]);
+    // Two of the pages have a fold; their pictures are above it.
+    expect(foldsIn(withPictures)).toHaveLength(2);
+    for (const fold of foldsIn(withPictures)) {
+      expect(fold.split("</details>")[0]).not.toContain("<img");
+    }
+  });
+
+  it("names each page's fold of its transcripts by its page for a screen reader, and looks the same to everyone else", () => {
+    const model = manyPages(13, 2);
+    const html = renderPages(model);
+    const cards = cardsIn(html);
+    const heard: string[] = [];
+
+    // 13 pages: two cards in the open, and 11 in the fold of the quiet pages, each with a fold of
+    // its own.
+    expect(cards).toHaveLength(13);
+    for (const markup of cards) {
+      const slug = /^ id="pg-([^"]+)"/.exec(markup)?.[1];
+      const card = model.pages.find((each) => idFragment(each.slug) === slug);
+      const lines = foldLines(markup);
+
+      // The fold in a card says which page it is of, by the card's own path as a screen reader gets
+      // it (the path ends at the colon, so "/page-1" isn't taken for "/page-10").
+      expect(card, slug).toBeDefined();
+      expect(lines, slug).toHaveLength(1);
+      expect(lines[0], slug).toContain(` of ${card?.path}:`);
+      heard.push(...lines);
+    }
+    // So no two are alike.
+    expect(new Set(heard).size).toBe(13);
+
+    // Sighted, every fold says the same line as before: the words that name the page are set apart
+    // for a screen reader (sr), and what is left is the line every card shows.
+    const seen = foldSummaries(html).map((line) =>
+      textOf(line.replace(/<span class="sr">.*?<\/span>/g, ""), ""),
+    );
+    expect(seen).toEqual(
+      Array.from({ length: 13 }, () => "The full transcript: read, headings, and Tab transcripts"),
+    );
+  });
+
+  it("has no first lines and no transcript fold for a page never read", () => {
     const run = shareRun({
       id: "r1",
       pages: [
-        done("/a"),
-        { path: "/b", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
+        done("/read"),
+        { path: "/failed", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
+        { path: "/skipped", status: "skipped" },
       ],
     });
     const model = buildShareModel(inputOf([run]));
-    const [first = "", second = ""] = cardsIn(renderPages(model));
-    expect(first).toContain(`href="#tx-${idFragment(model.pages[0]?.slug ?? "")}"`);
-    expect(second).not.toContain("#tx-");
-    expect(renderAppendix(model)).not.toContain(`tx-${idFragment(model.pages[1]?.slug ?? "")}`);
+    const [read = "", ...unread] = cardsIn(renderPages(model));
+
+    // The ring counts the two as not read, and neither one's card has the lines or the fold.
+    expect(model.ring.notRead).toBe(2);
+    expect(model.pages.map((card) => card.heardFirst.length)).toEqual([3, 0, 0]);
+    expect(unread).toHaveLength(2);
+    for (const card of unread) {
+      expect(card).not.toContain("heard-first");
+      expect(card).not.toContain("Heard first");
+      expect(card).not.toContain("tx-page");
+      expect(card).not.toContain("The full transcript");
+      expect(card).not.toContain("<details");
+      expect(card).not.toContain("<section");
+    }
+    // The page that was read has both.
+    expect(read).toContain('class="heard-first"');
+    expect(read).toContain('class="fold tx-page"');
   });
 
   it("says in the first line how many pages were read, and how many weren't", async () => {
@@ -720,232 +957,12 @@ describe("renderPages", () => {
   });
 });
 
-describe("renderFlags", () => {
-  it("quotes NVDA's own words for each rule of a flagged page, as the mockup's table does", async () => {
-    const model = await demoModel();
-    const html = renderFlags(model);
-    const [flagged] = model.flagged;
-
-    expect(html).toMatch(/^<section aria-labelledby="find-h">\s*<h2 id="find-h">/);
-    expect(html).toContain('<h2 id="find-h">What the flags found</h2>');
-    expect(html).toContain(
-      '<p class="gist"><b>1 page has flags, from 3 rules.</b> Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.</p>',
-    );
-    // One page: its fold is open, behind the line that names it, with its five flags and its rules.
-    expect(html).toContain(
-      '<div class="folds"><details class="fold" open><summary><span class="what">http://127.0.0.1:4848/common-mistakes/:</span> <span class="sub">5 flags</span> ' +
-        '<span class="chips"><span class="chip c-warn">generic-link-text</span><span class="chip c-warn">unlabeled</span><span class="chip c-warn">headings</span></span></summary>',
-    );
-    expect(html).toContain(
-      '<div class="scroll" tabindex="0" role="region" aria-label="Flags table, /common-mistakes/"><table class="plain"><caption class="sr">Flags on /common-mistakes/</caption>',
-    );
-    expect(textOf(/<thead>(.*?)<\/thead>/s.exec(html)?.[1] ?? "")).toBe(
-      "Rule What NVDA showed NVDA said",
-    );
-    expect(html.match(/<th scope="col">/g)).toHaveLength(3);
-
-    // A row for each rule: the rule as a chip, what it found, and the lines NVDA spoke, in the model's order.
-    const rows = [
-      ...html.matchAll(
-        /<tr><th scope="row">(.*?)<\/th><td>(.*?)<\/td><td class="said">(.*?)<\/td><\/tr>/g,
-      ),
-    ];
-    expect(flagged?.quotes).toHaveLength(3);
-    expect(rows).toHaveLength(3);
-    for (const [index, quote] of (flagged?.quotes ?? []).entries()) {
-      const [, rule = "", found = "", said = ""] = rows[index] ?? [];
-      expect(rule).toBe(`<span class="chip c-warn">${esc(quote.rule)}</span>`);
-      expect(found).toBe(esc(quote.text));
-      // Each line in quotes, and a pause between them for a screen reader.
-      expect(said).toBe(
-        quote.said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> '),
-      );
-      expect(quote.said.length).toBeGreaterThan(0);
-    }
-    expect(rows.map((row) => textOf(row[3] ?? "", ""))).toEqual([
-      "“To see how a run works,, link, click here, dot”; “To read about transcripts,, link, click here, dot”; “To learn about the report,, link, click here, dot”",
-      "“button”; “main landmark. edit, blank”",
-      "“main landmark, Common mistakes (on purpose), heading, level 2”",
-    ]);
-  });
-
-  it("folds the flag quotes at 4 flagged pages, never at 3", () => {
-    const three = renderFlags(manyPages(5, 3));
-    const four = renderFlags(manyPages(5, 4));
-
-    // At 3, no page's quotes are folded away: each is open.
-    expect(foldsIn(three)).toHaveLength(3);
-    expect(three.match(/<details class="fold" open>/g)).toHaveLength(3);
-
-    // At 4, each is folded, closed, behind its page's name and its number of flags.
-    expect(foldsIn(four)).toHaveLength(4);
-    expect(four).not.toContain(" open>");
-    expect(four.match(/<details class="fold">/g)).toHaveLength(4);
-    expect(summariesIn(four)).toEqual(
-      [1, 2, 3, 4].map(
-        (n) => `https://example.illinois.gov/page-${n}: 2 flags generic-link-text headings`,
-      ),
-    );
-    expect(four).toContain(
-      '<summary><span class="what">https://example.illinois.gov/page-1:</span> <span class="sub">2 flags</span>',
-    );
-    // The quotes are still all there, a click away, and the unflagged page isn't.
-    expect(four.match(/<table class="plain">/g)).toHaveLength(4);
-    expect(four).not.toContain("page-5");
-    expect(four).toContain("<b>4 pages have flags, from 2 rules.</b>");
-    expect(three).toContain("<b>3 pages have flags, from 2 rules.</b>");
-  });
-
-  it("counts a page's flags in the singular, and its rules once each", () => {
-    const html = renderFlags(modelOf([done("/a", { flags: [LINK_FLAG] })]));
-
-    expect(html).toContain('<span class="sub">1 flag</span>');
-    expect(html).toContain("<b>1 page has flags, from 1 rule.</b>");
-    // The same rule in two passes is one row.
-    const twice = renderFlags(
-      modelOf([done("/a", { flags: [LINK_FLAG, { ...LINK_FLAG, pass: "tab" }] })]),
-    );
-    expect(twice).toContain('<span class="sub">2 flags</span>');
-    expect(twice.match(/<tr><th scope="row">/g)).toHaveLength(1);
-  });
-
-  it("says what a rule found without a quote when it has no line to quote", () => {
-    const model = modelOf([done("/a", { flags: [LINK_FLAG, NO_STOPS_FLAG] })]);
-    const [flagged] = model.flagged;
-    const html = renderFlags(model);
-    const rows = [...html.matchAll(/<tr><th scope="row">.*?<\/tr>/g)].map((found) => found[0]);
-
-    expect(flagged?.quotes.map((quote) => quote.said.length > 0)).toEqual([true, false]);
-    expect(rows).toHaveLength(2);
-    // Tab reaching nothing: its row says what the rule found, and that there is no line to quote.
-    expect(rows[1]).toBe(
-      '<tr><th scope="row"><span class="chip c-warn">tab-no-stops</span></th><td>Tab reaches nothing on the page.</td><td class="said"><span class="sub">No line to quote</span></td></tr>',
-    );
-    // Never an empty quote.
-    expect(html).not.toContain("<code></code>");
-    expect(html).not.toContain("“”");
-  });
-
-  it("escapes the names, rules, and words it quotes", () => {
-    const custom: FlagResult = { rule: "<rule> & co", message: "It matched <b>this</b>." };
-    const run = shareRun({
-      id: "r1",
-      pages: [done("/a", { label: '<Page> & "Co"', flags: [custom, LINK_FLAG] })],
-    });
-    const html = renderFlags(
-      buildShareModel(
-        inputOf([run], {
-          transcripts: storeOf(() => ({
-            ...LINES,
-            read: ['To apply,, link, click here, dot <script>alert("x")</script> & more'],
-          })),
-        }),
-      ),
-    );
-
-    expect(html).toContain('<span class="what">&lt;Page&gt; &amp; &quot;Co&quot;:</span>');
-    expect(html).toContain('<span class="chip c-warn">&lt;rule&gt; &amp; co</span>');
-    expect(html).toContain(
-      "<code>“To apply,, link, click here, dot &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; more”</code>",
-    );
-    expect(html).not.toContain("<script");
-    expect(html).not.toContain("<rule>");
-  });
-
-  it("says which run a flagged page's transcripts are from, when it isn't the latest", async () => {
-    const model = await demoModel();
-    // The failed page, with flags as if its older transcripts had some.
-    const how = model.pages[2];
-    const older = {
-      ...model,
-      flagged: [
-        {
-          card: { ...(how as PageCard), flags: [HEADINGS_FLAG] },
-          quotes: [{ rule: "headings", text: "Its first heading is level 2, not 1.", said: [] }],
-        },
-      ],
-    };
-
-    expect(renderFlags(older)).toContain(
-      '<p class="sub">From run 2026-09-29_1315, on 29 September 2026</p>',
-    );
-    expect(renderFlags(model)).not.toContain("From run");
-  });
-
-  it("says no page has flags when none does", () => {
-    const html = renderFlags(modelOf([done("/a"), done("/b")]));
-
-    expect(html).toContain(
-      '<p class="gist"><b>No page has flags.</b> Flags point a person to pages worth a closer listen; none was raised.</p>',
-    );
-    expect(html).not.toContain("<details");
-    expect(html).not.toContain('class="folds"');
-
-    // A page that couldn't be read has no flags to speak of: the pages that were read have none.
-    const run = shareRun({
-      id: "r1",
-      pages: [
-        done("/a"),
-        { path: "/b", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
-      ],
-    });
-    expect(renderFlags(buildShareModel(inputOf([run])))).toContain("<b>No page has flags.</b>");
-  });
-
-  it("says there are no flags to show when no page has transcripts", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
-    });
-    const none = renderFlags(buildShareModel(inputOf([run])));
-
-    expect(none).toContain(
-      '<p class="gist"><b>No page has transcripts yet.</b> There are no flags to show.</p>',
-    );
-    expect(none).toContain('<h2 id="find-h">What the flags found</h2>');
-    expect(renderFlags(noRunModel())).toContain(
-      '<p class="gist"><b>No live run counts yet.</b> There are no flags to show.</p>',
-    );
-  });
-});
-
-describe("renderAppendix", () => {
-  it("folds each page's transcripts behind a line that says what's inside", async () => {
-    const model = await demoModel();
-    const html = renderAppendix(model);
-
-    expect(html).toMatch(/^<section aria-labelledby="app-h">\s*<h2 id="app-h">/);
-    expect(html).toContain('<h2 id="app-h">Appendix: every transcript</h2>');
-    expect(html).toContain(
-      `<p class="gist"><b>7 pages, 21 transcripts.</b> What NVDA said on each page, word for word, with each file&#39;s fingerprint. Open a page to read them.</p>`,
-    );
-    expect(html).toContain('<div class="appendix">');
-    // One closed fold for each page, with the id its card links to, in the page's order.
-    const folds = foldsIn(html);
-    expect(folds).toHaveLength(7);
-    expect(model.appendix.map(({ slug }) => slug)).toEqual(model.pages.map(({ slug }) => slug));
-    expect(summariesIn(html)).toEqual(
-      model.appendix.map(
-        ({ name }, index) => `${index + 1} ${name}: read, headings, and Tab transcripts`,
-      ),
-    );
-    expect(folds[0]).toContain(
-      ' class="fold" id="tx-home"><summary><span class="num">1</span> <span class="what">http://127.0.0.1:4848/:</span> <span class="sub">read, headings, and Tab transcripts</span></summary>',
-    );
-    expect(html).not.toContain(" open>");
-    // The page whose latest attempt failed shows the older run's transcripts, in its own place.
-    expect(folds[2]).toContain('id="tx-how-a-run-works-fd116f9328"');
-    expect(folds[2]).toContain(
-      '<p class="fp">From run <code>2026-09-29_1315</code>, on 29 September 2026</p>',
-    );
-    expect(folds[0]).toContain('<p class="fp">From run <code>2026-09-29_1402</code></p>');
-  });
-
+describe("a card's full transcript", () => {
   it("shows each transcript as the mockup does: its pass, size, fingerprint, and words, in a scroll box", async () => {
     const model = await demoModel();
-    const [fold = ""] = foldsIn(renderAppendix(model));
+    const [home = ""] = cardsIn(renderPages(model));
     const [entry] = model.appendix;
-    const sections = fold.split('<section class="tx"').slice(1);
+    const sections = home.split('<section class="tx"').slice(1);
 
     expect(sections).toHaveLength(3);
     for (const [index, file] of (entry?.files ?? []).entries()) {
@@ -960,7 +977,7 @@ describe("renderAppendix", () => {
       // The heading names the page too, for a reader going from heading to heading, who would
       // otherwise hear "Read", "Headings", and "Tab" for every page alike.
       expect(sections[index]).toContain(
-        `<h3>${title} <span class="sr">transcript of /</span> <span class="sub">${lines}</span></h3>`,
+        `<h4>${title} <span class="sr">transcript of /</span> <span class="sub">${lines}</span></h4>`,
       );
       // The size and the fingerprint are the whole file's, from the run's record: its header too.
       expect(sections[index]).toContain(
@@ -973,16 +990,19 @@ describe("renderAppendix", () => {
       );
     }
     expect(sections[0]).toContain(
-      '<h3>Read <span class="sr">transcript of /</span> <span class="sub">18 lines</span></h3>',
+      '<h4>Read <span class="sr">transcript of /</span> <span class="sub">18 lines</span></h4>',
     );
     expect(sections[0]).toContain("The whole file, its header included: 2,306 bytes, SHA-256");
     expect(sections[0]).toContain(
       "f30b29d0b01e47a5e2eb629251018fd09b8392197d46fc64277c574ebef365fe",
     );
-    // The picture's place comes first, then the transcripts.
-    expect(fold.indexOf('class="tx-grid"')).toBeLessThan(fold.indexOf('<section class="tx"'));
-    // One h3 for each pass, and no h2 or h1 in a fold.
-    expect(fold.match(/<h[1-6]>/g)).toEqual(["<h3>", "<h3>", "<h3>"]);
+    // The run the transcripts are from comes first in the fold, then the transcripts.
+    expect(home.indexOf('<p class="fp">From run')).toBeGreaterThan(home.indexOf("<summary>"));
+    expect(home.indexOf('<p class="fp">From run')).toBeLessThan(
+      home.indexOf('<section class="tx"'),
+    );
+    // One h4 for each pass, under the card's own h3, and no h2 or h1 in a fold.
+    expect(home.match(/<h[1-6]>/g)).toEqual(["<h3>", "<h4>", "<h4>", "<h4>"]);
   });
 
   it("shows a transcript's </script> and <b> as text", () => {
@@ -995,7 +1015,7 @@ describe("renderAppendix", () => {
     const model = modelOf([done("/a")], {
       transcripts: storeOf(() => ({ read: hostile, headings: hostile.slice(0, 1), tab: ["<b>"] })),
     });
-    const html = renderAppendix(model);
+    const html = renderPages(model);
     const text = hostile.join("\n");
 
     // The box holds the transcript's text, escaped, and a browser would show it exactly as written.
@@ -1006,6 +1026,9 @@ describe("renderAppendix", () => {
     );
     expect(pre).toContain("&amp;lt;already escaped&amp;gt; &amp;amp;");
     expect(decode(pre)).toBe(text);
+    // The first lines are the same words, shown as text too.
+    expect(html).toContain("<li>“&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;”</li>");
+    expect(firstLinesIn(html)).toEqual(hostile.slice(0, 3));
     // Nothing in the page is made of it.
     expect(html).not.toContain("</script>");
     expect(html).not.toContain("<script");
@@ -1019,7 +1042,7 @@ describe("renderAppendix", () => {
     const model = modelOf([done("/a")], {
       transcripts: storeOf(() => ({ read: ["", "first", "last"] })),
     });
-    const [pre = ""] = /<pre>(.*?)<\/pre>/s.exec(renderAppendix(model))?.slice(1) ?? [];
+    const [pre = ""] = /<pre>(.*?)<\/pre>/s.exec(renderPages(model))?.slice(1) ?? [];
 
     // A browser drops the first newline after <pre>, so a blank first line needs one more.
     expect(pre).toBe("\n\nfirst\nlast");
@@ -1036,16 +1059,18 @@ describe("renderAppendix", () => {
       pages: [done("/a", { flags: [LINK_FLAG] }), done("/b", { flags: [NO_STOPS_FLAG] })],
     });
     const models = [await demoModel(), buildShareModel(inputOf([earlier, latest]))];
+    const tableCounts: number[] = [];
 
     for (const model of models) {
-      const html = [renderPages(model), renderFlags(model), renderAppendix(model)].join("\n");
+      const html = renderPages(model);
       const boxes = scrollBoxes(html);
       const tables = (html.match(/<table /g) ?? []).length;
       const transcripts = model.appendix.reduce((sum, page) => sum + page.files.length, 0);
+      tableCounts.push(tables);
 
       // A box for each table and each transcript.
       expect(boxes).toHaveLength(tables + transcripts);
-      expect(boxes.length).toBeGreaterThan(transcripts);
+      expect(transcripts).toBeGreaterThan(0);
       for (const box of boxes) {
         expect(box).toMatch(/ tabindex="0"/);
         expect(box).toMatch(/ role="region"/);
@@ -1058,68 +1083,85 @@ describe("renderAppendix", () => {
       expect(html.match(/<pre>/g)).toHaveLength(transcripts);
       expect(html.match(/<div class="scroll"[^>]*><pre>/g)).toHaveLength(transcripts);
     }
+    // The pages no longer listed are a table in a box of their own, which the second model has, so
+    // this is no count of boxes that hold no table.
+    expect(tableCounts).toEqual([0, 1]);
   });
 
   it("names the passes a page's fold has, as many as it has", () => {
     const only = (pass: PassName[]) =>
       modelOf([done("/a", { files: pass.map((each) => `${each}.txt`) })]);
-    const summary = (model: ShareModel) => summariesIn(renderAppendix(model))[0];
+    const summary = (model: ShareModel) => foldLines(renderPages(model))[0];
 
-    expect(summary(only(["read", "headings", "tab"]))).toBe(
-      "1 https://example.illinois.gov/a: read, headings, and Tab transcripts",
-    );
+    expect(summary(only(["read", "headings", "tab"]))).toBe(allThree("/a"));
     expect(summary(only(["read", "tab"]))).toBe(
-      "1 https://example.illinois.gov/a: read and Tab transcripts",
+      "The full transcript of /a: read and Tab transcripts",
     );
-    expect(summary(only(["headings"]))).toBe(
-      "1 https://example.illinois.gov/a: headings transcript",
-    );
-    expect(renderAppendix(only(["read"]))).toContain("<b>1 page, 1 transcript.</b>");
+    expect(summary(only(["headings"]))).toBe("The full transcript of /a: headings transcript");
     // A page whose record lists no transcript says so, rather than offer an empty fold.
     const none = modelOf([done("/a", { files: [] })]);
-    expect(summary(none)).toBe("1 https://example.illinois.gov/a: no transcripts");
-    expect(renderAppendix(none)).toContain(
+    expect(summary(none)).toBe("The full transcript of /a: no transcripts");
+    expect(renderPages(none)).toContain(
       "<p>This run&#39;s record lists no transcript files for the page.</p>",
     );
   });
 
-  it("says in words which transcript couldn't be read, in its place", () => {
+  it("keeps a transcript it can't read in the fold, said in words", () => {
     const model = modelOf([done("/a")], {
       transcripts: storeOf(() => ({ read: LINES.read, headings: LINES.headings })),
     });
-    const html = renderAppendix(model);
+    const html = renderPages(model);
     const sections = html.split('<section class="tx"').slice(1);
 
     expect(model.appendix[0]?.unreadable).toEqual(["tab"]);
     expect(sections).toHaveLength(3);
     // In the Tab transcript's own place, under its own heading.
     expect(sections[2]).toContain(
-      `<h3>Tab <span class="sr">transcript of /a</span></h3><p>This transcript was recorded, but its file couldn&#39;t be read here, so it isn&#39;t shown, and the fingerprint check leaves it out.</p>`,
+      `<h4>Tab <span class="sr">transcript of /a</span></h4><p>This transcript was recorded, but its file couldn&#39;t be read here, so it isn&#39;t shown, and the fingerprint check leaves it out.</p>`,
     );
     expect(sections[2]).not.toContain("<pre>");
     expect(sections[2]).not.toContain("scroll");
-    // The fold still says what the page has, and the first line says how many couldn't be read.
-    expect(summariesIn(html)).toEqual([
-      "1 https://example.illinois.gov/a: read, headings, and Tab transcripts",
-    ]);
-    expect(html).toContain(
-      "<b>1 page, 2 transcripts.</b> What NVDA said on each page, word for word, with each file&#39;s fingerprint. Open a page to read them. 1 transcript couldn&#39;t be read, and says so under its page.",
-    );
-    // A page that can't be read at all is still a fold, with all three said.
-    const gone = renderAppendix(modelOf([done("/a")], { transcripts: storeOf(() => ({})) }));
+    // The fold still says what the page has.
+    expect(foldLines(html)).toEqual([allThree("/a")]);
+    // A page whose read transcript can't be read has its fold, all three said, and no first lines:
+    // there is nothing to quote.
+    const gone = renderPages(modelOf([done("/a")], { transcripts: storeOf(() => ({})) }));
     expect(gone.match(/couldn&#39;t be read here/g)).toHaveLength(3);
-    expect(gone).toContain("<b>1 page, no transcripts shown.</b>");
-    expect(gone).toContain("3 transcripts couldn&#39;t be read, and each says so under its page.");
+    expect(foldLines(gone)).toEqual([allThree("/a")]);
+    expect(gone).not.toContain("heard-first");
+    expect(gone).not.toContain("Heard first");
+  });
+
+  it("has no first lines beside a fold that says the read transcript couldn't be read, though the read pass's steps can be", () => {
+    // The split: /split's read.json can be read and its read.txt can't. Its fold shows the TXT, so
+    // the card quotes nothing from a transcript its own fold says is lost. /whole has both.
+    const model = modelOf([done("/split"), done("/whole")], {
+      transcripts: withoutReadTxt(storeOf(), (slug) => slug.startsWith("split")),
+    });
+    const [split = "", whole = ""] = cardsIn(renderPages(model));
+
+    expect(model.appendix.map(({ unreadable }) => unreadable)).toEqual([["read"], []]);
+    // The fold of /split is there, and says its read transcript couldn't be read, in its place.
+    expect(foldLines(split)).toEqual([allThree("/split")]);
+    expect(split.match(/couldn&#39;t be read here/g)).toHaveLength(1);
+    expect(split).toContain(
+      `<h4>Read <span class="sr">transcript of /split</span></h4><p>This transcript was recorded, but its file couldn&#39;t be read here`,
+    );
+    expect(split).not.toContain("heard-first");
+    expect(split).not.toContain("Heard first");
+    // The page whose read transcript is shown still quotes its first lines.
+    expect(whole).toContain('class="heard-first"');
+    expect(firstLinesIn(whole)).toEqual(LINES.read.slice(0, 3));
   });
 
   it("says a transcript with no lines has none, rather than show an empty box", () => {
     const model = modelOf([done("/a")], {
       transcripts: storeOf(() => ({ read: LINES.read, headings: [], tab: LINES.tab })),
     });
-    const sections = renderAppendix(model).split('<section class="tx"').slice(1);
+    const sections = renderPages(model).split('<section class="tx"').slice(1);
 
     expect(sections[1]).toContain(
-      '<h3>Headings <span class="sr">transcript of /a</span> <span class="sub">0 lines</span></h3>',
+      '<h4>Headings <span class="sr">transcript of /a</span> <span class="sub">0 lines</span></h4>',
     );
     expect(sections[1]).toContain("The whole file, its header included: 1 byte, SHA-256");
     expect(sections[1]).toContain('<p class="sub">This transcript has no lines.</p>');
@@ -1135,74 +1177,32 @@ describe("renderAppendix", () => {
         tab: LINES.tab,
       })),
     });
-    const [first = ""] = renderAppendix(model).split('<section class="tx"').slice(1);
+    const [first = ""] = renderPages(model).split('<section class="tx"').slice(1);
 
     expect(first).toContain(
-      '<h3>Read <span class="sr">transcript of /a</span> <span class="sub">1 line</span></h3>',
+      '<h4>Read <span class="sr">transcript of /a</span> <span class="sub">1 line</span></h4>',
     );
   });
 
-  it("names no run for the transcripts of the latest run when the model has none", async () => {
+  it("names the run the transcripts are from, and none for the latest run when the model has none", async () => {
     const model = await demoModel();
-    const bare = renderAppendix({ ...model, evidence: [] });
+    const html = renderPages(model);
+    const bare = renderPages({ ...model, evidence: [] });
+    const cards = cardsIn(html);
 
-    // The page that failed still says the older run its transcripts are from; the others say none.
+    // Run 1402 failed /how-a-run-works/, so its fold is run 1315's, dated; the others are the latest.
+    expect(cards[2]).toContain(
+      '<p class="fp">From run <code>2026-09-29_1315</code>, on 29 September 2026</p>',
+    );
+    expect(cards[0]).toContain('<p class="fp">From run <code>2026-09-29_1402</code></p>');
+    expect(html.match(/class="fp">From run/g)).toHaveLength(7);
+    // With no latest run to name, the page that failed still says the older run it is from.
     expect(bare.match(/class="fp">From run/g)).toHaveLength(1);
     expect(bare).toContain('<p class="fp">From run <code>2026-09-29_1315</code>');
-    expect(renderAppendix(model).match(/class="fp">From run/g)).toHaveLength(7);
-    // Nothing stands in for the line: the first page's transcripts start its column.
+    // Nothing stands in for the line: the first page's transcripts start its fold's inside.
     expect(foldsIn(bare)[0]).toContain(
-      '<div><section class="tx" data-run="2026-09-29_1402" data-slug="home" data-file="read.txt"><h3>Read',
+      '<div class="inside"><section class="tx" data-run="2026-09-29_1402" data-slug="home" data-file="read.txt"><h4>Read',
     );
-  });
-
-  it("shows the page's screenshot, or says it wasn't recorded", async () => {
-    const model = await demoModel();
-    const [unrecorded = ""] = foldsIn(renderAppendix(model));
-    const uri = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
-    const [shot = ""] = foldsIn(
-      renderAppendix(
-        withCard(model, 0, {
-          screenshot: { dataUri: uri, alt: "Screenshot of / as tested", width: 632, height: 419 },
-        }),
-      ),
-    );
-
-    // First in the fold, ahead of the transcripts, as the mockup has it, at the size its record
-    // gives, and naming its page and file as the card's picture does.
-    expect(shot).toContain(
-      `<div class="tx-grid"><img src="${uri}" alt="Screenshot of / as tested" width="632" height="419" loading="lazy" data-slug="home" data-file="screenshot.jpg">`,
-    );
-    expect(unrecorded).toContain(
-      '<div class="tx-grid"><div role="group" aria-label="Screenshot"><p class="not-recorded">Not recorded: this run used voicecap 0.4.1.</p></div>',
-    );
-    expect(unrecorded).not.toContain("<img");
-  });
-
-  it("writes a page's picture on its card and in its entry in the appendix, once in each, and on the card alone for a page with no transcripts", () => {
-    const run = shareRun({
-      id: "r1",
-      voicecapVersion: "0.11.0",
-      pages: [
-        done("/read", { screenshot: TINY_RECORD }),
-        {
-          path: "/never",
-          status: "failed",
-          failedAttempts: [failedAttempt({ n: 1 })],
-          screenshot: TINY_RECORD,
-        },
-      ],
-    });
-    const model = buildShareModel(inputOf([run], { screenshots: picturesOf([run]) }));
-    const uri = model.pages.map(({ screenshot }) =>
-      "dataUri" in screenshot ? screenshot.dataUri : "",
-    );
-    const pictures = (html: string): string[] => attributes(html, "src");
-
-    expect(uri.every((address) => address.startsWith("data:image/jpeg;base64,"))).toBe(true);
-    expect(cardsIn(renderPages(model)).map(pictures)).toEqual([[uri[0]], [uri[1]]]);
-    // Only the page with transcripts has an entry in the appendix, and the same picture is in it.
-    expect(foldsIn(renderAppendix(model)).map(pictures)).toEqual([[uri[0]]]);
   });
 
   it("numbers each page as its card does, and names each box by its path", () => {
@@ -1214,37 +1214,21 @@ describe("renderAppendix", () => {
       ],
     });
     const model = buildShareModel(inputOf([run]));
-    const html = renderAppendix(model);
+    const html = renderPages(model);
+    const [never = "", read = ""] = cardsIn(html);
 
-    // The page that has transcripts is the second page, and its fold says so.
-    expect(summariesIn(html)).toEqual(["2 The <read> page: read, headings, and Tab transcripts"]);
-    expect(html).toContain(
-      '<span class="num">2</span> <span class="what">The &lt;read&gt; page:</span>',
+    // The page that has transcripts is the second page: its fold is in its card, which has its number.
+    expect(read).toContain(
+      '<h3><span class="num">2</span> The &lt;read&gt; page <span class="sub">/read</span></h3>',
     );
+    expect(read).toContain(`id="tx-${idFragment(model.pages[1]?.slug ?? "")}"`);
+    expect(never).not.toContain("<details");
     expect(html).toContain('aria-label="Read transcript, /read"');
     expect(html).not.toContain("The <read>");
   });
-
-  it("says there is nothing to show when no page has transcripts", () => {
-    const run = shareRun({
-      id: "r1",
-      pages: [{ path: "/a", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] }],
-    });
-    const html = renderAppendix(buildShareModel(inputOf([run])));
-
-    expect(html).toContain('<h2 id="app-h">Appendix: every transcript</h2>');
-    expect(html).toContain(
-      '<p class="gist"><b>No transcripts to show.</b> No page has been read in full yet.</p>',
-    );
-    expect(html).not.toContain("<details");
-    expect(html).not.toContain('class="appendix"');
-    expect(renderAppendix(noRunModel())).toContain(
-      '<p class="gist"><b>No live run counts yet.</b> There are no transcripts to show.</p>',
-    );
-  });
 });
 
-describe("the three sections together", () => {
+describe("the cards together", () => {
   /** A page whose address, label, and title are all markup, and one that was never read. */
   const oddModel = (): ShareModel =>
     modelOf([
@@ -1256,7 +1240,7 @@ describe("the three sections together", () => {
       { path: "/b", status: "failed", failedAttempts: [failedAttempt({ n: 1 })] },
     ]);
 
-  /** Each model, with its three sections as one string, in the order the page has them. */
+  /** Each model, to draw the section from. */
   const models = async (): Promise<[string, ShareModel][]> => [
     ["the demo's", await demoModel()],
     ["thirteen pages", manyPages(13, 5)],
@@ -1264,56 +1248,67 @@ describe("the three sections together", () => {
     ["odd words", oddModel()],
   ];
 
-  const sectionsOf = (model: ShareModel): string =>
-    [renderPages(model), renderFlags(model), renderAppendix(model)].join("\n");
-
-  it("never sets a style attribute, loads nothing, and links only within the page", async () => {
+  it("never sets a style attribute, loads nothing, and has no link", async () => {
     for (const [name, model] of await models()) {
-      const html = sectionsOf(model);
+      const html = renderPages(model);
 
       expect(html, name).not.toMatch(/\sstyle\s*=/i);
       expect(html, name).not.toMatch(/<(?:script|style|link|iframe)[\s>]/i);
       expect(html, name).not.toMatch(/\ssrc\s*=/i);
-      for (const href of attributes(html, "href"))
-        expect(href.startsWith("#"), `${name}: ${href}`).toBe(true);
+      // A card links to nothing: its transcripts are in the card, and an address is what opens them.
+      expect(attributes(html, "href"), name).toEqual([]);
     }
   });
 
-  it("gives every id once, and every link a place to go", async () => {
+  it("gives every id once, and no link to a place that isn't there", async () => {
     for (const [name, model] of await models()) {
-      const html = sectionsOf(model);
+      const html = renderPages(model);
       const ids = attributes(html, "id");
 
       expect(new Set(ids).size, name).toBe(ids.length);
-      for (const href of attributes(html, "href")) {
-        expect(ids, `${name}: ${href}`).toContain(href.slice(1));
-      }
-      // Every page with a card has its id, and the section ids the contents link to.
-      expect(ids, name).toEqual(expect.arrayContaining(["pages-h", "find-h", "app-h"]));
+      // The section has no link, so none can go nowhere.
+      expect(attributes(html, "href"), name).toEqual([]);
+      // The section's id, each page's card, and each page's fold of its transcript. The folds are
+      // in the markup's order, which isn't the page's when the fold of the quiet pages puts the
+      // cards in the open first, so the two lists are compared sorted.
+      expect(ids, name).toContain("pages-h");
       for (const card of model.pages) expect(ids, name).toContain(`pg-${idFragment(card.slug)}`);
+      expect(ids.filter((id) => id.startsWith("tx-")).sort(), name).toEqual(
+        model.appendix.map(({ slug }) => `tx-${idFragment(slug)}`).sort(),
+      );
     }
   });
 
-  it("keeps every section's h2 outside every fold, and no heading in a summary line", async () => {
+  it("keeps the section's h2 outside every fold, and no heading in a summary line", async () => {
     for (const [name, model] of await models()) {
-      for (const html of [renderPages(model), renderFlags(model), renderAppendix(model)]) {
-        // Each section has one h2, before any fold.
-        expect(html.match(/<h2[ >]/g), name).toHaveLength(1);
-        expect(html.indexOf("<h2"), name).toBeLessThan(
-          html.includes("<details") ? html.indexOf("<details") : Infinity,
-        );
-        // The parts of a section start at h3.
-        expect(html, name).not.toMatch(/<h[14-6][ >]/);
-        for (const found of html.matchAll(/<summary>(.*?)<\/summary>/gs)) {
-          expect(found[1], name).not.toMatch(/<h[1-6][\s>]|role="?heading/);
-        }
+      const html = renderPages(model);
+
+      // One h2, before any fold.
+      expect(html.match(/<h2[ >]/g), name).toHaveLength(1);
+      expect(html.indexOf("<h2"), name).toBeLessThan(
+        html.includes("<details") ? html.indexOf("<details") : Infinity,
+      );
+      // A card's page is an h3, and each transcript in its fold an h4, one for every transcript.
+      expect(html, name).not.toMatch(/<h[156][ >]/);
+      expect(html.match(/<h4>/g)?.length ?? 0, name).toBe(
+        html.match(/<section class="tx"/g)?.length ?? 0,
+      );
+      // Headings go down a level at a time from the page's h1, so no transcript's is under
+      // anything but a card's.
+      const levels = [...html.matchAll(/<h([1-6])[ >]/g)].map(([, level]) => Number(level));
+      levels.forEach((level, index) => {
+        const step = level - (levels[index - 1] ?? 1);
+        expect(step, `${name}: heading ${index + 1}`).toBeLessThanOrEqual(1);
+      });
+      for (const found of html.matchAll(/<summary>(.*?)<\/summary>/gs)) {
+        expect(found[1], name).not.toMatch(/<h[1-6][\s>]|role="?heading/);
       }
     }
   });
 
   it("says a chip's meaning in words, never by color alone", async () => {
     for (const [name, model] of await models()) {
-      const html = sectionsOf(model);
+      const html = renderPages(model);
       const chips = [...html.matchAll(/<span class="chip c-(\w+)">(.*?)<\/span>/g)];
 
       for (const [, kind, words] of chips) {
@@ -1325,13 +1320,13 @@ describe("the three sections together", () => {
 
   it("is made of the model's own words, escaped, and nothing from the mockup's sample data", async () => {
     for (const [name, model] of await models()) {
-      const html = sectionsOf(model);
+      const html = renderPages(model);
 
       expect(html, name).not.toContain('class="mock"');
       expect(html, name).not.toContain("sample:");
     }
     // A page's own words can't make markup: not its address, label, or title.
-    const html = sectionsOf(oddModel());
+    const html = renderPages(oddModel());
     expect(html).not.toContain("<script");
     expect(html).not.toContain("<i>");
     expect(html).toContain("Title: &lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -1343,7 +1338,7 @@ describe("the three sections together", () => {
 
   /**
    * A model with every word a record can supply (the model's strings, in a card, a flag, the pages
-   * no longer listed, and the appendix) made of markup, each marked with the field it's in.
+   * no longer listed, and a card's transcripts) made of markup, each marked with the field it's in.
    */
   function markupModel(): ShareModel {
     const earlier = shareRun({
@@ -1365,6 +1360,8 @@ describe("the three sections together", () => {
         return {
           ...card,
           name: marked("name"),
+          // A page with a label of its own is headed by it, with its path beside it.
+          labeled: true,
           path: marked("path"),
           title: marked("title"),
           statusText: marked("status"),
@@ -1372,6 +1369,7 @@ describe("the three sections together", () => {
           manual: [{ at: marked("at"), reviewer: marked("reviewer") }],
           screenshot: { dataUri: marked("uri"), alt: marked("alt"), width: 632, height: 419 },
           failure: marked("failure"),
+          heardFirst: [marked("first")],
           flags: [{ rule: marked("flag"), message: "m" }],
         };
       }
@@ -1387,19 +1385,6 @@ describe("the three sections together", () => {
     return {
       ...model,
       pages: [home, failed],
-      flagged: [
-        {
-          card: home,
-          quotes: [
-            { rule: marked("rule"), text: marked("text"), said: [marked("said")] },
-            { rule: marked("rule2"), text: marked("text2"), said: [] },
-          ],
-        },
-        {
-          card: failed,
-          quotes: [{ rule: marked("rule3"), text: marked("text3"), said: [marked("said3")] }],
-        },
-      ],
       noLongerListed: [
         {
           name: marked("gone"),
@@ -1411,7 +1396,7 @@ describe("the three sections together", () => {
       appendix: [
         {
           slug: home.slug,
-          name: marked("entry"),
+          name: home.name,
           files: [
             {
               pass: "read",
@@ -1428,7 +1413,7 @@ describe("the three sections together", () => {
         },
         {
           slug: failed.slug,
-          name: marked("entry2"),
+          name: failed.name,
           files: [
             {
               pass: "headings",
@@ -1452,12 +1437,11 @@ describe("the three sections together", () => {
   }
 
   it("makes text of every word a record supplies, wherever it's shown", () => {
-    const html = sectionsOf(markupModel());
+    const html = renderPages(markupModel());
     const fields = [
       ...["name", "path", "title", "status", "review", "at", "reviewer", "uri", "alt", "failure"],
-      ...["run", "date", "untitled", "shot", "flag", "flag2", "rule", "text", "said", "rule2"],
-      ...["text2", "rule3", "text3", "said3", "gone", "url", "lastRun", "lastStatus", "entry"],
-      ...["words", "sha", "entry2", "words2", "sha2", "latest"],
+      ...["first", "run", "date", "untitled", "shot", "flag", "flag2", "gone", "url", "lastRun"],
+      ...["lastStatus", "words", "sha", "words2", "sha2", "latest"],
       ...["fileRun", "fileSlug", "fileRun2", "fileSlug2"],
     ];
 

@@ -1,17 +1,20 @@
 /**
- * The middle and the end of the shareable page, in the approved mockup's markup and class names:
- * "Every page" (a card for each page, and the pages no longer listed), "What the flags found", and
- * "Appendix: every transcript". Each takes the model and returns HTML.
+ * The middle of the shareable page, in the approved mockup's markup and class names: "Every page", a
+ * card for each page, and the pages no longer listed. It takes the model and returns HTML.
+ *
+ * A card holds what NVDA said first on its page and, folded at its end, the page's full transcript:
+ * the read, headings, and Tab transcripts, word for word. That is the one place for a page's words,
+ * since the page has no appendix of transcripts, and the card links to nothing: the fold's id
+ * (`tx-…`) is for an address that points to it, which opens it and the fold of the quiet pages
+ * around it.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
- * `lineHtml`. No `style` attribute is set, and the only links go to the page's own parts: a card to
- * its transcripts in the appendix.
+ * `lineHtml`. No `style` attribute is set, and the section has no link of its own.
  *
  * Most of this starts folded, as the design says: with more than 12 pages, the cards with nothing
- * to note; with more than 3 flagged pages, each page's quotes; and each page's transcripts. A
- * section's heading is never in a fold, and a fold's summary line never holds a heading (`fold`
- * refuses both).
+ * to note; and, in every card, the page's transcripts. A section's heading is never in a fold, and a
+ * fold's summary line never holds a heading (`fold` refuses both).
  *
  * Where the mockup is sample data, nothing of it is here. Where it had nothing to say (a page's
  * title, its manual sessions, the run its transcripts come from, a pass that wasn't read, a
@@ -19,15 +22,13 @@
  */
 import { PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
-import type { AppendixFile, FlaggedPage, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, FLAGS_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
+import type { AppendixFile, PageCard, ShareModel } from "../model.js";
+import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
 import {
-  appendixGist,
   capturedOf,
   fileFingerprint,
-  flagCount,
-  flagsGist,
   fromRun,
+  heardFirstLine,
   lineCount,
   manualLine,
   originOf,
@@ -41,15 +42,6 @@ import { chip, count, fold, lineHtml, notRecorded, scroll, strip } from "./parts
 /** More pages than this, and the cards with nothing to note fold behind one line. */
 const MOST_PAGES_OPEN = 12;
 
-/** More flagged pages than this, and each page's quotes fold. */
-const MOST_QUOTES_OPEN = 3;
-
-/**
- * What the appendix's opening line says of its folds. The page's alone: a copy that folds nothing,
- * as the Word copy doesn't, has no page to open (`appendixGist`).
- */
-const OPEN_A_PAGE = "Open a page to read them.";
-
 type Kind = "ok" | "warn" | "bad" | "quiet";
 
 /**
@@ -59,7 +51,7 @@ type Kind = "ok" | "warn" | "bad" | "quiet";
  *
  * The picture is laid out at the size its record gives, which the browser then holds the room for
  * as the page loads. It names its page and file (`data-slug`, `data-file`), so the page's
- * fingerprint check can find every copy of it: the card's, and the appendix's.
+ * fingerprint check can find the copy the page shows, on the card, and hold it to its run's record.
  */
 function screenshotOf(
   shot: PageCard["screenshot"],
@@ -142,7 +134,10 @@ function chipsOf(card: PageCard): string {
       ? []
       : rules.length === 0
         ? [chip("quiet", PAGES_TEXT.noFlags)]
-        : ['<span class="sr">Flags raised: </span>', ...rules.map((rule) => chip("warn", rule))];
+        : [
+            `<span class="sr">${esc(PAGES_TEXT.flagsRaised)}: </span>`,
+            ...rules.map((rule) => chip("warn", rule)),
+          ];
   const recorded = card.flagsAsRecorded ? [chip("quiet", PAGES_TEXT.flagsAsRecorded)] : [];
   const review = card.reviewChips.map((words) => chip(reviewKind(words), words));
   return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...recorded, ...review].join("")}</div>`;
@@ -166,14 +161,33 @@ function stripOf({ strip: lines }: PageCard): string {
 }
 
 /**
- * A page's card, in the mockup's order: the picture, then the heading, the chips, what each pass
- * captured, the strip, and the link to its transcripts. What the mockup had no place for (the title,
- * the failure, the run the transcripts come from, the manual sessions) comes between.
+ * What NVDA said first on the page: the first lines of its read pass, word for word, each in curly
+ * quotes (but for a step where it said nothing, which is the marker the transcript writes, as it
+ * is: see `heardFirstLine`), in a list a screen reader counts, under a label. A page with none (it
+ * was never read, or its read transcript can't be read here) has none: a label with nothing under
+ * it says less than nothing.
  */
-function cardOf(card: PageCard, number: number, linked: boolean): string {
+function heardFirstOf({ heardFirst }: PageCard): string {
+  if (heardFirst.length === 0) return "";
+  const said = heardFirst.map((line) => `<li>${esc(heardFirstLine(line))}</li>`);
+  return `<figure class="heard-first"><figcaption>${esc(PAGES_TEXT.heardFirst)}</figcaption><ol class="said-list" role="list">${said.join("")}</ol></figure>`;
+}
+
+/**
+ * A page's card, in the spec's order: the picture, then the heading, the title, the chips, the
+ * failure, the run its transcripts come from, and the manual sessions; what NVDA said first; what
+ * each pass captured, and the strip; and last the page's full transcript, folded. `transcripts` is
+ * the page's entry in the model's list of transcripts, and none for a page with none; a part a page
+ * has nothing for is left out.
+ */
+function cardOf(
+  card: PageCard,
+  number: number,
+  transcripts: ShareModel["appendix"][number] | undefined,
+  latest: string | null,
+): string {
   const { picture, missing } = screenshotOf(card.screenshot, card.slug);
   const manual = card.manual.map((session) => small(manualLine(session)));
-  const link = `<a class="more" href="#tx-${idFragment(card.slug)}" aria-label="${esc(`Transcripts and fingerprints for ${card.path}`)}">Transcripts and fingerprints</a>`;
   const body = [
     missing,
     heading(card, number),
@@ -182,9 +196,10 @@ function cardOf(card: PageCard, number: number, linked: boolean): string {
     card.failure === null ? "" : `<p>${esc(card.failure)}</p>`,
     fromLine(card),
     ...manual,
+    heardFirstOf(card),
     passesOf(card),
     stripOf(card),
-    linked ? link : "",
+    transcripts === undefined ? "" : transcriptFold(card, transcripts, latest),
   ].filter((part) => part !== "");
   const parts = [picture, `<div class="card-body">\n    ${body.join("\n    ")}\n  </div>`];
   return `<article class="card" id="pg-${idFragment(card.slug)}">\n  ${parts.filter((part) => part !== "").join("\n  ")}\n</article>`;
@@ -210,16 +225,20 @@ function noLongerListed({ noLongerListed: gone }: ShareModel): string[] {
 }
 
 /**
- * "Every page": a card for each page, in the latest run's order. With more than 12 pages, the cards
- * with nothing to note fold behind one line, and those that need attention (flags, a failure or a
- * skip, an open issue, no transcripts, or transcripts that changed since their review) always show.
- * The pages no longer listed follow in a small table.
+ * "Every page": a card for each page, in the latest run's order, each with what NVDA said first on
+ * its page and its full transcript, folded. With more than 12 pages, the cards with nothing to note
+ * fold behind one line, and those that need attention (flags, a failure or a skip, an open issue, no
+ * transcripts, or transcripts that changed since their review) always show. The pages no longer
+ * listed follow in a small table.
  */
 export function renderPages(model: ShareModel): string {
-  const linked = new Set(model.appendix.map(({ slug }) => slug));
+  // The model keeps a page's transcripts apart from its card, by the page's slug: every page that
+  // has any has a card, and a card with none has no fold.
+  const transcripts = new Map(model.appendix.map((entry) => [entry.slug, entry]));
+  const latest = model.evidence[0]?.run.id ?? null;
   const entries = model.pages.map((card, index) => ({
     card,
-    html: cardOf(card, index + 1, linked.has(card.slug)),
+    html: cardOf(card, index + 1, transcripts.get(card.slug), latest),
   }));
   const folding = entries.length > MOST_PAGES_OPEN;
   const shown = folding ? entries.filter(({ card }) => card.needsAttention) : entries;
@@ -238,58 +257,16 @@ export function renderPages(model: ShareModel): string {
   return `<section id="pages" aria-labelledby="pages-h">\n  ${parts.join("\n  ")}\n</section>`;
 }
 
-// What the flags found.
-
-/** The line a flagged page folds behind: its name, how many flags, and which rules raised them. */
-function flagSummary({ name, flags }: PageCard): string {
-  const rules = [...new Set(flags.map(({ rule }) => rule))];
-  const chips = rules.map((rule) => chip("warn", rule)).join("");
-  return `<span class="what">${esc(name)}:</span> <span class="sub">${esc(flagCount(flags.length))}</span> <span class="chips">${chips}</span>`;
-}
+// A card's full transcript.
 
 /**
- * A row for each rule that raised a flag: the rule, what it found, and the lines NVDA spoke that
- * raised it, each in its own code, in quotes, with a stop between them that a screen reader hears.
- * A rule with no line to quote (a page with no headings, Tab reaching nothing) says so, never an
- * empty quote.
- */
-function flagBody({ card, quotes }: FlaggedPage): string {
-  const rows = quotes.map(({ rule, text, said }) => {
-    const spoken =
-      said.length === 0
-        ? `<span class="sub">${esc(FLAGS_TEXT.noLine)}</span>`
-        : said.map((line) => `<code>“${esc(line)}”</code>`).join('<span class="sr">;</span> ');
-    return `<tr><th scope="row">${chip("warn", rule)}</th><td>${esc(text)}</td><td class="said">${spoken}</td></tr>`;
-  });
-  const head = FLAGS_TEXT.head.map((words) => `<th scope="col">${esc(words)}</th>`).join("");
-  const table = `<table class="plain"><caption class="sr">Flags on ${esc(card.path)}</caption><thead><tr>${head}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
-  return `${fromLine(card)}${scroll(`Flags table, ${card.path}`, table)}`;
-}
-
-/**
- * "What the flags found": for each flagged page, a row for each rule, with what it found and NVDA's
- * own words. Each page's quotes are open, until more than 3 pages have flags: then each folds.
- */
-export function renderFlags(model: ShareModel): string {
-  const open = model.flagged.length <= MOST_QUOTES_OPEN;
-  const folds = model.flagged.map((page) => fold(flagSummary(page.card), flagBody(page), { open }));
-  const parts = [
-    `<h2 id="find-h">${esc(FLAGS_TEXT.title)}</h2>`,
-    `<p class="gist">${lineHtml(flagsGist(model))}</p>`,
-    ...(folds.length === 0 ? [] : [`<div class="folds">${folds.join("")}</div>`]),
-  ];
-  return `<section aria-labelledby="find-h">\n  ${parts.join("\n  ")}\n</section>`;
-}
-
-// The appendix.
-
-/**
- * A transcript's heading: its pass, with the page's address for a screen reader (every page has
- * a "Read", a "Headings", and a "Tab", which a reader going by headings couldn't tell apart).
+ * A transcript's heading, an `h4` under its card's `h3`: its pass, with the page's address for a
+ * screen reader (every page has a "Read", a "Headings", and a "Tab", which a reader going by
+ * headings couldn't tell apart).
  */
 function transcriptHeading(pass: PassName, path: string, sub = ""): string {
   const after = sub === "" ? "" : ` <span class="sub">${sub}</span>`;
-  return `<h3>${esc(PASS_TITLE[pass])} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h3>`;
+  return `<h4>${esc(PASS_TITLE[pass])} <span class="sr">${esc(APPENDIX_TEXT.transcriptOf)} ${esc(path)}</span>${after}</h4>`;
 }
 
 /**
@@ -323,53 +300,34 @@ function unreadableOf(pass: PassName, path: string): string {
 }
 
 /** The run a page's transcripts are from: its id, and its date for a run before the latest. */
-function originLine(card: PageCard | undefined, latest: string | null): string {
+function originLine(card: PageCard, latest: string | null): string {
   const origin = originOf(card, latest);
   return origin === null ? "" : `<p class="fp">${lineHtml(origin)}</p>`;
 }
 
 /**
- * One page's fold: its screenshot and its transcripts, one for each pass the run recorded. Its
- * line says which, as many as there are ("read, headings, and Tab transcripts").
+ * A page's full transcript, folded: the run it is from, and a transcript for each pass the run
+ * recorded. The fold's line says which, as many as there are ("The full transcript: read,
+ * headings, and Tab transcripts"), and, for a screen reader alone, which page it is of ("The full
+ * transcript of /about/: …"): every card's line reads alike on screen. A page whose record lists no
+ * transcript files says so inside. The fold's id (`tx-…`) is what an address points to, to open it.
  */
-function appendixPage(
+function transcriptFold(
+  card: PageCard,
   entry: ShareModel["appendix"][number],
-  number: number,
-  card: PageCard | undefined,
   latest: string | null,
 ): string {
   const passes = PASS_NAMES.filter(
     (pass) => entry.files.some((file) => file.pass === pass) || entry.unreadable.includes(pass),
   );
   const inside = esc(transcriptsInside(passes));
-  const summary = `<span class="num">${number}</span> <span class="what">${esc(entry.name)}:</span> <span class="sub">${inside}</span>`;
-  const path = card?.path ?? entry.name;
+  const ofPage = `${esc(PAGES_TEXT.fullTranscriptOf)} ${esc(card.path)}`;
+  const summary = `<span class="what">${esc(PAGES_TEXT.fullTranscript)}<span class="sr"> ${ofPage}</span>:</span> <span class="sub">${inside}</span>`;
   const sections = passes.map((pass) => {
     const file = entry.files.find((each) => each.pass === pass);
-    return file === undefined ? unreadableOf(pass, path) : transcriptOf(file, path);
+    return file === undefined ? unreadableOf(pass, card.path) : transcriptOf(file, card.path);
   });
   const none = passes.length === 0 ? `<p>${esc(APPENDIX_TEXT.noFiles)}</p>` : "";
-  const { picture, missing } =
-    card === undefined ? { picture: "", missing: "" } : screenshotOf(card.screenshot, card.slug);
-  const body = `<div class="tx-grid">${picture}${missing}<div>${originLine(card, latest)}${sections.join("")}${none}</div></div>`;
-  return fold(summary, body, { id: `tx-${idFragment(entry.slug)}` });
-}
-
-/**
- * "Appendix: every transcript": each page with transcripts folds behind a line that says what's
- * inside. A card's "Transcripts and fingerprints" link opens its page's fold.
- */
-export function renderAppendix(model: ShareModel): string {
-  const cards = new Map(model.pages.map((card, index) => [card.slug, { card, number: index + 1 }]));
-  const latest = model.evidence[0]?.run.id ?? null;
-  const folds = model.appendix.map((entry, index) => {
-    const found = cards.get(entry.slug);
-    return appendixPage(entry, found?.number ?? index + 1, found?.card, latest);
-  });
-  const parts = [
-    `<h2 id="app-h">${esc(APPENDIX_TEXT.title)}</h2>`,
-    `<p class="gist">${lineHtml(appendixGist(model, OPEN_A_PAGE))}</p>`,
-    ...(folds.length === 0 ? [] : [`<div class="appendix">${folds.join("")}</div>`]),
-  ];
-  return `<section aria-labelledby="app-h">\n  ${parts.join("\n  ")}\n</section>`;
+  const body = `${originLine(card, latest)}${sections.join("")}${none}`;
+  return fold(summary, body, { id: `tx-${idFragment(entry.slug)}`, className: "tx-page" });
 }

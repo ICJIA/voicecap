@@ -1,0 +1,90 @@
+# voicecap transcript: read pass
+# Page: https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/
+# Final URL: https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_1134 (started 2026-10-06T11:34:27-05:00)
+# Captured: 2026-10-06T12:16:31-05:00
+# Steps: 65 (stopped: end reached)
+# Duration: 1m 23s
+# Errors: none
+# Warnings: none
+# Page source: page list page-lists/v3--i2i.netlify.app.csv (sha256 5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1)
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0 (config sha256 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, list, with 4 items, link, Newsletter (opens in a new window)
+[to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+same page, link, Skip to navigation
+banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+link, INSTITUTE 2 INNOVATE
+Main, navigation landmark, link, Overview
+button, collapsed, Resources
+link, Newsletter (opens in new tab)
+link, Contact
+link, Search
+main landmark, heading, level 1, CHM BIBLE THEATRE PRODUCTIONS (CHMBT)
+Bringing Faith, Art, and Community Together
+figure, graphic, CHM Bible Theatre Productions (CHMBT) logo
+out of figure, CHM Bible Theatre Productions (CHMBT) is a faith-based organization to provides quality theatrical
+experiences and valuable life skills training to students and young adults. Their commitment is to
+support quality theater arts that foster togetherness among families, churches, and communities.
+heading, level 2, same page, link, Mission
+The mission of CHM Bible Theatre Productions, CHMBT, is to present innovative and inspiring stage
+play productions along with culturally competent educational programming.
+Recent Developments since joining the i 2i program include:
+list, with 3 items, bullet
+i 2i Cohort Participation: CHMBT completed the i 2i 6-month Cohort (1) program, gaining valuable
+insights and knowledge to enhance the organization’s impact.
+bullet
+Youth Empowerment: In 2023, CHMBT continued its commitment to serving youth in the arts, fostering
+creativity, and providing mentorship to the next generation of artists.
+bullet
+Christmas GALA: CHMBT hosted an unforgettable Christmas GALA on December 16, 2023, bringing the
+community together in a celebration of faith, art, and joy during the holiday season.
+out of list, CHMBT welcomes your support, participation, and partnership as they continue to make a meaningful
+difference in the lives of those they serve. They can create a brighter future through the power of
+theater and education.
+Connect with them on their website at, link, www dot chmbibletheatre dot org, to learn more about their upcoming
+events, programs, and how you can get involved.
+heading, level 2, Visit CHM Bible Theatre Productions (CHMBT), link, https: slash slash www dot chmbibletheatre dot org slash (opens in a new window)
+heading, level 2, Photo Gallery
+tab, selected, Two inflatable bounce houses with slides and ball pits set up on the lawn beside a stone church
+tab, A smiling boy in a gold paper crown and blue striped outfit holding a gold scepter, seated near a
+tab, bounce house
+tab, Flyer for CHM Bible Theatre's The Christmas Story' Christmas Gala on December 16, 2023, at the
+tab, i Hotel Conference Center in Urbana
+tab, Adults and children standing together on the lawn in front of a small stage with shade sails
+tab, A child in a light blue T-shirt wearing a large plush dog mascot head, standing in front of the
+tab, bounce houses
+tab, Two women in navy dresses holding glass awards, with a man in a white shirt and tie between them,
+tab, in front of the Cohort Graduation 2023' screen
+tab, Three children in costume on a small outdoor stage: a gold crown, a captain's hat with sunglasses,
+tab, and a gold Roman helmet with a toy sword
+figure, graphic, Two inflatable bounce houses with slides and ball pits set up on the lawn beside a stone church
+graphic, (Photo Gallery, full size, photo 1 of 7)
+out of figure, button, Previous photo
+Photo 1 of 7
+button, Next photo
+Keyboard:, press
+graphic, Left arrow
+or
+graphic, Right arrow
+to change the photo.
+content info landmark, link, Visit ICJIA website (opens in a new window)
+list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)
+link, Privacy
+link, Contact
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)

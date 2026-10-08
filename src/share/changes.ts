@@ -107,7 +107,8 @@ export interface Changes {
   line: string;
   /**
    * The summary's line. When the runs read different passes, it says it speaks for "the passes both
-   * runs read", since the note that says which isn't beside it.
+   * runs read", since the note that says which isn't beside it. It says each flag resolved once,
+   * with the pages it was resolved on as a count or a name, where `line` names each page.
    */
   summaryLine: string;
 }
@@ -525,18 +526,44 @@ function sentences(input: {
   const resolved = resolvedFlags(changed, name);
   if (resolved.length === 0) return { line: lead, summaryLine: `${summary}.` };
 
-  // People hear these read aloud, so each says where first, and a semicolon sets one from the next.
+  // People hear these read aloud, so a semicolon sets one item from the next. The section's line
+  // says each flag's page first, and the rule's id; the summary's, which is short, says what each
+  // flag found, and where (see `groupsOf`).
   const where = (item: Resolved) => `on ${item.page}, ${item.finds}`;
   const withRule = (item: Resolved) =>
     item.rule === null ? where(item) : `${where(item)} (${item.rule})`;
-  const items = resolved.map(where).join("; ");
-  const are = resolved.length === 1 ? "this flag is" : "these flags are";
+  const groups = groupsOf(resolved, count);
+  const are = groups.length === 1 ? "this flag is" : "these flags are";
   return {
     line: `${lead} Resolved: ${resolved.map(withRule).join("; ")}.`,
     summaryLine: differentPasses
-      ? `${summary}; resolved: ${items}.`
-      : `${summary}, and ${are} resolved: ${items}.`,
+      ? `${summary}; resolved: ${groups.join("; ")}.`
+      : `${summary}, and ${are} resolved: ${groups.join("; ")}.`,
   };
+}
+
+/**
+ * What the summary says of the flags gone from the changed pages: one item for each kind of flag,
+ * in the order each first appears, with what it found and then where, so a flag on many pages is
+ * said once. On one page, it names the page ("the unnamed items, on Home"); on every one of the
+ * `changed` pages, it says so ("the unnamed items, on all 32 of them", and "on both of them" when
+ * only two changed); on some, it says how many ("the unnamed items, on 3 of them"). The section's
+ * line names each page.
+ */
+function groupsOf(resolved: Resolved[], changed: number): string[] {
+  // A kind of flag is what it found, which is its plain name, or its id when it has none.
+  const kinds = new Map<string, { pages: number; first: string }>();
+  for (const { finds, page } of resolved) {
+    const kind = kinds.get(finds);
+    if (kind === undefined) kinds.set(finds, { pages: 1, first: page });
+    else kind.pages += 1;
+  }
+  return [...kinds].map(([finds, { pages, first }]) => {
+    if (pages === 1) return `${finds}, on ${first}`;
+    if (pages !== changed) return `${finds}, on ${pages} of them`;
+    // Every changed page: "both" when there are two, not "all 2".
+    return `${finds}, on ${pages === 2 ? "both" : `all ${pages}`} of them`;
+  });
 }
 
 /**

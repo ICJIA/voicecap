@@ -6,13 +6,13 @@
  * recomputes what voicecap recorded: each transcript file's SHA-256, each run record's seal (the
  * record without its `seal`, as JSON with its keys sorted, hashed), and each review entry's seal
  * and the review chain, by the rules `verify` uses (see `chainProblems` in src/verify.ts). It also
- * compares each transcript the page shows (in its appendix) with the body of the file the page
- * carries for it, so the transcripts shown are exactly the ones the sealed records list. And it
+ * compares each transcript the page shows (folded in its page's card) with the body of the file the
+ * page carries for it, so the transcripts shown are exactly the ones the sealed records list. And it
  * hashes the bytes of each screenshot the page shows (the JPEG in each image's address, on a page's
- * card and in its appendix entry), against the fingerprint its run's record has for it: the page
- * carries no picture twice over for this, only which pictures it shows. It uses the browser's own
- * SHA-256 (Web Crypto) where there is one, and a small one of its own where there isn't (a page
- * opened from an address that isn't secure).
+ * card), against the fingerprint its run's record has for it: the page carries no picture twice
+ * over for this, only which pictures it shows. It uses the browser's own SHA-256 (Web Crypto) where
+ * there is one, and a small one of its own where there isn't (a page opened from an address that
+ * isn't secure).
  *
  * Both scripts are plain browser JavaScript (ES2020, no imports), held as strings the way
  * src/report/client.ts holds the report's script. The check proves the page is consistent with
@@ -80,7 +80,7 @@ export function checkDataJson(data: CheckData): string {
  * the JPEG in its address (an empty list for a screenshot it shows none of). Without `pictures`,
  * screenshots are never checked.
  *
- * `shown(file)` gives the text the page shows for one of the data's files (its appendix shows each
+ * `shown(file)` gives the text the page shows for one of the data's files (a card's fold shows each
  * file's body: the file without its header block), "" for one it shows as having no lines, and
  * null for one it doesn't show. The text shown matches when it's the file's body, with line
  * endings read as one, and the null characters a browser leaves out of a page's text left out of
@@ -399,13 +399,13 @@ async function checkAll(data, digest, shown, pictures) {
  * buttons and hides that line.
  *
  * A click reads `#fp-data` afresh, and the transcripts and pictures the page shows, so the check
- * always sees what the page holds now. Each transcript the appendix shows is a `section.tx` that
+ * always sees what the page holds now. Each transcript a card's fold shows is a `section.tx` that
  * names its file (`data-run`, `data-slug`, and `data-file`), with its text in a `<pre>`, or none for
- * a transcript with no lines. Each screenshot is an `img` that names its page and file (`data-slug`
- * and `data-file`), with the JPEG in its address in base64: a page's card and its entry in the
- * appendix each have one, and each is decoded and hashed. "Show a change being caught" runs the
- * same check on a copy with the first character of the first file changed, in memory only: the
- * page's own data is never changed.
+ * a transcript with no lines; it is found wherever it is on the page, folded or not. Each
+ * screenshot is an `img` that names its page and file (`data-slug` and `data-file`), with the JPEG
+ * in its address in base64: a page's card has one, and every one the page has is decoded and
+ * hashed. "Show a change being caught" runs the same check on a copy with the first character of
+ * the first file changed, in memory only: the page's own data is never changed.
  *
  * A page without that markup is left alone. Each script starts and ends on a new line, so it can
  * follow another in the page's one `<script>`, even one that ends without its semicolon.

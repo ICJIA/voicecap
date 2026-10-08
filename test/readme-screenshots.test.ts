@@ -1,25 +1,46 @@
 /**
- * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its six
+ * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its eight
  * files and no others, no shot may show an IP address or `localhost`, and a shot that would show one
  * stops the script before anything is written. Chromium draws the pages from a temporary home that
- * the script makes from the demo runs of 29 September 2026: no screen reader starts, and no
- * person's own transcripts home is read.
+ * the script makes from the i2i v3 run of 6 October 2026 (fixture/i2i-v3-run): no screen reader
+ * starts, and no person's own transcripts home is read.
  */
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  AVOIDED,
+  firstRowWithout,
   makeScreenshots,
   refuseLocalAddress,
   SCREENSHOTS,
   shooter,
 } from "../scripts/readme-screenshots.js";
 import { launchBrowser } from "./helpers/axe.js";
+
+/** The eight files the README names, in the order the script takes them. */
+const EIGHT = [
+  "report-top.png",
+  "report-heard.png",
+  "report-attention.png",
+  "report-pages.png",
+  "report-timeline.png",
+  "report-fingerprints.png",
+  "website-dark.png",
+  "website-light.png",
+];
+
+/** The i2i v3 run the shots are made from: a transcripts home with the one site's folder in it. */
+const FIXTURE_HOME = fileURLToPath(new URL("../fixture/i2i-v3-run", import.meta.url));
+const FIXTURE_SITE = path.join(FIXTURE_HOME, "v3--i2i.netlify.app");
+/** The demo runs of 29 September 2026, which read the demo at an IP address and have no canonical one. */
+const DEMO_HOME = fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url));
 
 /** Each folder made here, to remove at the end. */
 const folders: string[] = [];
@@ -40,6 +61,63 @@ function sizeOf(bytes: Buffer): { width: number; height: number } {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
+/** Every file under `folder` that holds text (the pictures are left out), by its path from there. */
+async function textFilesUnder(folder: string, from = folder): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    const file = path.join(folder, entry.name);
+    if (entry.isDirectory()) {
+      for (const [name, text] of await textFilesUnder(file, from)) found.set(name, text);
+    } else if (!entry.name.endsWith(".jpg")) {
+      found.set(path.relative(from, file), await readFile(file, "utf8"));
+    }
+  }
+  return found;
+}
+
+describe("the fixture the shots are made from", () => {
+  it("is the i2i v3 run of 6 October 2026: 32 pages, each with its screenshot, and its event log", async () => {
+    const latest = (await readFile(path.join(FIXTURE_SITE, "latest.txt"), "utf8")).trim();
+    expect(latest).toBe("2026-10-06_1134");
+    const folder = path.join(FIXTURE_SITE, "2026-10-06", "1134");
+
+    const run = JSON.parse(await readFile(path.join(folder, "run.json"), "utf8")) as {
+      id: string;
+      status: string;
+      site: string;
+      canonical: string;
+      sessions: { environment: { voicecap: { version: string } } }[];
+      pages: { slug: string; status: string; screenshot?: { sha256?: string } }[];
+    };
+    expect(run).toMatchObject({
+      id: latest,
+      status: "completed",
+      site: "https://v3--i2i.netlify.app",
+      canonical: "https://v3--i2i.netlify.app/",
+    });
+    expect(run.sessions.map((session) => session.environment.voicecap.version)).toEqual(["0.11.0"]);
+    expect(run.pages).toHaveLength(32);
+    for (const page of run.pages) {
+      expect(page.status).toBe("done");
+      expect(page.screenshot?.sha256, `${page.slug}'s screenshot`).toMatch(/^[0-9a-f]{64}$/);
+      expect(existsSync(path.join(folder, "pages", page.slug, "screenshot.jpg"))).toBe(true);
+    }
+    expect(existsSync(path.join(folder, "events.jsonl"))).toBe(true);
+  });
+
+  it("holds no path from the computer that ran it, where an account name would show", async () => {
+    const files = await textFilesUnder(FIXTURE_HOME);
+    // Each page's six transcripts (a TXT and a JSON for each pass), then run.json, events.jsonl,
+    // and latest.txt: every file is read, so none is missed.
+    expect(files.size).toBe(32 * 6 + 3);
+    // A drive letter and a slash ("C:\" or "C:/", but not the "s:/" of "https://"), or a folder a
+    // computer keeps accounts in.
+    const LOCAL_PATH = /(?<![A-Za-z])[A-Za-z]:[\\/]|\bUsers[\\/]|AppData|\/home\/[a-z]/i;
+    const holding = [...files].filter(([, text]) => LOCAL_PATH.test(text)).map(([name]) => name);
+    expect(holding).toEqual([]);
+  });
+});
+
 describe("refuseLocalAddress", () => {
   it.each([
     ["an IPv4 address", "Read at http://127.0.0.1:4848/about/.", "127.0.0.1"],
@@ -57,6 +135,7 @@ describe("refuseLocalAddress", () => {
     for (const text of [
       "voicecap.netlify.app",
       "Site address https://voicecap.netlify.app/demo-site/",
+      "Site address https://v3--i2i.netlify.app/",
       "Chrome 154.0.8037.58",
       "NVDA 2026.2 on Windows 11 Pro 25H2 (10.0.26200)",
       "[12:30]",
@@ -116,20 +195,124 @@ describe("a shot of a page", () => {
       shooter(into, taken)(page, "report-heard.png", { ...WHOLE, y: 1900, height: 300 }),
     ).rejects.toThrow(/^report-heard\.png would show "localhost"/);
   });
+
+  describe("the row of a grid of cards that has none of a kind", () => {
+    /**
+     * Six cards, two to a row, 100 px wide and 50 px tall with 10 px between them, from the page's
+     * top left corner: the rows are at 0, 60, and 120, and the second ends at 110.
+     */
+    async function gridOf(cards: string[]) {
+      return pageOf(
+        `<style>
+           body { margin: 0 }
+           .grid { display: grid; grid-template-columns: repeat(2, 100px); gap: 10px }
+           .card { height: 50px }
+         </style>
+         <div class="grid">${cards.map((text) => `<article class="card">${text}</article>`).join("")}</div>`,
+      );
+    }
+
+    it("is the first row without one, with the margin around it, whichever of its cards has one", async () => {
+      // The first row's second card is a person's page, so the whole row is passed over.
+      const page = await gridOf([
+        "/",
+        "/biographies/jane-doe/",
+        "/contact/",
+        "/privacy/",
+        "/search/",
+        "/biographies/john-roe/",
+      ]);
+
+      expect(await firstRowWithout(page, ".card", ["/biographies/"], 4)).toEqual({
+        x: 0,
+        y: 56,
+        width: 214,
+        height: 58,
+      });
+    });
+
+    it("is the first row when it has none, and stops when every row has one", async () => {
+      const first = await gridOf(["/", "/contact/", "/privacy/", "/search/"]);
+      expect(await firstRowWithout(first, ".card", ["/biographies/"], 0)).toEqual({
+        x: 0,
+        y: 0,
+        width: 210,
+        height: 50,
+      });
+
+      const every = await gridOf(["/biographies/a/", "/b/", "/biographies/c/", "/biographies/d/"]);
+      await expect(firstRowWithout(every, ".card", ["/biographies/"], 4)).rejects.toThrow(
+        'Every row of .card has "/biographies/" in it.',
+      );
+    });
+
+    it("passes over a row that has any of the kinds, whichever of its cards has one and whichever kind it is", async () => {
+      // A contact page in the first row's second card, a person's page in the second row's first,
+      // and neither in the third.
+      const page = await gridOf([
+        "/",
+        "/contact/",
+        "/biographies/jane-doe/",
+        "/privacy/",
+        "/search/",
+        "/about/",
+      ]);
+
+      expect(await firstRowWithout(page, ".card", ["/biographies/", "/contact/"], 4)).toEqual({
+        x: 0,
+        y: 116,
+        width: 214,
+        height: 58,
+      });
+      // Told of one kind alone, it passes over that kind alone, and the other's row is drawn.
+      expect(await firstRowWithout(page, ".card", ["/biographies/"], 4)).toEqual({
+        x: 0,
+        y: 0,
+        width: 214,
+        height: 54,
+      });
+      expect(await firstRowWithout(page, ".card", ["/contact/"], 4)).toEqual({
+        x: 0,
+        y: 56,
+        width: 214,
+        height: 58,
+      });
+    });
+
+    it("stops when every row has one of the kinds, and names them all", async () => {
+      const every = await gridOf(["/contact/", "/b/", "/biographies/c/", "/d/"]);
+
+      await expect(
+        firstRowWithout(every, ".card", ["/biographies/", "/contact/"], 4),
+      ).rejects.toThrow('Every row of .card has "/biographies/" or "/contact/" in it.');
+    });
+
+    it("keeps out a biography's photo and name, and a contact page's test-mode notice, from the shot of the cards", () => {
+      // Each is the address of a page whose screenshot a public README shouldn't lead its cards
+      // with: the i2i team's photos and names, and the branch deploy's notice of its mailer's test
+      // inbox.
+      expect([...AVOIDED]).toEqual(["/biographies/", "/contact/"]);
+    });
+  });
 });
 
 describe("makeScreenshots", () => {
-  it("writes its six files and no others, each a PNG, at twice the window's size", async () => {
+  it("names the eight files the README shows, and no screenshot of the flags", () => {
+    expect([...SCREENSHOTS]).toEqual(EIGHT);
+    expect(SCREENSHOTS).not.toContain("report-flags.png");
+  });
+
+  it("writes its eight files and no others, each a PNG, at twice the window's size", async () => {
     const out = path.join(await newFolder(), "screenshots");
 
     const written = await makeScreenshots(out);
 
-    expect(written.map((file) => path.basename(file))).toEqual([...SCREENSHOTS]);
-    expect((await readdir(out)).sort()).toEqual([...SCREENSHOTS].sort());
-    for (const name of SCREENSHOTS) {
+    expect(written.map((file) => path.basename(file))).toEqual(EIGHT);
+    expect((await readdir(out)).sort()).toEqual([...EIGHT].sort());
+    for (const name of EIGHT) {
       const { width, height } = sizeOf(await readFile(path.join(out, name)));
       // The page and the site are shot the window's width, 1200 pixels, at twice its size; a panel
-      // is a little narrower than that, by as much as the page's margins.
+      // or a section is a little narrower than that, by as much as the page's margins.
       const wide = name === "report-top.png" || name.startsWith("website-");
       if (wide) expect(width).toBe(2400);
       else expect(width).toBeGreaterThan(1600);
@@ -138,13 +321,14 @@ describe("makeScreenshots", () => {
     }
   }, 120_000);
 
-  it("writes nothing when the demo has no canonical address to be named by", async () => {
+  it("writes nothing when its runs have no canonical address to be named by", async () => {
     const out = path.join(await newFolder(), "screenshots");
 
-    // With none, the only name the demo has is the address its runs read, an IP address: voicecap
-    // won't share it (Ruling P13a), so no page is drawn, and no shot is taken. A shot that would
-    // show such an address is refused all the same (see "a shot of a page").
-    await expect(makeScreenshots(out, null)).rejects.toThrow(
+    // The demo runs read the demo at an IP address and recorded no canonical address, so the only
+    // name they have is an IP address: voicecap won't share it (Ruling P13a), so no page is drawn,
+    // and no shot is taken. A shot that would show such an address is refused all the same (see
+    // "a shot of a page").
+    await expect(makeScreenshots(out, DEMO_HOME)).rejects.toThrow(
       /^voicecap won't share a site by an IP address or a local address \(127\.0\.0\.1:4848\)\./,
     );
 

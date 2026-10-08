@@ -39,8 +39,8 @@ export type {
   WalkthroughPage,
   WalkthroughSettings,
 } from "./share/walkthrough.js";
-// The website of every shared report, as `voicecap site` builds it from the home's records of what
-// was shared. The types describe what it published.
+// The website of each site's newest shared reports, as `voicecap site` builds it from the home's
+// records of what was shared. The types describe what it published.
 export { buildSite } from "./site/build.js";
 export type { BuildSiteOptions, BuildSiteResult } from "./site/build.js";
 export type { PublishedFile, PublishedReport, SiteContent } from "./site/render.js";

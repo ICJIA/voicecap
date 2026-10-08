@@ -1,0 +1,74 @@
+# voicecap transcript: read pass
+# Page: https://v3--i2i.netlify.app/training-and-technical-assistance/
+# Final URL: https://v3--i2i.netlify.app/training-and-technical-assistance/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_1134 (started 2026-10-06T11:34:27-05:00)
+# Captured: 2026-10-06T12:31:41-05:00
+# Steps: 49 (stopped: end reached)
+# Duration: 1m 3s
+# Errors: none
+# Warnings: none
+# Page source: page list page-lists/v3--i2i.netlify.app.csv (sha256 5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1)
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0 (config sha256 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, list, with 4 items, link, Newsletter (opens in a new window)
+[to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+same page, link, Skip to navigation
+banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+link, INSTITUTE 2 INNOVATE
+Main, navigation landmark, link, Overview
+button, collapsed, Resources
+link, Newsletter (opens in new tab)
+link, Contact
+link, Search
+main landmark, heading, level 1, Training and Technical Assistance
+i 2i strives to make the grant process clearer and simpler for the Illinois community. Look below
+for available resources, opportunities, and training services to aid you in your journey!
+region, heading, level 2, CRACK THE CODE TO GRANT SUCCESS
+Simplify the state grant application process with, Your Recipe for Grant Success,, a self-paced
+online course by ICJIA. Gain insights into the ICJIA grant process, budgeting, program narrative
+creation, and compliance with the Grant Accountability and Transparency Act (GATA) requirements.
+In this course, you will learn to:
+list, with 6 items, bullet Prepare for state grant applications (NOFO).
+bullet Find available grant opportunities.
+bullet Craft a winning grant application.
+bullet Navigate submission guidelines.
+bullet Understand outcomes of grant awards.
+bullet Navigate the post-agreement phase.
+out of list, Discover the steps of the grant process, meet GATA requirements, and stay in good standing with
+pre-qualification requirements.
+link, Learn More and
+link, Register Here!
+out of region, separator
+region, link, Learn More and
+link, Apply Here!
+heading, level 2, GRANT OPPORTUNITIES
+EMPOWERING CHANGE: ICJIA FUNDING OPPORTUNITIES FOR A SAFER AND MORE JUST ILLINOIS
+ICJIA is currently providing funding opportunities for initiatives aligned with its mission to
+improve the criminal justice system in Illinois. These opportunities support projects related to
+crime prevention, victim services, law enforcement, and more.
+By offering these funds, ICJIA aims to foster innovation and collaboration, encouraging individuals
+and organizations to contribute to the enhancement of the criminal justice landscape in the state.
+Interested parties should review the specific guidelines for each opportunity to ensure
+compatibility with their proposed projects.
+Engaging with ICJIA's funding opportunities provides a platform for making meaningful contributions
+to building a safer and more just society in Illinois.
+out of region, content info landmark, link, Visit ICJIA website (opens in a new window)
+list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)
+link, Privacy
+link, Contact
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)

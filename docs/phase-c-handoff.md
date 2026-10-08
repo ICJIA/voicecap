@@ -240,7 +240,7 @@ The owner's standing rules, from Phases A and B:
 
 ## Where things stand
 
-- **Published:** `@icjia/voicecap` 0.11.0 on npm, released 2026-10-06 (tag `v0.11.0`), from github.com/ICJIA/voicecap (public; CI is free there).
+- **Published:** `@icjia/voicecap` 0.13.0 on npm, released 2026-10-08 (tag `v0.13.0`), from github.com/ICJIA/voicecap (public; CI is free there).
   - 0.1.0 was Phase A: everything with the replay driver.
   - 0.2.0 was Phase B: NVDA through Guidepup on Windows, plus `setup` and `doctor`.
   - 0.3.0 added the audit record, `voicecap verify`, `voicecap init`, and `--page`; 0.3.1 fixed Git Bash's `/c/...` paths.
@@ -301,12 +301,43 @@ The owner's standing rules, from Phases A and B:
       - it changes neither NVDA's timing nor what it says;
       - voicecap's keys appear in it as `Input:` lines;
       - it also holds other windows' speech and the account name in paths.
-- **Being built:** the rest of the shareable report, each plan written when the owner says:
-  - plan 6c, NVDA's own log checked against the transcripts, is next, written from those facts. Until then, its place on the page says "Not recorded".
+  - 0.12.0 (2026-10-07) added plan 7, `docs/superpowers/plans/2026-10-06-shareable-report-plan-7-what-needs-attention.md`, at the owner's requests of 2026-10-06.
+    - **What needs attention** is a section of cards, one for each problem across pages. Each says what NVDA says and where, the likely cause (with Chrome's rule for alt text that's too generic, from Chromium's source), why it matters, the fix in the code, what NVDA should say then, and the path forward. The cards come from NVDA's words, never the page's HTML.
+    - **A review settles a flag** ("Checked by <name>, <date>: not an issue"); a stopped read clears only when a later run reads the page to its end.
+    - **The summary** has five numbers (no "heard live"), counts problems, and its attention panel takes the full width.
+    - **The README's screenshots** come from the i2i v3 run of 6 October 2026 (`fixture/i2i-v3-run`), the owner's main site.
+  - 0.12.1 (2026-10-07) made the summary easier to read, at the owner's request:
+    - its four panels are full-width rows, one under another, with each line of text kept to 80 characters;
+    - its "Since the last run" line groups the pages a flag was resolved on, and says each flag once ("the unnamed items, on all 32 of them").
+  - 0.12.2 (2026-10-07) trimmed the website, at the owner's request: "the only report that matters is the current one", and "the most recent 3 is all that's needed".
+    - **What a site shows:** its newest three shares. First comes the current report, with buttons to open it and to download its Word copy. The two before it are a line each. Last is every file with its fingerprint, in a closed fold.
+    - **The list by date** shows only when two sites or more have reports.
+    - **An older share** stays in the records, and `verify` checks it as before. Its files aren't published. Its page's address sends a reader on to the site's current report (`_redirects`, a 302).
+  - 0.12.3 (2026-10-07) put what each report found on its card, at the owner's request: managers ask "Did it pass?".
+    - **Each share records a sealed `result`:** the pages in scope, how many NVDA read, the problems that need attention, and the pages they're on. `verify` names one it can't read.
+    - **The card says it in the report's own words,** after a sign drawn by the style, which a screen reader doesn't read: "✓ Nothing needs attention: NVDA read all 9 pages.", or "⚠ 1 problem needs attention, on 32 pages. …"; red when NVDA read fewer pages than are in scope.
+    - **A share from before 0.12.3** has no result, and its card says nothing of one: share again, with no new run.
+    - **Each site's section has its own address,** such as `voicecap.netlify.app/#site-sfs.icjia.illinois.gov`, which always leads with the newest report.
+  - **Two sites on the website, since 2026-10-07:** i2i's v3 (`v3--i2i.netlify.app`) and Safe From the Start (`sfs.icjia.illinois.gov`). Safe From the Start's 9 pages were read that day with real NVDA and raised no flags.
+  - 0.13.0 (2026-10-08) is plan 9, the page for managers. The owner asked on 2026-10-07 for the most critical facts first (the overall result, the screenshots, and the transcripts) and the details last.
+    - **At a glance comes first:**
+      - a verdict in words and an icon, which is red when NVDA read fewer pages than are in scope;
+      - the result sentence;
+      - a ring of the pages: "Read, no problems", "Read, with problems", and "Not read";
+      - four big numbers;
+      - the method line.
+    - **What needs attention** shows only when there's a card.
+    - **Every page:** each card holds what NVDA said first on its page and its full transcript, folded. The cards sit two a row on wide screens. The appendix of transcripts is gone.
+    - **The details, for reviewers and auditors,** come last, with what the summary's panels and the later sections held. The Word copy follows the same order.
+    - **The owner's choices after the final review:** two cards a row, where an opened transcript had read in a box about 200 px wide; and the ring's labels, where "Need attention" could contradict the verdict.
+    - sfs and i2i v3 were shared again with 0.13.0 on 2026-10-08 (entries 3 and 6). The website builds with `@0.13`.
+- **Being built:** each plan written when the owner says:
+  - plan 8, the review replay (`voicecap review --replay`: a page's saved words read aloud at a normal speed), is next, as 0.14.0. Its spec is `docs/superpowers/specs/2026-10-06-review-replay-design.md` on branch `plan-8-review-replay`, awaiting the owner's review. Merge main into that branch first.
+  - plan 6c, NVDA's own log checked against the transcripts, comes after that, as 0.15.0. Tasks 1-2 are built on `plan-6c-nvda-log`; it waits, and resumes by merging main first. Until then, its place on the page says "Not recorded".
   - plan 6d, queued for later ("eventually"): an optional double check that re-reads some pages, compares the reads, and reads again on a mismatch, so the page can say a page read the same twice.
   - **The owner's decisions of 2026-10-05:** the VoiceOver work on the Mac (Phase C) waits until the PC work is finished: plans 6 and 6c, then a security audit of the PC work. Then Phase C is built, and a separate security audit of the Mac part follows.
   - Still to confirm on a real PC: a Chrome window closed mid-page is recorded as `browser`, and a real repeat with NVDA, which should end with each page's comparison (the owner's check, hands off, as for any real run).
-- **Tests:** 4,658 Vitest tests pass on the Windows PC, and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
+- **Tests:** 5,002 Vitest tests pass on the Windows PC, and 2 skip there (a folder name with an ESC in it, and a link to a file, which Windows won't let this account make). CI runs on Ubuntu, macOS, and Windows with Node 22 and 24 (six jobs), plus a replay smoke test, which now also writes a walkthrough file and repeats it, shares the demo fixture's runs and builds the website from them, and `voicecap verify`.
 - **On macOS today,** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it, and everything that doesn't drive a screen reader works. `voicecap share`, the Word copy, `voicecap walkthrough`, and `voicecap site` need no screen reader, so they work on a Mac as on any computer. A run with VoiceOver waits for the VoiceOver driver, the next piece of Phase C: `init` ends with "voicecap can't run VoiceOver yet: that comes with its VoiceOver driver. For now, run this command on a Windows computer." A walkthrough repeats on a Mac with VoiceOver once that driver exists. Until then, repeat it on a Windows computer, with NVDA.
 - **The design's spec** is `docs/build-prompt.md` ("NVDA only, for now"; keep NVDA specifics in drivers and config). The audit record and `init` have their own specs and plans in `docs/superpowers/`. The same flow worked well for them: brainstorm with the owner, write a spec, then a plan, then build.
 - **Review notes** from the audit-record and `init` work are in git-ignored ledgers on the Windows PC only: `.superpowers/sdd/2026-09-27-*/progress.md`.

@@ -1,0 +1,3405 @@
+{
+  "schemaVersion": 1,
+  "id": "2026-10-06_1134",
+  "name": null,
+  "status": "completed",
+  "createdAt": "2026-10-06T11:34:27-05:00",
+  "completedAt": "2026-10-06T12:32:22-05:00",
+  "site": "https://v3--i2i.netlify.app",
+  "settings": {
+    "site": "https://v3--i2i.netlify.app",
+    "source": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "passes": [
+      "read",
+      "headings",
+      "tab"
+    ],
+    "include": [],
+    "exclude": [],
+    "limit": null,
+    "driver": "guidepup",
+    "replayFrom": null,
+    "capture": "complete",
+    "stepCaps": {
+      "read": 400,
+      "headings": 200,
+      "tab": 300
+    },
+    "nvdaSettings": {},
+    "browser": {
+      "channel": "chrome",
+      "fallbackToChromium": true
+    },
+    "readiness": {
+      "readySelector": null,
+      "settleMs": 500,
+      "networkIdleTimeoutMs": 15000
+    }
+  },
+  "settingsHash": "325f60e836dc0b521f3bbbf53f4a766c8607371945074fa266850203d85327a9",
+  "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb",
+  "flagRulesSha256": "d7c89563e02717f67c43b76fb918e1b9c8e681e1c3841d210eb7ca18c2ce96c1",
+  "replayed": false,
+  "source": {
+    "kind": "pages",
+    "listed": 32,
+    "duplicates": 0,
+    "invalid": [],
+    "excludedByFilter": 0,
+    "excludedByLimit": 0,
+    "warnings": [],
+    "file": "page-lists/v3--i2i.netlify.app.csv",
+    "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1",
+    "format": "csv",
+    "encoding": "utf-8"
+  },
+  "compareTo": null,
+  "sessions": [
+    {
+      "n": 1,
+      "startedAt": "2026-10-06T11:34:27-05:00",
+      "reviewer": {
+        "name": "Christopher Schweda",
+        "source": "git"
+      },
+      "endedAt": "2026-10-06T12:32:22-05:00",
+      "endReason": "completed",
+      "pagesDone": 32,
+      "environment": {
+        "driver": {
+          "name": "guidepup",
+          "version": "0.34.0"
+        },
+        "screenReader": {
+          "name": "NVDA",
+          "version": "2026.2",
+          "build": "0.2.1-2026.2",
+          "language": "en-US"
+        },
+        "capture": "complete",
+        "browser": {
+          "name": "Chrome",
+          "version": "154.0.8037.95"
+        },
+        "os": "Windows 11 Pro 25H2 (10.0.26200)",
+        "screenReaderSettings": {
+          "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+          "speech": {
+            "synth": "oneCore",
+            "oneCore": {
+              "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+              "volume": 100,
+              "rate": 100,
+              "rateBoost": true
+            }
+          },
+          "documentFormatting": {},
+          "virtualBuffers": {
+            "autoSayAllOnPageLoad": false
+          },
+          "keyboard": {},
+          "general": {
+            "showWelcomeDialogAtStartup": false,
+            "language": "Windows",
+            "saveConfigurationOnExit": false,
+            "askToExit": false,
+            "playStartAndExitSounds": false,
+            "loggingLevel": "OFF",
+            "preventDisplayTurningOff": true
+          }
+        },
+        "pageSource": {
+          "kind": "pages",
+          "file": "page-lists/v3--i2i.netlify.app.csv",
+          "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+        },
+        "voicecap": {
+          "version": "0.11.0",
+          "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+        },
+        "runId": "2026-10-06_1134",
+        "runStartedAt": "2026-10-06T11:34:27-05:00",
+        "machine": {
+          "os": {
+            "name": "Windows 11 Pro 25H2",
+            "build": "10.0.26200.9550",
+            "arch": "x64"
+          },
+          "cpu": {
+            "name": "Intel(R) Core(TM) Ultra 7 265F",
+            "baseMhz": 2400,
+            "physicalCores": 20,
+            "logicalProcessors": 20
+          },
+          "memoryBytes": 34043850752,
+          "display": {
+            "width": 3440,
+            "height": 1440,
+            "refreshHz": 59,
+            "scalePercent": 110
+          },
+          "browserWindow": {
+            "width": 1280,
+            "height": 960
+          },
+          "timeZone": "America/Chicago",
+          "utcOffset": "-05:00",
+          "language": "en-US",
+          "software": {
+            "node": "24.19.0",
+            "voicecap": "0.11.0",
+            "guidepup": "0.34.0",
+            "playwright": "1.63.0"
+          }
+        }
+      }
+    }
+  ],
+  "skipped": [],
+  "pages": [
+    {
+      "url": "https://v3--i2i.netlify.app/",
+      "key": "https://v3--i2i.netlify.app/",
+      "slug": "home",
+      "line": 2,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 34,
+          "stopReason": "end-reached",
+          "durationMs": 43545,
+          "contentSha256": "af69cc46be79e1e6586fa98137f5db43af959046c40cc3352e4377177747c150",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 7,
+          "stopReason": "no-next-heading",
+          "durationMs": 8965,
+          "contentSha256": "b1864b34e4151ab499d2735bb51138a5a46c1e2e3f355937af59e1f7603d6f52",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 18,
+          "stopReason": "left-document",
+          "durationMs": 25216,
+          "contentSha256": "60165d6744ca7d28746002682a0a3ef8bc6778f44cba092ebb733b3ea2529cf9",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "4600705eb862ab0d5699060c09bfd85774162b0d7abade04f3ed38001600218e",
+          "bytes": 3118
+        },
+        "read.json": {
+          "sha256": "784d14ca1dc70ac1443fffbf86726e1f07320b25beea5db1eaac964a568481f5",
+          "bytes": 8867
+        },
+        "headings.txt": {
+          "sha256": "5e8c6e742d6ae60d8c01a0169db290f3edcf26def6e32206ac4913676ed12c39",
+          "bytes": 1670
+        },
+        "headings.json": {
+          "sha256": "837fdbd76f9b62bed6b757d22cb58c83401f75df55df3fd3188bac15e5926e5a",
+          "bytes": 4064
+        },
+        "tab.txt": {
+          "sha256": "0742c139b444543fc6ef754c00641e0faa092f6ff4b08ac75fe152a8ec5a9abb",
+          "bytes": 2695
+        },
+        "tab.json": {
+          "sha256": "d62ce8d2565d81295c96cdd43edd653a9eb95c875bbe8559504f5e68a3301271",
+          "bytes": 10383
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 2,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 2
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×2."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:34:34-05:00",
+      "durationMs": 94800,
+      "screenshot": {
+        "sha256": "0886a1864a33dc61387e8a23b9938fea37be5a19cf840ac712e7a3fc8c76aa24",
+        "bytes": 13709,
+        "takenAt": "2026-10-06T11:34:40.142-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/",
+      "httpStatus": 200,
+      "title": "Institute 2 Innovate (i2i) | Illinois Capacity Building",
+      "canonical": "https://i2i.illinois.gov/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/",
+      "key": "https://v3--i2i.netlify.app/biographies",
+      "slug": "biographies-e47722321a",
+      "line": 3,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 129,
+          "stopReason": "end-reached",
+          "durationMs": 165447,
+          "contentSha256": "13820ff64e2ff8b6a382e6e4d101b0b2eb8755358a5c5995571462c84c7698d5",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 13,
+          "stopReason": "no-next-heading",
+          "durationMs": 16662,
+          "contentSha256": "dbbd1be5040d30fecd92821318ebea2eaedf5cfd6c1dbe5da0ff47a5468cfa7e",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 25,
+          "stopReason": "left-document",
+          "durationMs": 34384,
+          "contentSha256": "6af1bada798e72b6d585fa452a3fcb8726f2eec2c6fd27708ee7b2288d86d5c1",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "1f2a01124e72e5a390ee7cfa74dd8cbb3a7087899df53f1bffd12ab7f151af23",
+          "bytes": 11685
+        },
+        "read.json": {
+          "sha256": "7b907be5d1030a63fe69acc8fe0799eb7dcddea154eaa928f1cf84c2f6dbff0f",
+          "bytes": 29512
+        },
+        "headings.txt": {
+          "sha256": "0607c1ae189ce224f8b0625caeb2f2548dbefae05adcee065843b363cc782731",
+          "bytes": 1942
+        },
+        "headings.json": {
+          "sha256": "a8a06379e2ff8cd0dfc598f79aa27765f73fe322e5ea8a854eef9a72b227859d",
+          "bytes": 5137
+        },
+        "tab.txt": {
+          "sha256": "5ce0adf5e158f4ef21e56cfa1f34b71416ee85573b26219decbe5b521a91cbec",
+          "bytes": 10907
+        },
+        "tab.json": {
+          "sha256": "473a093a54896a40f4af06fcd7a744225a0a8e34fd0d5f76c05a36c5ff6ad299",
+          "bytes": 28294
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:36:09-05:00",
+      "durationMs": 234939,
+      "screenshot": {
+        "sha256": "24ebef52f3af5a08d9076d86337db990fb533c3592f1889aed045caeaafb357e",
+        "bytes": 34671,
+        "takenAt": "2026-10-06T11:36:16.050-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/",
+      "httpStatus": 200,
+      "title": "Meet the Team | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/aaliyah-gaston/",
+      "key": "https://v3--i2i.netlify.app/biographies/aaliyah-gaston",
+      "slug": "biographies-aaliyah-gaston-7c4881db79",
+      "line": 4,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 30,
+          "stopReason": "end-reached",
+          "durationMs": 38381,
+          "contentSha256": "591aafc6bfad58018a5c2813524f574ed9c7dfa63eb1891df3f8942dcf5f81c7",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2550,
+          "contentSha256": "e6a6b8175cbc9c837330df6e3ecd86b61cd73fcc0abfbc3df1c307c51661f803",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22543,
+          "contentSha256": "2f3603f5af72bab5f46f51235d4b71437455fd7a127407b07c1d24f11ee69960",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "ee49ee6249e9e3956633ebf63ace11ba7066842674603c77513135a27f4a26d7",
+          "bytes": 3231
+        },
+        "read.json": {
+          "sha256": "8414e0a481d62fc45ed5c934e303c8f391de5efc333768b4893ab5b328e5433f",
+          "bytes": 8535
+        },
+        "headings.txt": {
+          "sha256": "2e4fedf5baffb781b78714e523fd2b102ef0b999963ffb98cb756155fe4452b1",
+          "bytes": 1514
+        },
+        "headings.json": {
+          "sha256": "9e91a4b917e131feecd8da630598601a110d293076a3b5342d4e5b936d8affc3",
+          "bytes": 3332
+        },
+        "tab.txt": {
+          "sha256": "054216909f7479aca649ccd1fbd5eaa68480960a617c4cb50b78644df9da42eb",
+          "bytes": 2193
+        },
+        "tab.json": {
+          "sha256": "2617d79880f472d7dd166a66dedbd440fbac82b604ce2a411d6fc4e8360783c3",
+          "bytes": 8926
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:40:04-05:00",
+      "durationMs": 80853,
+      "screenshot": {
+        "sha256": "efad64b6287d1480b430757763412bd4fd5021e57d4e0302513f0ee0c0c10783",
+        "bytes": 21550,
+        "takenAt": "2026-10-06T11:40:10.726-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/aaliyah-gaston/",
+      "httpStatus": 200,
+      "title": "Aaliyah Gaston | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/aaliyah-gaston/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/andrea-gatewood/",
+      "key": "https://v3--i2i.netlify.app/biographies/andrea-gatewood",
+      "slug": "biographies-andrea-gatewood-beba8628e0",
+      "line": 5,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 28,
+          "stopReason": "end-reached",
+          "durationMs": 35820,
+          "contentSha256": "cf7b8ffc91df035dadccd013b64f0baa81b91471f28179bcb8e16f28e895111d",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2549,
+          "contentSha256": "e6d57af6485adc4c02bfd16be13ee7a24a63321fc20c2219dc677d822f390812",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22511,
+          "contentSha256": "8ab49b7dbb11ae6f6bf7208a3f5ee9ee862136b4cb32ff20e269fd08edbe05c3",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "901f5635b42f4c7f06df4eeef6bcd50a0fe976629f38524f7823d22079a43ede",
+          "bytes": 3084
+        },
+        "read.json": {
+          "sha256": "d0d992f6e0a0ac8fdf1774a7ac1fad4aadc1a3dd02c38b34c890f592ccc1b5e6",
+          "bytes": 8138
+        },
+        "headings.txt": {
+          "sha256": "a13a66f3b904dd80a2b2ac87617b1c4baf683fb1b4db79c7237c63ccafc46ca8",
+          "bytes": 1517
+        },
+        "headings.json": {
+          "sha256": "4b7f1ca699a2ee034e0e3bcfbec77b6c52bcb399cae6094061254ca67e27f306",
+          "bytes": 3337
+        },
+        "tab.txt": {
+          "sha256": "6087adf8e18ea4104fe044549dc1aeb25cd3528728d854cfe1b7a5d9ce7998a5",
+          "bytes": 2196
+        },
+        "tab.json": {
+          "sha256": "e76a54dafd003e558fa1aa1b93837beeb5d642ac9c13730699cefb4708e22a7e",
+          "bytes": 8931
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:41:25-05:00",
+      "durationMs": 78040,
+      "screenshot": {
+        "sha256": "d49e1b455fde670f9f22a242389ed559ebf90a2e5e38416fc22d1ab0c2ef487b",
+        "bytes": 19589,
+        "takenAt": "2026-10-06T11:41:31.250-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/andrea-gatewood/",
+      "httpStatus": 200,
+      "title": "Andrea Gatewood | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/andrea-gatewood/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/brandon-hilton/",
+      "key": "https://v3--i2i.netlify.app/biographies/brandon-hilton",
+      "slug": "biographies-brandon-hilton-41262160a4",
+      "line": 6,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 32,
+          "stopReason": "end-reached",
+          "durationMs": 40921,
+          "contentSha256": "d0137977f79a8a959b413c3cc2a58186fcac5b7d78b7130c7a9c6c12b99e1267",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2551,
+          "contentSha256": "c94fec66666506e3fda0cfdd50126665aefa99d83cf9df02efb6a150fa9e4c6f",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22493,
+          "contentSha256": "6693e2d5deb2fe01cd748003cb91ac14992f753a8aa94d6a4144c561ebe4fad6",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "9e09c45bbd002870c26aa760fd823c51da0a2192a3355d5e73ac1940b1b452c5",
+          "bytes": 3471
+        },
+        "read.json": {
+          "sha256": "b423780a3193cb8a125eae6cf427bb0f5d74e4d1839fba104f7de7843e7dc821",
+          "bytes": 9027
+        },
+        "headings.txt": {
+          "sha256": "e4410a73c7a5eb67166bcbae835a3df78ff786621db9933f944959dc05567d9a",
+          "bytes": 1514
+        },
+        "headings.json": {
+          "sha256": "1410b5585e2e95793dbf2e3aadd718b43925661fba59575433cfc91d46c9fd7c",
+          "bytes": 3332
+        },
+        "tab.txt": {
+          "sha256": "231fc47cab975fb96f7069e5dede7e20d5a6b7b0864b2b5e237ab1a1bffbd2af",
+          "bytes": 2193
+        },
+        "tab.json": {
+          "sha256": "79aa27006935da3defe2e22996376cffe0eabff9010ea0b9f6b7717fb13302c9",
+          "bytes": 8926
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:42:43-05:00",
+      "durationMs": 82937,
+      "screenshot": {
+        "sha256": "0c44c66a39cb693fe17fe8eb0a57b38c0060a1947639498d3f4c363c54d89fa7",
+        "bytes": 23731,
+        "takenAt": "2026-10-06T11:42:49.351-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/brandon-hilton/",
+      "httpStatus": 200,
+      "title": "Brandon Hilton | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/brandon-hilton/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat/",
+      "key": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat",
+      "slug": "biographies-chandrea-chaiyarat-19eb637360",
+      "line": 7,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 30,
+          "stopReason": "end-reached",
+          "durationMs": 38377,
+          "contentSha256": "7d6b15f86d135a1e39df398fc8461e66e70ae726825a8ff2ee94525fe586ee61",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2550,
+          "contentSha256": "f586b0660efa7bfd18d9658f92483b26328c03494fa8ec52dd10e63432891b56",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22528,
+          "contentSha256": "a74691a79ec6e1f699f8197a7627a839f15d27b500795533a1c61b12e59bd378",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "990d161812a4fdaaae84a21988017a7f06b66f2b986f8d1d9929b3fedcd36d2a",
+          "bytes": 3266
+        },
+        "read.json": {
+          "sha256": "bdb8c8c2f90bdaf98b87c85d42dd686618242ca16a05787632f9283f22f66661",
+          "bytes": 8578
+        },
+        "headings.txt": {
+          "sha256": "acde639c500929acf8e3a575791bea009abf677b47d3b626cf8227155e456770",
+          "bytes": 1526
+        },
+        "headings.json": {
+          "sha256": "fe8aa4cf3171e82dde332078767c1c573ea29505db7599411f959a2e1aba6c6f",
+          "bytes": 3352
+        },
+        "tab.txt": {
+          "sha256": "2b685401516678e9f9d9a97d37f3feb1a880a3aa7ec3d3d5f74c9362de6892a3",
+          "bytes": 2205
+        },
+        "tab.json": {
+          "sha256": "268d418d2a67e973749d02d2ad69375dc9507c3524837a518d9efa1117ca9da3",
+          "bytes": 8946
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:44:06-05:00",
+      "durationMs": 80643,
+      "screenshot": {
+        "sha256": "5b84f9a74fa137980b04c1c200621d99a1b84d2bc8377eddaa86bac9d8327ab6",
+        "bytes": 21936,
+        "takenAt": "2026-10-06T11:44:12.261-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/chandrea-chaiyarat/",
+      "httpStatus": 200,
+      "title": "Chandrea Chaiyarat | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/chandrea-chaiyarat/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/clair-daney/",
+      "key": "https://v3--i2i.netlify.app/biographies/clair-daney",
+      "slug": "biographies-clair-daney-c49289f22e",
+      "line": 8,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 26,
+          "stopReason": "end-reached",
+          "durationMs": 33267,
+          "contentSha256": "b133d95cab8894b20509bbb9673a74794310f450e080c3fcef0079402731129d",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2560,
+          "contentSha256": "5b6fcb6517facb7e3e88a0f02e01d1300f46273f37b6370ce8250b13aacdd074",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22511,
+          "contentSha256": "48af46fbbd2ea85b808fb60d447896f1aec062c925fb4432f386cd533f25c252",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "60f430ce937546989cf3ae85a8a6e0d462e12c3084da761b90c612671a4cf62d",
+          "bytes": 2820
+        },
+        "read.json": {
+          "sha256": "02ea11ceb99b03a6f081b832cd9e3c4f5fdccf119f811eb97afa360de54dd3c4",
+          "bytes": 7614
+        },
+        "headings.txt": {
+          "sha256": "b12ab43f580f761f67146f41e96f709ad86c682caa5d0044911dd9418297a1c3",
+          "bytes": 1505
+        },
+        "headings.json": {
+          "sha256": "fbd74124d8739dd2812ec7d3efa38aaf28f2fbb40ae8f715ebefc55207f73bc0",
+          "bytes": 3317
+        },
+        "tab.txt": {
+          "sha256": "e6a19755b4aeae9a65c84775f508869f616b530cf7d74243f2739ad3b413a490",
+          "bytes": 2184
+        },
+        "tab.json": {
+          "sha256": "e76d8e40e52c0c86fdee6d0e8ec87adcd87bc53144d0e7d27ad8c633036ebbef",
+          "bytes": 8911
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:45:27-05:00",
+      "durationMs": 75339,
+      "screenshot": {
+        "sha256": "e8c3ad7f0b4ce5c42d6705c6e3b75d2adfec0a8538d41d4a2dd713e1d5d7714c",
+        "bytes": 17901,
+        "takenAt": "2026-10-06T11:45:32.924-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/clair-daney/",
+      "httpStatus": 200,
+      "title": "Clair Daney | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/clair-daney/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/cornelius-davis/",
+      "key": "https://v3--i2i.netlify.app/biographies/cornelius-davis",
+      "slug": "biographies-cornelius-davis-90839d74e3",
+      "line": 9,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 28,
+          "stopReason": "end-reached",
+          "durationMs": 35811,
+          "contentSha256": "9d5d0cac6b02c37285d546688cf3dda7c30ec43e321276a5f6dc9650204d1df8",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2559,
+          "contentSha256": "2c7d30d8d756f945a75d7ca43b6e015e9ee8bc444dac90dcfeefe1cfcdd5545b",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22496,
+          "contentSha256": "6337444a8d375e95751c1a48e12ecafd8de1f74b10ece0e4b1122088059471b6",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "79abac1985dbed525b1f7671a029a0557d513576d79bcf4a27fad958180c4bba",
+          "bytes": 3092
+        },
+        "read.json": {
+          "sha256": "d2112a9e39c2d3d87c25359dc7402728f8e9cff2e4502ae768ad04789e43da25",
+          "bytes": 8146
+        },
+        "headings.txt": {
+          "sha256": "5b75ba9e81ca670fbacef0b39b0a45825b67fdab8ce9c9b39fcbdf919fe8f609",
+          "bytes": 1525
+        },
+        "headings.json": {
+          "sha256": "d79ff8d41801a8dc51037ac445f1f1a3f6097f3d89ec4cca6c7a324b7e8282cb",
+          "bytes": 3345
+        },
+        "tab.txt": {
+          "sha256": "07deea6be0bc7bd5bba935ea4debf3c06b22c4f4fc0217f6e45ad11d5d509f48",
+          "bytes": 2204
+        },
+        "tab.json": {
+          "sha256": "acb90ecc7276e6ff0e8e67d0f19cfcda053496ed3c47338a232bc2e919e057fa",
+          "bytes": 8939
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:46:42-05:00",
+      "durationMs": 77808,
+      "screenshot": {
+        "sha256": "9af40b1befe413d42c0f56e9b9224cbe0824259be23fabf20d9de0020983fb1b",
+        "bytes": 19768,
+        "takenAt": "2026-10-06T11:46:48.192-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/cornelius-davis/",
+      "httpStatus": 200,
+      "title": "Dr. Cornelius Davis Sr. | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/cornelius-davis/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/courtney-wade/",
+      "key": "https://v3--i2i.netlify.app/biographies/courtney-wade",
+      "slug": "biographies-courtney-wade-8e8fc960fb",
+      "line": 10,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 26,
+          "stopReason": "end-reached",
+          "durationMs": 33247,
+          "contentSha256": "415335c4258de032e74801dd901630da62c9c3c88ec17b32b37773c859b7ca2e",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2554,
+          "contentSha256": "8788f17d1a0140dd03abb25bd39be249c0d1fc2416815ca8979cf533781b659f",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22542,
+          "contentSha256": "be4039b745351728d36b4b55d799c2840badeec2c90b3dce14e948ac06cc4798",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "b0ecdc4e2054f55c511205ac8896699f8f257d350b7463eca2e081a9d699a166",
+          "bytes": 2883
+        },
+        "read.json": {
+          "sha256": "0e3684c7d7d65fc119d483b049881042373d0a7151081162bf28e2b744874126",
+          "bytes": 7681
+        },
+        "headings.txt": {
+          "sha256": "973785d3218000160f2d8ada5ddcc63dcbb9c4eb8a5a52b2fb9c59447b67d509",
+          "bytes": 1511
+        },
+        "headings.json": {
+          "sha256": "9a59f8fdeec6a9e5b50b955a0f5db2e253d85c65577f8932ac624b247d6e6817",
+          "bytes": 3327
+        },
+        "tab.txt": {
+          "sha256": "4f5b665a5cd4190bc9e00c6e02ee8d3b587795a6fd0b51d97963efb2dec605f2",
+          "bytes": 2190
+        },
+        "tab.json": {
+          "sha256": "cd4106518b3b7e6deb8ff2409d101e30543ec4fd1fc068b8cd02f84ceab6b373",
+          "bytes": 8921
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:48:00-05:00",
+      "durationMs": 76364,
+      "screenshot": {
+        "sha256": "4e5b67e074dfddd22993290de6df5bcdd23088fb9e59ae4ee0c27cd864f26c41",
+        "bytes": 18447,
+        "takenAt": "2026-10-06T11:48:07.197-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/courtney-wade/",
+      "httpStatus": 200,
+      "title": "Courtney Wade | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/courtney-wade/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/demetri-alexakos/",
+      "key": "https://v3--i2i.netlify.app/biographies/demetri-alexakos",
+      "slug": "biographies-demetri-alexakos-783099af5a",
+      "line": 11,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 30,
+          "stopReason": "end-reached",
+          "durationMs": 38469,
+          "contentSha256": "f32a3e934dea49440ea2f796552ade56a87589c9f866d6eff501e97e3320ff7a",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2562,
+          "contentSha256": "184e1dc437834242f0f7def3c6b5c0f25fa5f6c651f31f473e52c6880c82e8e3",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22550,
+          "contentSha256": "5d5dca2f7c395b6ed175ecdcf3d6e790ffafde148ba639a48b935a87f7d5293f",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "e0a88abf31366d089ecace90acb5a5e9908efbf5ef37fef92db50a4d13edeadc",
+          "bytes": 3259
+        },
+        "read.json": {
+          "sha256": "652b3a3e937a7c5bd91acde1062ec446ab85de856efbdd7217957ac3b5cffb56",
+          "bytes": 8567
+        },
+        "headings.txt": {
+          "sha256": "660ee29b9bf6971162e4079ec6b8c89a808ad6990c983bbdf7602a764372ab67",
+          "bytes": 1520
+        },
+        "headings.json": {
+          "sha256": "ff34b7684f71dbe14642cd2a61ee259e7b86a5c24354ae5d621051d17b0e9e00",
+          "bytes": 3342
+        },
+        "tab.txt": {
+          "sha256": "d7d73e1e0c7dc85dfe5e9c7a2f4b9dbc45249a9b1548efd3ec570de1d02b30e5",
+          "bytes": 2199
+        },
+        "tab.json": {
+          "sha256": "7673767e7e21db4774fce7ebb98c940e4ddd6c35211cffd3adc5838d6b27647a",
+          "bytes": 8936
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:49:16-05:00",
+      "durationMs": 80806,
+      "screenshot": {
+        "sha256": "2cce8d6fc1b1f8be9f7dd3efb4d0eda6d3240d91f96eb50af3dd6121a50a0ac3",
+        "bytes": 21846,
+        "takenAt": "2026-10-06T11:49:22.396-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/demetri-alexakos/",
+      "httpStatus": 200,
+      "title": "Demetri Alexakos | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/demetri-alexakos/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez/",
+      "key": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez",
+      "slug": "biographies-dr-michelle-martinez-486e1509d6",
+      "line": 12,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 32,
+          "stopReason": "end-reached",
+          "durationMs": 40936,
+          "contentSha256": "af85c1061a3fd706b09e3e9cbcf265cc697154636645eb64004dc5a4c783911b",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2553,
+          "contentSha256": "4db6e2f9abb8ec663b02e5f8eb25551432b0115dc0d8ac123ba5573fe1f84f63",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22515,
+          "contentSha256": "bc4f1cbe4b534e82da53715b77248a44fad5836d4baa258b4d044303983524f6",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "74fa137fd4106a4c134bfbc956fdaa07dbd65c7a9a4dfa70c14834fff7b7d287",
+          "bytes": 3478
+        },
+        "read.json": {
+          "sha256": "63ba98339ceb8c01075b050b81d7dc4c81ea0536e8e565be025f617289b66b39",
+          "bytes": 9046
+        },
+        "headings.txt": {
+          "sha256": "fb6a7f5c972637a02a5f9cd6513226f52354bf80acf41010254d4d681ac410f0",
+          "bytes": 1533
+        },
+        "headings.json": {
+          "sha256": "5c4d0ce67d2e2a95f07d93e2206dce00d5c1cf6fb8c117cdc8b28d0d9ba4a099",
+          "bytes": 3363
+        },
+        "tab.txt": {
+          "sha256": "86f1e28281789351ba67ea81f094b851457a4f573719e1e1c0cd29731031751a",
+          "bytes": 2212
+        },
+        "tab.json": {
+          "sha256": "ec99594b782cb34fcc8826b2dfaa0f4c5ccd38a087169506ffd5326fd5bc30bb",
+          "bytes": 8957
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:50:37-05:00",
+      "durationMs": 82833,
+      "screenshot": {
+        "sha256": "3076d1f186312945e43615a7c4fb041ede4613f5f388d528dd0d212098587f1a",
+        "bytes": 23920,
+        "takenAt": "2026-10-06T11:50:43.100-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/dr-michelle-martinez/",
+      "httpStatus": 200,
+      "title": "Dr. Michelle Martinez | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/dr-michelle-martinez/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/dr-tasha-williams/",
+      "key": "https://v3--i2i.netlify.app/biographies/dr-tasha-williams",
+      "slug": "biographies-dr-tasha-williams-fa21862bfa",
+      "line": 13,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 33,
+          "stopReason": "end-reached",
+          "durationMs": 42237,
+          "contentSha256": "5406ee3f1654beb141f0b512aa8dbc23f9490270e70a4f3c93c81097270eab8b",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2562,
+          "contentSha256": "363271788b26467d907868b57534ba404b474e806aa917427cd13d827d2e6169",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22551,
+          "contentSha256": "1547afdaa5fae0b480d37c7a80501bff33a896d7cb9fe16ae8ae2fbe0da5c67c",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "b40a54b77992f5edb549e99f8eda354058a2e94a178a7bd697a0a3047656965e",
+          "bytes": 3535
+        },
+        "read.json": {
+          "sha256": "ec8d71bf1d656bc7aa7bcf028dc4a8e80312f073e3c508ecfc5b7e9827f810da",
+          "bytes": 9223
+        },
+        "headings.txt": {
+          "sha256": "c2d71a2fa57cf178fdd2e5964651c7fd08c5ebcc78039e55f08c41658439e018",
+          "bytes": 1524
+        },
+        "headings.json": {
+          "sha256": "cdb3dfeeac7bd45a8fe4c5fa5e1dfe930166cf8a140323b94678edffe65b63ad",
+          "bytes": 3348
+        },
+        "tab.txt": {
+          "sha256": "a913d22d570a1ba0d23306404d818d671613e4679349c55fed395029ec428778",
+          "bytes": 2203
+        },
+        "tab.json": {
+          "sha256": "0e6cf646ebd97c136953779ef5e01d47786504ebfcb76653a105cf3bf49172fe",
+          "bytes": 8942
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:52:00-05:00",
+      "durationMs": 84206,
+      "screenshot": {
+        "sha256": "60acbc936952c29c87af2009e45e2d8e9911fb852d540d6b4b3653c2a75941d3",
+        "bytes": 24741,
+        "takenAt": "2026-10-06T11:52:06.040-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/dr-tasha-williams/",
+      "httpStatus": 200,
+      "title": "Dr. Tasha Williams | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/dr-tasha-williams/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/biographies/katherine-l-staten/",
+      "key": "https://v3--i2i.netlify.app/biographies/katherine-l-staten",
+      "slug": "biographies-katherine-l-staten-2c95f9aec0",
+      "line": 14,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 25,
+          "stopReason": "end-reached",
+          "durationMs": 31993,
+          "contentSha256": "4cb462eab7cfd9785406aad3fa3a76965c2415d2867628a76f0f2a68d8dfa22e",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2551,
+          "contentSha256": "40ca16647004364979b98a9335e0a6eafe6008070ef4f7956b9f934033901c5b",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22537,
+          "contentSha256": "60d9d27e4d25df4a6c85d5e2112074304fb53311e6d6c2e743247221e1e3150e",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "75bdde669ba7ef94e77c57489b61fcdfb40067a7b7f29a82a9eb6a68e8cf54bc",
+          "bytes": 2814
+        },
+        "read.json": {
+          "sha256": "a40d99714134a891b55d9f242bf6b8ba907245f7c49eeee7ea23619ef50085af",
+          "bytes": 7496
+        },
+        "headings.txt": {
+          "sha256": "9693490c3f04a6eb9d85f4c54c37931e43f640fa32eab9e47c78b55ff698c0ed",
+          "bytes": 1527
+        },
+        "headings.json": {
+          "sha256": "bf9a42259897008a48092c3f36fd278b74fe7c2a2960d75d60ecb498ca8797d9",
+          "bytes": 3353
+        },
+        "tab.txt": {
+          "sha256": "7ecbfe6c717a61b3cdf6caa0ec72420746a84d811a9951edaced80a8d2340ffe",
+          "bytes": 2206
+        },
+        "tab.json": {
+          "sha256": "c5370b31bce93ef1537e5bd84d51e541bc874f2399ad2c360328d9e8a2b35fa7",
+          "bytes": 8947
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:53:24-05:00",
+      "durationMs": 74988,
+      "screenshot": {
+        "sha256": "588894fc1a24d00a420c86e91086bb25e4d686130ce7f1e8b2994124a57b0c9b",
+        "bytes": 17935,
+        "takenAt": "2026-10-06T11:53:31.216-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/biographies/katherine-l-staten/",
+      "httpStatus": 200,
+      "title": "Katherine L. Staten | i2i",
+      "canonical": "https://i2i.illinois.gov/biographies/katherine-l-staten/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/cohorts/",
+      "key": "https://v3--i2i.netlify.app/cohorts",
+      "slug": "cohorts-89f1cdab1d",
+      "line": 15,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 55,
+          "stopReason": "end-reached",
+          "durationMs": 70311,
+          "contentSha256": "4c7ae96e5d51976ebe3a318614363a44c8b89022ed6a1873036a278402429df8",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3842,
+          "contentSha256": "b6452788506d4bebd7171b19473517c0473ec012e6f5a670f8f46495fe3a1bda",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 26,
+          "stopReason": "left-document",
+          "durationMs": 35930,
+          "contentSha256": "f8109a619a34ef53fb9ef55132bd77757834839785bcefa1740ebf908bdca3c6",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "504c7177a23bded93b7407bb54fb5d0e8295110e7ef2e9baaa19ad947e6a9552",
+          "bytes": 4396
+        },
+        "read.json": {
+          "sha256": "9d804554a734c33c20f9e225ffc6095ec95e900177f02fdd7dd4d9248473f51b",
+          "bytes": 12809
+        },
+        "headings.txt": {
+          "sha256": "3feb35d23d1608cf32716071e0fd47db0cd42694e834a467f3aabe407883e133",
+          "bytes": 1617
+        },
+        "headings.json": {
+          "sha256": "6dd5a6892f9d27b8f133678e778492aefb4c95f0d290fb5c78faee85e2c6179e",
+          "bytes": 3524
+        },
+        "tab.txt": {
+          "sha256": "123a5bee15dee5d70f4e11cf480eba318fd1ec1734fef4aad46a251a7e9ec4b5",
+          "bytes": 2578
+        },
+        "tab.json": {
+          "sha256": "467d3472db0d8c3788ae7c487e24710962f784567200e660752f7a9e087fc5a6",
+          "bytes": 12862
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:54:39-05:00",
+      "durationMs": 128282,
+      "screenshot": {
+        "sha256": "2054e0028b5435d331953d60a07213043cb0fb95817dec08803adbf9cdcad8d8",
+        "bytes": 31295,
+        "takenAt": "2026-10-06T11:54:46.405-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/cohorts/",
+      "httpStatus": 200,
+      "title": "The i2i Cohorts | i2i",
+      "canonical": "https://i2i.illinois.gov/cohorts/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/contact/",
+      "key": "https://v3--i2i.netlify.app/contact",
+      "slug": "contact-bf1e63ff97",
+      "line": 16,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 47,
+          "stopReason": "end-reached",
+          "durationMs": 60140,
+          "contentSha256": "8d4dd2d1531e20afb8c568654fb5dacd1825122aa1d9094aa5560702b028e22a",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3833,
+          "contentSha256": "a6845c903b1f384a4a39fbbd3c3b8a55f33e8813e7e25d99f9384aa131384c90",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 27,
+          "stopReason": "left-document",
+          "durationMs": 37019,
+          "contentSha256": "2e25a9524df8097e3e6f68ed10d0fa6029fcfa146020fcd4719581006d75c966",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "1a6f0e4a2a3e70dcd549722d9e85b47eacb7710c7814a9645f91d24b216ba8f4",
+          "bytes": 3310
+        },
+        "read.json": {
+          "sha256": "00d3a172d21e4201d22a7ba07d7ced71857e202ba17816aa8bfe8a838811ad85",
+          "bytes": 10716
+        },
+        "headings.txt": {
+          "sha256": "0fc5aeb4363fbb1e3752f12f631b808240a4cbaee0ef0e560bf1777649aaabb8",
+          "bytes": 1508
+        },
+        "headings.json": {
+          "sha256": "bf8a0463c4d085f336ebb48d7dd772ac6affdafb80a98b8507391f1505524ec8",
+          "bytes": 3415
+        },
+        "tab.txt": {
+          "sha256": "ace77297c96e8deb260ec97a07d197a66198382ba182385b33b0516a7e92a0fb",
+          "bytes": 2658
+        },
+        "tab.json": {
+          "sha256": "68c3f4317a336374834a82c60e006669da3c548d9585fb667ee02d02688e3283",
+          "bytes": 13142
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:56:47-05:00",
+      "durationMs": 117820,
+      "screenshot": {
+        "sha256": "9211b7a75c679629112fb183e64a028df7e17096a2fca1b1f2fa005425d62e3d",
+        "bytes": 20515,
+        "takenAt": "2026-10-06T11:56:53.558-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/contact/",
+      "httpStatus": 200,
+      "title": "Contact i2i | i2i",
+      "canonical": "https://i2i.illinois.gov/contact/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/grant-opportunities/",
+      "key": "https://v3--i2i.netlify.app/grant-opportunities",
+      "slug": "grant-opportunities-e27b3b571e",
+      "line": 17,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 29,
+          "stopReason": "end-reached",
+          "durationMs": 37105,
+          "contentSha256": "1f9a5e8bab9db67ee00d6d28531223e74cdf236b741a854e890a88d57d1af0c9",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3836,
+          "contentSha256": "7308aa6c45a45bae4d7dd5249903917b1f94cd1e707051d9021a2ddec875c554",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22556,
+          "contentSha256": "8ee614b691438650858558f53719faf88aa7e929b395084179aec93536d62638",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "885a80b7a4da8093280d2b41a2723057ff174f90513bd7f6eb132968b9318ee0",
+          "bytes": 3284
+        },
+        "read.json": {
+          "sha256": "caba477173c50eb5cfb66080f37b7659d6e5f494907840dac92994983a6221a0",
+          "bytes": 8448
+        },
+        "headings.txt": {
+          "sha256": "0134874dc75b9ab5d29e6a07b9365abbef8c74b7906eaad13fa65c0e8227b021",
+          "bytes": 1622
+        },
+        "headings.json": {
+          "sha256": "fa886d02c61f5f533fb776710d6c88ce959fdd90c7160a328debc00c155a882c",
+          "bytes": 3553
+        },
+        "tab.txt": {
+          "sha256": "d48dafaf752d15264d9163aacf64a672e5b26d8d72a05302e14f08cfce37f416",
+          "bytes": 2307
+        },
+        "tab.json": {
+          "sha256": "c57fbc7dfbd770dbd126dbc948dcfeefa1b6ba95dd2c9337cca62a252e6f54c0",
+          "bytes": 9219
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T11:58:45-05:00",
+      "durationMs": 80336,
+      "screenshot": {
+        "sha256": "bc55996114eb6ab3d1502e454e1b026a3902ccfd1cb45d10c9aec1f79839244d",
+        "bytes": 24819,
+        "takenAt": "2026-10-06T11:58:51.266-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/grant-opportunities/",
+      "httpStatus": 200,
+      "title": "Grant Opportunities | i2i",
+      "canonical": "https://i2i.illinois.gov/grant-opportunities/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/privacy/",
+      "key": "https://v3--i2i.netlify.app/privacy",
+      "slug": "privacy-12940305fe",
+      "line": 18,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 117,
+          "stopReason": "end-reached",
+          "durationMs": 149848,
+          "contentSha256": "d392bbef478e4e9f3c1ee41bb97feaede0e50ef3562da9c0408c92bc7db3b886",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 11,
+          "stopReason": "no-next-heading",
+          "durationMs": 14074,
+          "contentSha256": "7cb8d8e18307827ebc88eca22b2403eb143d69f3b9ba970b27af82179a806047",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 32,
+          "stopReason": "left-document",
+          "durationMs": 43816,
+          "contentSha256": "f3fff78999ac14d2e57b04d672d5f565031d57b1f3c46ea5174f223c3f38f70a",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "1939ba5be3005a7dec56028c8df9475bd7bd4503e27ea135971e16c8ca1c9941",
+          "bytes": 10879
+        },
+        "read.json": {
+          "sha256": "a7fe8bbf00a980bf596a7583ca4f048bee578f49de47608ae038506704327d31",
+          "bytes": 27162
+        },
+        "headings.txt": {
+          "sha256": "f74686a12f8a66c6a664cc0190be269ea39824c08b0b6aa9da0f9c0d855d67dd",
+          "bytes": 2093
+        },
+        "headings.json": {
+          "sha256": "8d4d146d14164cbf6e70795481ac4b1912a9bd2212ec41b7489b8678e74eaf6a",
+          "bytes": 5022
+        },
+        "tab.txt": {
+          "sha256": "b3ece9fbb38a6a18b3bf39072e72513964eaaf62cb1a28525a8f5c3afed51f28",
+          "bytes": 3155
+        },
+        "tab.json": {
+          "sha256": "77995a65f89b4a0ed8594fb38065cebab1e835503bf367242f32ab6aa5a277ae",
+          "bytes": 15404
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:00:05-05:00",
+      "durationMs": 227296,
+      "screenshot": {
+        "sha256": "88e96c1898ff27a618ef18eb3d783d0f125aa8746be6d3284581b71833d3b0c4",
+        "bytes": 30918,
+        "takenAt": "2026-10-06T12:00:11.685-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/privacy/",
+      "httpStatus": 200,
+      "title": "State of Illinois Privacy Policy | i2i",
+      "canonical": "https://i2i.illinois.gov/privacy/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/program-approach/",
+      "key": "https://v3--i2i.netlify.app/program-approach",
+      "slug": "program-approach-c8ecc6f6c4",
+      "line": 19,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 33,
+          "stopReason": "end-reached",
+          "durationMs": 42191,
+          "contentSha256": "46c096916ee46a0205580c5f523e3bf36053f2224250ebb965348789e0d402d9",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 8,
+          "stopReason": "no-next-heading",
+          "durationMs": 10233,
+          "contentSha256": "7c12bf2f52ba0d6ff507b5a03835e5625005d49132b8f50cd64dbcde5e1957b3",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 14,
+          "stopReason": "left-document",
+          "durationMs": 19961,
+          "contentSha256": "07bb180c882ae1ef2036d4655dba129818a2c2b5947c8aaf2af90878011a6104",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "47180aeed7430d004b7574c7c43fa72e05d91a56d36d350d07e53ec67aba65b6",
+          "bytes": 3061
+        },
+        "read.json": {
+          "sha256": "e2899bc5b62ecd3e72b4ed721beab5ca165ec32617e594428bb6150cbcf55fb9",
+          "bytes": 8723
+        },
+        "headings.txt": {
+          "sha256": "226277077a418a3fc0eaad7ae49b20cd66505a18bf705be00893eae8b4797a1a",
+          "bytes": 1697
+        },
+        "headings.json": {
+          "sha256": "6675c73c34d69f4045abe8a01a37be72d2adec867a4051768ab5b4d7c6c2b1b2",
+          "bytes": 4258
+        },
+        "tab.txt": {
+          "sha256": "a7a14f0a674ace90e3e724787167bc0401615b6e8e7bdd0950275af9882fd43b",
+          "bytes": 2089
+        },
+        "tab.json": {
+          "sha256": "78aa9b88039b933dfc12db1e8b0f5f0259a1bbf3a05fc5b9bf635f3a7fb20f0b",
+          "bytes": 8164
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:03:53-05:00",
+      "durationMs": 89015,
+      "screenshot": {
+        "sha256": "7c34fe2ba6a708bc0721749bce9beb49cc1f1f2bc20254af764eba91eadca8d7",
+        "bytes": 23429,
+        "takenAt": "2026-10-06T12:03:58.844-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/program-approach/",
+      "httpStatus": 200,
+      "title": "The PARLOR Process | i2i",
+      "canonical": "https://i2i.illinois.gov/program-approach/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/program-overview/",
+      "key": "https://v3--i2i.netlify.app/program-overview",
+      "slug": "program-overview-4fa6ba48dc",
+      "line": 20,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 97,
+          "stopReason": "end-reached",
+          "durationMs": 123886,
+          "contentSha256": "5fb3b1080e39a1ae3884ac824d0db32c65f213cc67f4428eb4b2ce1a7a73cd0b",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 13,
+          "stopReason": "no-next-heading",
+          "durationMs": 16618,
+          "contentSha256": "ac3dd06dc8a4592b822af01b3d456933164f4ac281fa5d6bfbe83c003c7f3f03",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 15,
+          "stopReason": "left-document",
+          "durationMs": 21233,
+          "contentSha256": "5a54793f88bbe270d9d8371b7a50fc22c0491508c4c45c8bec7d6b0e596b5b82",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "ffa9d14bf2a26c7302f0eb76a2744b0b0aa6590f4374fd9bf741264dba2828a5",
+          "bytes": 7461
+        },
+        "read.json": {
+          "sha256": "9cb9900dbcd1175691f10d186fc213e33f7b8ce0d29979c225cd772c01faa660",
+          "bytes": 21205
+        },
+        "headings.txt": {
+          "sha256": "0c1ce8ed3ee53077a0a42254981c0646e016e31ef809b7327e4d249f3704ebf8",
+          "bytes": 2057
+        },
+        "headings.json": {
+          "sha256": "78abae65b688e2841c824dd64b5bb6b8138af16886af853c6c34c42603275071",
+          "bytes": 5262
+        },
+        "tab.txt": {
+          "sha256": "5af34b12bebffbe73eca2729a23c49b56baa30c20549a16e84ae9b5b4dd76e88",
+          "bytes": 2149
+        },
+        "tab.json": {
+          "sha256": "5453e046dae42873647ae9d417ea1481e20c23b3f8f221c6c05770b62ee82495",
+          "bytes": 8552
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:05:22-05:00",
+      "durationMs": 181051,
+      "screenshot": {
+        "sha256": "75c8c4f7a3d0abe9cd851a5e03375e8afbd2886a6492fbc906695d546cf3b8e3",
+        "bytes": 34217,
+        "takenAt": "2026-10-06T12:05:29.675-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/program-overview/",
+      "httpStatus": 200,
+      "title": "i2i Overview | i2i",
+      "canonical": "https://i2i.illinois.gov/program-overview/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/resources/",
+      "key": "https://v3--i2i.netlify.app/resources",
+      "slug": "resources-340b65c0dc",
+      "line": 21,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 27,
+          "stopReason": "end-reached",
+          "durationMs": 34515,
+          "contentSha256": "deeeb81c879539a2c01f54fc844d71c44aed5b41a88adbb9e2b6558a1f71f5d5",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6383,
+          "contentSha256": "2a41e9b634a370d32253debfbb24c70add8c80a1ff0ba83891a33f1188d925dd",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23843,
+          "contentSha256": "11a8f99d620962b62867df70929816648e91a4a0f2dd0fd9b7aff55ea1b190a1",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "fc4a8095f46358e8bd283f8f80b9157cbe236581d8b79312fd47d5373797602e",
+          "bytes": 2823
+        },
+        "read.json": {
+          "sha256": "c9961b8e22ef4cc50b7280f4d96b3ef0254e2858d11d0adb12f659c479df94d5",
+          "bytes": 7715
+        },
+        "headings.txt": {
+          "sha256": "1aee703b10d7da19ef619b0d18c5cc2cdb9c7524ee301f4034fd11b032ea17fd",
+          "bytes": 1635
+        },
+        "headings.json": {
+          "sha256": "5a71256393ce5e47d6c2a42b9aa3da9b128602d119acfde5b8de688c8c379a73",
+          "bytes": 3800
+        },
+        "tab.txt": {
+          "sha256": "1503941df27e655fa751e827bede7957f0c08ac381356e8c3773770ae36f5a9d",
+          "bytes": 2501
+        },
+        "tab.json": {
+          "sha256": "5dcbf9dbe03b7f4bd44a289fc18e374131aa8ac5dc5019fd42f198d6b80dee47",
+          "bytes": 9615
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:08:23-05:00",
+      "durationMs": 81768,
+      "screenshot": {
+        "sha256": "bb395457e22669f2cd10d2b993d7976a9c49acbd7b70d578dbc9691c83d4901f",
+        "bytes": 17379,
+        "takenAt": "2026-10-06T12:08:29.104-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/resources/",
+      "httpStatus": 200,
+      "title": "Resources | i2i",
+      "canonical": "https://i2i.illinois.gov/resources/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/search/",
+      "key": "https://v3--i2i.netlify.app/search",
+      "slug": "search-d9292f5b01",
+      "line": 22,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 24,
+          "stopReason": "end-reached",
+          "durationMs": 30717,
+          "contentSha256": "9cf07c6d1624366b4255c98ca316f47468934d98ad024b22cf120e06dec17fdc",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 2,
+          "stopReason": "no-next-heading",
+          "durationMs": 2553,
+          "contentSha256": "22edcfc835790f077fee557df3bad8f8c01def9134d6116b2122e9471bc9ddee",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23877,
+          "contentSha256": "4eed84e911ea4d239fcd6d985061ccf891d2b4c24b311d4dbc1084bfa2ef06d0",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "c250fce46568b2c2593e4d00237137f8c6d83c3ea50241e2ee6e62e77dcaf488",
+          "bytes": 2492
+        },
+        "read.json": {
+          "sha256": "91681b17a20930f4a76e2666d7d86e5227f694ac069736f7525a8128505b1163",
+          "bytes": 7000
+        },
+        "headings.txt": {
+          "sha256": "e9072de6ca0bf56d34946d1d0a2de0d75aa3b306640a7d2b836c308407d35257",
+          "bytes": 1466
+        },
+        "headings.json": {
+          "sha256": "1accc25cde61d835b4c800e01cb3c139bd1f376659081795f653e4da7f05346f",
+          "bytes": 3244
+        },
+        "tab.txt": {
+          "sha256": "3512275140dd19127243ad7a0756a088e1f13272920a749313dbe9ce07dfc4aa",
+          "bytes": 2186
+        },
+        "tab.json": {
+          "sha256": "5c9aa38835cbc198043af33daddbb9b67069cd296a254992ad6d4517d683caa8",
+          "bytes": 9176
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:09:45-05:00",
+      "durationMs": 74375,
+      "screenshot": {
+        "sha256": "53d911b219a17410139ff36ce6e316da29eceef950d28168766505edfd4af84a",
+        "bytes": 11688,
+        "takenAt": "2026-10-06T12:09:51.109-05:00",
+        "width": 633,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/search/",
+      "httpStatus": 200,
+      "title": "Search i2i | i2i",
+      "canonical": "https://i2i.illinois.gov/search/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlight-submission/",
+      "key": "https://v3--i2i.netlify.app/spotlight-submission",
+      "slug": "spotlight-submission-11052f0e59",
+      "line": 23,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 36,
+          "stopReason": "end-reached",
+          "durationMs": 46041,
+          "contentSha256": "8482e95f2ed1105d1aec0d5cf9fee6304351a90f04a464bfffc6456646622014",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 3,
+          "stopReason": "no-next-heading",
+          "durationMs": 3834,
+          "contentSha256": "558c92a7b94b615d8098fd1845204e38305ac96a6096627f9b655f6b85dfdc9b",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 20,
+          "stopReason": "left-document",
+          "durationMs": 27824,
+          "contentSha256": "56064b6989557490ef704b757eaf96de69b8868db02a2b51fae4cffa50bfbe49",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "1cc2e0c6e471e4de51c37f15763e01e3c3f54cfed7783dc898d9050fcd7489ed",
+          "bytes": 2994
+        },
+        "read.json": {
+          "sha256": "65f3576ab2d9caae01f003c8c7eb6f0262d5a469c9ef72045b5c8fc26c1b19a7",
+          "bytes": 9042
+        },
+        "headings.txt": {
+          "sha256": "5fd82b996f7ee0c4579309070dfefb228af581dba277713058b9ce55bc819100",
+          "bytes": 1570
+        },
+        "headings.json": {
+          "sha256": "d09bc2c38c65b155ffa3fadae6042dc503543c9f0ee0967468b92aea6a63f202",
+          "bytes": 3503
+        },
+        "tab.txt": {
+          "sha256": "a7b073636703d5c45dbc3874b582e3f8e780c7d38f90d1f31cc86672b77ed9c2",
+          "bytes": 2364
+        },
+        "tab.json": {
+          "sha256": "790f460b47a891590bcbabd1e6ace024404045b70a17e1bc37ab10dce7a7fee6",
+          "bytes": 10340
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:10:59-05:00",
+      "durationMs": 94673,
+      "screenshot": {
+        "sha256": "3d36a183470eb7549bb839ca1b3cf28a130cd94d76c1251bafcbeb956159d17b",
+        "bytes": 22738,
+        "takenAt": "2026-10-06T12:11:05.103-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlight-submission/",
+      "httpStatus": 200,
+      "title": "Community Spotlight Submission | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlight-submission/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/",
+      "key": "https://v3--i2i.netlify.app/spotlights",
+      "slug": "spotlights-3dfd2aa466",
+      "line": 24,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 69,
+          "stopReason": "end-reached",
+          "durationMs": 88100,
+          "contentSha256": "d254f4cebbc61cce99c4b7974b0e09481c7f5df0298a0619191ff96572cb67b4",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 10,
+          "stopReason": "no-next-heading",
+          "durationMs": 12798,
+          "contentSha256": "0cffdaef1f0c3c8802c918c5009539e8a81cd798d01ad18a494467bcf15c0a7c",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 22,
+          "stopReason": "left-document",
+          "durationMs": 30469,
+          "contentSha256": "a869a819c7fa59197269bc2e789d2644569798543702e4073d4a3eb84425888a",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "84b29a2dcfd24c36577a192c1819276dcc4a0cdaaad4f54a50726ebd2e5e05fc",
+          "bytes": 6287
+        },
+        "read.json": {
+          "sha256": "b4aa778a52a1377f8a7315fa69dd61c504e422a739451b1f24f8556fb1ff2675",
+          "bytes": 16470
+        },
+        "headings.txt": {
+          "sha256": "50898eee2d113ebd3236cd5d2799f43556bd006444d0e7f5f47134b32b26a9dd",
+          "bytes": 1949
+        },
+        "headings.json": {
+          "sha256": "7a55a32ca695f1b15232f1fb94420e06c4a74b3d32ae718bbc750b9d0174a7d4",
+          "bytes": 4755
+        },
+        "tab.txt": {
+          "sha256": "bdd7731c4d096c2e84b42de402966bd4f8489b45fe60bf0efa5143093d4ada9f",
+          "bytes": 5829
+        },
+        "tab.json": {
+          "sha256": "a4d3183c01d5f70e06c782c66340cb6710460e994b33147bbb51d135127d8001",
+          "bytes": 17450
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:12:34-05:00",
+      "durationMs": 148387,
+      "screenshot": {
+        "sha256": "ce4f8ae49e0799638cee47e59beee8a8ff7ffc341694ee6be42abc945c3cd49a",
+        "bytes": 24136,
+        "takenAt": "2026-10-06T12:12:39.961-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/",
+      "httpStatus": 200,
+      "title": "Cohort Spotlights | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/",
+      "key": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions",
+      "slug": "spotlights-chm-bible-theatre-productions-00826428bb",
+      "line": 25,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 65,
+          "stopReason": "end-reached",
+          "durationMs": 83097,
+          "contentSha256": "3d16ddaed655a7ebb18acb0e8e85a3075a74d496dc0685ab3fe59f5b95d120d3",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6382,
+          "contentSha256": "60b0d98dc8ccbaab00a53ec951a6bedf0f0e681350f081feb47bd2b8341a9614",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 18,
+          "stopReason": "left-document",
+          "durationMs": 25166,
+          "contentSha256": "7a250a6c64b56bb4a3442d3d0da78887f61389db766ff2138b4c2cbe44d56468",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "6cdfba09833739af357e7ada43f1f75bf97d0febe077e9ceb10236ab3417371a",
+          "bytes": 5412
+        },
+        "read.json": {
+          "sha256": "bd1289089e422335fb850427610aac02d1d5a71dcf2e9b27fe5d69082ec83a12",
+          "bytes": 15151
+        },
+        "headings.txt": {
+          "sha256": "edbdc1749b7b9a98b84d2e64168d781ce58624a9a3ad2546f53fc8d22e8a5a17",
+          "bytes": 1702
+        },
+        "headings.json": {
+          "sha256": "35c810bcdfc3b81ccf20a4c7378f824eb04be0fa12e98bfd40ae79cbe18fb5c8",
+          "bytes": 3929
+        },
+        "tab.txt": {
+          "sha256": "ad1c649da9d94e0b61a5f1fa2c9b15f5be01e675f6ba769c070a894aa1591fe4",
+          "bytes": 2515
+        },
+        "tab.json": {
+          "sha256": "fa6bb6ef4980c3f8225118e3629e157308cdd897742d95fe13391ea9280e5b0f",
+          "bytes": 10065
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:15:02-05:00",
+      "durationMs": 132303,
+      "screenshot": {
+        "sha256": "41563a02ef89e0ef4337b5ed990addaf317263f4b622c9d6191446726c54e81e",
+        "bytes": 26388,
+        "takenAt": "2026-10-06T12:15:08.681-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/chm-bible-theatre-productions/",
+      "httpStatus": 200,
+      "title": "Spotlight on CHM Bible Theatre Productions (CHMBT) | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/chm-bible-theatre-productions/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/equiticity/",
+      "key": "https://v3--i2i.netlify.app/spotlights/equiticity",
+      "slug": "spotlights-equiticity-249845b62c",
+      "line": 26,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 48,
+          "stopReason": "end-reached",
+          "durationMs": 61416,
+          "contentSha256": "427c2673558b1e5e5849edd7920f788c3c4aa7cc54119ec6b2585ac03ad626c1",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6400,
+          "contentSha256": "47b0c986b48b19e0028d2ecbec21172aa6eef19a24594dd76227c2a9a636c1c4",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23903,
+          "contentSha256": "54392ebcdb6b13d600d62a0c7a184ff04b79f2bff34dedf1fb030516e8b153cc",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "0cb53eeff08e9d907c96223aa532b3bb31b7a1f507baf1450b3a395a48f9fc69",
+          "bytes": 4170
+        },
+        "read.json": {
+          "sha256": "43801ef31d32d90083610d39a1f821301f210a1b3f7957610624c2af270d427c",
+          "bytes": 11730
+        },
+        "headings.txt": {
+          "sha256": "36ac065a8f0265d0275b70b49f500cde041977fd7abe90046e42abd631e6bf02",
+          "bytes": 1610
+        },
+        "headings.json": {
+          "sha256": "a86cdaae4c0c5e2821921c893b741a5e9d2d3e5aa7ff9e0cf7fb5c6326846fb6",
+          "bytes": 3799
+        },
+        "tab.txt": {
+          "sha256": "95b1634be67a55f4bd71aefb922fd06bc415b9d052789f29dfefa68d077881bb",
+          "bytes": 2452
+        },
+        "tab.json": {
+          "sha256": "7df01cc970660d8bd428bd7de31c790c5f825c2da297754465784391b9fcb612",
+          "bytes": 9652
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:17:14-05:00",
+      "durationMs": 109097,
+      "screenshot": {
+        "sha256": "da2fcc2fcd650ea6f2f46e1aa170ad5ae3f70a5e62063548d850b2c7420b0169",
+        "bytes": 25508,
+        "takenAt": "2026-10-06T12:17:20.910-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/equiticity/",
+      "httpStatus": 200,
+      "title": "Spotlight on Equiticity | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/equiticity/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition/",
+      "key": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition",
+      "slug": "spotlights-metro-east-organizing-coaliti-24236aacc2",
+      "line": 27,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 57,
+          "stopReason": "end-reached",
+          "durationMs": 72800,
+          "contentSha256": "e4a9e36c9801f3fceede69c36431dcbcedcbe0d27c91d9936bc633c2bcc8c1ad",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6404,
+          "contentSha256": "4869b97df7a4fd0c36c44c224d6f7e5f9557062a12ca0db3cab2ea7490eccf96",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23887,
+          "contentSha256": "dfe1ecbb119ff211263b218be2aea35717d360de3391c6137666abef1fcb949a",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "f452694af8511aff7c90555512e1f52e9a4865a534825c131a5c27a1c3c8c176",
+          "bytes": 4678
+        },
+        "read.json": {
+          "sha256": "293767451781f143a30263871ad6ee3e904295c5bdc307ef1e3234415e9858e8",
+          "bytes": 13411
+        },
+        "headings.txt": {
+          "sha256": "e2240d8136bc6f20ed8fc7e10586c9c4445cde06fd5ce5c951fbc0e7ea9b258e",
+          "bytes": 1708
+        },
+        "headings.json": {
+          "sha256": "1cded648167fe4ba41fcd2484e44a992be4c5de8fe41377a378a6263da3223ec",
+          "bytes": 3937
+        },
+        "tab.txt": {
+          "sha256": "db78b5eeb4933c8052bf2635ecf5fe3cf2ed2e55c3c19ec6049ef43d98ee94ad",
+          "bytes": 2484
+        },
+        "tab.json": {
+          "sha256": "2d278b711bb5797e9c781c923689b663361f6c648455f484af67e9bdde44122e",
+          "bytes": 9657
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:19:03-05:00",
+      "durationMs": 120411,
+      "screenshot": {
+        "sha256": "e6aa542f284e338d4bda66ca6219dec1daf7f5aaf7d57237df4ecf48d2f04015",
+        "bytes": 26426,
+        "takenAt": "2026-10-06T12:19:09.886-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/metro-east-organizing-coalition/",
+      "httpStatus": 200,
+      "title": "Spotlight on Metro East Organizing Coalition (MEOC) | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/metro-east-organizing-coalition/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/public-narrative/",
+      "key": "https://v3--i2i.netlify.app/spotlights/public-narrative",
+      "slug": "spotlights-public-narrative-9896f8ecf0",
+      "line": 28,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 42,
+          "stopReason": "end-reached",
+          "durationMs": 53707,
+          "contentSha256": "7fc537c2fe3919b0cdcc806716bf47eccdf3611c87b50bc2e7f12c6c66536a66",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6404,
+          "contentSha256": "525f2d3b0ce46569cc6961c8003c5fadc30b870487cbe245ba07892c9b8a2f88",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23894,
+          "contentSha256": "0a2b31120642b63fbfd90203befeb88c266cfd99f3e58dcb0f439f6ad63fb688",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "170942d37e74a04998db54b0894e50940c92f85a447e3df94f9e3c5c51c24898",
+          "bytes": 4043
+        },
+        "read.json": {
+          "sha256": "efdf92c108c80ec6c5a596e192e221bb884e84f1615b2593b85bd158c86b42c2",
+          "bytes": 10861
+        },
+        "headings.txt": {
+          "sha256": "08124b713047d8fdb49eefc2fa8893a693d0c16587c8e0ca6a7707e2d2de5770",
+          "bytes": 1643
+        },
+        "headings.json": {
+          "sha256": "7a253be8eb37ee650243764af17808afb1066cfd1424fa0e372c6f6df2c4138f",
+          "bytes": 3844
+        },
+        "tab.txt": {
+          "sha256": "a3340390aa5384a1f11ce65db4b69d16bb72c551cb1aeb4ae08e050d96d6379c",
+          "bytes": 2300
+        },
+        "tab.json": {
+          "sha256": "2e19ee0b77da236f065f65f61859c874dcb00498e5b210cbd0bf927e86e69967",
+          "bytes": 9379
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:21:04-05:00",
+      "durationMs": 100912,
+      "screenshot": {
+        "sha256": "e7ae65b3eb53f848b5f5104fce4bdecdc107a2d6937d23cb5cc666d22b2065d0",
+        "bytes": 23473,
+        "takenAt": "2026-10-06T12:21:10.102-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/public-narrative/",
+      "httpStatus": 200,
+      "title": "Spotlight on Public Narrative | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/public-narrative/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training/",
+      "key": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training",
+      "slug": "spotlights-reassemble-education-and-trai-fde23bdfd5",
+      "line": 29,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 58,
+          "stopReason": "end-reached",
+          "durationMs": 74119,
+          "contentSha256": "a47dc49fdd9604a1dff09f7b26dd6fcc1442b56b9f21939284481fc3feda5251",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6395,
+          "contentSha256": "731937267c108cf09c61bedd0623b3ab16ce43b8da2230da8c3785a858e334f2",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23889,
+          "contentSha256": "0b8cb22a9d25547f0a937b0dfad4f57ee80eee3eb682fbf6491849073a4fd770",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "2d612f47c64cdc367ee9d9b6a67114634d69634fcd0ea1a3203c9057a3339f4e",
+          "bytes": 5152
+        },
+        "read.json": {
+          "sha256": "867f1babcba627b6144366500013895de9bacbf978a34f89059267d4e36287e0",
+          "bytes": 14013
+        },
+        "headings.txt": {
+          "sha256": "dd40fecfd5170bdcdf9cb64f043665629456b9fb3890ae6c9305b51f7895f3fc",
+          "bytes": 1746
+        },
+        "headings.json": {
+          "sha256": "46cd1b9462a9e5827b6c958a61eb9cb38f63731a6905fba788ce44ebfca35124",
+          "bytes": 3977
+        },
+        "tab.txt": {
+          "sha256": "d8b0ded199892d2df57197ce18702aa7528bf5b6efa5c73462b0d7718576bec1",
+          "bytes": 2549
+        },
+        "tab.json": {
+          "sha256": "8b4d4c43f558da1f78fe364a6e1daaa0a490ea5a5350ddb4b3437868c01717ed",
+          "bytes": 9751
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:22:45-05:00",
+      "durationMs": 121571,
+      "screenshot": {
+        "sha256": "46a46a48640fd0aefe4cf831368d5b797f7be3c05e88d15afb67d9b276cd0ea8",
+        "bytes": 28068,
+        "takenAt": "2026-10-06T12:22:51.132-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training/",
+      "httpStatus": 200,
+      "title": "Spotlight on Reassemble, Education, & Training Inc (R.E.T) | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/reassemble-education-and-training/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/",
+      "key": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections",
+      "slug": "spotlights-true-believers-community-conn-69ac6d6e75",
+      "line": 30,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 77,
+          "stopReason": "end-reached",
+          "durationMs": 98423,
+          "contentSha256": "eb11b60e27be6eaa752bf72a7663baa2b17d913cce92aebea49c00e1a0a06930",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 5,
+          "stopReason": "no-next-heading",
+          "durationMs": 6396,
+          "contentSha256": "3e4eef2e714d990bdef1410e30ee215672698fcee47f2e291772c2c5af50d638",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 17,
+          "stopReason": "left-document",
+          "durationMs": 23863,
+          "contentSha256": "f64f5489174004eca2a2d2141a5e5d74d543a78daf3a2de8fcca1df5cecc3bc4",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "28f151da4d980c3e396d425e2141df46782a8d2503caee53a7f22858469b8ab6",
+          "bytes": 5401
+        },
+        "read.json": {
+          "sha256": "4370cf46d06c0c2c842695ac29189a2f1f114817113842bb28c1133ffd78820d",
+          "bytes": 16659
+        },
+        "headings.txt": {
+          "sha256": "5c628ae3f76cca2322207edcda2fb0e182ee1b145b13bc1d6e17c2421f8bbcff",
+          "bytes": 1728
+        },
+        "headings.json": {
+          "sha256": "5a2dbe94e77539f7eeeef90ff9f7076f0d9b3a3bf4262aa2888b35547066004d",
+          "bytes": 3962
+        },
+        "tab.txt": {
+          "sha256": "1211d60cbb92b3b9a48ff6953f4b910604f4e75ac589a36fda8b06efe827129b",
+          "bytes": 2491
+        },
+        "tab.json": {
+          "sha256": "d964908663b6b8c25f4eb417fe157ef0fa67d09351afe380e6c43cf7effc38ea",
+          "bytes": 9695
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:24:46-05:00",
+      "durationMs": 146812,
+      "screenshot": {
+        "sha256": "ec36486e209d67919fe3d8938117b17a798e13cb8846c06f3ff66272a5464bce",
+        "bytes": 25954,
+        "takenAt": "2026-10-06T12:24:52.657-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/",
+      "httpStatus": 200,
+      "title": "Spotlight on True Believers Community Connections (TBCC) | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/true-believers-community-connections/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/urban-male-network/",
+      "key": "https://v3--i2i.netlify.app/spotlights/urban-male-network",
+      "slug": "spotlights-urban-male-network-e3d3e73491",
+      "line": 31,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 40,
+          "stopReason": "end-reached",
+          "durationMs": 51166,
+          "contentSha256": "6e2c7a00601a90d7556cd13c14761d157cd91724b228de253fad5bd530e576c3",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5113,
+          "contentSha256": "bda7d99e1c2dee14070e03c4c1e5aea3ff9223bddb43715a8bf11e33350b1cd7",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22575,
+          "contentSha256": "f21751590dcacbfdda19ad1fe074d4536a84cff070944ffcb57b2a343ce67b19",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "9445a3bc0cbdda3d3ae89841fcb6a907814a93af7d190feaea2acac7117cfbc0",
+          "bytes": 4048
+        },
+        "read.json": {
+          "sha256": "4eec945b0f244f9a3a640b445f2331201f766acb62c92805be495c539a24f603",
+          "bytes": 10618
+        },
+        "headings.txt": {
+          "sha256": "4b6ac4e4449c09a9db51737bd3e4e105f584f841f72b967621358b9447abfd3a",
+          "bytes": 1618
+        },
+        "headings.json": {
+          "sha256": "2e3a1e7b6611c522643c6ca9724b2f758a89ee704c9ca7fa7b013c1921f042b4",
+          "bytes": 3696
+        },
+        "tab.txt": {
+          "sha256": "baa7a58fb65da79061deee84502a8949f442b1f478a782afc6662cf00f161f30",
+          "bytes": 2278
+        },
+        "tab.json": {
+          "sha256": "68421e49d8fc102e4aa364492f370e2d8431d974701c744e95170a90fa780082",
+          "bytes": 9068
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:27:13-05:00",
+      "durationMs": 96162,
+      "screenshot": {
+        "sha256": "4ea423803b41481219ad7276d3be4a5b3a215797acf2b94ea9e56d8224fefe54",
+        "bytes": 26376,
+        "takenAt": "2026-10-06T12:27:19.520-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/urban-male-network/",
+      "httpStatus": 200,
+      "title": "Spotlight on The Urban Male Network | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/urban-male-network/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/spotlights/vision-of-restoration/",
+      "key": "https://v3--i2i.netlify.app/spotlights/vision-of-restoration",
+      "slug": "spotlights-vision-of-restoration-d807d98f11",
+      "line": 32,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 45,
+          "stopReason": "end-reached",
+          "durationMs": 57568,
+          "contentSha256": "e39bbe124d0e93ef4ebbf977d5a1eb091c1798e6ecd81d9c95fde3b6664911e8",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5102,
+          "contentSha256": "725c088e7ea53c94bfb4debb9ee7c542750bb304ddb64cbf1e87a9db1350ffd4",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22553,
+          "contentSha256": "d78418063f58862857e5965c2dccc0554f7cbcdfe84c49de1b8e94e43ee57ee8",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "e897bff2c7ef55340a78b002f063cf7ac7891b5723e80eaa1e02d056e4d2dbba",
+          "bytes": 4119
+        },
+        "read.json": {
+          "sha256": "241b4f181c4484ad03be39a6c55a473ab3e856d8da9a76a669a55179d3d91a9f",
+          "bytes": 11325
+        },
+        "headings.txt": {
+          "sha256": "d4f87771a6d272142e7bac729cd7c5cf5bc47fa080e747362da92a921946cef6",
+          "bytes": 1622
+        },
+        "headings.json": {
+          "sha256": "4d20b3fa76070df77dd421dc22edd6ee31c62c55a1d7999b68fb2e059323ef56",
+          "bytes": 3706
+        },
+        "tab.txt": {
+          "sha256": "ca5c467859acb418c42a7a3720dc32c016ca197e6663e5703322258e9389b95a",
+          "bytes": 2273
+        },
+        "tab.json": {
+          "sha256": "a257c3002b183a4a0f6c88d2bbc4301accfbe744a655eb306d777ea0380aafd4",
+          "bytes": 9049
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:28:49-05:00",
+      "durationMs": 102784,
+      "screenshot": {
+        "sha256": "f95a6a8f5ba29d9412c20bb3bd8e68f653efee06b10f6d0914d47308e9803b2d",
+        "bytes": 25318,
+        "takenAt": "2026-10-06T12:28:56.278-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/spotlights/vision-of-restoration/",
+      "httpStatus": 200,
+      "title": "Spotlight on Vision of Restoration | i2i",
+      "canonical": "https://i2i.illinois.gov/spotlights/vision-of-restoration/"
+    },
+    {
+      "url": "https://v3--i2i.netlify.app/training-and-technical-assistance/",
+      "key": "https://v3--i2i.netlify.app/training-and-technical-assistance",
+      "slug": "training-and-technical-assistance-a35bc39873",
+      "line": 33,
+      "status": "done",
+      "attempts": 1,
+      "passes": {
+        "read": {
+          "steps": 49,
+          "stopReason": "end-reached",
+          "durationMs": 62709,
+          "contentSha256": "70dcc317a51ec1af368946acc25d849f4806e8d024aa9ec6d2411a1fe963bc0a",
+          "errors": [],
+          "warnings": []
+        },
+        "headings": {
+          "steps": 4,
+          "stopReason": "no-next-heading",
+          "durationMs": 5116,
+          "contentSha256": "ab18ecba3dfa8d5e44dae6ecfb1bc010e8757d4e1e37dba5532697138fe24f63",
+          "errors": [],
+          "warnings": []
+        },
+        "tab": {
+          "steps": 16,
+          "stopReason": "left-document",
+          "durationMs": 22568,
+          "contentSha256": "876f5b1cf5ea45592666a71d32165614c5ebf0064ed9c01a836557a3509c10d2",
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "files": {
+        "read.txt": {
+          "sha256": "013ca2400ddc97e2d4fae8eb7f0687dfbf2a655f652b773665629ec6e212a208",
+          "bytes": 4345
+        },
+        "read.json": {
+          "sha256": "6405975f5f56681ef865e2615fc787db5b76be589e1f94a4b229bdd5a27daa67",
+          "bytes": 12055
+        },
+        "headings.txt": {
+          "sha256": "6224aad8277f212a54daf9b79032ded30686ac4b702ed3451cfdaaa4bae734ea",
+          "bytes": 1705
+        },
+        "headings.json": {
+          "sha256": "93e52ff20e2c73248dcffef225b6475a007b3c51f883b3f154355829869a5ea8",
+          "bytes": 3791
+        },
+        "tab.txt": {
+          "sha256": "d46688d7c45b67830ae61a0bf7eb404117254ec086a13a4fab1ecba1ddc22892",
+          "bytes": 2292
+        },
+        "tab.json": {
+          "sha256": "1c0fa0ee823b768931f75d42f68f5721fc085b64256de7399a2e83e982b0f428",
+          "bytes": 9121
+        }
+      },
+      "flags": [
+        {
+          "rule": "unlabeled",
+          "pass": "read",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the read pass: \"unlabeled graphic\" ×1."
+        },
+        {
+          "rule": "unlabeled",
+          "pass": "tab",
+          "count": 1,
+          "found": [
+            {
+              "text": "unlabeled graphic",
+              "count": 1
+            }
+          ],
+          "message": "Unlabeled or poorly labeled items in the tab pass: \"unlabeled graphic\" ×1."
+        }
+      ],
+      "errors": [],
+      "session": 1,
+      "startedAt": "2026-10-06T12:30:32-05:00",
+      "durationMs": 107706,
+      "screenshot": {
+        "sha256": "4a44be00e9ca2c0cd24c479dd8c13713c276aff3cadf8722bca2bb9c337316ec",
+        "bytes": 29806,
+        "takenAt": "2026-10-06T12:30:38.446-05:00",
+        "width": 625,
+        "height": 433
+      },
+      "finalUrl": "https://v3--i2i.netlify.app/training-and-technical-assistance/",
+      "httpStatus": 200,
+      "title": "Training & Technical Assistance | i2i",
+      "canonical": "https://i2i.illinois.gov/training-and-technical-assistance/"
+    }
+  ],
+  "files": {
+    "events.jsonl": {
+      "sha256": "4ff7f35c9f7877bc5e62632592d9a2496719fb29065781c6285202ac022dcbe8",
+      "bytes": 24281
+    }
+  },
+  "canonical": "https://v3--i2i.netlify.app/",
+  "seal": "3703f9d0264a698be3c48cc5263d953d978cc9c63a0e8129e2107fbc937792d0"
+}

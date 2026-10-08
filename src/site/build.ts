@@ -1,5 +1,5 @@
 /**
- * `voicecap site`: the website of every report voicecap has shared, built from the transcripts
+ * `voicecap site`: the website of each site's newest shared reports, built from the transcripts
  * home's records of what was shared (./records.ts) into a folder that Netlify publishes. It
  * publishes only what those records name: each file of an entry whose seal holds, of a kind voicecap
  * names its copies (./records.ts), copied byte for byte, and only when it's a regular file (never a
@@ -8,6 +8,12 @@
  * written from those same bytes. One that changed, is gone, or can't be read is left out and named,
  * in the build's output and under its report on the site, and the build goes on: one copy that can't
  * be published never stops every later update.
+ *
+ * A site keeps its newest KEPT_PER_SITE entries, of all its folders together: its current report,
+ * and the ones before it. An older entry's files are never read or published, and the address of
+ * its page sends its reader on to the site's current report (_redirects: see redirectRules). The
+ * records keep every entry: only the site leaves one off, and the build counts them, as what it
+ * did, not as a warning.
  *
  * The page names a site by its canonical name: the one its newest share records, or else its
  * folder's own name (see siteName). Site folders that have one name are one site, their reports
@@ -40,12 +46,12 @@
  * Besides each report's files, a build writes the demo's own pages in demo-site/ (the demo site
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), robots.txt,
- * and _headers, which gives each page its Content Security Policy, made from the hashes of that
- * page's own bytes, the demo's pages theirs at each address they answer at (see demoSiteRules), and
- * each download its Content-Disposition. In the home it writes .gitattributes and .gitignore when
- * they aren't there, as a run does, so a home's first build keeps _site/ out of Git with the rest
- * of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None of them is ever
- * written again.
+ * _redirects, and _headers, which gives each page its Content Security Policy, made from the hashes
+ * of that page's own bytes, the demo's pages theirs at each address they answer at (see
+ * demoSiteRules), and each download its Content-Disposition. In the home it writes .gitattributes
+ * and .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of
+ * Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None
+ * of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -83,8 +89,10 @@ import {
   HEADERS_FIRST_LINE,
   inlineHashes,
   POLICY_HEADER,
+  redirectsFile,
   ROBOTS_TXT,
   type HeaderRule,
+  type RedirectRule,
 } from "./headers.js";
 import { ensureNetlifyFiles } from "./netlify.js";
 import { DEMO_SITE, leaveOut, printable, readSiteRecords, type SiteEntry } from "./records.js";
@@ -118,6 +126,16 @@ export interface BuildSiteResult {
 const SITE_DIR = "_site";
 /** The file a build's folder is known by: it starts with HEADERS_FIRST_LINE. */
 const HEADERS_FILE = "_headers";
+/** Netlify's file of redirects: where the page of each share a site leaves off sends its reader. */
+const REDIRECTS_FILE = "_redirects";
+/**
+ * How many of a site's shares the website keeps: its newest, which are its current report and the
+ * two before it. The owner asked for it on 2026-10-07: "the only report that matters is the current
+ * one", and "the most recent 3 is all that's needed". An older share stays in the records, and
+ * `voicecap verify` checks it as ever: the site leaves it off, and sends the address of its page on
+ * to the site's current report (see redirectRules).
+ */
+export const KEPT_PER_SITE = 3;
 /** The folder of the demo's own pages in a built site: its address is the demo's canonical one. */
 const DEMO_FOLDER = "demo-site";
 /** The demo site's 404 page, which only its own server gives: it isn't one of its pages. */
@@ -136,6 +154,7 @@ const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
   "robots.txt",
   HEADERS_FILE,
+  REDIRECTS_FILE,
   DEMO_FOLDER,
 ]);
 /**
@@ -173,11 +192,12 @@ function unreadable(error: unknown): Unpublished {
 
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
- * shared file that still matches its record, and write the site's page, robots.txt, and _headers
- * beside them, then .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they
- * aren't there. Each thing left out is warned of, and the last line says what was built. Refuses
- * with a UsageError when the home isn't a folder, and when the folder to build in is one that must
- * not be emptied (see the top of this file).
+ * file of each site's newest shares that still matches its record, and write the site's page,
+ * robots.txt, _redirects, and _headers beside them, then .gitattributes, .gitignore, netlify.toml,
+ * and .nvmrc in the home when they aren't there. Each thing left out is warned of, each site's
+ * older shares are counted, and the last line says what was built. Refuses with a UsageError when
+ * the home isn't a folder, and when the folder to build in is one that must not be emptied (see the
+ * top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -218,9 +238,10 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
 
   const leftOut = [...records.leftOut];
   const publishing: Publishing = { home, out, leftOut, rulesOf: new Map() };
-  // The site folders and the reports of each site, by the site's name: folders that name one site
-  // are one site. The files are published folder by folder, wherever their reports are listed.
-  const named = new Map<string, { folders: string[]; made: Made[] }>();
+  // Every share of the site folders, in the records' order, and each site's shares, by the site's
+  // name: folders that name one site are one site.
+  const inRecordOrder: Share[] = [];
+  const named = new Map<string, { folders: string[]; shares: Share[] }>();
   // The site folders headed by their own name, which is an IP address or a local address.
   const headedByAnAddress: string[] = [];
   for (const [order, { folder, entries }] of records.sites.entries()) {
@@ -231,33 +252,47 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
       );
       continue;
     }
-    const made: Made[] = [];
-    for (const entry of entries) {
-      const id = `report-${folder}-${entry.seq}`;
-      made.push({
-        order,
-        seq: entry.seq,
-        site: entry.site,
-        report: await publishReport(publishing, entry, folder, id),
-      });
-    }
-    // Newest first, and the folder's newest share names its site.
-    made.sort(newestFirst);
-    const name = siteName(folder, made[0]?.site ?? null);
+    const shares = entries.map((entry): Share => ({ order, folder, entry }));
+    inRecordOrder.push(...shares);
+    // The folder's newest share names its site.
+    const name = siteName(folder, shares.toSorted(newestFirst)[0]?.entry.site ?? null);
     if (name === folder && namesAnAddress(folder)) headedByAnAddress.push(folder);
-    const site = named.get(name) ?? { folders: [], made: [] };
+    const site = named.get(name) ?? { folders: [], shares: [] };
     site.folders.push(folder);
-    site.made.push(...made);
+    site.shares.push(...shares);
     named.set(name, site);
   }
-  const sites: SiteContent["sites"] = [...named]
+  // Each site's newest shares, the newest first, which the site keeps, and the older ones it leaves
+  // off: of all its folders' shares together.
+  const kept = [...named]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, { folders, made }]) => ({
-      name,
-      folders,
-      // The folders' reports together, newest first.
-      reports: made.sort(newestFirst).map(({ report }) => report),
-    }));
+    .map(([name, { folders, shares }]) => {
+      const newest = shares.toSorted(newestFirst);
+      return {
+        name,
+        folders,
+        shares: newest.slice(0, KEPT_PER_SITE),
+        older: newest.slice(KEPT_PER_SITE),
+      };
+    });
+  // The kept shares' files are published in the records' order, so what's left out of them is said
+  // in that order, wherever their reports are listed. An older share's files are never read.
+  const keeping = new Set(kept.flatMap(({ shares }) => shares));
+  const reportOf = new Map<Share, PublishedReport>();
+  for (const share of inRecordOrder) {
+    if (!keeping.has(share)) continue;
+    const { folder, entry } = share;
+    const id = `report-${folder}-${entry.seq}`;
+    reportOf.set(share, await publishReport(publishing, entry, folder, id));
+  }
+  const sites: SiteContent["sites"] = kept.map(({ name, folders, shares }) => ({
+    name,
+    folders,
+    reports: shares.flatMap((share) => {
+      const report = reportOf.get(share);
+      return report === undefined ? [] : [report];
+    }),
+  }));
   const demo =
     records.demo === null
       ? null
@@ -268,6 +303,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const index = renderSiteIndex(content, { fontCss });
   await writeFile(path.join(out, "index.html"), index);
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
+  await writeFile(path.join(out, REDIRECTS_FILE), redirectsFile(redirectRules(kept, sites)));
   // The demo's own pages' rules are made from the files just published, so that none is left out.
   const demoRules = demoSiteRules(
     DEMO_FOLDER,
@@ -302,6 +338,15 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
       ),
     );
   }
+  // What the site keeps of each site is what it does, not a warning.
+  for (const { name, older } of kept) {
+    if (older.length === 0) continue;
+    const count =
+      older.length === 1 ? "1 older report isn't" : `${older.length} older reports aren't`;
+    logger.info(
+      printable(`${name}: ${count} on the site, which shows each site's newest ${KEPT_PER_SITE}.`),
+    );
+  }
   const reports = sites.reduce((count, site) => count + site.reports.length, 0);
   logger.info(
     `Built the site in ${out}: ${plural(reports, "report")} from ${plural(sites.length, "site")}${demo === null ? "" : ", and the demo's"}.`,
@@ -309,23 +354,64 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   return { out, content, leftOut };
 }
 
-/** A report made from an entry, with what puts it in its site's order and names its site. */
-interface Made {
+/** A share of a site folder, with what puts it in its site's order: its folder's place and its seq. */
+interface Share {
   /** Where its folder comes among the home's site folders, which are sorted by name. */
   order: number;
-  seq: number;
-  /** The root the entry records for its site (see `SiteEntry`). */
-  site: string | null;
-  report: PublishedReport;
+  folder: string;
+  entry: SiteEntry;
 }
 
 /**
- * Newest first, by the moment each report's time names. Of two made at the same moment, the one in
+ * Newest first, by the moment each share's time names. Of two made at the same moment, the one in
  * the earlier folder comes first, and in one folder the one with the higher seq. So a folder's
- * reports come in the same order alone as among the reports of other folders that name its site.
+ * shares come in the same order alone as among the shares of other folders that name its site.
  */
-function newestFirst(a: Made, b: Made): number {
-  return Date.parse(b.report.at) - Date.parse(a.report.at) || a.order - b.order || b.seq - a.seq;
+function newestFirst(a: Share, b: Share): number {
+  return (
+    Date.parse(b.entry.at) - Date.parse(a.entry.at) ||
+    a.order - b.order ||
+    b.entry.seq - a.entry.seq
+  );
+}
+
+/**
+ * The rules of _redirects: the page of each share a site leaves off, at its own address and at the
+ * same without ".html" (which is how Netlify serves a page too), sent on to the site's current
+ * report's page, or to the website's front page when that page isn't published. `kept` and `sites`
+ * are the same sites, in the page's order, and each site's older shares come the newest first. An
+ * address a published file is at is never sent on: Netlify would serve the file all the same, and
+ * the rule would say what isn't so. Nor is an address sent on twice.
+ */
+function redirectRules(
+  kept: readonly { older: readonly Share[] }[],
+  sites: SiteContent["sites"],
+): RedirectRule[] {
+  const taken = new Set(
+    sites
+      .flatMap(({ reports }) => reports)
+      .flatMap(({ files }) => files)
+      .flatMap(({ kind, href }) =>
+        kind === "page" ? [`/${href}`, `/${href.slice(0, -".html".length)}`] : [`/${href}`],
+      ),
+  );
+  const rules: RedirectRule[] = [];
+  for (const [index, { older }] of kept.entries()) {
+    const page = sites[index]?.reports[0]?.files.find(({ kind }) => kind === "page");
+    const to = page === undefined ? "/" : `/${page.href}`;
+    for (const { folder, entry } of older) {
+      for (const { name } of entry.files) {
+        if (fileKind(name) !== "page") continue;
+        const address = `/${folder}/${name}`;
+        for (const from of [address, address.slice(0, -".html".length)]) {
+          if (taken.has(from)) continue;
+          taken.add(from);
+          rules.push({ from, to });
+        }
+      }
+    }
+  }
+  return rules;
 }
 
 /**
@@ -768,7 +854,16 @@ async function publishReport(
     files.push(file);
     publishing.rulesOf.set(file, rulesFor(file, copy.bytes));
   }
-  return { folder, id, at: entry.at, by: entry.by, files, notPublished };
+  return {
+    folder,
+    id,
+    at: entry.at,
+    by: entry.by,
+    files,
+    notPublished,
+    // What its copies say of the site, for its card: an entry from before 0.12.3 says nothing.
+    ...(entry.result === null ? {} : { result: entry.result }),
+  };
 }
 
 /**

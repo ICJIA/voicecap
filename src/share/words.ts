@@ -1,8 +1,8 @@
 /**
  * The sentences of the shareable report that are worked out from its model: the numbers, counts,
  * names, and dates in the plain words each copy says them in. First those of the page's first half
- * (the top, the summary, "How voicecap works", "Every page", "What the flags found", and the
- * appendix), then those of its second (what changed since the last run, the problems during the
+ * (the top, At a glance, "What needs attention", "How voicecap works", and "Every page" with its
+ * transcripts), then those of its second (what changed since the last run, the problems during the
  * runs, the evidence, the story, and the footer).
  *
  * Each is a string, or a line (./line.ts): no markup, and nothing escaped. The page's renderers
@@ -10,10 +10,11 @@
  * two can't say different things. What no record changes is in text.ts. Pure.
  *
  * A fold's instruction to open it is the page's alone: the Word copy folds nothing. So a line that
- * has one (`appendixGist`, `changesGist`) takes the page's sentence, and says none of its own.
+ * has one (`changesGist`) takes the page's sentence, and says none of its own.
  */
 import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
 import { plural } from "../report/html.js";
+import { NO_SPEECH } from "../transcripts/format.js";
 import { formatDuration } from "../util/time.js";
 import { attentionClauses } from "./attention.js";
 import type { Changes, OnlyInOnePage, PageChange } from "./changes.js";
@@ -32,8 +33,8 @@ import type { Line } from "./line.js";
 import type { AppendixFile, PageCard, ShareModel } from "./model.js";
 import { KIND_ROWS, type Problem, type ProblemKind } from "./problems.js";
 import { runEnd, runStart } from "./run-evidence.js";
-import type { Summary } from "./summary.js";
 import {
+  ATTENTION_TEXT,
   EVIDENCE_TEXT,
   HOW_LEAD,
   HOW_TEXT,
@@ -42,7 +43,6 @@ import {
   PASS_WORDS,
   PROBLEMS_TEXT,
   STORY,
-  SUMMARY_TEXT,
   TIMELINE_TEXT,
   TOP_TEXT,
 } from "./text.js";
@@ -91,59 +91,65 @@ export function documentTitle({ name, screenReader }: ShareModel["header"]): str
   return `${name}: how its pages read aloud with ${screenReader}`;
 }
 
-// The summary.
+// At a glance.
 
-/** One of the summary's six numbers: how it's counted, and what it counts. */
+/** One of At a glance's numbers: how it's counted, and what it counts. */
 export interface NumberTile {
   /** Complete is "ok", a flag or a gap "warn", a plain count "quiet": a copy says it in words too. */
   tone: "ok" | "warn" | "quiet";
   value: { count: number } | { part: number; whole: number } | { ms: number };
-  /** What follows the number: "pages in scope", "transcribed by NVDA". */
+  /** What follows the number: "pages read by NVDA", "problems to fix", "lines NVDA spoke". */
   label: string;
 }
 
+/** The tile of how many lines NVDA spoke in the transcripts shown, a plain count. */
+function spokenTile({ summary }: ShareModel): NumberTile {
+  const { linesSpoken } = summary.numbers;
+  return {
+    tone: "quiet",
+    value: { count: linesSpoken },
+    label: linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke",
+  };
+}
+
 /**
- * The six numbers, in order. A count out of its total is in the tone of whether it's complete; a
- * copy says each in words, never by tone alone.
+ * The tile of how long the runs held NVDA, across how many runs, with how many sessions its time
+ * leaves out when some have no recorded end.
  */
-export function numbersOf(model: ShareModel): NumberTile[] {
-  const { pagesInScope, transcribed, flagged, rules, listened, linesSpoken, nvdaMs } =
-    model.summary.numbers;
-  const { sessionsWithoutEnd: uncounted } = model.summary.numbers;
+function timeTile({ summary, evidence }: ShareModel): NumberTile {
+  const { nvdaMs, sessionsWithoutEnd: uncounted } = summary.numbers;
   const left =
     uncounted === 0
       ? ""
       : `; ${plural(uncounted, "session")} without a recorded end ${uncounted === 1 ? "isn't" : "aren't"} counted`;
-  const flagsLabel = `${flagged === 1 ? "page" : "pages"} with flags${flagged > 0 ? `, ${plural(rules, "rule")}` : ""}`;
-  const transcribedTone =
-    pagesInScope === 0 ? "quiet" : transcribed === pagesInScope ? "ok" : "warn";
+  return {
+    tone: "quiet",
+    value: { ms: nvdaMs },
+    label: `of NVDA time, across ${plural(evidence.length, "run")}${left}`,
+  };
+}
+
+/**
+ * The four numbers At a glance gives, in order: the pages NVDA read out of those in scope, the
+ * problems to fix, the lines NVDA spoke, and how long it ran. The first two are the result the
+ * verdict goes by (`ShareModel.result`), so the numbers and the verdict can't disagree. A count out
+ * of its total is in the tone of whether it's complete, and the problems to fix are `ok` at none
+ * and `warn` above; a copy says each in words, never by tone alone. None counts the pages a person
+ * heard NVDA read: a run started without a terminal can't ask, and a count of 0 read as though no
+ * one had heard NVDA.
+ */
+export function glanceNumbersOf(model: ShareModel): NumberTile[] {
+  const { pages, read, problems } = model.result;
+  const readTone = pages === 0 ? "quiet" : read === pages ? "ok" : "warn";
   return [
+    { tone: readTone, value: { part: read, whole: pages }, label: "pages read by NVDA" },
     {
-      tone: "quiet",
-      value: { count: pagesInScope },
-      label: pagesInScope === 1 ? "page in scope" : "pages in scope",
+      tone: problems > 0 ? "warn" : "ok",
+      value: { count: problems },
+      label: problems === 1 ? "problem to fix" : "problems to fix",
     },
-    {
-      tone: transcribedTone,
-      value: { part: transcribed, whole: pagesInScope },
-      label: "transcribed by NVDA",
-    },
-    { tone: flagged > 0 ? "warn" : "quiet", value: { count: flagged }, label: flagsLabel },
-    {
-      tone: transcribed > 0 && listened === transcribed ? "ok" : "quiet",
-      value: { part: listened, whole: transcribed },
-      label: "heard live by a person",
-    },
-    {
-      tone: "quiet",
-      value: { count: linesSpoken },
-      label: linesSpoken === 1 ? "line NVDA spoke" : "lines NVDA spoke",
-    },
-    {
-      tone: "quiet",
-      value: { ms: nvdaMs },
-      label: `of NVDA time, across ${plural(model.evidence.length, "run")}${left}`,
-    },
+    spokenTile(model),
+    timeTile(model),
   ];
 }
 
@@ -170,22 +176,17 @@ export function shareOf(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`;
 }
 
+// What needs attention.
+
 /**
- * The pages each kind of latest result counts, in words: "5 pages without flags, 1 page with
- * flags". A kind with no pages isn't named, so it's empty when there are no pages at all.
+ * The line under the heading of "What needs attention": how many problems there are, on how many
+ * pages, and what to do about them, from the summary's own counts. Both copies have the section
+ * only when a card is left, so this is said of a model with a card; with none, At a glance's
+ * verdict says that nothing needs attention.
  */
-export function resultsCaption({ done, flagged, never }: Summary["bars"]["results"]): string {
-  const { resultWords } = SUMMARY_TEXT;
-  return (
-    [
-      [done, resultWords.done],
-      [flagged, resultWords.flagged],
-      [never, resultWords.never],
-    ] as const
-  )
-    .filter(([pages]) => pages > 0)
-    .map(([pages, what]) => `${plural(pages, "page")} ${what}`)
-    .join(", ");
+export function attentionGist({ summary }: ShareModel): Line {
+  const { problems, pages } = summary.attention;
+  return [ATTENTION_TEXT.gist(problems, pages)];
 }
 
 // How voicecap works.
@@ -244,6 +245,17 @@ export function pagesGist({ pages, header }: ShareModel): Line {
     { text: headline, bold: true },
     " For each page: its result, the person's review as far as the records show it, and what each pass captured.",
   ];
+}
+
+/**
+ * A first line of a page as its card sets it: in curly quotes, since it is what NVDA said. The
+ * transcript writes `[no speech]` for a step where NVDA said nothing (`NO_SPEECH`): that is a note,
+ * not words NVDA said, so it is set as it is, and never in quotes, which would read as though NVDA
+ * had said those words. The sample of what NVDA said on the home page (`ShareModel.heard`) sets its
+ * lines the same way, on the page and in the Word copy.
+ */
+export function heardFirstLine(line: string): string {
+  return line === NO_SPEECH ? line : `“${line}”`;
 }
 
 /** How long a page took, as the mockup writes it: "55.1 s", then "1 min 2 s". */
@@ -323,71 +335,15 @@ export function notRecordedLine(text: string): string {
   return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
 }
 
-// What the flags found.
-
-/** The line that opens "What the flags found": how many pages have flags, and from how many rules. */
-export function flagsGist({ flagged, pages, header }: ShareModel): Line {
-  if (header.tested === null) return [{ text: NO_RUN, bold: true }, " There are no flags to show."];
-  if (pages.every(({ counts }) => counts === null)) {
-    return [{ text: "No page has transcripts yet.", bold: true }, " There are no flags to show."];
-  }
-  if (flagged.length === 0) {
-    return [
-      { text: "No page has flags.", bold: true },
-      " Flags point a person to pages worth a closer listen; none was raised.",
-    ];
-  }
-  const rules = new Set(flagged.flatMap(({ quotes }) => quotes.map(({ rule }) => rule))).size;
-  const has = flagged.length === 1 ? "has" : "have";
-  return [
-    {
-      text: `${plural(flagged.length, "page")} ${has} flags, from ${plural(rules, "rule")}.`,
-      bold: true,
-    },
-    " Flags point a person to pages worth a closer listen. Each quotes what NVDA actually said.",
-  ];
-}
-
-/** How many flags a page has, as a reader says it: "5 flags", "1 flag". */
-export function flagCount(flags: number): string {
-  return plural(flags, "flag");
-}
-
-// The appendix.
-
-/**
- * The line that opens the appendix: how many pages and transcripts, what each page has, and any
- * that couldn't be read. `open` is the page's sentence about opening a page, which follows what each
- * page has; a copy that folds nothing gives none.
- */
-export function appendixGist({ appendix, header }: ShareModel, open = ""): Line {
-  if (header.tested === null) {
-    return [{ text: NO_RUN, bold: true }, " There are no transcripts to show."];
-  }
-  if (appendix.length === 0) {
-    return [{ text: "No transcripts to show.", bold: true }, " No page has been read in full yet."];
-  }
-  const shown = appendix.reduce((sum, { files }) => sum + files.length, 0);
-  const lost = appendix.reduce((sum, { unreadable }) => sum + unreadable.length, 0);
-  const headline = `${plural(appendix.length, "page")}, ${shown === 0 ? "no transcripts shown" : plural(shown, "transcript")}.`;
-  const opening = open === "" ? "" : ` ${open}`;
-  const unread =
-    lost === 0
-      ? ""
-      : ` ${plural(lost, "transcript")} couldn't be read, and ${lost === 1 ? "says" : "each says"} so under its page.`;
-  return [
-    { text: headline, bold: true },
-    ` What NVDA said on each page, word for word, with each file's fingerprint.${opening}${unread}`,
-  ];
-}
+// A page's transcripts.
 
 /**
  * The run a page's transcripts are from, with its id in the fixed-width font: its id, and its date
- * for a run before the latest. A page with no card, or whose transcripts are the latest run's,
- * is from `latest`; none when there is no latest run either.
+ * for a run before the latest. A page whose transcripts are the latest run's is from `latest`; none
+ * when there is no latest run either.
  */
-export function originOf(card: PageCard | undefined, latest: string | null): Line | null {
-  if (card?.from) {
+export function originOf(card: PageCard, latest: string | null): Line | null {
+  if (card.from) {
     return ["From run ", { text: card.from.run, mono: true }, `, on ${card.from.date}`];
   }
   return latest === null ? null : ["From run ", { text: latest, mono: true }];
@@ -553,7 +509,7 @@ export function flagsLine({
     ...changed.map(({ before, after }) =>
       before.count !== undefined && after.count !== undefined
         ? [...which(after), `, ${count(before.count)} before, ${count(after.count)} now (changed).`]
-        : [...which(after), `, changed: now ${attentionClauses([after], null, null)}.`],
+        : [...which(after), `, changed: now ${attentionClauses([after])}.`],
     ),
     ...unchanged.map((flag) => [...which(flag), ", unchanged."]),
   ];

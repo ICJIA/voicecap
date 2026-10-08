@@ -544,7 +544,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("site")
     .description(
-      "build the website of every shared report, for Netlify: index.html, each report's files, robots.txt, and _headers",
+      "build the website of each site's newest shared reports, for Netlify: index.html, each report's files, robots.txt, _headers, and _redirects",
     )
     .option(
       "--home <dir>",
