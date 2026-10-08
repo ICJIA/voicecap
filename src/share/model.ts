@@ -439,12 +439,21 @@ function nvdaMsOf(runs: RunJson[]): number {
 }
 
 /**
+ * The pages What needs attention names: the slug of every page on any of its cards. Those of them
+ * that NVDA read are the ring's "Read, with problems", and the pages `voicecap review --replay`
+ * plays by default.
+ */
+export function namedByAttention(attention: AttentionCard[]): Set<string> {
+  return new Set(attention.flatMap((card) => card.pages.map((page) => page.slug)));
+}
+
+/**
  * The ring of the pages. A page with no transcripts was not read, though a card may name it (the
  * page the latest run couldn't read); a page with transcripts that a card names was read with
  * problems; every other page was read with no problems.
  */
 function ringOf(cards: PageCard[], attention: AttentionCard[]): ShareModel["ring"] {
-  const named = new Set(attention.flatMap((card) => card.pages.map((page) => page.slug)));
+  const named = namedByAttention(attention);
   const ring = { noProblems: 0, needAttention: 0, notRead: 0 };
   for (const card of cards) {
     if (card.counts === null) ring.notRead += 1;
