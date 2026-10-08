@@ -329,9 +329,11 @@ describe("the fixed text", () => {
     const { GLANCE_TEXT, DETAILS_TEXT, ATTENTION_TEXT, PAGES_TEXT } = text;
 
     expect(GLANCE_TEXT.title).toBe("At a glance");
+    // The owner's choice of 2026-10-07 (D6): each part says whether NVDA read the page, so a page
+    // that was never read isn't one that "needs attention" beside a verdict that counts a card.
     expect(GLANCE_TEXT.parts).toEqual({
-      noProblems: "No problems",
-      needAttention: "Need attention",
+      noProblems: "Read, no problems",
+      needAttention: "Read, with problems",
       notRead: "Not read",
     });
     expect(GLANCE_TEXT.onThisPage).toBe("On this page");

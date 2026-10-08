@@ -41,7 +41,15 @@ import {
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { textOf } from "./helpers/share-html.js";
-import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
+import {
+  DEMO_ROOT,
+  demoModel,
+  homeModel,
+  inputOf,
+  LINES,
+  storeOf,
+  withoutTxt,
+} from "./helpers/share-model.js";
 import {
   boldIn,
   cellLines,
@@ -331,8 +339,8 @@ describe("wordGlance", () => {
     expect(ring.head).toEqual(["Part", "Pages"]);
     expect(wordsOf([ring])).toEqual([
       "Part | Pages",
-      "No problems | 5",
-      "Need attention | 2",
+      "Read, no problems | 5",
+      "Read, with problems | 2",
       "Not read | 0",
     ]);
     // A part with no pages keeps its row, with 0, as the page's legend keeps its line.
@@ -340,7 +348,42 @@ describe("wordGlance", () => {
     expect(wordsOf([ring]).slice(1)).toEqual(legend);
     // Counts have their thousands set apart.
     const many = { ...model, ring: { noProblems: 1204, needAttention: 2, notRead: 0 } };
-    expect(wordsOf([tableAt(wordGlance(many), 0)])[1]).toBe("No problems | 1,204");
+    expect(wordsOf([tableAt(wordGlance(many), 0)])[1]).toBe("Read, no problems | 1,204");
+  });
+
+  // The owner's choice of 2026-10-07 (D6): the parts say whether NVDA read the page, so the
+  // legend can't say "Need attention: 0" under a verdict that says a problem needs attention on a
+  // page that was never read.
+  it("names the ring's three parts by whether NVDA read the page, on the page's legend and in Word's table, in order", async () => {
+    const demo = await demoModel();
+    // One page of each part, and none left over: three read with no problems, one read with
+    // problems, three not read.
+    const model = {
+      ...withResult(demo, { pages: 7, read: 4 }),
+      ring: { noProblems: 3, needAttention: 1, notRead: 3 },
+    };
+    const legend = (html: string): string[] =>
+      [
+        ...html.matchAll(
+          /<li class="[^"]*"><span class="sw" aria-hidden="true"><\/span>(.*?)<\/li>/g,
+        ),
+      ].map(([, item = ""]) => textOf(item, ""));
+
+    expect(legend(renderGlance(model))).toEqual([
+      "Read, no problems: 3",
+      "Read, with problems: 1",
+      "Not read: 3",
+    ]);
+    expect(wordsOf([tableAt(wordGlance(model), 0)]).slice(1)).toEqual([
+      "Read, no problems | 3",
+      "Read, with problems | 1",
+      "Not read | 3",
+    ]);
+    // The old words are gone from both, wherever they stood.
+    for (const old of ["No problems", "Need attention"]) {
+      expect(legend(renderGlance(model)).join("\n")).not.toContain(old);
+      expect(wordsOf([tableAt(wordGlance(model), 0)]).join("\n")).not.toContain(old);
+    }
   });
 
   it("gives the four numbers as a table, each as the page's tiles say it: pages read out of the pages, the problems, the lines, and a time in words", async () => {
@@ -676,6 +719,48 @@ describe("wordHow", () => {
     // A cell with no line is empty, and is still a cell: each row has one for each heading.
     expect(table.rows.map((row) => row.length)).toEqual([2, 2, 2]);
     expect(table.rows[1]?.[1]).toEqual({ lines: [] });
+  });
+
+  // The sample follows the rule a card's Heard first follows: a pass is quoted only when its
+  // transcript, the file the page shows, can be read here.
+  it("takes a column only for a pass whose transcript can be read here, and names the ways through the page by those", () => {
+    const model = homeModel(withoutTxt(storeOf(), (_slug, pass) => pass === "headings"));
+    const how = wordHow(model);
+
+    expect(outlineOf(how)[1]).toBe(`2 Heard on this site: ${SITE}, two ways`);
+    expect(wordsOf([tableAt(how, 1)])).toEqual([
+      "Down Arrow, line by line | Tab, control by control",
+      "“banner landmark, link, Skip to main content” (1.2 s) | “Skip to main content, link” (1.2 s)",
+      "“heading, level 1, Grants” (1.2 s) | “click here, link” (1.2 s)",
+      "“To apply,, link, click here, dot” (1.2 s) | ",
+    ]);
+  });
+
+  it("says no sample is available when no pass's transcript can be read here", () => {
+    const model = homeModel(withoutTxt(storeOf()));
+    const how = wordHow(model);
+
+    expect(model.heard).toBeNull();
+    expect(under(how, "Heard on this site")).toEqual([
+      para("Not recorded: no sample of the home page's lines is available."),
+    ]);
+    expect(tablesIn(how)).toHaveLength(2);
+  });
+
+  // A step where NVDA said nothing is the marker the transcript writes, a note and not words NVDA
+  // said: a card's Heard first sets it bare, and so does the sample.
+  it("sets a step where NVDA said nothing as the marker, with no quotes, as a card does", () => {
+    const model = homeModel(
+      storeOf(() => ({ ...LINES, read: ["banner landmark, Home", "", "heading, level 1, Home"] })),
+    );
+    const sample = tableAt(wordHow(model), 1);
+
+    expect(wordsOf([sample]).slice(1)).toEqual([
+      "“banner landmark, Home” (1.2 s) | “heading, level 1, Grants” (1.2 s) | “Skip to main content, link” (1.2 s)",
+      "[no speech] (1.2 s) | “no next heading” (1.2 s) | “click here, link” (1.2 s)",
+      "“heading, level 1, Home” (1.2 s) |  | ",
+    ]);
+    expect(wordsOf([sample]).join("\n")).not.toContain("“[no speech]”");
   });
 
   it("says no sample is available when no home page has transcripts to quote", () => {

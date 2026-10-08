@@ -81,6 +81,7 @@ import {
   demoModel,
   downloadOf,
   fileBytes,
+  homeModel,
   inputOf,
   LINES,
   LOG_HASH,
@@ -96,6 +97,7 @@ import {
   withNestedSettings,
   withOwnFiles,
   withoutReadTxt,
+  withoutTxt,
   withStepLimit,
 } from "./helpers/share-model.js";
 
@@ -1247,6 +1249,42 @@ describe("buildShareModel", () => {
           ],
         },
       ],
+    });
+  });
+
+  // The sample follows the rule a card's Heard first follows: a pass's lines are quoted only when
+  // that pass's TXT can be read here, since the page shows that file and nothing else of it.
+  describe("hears the home page only in the passes whose TXT can be read here", () => {
+    it("leaves out a pass whose TXT can't be read, though its steps can, and keeps the others in order", () => {
+      const transcripts = withoutTxt(storeOf(), (_slug, pass) => pass === "headings");
+      const model = homeModel(transcripts);
+
+      // The headings pass's steps are there to read: it is the file the page shows that is not.
+      expect(transcripts.steps("r1", HOME, "headings")).not.toBeNull();
+      expect(transcripts.txt("r1", HOME, "headings")).toBeNull();
+      expect(model.heard?.passes.map(({ pass }) => pass)).toEqual(["read", "tab"]);
+      expect(model.heard?.passes.map(({ lines }) => lines.length)).toEqual([3, 2]);
+    });
+
+    it("has no sample when no pass's TXT can be read, as a page with nothing to quote has none", () => {
+      const transcripts = withoutTxt(storeOf());
+      const model = homeModel(transcripts);
+
+      expect(transcripts.steps("r1", HOME, "read")).not.toBeNull();
+      expect(model.heard).toBeNull();
+    });
+
+    it("agrees with the home page's card: no lines of the read pass in one when the other has none", () => {
+      const lost = homeModel(withoutReadTxt(storeOf()));
+      const whole = homeModel();
+
+      expect(lost.pages[0]?.heardFirst).toEqual([]);
+      expect(lost.heard?.passes.map(({ pass }) => pass)).toEqual(["headings", "tab"]);
+      expect(whole.pages[0]?.heardFirst).toEqual(LINES.read.slice(0, 3));
+      expect(whole.heard?.passes[0]).toEqual({
+        pass: "read",
+        lines: LINES.read.slice(0, 3).map((text) => ({ text, took: "1.2 s" })),
+      });
     });
   });
 

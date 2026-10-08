@@ -29,7 +29,15 @@ import { HOW_LEAD, HOW_STEPS, WHEN_TO_RUN } from "../src/share/text.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
-import { DEMO_ROOT, demoModel, inputOf } from "./helpers/share-model.js";
+import {
+  DEMO_ROOT,
+  demoModel,
+  homeModel,
+  inputOf,
+  LINES,
+  storeOf,
+  withoutTxt,
+} from "./helpers/share-model.js";
 
 const PAT = "Pat Lee";
 
@@ -343,8 +351,8 @@ describe("count", () => {
 describe("ring", () => {
   /** The three parts of the ring of the pages, as At a glance gives them: one of each kind. */
   const partsOf = (ok: number, warn: number, bad: number): RingPart[] => [
-    { label: "No problems", value: ok, kind: "ok" },
-    { label: "Need attention", value: warn, kind: "warn" },
+    { label: "Read, no problems", value: ok, kind: "ok" },
+    { label: "Read, with problems", value: warn, kind: "warn" },
     { label: "Not read", value: bad, kind: "bad" },
   ];
 
@@ -437,8 +445,8 @@ describe("ring", () => {
     expect(arcsOf(html)).toEqual([{ kind: "bad", length: 301.59, gap: 0, start: 0 }]);
     expect(html.match(/class="ring-part/g)).toHaveLength(1);
     expect(legendOf(html)).toEqual([
-      ["ok", "No problems: 0"],
-      ["warn", "Need attention: 0"],
+      ["ok", "Read, no problems: 0"],
+      ["warn", "Read, with problems: 0"],
       ["bad", "Not read: 3"],
     ]);
   });
@@ -447,8 +455,8 @@ describe("ring", () => {
     const html = ring(partsOf(5, 2, 0), 7);
 
     expect(legendOf(html)).toEqual([
-      ["ok", "No problems: 5"],
-      ["warn", "Need attention: 2"],
+      ["ok", "Read, no problems: 5"],
+      ["warn", "Read, with problems: 2"],
       ["bad", "Not read: 0"],
     ]);
     // The swatch is for the eye: the words and the count say it all, and each item is a list item.
@@ -456,10 +464,13 @@ describe("ring", () => {
       html.match(/<li class="\w+"><span class="sw" aria-hidden="true"><\/span>/g),
     ).toHaveLength(3);
     expect(html).toContain(
-      '<li class="warn"><span class="sw" aria-hidden="true"></span>Need attention: <b>2</b></li>',
+      '<li class="warn"><span class="sw" aria-hidden="true"></span>Read, with problems: <b>2</b></li>',
     );
     // Counts as the page writes them everywhere: with their thousands set apart.
-    expect(legendOf(ring(partsOf(1200, 4, 0), 1204)).at(0)).toEqual(["ok", "No problems: 1,200"]);
+    expect(legendOf(ring(partsOf(1200, 4, 0), 1204)).at(0)).toEqual([
+      "ok",
+      "Read, no problems: 1,200",
+    ]);
   });
 
   it("puts the number of pages in the middle, with its unit, in the singular for one", () => {
@@ -979,7 +990,7 @@ describe("renderGlance", () => {
     );
     const at = (marker: string) => html.indexOf(marker);
 
-    expect(legend).toEqual(["No problems: 5", "Need attention: 2", "Not read: 0"]);
+    expect(legend).toEqual(["Read, no problems: 5", "Read, with problems: 2", "Not read: 0"]);
     // Five pages without a problem and two with: an arc each, and none for the page not read.
     expect(html.match(/class="ring-part ok"/g)).toHaveLength(1);
     expect(html.match(/class="ring-part warn"/g)).toHaveLength(1);
@@ -1003,7 +1014,7 @@ describe("renderGlance", () => {
     expect(clean).toContain('<ul class="ring-legend" role="list" aria-label="1 page">');
   });
 
-  it("takes the ring's three parts from the model, in the order No problems, Need attention, Not read", async () => {
+  it("takes the ring's three parts from the model, in the order Read with no problems, Read with problems, Not read", async () => {
     const model = {
       ...withResult(await demoModel(), { pages: 7, read: 4 }),
       ring: { noProblems: 3, needAttention: 1, notRead: 3 },
@@ -1021,8 +1032,8 @@ describe("renderGlance", () => {
         textOf(item, ""),
       ]),
     ).toEqual([
-      ["ok", "No problems: 3"],
-      ["warn", "Need attention: 1"],
+      ["ok", "Read, no problems: 3"],
+      ["warn", "Read, with problems: 1"],
       ["bad", "Not read: 3"],
     ]);
   });
@@ -1342,6 +1353,55 @@ describe("renderHow", () => {
       '<summary><span class="what">Heard on this site: Home, two ways</span></summary>',
     );
     expect(html).not.toContain("<i>Home");
+  });
+
+  // The sample follows the rule a card's Heard first follows: a pass is quoted only when its
+  // transcript, the file the page shows, can be read here.
+  it("quotes a pass only when its transcript can be read here, and counts the ways through the page by those", () => {
+    const model = homeModel(withoutTxt(storeOf(), (_slug, pass) => pass === "headings"));
+    const html = renderHow(model);
+
+    expect(html).toContain(
+      `<summary><span class="what">Heard on this site: ${SITE}, two ways</span></summary>`,
+    );
+    expect(
+      [...html.matchAll(/<figcaption>(.*?)<\/figcaption>/g)].map(([, caption]) => caption),
+    ).toEqual(["<kbd>Down Arrow</kbd> line by line", "<kbd>Tab</kbd> control by control"]);
+    // Nothing of the pass whose transcript can't be read, though its steps can.
+    expect(html).not.toContain("<kbd>H</kbd>");
+    expect(html).not.toContain("no next heading");
+    expect(html).toContain("click here, link");
+  });
+
+  it("says no sample is available when no pass's transcript can be read here", () => {
+    const model = homeModel(withoutTxt(storeOf()));
+    const html = renderHow(model);
+
+    expect(model.heard).toBeNull();
+    expect(html).toContain("<h3>Heard on this site</h3>");
+    expect(html).toContain("Not recorded: no sample of the home page&#39;s lines is available.");
+    expect(html).not.toContain('class="lanes"');
+  });
+
+  // A step where NVDA said nothing is the marker the transcript writes, a note and not words NVDA
+  // said: a card's Heard first sets it bare, and so does the sample.
+  it("sets a step where NVDA said nothing as the marker, with no quotes, as a card does", () => {
+    const model = homeModel(
+      storeOf(() => ({ ...LINES, read: ["banner landmark, Home", "", "heading, level 1, Home"] })),
+    );
+    const html = renderHow(model);
+    const read = html.split('<figure class="lane">')[1] ?? "";
+
+    expect(
+      [...read.matchAll(/<li><span>(.*?)<\/span><span class="t">(.*?)<\/span><\/li>/g)].map(
+        ([, said, took]) => [said, took],
+      ),
+    ).toEqual([
+      ["“banner landmark, Home”", "1.2 s"],
+      ["[no speech]", "1.2 s"],
+      ["“heading, level 1, Home”", "1.2 s"],
+    ]);
+    expect(html).not.toContain("“[no speech]”");
   });
 
   it("says it wasn't recorded when no home page has transcripts to quote", () => {

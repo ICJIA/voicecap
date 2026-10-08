@@ -160,11 +160,13 @@ export interface ShareModel {
    */
   result: ShareResult;
   /**
-   * The ring of the pages: how many have no problems, how many need attention (a card of What needs
-   * attention is on them), and how many were not read (they have no transcripts, so no result of
-   * their own to speak of, whatever else is said of them). Each page is in one part, so the three
-   * add up to `result.pages`. `needAttention` is narrower than `PageCard.needsAttention`, which
-   * is also true of a page whose flags a review settled, and of one that wasn't read.
+   * The ring of the pages, whose parts say whether NVDA read the page: how many were read with no
+   * problems (`noProblems`: "Read, no problems"), how many were read with problems
+   * (`needAttention`: "Read, with problems"; a card of What needs attention is on them), and how
+   * many were not read (`notRead`: they have no transcripts, so no result of their own to speak of,
+   * whatever else is said of them). Each page is in one part, so the three add up to
+   * `result.pages`. `needAttention` is narrower than `PageCard.needsAttention`, which is also true
+   * of a page whose flags a review settled, and of one that wasn't read.
    */
   ring: { noProblems: number; needAttention: number; notRead: number };
   /**
@@ -175,7 +177,8 @@ export interface ShareModel {
   attention: AttentionCard[];
   /**
    * The first three lines of each pass on the home page (the page at "/", else the first in scope),
-   * from its shown transcripts, each with how long it took ("1.3 s"). Null when that page has none.
+   * from its shown transcripts, each with how long it took ("1.3 s"). A pass is there only when its
+   * TXT can be read here, as a card's first lines are (see `heardOf`). Null when that page has none.
    * `page` names the page: its label, else its address, as the page shows it.
    */
   heard: {
@@ -437,8 +440,8 @@ function nvdaMsOf(runs: RunJson[]): number {
 
 /**
  * The ring of the pages. A page with no transcripts was not read, though a card may name it (the
- * page the latest run couldn't read); a page with transcripts that a card names needs attention;
- * every other page has no problems.
+ * page the latest run couldn't read); a page with transcripts that a card names was read with
+ * problems; every other page was read with no problems.
  */
 function ringOf(cards: PageCard[], attention: AttentionCard[]): ShareModel["ring"] {
   const named = new Set(attention.flatMap((card) => card.pages.map((page) => page.slug)));
@@ -533,6 +536,11 @@ function testedOf(runs: RunJson[]): string {
  * The home page's first lines in each pass: the steps of the key that pass presses, so not the
  * read pass's Ctrl+End and Ctrl+Home, which set it up. Each with how long it took: the key press
  * and NVDA's speech, until NVDA was quiet.
+ *
+ * A pass is quoted only when its TXT transcript can be read here, as a page's card quotes its read
+ * pass (see `cardsOf`): the page shows that file, so the lines it quotes are that file's. A pass
+ * whose TXT can't be read gives no lines, though its steps (the JSON) may be there, and is left
+ * out, as a pass with nothing to show is.
  */
 function heardOf(
   pages: PageStanding[],
@@ -543,6 +551,7 @@ function heardOf(
   const shown = home?.shown;
   if (!home || !shown) return null;
   const passes = PASS_NAMES.flatMap((pass) => {
+    if (transcripts.txt(shown.run.id, shown.page.slug, pass) === null) return [];
     const steps = transcripts.steps(shown.run.id, shown.page.slug, pass) ?? [];
     const lines = steps
       .filter((step) => step.command === MAIN_COMMAND[pass])

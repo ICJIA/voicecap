@@ -86,19 +86,40 @@ export function storeOf(
 }
 
 /**
- * The transcripts with the read pass's TXT unreadable for each page `lost` picks by its slug (every
- * page, by default), though its steps (the read pass's JSON) can still be read: the split of a page
- * whose read.txt is gone or damaged while its read.json is as it was. A card's fold shows the TXT,
- * so it says that transcript couldn't be read.
+ * The transcripts with the TXT of each pass of each page that `lost` picks, by the page's slug and
+ * the pass (every one, by default), unreadable, though their steps (the JSON) can still be read: the
+ * split of a page whose .txt is gone or damaged while its .json is as it was. A card's fold shows
+ * the TXT, so it says that transcript couldn't be read.
  */
+export function withoutTxt(
+  store: TranscriptStore,
+  lost: (slug: string, pass: PassName) => boolean = () => true,
+): TranscriptStore {
+  return {
+    txt: (run, slug, pass) => (lost(slug, pass) ? null : store.txt(run, slug, pass)),
+    steps: (run, slug, pass) => store.steps(run, slug, pass),
+  };
+}
+
+/**
+ * A site of one page, its home page ("/"), read three ways, whose transcripts are `transcripts`
+ * (those of every page in memory, `storeOf()`, unless a test gives others): what the sample of
+ * "Heard on this site" and the page's own card are made of.
+ */
+export function homeModel(transcripts: TranscriptStore = storeOf()): ShareModel {
+  const run = shareRun({
+    id: "r1",
+    pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+  });
+  return buildShareModel(inputOf([run], { transcripts }));
+}
+
+/** The transcripts with only the read pass's TXT unreadable, for each page `lost` picks by its slug. */
 export function withoutReadTxt(
   store: TranscriptStore,
   lost: (slug: string) => boolean = () => true,
 ): TranscriptStore {
-  return {
-    txt: (run, slug, pass) => (pass === "read" && lost(slug) ? null : store.txt(run, slug, pass)),
-    steps: (run, slug, pass) => store.steps(run, slug, pass),
-  };
+  return withoutTxt(store, (slug, pass) => pass === "read" && lost(slug));
 }
 
 /** What the model is built from, for runs built in memory, with no transcripts to read. */

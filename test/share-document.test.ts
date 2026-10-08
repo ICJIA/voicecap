@@ -300,6 +300,26 @@ function rulesOf(css: string): { subjects: string[]; declarations: string }[] {
   );
 }
 
+/**
+ * The column each grid of a style sheet asks for, as the first part of its `minmax(…, 1fr)` in
+ * `repeat(auto-fit, …)` or `repeat(auto-fill, …)`: the part up to the comma that isn't inside
+ * brackets, so a minimum with brackets of its own (`min(100%, max(420px, calc(…)))`) is read whole.
+ */
+function minimumsOf(css: string): string[] {
+  return [...css.matchAll(/repeat\(auto-(?:fit|fill), minmax\(/g)].map((found) => {
+    const start = (found.index ?? 0) + found[0].length;
+    let depth = 0;
+    let end = start;
+    for (; end < css.length; end += 1) {
+      const char = css[end];
+      if (char === "(") depth += 1;
+      else if (char === ")") depth -= 1;
+      else if (char === "," && depth === 0) break;
+    }
+    return css.slice(start, end);
+  });
+}
+
 interface Checked {
   files: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
@@ -817,19 +837,25 @@ describe("SHARE_CSS", () => {
     // repeat(auto-fit, minmax(300px, 1fr)) keeps a 300 px column in a window of 272 px (a phone's
     // 320 less the page's margins), and the page scrolls sideways. minmax(min(300px, 100%), 1fr)
     // lets the column shrink to its box.
-    const grids = [
-      ...SHARE_CSS.matchAll(/repeat\(auto-(?:fit|fill), minmax\((min\([^)]*\)|[^,]*), 1fr\)\)/g),
-    ];
+    const columns = minimumsOf(SHARE_CSS);
 
     // Eight grids of cards and steps: the summary's panels are no longer one, since they were a
     // column of rows, and its bars, which were three side by side, are parts of the details now,
     // one under another. The tiles of At a glance, four of them, aren't one either: they are two
     // across and then four, in columns that shrink to nothing (`minmax(0, 1fr)`), so that no
     // width leaves one tile alone in a row. A test in the browser fits them down to 320 px.
-    expect(grids.length).toBeGreaterThan(7);
-    for (const [grid, column = ""] of grids) {
-      expect(column, grid).toMatch(/^min\(\d+px, 100%\)$/);
+    expect(columns.length).toBeGreaterThan(7);
+    // The page's cards are the one grid with a minimum of its own (D5): two a row, where each gets
+    // 420 px (half the box less half the 16 px gap, but never less than 420), else one, as wide as
+    // the box. The box caps it too, like the rest.
+    const CARDS = "min(100%, max(420px, calc((100% - 16px) / 2)))";
+    expect(columns.filter((column) => column === CARDS)).toHaveLength(1);
+    for (const column of columns.filter((each) => each !== CARDS)) {
+      expect(column).toMatch(/^min\(\d+px, 100%\)$/);
     }
+    expect(SHARE_CSS).toMatch(
+      /\.cards \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, max\(420px, calc\(\(100% - 16px\) \/ 2\)\)\), 1fr\)\); gap: 16px;[^}]*\}/,
+    );
   });
 
   it("keeps the mockup's print rules, and holds nothing from outside or of its samples", () => {

@@ -251,7 +251,8 @@ export function pagesGist({ pages, header }: ShareModel): Line {
  * A first line of a page as its card sets it: in curly quotes, since it is what NVDA said. The
  * transcript writes `[no speech]` for a step where NVDA said nothing (`NO_SPEECH`): that is a note,
  * not words NVDA said, so it is set as it is, and never in quotes, which would read as though NVDA
- * had said those words.
+ * had said those words. The sample of what NVDA said on the home page (`ShareModel.heard`) sets its
+ * lines the same way, on the page and in the Word copy.
  */
 export function heardFirstLine(line: string): string {
   return line === NO_SPEECH ? line : `“${line}”`;

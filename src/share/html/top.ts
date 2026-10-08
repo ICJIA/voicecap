@@ -36,6 +36,7 @@ import {
 import { verdictOf } from "../verdict.js";
 import {
   glanceNumbersOf,
+  heardFirstLine,
   heardTitle,
   howLead,
   spokenDuration,
@@ -136,9 +137,9 @@ function tiles(model: ShareModel): string {
 }
 
 /**
- * The ring of the pages, with its legend, in a row: the pages in scope, by whether they have no
- * problems, need attention (a card of What needs attention is on them), or weren't read. Its middle
- * is the number of pages in scope, which the three parts add up to.
+ * The ring of the pages, with its legend, in a row: the pages in scope, by whether NVDA read them
+ * with no problems, read them with problems (a card of What needs attention is on them), or didn't
+ * read them. Its middle is the number of pages in scope, which the three parts add up to.
  */
 function ringRow(model: ShareModel): string {
   const { parts } = GLANCE_TEXT;
@@ -302,7 +303,9 @@ function steps(): string {
 
 /**
  * A sample of what NVDA said on this site: the first lines of each pass on its home page, as the
- * transcripts shown have them, each with how long it took. It is a fold, behind a line that is its
+ * transcripts shown have them, each with how long it took. Each line is set as a card's "Heard
+ * first" sets its lines: in quotes, but for a step where NVDA said nothing, which is the marker the
+ * transcript writes, as it is (`heardFirstLine`). It is a fold, behind a line that is its
  * title (the page, and how many ways through it), so the steps and the band on when to run voicecap
  * are what is open. Without a sample (no home page with transcripts, or none whose lines can be
  * read), there is nothing to fold: it says so, in the open, so a gap is never behind a click.
@@ -314,7 +317,8 @@ function heard(sample: ShareModel["heard"]): string {
   const lanes = sample.passes.map(({ pass, lines }) => {
     const { key, words } = HOW_TEXT.ways[pass];
     const said = lines.map(
-      ({ text, took }) => `<li><span>“${esc(text)}”</span><span class="t">${esc(took)}</span></li>`,
+      ({ text, took }) =>
+        `<li><span>${esc(heardFirstLine(text))}</span><span class="t">${esc(took)}</span></li>`,
     );
     return `<figure class="lane"><figcaption><kbd>${esc(key)}</kbd> ${esc(words)}</figcaption><ol class="said-list" role="list">${said.join("")}</ol></figure>`;
   });

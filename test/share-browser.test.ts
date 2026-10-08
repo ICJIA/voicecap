@@ -1152,8 +1152,8 @@ describe("At a glance", () => {
 
   it("gives a screen reader the ring's total, with its unit, as the name of the list of its parts", async () => {
     for (const [which, total, parts] of [
-      ["demo", "7 pages", ["No problems: 5", "Need attention: 2", "Not read: 0"]],
-      ["none", "1 page", ["No problems: 1", "Need attention: 0", "Not read: 0"]],
+      ["demo", "7 pages", ["Read, no problems: 5", "Read, with problems: 2", "Not read: 0"]],
+      ["none", "1 page", ["Read, no problems: 1", "Read, with problems: 0", "Not read: 0"]],
     ] as const) {
       const page = await open(pages[which]);
       const nodes = await axTreeOf(page);
@@ -1514,6 +1514,137 @@ describe("a page that needs nothing from outside its file", () => {
     expect(failed).toEqual([]);
     expect(faces).toHaveLength(9);
     expect(faces.filter((face) => !face.endsWith(" loaded"))).toEqual([]);
+  });
+});
+
+// The owner's choice of 2026-10-07 (D5): two cards a row on a wide window, where each gets at least
+// 420 px, and one a row where they would not. The grid holds the cards under Every page and the
+// quiet cards' fold alike.
+describe("Every page's cards", () => {
+  /** A card's box, in CSS pixels from the window's top left corner. */
+  interface Box {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    width: number;
+  }
+
+  /**
+   * The cards `selector` finds, row by row (cards at the same height are a row, as the grid sets
+   * them), and how wide the grid is that holds them. A card in a closed fold has no box, so its fold
+   * is opened first.
+   */
+  const cardsIn = (page: Page, selector: string): Promise<{ rows: Box[][]; grid: number }> =>
+    page.evaluate((target) => {
+      const rows: Box[][] = [];
+      for (const card of document.querySelectorAll(target)) {
+        const { left, right, top, bottom, width } = card.getBoundingClientRect();
+        const row = rows.find((each) => Math.abs((each[0]?.top ?? Number.NaN) - top) < 1);
+        const box = { left, right, top, bottom, width };
+        if (row === undefined) rows.push([box]);
+        else row.push(box);
+      }
+      const grid = document.querySelector(target)?.parentElement?.getBoundingClientRect().width;
+      return { rows, grid: grid ?? Number.NaN };
+    }, selector);
+
+  /** How many cards are in each row. */
+  const across = (rows: Box[][]): number[] => rows.map((row) => row.length);
+
+  it("puts two cards in a row on a wide window: the first two share a row, and the third starts the next", async () => {
+    const page = await open(pages.demo);
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const { rows, grid } = await cardsIn(page, "#pages .card");
+    const [first, second] = rows[0] ?? [];
+    const [third] = rows[1] ?? [];
+
+    // The demo's seven cards: three rows of two, and the last card on its own.
+    expect(across(rows)).toEqual([2, 2, 2, 1]);
+    // The first two are side by side, at the same height, and the third is under both.
+    expect(second?.left).toBeGreaterThanOrEqual(first?.right ?? Number.NaN);
+    expect(Math.abs((first?.top ?? 0) - (second?.top ?? 100))).toBeLessThan(1);
+    expect(third?.top).toBeGreaterThanOrEqual(Math.max(first?.bottom ?? 0, second?.bottom ?? 0));
+    // The page is 1120 px wide at 1280, with 16 px between the cards: about 560 px each.
+    expect(grid).toBeCloseTo(1120, 0);
+    for (const card of rows.flat()) expect(card.width).toBeCloseTo((1120 - 16) / 2, 0);
+  });
+
+  it("puts one card in a row on a phone's window, as wide as the page", async () => {
+    const page = await open(pages.demo);
+
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const { rows, grid } = await cardsIn(page, "#pages .card");
+
+      expect(across(rows), `${width} px`).toEqual([1, 1, 1, 1, 1, 1, 1]);
+      for (const card of rows.flat()) expect(card.width, `${width} px`).toBeCloseTo(grid, 0);
+    }
+  });
+
+  it("shows two a row whenever both get at least 420 px, and one a row otherwise, at any width", async () => {
+    const page = await open(pages.demo);
+    const widths = [
+      ...Array.from({ length: 55 }, (_, step) => 320 + step * 20),
+      // Where the card grid is 856 px wide, the least that gives two cards 420 px each and the
+      // 16 px between them: every width around it, to the pixel.
+      ...Array.from({ length: 51 }, (_, step) => 880 + step),
+    ];
+    const shown = new Set<number>();
+
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 });
+      const { rows, grid } = await cardsIn(page, "#pages .card");
+      const two = grid >= 2 * 420 + 16;
+      const said = `${width} px, a grid ${grid} px wide: ${across(rows).join(", ")} across`;
+
+      // The same number in every row but the last, which has that many or fewer.
+      expect(
+        across(rows)
+          .slice(0, -1)
+          .every((each) => each === (two ? 2 : 1)),
+        said,
+      ).toBe(true);
+      expect(across(rows).at(-1), said).toBeLessThanOrEqual(two ? 2 : 1);
+      // Two only where both get 420 px, and never a card wider than its box.
+      for (const card of rows.flat()) {
+        expect(card.width, said).toBeGreaterThanOrEqual(Math.min(420, grid) - 0.5);
+        expect(card.width, said).toBeLessThanOrEqual(grid + 0.5);
+      }
+      shown.add(two ? 2 : 1);
+    }
+
+    // Both outcomes were met, so the scan went over the edge.
+    expect([...shown].sort()).toEqual([1, 2]);
+  });
+
+  it("puts one card in a row on Letter paper, which has no room for two of 420 px", async () => {
+    const page = await open(pages.demo);
+    // 8.5 inches at 96 to the inch, with no margin: the paper is narrower than that in all.
+    await page.setViewportSize({ width: 816, height: 1056 });
+    await page.emulateMedia({ media: "print" });
+
+    const { rows } = await cardsIn(page, "#pages .card");
+
+    expect(across(rows)).toEqual([1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it("lays the quiet cards' fold out the same way, two a row where there is room and one where there is not", async () => {
+    const page = await open(pages.many);
+    await page.locator("#pages .folds > details > summary").click();
+
+    // 13 pages: the 2 with flags are in the open, and the 11 with nothing to note in the fold.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(across((await cardsIn(page, "#pages > .cards .card")).rows)).toEqual([2]);
+    const wide = await cardsIn(page, "#pages .folds .card");
+    expect(across(wide.rows)).toEqual([2, 2, 2, 2, 2, 1]);
+    for (const card of wide.rows.flat()) expect(card.width).toBeGreaterThanOrEqual(420);
+
+    await page.setViewportSize({ width: 390, height: 900 });
+    expect(across((await cardsIn(page, "#pages .folds .card")).rows)).toEqual(
+      Array.from({ length: 11 }, () => 1),
+    );
   });
 });
 

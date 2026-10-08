@@ -17,10 +17,10 @@
  *   report-heard.png         "Heard on …": a sample of what NVDA said on the site's home page,
  *                            in its fold, in the details, opened
  *   report-attention.png     "What needs attention", with its card open and its pages shut behind their fold
- *   report-pages.png         "Every page": a row of its cards, each with its page's screenshot, what
- *                            NVDA said first on it ("Heard first"), and its full transcript, in its
- *                            fold, shut: the first row with no card for a /biographies/ page (see
- *                            BIOGRAPHIES)
+ *   report-pages.png         "Every page": a row of its cards (two, in this window), each with its
+ *                            page's screenshot, what NVDA said first on it ("Heard first"), and its
+ *                            full transcript, in its fold, shut: the first row with no card for a
+ *                            /biographies/ page (see BIOGRAPHIES)
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's bar, through the site under "The sites": its current

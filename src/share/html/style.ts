@@ -54,6 +54,11 @@ export const THEME_CSS = `:root {
  * - every grid of cards or steps asks for columns no wider than its own box
  *   (`minmax(min(300px, 100%), 1fr)`), and the tiles' columns shrink to nothing (`minmax(0, 1fr)`),
  *   so nothing runs past a window 320 pixels wide, where WCAG's reflow rule is measured;
+ * - the page's cards (`.cards`) are two a row where each gets at least 420 pixels (the owner's
+ *   choice of 2026-10-07), and one a row otherwise, as on a phone and on paper. A column asks for
+ *   half its box less half the gap, or 420 pixels when that is more, and never more than the box, so
+ *   a third never fits and the grid still shrinks to a window 320 pixels wide. The fold of the quiet
+ *   cards, with more than 12 pages, holds the same grid;
  * - at a glance (`.glance`): its parts in a grid, close together at the top, and further apart from
  *   the ring on. The verdict is one large line, with its sign drawn before it, in the theme's
  *   green, amber, or red, with no alternative text (`content: "✓" / ""`), since it only repeats the
@@ -185,8 +190,8 @@ code { overflow-wrap: anywhere; }
 .c-bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
 .c-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 .c-quiet { color: var(--muted); }
-/* pages */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px; }
+/* pages: the cards, two a row where each gets at least 420px, and one a row otherwise, as wide as the box. A column asks for half the box less half the gap (the 16px between two), or 420px when that is more, and never more than the box itself. So a third never fits, two fit in a box 856px wide (two of 420 and the gap), and the box of a phone's window, or of a sheet of paper, is narrower, so it has one. The quiet cards' fold holds the same grid. */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(420px, calc((100% - 16px) / 2))), 1fr)); gap: 16px; }
 .cards + .folds, .cards + .panel, .folds + .panel { margin-top: 16px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
 .card img { width: 100%; height: auto; border-bottom: 1px solid var(--line); background: #fff; }
