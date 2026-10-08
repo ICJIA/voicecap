@@ -1270,6 +1270,7 @@ describe("wordStory", () => {
         ["5 October"],
         ["6 October"],
         ["7 October"],
+        ["7 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.

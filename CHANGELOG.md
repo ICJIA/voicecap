@@ -4,6 +4,8 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-07
+
 ### Changed
 
 - **The shareable page has a new order, and its Word copy follows it,** so a manager meets the result, each page's screenshot, and what NVDA said first, and the evidence last. The summary came first, with five numbers and four panels; then the sections on what needed attention, how voicecap works, every page, what changed, the problems, what the results cover, the evidence, and how voicecap came to be; and last an appendix of every transcript. Now: the top; "At a glance"; "What needs attention", when there's a card; "Every page"; "The details, for reviewers and auditors"; and the footer. The README's "The shareable page" describes each part.
@@ -501,7 +503,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.12.3...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/ICJIA/voicecap/compare/v0.12.3...v0.13.0
 [0.12.3]: https://github.com/ICJIA/voicecap/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/ICJIA/voicecap/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/ICJIA/voicecap/compare/v0.12.0...v0.12.1
