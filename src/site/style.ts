@@ -68,20 +68,27 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .view { display: grid; gap: 14px; margin-bottom: 56px; }
 .view > * { min-width: 0; }
 .view > p { color: var(--muted); max-width: 68ch; }
-/* a view's heading: its picture, which only repeats its words, and, beside it, how many it holds */
-.view-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.view-head > h2 { min-width: 0; }
-.view-head > .icon { flex: none; width: 1.75rem; height: 1.75rem; color: var(--accent); }
+/* a view's head, as a banner tinted in the accent color: its title row, a big picture in a circle (which only repeats the heading's words) and the heading, which stay on one line together; and, at the end of the line, or under them where there's no room, how many it holds, as a big number with its word after it */
+.view-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 20px 24px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-left: 6px solid var(--accent); border-radius: 18px; background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.view-head > .title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.view-head h2 { min-width: 0; font-size: clamp(1.9rem, 5vw, 2.75rem); font-weight: 700; line-height: 1.05; }
+.view-head > .title > .icon { flex: none; box-sizing: content-box; width: 2rem; height: 2rem; padding: 0.8rem; border-radius: 50%; background: color-mix(in srgb, var(--accent) 22%, var(--panel)); color: var(--accent); }
+.view-head > .count { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; border: 0; border-radius: 0; background: none; padding: 0; color: var(--muted); font: 600 1.05rem var(--body); }
+.view-head > .count b { color: var(--fg); font: 700 clamp(2.2rem, 6vw, 3rem)/1 var(--display); font-variant-numeric: tabular-nums; }
+/* how many there are beside a smaller heading: a chip */
 .count { display: inline-block; border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 2px 10px; font: 600 0.82rem/1.4 var(--body); font-variant-numeric: tabular-nums; }
-.site { display: grid; gap: 10px; margin-top: 14px; }
+.site { display: grid; gap: 12px; margin-top: 22px; }
 .site > * { min-width: 0; }
-/* a site's heading: its picture, its name, and the link to the site itself, at the end of the line, or under them where there's no room */
-.site-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.site-head > h3 { min-width: 0; font-size: 1.35rem; }
-.site-head > .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--accent); }
-.visit { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 5px 14px; font-weight: 600; text-decoration: none; }
-.visit:hover { border-color: var(--accent); }
-.visit > .icon { flex: none; width: 1rem; height: 1rem; color: var(--accent); }
+/* a line between one site and the next */
+.site + .site { border-top: 1px solid var(--line); padding-top: 26px; }
+/* a site's head: its title row, its picture in a circle and its name, big, which stay on one line together; and the link to the site itself, as a button, at the end of the line, or under them where there's no room */
+.site-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.site-head > .title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.site-head h3 { min-width: 0; font-size: clamp(1.45rem, 4vw, 1.9rem); font-weight: 700; line-height: 1.1; }
+.site-head > .title > .icon { flex: none; box-sizing: content-box; width: 1.4rem; height: 1.4rem; padding: 0.55rem; border-radius: 50%; background: color-mix(in srgb, var(--accent) 18%, var(--panel)); color: var(--accent); }
+.visit { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); color: var(--fg); border-radius: 999px; padding: 8px 18px; font-weight: 600; text-decoration: none; }
+.visit:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); }
+.visit > .icon { flex: none; width: 1.05rem; height: 1.05rem; color: var(--accent); }
 /* a site's current report: its line, under what it is; who prepared it; and the two links a reader came for */
 .report { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; display: grid; gap: 10px; align-content: start; }
 .report > * { min-width: 0; }
@@ -99,7 +106,7 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
 /* how many pages NVDA read: a bar in the verdict's color, which only repeats the words beside it, and which wraps above them where there's no room */
 .reading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.reading > .track { flex: none; width: min(16rem, 100%); height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; }
+.reading > .track { flex: none; width: min(16rem, 100%); height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
 .reading .c-ok { color: var(--ok); } .reading .c-warn { color: var(--warn); } .reading .c-bad { color: var(--bad); }
 .reading > p { min-width: 0; font-variant-numeric: tabular-nums; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }

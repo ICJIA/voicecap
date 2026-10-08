@@ -173,9 +173,12 @@ function earlierItemsOf(html: string): string[] {
 /** The bar's navigation. */
 const barOf = (markup: string): string => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
 
-/** What heads a view's section, or a site's: its picture, its heading, and what's beside it. */
+/**
+ * What heads a view's section, or a site's: its title row (its picture and its heading), then what's
+ * beside it. The head is one line of the page's markup.
+ */
 function headOf(html: string, kind: "view" | "site"): string {
-  return new RegExp(`<div class="${kind}-head">([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
+  return new RegExp(`<div class="${kind}-head">(.*)</div>`).exec(html)?.[1] ?? "";
 }
 
 /** The sites' names in a list of reports by date, as the list gives them. */
@@ -603,26 +606,29 @@ describe("renderSiteIndex", () => {
     expect(linksOf(other)).toEqual([]);
   });
 
-  it("links a site only to the root of a web site, as a record gives one", () => {
-    const withAddress = (address: string): string =>
+  it("links a site only to the root of a web site, as a record gives one, at the host its heading names", () => {
+    const withAddress = (address: string, name = DVFR): string =>
       headOf(
         sectionOf(
           renderSiteIndex(
             {
               demo: null,
-              sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST], address }],
+              sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
             },
             NO_FONTS,
           ),
-          `site-${DVFR}`,
+          `site-${name}`,
         ),
         "site",
       );
 
     // A site at a path of its host is a root too.
-    expect(linksOf(withAddress("https://voicecap.netlify.app/demo-site/"))).toEqual([
-      { href: "https://voicecap.netlify.app/demo-site/", download: false },
+    const demo = "https://voicecap.netlify.app/demo-site/";
+    expect(linksOf(withAddress(demo, "voicecap.netlify.app"))).toEqual([
+      { href: demo, download: false },
     ]);
+    // A root at another host than the heading names would send its reader to another site.
+    expect(linksOf(withAddress(demo))).toEqual([]);
     for (const address of [
       "javascript:alert(1)",
       "ftp://dvfr.illinois.gov/",
@@ -644,9 +650,13 @@ describe("renderSiteIndex", () => {
   it("puts a picture before each view's heading, which a screen reader skips, and says beside it how many sites, and reports, it holds", () => {
     for (const id of ["demo", "sites", "by-date"]) {
       expect(headOf(sectionOf(html, id), "view"), id).toMatch(
-        /^<svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h2 id="heading-[^"]*">[^<]*<\/h2>/,
+        /^<div class="title"><svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h2 id="heading-[^"]*">[^<]*<\/h2><\/div>/,
       );
     }
+    // The number is the count's big part, and its word follows it, so a screen reader hears both.
+    expect(headOf(sectionOf(html, "sites"), "view")).toContain(
+      '</div><span class="count"><b>2</b> sites</span>',
+    );
     // In words, after the heading, which keeps its own: two sites, and their three reports by
     // date. The demo is one report, of no site.
     expect(textsOf(headOf(sectionOf(html, "sites"), "view"), "span")).toEqual(["2 sites"]);
@@ -660,10 +670,10 @@ describe("renderSiteIndex", () => {
     expect(headOf(sectionOf(none, "sites"), "view")).not.toContain("<span");
   });
 
-  it("puts a picture before each site's name, which a screen reader skips", () => {
+  it("puts a picture before each site's name, which a screen reader skips, in a row of their own", () => {
     for (const folder of [DVFR, EXAMPLE]) {
       expect(headOf(sectionOf(html, `site-${folder}`), "site"), folder).toMatch(
-        /^<svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h3>/,
+        /^<div class="title"><svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg><h3>[^<]*<\/h3><\/div>/,
       );
     }
   });
@@ -1225,10 +1235,22 @@ describe("renderSiteIndex", () => {
     };
     // A site's name is text, and its section's id too: made safe, as a folder's name is.
     const name = 'a"b&c<s>x</s>';
-    // A root may hold an ampersand, which URL leaves as it is.
-    const address = "https://a.example.gov/a&b/";
+    // A second site, linked: a root may hold an ampersand, which URL leaves as it is. Its name is
+    // its host, as the build gives a site its name, since a link goes only to the heading's host.
+    const linked = { ...report, folder: "a.example.gov", id: "report-a.example.gov-1" };
     const page = renderSiteIndex(
-      { demo: null, sites: [{ name, folders: ['a"b&c'], reports: [report], address }] },
+      {
+        demo: null,
+        sites: [
+          { name, folders: ['a"b&c'], reports: [report] },
+          {
+            name: "a.example.gov",
+            folders: ["a.example.gov"],
+            reports: [linked],
+            address: "https://a.example.gov/a&b/",
+          },
+        ],
+      },
       NO_FONTS,
     );
 
@@ -1254,12 +1276,14 @@ describe("renderSiteIndex", () => {
     expect(markup).toContain(
       '<span class="sr"> of a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, 3 October 2026, 14:05</span>',
     );
-    // The link to the site: its address, and the site's name after its words.
+    // The link to the second site: its address, and the site's name after its words.
     expect(markup).toContain('<a class="visit" href="https://a.example.gov/a&amp;b/">');
-    expect(markup).toContain('<span class="sr"> at a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;</span>');
-    // Nothing the record holds became markup: no element it names, and no attribute it adds.
+    expect(markup).toContain('<span class="sr"> at a.example.gov</span>');
+    // Nothing the record holds became markup: no element it names, and no attribute it adds. The
+    // page's own <b> holds a count's number, so the record's two are looked for as they'd appear.
     const { elements, attributes } = namesIn(markup);
-    expect(elements.filter((element) => ["img", "b", "u", "i", "s"].includes(element))).toEqual([]);
+    expect(elements.filter((element) => ["img", "u", "i", "s"].includes(element))).toEqual([]);
+    for (const own of ["<b>x</b>", "<b>0</b>"]) expect(markup).not.toContain(own);
     expect(attributes.filter((name) => /^(?:on|style$|src)/.test(name))).toEqual([]);
   });
 

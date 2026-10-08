@@ -16,8 +16,8 @@
  * did, not as a warning.
  *
  * The page names a site by its canonical name: the one its newest share records, or else its
- * folder's own name (see siteNamed). A site named by a root links its heading to that root, the
- * newest one when its folders have several. Site folders that have one name are one site, their
+ * folder's own name (see siteNamed). A site named by a root has a link to that root beside its
+ * heading, the newest one when its folders have several. Site folders that have one name are one site, their
  * reports listed together, the newest first. Only what the page shows changes: each file is still
  * published in its own folder, `<folder>/<name>`, so two folders that name one site can have files
  * of one name, and neither takes the other's place. A site headed by its folder's name when that's
@@ -242,7 +242,7 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   // name: folders that name one site are one site.
   const inRecordOrder: Share[] = [];
   // `rooted` is the newest of its folders' newest shares that records a root people visit, which
-  // gives the site its name: the page links the site's heading to that root.
+  // gives the site its name: the page's link to the site, beside its heading, goes there.
   const named = new Map<
     string,
     { folders: string[]; shares: Share[]; rooted?: { share: Share; root: string } }

@@ -435,7 +435,7 @@ describe("the site's page", () => {
   );
 
   it("fits a window 320 pixels wide, with its folds open", async () => {
-    for (const which of ["page", "long"] as const) {
+    for (const which of ["page", "long", "verdicts"] as const) {
       const page = await open(files[which], { width: 320 });
       await openFolds(page);
       const width = (): Promise<number> =>
@@ -453,6 +453,39 @@ describe("the site's page", () => {
       );
       expect(wider, which).toEqual([]);
     }
+  });
+
+  it("keeps each heading beside its picture, 320 pixels wide, however long its words", async () => {
+    for (const which of ["page", "long"] as const) {
+      const page = await open(files[which], { width: 320 });
+      // Every view's heading and every site's name is in a title row with its picture.
+      const heads = await page.locator(".view-head, .site-head").count();
+      expect(await page.locator(".view-head > .title, .site-head > .title").count(), which).toBe(
+        heads,
+      );
+      const apart = await page.evaluate(() =>
+        [...document.querySelectorAll(".view-head > .title, .site-head > .title")].flatMap(
+          (title) => {
+            const icon = title.querySelector("svg")?.getBoundingClientRect();
+            const heading = title.querySelector("h2, h3")?.getBoundingClientRect();
+            if (icon === undefined || heading === undefined) return ["a title row missing a part"];
+            // Beside it: the heading starts right of the picture, and above the picture's bottom.
+            return heading.left >= icon.right - 0.5 && heading.top < icon.bottom
+              ? []
+              : [title.textContent ?? ""];
+          },
+        ),
+      );
+      expect(apart, which).toEqual([]);
+    }
+  });
+
+  it("names the link to a site as a screen reader hears it: its words, then the site's name", async () => {
+    const page = await open(files.page);
+
+    await expect(
+      page.getByRole("link", { name: "Visit the site at dvfr.illinois.gov", exact: true }).count(),
+    ).resolves.toBe(1);
   });
 
   it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
@@ -542,7 +575,7 @@ describe("the site's page", () => {
       await page.locator(`nav a[href="#${view}"]`).click();
 
       const result = await page.evaluate((id) => {
-        const heading = document.querySelector(`#${id} > .view-head > h2`);
+        const heading = document.querySelector(`#${id} > .view-head > .title > h2`);
         const bar = document.querySelector(".bar");
         if (heading === null || bar === null) return "the view or the bar isn't there";
         const box = heading.getBoundingClientRect();
@@ -698,7 +731,7 @@ describe("the site's page", () => {
     // The second page does have the sites, each with its heading.
     const many = await open(files.many);
     expect(await many.locator("section.site").count()).toBe(14);
-    expect(await many.locator("section.site > .site-head > h3").count()).toBe(14);
+    expect(await many.locator("section.site > .site-head > .title > h3").count()).toBe(14);
   });
 });
 

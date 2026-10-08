@@ -24,10 +24,10 @@
  * focus, and complete without JavaScript.
  */
 import type { ShareResult } from "../model.js";
-import { recordedCanonical } from "../pages/canonical.js";
+import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
-import { sizeWords } from "../share/format.js";
+import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
 import { SITE_SCRIPT } from "./client.js";
@@ -117,16 +117,26 @@ function sentenceHtml(sentence: Sentence): string {
 
 /**
  * One of the three views: a section named by its heading, an h2, which makes it a region, one of
- * the page's landmarks. The heading has its picture before it (`icon`, which a screen reader skips),
- * and, beside it, how many the view holds, in words (`count`), when it says. The count isn't in the
- * heading, which keeps its own words: a screen reader reads it after. `inside` is HTML, already
- * escaped.
+ * the page's landmarks. Its head is a banner: a title row, the heading with its picture before it
+ * (`icon`, which a screen reader skips), which stay on one line together; and, beside them, how
+ * many the view holds (`count`), when it says, as a big number with its word after it ("2 sites").
+ * The count isn't in the heading, which keeps its own words: a screen reader reads it after.
+ * `inside` is HTML, already escaped.
  */
-function view(id: string, title: string, icon: string, inside: string[], count?: string): string {
-  const beside = count === undefined ? "" : `<span class="count">${esc(count)}</span>`;
+function view(
+  id: string,
+  title: string,
+  icon: string,
+  inside: string[],
+  count?: { n: number; unit: string },
+): string {
+  const beside =
+    count === undefined
+      ? ""
+      : `<span class="count"><b>${esc(countWords(count.n))}</b> ${esc(count.unit)}</span>`;
   return [
     `<section class="view" id="${esc(id)}" aria-labelledby="${esc(headingId(id))}">`,
-    `<div class="view-head">${icon}<h2 id="${esc(headingId(id))}">${esc(title)}</h2>${beside}</div>`,
+    `<div class="view-head"><div class="title">${icon}<h2 id="${esc(headingId(id))}">${esc(title)}</h2></div>${beside}</div>`,
     ...inside,
     "</section>",
   ].join("\n");
@@ -322,13 +332,15 @@ function uniqueId(id: string, taken: Set<string>): string {
 /**
  * The link to a site itself, beside its name: its words, then the site's name, which only a screen
  * reader hears, and an arrow, which it doesn't. Only to the root of a site people visit, as a share
- * records one (see recordedCanonical): never an address on someone's computer, one with a name and
- * password in it, or anything that isn't a web address. It opens where the page is, as the page's
- * other links do, and the site's Referrer-Policy (see ./netlify.ts) keeps the page's own address
- * from the site. Nothing, for a site with no such address.
+ * records one (see recordedCanonical), at the host the heading names: never an address on
+ * someone's computer, one with a name and password in it, anything that isn't a web address, or
+ * another site than the one its heading names. It opens where the page is, as the page's other
+ * links do, and the site's Referrer-Policy (see ./netlify.ts) keeps the page's own address from the
+ * site. Nothing, for a site with no such address.
  */
 function visit(name: string, address: string | undefined): string {
   if (address === undefined || recordedCanonical(address) !== address) return "";
+  if (canonicalName(address) !== name) return "";
   return `<a class="visit" href="${esc(address)}">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
 }
 
@@ -345,7 +357,7 @@ function site({ name, reports, address }: SiteContent["sites"][number], id: stri
   const [current, ...earlier] = reports;
   return [
     `<section class="site" id="${esc(id)}">`,
-    `<div class="site-head">${SITE_ICONS.site}<h3>${esc(name)}</h3>${visit(name, address)}</div>`,
+    `<div class="site-head"><div class="title">${SITE_ICONS.site}<h3>${esc(name)}</h3></div>${visit(name, address)}</div>`,
     ...(current === undefined ? [] : [currentReport(current, 4, name)]),
     ...earlierReports(earlier, name),
     ...(reports.length === 0 ? [] : [filesFold(reports)]),
@@ -373,7 +385,7 @@ function sitesView(sites: SiteContent["sites"]): string {
       `<p>${esc(lead)}</p>`,
       ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
     ],
-    SITE_TEXT.siteCount(sites.length),
+    { n: sites.length, unit: SITE_TEXT.siteUnit(sites.length) },
   );
 }
 
@@ -410,7 +422,7 @@ function byDateView(sites: SiteContent["sites"]): string {
     title,
     SITE_ICONS.byDate,
     [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"],
-    SITE_TEXT.reportCount(reports.length),
+    { n: reports.length, unit: SITE_TEXT.reportUnit(reports.length) },
   );
 }
 

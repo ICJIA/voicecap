@@ -2772,7 +2772,7 @@ describe("buildSite", () => {
     function sitesOn(index: string): [id: string, heading: string][] {
       return [
         ...index.matchAll(
-          /<section class="site" id="([^"]*)">\n<div class="site-head"><svg\b[\s\S]*?<\/svg><h3>([^<]*)<\/h3>/g,
+          /<section class="site" id="([^"]*)">\n<div class="site-head"><div class="title"><svg\b[\s\S]*?<\/svg><h3>([^<]*)<\/h3>/g,
         ),
       ].map(([, id = "", heading = ""]): [string, string] => [id, heading]);
     }
@@ -2862,6 +2862,8 @@ describe("buildSite", () => {
         { name: NAME, address: ROOT },
         { name: "example.illinois.gov", address: undefined },
       ]);
+      // A site with no address has none at all, rather than one that is undefined.
+      for (const at of [0, 2]) expect(content.sites[at]).not.toHaveProperty("address");
       expect(index.match(/<a class="visit" href="([^"]*)">/g)).toEqual([
         `<a class="visit" href="${ROOT}">`,
       ]);

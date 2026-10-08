@@ -71,10 +71,13 @@ export const SITE_TEXT = {
    * attention and the pages they're on, or that nothing does.
    */
   reading: (result: ShareResult): string => `NVDA read ${pagesRead(result)}.`,
-  /** How many sites have reports, beside the sites' heading: "2 sites". */
-  siteCount: (count: number): string => plural(count, "site"),
-  /** How many reports are listed by date, beside that view's heading: "6 reports". */
-  reportCount: (count: number): string => plural(count, "report"),
+  /**
+   * The word after how many sites have reports, beside the sites' heading, where the number is the
+   * big part: "2 sites", "1 site".
+   */
+  siteUnit: (count: number): string => (count === 1 ? "site" : "sites"),
+  /** The word after how many reports are listed by date, beside that view's heading: "6 reports". */
+  reportUnit: (count: number): string => (count === 1 ? "report" : "reports"),
   /** The link to a site itself, beside its name. */
   visit: "Visit the site",
   /**

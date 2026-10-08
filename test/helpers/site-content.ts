@@ -1,8 +1,8 @@
 /**
  * What the website's page is drawn from, in the tests: a demo, two sites with three reports (the
  * first with the address people visit it at), a Word copy that isn't published (changed since it
- * was shared, and missing), and a report with no walkthrough file. The reports' times are mixed so that a site's newest report isn't the newest of
- * all: by date, the two sites' reports interleave.
+ * was shared, and missing), and a report with no walkthrough file. The reports' times are mixed so
+ * that a site's newest report isn't the newest of all: by date, the two sites' reports interleave.
  */
 import { createHash } from "node:crypto";
 
@@ -110,7 +110,10 @@ export const EXAMPLE_REPORT: PublishedReport = {
   notPublished: [{ name: `${EXAMPLE}_2026-10-02.docx`, reason: "missing" }],
 };
 
-/** Where people visit the first site: the root its records give. The other has none, as a site known by its folder alone. */
+/**
+ * Where people visit the first site: the root its records give. The other has none, as a site known
+ * by its folder alone.
+ */
 export const DVFR_ADDRESS = "https://dvfr.illinois.gov/";
 
 /** The demo, then the two sites by name, each site's reports the newest first. */
