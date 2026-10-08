@@ -8,8 +8,8 @@
  * input, as data it never evaluates. On a Mac, `say` reads each line on its standard input. Every
  * program starts through `spawn(file, args, VOICE_SPAWN_OPTIONS)`, with no shell.
  *
- * The voices' error messages are here, beside what goes wrong. Every other word a person sees
- * during a replay is in text.ts.
+ * The voices' error messages are here, beside what goes wrong. The other words a person sees during
+ * a replay are in text.ts, but for the usage errors, which sit where they're thrown.
  */
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";

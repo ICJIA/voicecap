@@ -1,8 +1,9 @@
 /**
- * Every word a person sees during `voicecap review --replay`: the line that names a page, each
- * line as it's read, the keys, the question after a page, and what's said when there is nothing to
- * hear. The exceptions are the voices' error messages, which sit in voice.ts beside what goes
- * wrong.
+ * The words a person sees during `voicecap review --replay`: the line that names a page, each line
+ * as it's read, the keys, the question after a page, and what's said when there is nothing to
+ * hear. Two kinds sit elsewhere, beside what they're about: the usage errors, where they're thrown
+ * (pages.ts, session.ts, and the command's own checks in src/cli/main.ts), and the voices' error
+ * messages, in voice.ts.
  *
  * The wording is the spec's where the spec pins it (the page's line, the question, the two lines
  * about the person's own NVDA), and the plan's for the rest. The replay reads a page's saved words
