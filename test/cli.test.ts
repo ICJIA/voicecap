@@ -1425,6 +1425,66 @@ describe("voicecap review --replay", () => {
     expect(ended.voice.closed).toBe(true);
   });
 
+  it("gives the terminal back however the session ends", async () => {
+    const { home, siteDir } = await countedHome();
+    const args = ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home];
+    /** What every way out leaves: raw mode off, the voice closed, and the count said last. */
+    const givenBack = (
+      ended: { keyboard: Keyboard; screen: string },
+      voice: ReturnType<typeof fakeVoice>,
+      way: string,
+    ) => {
+      expect(ended.keyboard.rawModes, way).toEqual([true, false]);
+      expect(voice.closed, way).toBe(true);
+      expect(ended.screen.endsWith("Recorded no decisions.\n"), way).toBe(true);
+    };
+
+    // The window closed. Its SIGHUP is given only to the listener the CLI added for it, never sent:
+    // the process's other listeners aren't the test's to call.
+    const before = new Set(process.listeners("SIGHUP"));
+    let added: NodeJS.SignalsListener[] = [];
+    const closed = await replayAt(args, (shown, keyboard) => {
+      if (!shown.includes(REPLAY_TEXT.question) || added.length > 0) return;
+      added = process.listeners("SIGHUP").filter((listener) => !before.has(listener));
+      // Were there another, the keys end instead, and the length below fails.
+      setImmediate(() => (added.length === 1 ? added[0]!("SIGHUP") : keyboard.end()));
+    });
+    expect(added).toHaveLength(1);
+    expect(closed.err).toBe("");
+    expect(closed.code).toBe(130);
+    givenBack(closed, closed.voice, "the window closed");
+    expect(process.listeners("SIGHUP")).toEqual([...before]);
+
+    // The keys ended, as when the terminal's input closes.
+    const keysEnded = await replayAt(args, (shown, keyboard) => {
+      if (shown.includes(REPLAY_TEXT.question)) setImmediate(() => keyboard.end());
+    });
+    expect(keysEnded.err).toBe("");
+    expect(keysEnded.code).toBe(130);
+    givenBack(keysEnded, keysEnded.voice, "the keys ended");
+
+    // The voice stopped working, on the page's first line: this computer can't go on (exit 2).
+    const stopped = fakeVoice({ auto: true });
+    stopped.fail(new EnvironmentError("The computer's voice stopped."));
+    const voiceStopped = await replayAt(args, noAnswer, {
+      replayVoice: () => Promise.resolve(stopped),
+    });
+    expect(voiceStopped.err).toBe("Error: The computer's voice stopped.\n");
+    expect(voiceStopped.code).toBe(2);
+    givenBack(voiceStopped, stopped, "the voice stopped");
+
+    // A decision addReview refuses: the review history is damaged, and voicecap never overwrites it.
+    const refused = await replayAt(args, (shown, keyboard) => {
+      if (!shown.includes(REPLAY_TEXT.question)) return;
+      void writeFile(path.join(siteDir, "reviews.json"), "{ this is not json").then(() =>
+        keyboard.write("1"),
+      );
+    });
+    expect(refused.err).toMatch(/never overwrites review history/);
+    expect(refused.code).toBe(1);
+    givenBack(refused, refused.voice, "addReview refused");
+  });
+
   it("puts the terminal back when it stops before a page is heard", async () => {
     const { home, siteDir } = await countedHome();
     // A usage error, found before the voice starts.
