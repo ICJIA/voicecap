@@ -390,7 +390,6 @@ A fact that's missing says "not recorded in this build of voicecap", and never m
 Every page follows voicecap's rules:
 - voicecap is a human review, sped up, and never "automated" ("automated" may describe another tool, such as axe, never voicecap);
 - a person hears, reads, and decides, and never "listened";
-- no mention of an AI assistant;
 - Guidepup is named only in the Technical details page's toolchain table, and in What's New where the CHANGELOG names it (above).
 
 ## How it's built
@@ -443,7 +442,7 @@ Every page follows voicecap's rules:
   - every command, rule id, pass, and file the page names exists in the code;
   - each npm license in the table matches the installed package's;
   - Guidepup is named in the toolchain table, and nowhere else on the page;
-  - nothing calls voicecap "automated", nothing says a person "listened", and nothing mentions an AI assistant.
+  - nothing calls voicecap "automated", and nothing says a person "listened".
 - **The front page:**
   - the banner, with the newest release and its link;
   - no banner without a release;
