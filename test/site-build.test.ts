@@ -3091,10 +3091,11 @@ describe("buildSite", () => {
         ].sort(),
       );
       // The page links to each, twice (as the current report or an earlier one, and in the fold of
-      // files), and each link leads to the file of the folder it names.
-      const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)].map(
-        ([, href = ""]) => href,
-      );
+      // files), and each link leads to the file of the folder it names. The bar's link to the trust
+      // page is a page of the website, not a report's file.
+      const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)]
+        .map(([, href = ""]) => href)
+        .filter((href) => href !== "trust.html");
       expect(links.toSorted()).toEqual(
         [COPY_FOLDER, NAME].flatMap((folder) => [`${folder}/${page}`, `${folder}/${page}`]).sort(),
       );

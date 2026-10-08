@@ -5,6 +5,9 @@
  * sites or more have reports. The content is small (test/helpers/site-content.ts): a demo, two
  * sites with three reports, a Word copy that isn't published, and a report with no walkthrough file.
  *
+ * The bar, the footer, and the shell that every page of the website shares (src/site/frame.ts) are
+ * here too: the bar of this page and of the trust page, whose last link is the one to the trust page.
+ *
  * What the page does in a browser is in test/site-page-browser.test.ts.
  */
 import { createHash } from "node:crypto";
@@ -18,6 +21,7 @@ import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
 import { ABOUT } from "../src/share/text.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
+import { siteBar, siteFooter, sitePage } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import {
   fileKind,
@@ -46,6 +50,10 @@ import {
 const GITHUB = "https://github.com/ICJIA/voicecap";
 /** Where the build publishes the demo's own pages, from the site's top: a relative link goes there. */
 const DEMO_PAGES_HREF = "demo-site/";
+/** Where the build publishes the trust page, beside this one: a relative link goes there. */
+const TRUST_PAGE_HREF = "trust.html";
+/** The words of the bar's last link, which goes to the trust page. */
+const TRUST_WORDS = "Can I trust this?";
 
 const NO_FONTS = { fontCss: "" };
 
@@ -260,12 +268,13 @@ describe("renderSiteIndex", () => {
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("links only to its files, its own anchors, the demo's pages, voicecap's GitHub page, and each site's own address", () => {
+  it("links only to its files, its own anchors, the trust page, the demo's pages, voicecap's GitHub page, and each site's own address", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
     const allowed = [
       ...anchors,
+      TRUST_PAGE_HREF,
       DEMO_PAGES_HREF,
       GITHUB,
       DVFR_ADDRESS,
@@ -1162,6 +1171,26 @@ describe("renderSiteIndex", () => {
     expect(demo).not.toMatch(/\shref="(?:[a-z][a-z0-9+.-]*:|\/)/i);
   });
 
+  it("links the bar to the trust page, last", () => {
+    const bar = barOf(html);
+
+    // The views, by their anchors on this page, then the trust page, a page of its own beside this one.
+    expect(linksOf(bar).map(({ href }) => href)).toEqual([
+      "#demo",
+      "#sites",
+      "#by-date",
+      TRUST_PAGE_HREF,
+    ]);
+    expect(textsOf(bar, "a")).toEqual([
+      "The demo",
+      "The sites",
+      "Every report, by date",
+      TRUST_WORDS,
+    ]);
+    // This is the website's own page, not the trust page, so none of the links is the page it is on.
+    expect(bar).not.toContain("aria-current");
+  });
+
   it("has no demo view, and no link to one, without a demo", () => {
     const page = renderSiteIndex({ ...CONTENT, demo: null }, NO_FONTS);
 
@@ -1170,9 +1199,14 @@ describe("renderSiteIndex", () => {
     expect(page).not.toContain("The demo");
     expect(page).not.toContain("report-demo");
     expect(page).not.toContain("demo-site");
-    // The bar's links go to the views that are there.
-    expect(textsOf(barOf(page), "a")).toEqual(["The sites", "Every report, by date"]);
-    expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
+    // The bar's links go to the views that are there, then to the trust page.
+    expect(textsOf(barOf(page), "a")).toEqual(["The sites", "Every report, by date", TRUST_WORDS]);
+    expect(textsOf(barOf(html), "a")).toEqual([
+      "The demo",
+      "The sites",
+      "Every report, by date",
+      TRUST_WORDS,
+    ]);
   });
 
   it("lists reports by date, with its link in the bar, only when two sites or more have reports", () => {
@@ -1182,12 +1216,17 @@ describe("renderSiteIndex", () => {
     expect(one).not.toContain('href="#by-date"');
     expect(one).not.toContain("Every report, by date");
     expect(one).not.toMatch(/<ol\b/);
-    expect(textsOf(barOf(one), "a")).toEqual(["The demo", "The sites"]);
+    expect(textsOf(barOf(one), "a")).toEqual(["The demo", "The sites", TRUST_WORDS]);
     // Two views are regions, named by their headings.
     expect(one.match(/\saria-labelledby=/g)).toHaveLength(2);
 
-    // With two, it's there, after the sites, and in the bar.
-    expect(textsOf(barOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
+    // With two, it's there, after the sites, and in the bar, ahead of the link to the trust page.
+    expect(textsOf(barOf(html), "a")).toEqual([
+      "The demo",
+      "The sites",
+      "Every report, by date",
+      TRUST_WORDS,
+    ]);
     expect(html.indexOf('id="by-date"')).toBeGreaterThan(html.indexOf('id="sites"'));
   });
 
@@ -1197,7 +1236,7 @@ describe("renderSiteIndex", () => {
     expect(textsOf(sectionOf(page, "sites"), "p")).toEqual(["No reports have been shared yet."]);
     expect(page).not.toContain('id="by-date"');
     expect(page).not.toMatch(/<article\b|<ol\b|<ul\b|<li\b|<details\b/);
-    expect(textsOf(barOf(page), "a")).toEqual(["The sites"]);
+    expect(textsOf(barOf(page), "a")).toEqual(["The sites", TRUST_WORDS]);
 
     // The demo isn't a site: with a demo and no site, the sites still have none.
     const withDemo = renderSiteIndex({ demo: DEMO_REPORT, sites: [] }, NO_FONTS);
@@ -1321,8 +1360,9 @@ describe("renderSiteIndex", () => {
     expect(html).toContain(
       '<details class="fold">\n<summary>Files and fingerprints, to check a copy</summary>',
     );
-    // The bar's label, the button, which is hidden until the script shows it, and the footer's link.
-    expect(html).toContain('<nav aria-label="Views">');
+    // The bar's label, which names the website, since its links go to the views and to the trust
+    // page; the button, which is hidden until the script shows it; and the footer's link.
+    expect(html).toContain('<nav aria-label="This website">');
     expect(html).toContain(
       '<button class="theme" id="theme-toggle" type="button" hidden>Light version</button>',
     );
@@ -1360,6 +1400,149 @@ describe("renderSiteIndex", () => {
 
     expect(text).not.toMatch(/automat/i);
     expect(text).not.toMatch(/listen/i);
+  });
+});
+
+describe("siteBar", () => {
+  /** Whether each link of a bar marks the page it's on, in order. */
+  const currentOf = (bar: string): boolean[] =>
+    [...barOf(bar).matchAll(/<a\b([^>]*)>/g)].map(([, tag = ""]) =>
+      /\saria-current="page"/.test(tag),
+    );
+
+  it("on the trust page, links each view by its anchor on the website's own page, and marks the link to the trust page as the page it's on", () => {
+    const bar = siteBar(CONTENT, "trust");
+
+    expect(linksOf(barOf(bar)).map(({ href }) => href)).toEqual([
+      "index.html#demo",
+      "index.html#sites",
+      "index.html#by-date",
+      TRUST_PAGE_HREF,
+    ]);
+    expect(textsOf(barOf(bar), "a")).toEqual([
+      "The demo",
+      "The sites",
+      "Every report, by date",
+      TRUST_WORDS,
+    ]);
+    // Only the last link, the one to the trust page itself, is the page the reader is on.
+    expect(currentOf(bar)).toEqual([false, false, false, true]);
+  });
+
+  it("is the same bar on both pages but for where its views go and which link is the page it's on, so the two can't drift apart", () => {
+    const index = siteBar(CONTENT, "index");
+
+    expect(siteBar(CONTENT, "trust")).toBe(
+      index
+        .replaceAll('href="#', 'href="index.html#')
+        .replace(
+          `<a href="${TRUST_PAGE_HREF}">`,
+          `<a href="${TRUST_PAGE_HREF}" aria-current="page">`,
+        ),
+    );
+    // Nothing else of the bar is left to differ: the header, the navigation, and the theme button.
+    expect(index).toMatch(/^<header class="bar">\n<nav aria-label="This website">\n<a href="#/);
+    expect(index).toMatch(
+      /<\/a>\n<\/nav>\n<button class="theme" id="theme-toggle" type="button" hidden>Light version<\/button>\n<\/header>$/,
+    );
+  });
+
+  it.each(["index", "trust"] as const)(
+    "links the views that are there, on the %s page, and the trust page after them",
+    (current) => {
+      // The views are on the website's own page: from the trust page, a link to it names the page.
+      const here = current === "index" ? "" : "index.html";
+      const hrefs = (content: SiteContent): string[] =>
+        linksOf(barOf(siteBar(content, current))).map(({ href }) => href);
+
+      expect(hrefs(CONTENT)).toEqual([
+        `${here}#demo`,
+        `${here}#sites`,
+        `${here}#by-date`,
+        TRUST_PAGE_HREF,
+      ]);
+      // No demo, no link to it; one site, no list by date; and no report at all, the sites alone.
+      expect(hrefs({ ...CONTENT, demo: null })).toEqual([
+        `${here}#sites`,
+        `${here}#by-date`,
+        TRUST_PAGE_HREF,
+      ]);
+      expect(hrefs({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) })).toEqual([
+        `${here}#demo`,
+        `${here}#sites`,
+        TRUST_PAGE_HREF,
+      ]);
+      expect(hrefs({ demo: null, sites: [] })).toEqual([`${here}#sites`, TRUST_PAGE_HREF]);
+    },
+  );
+
+  it("is how the website's own page draws its bar", () => {
+    expect(renderSiteIndex(CONTENT, NO_FONTS)).toContain(`\n${siteBar(CONTENT, "index")}\n`);
+  });
+});
+
+describe("siteFooter", () => {
+  it("says what voicecap is, and links to it", () => {
+    const footer = siteFooter();
+
+    expect(footer).toMatch(/^<footer>\n<p>[\s\S]*<\/p>\n<p>[\s\S]*<\/p>\n<\/footer>$/);
+    expect(textsOf(footer, "p")).toEqual([ABOUT, "Made with voicecap"]);
+    expect(linksOf(footer)).toEqual([{ href: GITHUB, download: false }]);
+  });
+
+  it("is how the website's own page draws its footer", () => {
+    expect(renderSiteIndex(CONTENT, NO_FONTS)).toContain(`\n${siteFooter()}\n`);
+  });
+});
+
+describe("sitePage", () => {
+  const PARTS = {
+    title: "A page of the website",
+    bar: '<header class="bar">The bar</header>',
+    main: ["<h1>The page</h1>", "<p>Its words</p>"],
+  };
+
+  it("is the shell around what it's given: the head, the skip link, the bar, the main part, the footer, and the script", () => {
+    expect(sitePage(PARTS, { fontCss: "FONTS" })).toBe(
+      [
+        "<!doctype html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        '<meta name="robots" content="noindex, nofollow, noarchive">',
+        "<title>A page of the website</title>",
+        `<style>\nFONTS\n${SITE_CSS}</style>`,
+        "</head>",
+        "<body>",
+        '<a class="skip" href="#main">Skip to main content</a>',
+        '<header class="bar">The bar</header>',
+        '<main id="main">',
+        "<h1>The page</h1>",
+        "<p>Its words</p>",
+        "</main>",
+        siteFooter(),
+        `<script>${SITE_SCRIPT}</script>`,
+        "</body>",
+        "</html>",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("escapes the title, which is text, and takes the bar and the main part as the markup they are", () => {
+    const page = sitePage(
+      {
+        title: 'Q & A <i>"x"</i>',
+        bar: "<header>The <b>bar</b></header>",
+        main: ["<h1>A &amp; B</h1>"],
+      },
+      NO_FONTS,
+    );
+
+    expect(page).toContain("<title>Q &amp; A &lt;i&gt;&quot;x&quot;&lt;/i&gt;</title>");
+    expect(page).toContain("\n<header>The <b>bar</b></header>\n");
+    expect(page).toContain('\n<main id="main">\n<h1>A &amp; B</h1>\n</main>\n');
   });
 });
 
@@ -1447,6 +1630,12 @@ describe("SITE_CSS", () => {
       query.trim(),
     );
     expect(queries).toEqual(["print", "(min-width: 40em)", "screen"]);
+  });
+
+  it("tells the link of the page the reader is on from the others by more than color: bold, and underlined more heavily", () => {
+    expect(SITE_CSS).toMatch(
+      /\n\.bar nav a\[aria-current="page"\] \{[^}]*font-weight: 700;[^}]*text-decoration: underline;[^}]*text-decoration-thickness: 2px;/,
+    );
   });
 });
 

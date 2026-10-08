@@ -4,7 +4,9 @@
  * themes, and at a phone's width, with the folds of files open; and the landmarks in Chromium's own
  * accessibility tree), for fitting a window 320 pixels wide, for what the bar does (it stays in view
  * where it fits, at the reader's text size, and never hides what has focus or what a link points
- * to), for the theme button, and for being complete without JavaScript, its folds too.
+ * to), for the bar the trust page has (its own link told apart from the others by more than color,
+ * and its links to the views going to this page), for the theme button, and for being complete
+ * without JavaScript, its folds too.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,6 +17,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { fontFaceCss } from "../src/share/fonts.js";
+import { siteBar, sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
@@ -125,10 +128,17 @@ function manyContent(): SiteContent {
 let browser: Browser;
 let folder: string;
 /**
- * The page files: the tests' content, a site with names as long as they can be, many sites, and no
- * report at all.
+ * The page files: the tests' content, a site with names as long as they can be, many sites, no
+ * report at all, each kind of verdict, and a page with the bar the trust page has.
  */
-let files: { page: string; long: string; many: string; empty: string; verdicts: string };
+let files: {
+  page: string;
+  long: string;
+  many: string;
+  empty: string;
+  verdicts: string;
+  trustBar: string;
+};
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
 const reported: string[] = [];
@@ -137,17 +147,32 @@ beforeAll(async () => {
   browser = await launchBrowser();
   folder = await mkdtemp(path.join(tmpdir(), "voicecap-site-page-"));
   const fontCss = await fontFaceCss();
-  const write = async (name: string, content: SiteContent): Promise<string> => {
+  const writeHtml = async (name: string, html: string): Promise<string> => {
     const file = path.join(folder, name);
-    await writeFile(file, renderSiteIndex(content, { fontCss }));
+    await writeFile(file, html);
     return file;
   };
+  const write = (name: string, content: SiteContent): Promise<string> =>
+    writeHtml(name, renderSiteIndex(content, { fontCss }));
   files = {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
     many: await write("many.html", manyContent()),
     empty: await write("empty.html", { demo: null, sites: [] }),
     verdicts: await write("verdicts.html", verdictContent()),
+    // The shell and the bar of the trust page, over a main part of one heading. It sits beside
+    // index.html, which the links of its bar go to.
+    trustBar: await writeHtml(
+      "trust-bar.html",
+      sitePage(
+        {
+          title: "A page with the trust page's bar",
+          bar: siteBar(CONTENT, "trust"),
+          main: ["<h1>A page with the trust page's bar</h1>"],
+        },
+        { fontCss },
+      ),
+    ),
   };
 });
 
@@ -556,12 +581,12 @@ describe("the site's page", () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
-    // The skip link, the bar's three links and its button, the link to the demo's pages, the link
-    // to the first site itself (the second has no address people visit), the current reports'
-    // links (the demo's two, the first site's two, and the second site's one: its Word copy is
-    // missing), the earlier report's one (its Word copy changed), the three folds' summaries, each
-    // report's page by date, and the footer's link.
-    const closed = 1 + 3 + 1 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
+    // The skip link, the bar's four links (the three views, and the trust page) and its button, the
+    // link to the demo's pages, the link to the first site itself (the second has no address people
+    // visit), the current reports' links (the demo's two, the first site's two, and the second
+    // site's one: its Word copy is missing), the earlier report's one (its Word copy changed), the
+    // three folds' summaries, each report's page by date, and the footer's link.
+    const closed = 1 + 4 + 1 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -592,6 +617,51 @@ describe("the site's page", () => {
       }, view);
       expect(result, view).toBeNull();
     }
+  });
+
+  it("tells the link of the page it is on from the others by more than color: bold, and underlined more heavily", async () => {
+    const page = await open(files.trustBar);
+
+    const links = await page.locator(".bar nav a").evaluateAll((all) =>
+      all.map((link) => {
+        const style = getComputedStyle(link);
+        return {
+          words: link.textContent ?? "",
+          current: link.getAttribute("aria-current"),
+          weight: style.fontWeight,
+          line: style.textDecorationLine,
+          thickness: style.textDecorationThickness,
+        };
+      }),
+    );
+
+    const look = ({ weight, line, thickness }: (typeof links)[number]) => ({
+      weight,
+      line,
+      thickness,
+    });
+    const here = links.filter(({ current }) => current === "page");
+    const others = links.filter(({ current }) => current !== "page");
+
+    // Only the link to the trust page is the page the reader is on. The others are medium, with the
+    // browser's own underline; it is bold, with a heavier one.
+    expect(here.map(({ words }) => words)).toEqual(["Can I trust this?"]);
+    expect(here.map(look)).toEqual([{ weight: "700", line: "underline", thickness: "2px" }]);
+    expect(others.map(look)).toEqual(
+      Array.from({ length: 3 }, () => ({ weight: "500", line: "underline", thickness: "auto" })),
+    );
+  });
+
+  it("takes a link of the trust page's bar to its view on the website's own page", async () => {
+    const page = await open(files.trustBar);
+
+    await page.locator("nav a", { hasText: "The sites" }).click();
+
+    // index.html sits beside the trust page's file, as the website's pages sit beside each other.
+    const url = new URL(page.url());
+    expect(url.pathname.endsWith("/index.html")).toBe(true);
+    expect(url.hash).toBe("#sites");
+    expect(await page.locator("#sites > .view-head > .title > h2").textContent()).toBe("The sites");
   });
 
   it("keeps the bar in view from 640 pixels wide, and scrolls it away on a narrower window", async () => {
@@ -721,7 +791,7 @@ describe("the site's page", () => {
     // h3, already leads to it.
     const landmarks: Landmark[] = [
       ["banner", ""],
-      ["navigation", "Views"],
+      ["navigation", "This website"],
       ["main", ""],
       ["region", "The demo"],
       ["region", "The sites"],

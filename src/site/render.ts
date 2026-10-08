@@ -6,11 +6,14 @@
  * outside it. The page sets no `style` attribute, since a Content Security Policy that hashes its
  * style block and its script allows nothing else.
  *
- * In order: the head; a skip link to the main content; the bar, whose links go to the views and
- * which holds the theme button; `main`, with the page's heading and lead, the views (the demo's, the
- * sites', and, when two sites or more have reports, every report by date), and what to know about a
- * file's fingerprint and a walkthrough file; the footer; and last, the script. What the model or a
- * record supplies goes through `esc`, and so does the fixed text (./text.ts), which is plain words.
+ * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
+ * which its other page, the trust page, has too; this module draws what is between the bar and the
+ * footer. In order: the head; a skip link to the main content; the bar, whose links go to the views
+ * and, last, to the trust page, and which holds the theme button; `main`, with the page's heading
+ * and lead, the views (the demo's, the sites', and, when two sites or more have reports, every
+ * report by date), and what to know about a file's fingerprint and a walkthrough file; the footer;
+ * and last, the script. What the model or a record supplies goes through `esc`, and so does the
+ * fixed text (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
@@ -30,9 +33,8 @@ import { folderSafe } from "../run/paths.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
-import { SITE_SCRIPT } from "./client.js";
+import { listsByDate, siteBar, sitePage } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
-import { SITE_CSS } from "./style.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
@@ -391,18 +393,11 @@ function sitesView(sites: SiteContent["sites"]): string {
 }
 
 /**
- * Whether the page lists every report by date: only when two sites or more have reports. With one,
- * the list would be that site's own again.
- */
-function listsByDate(content: SiteContent): boolean {
-  return content.sites.length > 1;
-}
-
-/**
  * The view of every report, across the sites (the demo isn't a site's), newest first by the moment
  * each names. Reports of the same moment stay in the order they were given. Each item has its time,
  * its site's name, who prepared it, and a link to its page, or says the page isn't here. It's on the
- * page only when two sites or more have reports (see listsByDate).
+ * page only when two sites or more have reports (see listsByDate in ./frame.ts, which the bar's link
+ * to it follows too).
  */
 function byDateView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.byDate;
@@ -427,65 +422,26 @@ function byDateView(sites: SiteContent["sites"]): string {
   );
 }
 
-/** The bar: a link to each view that's there, and the theme button, hidden until the script shows it. */
-function bar(content: SiteContent): string {
-  const { views } = SITE_TEXT;
-  const links = [
-    ...(content.demo === null ? [] : [{ id: "demo", title: views.demo.title }]),
-    { id: "sites", title: views.sites.title },
-    ...(listsByDate(content) ? [{ id: "by-date", title: views.byDate.title }] : []),
-  ];
-  return [
-    '<header class="bar">',
-    `<nav aria-label="${esc(SITE_TEXT.nav)}">`,
-    ...links.map(({ id, title }) => `<a href="#${esc(id)}">${esc(title)}</a>`),
-    "</nav>",
-    `<button class="theme" id="theme-toggle" type="button" hidden>${esc(SITE_TEXT.theme.light)}</button>`,
-    "</header>",
-  ].join("\n");
-}
-
-/** The footer: what voicecap is, and the link to it. */
-function footer(): string {
-  return [
-    "<footer>",
-    `<p>${esc(SITE_TEXT.about)}</p>`,
-    `<p>${esc(SITE_TEXT.madeWith)} <a href="${esc(SITE_TEXT.github)}">${esc(SITE_TEXT.madeWithLink)}</a></p>`,
-    "</footer>",
-  ].join("\n");
-}
-
 /**
- * The page, from what's published. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
+ * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts)
+ * with the bar of its own page. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
  * ../share/fonts.ts), which the page's style block holds ahead of its own styles. Pure.
  */
 export function renderSiteIndex(content: SiteContent, assets: { fontCss: string }): string {
-  return [
-    "<!doctype html>",
-    '<html lang="en">',
-    "<head>",
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<meta name="robots" content="noindex, nofollow, noarchive">',
-    `<title>${esc(SITE_TEXT.title)}</title>`,
-    `<style>\n${assets.fontCss}\n${SITE_CSS}</style>`,
-    "</head>",
-    "<body>",
-    `<a class="skip" href="#main">${esc(SITE_TEXT.skip)}</a>`,
-    bar(content),
-    '<main id="main">',
-    `<h1>${esc(SITE_TEXT.title)}</h1>`,
-    `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
-    ...(content.demo === null ? [] : [demoView(content.demo)]),
-    sitesView(content.sites),
-    ...(listsByDate(content) ? [byDateView(content.sites)] : []),
-    `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
-    `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
-    "</main>",
-    footer(),
-    `<script>${SITE_SCRIPT}</script>`,
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
+  return sitePage(
+    {
+      title: SITE_TEXT.title,
+      bar: siteBar(content, "index"),
+      main: [
+        `<h1>${esc(SITE_TEXT.title)}</h1>`,
+        `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+        ...(content.demo === null ? [] : [demoView(content.demo)]),
+        sitesView(content.sites),
+        ...(listsByDate(content) ? [byDateView(content.sites)] : []),
+        `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
+        `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
+      ],
+    },
+    assets,
+  );
 }
