@@ -226,6 +226,53 @@ describe("the Windows voice", () => {
     expect(child.written()).toBe(written);
   });
 
+  // PowerShell writes why the script failed to its error output, and the person is asked to paste
+  // what the terminal shows when something goes wrong.
+  it("says why the voice stopped, from the first lines PowerShell wrote to its error output", async () => {
+    const { voice, child } = await readyWindowsVoice();
+    const saying = voice.say("Home", 180);
+    child.complain(
+      [
+        'Exception calling "SpeakAsync" with "1" argument(s): "The device is busy."',
+        "",
+        "At line:1 char:1442",
+        "+ ... [void]$voice.SpeakAsync([string]$message.say) ...",
+        "    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException",
+        "",
+      ].join("\r\n"),
+    );
+    child.exit(1);
+    // The first three lines with words, each on one line.
+    const why =
+      'The computer\'s voice stopped (Exception calling "SpeakAsync" with "1" argument(s): "The device is busy." At line:1 char:1442 + ... [void]$voice.SpeakAsync([string]$message.say) ...).';
+    await rejectsWith(saying, why);
+    await rejectsWith(voice.say("About", 180), why);
+
+    // With nothing written there, it only says the voice stopped.
+    const quiet = await readyWindowsVoice();
+    const said = quiet.voice.say("Home", 180);
+    quiet.child.exit(1);
+    await rejectsWith(said, "The computer's voice stopped.");
+  });
+
+  it("says why PowerShell ended before the voice started, from its error output", async () => {
+    const { spawn, children } = fakeSpawn();
+    const starting = windowsVoice({ spawnVoice: spawn });
+    children[0]!.complain("The term 'Add-Type' is not recognized.\r\n");
+    children[0]!.exit(1);
+    await rejectsWith(
+      starting,
+      "The computer's voice didn't start: PowerShell ended with exit code 1 (The term 'Add-Type' is not recognized).",
+    );
+  });
+
+  it("reads PowerShell's error output as it comes, so it never fills and stalls the script", async () => {
+    const { child } = await readyWindowsVoice();
+    for (let line = 0; line < 100; line++) child.complain(`${"x".repeat(1_000)}\n`);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(child.stderr.readableLength).toBe(0);
+  });
+
   it("ends PowerShell by ending its input", async () => {
     const { voice, child } = await readyWindowsVoice();
     const closing = voice.close();
@@ -338,22 +385,27 @@ describe("startSystemVoice", () => {
   });
 });
 
-// The one test of the real script: Windows PowerShell with System.Speech, its speech sent nowhere.
+// The four tests of the real script: Windows PowerShell with System.Speech, its speech sent nowhere,
+// or, in one, to a stream too small for it. None is heard.
 describe.runIf(process.platform === "win32")("the real script, on Windows", () => {
   const silent = SPEAK_SCRIPT.replace("SetOutputToDefaultAudioDevice()", "SetOutputToNull()");
 
   /**
    * The real script, started. A computer with no voice installed, as a CI image may be, skips the
    * test. `closeMs` is longer than the 5 seconds a close may take, so a close that finishes in time
-   * shows the script ended on its input's end, not that it was killed.
+   * shows the script ended on its input's end, not that it was killed. It's closed when the test
+   * finishes, whether or not the test did, so a failed one leaves no PowerShell running.
    */
   async function startOrSkip(ctx: TestContext, script: string): Promise<Voice> {
+    let voice: Voice;
     try {
-      return await windowsVoice({ script, closeMs: 10_000 });
+      voice = await windowsVoice({ script, closeMs: 10_000 });
     } catch (error) {
       expect(errorMessage(error)).toBe("The computer's voice didn't start: no voice is installed.");
       ctx.skip("no voice is installed");
     }
+    ctx.onTestFinished(() => voice.close());
+    return voice;
   }
 
   it("speaks through the real script, silently", async (ctx) => {

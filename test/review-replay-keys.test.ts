@@ -1,11 +1,11 @@
-import { once } from "node:events";
+import { getEventListeners, once } from "node:events";
 import { readFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
 import { setImmediate as nextTurn, setTimeout as delay } from "node:timers/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { keyOf, readNote, terminalKeys, type Key } from "../src/review-replay/keys.js";
+import { BACK, keyOf, readNote, terminalKeys, type Key } from "../src/review-replay/keys.js";
 import { REPLAY_TEXT } from "../src/review-replay/text.js";
 import { keyQueue, ttyInput } from "./helpers/replay.js";
 
@@ -105,6 +105,19 @@ describe("terminalKeys", () => {
     // A key pressed after that is not given.
     input.write("n");
     await expect(keys.next()).resolves.toBeNull();
+  });
+
+  // A terminal that's gone can't leave raw mode. Node's tty reports that by emitting "error", which
+  // no one hears once the keys are closed, so the emit throws.
+  it("closes without failing when the terminal can't leave raw mode", async () => {
+    const input = ttyInput();
+    input.setRawMode = (mode) => {
+      input.rawModes.push(mode);
+      if (!mode) input.emit("error", new Error("setRawMode EIO"));
+    };
+    const keys = terminalKeys(input);
+    await expect(keys.close()).resolves.toBeUndefined();
+    expect(input.rawModes).toEqual([true, false]);
   });
 
   it("can be closed twice, and leaves raw mode once", async () => {
@@ -272,7 +285,9 @@ describe("terminalKeys", () => {
   it("stops listening for the signal when closed", async () => {
     const stop = new AbortController();
     const keys = terminalKeys(ttyInput(), stop.signal);
+    expect(getEventListeners(stop.signal, "abort")).toHaveLength(1);
     await keys.close();
+    expect(getEventListeners(stop.signal, "abort")).toEqual([]);
     // Aborting afterward must not reach a source that is closed already.
     expect(() => stop.abort()).not.toThrow();
   });
@@ -374,9 +389,20 @@ describe("readNote", () => {
   it("leaves out the keys that aren't text", async () => {
     const keys = keyQueue();
     const { out, shown } = screen();
-    keys.push({ name: "left" }, "a", { name: "right" }, { name: "escape" }, "b", { name: "enter" });
+    keys.push({ name: "left" }, "a", { name: "right" }, "b", { name: "enter" });
     await expect(readNote(keys, out)).resolves.toBe("ab");
     expect(shown()).toBe("ab\n");
+  });
+
+  // A wrong digit at the question can be taken back before anything is recorded (Ruling R11).
+  it("goes back on Escape, with the line ended and no note given", async () => {
+    const keys = keyQueue();
+    const { out, shown } = screen();
+    keys.push("B", "a", { name: "escape" }, "x");
+    await expect(readNote(keys, out)).resolves.toBe(BACK);
+    expect(shown()).toBe("Ba\n");
+    // The keys after it are left for what comes next.
+    await expect(keys.next()).resolves.toEqual({ name: "char", char: "x" });
   });
 
   // The key that stopped the voice saying the prompt is the note's first (R10).
@@ -543,6 +569,10 @@ describe("REPLAY_TEXT", () => {
     for (const spoken of [REPLAY_TEXT.keysSpoken, REPLAY_TEXT.questionSpoken]) {
       expect(spoken).toMatch(/^[\w ,.:?]+$/);
     }
+  });
+
+  it("says the voice is starting, as it can take a few seconds", () => {
+    expect(REPLAY_TEXT.starting).toBe("Starting the computer's voice.");
   });
 
   it("says each answer as it's taken, in its own words, and turns NVDA back over to the person", () => {

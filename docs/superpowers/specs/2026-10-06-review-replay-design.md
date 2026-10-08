@@ -28,7 +28,7 @@ A page picked with nothing to hear (no run that counts read it, or its read tran
 **Each page, in order:**
 1. A line names it: `Page 3 of 7: /biographies/ (2 flags)`.
 2. The voice reads the read pass (Down Arrow), line by line. Each line is shown as it's read, with its number: `  12  banner landmark, same page, link, current page, Unlabeled graphic, i 2i Logo…`. A line that raised a flag carries a mark after it, in words: `⚑ unlabeled graphic`.
-   - **What plays (D6):** each pass plays its content steps, the steps the flag rules read. So the read pass starts at Ctrl+Home's line, "[to top] …", leaves out Ctrl+End's line, and doesn't repeat its last line. Each line keeps its number in the TXT transcript, so line 4 on screen is line 4 of `read.txt`. A line is shown as the transcript writes it, with "[to top]" or "[no speech]". The voice says it without the label, and says nothing for "[no speech]".
+   - **What plays (D6):** each pass plays its content steps, the steps the flag rules read. So the read pass starts at Ctrl+Home's line, "[to top] …", leaves out Ctrl+End's line, and doesn't repeat its last line. Each line keeps its number in the TXT transcript, so line 4 on screen is the body's line 4, step 4. A line is shown as the transcript writes it, with "[to top]" or "[no speech]". The voice says it without the label, and says nothing for "[no speech]".
    - **What a mark says (D5):** for unlabeled and generic-link-text, what the rule found on the line ("⚑ unlabeled graphic", "⚑ read more"). For every other rule, the rule's id ("⚑ headings"), as the page's chips name rules.
    - **Which lines carry it (D5, Ruling R8):** unlabeled and generic-link-text mark each line they found something on. A rule whose quotes stand for a place on the page marks that place alone: the lines `flagQuotes` gives, at most 3 a flag, where they were said. Those rules are headings (the first heading), tab-before-main (the stops before the main content), and read-not-finished (the last line read), and the same words said elsewhere carry no mark. The rules whose quotes stand for their words (repeated-phrase, and a custom rule) mark every line that says the quoted words.
 3. When the transcript ends, or the person presses Enter, voicecap asks:
@@ -39,13 +39,13 @@ A page picked with nothing to hear (no run that counts read it, or its read tran
 
    For 2 and 3 it asks for a note (Enter for none). The answer is recorded at once, through `addReview`: who, when, the run, and the transcripts' fingerprints, sealed and chained as every review entry is. Skip records nothing.
    - **A decision is one key, 1 to 4 (D3).** No other key answers the question, Enter alone included, so a stray key never records a decision. That's the same reason the question at the end of a run defaults to "No".
-   - **The note** ends with Enter. Enter alone records no note (Ruling R2).
+   - **The note** ends with Enter. Enter alone records no note (Ruling R2). Escape goes back to the question, with nothing recorded, so a wrong digit can be taken back (Ruling R11). Ctrl+C ends the session, and the note typed so far is lost, with nothing recorded for the page.
 4. On to the next page. After the last, voicecap writes the report again once, and says how many decisions it recorded.
 
 **How it ends (D8):**
 - It ends after the last page, or when the person ends it: Ctrl+C, or the keys ending, as they do when the window is closed. Ended early, it exits with code 130, as an interrupted run does.
 - The live report is written again once, at the end, and only when at least one decision was recorded. Otherwise nothing new is written (see Safety).
-- Once the voice has started, every way out says how many decisions were recorded: the last page, Ctrl+C, the keys ending, and a failure, such as the voice stopping or `addReview` refusing, which is then shown. Before the voice starts, nothing could have been asked, so there's no count (Ruling R3): a usage error, nothing to hear, or a voice that doesn't start.
+- Once the voice has started, every way out says how many decisions were recorded: the last page, Ctrl+C, the keys ending, and a failure, such as the voice stopping or `addReview` refusing, which is then shown. A report that can't be written then fails a session that went well; after a failure, the session's own error is the one shown, and the report's is a warning (Ruling R12). Before the voice starts, nothing could have been asked, so there's no count (Ruling R3): a usage error, nothing to hear, or a voice that doesn't start. While the voice starts, which can take a few seconds, voicecap shows "Starting the computer's voice." (Ruling R11).
 
 **Keys while a transcript plays:**
 - **Space:** pause, and resume. Pausing stops the voice; resuming starts the current line again.
@@ -81,7 +81,7 @@ Each is said through the same `sayLine` as a transcript's lines, so the rules fo
 
 ← and → move among the transcript's lines only, never onto these. What's only shown:
 - NVDA's two lines: NVDA is running then, and reads them.
-- What's shown before the voice starts: the pages left out, and nothing to hear.
+- What's shown before the voice starts: the pages left out, nothing to hear, and "Starting the computer's voice.".
 - An error: the voice may be what failed.
 - The last lines of a session that ends some other way than after its last page (Ctrl+C, the keys ending, or a failure), or whose line after the last answer Ctrl+C stopped: a line may still be being said, and the voice is closed first, without waiting for it (R6).
 
@@ -89,12 +89,13 @@ Each is said through the same `sayLine` as a transcript's lines, so the rules fo
 - On Windows, its built-in voice (System.Speech), through a small PowerShell script that ships with voicecap.
   - The script is a constant in voicecap's code, given to PowerShell with `-Command`, not a `.ps1` file (C1, D1). Windows' default execution policy on Windows 10 and 11, "Restricted", refuses to run any `.ps1` file, and a policy set by Group Policy, as an agency's PCs may have, overrides `-ExecutionPolicy Bypass`. No policy applies to a script given with `-Command`, which is how voicecap's other PowerShell work already runs.
   - A line whose audio fails, as when the audio device is removed, isn't passed over in silence. The script answers each line when System.Speech says it's done (`SpeakCompleted`), with the error when there's one, and the session then ends and says why (Ruling R5).
+  - When PowerShell itself ends, the first three lines with words it wrote to its error output say why: "The computer's voice stopped (…)." or "The computer's voice didn't start: PowerShell ended with exit code 1 (…).". Its error output is read as it comes, so it never fills and stalls the script (Ruling R11).
 - On a Mac, `say`.
 - Its speed is in words a minute: `--rate <wpm>`, a whole number from 60 to 540, default 180 (D4). On Windows it maps onto the voice's own rate scale, as `round(10 × log₃(wpm ÷ 180))`, kept within −10 to 10. So 180 is the voice's normal speed (0), 540 its fastest (10), and 60 its slowest (−10).
 - There's no NVDA, browser, or network. It reads the saved transcript, so it works at any time, offline, with the person's hands on the keyboard.
 - On another platform, or with no voice found, `--replay` stops and says so, before anything is recorded. Its exit code is then 2, as when NVDA won't start for a run.
 
-**It needs a terminal.** Without one (a script, CI), or with the output redirected, `--replay` stops and says so. `review` without `--replay` is unchanged: `--page` and `--status` are still required. voicecap checks them itself now ("--page is required, unless --replay is given."), since with `--replay` neither is required.
+**It needs a terminal.** Without one (a script, CI), or with the output redirected, `--replay` stops and says so. `review` without `--replay` is unchanged: `--page` and `--status` are still required. voicecap checks them itself now ("--page is required, unless --replay is given."), since with `--replay` neither is required, and `review --help` says so: "(required, unless --replay)" (Ruling R11).
 
 **The person's own NVDA.** An NVDA that's running reads each line as it appears in the terminal, so the person would hear it over the replay's voice. On Windows, before the first page, voicecap looks for a running `nvda.exe` in Windows' list of running programs (`tasklist`), as a run does before it starts NVDA (Ruling R12). When it finds one, it says so, and waits:
 
@@ -128,7 +129,7 @@ Six modules in `src/review-replay/`, each with one job, and the command:
   - It stops with a usage error (exit code 1) before anything starts:
     - without `--replay`: "--page is required, unless --replay is given.", "--status is required, unless --replay is given.", and "--all and --rate go with --replay.";
     - with it: "--replay asks for each decision itself, so it doesn't take --status, --note, or --run.", "--all and --page can't be used together.", a `--rate` that isn't a whole number from 60 to 540, and an input or an output that isn't a terminal.
-  - It reads the keys from the start, and a closed window ends them (SIGHUP or SIGTERM, and SIGBREAK on Windows). Every way out closes them, which ends raw mode, and stops watching for a closed window: the last page, Ctrl+C, a closed window, and an error, before the voice starts or after.
+  - It reads the keys from the start, and a closed window ends them (SIGHUP or SIGTERM, and SIGBREAK on Windows). Every way out closes them, which ends raw mode, and stops watching for a closed window: the last page, Ctrl+C, a closed window, and an error, before the voice starts or after. Closing them doesn't fail, even when the terminal is gone and can't leave raw mode, so the session's own result or error stands; and the closed window is no longer watched even should closing them fail (Ruling R12).
   - Its exit codes: 0 when the session ends after its last page, or has nothing to hear; 130 when the person ended it first; 2 when there's no voice, or the voice stops working; 1 for a usage error.
   - Its check for the person's own NVDA counts each running `nvda.exe` in Windows' list of running programs (`listProcesses("nvda.exe")`, which runs `tasklist`), the check a run makes before it starts NVDA, on Windows only (Ruling R12). The list `doctor` reads (`nvdaProcesses`), with each NVDA's path, compiles C# whenever an `nvda.exe` is running, so it's slowest just when the answer matters. A check that hasn't answered within 5 seconds counts as not running.
   - Its tests give it a fake voice and a fake check for NVDA, through `CliContext.replayVoice` and `CliContext.nvdaRunning`, so no test reaches the computer's voice or NVDA.
@@ -188,7 +189,10 @@ The plan (`docs/superpowers/plans/2026-10-08-review-replay-plan-8.md`) corrected
 - **R8:** the place rules mark the place they quote, and the other rules mark every line with the quoted words.
 - **R9:** keys left before a page or NVDA's two lines are dropped, and so are the keys pressed in the half second after an answer.
 - **R10:** the voice says the session's own lines too, as they're shown: the keys, each page's line and each transcript's name, each notice, the question and the note's prompt, a line once each answer is taken, and after the last page the count, with the reminder to turn NVDA's speech back on. A key stops each, as it stops a transcript's line, and does what it does there. NVDA's two lines, and errors, are only shown.
+- **R11:** from the final review's smaller findings: Escape at the note goes back to the question, with nothing recorded; "Starting the computer's voice." is shown while the voice starts; when PowerShell ends, the first lines it wrote to its error output say why; and `review --help` says `--page` and `--status` are required unless `--replay` is given.
 - **R12:** the final review's fixes, made before the merge:
   - the check for the person's own NVDA counts each `nvda.exe` that `tasklist` lists, which compiles nothing, so it answers in time when NVDA runs;
   - the keys pressed in the half second after the Enter that goes on from NVDA's two lines are dropped too, so a second Enter can't end page 1 unheard;
-  - while a page plays, ← and → pass over a line where NVDA said nothing, so ← can reach the lines before one, and → moves one line with words.
+  - while a page plays, ← and → pass over a line where NVDA said nothing, so ← can reach the lines before one, and → moves one line with words;
+  - closing the keys never fails, even with the terminal gone, so the session's own result stands, and the closed window is no longer watched however closing them goes;
+  - a report that can't be written, after a session that failed, is a warning, and the session's own error is the one shown.

@@ -18,7 +18,10 @@ import { VOICE_STOPPED_ANSWERING, settlesWithin, type Voice } from "./voice.js";
 
 /** A line of a transcript, as the player shows it and the voice says it. */
 export interface PlayLine {
-  /** Its line number in the TXT transcript, so line 4 on screen is line 4 of read.txt. */
+  /**
+   * Its number in the TXT transcript, whose body has a line for each step, so line 4 on screen is
+   * the body's line 4, step 4.
+   */
   n: number;
   /** The line as the transcript writes it, with "[to top]" or "[no speech]". */
   text: string;

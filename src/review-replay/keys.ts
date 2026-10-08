@@ -27,7 +27,10 @@ export interface KeySource {
    * an answer or the Enter at NVDA's two lines (session.ts).
    */
   waiting(): Promise<void>;
-  /** Stops reading keys and gives the terminal back. It's safe to call twice. */
+  /**
+   * Stops reading keys and gives the terminal back. It's safe to call twice, and it doesn't fail,
+   * even with the terminal gone.
+   */
   close(): Promise<void>;
 }
 
@@ -96,7 +99,7 @@ export function terminalKeys(input: NodeJS.ReadableStream, signal?: AbortSignal)
 
   const waiting = (): Promise<void> => {
     if (queue.length > 0 || ended || stopped) return Promise.resolve();
-    // One promise for every call, so the player asking after each line leaves nothing piling up.
+    // One promise for all callers, whose reactions on it last until a key comes.
     arrival ??= new Promise<void>((resolve) => {
       arrive = resolve;
     });
@@ -153,7 +156,13 @@ export function terminalKeys(input: NodeJS.ReadableStream, signal?: AbortSignal)
       // reads has a Windows console start a line-at-a-time read (src/cli/listener.ts, measured
       // 2026-10-02 in Windows Terminal), so raw mode is left on the turn after.
       await nextTurn();
-      terminal.setRawMode?.(false);
+      try {
+        terminal.setRawMode?.(false);
+      } catch {
+        // The terminal is gone, so there's no raw mode left to end. Node's tty says so by emitting
+        // "error", which no one hears now, so the emit throws: closing still succeeds, and the
+        // session's own result stands.
+      }
     })();
     return closing;
   };
@@ -162,17 +171,24 @@ export function terminalKeys(input: NodeJS.ReadableStream, signal?: AbortSignal)
 }
 
 /**
+ * What readNote gives for Escape: the person goes back to the question, with no note, and nothing
+ * is recorded, so a wrong digit can be taken back.
+ */
+export const BACK = Symbol("back to the question");
+
+/**
  * The note a person types after "Issue found" or "Fixed", on the line already shown. Each
  * character is written as it's typed, and Backspace takes the last one off the line and out of the
  * note. Enter ends the line and gives the note, trimmed: an empty string when nothing was typed.
- * Ctrl+C, or the keys ending, gives null. `first` is a key already taken for the note, the one that
- * stopped the voice saying its prompt: it comes before the keys still to come.
+ * Escape ends the line and gives BACK. Ctrl+C, or the keys ending, gives null, and what was typed
+ * is lost. `first` is a key already taken for the note, the one that stopped the voice saying its
+ * prompt: it comes before the keys still to come.
  */
 export async function readNote(
   keys: KeySource,
   out: OutputStream,
   first?: Key,
-): Promise<string | null> {
+): Promise<string | typeof BACK | null> {
   // One entry for each character, so Backspace takes off a whole character, an emoji included.
   const typed: string[] = [];
   let given = first;
@@ -183,6 +199,10 @@ export async function readNote(
     if (key.name === "enter") {
       out.write("\n");
       return typed.join("").trim();
+    }
+    if (key.name === "escape") {
+      out.write("\n");
+      return BACK;
     }
     if (key.name === "backspace") {
       // With nothing typed, there's nothing to take off, and the erase would reach into the prompt.

@@ -221,6 +221,7 @@ Examples:
   npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap sitemap.xml
   npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/
   voicecap review --page https://dvfr.illinois.gov/about/ --status reviewed --note "Reads well"
+  voicecap review --replay
   voicecap report --compare previous
 
 Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
@@ -393,8 +394,15 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
     .description("add an entry to a page's review history, or hear pages again with --replay")
     // --page and --status are required unless --replay is given, which the action checks:
     // commander can't say "unless".
-    .option("--page <url>", "the page: full URL or root-relative path")
-    .addOption(new Option("--status <status>", "the review outcome").choices(REVIEW_STATUSES))
+    .option(
+      "--page <url>",
+      "the page: full URL or root-relative path (required, unless --replay; with --replay, the one page to hear)",
+    )
+    .addOption(
+      new Option("--status <status>", "the review outcome (required, unless --replay)").choices(
+        REVIEW_STATUSES,
+      ),
+    )
     .option("--note <text>", "what you found")
     .option(
       "--reviewer <name>",
@@ -859,9 +867,14 @@ async function replayCommand(
     );
     return outcome === "quit" ? ExitCode.interrupted : ExitCode.ok;
   } finally {
-    // Every way out gives the terminal back: raw mode ends as the keys close.
-    await keys.close();
-    unlisten();
+    // Every way out gives the terminal back: raw mode ends as the keys close. Closing them doesn't
+    // fail, even with the terminal gone, so the session's own result or error stands; and should it
+    // ever fail, the closed window is no longer watched all the same.
+    try {
+      await keys.close();
+    } finally {
+      unlisten();
+    }
   }
 }
 

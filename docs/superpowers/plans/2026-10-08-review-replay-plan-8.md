@@ -1,7 +1,5 @@
 # Plan 8: The review replay
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** `voicecap review --replay`, a guided review session. For each page, voicecap reads the page's saved transcript aloud in the computer's own voice, at a normal speed, shows each line as it's read, and then records what the person decided, as `voicecap review` records a decision. Ship it as 0.14.0.
 
 **Architecture:** six small modules in a new `src/review-replay/`, each with one job:
@@ -56,7 +54,7 @@
     - starts at Ctrl+Home's line, "[to top] …";
     - leaves out Ctrl+End's line;
     - doesn't repeat its last line.
-  - Each line keeps its number in the TXT transcript, so line 4 on screen is line 4 of `read.txt`.
+  - Each line keeps its number in the TXT transcript, so line 4 on screen is the body's line 4, step 4.
   - A line is shown as the transcript writes it, with "[to top]" or "[no speech]". The voice says it without the label, and says nothing for "[no speech]".
 - **D7, keys while paused.** ← → N H T R move to their line while paused, show it, and don't speak it. That way a person can step through the lines in silence, and Space speaks from there.
 - **D8, how it ends.**
@@ -80,7 +78,7 @@
 - **One source of words:** what a person sees is in `REPLAY_TEXT` (`src/review-replay/text.ts`), except the voices' error messages, which live in `voice.ts`.
 - **Platforms:** Windows (System.Speech) and macOS (`say`). Elsewhere `--replay` stops before anything is recorded.
 - **Commits:** a plain subject line with no trailers of any kind, and no push until the release.
-- **What subagents never do:**
+- **What the work never does:**
   - start NVDA, or any desktop program;
   - run voicecap, except through the test suite, and never `voicecap review --replay` outside it: it speaks aloud and records decisions;
   - pass a composed command through `cmd /c` or any shell;
@@ -605,20 +603,21 @@ The controller builds the branch (`pnpm build`) and copies `fixture/i2i-v3-run` 
 1. **Leave your own NVDA running** for this check, so you see its message.
 2. **Open a terminal** in `C:\Users\cschw\code\voicecap-replay`.
 3. **Run** `node dist/cli.js review --replay --page / --reviewer "Christopher Schweda" --out "<the copy>"`, and press Enter.
-4. **When the two lines about NVDA appear,** press NVDA+S until NVDA beeps or goes quiet (or quit NVDA), then press Enter in the terminal.
-5. **Check the start:**
-   - the keys' line;
+4. **When the two lines about NVDA appear** (after "Starting the computer's voice."), press NVDA+S until NVDA beeps or goes quiet (or quit NVDA), then press Enter in the terminal.
+5. **Check the start,** each line shown as the computer's voice says it, at a normal speed:
+   - the keys' line, which the voice says in words;
    - then "Page 1 of 1: / (2 flags)";
-   - then line 2 ("[to top] out of list, Skip links, …") shown while the computer's voice says it, at a normal speed.
+   - then "Read transcript, 31 lines:";
+   - then line 2 ("[to top] out of list, Skip links, …").
 6. **Press N:** the voice jumps to line 4, the logo line, which ends "⚑ unlabeled graphic", and reads it.
 7. **Try the other keys:**
-   - Space, twice: a pause, then the line again;
-   - ← and →;
-   - + and −: the speed line;
-   - H, then T, then R: each transcript from its start.
-8. **Press Enter.** The question appears.
+   - Space, twice: a pause, which the voice says ("Paused. Press Space to go on."), then the line again;
+   - Left Arrow and Right Arrow;
+   - + and −: the speed line, said at the new speed;
+   - H, then T, then R: each transcript from its start, its name said first.
+8. **Press Enter.** The question appears, and the voice says it.
 9. **Press 2, type** `Logo has no alt text`, and press Enter.
-10. **Check the end:** a line beginning `Recorded "issue" for https://v3--i2i.netlify.app/ by Christopher Schweda against run 2026-10-06_1134`, then "Recorded 1 decision.", then the prompt.
+10. **Check the end:** a line beginning `Recorded "issue" for https://v3--i2i.netlify.app/ by Christopher Schweda against run 2026-10-06_1134`; then "Recorded: issue found.", "Recorded 1 decision.", and "Turn NVDA's speech back on (NVDA+S changes its speech mode), or start it again if you quit it.", each said by the voice too; then the prompt.
 11. **Turn NVDA's speech back on** (NVDA+S until it talks).
 12. **If anything goes wrong,** press Ctrl+C, and paste what the terminal shows into the chat.
 
@@ -626,7 +625,7 @@ The controller then checks that the copy's `reviews.json` has that entry, and th
 
 ## The release (the controller, with the owner)
 
-1. Run the final review on opus, then one fix wave and its re-review (subagent-driven development).
+1. Run the final review, then one fix wave and its re-review.
 2. Push the branch, and get CI green on all six jobs. The real-script test runs on the Windows jobs.
 3. Merge: `git switch main && git merge --no-ff plan-8-review-replay`.
 4. **"Prepare 0.14.0":**
@@ -641,3 +640,7 @@ The controller then checks that the copy's `reviews.json` has that entry, and th
 7. Commit "Release v0.14.0", tag `v0.14.0` (annotated), and push with the tag.
 8. Wait until the 0.14.0 tarball answers 200, and 10 minutes have passed since the publish. Then, in the transcripts repo, set `netlify.toml`'s command to `@0.14`, commit, and push (the owner's standing OK). The shareable page doesn't change, so no site needs sharing again.
 9. Update the handoff and the memories. Next is plan 6c, as 0.15.0: merge main into `plan-6c-nvda-log` first.
+
+## After execution
+
+- **Task 2's `SPEAK_SCRIPT` isn't the one above:** Ruling R5 changed it to answer each line from System.Speech's `SpeakCompleted`, with the line's error when its audio fails. The spec's "Plan 8's corrections, decisions, and rulings" records R5 and the plan's other rulings, and `src/review-replay/voice.ts` has the script as built.

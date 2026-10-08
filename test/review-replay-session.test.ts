@@ -59,6 +59,7 @@ const RESOURCES = "https://example.illinois.gov/resources";
 const ENTER: Key = { name: "enter" };
 const SPACE: Key = { name: "space" };
 const RIGHT: Key = { name: "right" };
+const ESCAPE: Key = { name: "escape" };
 const CTRL_C: Key = { name: "ctrl-c" };
 
 type KeyQueue = ReturnType<typeof keyQueue>;
@@ -262,6 +263,7 @@ describe("replayReview", () => {
     expect(await readFile(path.join(at.siteDir, "report.html"), "utf8")).toBe(report);
     expect(voice.closed).toBe(true);
     expect(sessionLines(out.text())).toEqual([
+      REPLAY_TEXT.starting,
       REPLAY_TEXT.keys,
       "Page 1 of 3: / (no flags)",
       REPLAY_TEXT.question,
@@ -300,8 +302,10 @@ describe("replayReview", () => {
     await expect(session).resolves.toEqual({ decisions: 1, outcome: "done" });
     expect(saidBy(voice)).toEqual(heard);
     expect(voice.said.filter(({ wpm }) => wpm !== 180)).toEqual([]);
-    // Each is shown too, and the voice is closed after the last.
+    // Each is shown too, and the voice is closed after the last. The line that says the voice is
+    // starting is only shown: the voice isn't there yet.
     expect(sessionLines(out.text())).toEqual([
+      REPLAY_TEXT.starting,
       REPLAY_TEXT.keys,
       "Page 1 of 1: /about (no flags)",
       REPLAY_TEXT.question,
@@ -320,6 +324,7 @@ describe("replayReview", () => {
     await expect(running.session).resolves.toEqual({ decisions: 1, outcome: "done" });
     expect(saidBy(running.voice)).toEqual([...heard, REPLAY_TEXT.nvdaBack]);
     expect(sessionLines(running.out.text())).toEqual([
+      REPLAY_TEXT.starting,
       ...REPLAY_TEXT.nvda,
       REPLAY_TEXT.keys,
       "Page 1 of 1: /about (no flags)",
@@ -429,6 +434,32 @@ describe("replayReview", () => {
     ]);
   });
 
+  // A wrong digit can be taken back: Escape at the note asks again, with nothing recorded (R11).
+  it("asks again on Escape at the note, recording nothing", async () => {
+    const at = await countedHome();
+    // 2 by mistake, a letter of a note, Escape; then a stray Enter, which answers nothing at the
+    // question asked again, and 1.
+    const { session, out, voice } = replay(at, [["2", "x", ESCAPE, ENTER], ["1"]], {
+      options: { page: "/about" },
+    });
+    await expect(session).resolves.toEqual({ decisions: 1, outcome: "done" });
+    const { pages } = await readReviews(at.siteDir);
+    expect(pages[ABOUT]).toMatchObject([{ status: "reviewed", note: null }]);
+    expect(pages[ABOUT]).toHaveLength(1);
+    expect(sessionLines(out.text())).toEqual([
+      REPLAY_TEXT.starting,
+      REPLAY_TEXT.keys,
+      "Page 1 of 1: /about (no flags)",
+      REPLAY_TEXT.question,
+      "Note (Enter for none): x",
+      REPLAY_TEXT.question,
+      "Recorded: reviewed, no issues.",
+      "Recorded 1 decision.",
+    ]);
+    // The question is said again too.
+    expect(saidBy(voice).filter((line) => line === REPLAY_TEXT.questionSpoken)).toHaveLength(2);
+  });
+
   it("ends on Ctrl+C, keeping what was recorded", async () => {
     const at = await countedHome();
     const { session, out, voice, writeReport } = replay(at, [["1"], [CTRL_C]], {
@@ -505,7 +536,9 @@ describe("replayReview", () => {
       running.session.then(() => "ended" as const),
     ]);
     expect(first).toBe("warned");
-    expect(running.out.text()).toBe(`${REPLAY_TEXT.nvda[0]}\n${REPLAY_TEXT.nvda[1]}\n`);
+    expect(running.out.text()).toBe(
+      `${REPLAY_TEXT.starting}\n${REPLAY_TEXT.nvda[0]}\n${REPLAY_TEXT.nvda[1]}\n`,
+    );
     // Any key but Enter leaves it waiting, with nothing said.
     keys.push("x", "1", SPACE, RIGHT);
     await expect(soon(running.session)).resolves.toBe("still waiting");
@@ -517,6 +550,7 @@ describe("replayReview", () => {
     await expect(running.session).resolves.toEqual({ decisions: 0, outcome: "done" });
     expect(running.voice.said).not.toEqual([]);
     expect(sessionLines(running.out.text())).toEqual([
+      REPLAY_TEXT.starting,
       ...REPLAY_TEXT.nvda,
       REPLAY_TEXT.keys,
       "Page 1 of 1: /resources (5 flags)",
@@ -573,8 +607,9 @@ describe("replayReview", () => {
     await expect(soon(keys.next())).resolves.toEqual({ name: "char", char: "1" });
     expect(nvdaRunning).not.toHaveBeenCalled();
     expect(writeReport).not.toHaveBeenCalled();
-    // Nothing was asked, so there's no count to give.
-    expect(out.text()).toBe("");
+    // Nothing was asked, so there's no count to give: only the line that said the voice was
+    // starting (R11), since it can take a few seconds.
+    expect(out.text()).toBe(`${REPLAY_TEXT.starting}\n`);
   });
 
   it("ends, and says so, when the voice stops mid-page", async () => {
@@ -706,6 +741,37 @@ describe("replayReview", () => {
     expect(pages[RESOURCES]).toMatchObject([{ status: "reviewed", reviewer: "Pat Reviewer" }]);
   });
 
+  it("keeps its own failure when the report can't be written either, and says so", async () => {
+    const at = await countedHome();
+    const voice = fakeVoice({ auto: true });
+    const stopped = new EnvironmentError("The computer's voice stopped.");
+    // Page 1 is reviewed; then the voice stops on page 2's first line.
+    const failing: Voice = {
+      say: (text, wpm) => {
+        if (text === "heading, level 1, About us") voice.fail(stopped);
+        return voice.say(text, wpm);
+      },
+      stop: () => voice.stop(),
+      close: () => voice.close(),
+    };
+    const unwritten = new Error("report.html couldn't be written");
+    const { session, out, logger } = replay(at, [["1"]], {
+      options: { all: true },
+      voice,
+      deps: {
+        startVoice: () => Promise.resolve(failing),
+        writeReport: () => Promise.reject(unwritten),
+      },
+    });
+    // Why the session ended comes through; the report's failure is told.
+    await expect(session).rejects.toBe(stopped);
+    expect(logger.text("warn")).toBe(
+      "The live report couldn't be written again: report.html couldn't be written",
+    );
+    expect(voice.closed).toBe(true);
+    expect(lastLines(out.text(), 1)).toEqual(["Recorded 1 decision."]);
+  });
+
   it("says when there's nothing to hear", async () => {
     const at = await countedHome();
     await addReview({
@@ -741,6 +807,7 @@ describe("replayReview", () => {
     await expect(session).resolves.toEqual({ decisions: 0, outcome: "done" });
     expect(sessionLines(out.text())).toEqual([
       "Left out, with no transcripts to hear: /about.",
+      REPLAY_TEXT.starting,
       REPLAY_TEXT.keys,
       "Page 1 of 2: / (no flags)",
       REPLAY_TEXT.question,
@@ -1085,7 +1152,11 @@ describe("replayReview's dropped keys", () => {
         deps: { nvdaRunning: () => Promise.resolve(nvda) },
       });
       await expect(session, way).resolves.toEqual({ decisions: 0, outcome: "quit" });
-      expect(sessionLines(out.text()), way).toEqual([...shows, "Recorded no decisions."]);
+      expect(sessionLines(out.text()), way).toEqual([
+        REPLAY_TEXT.starting,
+        ...shows,
+        "Recorded no decisions.",
+      ]);
       expect(voice.said, way).toEqual([]);
       expect(voice.closed, way).toBe(true);
     }

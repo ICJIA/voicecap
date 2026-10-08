@@ -39,9 +39,9 @@ import { chooseSiteDir } from "../run/site-dir.js";
 import { listRuns } from "../run/store.js";
 import { loadShareInput } from "../share/load.js";
 import { buildShareModel } from "../share/model.js";
-import { UsageError } from "../util/errors.js";
+import { UsageError, errorMessage } from "../util/errors.js";
 import type { Logger, OutputStream } from "../util/log.js";
-import { readNote, type Key, type KeySource } from "./keys.js";
+import { BACK, readNote, type Key, type KeySource } from "./keys.js";
 import { replayPagesOf, type ReplayPage } from "./pages.js";
 import { playPage, sayLine } from "./player.js";
 import { REPLAY_TEXT } from "./text.js";
@@ -162,9 +162,9 @@ interface Hearing {
  *
  * Everything is settled before the voice starts, and stops the session with a usage error when it
  * fails: the reviewer's name, the home, the site's folder, a run that counts, and the pages. With
- * no page to hear, it says so, and starts no voice. A voice that doesn't start ends the session
- * there. In each of those, nothing was asked, so nothing could be recorded, and there's no count
- * to give.
+ * no page to hear, it says so, and starts no voice. Otherwise it shows that the voice is starting,
+ * which can take a few seconds. A voice that doesn't start ends the session there. In each of
+ * those, nothing was asked, so nothing could be recorded, and there's no count to give.
  *
  * Once the voice has started, every way out closes it, writes the live report once when a decision
  * was recorded, and says how many were (endSession): the last page, Ctrl+C or the keys ending
@@ -212,6 +212,8 @@ export async function replayReview(
     return { decisions: 0, outcome: "done" };
   }
 
+  // Starting it can take a few seconds (Ruling R11).
+  show(REPLAY_TEXT.starting);
   const voice = await deps.startVoice();
   const hearing: Hearing = {
     out,
@@ -247,9 +249,10 @@ export async function replayReview(
     });
     return { decisions: hearing.decisions, outcome };
   } finally {
-    await endSession(hearing, outcome, () =>
-      (deps.writeReport ?? regenerateLiveReport)({ outDir: siteDir, config, logger }),
-    );
+    await endSession(hearing, outcome, {
+      write: () => (deps.writeReport ?? regenerateLiveReport)({ outDir: siteDir, config, logger }),
+      logger,
+    });
   }
 }
 
@@ -325,49 +328,56 @@ async function hearPages(
 /**
  * Asks what the person decided about the page they heard, and says the question too (R10): a
  * digit, 1 to 4, stops it and answers, and no other key answers it, Enter included (D3). For 2 and
- * 3 it asks for a note, and says its prompt too: a key stops it, and is the note's first. Null when
- * the person ends the session, a note cut short included.
+ * 3 it asks for a note, and says its prompt too: a key stops it, and is the note's first. Escape at
+ * the note asks the question again, with nothing recorded, so a wrong digit can be taken back
+ * (Ruling R11). Null when the person ends the session, a note cut short included.
  */
 async function ask(hearing: Hearing): Promise<{ decision: Decision; note: string | null } | null> {
   const { out, keys } = hearing;
-  const asked = await tell(hearing, REPLAY_TEXT.question, {
-    spoken: REPLAY_TEXT.questionSpoken,
-    stops: answers,
-  });
-  const decision = asked === "spoken" ? await decisionOf(keys) : decisionFrom(asked);
-  if (decision === null) return null;
-  if (decision === "reviewed" || decision === "skip") return { decision, note: null };
+  for (;;) {
+    const asked = await tell(hearing, REPLAY_TEXT.question, {
+      spoken: REPLAY_TEXT.questionSpoken,
+      stops: answers,
+    });
+    const decision = asked === "spoken" ? await decisionOf(keys) : decisionFrom(asked);
+    if (decision === null) return null;
+    if (decision === "reviewed" || decision === "skip") return { decision, note: null };
 
-  out.write(REPLAY_TEXT.note);
-  const prompted = await say(hearing, REPLAY_TEXT.note);
-  const typed =
-    prompted === null
-      ? null
-      : await readNote(keys, out, prompted === "spoken" ? undefined : prompted);
-  if (typed === null) {
-    // The note's line is still open: it's ended, so the count has a line of its own.
-    out.write("\n");
-    return null;
+    out.write(REPLAY_TEXT.note);
+    const prompted = await say(hearing, REPLAY_TEXT.note);
+    const typed =
+      prompted === null
+        ? null
+        : await readNote(keys, out, prompted === "spoken" ? undefined : prompted);
+    if (typed === null) {
+      // The note's line is still open: it's ended, so the count has a line of its own.
+      out.write("\n");
+      return null;
+    }
+    if (typed === BACK) continue;
+    // Enter alone is no note.
+    return { decision, note: typed === "" ? null : typed };
   }
-  // Enter alone is no note.
-  return { decision, note: typed === "" ? null : typed };
 }
 
 /**
- * Ends the session, however it ended: the voice closed, the live report written once when a
- * decision was recorded (D8), and how many were shown, with a reminder to turn NVDA's speech back
- * on when it was muted for the session.
+ * Ends the session, however it ended (`outcome`, unset when it failed): the voice closed, the live
+ * report written once when a decision was recorded (D8), and how many were shown, with a reminder
+ * to turn NVDA's speech back on when it was muted for the session.
  *
  * After the last page, nothing is being said, and the voice says those last lines too, once the
  * report is written (R10): a key stops the line it's pressed during, and Ctrl+C, or the keys' end,
  * the rest. Ended any other way, the voice is closed first: a line may still be being said, which
  * close() ends without waiting for it, so nothing is said while the report is written; and the last
  * lines are only shown, as an error is, since the voice may be what failed.
+ *
+ * A report that can't be written fails the session that went well. When the session had failed
+ * already, its own error comes through, and the report's is only told (`logger`).
  */
 async function endSession(
   hearing: Hearing,
   outcome: ReplayResult["outcome"] | undefined,
-  writeReport: () => Promise<unknown>,
+  report: { write: () => Promise<unknown>; logger: Logger },
 ): Promise<void> {
   const sayLast = outcome === "done" && !hearing.cutShort;
   const last = [
@@ -377,7 +387,10 @@ async function endSession(
   try {
     if (!sayLast) await hearing.voice.close();
     try {
-      if (hearing.decisions > 0) await writeReport();
+      if (hearing.decisions > 0) await report.write();
+    } catch (error) {
+      if (outcome !== undefined) throw error;
+      report.logger.warn(`The live report couldn't be written again: ${errorMessage(error)}`);
     } finally {
       for (const line of last) show(hearing, line);
     }

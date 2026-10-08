@@ -43,6 +43,8 @@ export const VOICE_STOPPED_ANSWERING = "The computer's voice stopped answering."
 export interface VoiceChild {
   stdin: Writable;
   stdout: Readable;
+  /** Where the program says what went wrong. It's read as it comes, so it never fills. */
+  stderr?: Readable;
   kill(): boolean;
   once(event: "exit", listener: (code: number | null) => void): unknown;
   once(event: "error", listener: (error: Error) => void): unknown;
@@ -68,7 +70,7 @@ export type SpawnVoice = (
  */
 export function asciiJson(value: unknown): string {
   return JSON.stringify(value).replace(
-    /[\u007f-￿]/g,
+    /[\u007f-\uffff]/g,
     (unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
 }
@@ -146,6 +148,9 @@ export const SPEAK_SCRIPT = [
   "$voice.Dispose()",
 ].join(" ");
 
+/** How many of the lines PowerShell writes to its error output say why it stopped. */
+const COMPLAINT_LINES = 3;
+
 /**
  * Windows' own voice: one Windows PowerShell, hidden, running `script` (SPEAK_SCRIPT) for the whole
  * session, fed one line of JSON (asciiJson) for each line it says.
@@ -155,6 +160,10 @@ export const SPEAK_SCRIPT = [
  * answer within `readyMs`, and then it kills PowerShell. `close()` stops the line being said, as
  * stop() does, ends PowerShell's input, which ends the script, and kills PowerShell if it hasn't
  * ended after `closeMs`. After `close()`, or once PowerShell has ended, every line rejects.
+ *
+ * A script that fails ends with why on PowerShell's error output: the first lines it wrote there
+ * go into the message that says the voice stopped, or didn't start, so what the terminal shows has
+ * the reason.
  */
 export async function windowsVoice(
   options: { spawnVoice?: SpawnVoice; script?: string; readyMs?: number; closeMs?: number } = {},
@@ -181,36 +190,51 @@ export async function windowsVoice(
   let line: { resolve: () => void; reject: (error: Error) => void } | null = null;
   /** Set once the voice can say nothing more: PowerShell has ended, or the voice was closed. */
   let stopped = false;
+  /** The first lines with words PowerShell wrote to its error output. */
+  const complaints: string[] = [];
+  /** Why PowerShell stopped, as it said, in brackets after the sentence it's part of; or nothing. */
+  const reason = (): string =>
+    complaints.length === 0 ? "" : ` (${clause(complaints.join(" "))})`;
+  const stoppedVoice = (): EnvironmentError =>
+    new EnvironmentError(`The computer's voice stopped${reason()}.`);
 
-  const ended = watch(child, (text) => {
-    const answer = answerOf(text);
-    if (answerStart !== null) {
-      if (answer.ready === true) answerStart(null);
-      else if (typeof answer.error === "string") answerStart(clause(answer.error));
-    } else if (answer.done === true && line !== null) {
-      const said = line;
-      line = null;
-      if (typeof answer.error === "string") {
-        said.reject(
-          new EnvironmentError(
-            `The computer's voice couldn't say a line: ${clause(answer.error)}.`,
-          ),
-        );
-      } else {
-        said.resolve();
+  const ended = watch(
+    child,
+    (text) => {
+      const answer = answerOf(text);
+      if (answerStart !== null) {
+        if (answer.ready === true) answerStart(null);
+        else if (typeof answer.error === "string") answerStart(clause(answer.error));
+      } else if (answer.done === true && line !== null) {
+        const said = line;
+        line = null;
+        if (typeof answer.error === "string") {
+          said.reject(
+            new EnvironmentError(
+              `The computer's voice couldn't say a line: ${clause(answer.error)}.`,
+            ),
+          );
+        } else {
+          said.resolve();
+        }
       }
-    }
-  });
+    },
+    (complaint) => {
+      if (complaint.trim() !== "" && complaints.length < COMPLAINT_LINES) {
+        complaints.push(complaint.trim());
+      }
+    },
+  );
   void ended.then((ending) => {
     stopped = true;
     answerStart?.(
       "error" in ending
         ? `PowerShell couldn't be started (${clause(ending.error.message)})`
-        : endedWith("PowerShell", ending.code),
+        : `${endedWith("PowerShell", ending.code)}${reason()}`,
     );
     const said = line;
     line = null;
-    said?.reject(new EnvironmentError("The computer's voice stopped."));
+    said?.reject(stoppedVoice());
   });
 
   const timer = setTimeout(
@@ -228,7 +252,7 @@ export async function windowsVoice(
   return {
     say(text, wpm) {
       if (line !== null) throw new Error("The voice is already saying a line.");
-      if (stopped) return Promise.reject(new EnvironmentError("The computer's voice stopped."));
+      if (stopped) return Promise.reject(stoppedVoice());
       return new Promise<void>((resolve, reject) => {
         line = { resolve, reject };
         child.stdin.write(`${asciiJson({ say: text, rate: sapiRate(wpm) })}\n`);
@@ -333,26 +357,38 @@ export async function startSystemVoice(
 type Ending = { code: number | null } | { error: Error };
 
 /**
- * Reads `child`'s output a line at a time, in UTF-8, and settles once the program has ended: once
- * it has exited and its output has been read to the end (Node can report the exit before the last
- * of the output), or once it couldn't start.
+ * Reads `child`'s output a line at a time, in UTF-8, and its error output too, when it has one
+ * (`onComplaint`), and settles once the program has ended: once it has exited and both have been
+ * read to the end (Node can report the exit before the last of them), or once it couldn't start.
+ * The error output is read as it comes, even with no one to hear it, so it never fills and stalls
+ * the program.
  */
-function watch(child: VoiceChild, onLine: (line: string) => void): Promise<Ending> {
+function watch(
+  child: VoiceChild,
+  onLine: (line: string) => void,
+  onComplaint: (line: string) => void = () => {},
+): Promise<Ending> {
   return new Promise((resolve) => {
     let code: number | null | undefined;
-    let outputEnded = false;
+    const outputs = [child.stdout, child.stderr].filter((stream) => stream !== undefined);
+    let open = outputs.length;
     const settle = (): void => {
-      if (code !== undefined && outputEnded) resolve({ code });
+      if (code !== undefined && open === 0) resolve({ code });
     };
-    const output = createInterface({ input: child.stdout });
-    output.on("line", onLine);
-    const endOutput = (): void => {
-      outputEnded = true;
-      settle();
-    };
-    output.on("close", endOutput);
-    // An output that fails gives nothing more either.
-    output.on("error", endOutput);
+    outputs.forEach((stream, at) => {
+      const reader = createInterface({ input: stream });
+      reader.on("line", at === 0 ? onLine : onComplaint);
+      let ended = false;
+      const end = (): void => {
+        if (ended) return;
+        ended = true;
+        open -= 1;
+        settle();
+      };
+      reader.on("close", end);
+      // An output that fails gives nothing more either.
+      reader.on("error", end);
+    });
     child.once("exit", (exitCode) => {
       code = exitCode;
       settle();
@@ -398,9 +434,15 @@ function answerOf(text: string): Record<string, unknown> {
   }
 }
 
-/** Another program's message as part of a sentence: on one line, without its own full stop. */
+/**
+ * Another program's message as part of a sentence: on one line, without its own full stop. An
+ * ellipsis ("..."), as PowerShell ends a line of the script it quotes, is kept.
+ */
 function clause(message: string): string {
-  return message.replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return message
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/(?<!\.)\.$/, "");
 }
 
 /** "PowerShell ended with exit code 1", or "PowerShell ended" when a signal ended it. */

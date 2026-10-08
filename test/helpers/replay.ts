@@ -98,14 +98,17 @@ export function ttyInput(): PassThrough & {
 /**
  * The program a voice starts (PowerShell, or `say`), run by hand. `written()` is everything written
  * to its input, and `ended` says whether that input was ended. `answer` prints a line of JSON, as
- * the Windows voice's script answers. `exit` ends it with a code, as Node reports an exit: the exit
- * first, and the end of its output on the turn after, so a test can still `answer` in between.
- * `fail` reports an error, as Node does for a program that can't start. `killed` says whether it
- * was killed; that doesn't end it, so a test calls `exit` for that too.
+ * the Windows voice's script answers, and `complain` writes to its error output, as PowerShell does
+ * when the script fails. `exit` ends it with a code, as Node reports an exit: the exit first, and
+ * the end of its outputs on the turn after, so a test can still `answer` in between. `fail` reports
+ * an error, as Node does for a program that can't start. `killed` says whether it was killed; that
+ * doesn't end it, so a test calls `exit` for that too.
  */
 export function fakeChild(): VoiceChild & {
+  stderr: Readable;
   written(): string;
   answer(json: object): void;
+  complain(text: string): void;
   exit(code: number | null): void;
   fail(error: Error): void;
   killed: boolean;
@@ -121,9 +124,11 @@ export function fakeChild(): VoiceChild & {
     },
   });
   const stdout = new Readable({ read() {} });
+  const stderr = new Readable({ read() {} });
   const child = {
     stdin,
     stdout,
+    stderr,
     killed: false,
     get ended(): boolean {
       return stdin.writableEnded;
@@ -142,11 +147,17 @@ export function fakeChild(): VoiceChild & {
     answer(json: object): void {
       stdout.push(`${JSON.stringify(json)}\n`);
     },
+    complain(text: string): void {
+      stderr.push(text);
+    },
     exit(code: number | null): void {
       if (exited) return;
       exited = true;
       events.emit("exit", code);
-      setImmediate(() => stdout.push(null));
+      setImmediate(() => {
+        stdout.push(null);
+        stderr.push(null);
+      });
     },
     fail(error: Error): void {
       events.emit("error", error);

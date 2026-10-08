@@ -768,6 +768,24 @@ describe("playPage", () => {
     await nextTurn();
   });
 
+  // A line that fails as it's stopped, as when the voice's program ends then: why it failed is what
+  // the person needs, not that the voice stopped answering.
+  it("gives the voice's own error when a stopped line fails in time", async () => {
+    const gone = new EnvironmentError("The computer's voice stopped (The pipe is being closed).");
+    let failLine = (_error: Error): void => {};
+    const voice: Voice = {
+      say: () =>
+        new Promise<void>((_resolve, reject) => {
+          failLine = reject;
+        }),
+      stop: () => failLine(gone),
+      close: () => Promise.resolve(),
+    };
+    const { playing, keys } = play(voice);
+    keys.push(RIGHT);
+    await expect(playing).rejects.toBe(gone);
+  });
+
   it("gives a stopped line five seconds to end, and leaves no timer behind", async () => {
     vi.useFakeTimers();
     try {

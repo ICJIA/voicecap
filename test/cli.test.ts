@@ -1234,14 +1234,20 @@ describe("voicecap review --replay", () => {
    * `voicecap review --replay` with `args`, from an empty folder, at a terminal: its input is a
    * keyboard (ttyInput), and its output a terminal's screen, which `onScreen` sees as it's shown,
    * with the keyboard to type on. Its voice says each line at once, and NVDA isn't running, unless
-   * `extra` says otherwise. Linux, as in cli(), so nothing real could start even without them.
+   * `extra` says otherwise; `extra.keyboard` changes the keyboard before it starts. Linux, as in
+   * cli(), so nothing real could start even without them.
    */
   async function replayAt(
     args: string[],
     onScreen: (shown: string, keyboard: Keyboard) => void,
-    extra: CliExtra & { env?: NodeJS.ProcessEnv } = {},
+    extra: CliExtra & {
+      env?: NodeJS.ProcessEnv;
+      keyboard?: (keyboard: Keyboard) => void;
+    } = {},
   ) {
+    const { keyboard: prepare, ...context } = extra;
     const keyboard = ttyInput();
+    prepare?.(keyboard);
     const screen = terminalScreen((shown) => onScreen(shown, keyboard));
     const stderr = capture();
     const voice = fakeVoice({ auto: true });
@@ -1258,8 +1264,8 @@ describe("voicecap review --replay", () => {
         stdin: keyboard,
         replayVoice,
         nvdaRunning,
-        ...extra,
-        platform: extra.platform ?? "linux",
+        ...context,
+        platform: context.platform ?? "linux",
       });
       return {
         code,
@@ -1490,6 +1496,42 @@ describe("voicecap review --replay", () => {
     givenBack(refused, refused.voice, "addReview refused");
   });
 
+  it("keeps the session's own result, and stops watching for a closed window, when the terminal is gone at the end", async () => {
+    const { home } = await countedHome();
+    const args = ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home];
+    /** How many listeners the process has for the signals of a closed window. */
+    const closedWindow = () => ["SIGHUP", "SIGTERM"].map((signal) => process.listenerCount(signal));
+    const before = closedWindow();
+
+    // The terminal can't leave raw mode: Node's tty says so by emitting "error". The session's own
+    // result stands.
+    const gone = await replayAt(args, answer("1"), {
+      keyboard: (keyboard) => {
+        keyboard.setRawMode = (mode) => {
+          keyboard.rawModes.push(mode);
+          if (!mode) keyboard.emit("error", new Error("setRawMode EIO"));
+        };
+      },
+    });
+    expect(gone.err).toBe("");
+    expect(gone.code).toBe(0);
+    expect(gone.screen).toContain("Recorded 1 decision.\n");
+    expect(gone.keyboard.rawModes).toEqual([true, false]);
+    expect(closedWindow()).toEqual(before);
+
+    // Closing the keys fails some other way: it's said, and the window is no longer watched.
+    const failing = await replayAt(args, answer("4"), {
+      keyboard: (keyboard) => {
+        keyboard.pause = () => {
+          throw new Error("The terminal is gone.");
+        };
+      },
+    });
+    expect(failing.code).toBe(1);
+    expect(failing.err).toContain("The terminal is gone.");
+    expect(closedWindow()).toEqual(before);
+  });
+
   it("puts the terminal back when it stops before a page is heard", async () => {
     const { home, siteDir } = await countedHome();
     // A usage error, found before the voice starts.
@@ -1519,7 +1561,7 @@ describe("voicecap review --replay", () => {
     expect(voiceless.err).toBe(
       "Error: The computer's voice didn't start: no voice is installed.\n",
     );
-    expect(voiceless.screen).toBe("");
+    expect(voiceless.screen).toBe(`${REPLAY_TEXT.starting}\n`);
     expect(voiceless.keyboard.rawModes).toEqual([true, false]);
     expect(voiceless.nvdaRunning).not.toHaveBeenCalled();
     expect(existsSync(path.join(siteDir, "reviews.json"))).toBe(false);
@@ -1558,6 +1600,13 @@ describe("voicecap review --replay", () => {
     expect(squeezed(help.out)).toContain(
       "--rate <wpm> with --replay: the voice's speed in words a minute, 60 to 540 (default 180)",
     );
+    // --page and --status are required without --replay, which commander can't say itself.
+    expect(squeezed(help.out)).toContain(
+      "--page <url> the page: full URL or root-relative path (required, unless --replay; with --replay, the one page to hear)",
+    );
+    expect(squeezed(help.out)).toContain(
+      "--status <status> the review outcome (required, unless --replay)",
+    );
   });
 
   it("lists review in voicecap --help as a way to hear pages again, as well as to record a review", async () => {
@@ -1566,6 +1615,8 @@ describe("voicecap review --replay", () => {
     expect(squeezed(help.out)).toContain(
       "review [options] add an entry to a page's review history, or hear pages again with --replay",
     );
+    // And its examples show a replay.
+    expect(help.out).toContain("\n  voicecap review --replay\n");
   });
 
   // The list doctor reads compiles C# whenever an nvda.exe is running, which can take longer than

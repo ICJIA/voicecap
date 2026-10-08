@@ -104,6 +104,12 @@ export const REPLAY_TEXT = {
   /** Said, with nothing played, when `--all` finds no page with transcripts. */
   nothingAll: "Nothing to hear: no page has transcripts yet.",
 
+  /**
+   * Shown as the voice starts, which can take a few seconds, so the screen isn't silent meanwhile.
+   * It isn't said: the voice isn't there yet.
+   */
+  starting: "Starting the computer's voice.",
+
   /** The last line of a session, however it ended: "Recorded 2 decisions." */
   recorded: (n: number): string =>
     n === 0 ? "Recorded no decisions." : `Recorded ${plural(n, "decision")}.`,
