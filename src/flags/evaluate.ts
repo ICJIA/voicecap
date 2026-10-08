@@ -148,6 +148,36 @@ export function flagQuotes(passes: PagePasses, rules: FlagRules, flag: FlagResul
   }
 }
 
+/**
+ * Where the lines `flagQuotes` quotes for `flag` were said, by step number (`n`), for the rules
+ * whose quotes stand for a place on the page rather than for their words: each is the first step,
+ * among those the rule looked at, to say a line it quotes, in the order spoken, so at most 3.
+ * - headings: the first heading;
+ * - tab-before-main: the stops before the main content;
+ * - read-not-finished: the last line read.
+ *
+ * The same words said at another step are another place, which the flag doesn't mean: a footer
+ * link with a header link's words, or a line the read passed before it stopped on the same words.
+ * None for a pass not in `passes`. Null for every other rule: its quotes stand for their words,
+ * wherever they were said (a repeated phrase, a custom rule's matches, what an item rule found).
+ */
+export function flagQuotedSteps(passes: PagePasses, flag: FlagResult): number[] | null {
+  const { pass } = flag;
+  const data = pass === undefined ? undefined : passes[pass];
+  const steps = pass === undefined || data === undefined ? [] : contentSteps(pass, data);
+  const at = (looked: StepRecord[]): number[] => quotedSteps(looked).map((step) => step.n);
+  switch (flag.rule) {
+    case "headings":
+      return at(steps.slice(0, 1));
+    case "tab-before-main":
+      return at(stopsBeforeMain(steps).before);
+    case "read-not-finished":
+      return at(steps.slice(-1));
+    default:
+      return null;
+  }
+}
+
 /** A line on which a rule that finds items found one. */
 export interface ItemLine {
   rule: "unlabeled" | "generic-link-text";
@@ -194,13 +224,22 @@ export function flagItemLines(passes: PagePasses, rules: FlagRules): ItemLine[] 
 
 /** Steps' speech, each on one line and each line once, at most `QUOTED`; silence isn't a line. */
 function quoted(steps: StepRecord[]): string[] {
+  return quotedSteps(steps).map((step) => normalizeSpeech(step.spoken));
+}
+
+/** The steps whose speech `quoted` gives: the first to say each line, at most `QUOTED`. */
+function quotedSteps(steps: StepRecord[]): StepRecord[] {
   const lines: string[] = [];
+  const said: StepRecord[] = [];
   for (const step of steps) {
     const line = normalizeSpeech(step.spoken);
-    if (line !== "" && !lines.includes(line)) lines.push(line);
+    if (line !== "" && !lines.includes(line)) {
+      lines.push(line);
+      said.push(step);
+    }
     if (lines.length === QUOTED) break;
   }
-  return lines;
+  return said;
 }
 
 /**

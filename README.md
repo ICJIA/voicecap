@@ -36,7 +36,7 @@ Here is the top of that report for the new version of i2i.illinois.gov, as NVDA 
 >
 > - **Windows:** everything, including full audits with NVDA and Chrome, checked end to end with real NVDA 2026.2 and Chrome 153.
 > - **Mac:** `setup`, `doctor`, and `init` prepare and check a Mac for VoiceOver, down to a live test that starts it. Audits with VoiceOver come with voicecap's VoiceOver driver, in a later release; until then, run audits on a Windows computer.
-> - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`).
+> - **Any computer, Linux included:** reviews, reports, `share`, `site`, `walkthrough`, manual NVDA sessions, `list-urls`, `verify`, and replay runs, which play back a recorded run (`--replay-from`). Hearing pages again, with `review --replay`, needs Windows or a Mac.
 
 ## Why voicecap, and who it's for
 
@@ -138,7 +138,7 @@ Automated checkers such as axe and Lighthouse read a page's code and test it aga
 2. **The real screen reader.** voicecap runs NVDA itself, never a simulation, with a fresh browser for every page, so no page's results depend on the pages before it.
 3. **Three ways through each page.** It presses NVDA's keys as a person would: Down Arrow to go line by line, H to go heading by heading, and Tab to go control by control.
 4. **Every word, checked.** It saves each key press and everything NVDA said, in order, waiting until NVDA has been quiet for a second so nothing is cut off. Before and after every key press, it checks that the page still has the screen. If another window took it, the step is thrown out and the page tried again, with NVDA and the browser started fresh.
-5. **A person reviews.** The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read: the person reads them, records what they found with `voicecap review`, and fixes it. Flags point to moments worth a closer look, such as links that say only "click here".
+5. **A person reviews.** The person running voicecap hears NVDA at work, and says so when the run ends. NVDA speaks very fast during a run, so the transcripts are where its words are read: the person reads them, records what they found with `voicecap review`, and fixes it. `voicecap review --replay` reads a page's saved words aloud, at a speed a person can follow. Flags point to moments worth a closer look, such as links that say only "click here".
 6. **A sealed record.** Every file gets a fingerprint (SHA-256) and each run is sealed, so `voicecap verify` can show that nothing has changed since.
 
 The first lines NVDA said on the home page of the new i2i site, in each pass:
@@ -187,6 +187,7 @@ The "Unlabeled graphic" in two of those lines is the one problem the report find
 - [The audit record](#the-audit-record)
 - [Long runs, interruptions, and resuming](#long-runs-interruptions-and-resuming)
 - [Reviews: the audit trail](#reviews-the-audit-trail)
+  - [Hearing pages again: voicecap review --replay](#hearing-pages-again-voicecap-review---replay)
 - [Manual NVDA sessions](#manual-nvda-sessions)
 - [Verifying transcript fidelity](#verifying-transcript-fidelity)
 - [Reading the report](#reading-the-report)
@@ -682,6 +683,7 @@ npx @icjia/voicecap --walkthrough <file> [options]
 ```bash
 voicecap list-urls --site <url> --sitemap <url> [--sample N] [--include p] [--exclude p] [--limit n] <output.csv|output.json>
 voicecap review --page <url> --status <unreviewed|reviewed|issue|fixed> [--note "..."] [--reviewer <name>] [--run <run-id>] [--site <url>] [--out <dir>]
+voicecap review --replay [--page <url> | --all] [--rate <words a minute>] [--reviewer <name>] [--site <url>] [--out <dir>]
 voicecap manual add <file> --page <url> [--from <time>] [--to <time>] [--date <YYYY-MM-DD>] [--redact-typing] [--keep-raw] [--no-raw] [--reviewer <name>] [--site <url>] [--out <dir>]
 voicecap report [--run <run-id>] [--compare <run-id|previous>] [--site <url>] [--out <dir>]
 voicecap share [--site <url>] [--out <dir>] [--reviewer <name>]
@@ -788,9 +790,9 @@ Warning: Couldn't turn your NVDA back on (PowerShell didn't start it). Start it 
 | --- | --- |
 | 0 | The run (or command) completed. Heuristic flags never change this. |
 | 1 | Invalid usage or config (including an unreadable page source). |
-| 2 | The computer isn't ready (the checks or the live test failed), or the environment is unusable, e.g. NVDA won't start, or several pages in a row failed. |
+| 2 | The computer isn't ready (the checks or the live test failed), or the environment is unusable, e.g. NVDA won't start, or several pages in a row failed. `review --replay` also uses 2 when it finds no voice, or the voice stops working. |
 | 3 | The run completed, but some pages failed. `voicecap verify` also uses 3, for something recorded that doesn't match. |
-| 130 | Interrupted with Ctrl+C. State was saved; run the same command again to resume. |
+| 130 | Interrupted with Ctrl+C. State was saved; run the same command again to resume. `review --replay` also ends with 130 when Ctrl+C ends it: what it recorded stays recorded. |
 
 ## Page sources
 
@@ -1168,7 +1170,7 @@ Count a page's steps as its lines in browse mode, plus its headings, plus its fo
 ## Reviews: the audit trail
 
 <details>
-<summary>Recording what you found with <code>voicecap review</code>, what a review settles on the shareable page, and how the history is kept</summary>
+<summary>Recording what you found with <code>voicecap review</code>, what a review settles on the shareable page, how the history is kept, and hearing pages again with <code>--replay</code></summary>
 
 A reviewer reads a page's transcripts and catches what automated checkers such as axe can't: reading order that is technically right but confusing, alt text that is present but unhelpful, a page that is hard to use. `voicecap review` records what they found:
 
@@ -1184,6 +1186,76 @@ The reviewer name comes from `--reviewer`, then the `VOICECAP_REVIEWER` environm
 A page is **changed since review** when its transcripts in the run shown differ from the ones recorded with its latest review.
 
 **A review settles a page's flags,** on the shareable page (see [The shareable page](#the-shareable-page)). When the latest review of a page with flags is `reviewed` ("Reviewed, no issues"), and its transcripts haven't changed since, the shareable page counts its flags as decided: it takes the page off "What needs attention" and out of the verdict's count of problems, and the page's card under "Every page" says `Checked by <name>, <date>: not an issue` in place of "Reviewed, no issues". If the transcripts change after the review, the page is changed since review: its flags count again, and "What's still to do" says to review it again (`Review <page> again in voicecap review: it reads differently since its review.`), unless another task there already names it, such as the decision its flags need, or an issue to fix. An `issue` entry puts the page on a card of its own, with the reviewer's note, until a `fixed` entry clears it. **A read that stopped before the page's end is never settled by a review.** The transcripts stop short of what wasn't read, so the page stays on the list until a later run reads it to its end, and "What's still to do" says to run it again. A page whose only flag is such a read keeps "Reviewed, no issues", with no "Checked by" line.
+
+### Hearing pages again: `voicecap review --replay`
+
+NVDA speaks very fast during a run, so its words are hard to follow as they go by, and the transcripts are where they're read. `voicecap review --replay` is a review session in which you hear each page again, at a speed you can follow, and decide as you go:
+
+```bash
+npx @icjia/voicecap review --replay
+npx @icjia/voicecap review --replay --page /about --rate 160
+```
+
+voicecap reads each page's saved transcript aloud in the computer's own voice (Windows' built-in voice, or `say` on a Mac), at a normal speed. These are the saved words, not NVDA reading the page again, so it needs no NVDA, browser, or network, and it works at any time. (It isn't `--replay-from`, which plays a whole recorded run back instead of running NVDA: see [Drivers](#drivers).) It's still your review: voicecap plays what NVDA said, and you hear it, read it, and decide.
+
+**Which pages.** By default, the pages that NVDA read and that "What needs attention" names on the shareable page: the ring's "Read, with problems" (see [The shareable page](#the-shareable-page)). They are the pages with flags no one has decided on, pages that read differently since their review, pages with an open issue, and pages whose read stopped short, in the latest run's page order. `--page <url>` plays one page instead, and `--all` plays every page with transcripts; the two can't be given together. A page plays from the transcripts the shareable page shows for it. One that has none to hear is left out, and named before the first page (with `--page`, voicecap stops and says why), and when no page is left, voicecap says so and starts no voice. `--site` and `--out` pick the site and the transcripts home as `review` does (see [Other commands](#other-commands)).
+
+**What you see.** voicecap shows `Starting the computer's voice.` while the voice starts, which can take a few seconds. Then it shows the keys in one line, names each page, and shows each line as it's read, numbered by step: the body of its TXT transcript, under the header, has a line for each step, so line 4 is the body's fourth line (see [The transcripts folder](#the-transcripts-folder)). A ⚑ at the end of a line means that line raised a flag. The mark says what the rule found on the line, for the rules that look for items, such as `⚑ unlabeled graphic` or `⚑ read more`, and gives the rule's name for the others, such as `⚑ headings` (see [Heuristic flags](#heuristic-flags)). Played with `--page /`, the home page of the new i2i site starts like this, after the line of keys:
+
+```
+Page 1 of 1: / (2 flags)
+Read transcript, 31 lines:
+   2  [to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+   3  same page, link, Skip to navigation
+   4  banner landmark, same page, link, current page, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.  ⚑ unlabeled graphic
+```
+
+The read transcript plays the steps that carry the page's content, as the flags read them: it starts at the line Ctrl+Home said (line 2 here), and leaves out the line Ctrl+End said and the repeats at the page's end.
+
+**What you hear.** The voice says voicecap's own lines too, each as it shows it, so you can follow the session by ear alone, with your own NVDA muted: the keys, once, before the first page, in words; each page's line, and each transcript's name as it starts; each notice, such as `No flagged line after this one.` or `Speed: 200 words a minute.`; the question, and the note's prompt; a short line once your answer is taken, such as `Recorded: issue found.` or `Skipped.`; and after the last page, how many decisions it recorded, with a reminder to turn your NVDA's speech back on when it was running. A key you press while the voice says one of these stops it, and then does what it does there: on a page, it acts as it would on the line playing, except that while a page's line or a transcript's name is said, before its first line, Right Arrow goes to that first line, and N looks for a flagged line from it on, so neither passes over it unheard; at the question, a digit answers, and any other key is left out while the question goes on; at the note, the key you type is the note's first. Left Arrow and Right Arrow move among the transcript's lines only. Some lines are only shown: the two lines about your own NVDA, which your NVDA reads; an error, since the voice may be what failed; and the last lines of a session you end with Ctrl+C.
+
+**The keys.** These work while a page plays:
+
+| Key | What it does |
+| --- | --- |
+| Space | Pauses the voice. Press it again to go on, from the start of the line. |
+| Left Arrow | Goes a line back. While the voice plays, it passes over the lines where NVDA said nothing (`[no speech]`), and when no line before has words, it says the line again. |
+| Right Arrow | Goes a line ahead, passing over the lines where NVDA said nothing as Left Arrow does. When no line after has words, it asks what you decided. |
+| N | Jumps to the next line that raised a flag. |
+| H | Plays the headings transcript, from its start. |
+| T | Plays the Tab transcript, from its start. |
+| R | Plays the read transcript, from its start. |
+| `+` or `=` | Makes the voice faster, 20 words a minute at a time, for the rest of the session. (`=` needs no Shift.) |
+| `-` or `_` | Makes it slower, in the same steps. |
+| Enter | Stops the page, and asks what you decided. |
+| Ctrl+C | Ends the session. What was recorded stays recorded. |
+
+While it's paused, Left Arrow, Right Arrow, N, H, T, and R move to their line and show it without saying it, so you can step through a page's lines in silence, a `[no speech]` line included (a transcript's name, and any notice, are still said). Space then says the line, from its start.
+
+**What you decide.** When a transcript ends, or you press Enter, voicecap asks:
+
+```
+What did you decide?  1 Reviewed, no issues   2 Issue found   3 Fixed   4 Skip
+```
+
+A decision is one key, 1 to 4. No other key answers it, Enter alone included, so a stray key never records a decision. For 2 and 3, voicecap asks for a note: type it and press Enter, or press Enter alone for none. Escape, at the note, goes back to the question with nothing recorded, so a wrong digit can be taken back. Ctrl+C at the note ends the session, and the note typed so far is lost, with nothing recorded for that page. Skip (4) records nothing. Keys left over before a page starts are dropped, and so are the keys pressed in the half second after an answer (an Enter pressed after the digit, out of habit, is one), or after the Enter that starts the session when your own NVDA is running (a second Enter, pressed while nothing is heard yet: see below), so a key meant for one page can't end the next one unheard.
+
+**What's recorded.** Each decision is recorded at once, as `voicecap review` records one: who decided, when, the run, and the fingerprints of that run's transcripts of the page, sealed and chained like every review entry. The run is the one whose transcripts played: the latest run that counts and read the page, the one the shareable page shows it from, so there's no `--run`. `--replay` takes no `--status` or `--note` either: it asks for each decision itself. The reviewer's name comes from `--reviewer`, then `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config, and with none, voicecap stops before it starts the voice. When the session ends, voicecap writes the report again, once, if it recorded a decision, and says how many it recorded. The transcripts are only read: what's written is the review entries, as `review` writes them, and the report.
+
+**The speed.** `--rate <wpm>` sets the voice's speed in words a minute: a whole number from 60 to 540. The default is 180, a normal speed. `+` and `-` change it as you go, and a speed you set carries on to the next page.
+
+**It needs a terminal.** voicecap takes each key as you press it, and shows each line as it's read, so `--replay` stops, with exit code 1, when it's run from a script or with its output redirected to a file. In Git Bash's own window (mintty), which doesn't always let Node see a terminal, run it in PowerShell or Windows Terminal.
+
+**If your own NVDA is running,** it reads each line voicecap shows, over the voice. On Windows, voicecap looks for a running NVDA before the first page. When it finds one, it says so, and waits for you to press Enter:
+
+```
+NVDA is running, and it will read these lines too, over the replay's voice.
+Mute it (NVDA+S changes its speech mode) or quit it, then press Enter.
+```
+
+voicecap never stops, starts, or changes your NVDA: that's for you to do, and when the session ends, voicecap reminds you to turn its speech back on. When it can't tell whether NVDA is running (its check hasn't answered in 5 seconds), it starts without the message.
+
+**Where it runs.** On Windows and on a Mac, each with its own voice. On another computer, when no voice is found, or the voice stops working, `--replay` says so, with exit code 2. With no voice, it stops before anything is recorded; a voice that stops working ends the session, and what was recorded stays recorded. Ctrl+C ends a session with exit code 130 (see [Exit codes](#exit-codes)).
 
 </details>
 
@@ -2039,7 +2111,7 @@ Guidepup changes its API across versions and releases often, so voicecap pins `@
 <details>
 <summary>NVDA's fast speech during a run, timing, a portable NVDA, English phrasing, the computer being voicecap's during a run, and more</summary>
 
-- **NVDA speaks very fast during a run.** voicecap runs Guidepup's own copy of NVDA, which Guidepup sets to NVDA's top speed, and Guidepup silences NVDA before each key press, so a long line is cut off. The transcripts have every word. To hear a page at your own speed, run NVDA yourself: see [Manual NVDA sessions](#manual-nvda-sessions).
+- **NVDA speaks very fast during a run.** voicecap runs Guidepup's own copy of NVDA, which Guidepup sets to NVDA's top speed, and Guidepup silences NVDA before each key press, so a long line is cut off. The transcripts have every word. To hear a page's saved words at a speed you can follow, use `voicecap review --replay`: see [Hearing pages again](#hearing-pages-again-voicecap-review---replay). To hear a page as NVDA says it, at your own speed, run NVDA yourself: see [Manual NVDA sessions](#manual-nvda-sessions).
 - **Timing.** Driving a screen reader is timing-sensitive: a slow page or a busy machine can produce different output between runs. voicecap captures each keystroke's speech until a second of silence, which absorbs most of this, but compare runs with care.
 - **Not a stock setup.** voicecap uses Guidepup's portable NVDA build with its own settings, and one browser (Chrome by default). Real users' NVDA versions, settings, and browsers differ.
 - **English phrasing.** Stop detection and flags match NVDA's English wording; `voicecap doctor` warns when NVDA's language isn't English (NVDA follows the Windows display language).

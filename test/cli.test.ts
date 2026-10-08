@@ -18,22 +18,26 @@ import { fileURLToPath } from "node:url";
 import { XMLValidator } from "fast-xml-parser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { main } from "../src/cli/main.js";
+import { main, nvdaRunningOn } from "../src/cli/main.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
+import { REPLAY_TEXT } from "../src/review-replay/text.js";
+import type { Voice } from "../src/review-replay/voice.js";
 import type { RunAuditOptions } from "../src/run/audit.js";
 import { manualSessionDir, runDir, shareDir, sharesPath, shareWordPath } from "../src/run/paths.js";
 import { longDate, sizeLine } from "../src/share/format.js";
 import { parseWalkthrough } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
 import { formatCommand } from "../src/util/command-line.js";
+import { EnvironmentError } from "../src/util/errors.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type OutputStream } from "../src/util/log.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { gitBashForm } from "./helpers/git-bash.js";
 import { realSitesFetch } from "./helpers/real-sites.js";
+import { fakeVoice, ttyInput } from "./helpers/replay.js";
 import { homeWithCountedRun, MACHINE_PROBE, SITE as EXAMPLE_SITE } from "./helpers/run-site.js";
 import { homeWithShares } from "./helpers/site-home.js";
 
@@ -76,6 +80,8 @@ interface CliExtra {
   fetch?: typeof fetch;
   platformReadiness?: () => Promise<PlatformReadiness>;
   platform?: NodeJS.Platform;
+  replayVoice?: () => Promise<Voice>;
+  nvdaRunning?: () => Promise<boolean>;
 }
 
 async function cli(
@@ -1187,6 +1193,490 @@ describe("a full session through the CLI", () => {
     const result = await cli(["report", "--site", SITE], empty.cwd);
     expect(result.code).toBe(1);
     expect(result.err).toContain("no completed run");
+  });
+});
+
+/**
+ * `voicecap review --replay`, wired from the command line: its checks, and a session at a terminal.
+ * The session itself is test/review-replay-session.test.ts's. Every test here gives the CLI a fake
+ * voice and a fake check for NVDA, or stops before either is asked for, and says it's on Linux, so
+ * nothing could speak or reach NVDA even if one were missed.
+ */
+describe("voicecap review --replay", () => {
+  /** Each folder these tests made, which is taken away after each test. */
+  const made: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  /** A new, empty folder, taken away after the test. */
+  async function emptyFolder(): Promise<string> {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-cli-"));
+    made.push(dir);
+    return dir;
+  }
+
+  /**
+   * A home with the scripted site's counted run, taken away after the test. Its pages are / and
+   * /about, with no flags, and /resources, with 5: so by default only /resources plays.
+   */
+  async function countedHome() {
+    const { dir, siteDir, run } = await homeWithCountedRun();
+    made.push(dir);
+    return { home: path.join(dir, "transcripts"), siteDir, runId: run.runId };
+  }
+
+  /** The keyboard of a person at a terminal: what ttyInput gives. */
+  type Keyboard = ReturnType<typeof ttyInput>;
+
+  /**
+   * `voicecap review --replay` with `args`, from an empty folder, at a terminal: its input is a
+   * keyboard (ttyInput), and its output a terminal's screen, which `onScreen` sees as it's shown,
+   * with the keyboard to type on. Its voice says each line at once, and NVDA isn't running, unless
+   * `extra` says otherwise; `extra.keyboard` changes the keyboard before it starts. Linux, as in
+   * cli(), so nothing real could start even without them.
+   */
+  async function replayAt(
+    args: string[],
+    onScreen: (shown: string, keyboard: Keyboard) => void,
+    extra: CliExtra & {
+      env?: NodeJS.ProcessEnv;
+      keyboard?: (keyboard: Keyboard) => void;
+    } = {},
+  ) {
+    const { keyboard: prepare, ...context } = extra;
+    const keyboard = ttyInput();
+    prepare?.(keyboard);
+    const screen = terminalScreen((shown) => onScreen(shown, keyboard));
+    const stderr = capture();
+    const voice = fakeVoice({ auto: true });
+    const replayVoice = vi.fn((): Promise<Voice> => Promise.resolve(voice));
+    const nvdaRunning = vi.fn(() => Promise.resolve(false));
+    try {
+      const code = await main(["review", "--replay", ...args], {
+        stdout: screen.stream,
+        stderr: stderr.stream,
+        cwd: await emptyFolder(),
+        env: {},
+        signal: new AbortController().signal,
+        interactive: false,
+        stdin: keyboard,
+        replayVoice,
+        nvdaRunning,
+        ...context,
+        platform: context.platform ?? "linux",
+      });
+      return {
+        code,
+        screen: screen.text(),
+        err: stderr.text(),
+        keyboard,
+        voice,
+        replayVoice,
+        nvdaRunning,
+      };
+    } finally {
+      keyboard.end();
+    }
+  }
+
+  /** The person types `keys` once the question after a page is shown. */
+  function answer(keys: string) {
+    return (shown: string, keyboard: Keyboard): void => {
+      if (shown.includes(REPLAY_TEXT.question)) setImmediate(() => keyboard.write(keys));
+    };
+  }
+
+  /** Nothing a person does: for a session that stops before it asks anything. */
+  const noAnswer = (): void => {};
+
+  /** Whatever the help says, on one line, so where it wraps doesn't matter. */
+  const squeezed = (text: string) => text.replace(/\s+/g, " ");
+
+  it("review needs --page and --status, unless --replay is given", async () => {
+    const noPage = await cli(["review", "--status", "reviewed"], await emptyFolder());
+    expect(noPage.code).toBe(1);
+    expect(noPage.err).toBe("Error: --page is required, unless --replay is given.\n");
+
+    const noStatus = await cli(["review", "--page", "/"], await emptyFolder());
+    expect(noStatus.code).toBe(1);
+    expect(noStatus.err).toBe("Error: --status is required, unless --replay is given.\n");
+  });
+
+  it("review --replay takes no --status, --note, or --run, and checks --rate", async () => {
+    const replayVoice = vi.fn((): Promise<Voice> => Promise.resolve(fakeVoice({ auto: true })));
+    const review = async (args: string[]) =>
+      cli(["review", ...args], await emptyFolder(), {}, { replayVoice });
+
+    for (const decided of [
+      ["--status", "reviewed"],
+      ["--note", "Reads well"],
+      ["--run", "x"],
+    ]) {
+      const refused = await review(["--replay", ...decided]);
+      expect(refused.code, decided[0]).toBe(1);
+      expect(refused.err, decided[0]).toBe(
+        "Error: --replay asks for each decision itself, so it doesn't take --status, --note, or --run.\n",
+      );
+    }
+
+    for (const rate of ["20", "59", "541", "180.5", "fast", ""]) {
+      const refused = await review(["--replay", "--rate", rate]);
+      expect(refused.code, rate).toBe(1);
+      expect(refused.err, rate).toBe(
+        `Error: --rate is in words a minute, a whole number from 60 to 540 (got "${rate}").\n`,
+      );
+    }
+    // The slowest and the fastest are speeds it takes: it goes on, to say it needs a terminal.
+    for (const rate of ["60", "540"]) {
+      const taken = await review(["--replay", "--rate", rate]);
+      expect(taken.err, rate).toBe(`Error: ${REPLAY_TEXT.noTerminal}\n`);
+    }
+
+    const both = await review(["--replay", "--all", "--page", "/"]);
+    expect(both.code).toBe(1);
+    expect(both.err).toBe("Error: --all and --page can't be used together.\n");
+
+    // Without --replay, --all and --rate have nothing to go with.
+    for (const alone of [["--all"], ["--rate", "160"]]) {
+      const refused = await review(["--page", "/", "--status", "reviewed", ...alone]);
+      expect(refused.code, alone[0]).toBe(1);
+      expect(refused.err, alone[0]).toBe("Error: --all and --rate go with --replay.\n");
+    }
+    expect(replayVoice).not.toHaveBeenCalled();
+  });
+
+  it("--replay needs a terminal", async () => {
+    const replayVoice = vi.fn((): Promise<Voice> => Promise.resolve(fakeVoice({ auto: true })));
+    /** `review --replay` with its output captured, as from a script, and its input `stdin`. */
+    const fromScript = async (stdin: NodeJS.ReadableStream) =>
+      cli(["review", "--replay"], await emptyFolder(), {}, { stdin, replayVoice });
+
+    const piped = await fromScript(linesStream());
+    expect(piped.code).toBe(1);
+    expect(piped.err).toBe(`Error: ${REPLAY_TEXT.noTerminal}\n`);
+
+    // A keyboard with the output redirected: it stops before taking the keys, so the terminal is
+    // never put in raw mode.
+    const keyboard = ttyInput();
+    const redirected = await fromScript(keyboard);
+    keyboard.end();
+    expect(redirected.code).toBe(1);
+    expect(redirected.err).toBe(`Error: ${REPLAY_TEXT.noTerminal}\n`);
+    expect(keyboard.rawModes).toEqual([]);
+
+    // A screen with the input piped in.
+    const typedAhead = await replayAt([], noAnswer, { stdin: linesStream(["1"]), replayVoice });
+    expect(typedAhead.code).toBe(1);
+    expect(typedAhead.err).toBe(`Error: ${REPLAY_TEXT.noTerminal}\n`);
+    expect(typedAhead.screen).toBe("");
+
+    expect(replayVoice).not.toHaveBeenCalled();
+  });
+
+  it("hears a page at a terminal, and records the decision", async () => {
+    const { home, siteDir, runId } = await countedHome();
+    /** How many listeners the process has for the signals of a closed window. */
+    const closedWindow = () => ["SIGHUP", "SIGTERM"].map((signal) => process.listenerCount(signal));
+    const before = closedWindow();
+    let during: number[] = [];
+
+    const heard = await replayAt(
+      ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home],
+      (shown, keyboard) => {
+        if (!shown.includes(REPLAY_TEXT.question)) return;
+        during = closedWindow();
+        setImmediate(() => keyboard.write("1"));
+      },
+    );
+
+    expect(heard.err).toBe("");
+    expect(heard.code).toBe(0);
+    const { pages } = JSON.parse(
+      await readFile(path.join(siteDir, "reviews.json"), "utf8"),
+    ) as ReviewsFile;
+    expect(pages[`${EXAMPLE_SITE}/about`]).toMatchObject([
+      { status: "reviewed", reviewer: "Pat Reviewer", run: runId },
+    ]);
+    expect(heard.keyboard.rawModes).toEqual([true, false]);
+    expect(heard.screen).toContain("Page 1 of 1: /about (no flags)\n");
+    expect(heard.screen).toContain("Recorded 1 decision.\n");
+    // /about's lines, and the session's own, at the speed a session starts at, in the voice the CLI
+    // was given, which is closed after.
+    expect(heard.voice.said.map(({ text, wpm }) => [text, wpm])).toEqual([
+      [REPLAY_TEXT.keysSpoken, 180],
+      ["Page 1 of 1: /about (no flags)", 180],
+      ["Read transcript, 3 lines:", 180],
+      ["heading, level 1, About us", 180],
+      ["We are an example.", 180],
+      ["© 2026 Example Agency", 180],
+      [REPLAY_TEXT.questionSpoken, 180],
+      ["Recorded: reviewed, no issues.", 180],
+      ["Recorded 1 decision.", 180],
+    ]);
+    expect(heard.voice.closed).toBe(true);
+    expect(heard.nvdaRunning).toHaveBeenCalledTimes(1);
+    // A closed window would have ended it while it ran, and nothing is left watching for one.
+    expect(during).toEqual(before.map((count) => count + 1));
+    expect(closedWindow()).toEqual(before);
+  });
+
+  it("exits with 130 when Ctrl+C ends it", async () => {
+    const { home, siteDir } = await countedHome();
+    const ended = await replayAt(
+      ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home],
+      answer("\u0003"),
+    );
+    expect(ended.err).toBe("");
+    expect(ended.code).toBe(130);
+    expect(ended.screen).toContain("Recorded no decisions.\n");
+    expect(existsSync(path.join(siteDir, "reviews.json"))).toBe(false);
+    expect(ended.keyboard.rawModes).toEqual([true, false]);
+    expect(ended.voice.closed).toBe(true);
+  });
+
+  it("gives the terminal back however the session ends", async () => {
+    const { home, siteDir } = await countedHome();
+    const args = ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home];
+    /** What every way out leaves: raw mode off, the voice closed, and the count said last. */
+    const givenBack = (
+      ended: { keyboard: Keyboard; screen: string },
+      voice: ReturnType<typeof fakeVoice>,
+      way: string,
+    ) => {
+      expect(ended.keyboard.rawModes, way).toEqual([true, false]);
+      expect(voice.closed, way).toBe(true);
+      expect(ended.screen.endsWith("Recorded no decisions.\n"), way).toBe(true);
+    };
+
+    // The window closed. Its SIGHUP is given only to the listener the CLI added for it, never sent:
+    // the process's other listeners aren't the test's to call.
+    const before = new Set(process.listeners("SIGHUP"));
+    let added: NodeJS.SignalsListener[] = [];
+    const closed = await replayAt(args, (shown, keyboard) => {
+      if (!shown.includes(REPLAY_TEXT.question) || added.length > 0) return;
+      added = process.listeners("SIGHUP").filter((listener) => !before.has(listener));
+      // Were there another, the keys end instead, and the length below fails.
+      setImmediate(() => (added.length === 1 ? added[0]!("SIGHUP") : keyboard.end()));
+    });
+    expect(added).toHaveLength(1);
+    expect(closed.err).toBe("");
+    expect(closed.code).toBe(130);
+    givenBack(closed, closed.voice, "the window closed");
+    expect(process.listeners("SIGHUP")).toEqual([...before]);
+
+    // The keys ended, as when the terminal's input closes.
+    const keysEnded = await replayAt(args, (shown, keyboard) => {
+      if (shown.includes(REPLAY_TEXT.question)) setImmediate(() => keyboard.end());
+    });
+    expect(keysEnded.err).toBe("");
+    expect(keysEnded.code).toBe(130);
+    givenBack(keysEnded, keysEnded.voice, "the keys ended");
+
+    // The voice stopped working, on the page's first line: this computer can't go on (exit 2).
+    const stopped = fakeVoice({ auto: true });
+    stopped.fail(new EnvironmentError("The computer's voice stopped."));
+    const voiceStopped = await replayAt(args, noAnswer, {
+      replayVoice: () => Promise.resolve(stopped),
+    });
+    expect(voiceStopped.err).toBe("Error: The computer's voice stopped.\n");
+    expect(voiceStopped.code).toBe(2);
+    givenBack(voiceStopped, stopped, "the voice stopped");
+
+    // A decision addReview refuses: the review history is damaged, and voicecap never overwrites it.
+    const refused = await replayAt(args, (shown, keyboard) => {
+      if (!shown.includes(REPLAY_TEXT.question)) return;
+      void writeFile(path.join(siteDir, "reviews.json"), "{ this is not json").then(() =>
+        keyboard.write("1"),
+      );
+    });
+    expect(refused.err).toMatch(/never overwrites review history/);
+    expect(refused.code).toBe(1);
+    givenBack(refused, refused.voice, "addReview refused");
+  });
+
+  it("keeps the session's own result, and stops watching for a closed window, when the terminal is gone at the end", async () => {
+    const { home } = await countedHome();
+    const args = ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home];
+    /** How many listeners the process has for the signals of a closed window. */
+    const closedWindow = () => ["SIGHUP", "SIGTERM"].map((signal) => process.listenerCount(signal));
+    const before = closedWindow();
+
+    // The terminal can't leave raw mode: Node's tty says so by emitting "error". The session's own
+    // result stands.
+    const gone = await replayAt(args, answer("1"), {
+      keyboard: (keyboard) => {
+        keyboard.setRawMode = (mode) => {
+          keyboard.rawModes.push(mode);
+          if (!mode) keyboard.emit("error", new Error("setRawMode EIO"));
+        };
+      },
+    });
+    expect(gone.err).toBe("");
+    expect(gone.code).toBe(0);
+    expect(gone.screen).toContain("Recorded 1 decision.\n");
+    expect(gone.keyboard.rawModes).toEqual([true, false]);
+    expect(closedWindow()).toEqual(before);
+
+    // Closing the keys fails some other way: it's said, and the window is no longer watched.
+    const failing = await replayAt(args, answer("4"), {
+      keyboard: (keyboard) => {
+        keyboard.pause = () => {
+          throw new Error("The terminal is gone.");
+        };
+      },
+    });
+    expect(failing.code).toBe(1);
+    expect(failing.err).toContain("The terminal is gone.");
+    expect(closedWindow()).toEqual(before);
+  });
+
+  it("puts the terminal back when it stops before a page is heard", async () => {
+    const { home, siteDir } = await countedHome();
+    // A usage error, found before the voice starts.
+    const nowhere = await replayAt(
+      ["--page", "/nowhere", "--reviewer", "Pat Reviewer", "--out", home],
+      noAnswer,
+    );
+    expect(nowhere.code).toBe(1);
+    expect(nowhere.err).toBe(
+      `Error: ${EXAMPLE_SITE}/nowhere isn't one of the pages in scope, so there's no transcript of it to hear.\n`,
+    );
+    expect(nowhere.keyboard.rawModes).toEqual([true, false]);
+    expect(nowhere.replayVoice).not.toHaveBeenCalled();
+
+    // No voice to read with: this computer can't do it (exit 2), and nothing is recorded.
+    const voiceless = await replayAt(
+      ["--page", "/about", "--reviewer", "Pat Reviewer", "--out", home],
+      answer("1"),
+      {
+        replayVoice: () =>
+          Promise.reject(
+            new EnvironmentError("The computer's voice didn't start: no voice is installed."),
+          ),
+      },
+    );
+    expect(voiceless.code).toBe(2);
+    expect(voiceless.err).toBe(
+      "Error: The computer's voice didn't start: no voice is installed.\n",
+    );
+    expect(voiceless.screen).toBe(`${REPLAY_TEXT.starting}\n`);
+    expect(voiceless.keyboard.rawModes).toEqual([true, false]);
+    expect(voiceless.nvdaRunning).not.toHaveBeenCalled();
+    expect(existsSync(path.join(siteDir, "reviews.json"))).toBe(false);
+  });
+
+  it("plays What needs attention's pages by default, or every page with --all, at --rate's speed", async () => {
+    const { home, siteDir } = await countedHome();
+    // The home VOICECAP_TRANSCRIPTS names, as review finds it without --out.
+    const extra = { env: { VOICECAP_TRANSCRIPTS: home } };
+    const reviewer = ["--reviewer", "Pat Reviewer"];
+
+    const needsAttention = await replayAt([...reviewer, "--rate", "160"], answer("4"), extra);
+    expect(needsAttention.err).toBe("");
+    expect(needsAttention.code).toBe(0);
+    expect(needsAttention.screen).toContain("Page 1 of 1: /resources (5 flags)\n");
+    expect(needsAttention.screen).toContain("Recorded no decisions.\n");
+    expect(needsAttention.voice.said).not.toEqual([]);
+    expect(needsAttention.voice.said.filter(({ wpm }) => wpm !== 160)).toEqual([]);
+
+    // Every page: Ctrl+C at the first question ends it there.
+    const every = await replayAt([...reviewer, "--all"], answer("\u0003"), extra);
+    expect(every.err).toBe("");
+    expect(every.code).toBe(130);
+    expect(every.screen).toContain("Page 1 of 3: / (no flags)\n");
+    expect(every.screen).not.toContain("Page 2 of 3");
+    expect(existsSync(path.join(siteDir, "reviews.json"))).toBe(false);
+  });
+
+  it("says what --replay, --all, and --rate do in review's help", async () => {
+    const help = await cli(["review", "--help"], await emptyFolder());
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "--replay hear each page's saved transcript read aloud at a normal speed, and decide as you go",
+    );
+    expect(squeezed(help.out)).toContain("--all with --replay: every page with transcripts");
+    expect(squeezed(help.out)).toContain(
+      "--rate <wpm> with --replay: the voice's speed in words a minute, 60 to 540 (default 180)",
+    );
+    // --page and --status are required without --replay, which commander can't say itself.
+    expect(squeezed(help.out)).toContain(
+      "--page <url> the page: full URL or root-relative path (required, unless --replay; with --replay, the one page to hear)",
+    );
+    expect(squeezed(help.out)).toContain(
+      "--status <status> the review outcome (required, unless --replay)",
+    );
+  });
+
+  it("lists review in voicecap --help as a way to hear pages again, as well as to record a review", async () => {
+    const help = await cli(["--help"], await emptyFolder());
+    expect(help.code).toBe(0);
+    expect(squeezed(help.out)).toContain(
+      "review [options] add an entry to a page's review history, or hear pages again with --replay",
+    );
+    // And its examples show a replay.
+    expect(help.out).toContain("\n  voicecap review --replay\n");
+  });
+
+  // The list doctor reads compiles C# whenever an nvda.exe is running, which can take longer than
+  // the 5 seconds the check is given, so the warning would be skipped just when it's needed.
+  it("asks whether NVDA is running by counting each nvda.exe in Windows' list of programs", async () => {
+    const listProcesses = vi.fn((_image: string) => Promise.resolve([4242]));
+    const nvdaProcesses = vi.fn(() => Promise.reject(new Error("It compiles C# while NVDA runs.")));
+    vi.resetModules();
+    vi.doMock("../src/drivers/guidepup/windows.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      listProcesses,
+      nvdaProcesses,
+    }));
+    try {
+      const { nvdaRunningOn: byDefault } = await import("../src/cli/main.js");
+      await expect(byDefault("win32")()).resolves.toBe(true);
+      listProcesses.mockResolvedValueOnce([]);
+      await expect(byDefault("win32")()).resolves.toBe(false);
+      expect(listProcesses.mock.calls).toEqual([["nvda.exe"], ["nvda.exe"]]);
+      expect(nvdaProcesses).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("../src/drivers/guidepup/windows.js");
+      vi.resetModules();
+    }
+  });
+
+  it("asks whether NVDA is running only on Windows, and starts without the answer after 5 seconds", async () => {
+    // The process ids of the running nvda.exe, as tasklist lists them.
+    const running = [4242];
+    await expect(nvdaRunningOn("win32", () => Promise.resolve(running))()).resolves.toBe(true);
+    await expect(nvdaRunningOn("win32", () => Promise.resolve([]))()).resolves.toBe(false);
+    // A check that fails says so, and the session starts all the same.
+    const unanswered = new Error("Command failed: tasklist");
+    const failing = nvdaRunningOn("win32", () => Promise.reject(unanswered));
+    await expect(failing()).rejects.toBe(unanswered);
+    // Nowhere else is there an NVDA to ask about.
+    const elsewhere = vi.fn(() => Promise.resolve(running));
+    for (const platform of ["darwin", "linux"] as const) {
+      await expect(nvdaRunningOn(platform, elsewhere)(), platform).resolves.toBe(false);
+    }
+    expect(elsewhere).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      // A check that never answers counts as not running after 5 seconds, so the session never
+      // waits more than 5 seconds on it.
+      let answered: boolean | undefined;
+      void nvdaRunningOn("win32", () => new Promise<number[]>(() => {}))().then((value) => {
+        answered = value;
+      });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(answered).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(answered).toBe(false);
+      // One that answers in time leaves no timer behind to hold voicecap open.
+      await expect(nvdaRunningOn("win32", () => Promise.resolve([]))()).resolves.toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
