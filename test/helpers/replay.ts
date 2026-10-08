@@ -243,6 +243,21 @@ export function fakeVoice(options: { auto?: boolean } = {}): Voice & {
 }
 
 /**
+ * Waits until `voice` (a fakeVoice that isn't `auto`) is saying `text`, saying each line before it
+ * to its end, as a person who waits for that line hears the lines before it.
+ */
+export async function untilSaying(
+  voice: ReturnType<typeof fakeVoice>,
+  text: string,
+): Promise<void> {
+  for (;;) {
+    await voice.starting;
+    if (voice.said.at(-1)?.text === text) return;
+    voice.finish();
+  }
+}
+
+/**
  * What a person does when a replay session asks them something: the keys they press there, in
  * order, or a function that does it, for a test that does something else at that moment too. A
  * note's keys go with its choice: "2", "B", "a", "d", Enter is one answer.

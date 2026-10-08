@@ -16,7 +16,7 @@ import {
 } from "../src/review-replay/player.js";
 import type { Voice } from "../src/review-replay/voice.js";
 import { EnvironmentError, errorMessage } from "../src/util/errors.js";
-import { fakeVoice, keyQueue } from "./helpers/replay.js";
+import { fakeVoice, keyQueue, untilSaying } from "./helpers/replay.js";
 
 // The top of a page's read transcript, as D6 plays it: from Ctrl+Home's line, line 2 of read.txt.
 const SKIP: PlayLine = {
@@ -50,11 +50,18 @@ const NEWS: PlayLine = {
   marks: [],
 };
 
+/** A step where NVDA said nothing: shown as "[no speech]", and not said. */
+const SILENT: PlayLine = { n: 3, text: "[no speech]", spoken: "", marks: [] };
+
 /** What most tests play: three read lines (the third raised a flag), two headings, no Tab lines. */
 const TRANSCRIPTS: Transcripts = { read: [SKIP, ABOUT, LOGO], headings: [WELCOME, NEWS], tab: [] };
 
+/** A read transcript with a silent line between two lines with words. */
+const WITH_SILENT: Transcripts = { read: [SKIP, SILENT, LOGO] };
+
 const char = (typed: string): Key => ({ name: "char", char: typed });
 const SPACE: Key = { name: "space" };
+const LEFT: Key = { name: "left" };
 const RIGHT: Key = { name: "right" };
 const ENTER: Key = { name: "enter" };
 const CTRL_C: Key = { name: "ctrl-c" };
@@ -147,6 +154,42 @@ describe("the player's state", () => {
     ["ahead at the last line asks", { index: 2 }, ["ahead"], { outcome: "decide" }],
     ["back goes back a line", { index: 2 }, ["back"], { index: 1 }],
     ["back at the first line stays there", {}, ["back"], {}],
+    [
+      "back while playing passes over a silent line, to the line with words before it",
+      { transcripts: WITH_SILENT, index: 2 },
+      ["back"],
+      { index: 0 },
+    ],
+    [
+      "back while playing, with only silent lines before, stays, so the line is said again",
+      { transcripts: { read: [{ ...SILENT, n: 2 }, ABOUT] }, index: 1 },
+      ["back"],
+      {},
+    ],
+    [
+      "ahead while playing passes over a silent line, to the line with words after it",
+      { transcripts: WITH_SILENT },
+      ["ahead"],
+      { index: 2 },
+    ],
+    [
+      "ahead while playing, with only silent lines after, asks",
+      { transcripts: { read: [SKIP, SILENT] } },
+      ["ahead"],
+      { outcome: "decide" },
+    ],
+    [
+      "back while paused goes back a line, a silent one too (D7)",
+      { transcripts: WITH_SILENT, index: 2, paused: true },
+      ["back"],
+      { index: 1 },
+    ],
+    [
+      "ahead while paused goes on a line, a silent one too (D7)",
+      { transcripts: WITH_SILENT, paused: true },
+      ["ahead"],
+      { index: 1 },
+    ],
     ["next-flag goes to the next line with a mark", {}, ["next-flag"], { index: 2 }],
     [
       "next-flag with no marked line after this one says so, and stays",
@@ -375,11 +418,44 @@ describe("playPage", () => {
 
   it("passes a silent line without speaking it", async () => {
     const voice = fakeVoice({ auto: true });
-    const silent: PlayLine = { n: 3, text: "[no speech]", spoken: "", marks: [] };
-    const { playing, shown } = play(voice, keyQueue(), { read: [SKIP, silent, LOGO] });
+    const { playing, shown } = play(voice, keyQueue(), WITH_SILENT);
     await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
     expect(shown()).toContain("   3  [no speech]\n");
     expect(voice.said.map(({ text }) => text)).toEqual([SKIP.spoken, LOGO.spoken]);
+  });
+
+  // A silent line is passed at once while the page plays, so ← must pass over it, or it could
+  // never reach the lines before it, and → would move two lines.
+  it("passes over a silent line as ← and → move while it plays", async () => {
+    const voice = fakeVoice();
+    const { playing, keys, shown } = play(voice, keyQueue(), WITH_SILENT);
+    // Line 2 is said, and the silent line 3 passed: line 4 is being said.
+    await untilSaying(voice, LOGO.spoken);
+    // ← goes back to line 2, the line with words before the silent one.
+    keys.push(LEFT);
+    await nextTurn();
+    // → goes ahead to line 4, past the silent line.
+    keys.push(RIGHT);
+    await nextTurn();
+    keys.push(ENTER);
+    await expect(playing).resolves.toEqual({ outcome: "decide", rate: 180 });
+    expect(voice.said.map(({ text }) => text)).toEqual([
+      SKIP.spoken,
+      LOGO.spoken,
+      SKIP.spoken,
+      LOGO.spoken,
+    ]);
+    // The silent line is shown once, as the page passed it, and not as the keys passed over it.
+    expect(shown()).toBe(
+      screenOf(
+        "Read transcript, 3 lines:",
+        "   2  [to top] Skip to main content, link",
+        "   3  [no speech]",
+        "   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic",
+        "   2  [to top] Skip to main content, link",
+        "   4  link, Unlabeled graphic, i 2i Logo  ⚑ unlabeled graphic",
+      ),
+    );
   });
 
   it("shows the transcript it switches to, each notice, and the line it moves to", async () => {

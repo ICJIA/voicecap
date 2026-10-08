@@ -98,8 +98,34 @@ export function onLineSpoken(state: PlayerState): PlayerState {
 }
 
 /**
+ * The line ← goes to. While paused, the line before, so a person can step through every line in
+ * silence (D7). While playing, the nearest line before that has words: a line where NVDA said
+ * nothing ("[no speech]") is passed at once as it plays, so stopping on one would only say the
+ * same line again. With no such line, the line playing, which is said again.
+ */
+function lineBack(state: PlayerState): number {
+  if (state.paused) return Math.max(0, state.index - 1);
+  const lines = linesOf(state.transcripts, state.pass);
+  const worded = lines.findLastIndex((line, i) => i < state.index && line.spoken !== "");
+  return worded === -1 ? state.index : worded;
+}
+
+/**
+ * The line → goes to, as lineBack finds it: the line after while paused, and the nearest line after
+ * that has words while playing. Null when there's none, and the page is over.
+ */
+function lineAhead(state: PlayerState): number | null {
+  const lines = linesOf(state.transcripts, state.pass);
+  const ahead = state.paused
+    ? state.index + 1
+    : lines.findIndex((line, i) => i > state.index && line.spoken !== "");
+  return ahead === -1 || ahead >= lines.length ? null : ahead;
+}
+
+/**
  * What `key` does to `state`. Every key clears the last notice. A key that moves leaves `paused`
- * as it was, so a person can step through the lines in silence (D7).
+ * as it was, so a person can step through the lines in silence (D7). While playing, ← and → pass
+ * over the lines where NVDA said nothing, as the page does (lineBack, lineAhead).
  */
 export function onKey(state: PlayerState, key: PlayerKey): PlayerState {
   const next: PlayerState = { ...state, notice: null };
@@ -107,9 +133,11 @@ export function onKey(state: PlayerState, key: PlayerKey): PlayerState {
     case "pause":
       return { ...next, paused: !state.paused };
     case "back":
-      return { ...next, index: Math.max(0, state.index - 1) };
-    case "ahead":
-      return onLineSpoken(next);
+      return { ...next, index: lineBack(state) };
+    case "ahead": {
+      const ahead = lineAhead(state);
+      return ahead === null ? { ...next, outcome: "decide" } : { ...next, index: ahead };
+    }
     case "next-flag": {
       const lines = linesOf(state.transcripts, state.pass);
       const flagged = lines.findIndex((line, i) => i > state.index && line.marks.length > 0);

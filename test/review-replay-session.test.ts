@@ -702,6 +702,62 @@ describe("replayReview's dropped keys", () => {
     expect(voice.stops).toBe(0);
   });
 
+  it("drops a second Enter at NVDA's two lines, so page 1 plays to its end", async () => {
+    const at = await countedHome();
+    const keys = keyQueue();
+    const voice = fakeVoice();
+    let pressedAgain = (): void => {};
+    const again = new Promise<void>((resolve) => {
+      pressedAgain = resolve;
+    });
+    // Enter, and Enter again a moment later: with NVDA muted, nothing is heard yet, which invites a
+    // second press. Its timer is set before the wait after the first Enter begins, so it ends first.
+    const running = replay(
+      at,
+      [
+        () => {
+          keys.push(ENTER);
+          setTimeout(() => {
+            keys.push(ENTER);
+            pressedAgain();
+          }, 10);
+        },
+        ["4"],
+      ],
+      {
+        keys,
+        voice,
+        options: { settleMs: 50 },
+        deps: { nvdaRunning: () => Promise.resolve(true) },
+      },
+    );
+    await again;
+    // From here, the voice says each line to its end.
+    for (;;) {
+      const next = await Promise.race([
+        voice.starting.then(() => "line" as const),
+        running.session.then(() => "ended" as const),
+      ]);
+      if (next === "ended") break;
+      // A key may have stopped it meanwhile.
+      if (voice.speaking) voice.finish();
+    }
+    await expect(running.session).resolves.toEqual({ decisions: 0, outcome: "done" });
+    // /resources' last line was said, and no line was stopped.
+    expect(voice.said.map(({ text }) => text)).toContain("End");
+    expect(voice.stops).toBe(0);
+
+    // A Ctrl+C in that wait ends the session there.
+    const ending = keyQueue();
+    const quit = replay(at, [[ENTER, CTRL_C], ["1"]], {
+      keys: ending,
+      options: { settleMs: 60_000 },
+      deps: { nvdaRunning: () => Promise.resolve(true) },
+    });
+    await expect(quit.session).resolves.toEqual({ decisions: 0, outcome: "quit" });
+    expect(quit.voice.said).toEqual([]);
+  });
+
   it("ends on a Ctrl+C pressed just after an answer, keeping the decision", async () => {
     const at = await countedHome();
     const { session, out, writeReport } = replay(at, [["1", CTRL_C]], { options: { all: true } });

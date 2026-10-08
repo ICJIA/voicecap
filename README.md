@@ -1216,8 +1216,8 @@ The read transcript plays the steps that carry the page's content, as the flags 
 | Key | What it does |
 | --- | --- |
 | Space | Pauses the voice. Press it again to go on, from the start of the line. |
-| ← | Goes a line back. |
-| → | Goes a line ahead. |
+| Left Arrow | Goes a line back. While the voice plays, it passes over the lines where NVDA said nothing (`[no speech]`), and when no line before has words, it says the line again. |
+| Right Arrow | Goes a line ahead, passing over the lines where NVDA said nothing as Left Arrow does. When no line after has words, it asks what you decided. |
 | N | Jumps to the next line that raised a flag. |
 | H | Plays the headings transcript, from its start. |
 | T | Plays the Tab transcript, from its start. |
@@ -1227,7 +1227,7 @@ The read transcript plays the steps that carry the page's content, as the flags 
 | Enter | Stops the page, and asks what you decided. |
 | Ctrl+C | Ends the session. What was recorded stays recorded. |
 
-While it's paused, ←, →, N, H, T, and R move to their line and show it without saying it, so you can step through a page in silence. Space then says the line, from its start.
+While it's paused, Left Arrow, Right Arrow, N, H, T, and R move to their line and show it without saying it, so you can step through a page in silence, a `[no speech]` line included. Space then says the line, from its start.
 
 **What you decide.** When a transcript ends, or you press Enter, voicecap asks:
 
@@ -1235,7 +1235,7 @@ While it's paused, ←, →, N, H, T, and R move to their line and show it witho
 What did you decide?  1 Reviewed, no issues   2 Issue found   3 Fixed   4 Skip
 ```
 
-A decision is one key, 1 to 4. No other key answers it, Enter alone included, so a stray key never records a decision. For 2 and 3, voicecap asks for a note: type it and press Enter, or press Enter alone for none. 4 records nothing. Keys left over before a page starts, and keys pressed in the half second after an answer (an Enter pressed after the digit, out of habit, is one), are dropped, so a key meant for one page can't end the next one unheard.
+A decision is one key, 1 to 4. No other key answers it, Enter alone included, so a stray key never records a decision. For 2 and 3, voicecap asks for a note: type it and press Enter, or press Enter alone for none. 4 records nothing. Keys left over before a page starts are dropped, and so are the keys pressed in the half second after an answer (an Enter pressed after the digit, out of habit, is one), or after the Enter that starts the session when your own NVDA is running (a second Enter, pressed while nothing is heard yet: see below), so a key meant for one page can't end the next one unheard.
 
 **What's recorded.** Each decision is recorded at once, as `voicecap review` records one: who decided, when, the run, and the fingerprints of that run's transcripts of the page, sealed and chained like every review entry. The run is the one whose transcripts played, the latest run that read the page, so there's no `--run`. `--replay` takes no `--status` or `--note` either: it asks for each decision itself. The reviewer's name comes from `--reviewer`, then `VOICECAP_REVIEWER`, then `git config user.name`, then `reviewer` in the config, and with none, voicecap stops before it starts the voice. When the session ends, voicecap writes the report again, once, if it recorded a decision, and says how many it recorded. The transcripts are only read: what's written is the review entries, as `review` writes them, and the report.
 

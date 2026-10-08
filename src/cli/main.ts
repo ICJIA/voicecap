@@ -5,7 +5,7 @@ import type { VoicecapConfig } from "../config/schema.js";
 import { startDemoServer } from "../demo/server.js";
 import { runTour } from "../demo/tour.js";
 import { DEMO_OUT, INPUT_ENDED, NOT_A_TERMINAL } from "../demo/words.js";
-import { nvdaProcesses, type NvdaProcess } from "../drivers/guidepup/windows.js";
+import { listProcesses } from "../drivers/guidepup/windows.js";
 import { createPrompter, deferPrompter, InputEndedError, type Prompter } from "../init/prompt.js";
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
@@ -70,7 +70,8 @@ export interface CliContext {
   replayVoice?: () => Promise<Voice>;
   /**
    * Tests: replaces review --replay's check for a running NVDA, which only asks. Default:
-   * nvdaRunningOn(platform).
+   * nvdaRunningOn(platform), which counts each nvda.exe in Windows' list of running programs
+   * (tasklist).
    */
   nvdaRunning?: () => Promise<boolean>;
 }
@@ -114,7 +115,7 @@ const OUT_HELP = "transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transc
 
 /**
  * How long review --replay waits to hear whether NVDA is running, before it starts without the
- * answer. The check is a PowerShell, which answers in about a second.
+ * answer. The check is tasklist, which answers in a fraction of a second.
  */
 const NVDA_CHECK_MS = 5_000;
 
@@ -877,15 +878,18 @@ function replayRate(value: string): number {
 
 /**
  * review --replay's check for the person's own NVDA: on Windows, whether any nvda.exe is running,
- * from the list doctor's check of the person's NVDA reads (`processes`, nvdaProcesses unless a test
- * gives another); elsewhere, never. It only asks: nothing stops, starts, or changes NVDA.
+ * as tasklist lists them (`processes`, the process ids listProcesses gives, unless a test gives
+ * another), which is the check a run makes before it starts NVDA; elsewhere, never. Any nvda.exe
+ * would read the session's lines over the voice. The list doctor reads, with each NVDA's path,
+ * compiles C# whenever an nvda.exe is running, so it's slowest just when the answer matters; this
+ * one compiles nothing. It only asks: nothing stops, starts, or changes NVDA.
  *
- * A check that hasn't answered within `ms` counts as not running, so the session starts, rather
- * than wait on it with the voice open. One that fails rejects, and the session starts all the same.
+ * A check that hasn't answered within `ms` counts as not running, so the session starts, and never
+ * waits more than 5 seconds on it. One that fails rejects, and the session starts all the same.
  */
 export function nvdaRunningOn(
   platform: NodeJS.Platform,
-  processes: () => Promise<NvdaProcess[]> = nvdaProcesses,
+  processes: () => Promise<readonly number[]> = () => listProcesses("nvda.exe"),
   ms: number = NVDA_CHECK_MS,
 ): () => Promise<boolean> {
   if (platform !== "win32") return () => Promise.resolve(false);

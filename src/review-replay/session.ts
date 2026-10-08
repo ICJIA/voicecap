@@ -12,9 +12,10 @@
  *
  * A key meant for one thing never acts on the next. Before NVDA's two lines, and before each
  * page, the keys already waiting are taken and dropped, and so is every key pressed in the half
- * second after an answer, when a page follows: an Enter pressed after a digit, out of habit, would
- * otherwise end the next page before it was heard, and one typed while the voice started would
- * pass the wait for Enter before the person had read why it waits.
+ * second after an answer, when a page follows, or after the Enter that goes on from NVDA's two
+ * lines: an Enter pressed after a digit, out of habit, or pressed twice while nothing is heard yet,
+ * would otherwise end the next page before it was heard, and one typed while the voice started
+ * would pass the wait for Enter before the person had read why it waits.
  *
  * The usage errors it stops with sit here, where they're thrown, as pages.ts keeps its own.
  */
@@ -60,8 +61,9 @@ export interface ReplayOptions {
   /** Where VOICECAP_TRANSCRIPTS and VOICECAP_REVIEWER are read from. */
   env: NodeJS.ProcessEnv;
   /**
-   * How long after an answer the keys pressed are taken and dropped, before the next page starts,
-   * in milliseconds: SETTLE_MS, unless a test says otherwise.
+   * How long after an answer, or after the Enter at NVDA's two lines, the keys pressed are taken
+   * and dropped, before the next page starts, in milliseconds: SETTLE_MS, unless a test says
+   * otherwise.
    */
   settleMs?: number;
 }
@@ -103,9 +105,11 @@ const NOTHING_TO_HEAR = {
 };
 
 /**
- * How long after an answer the keys pressed are dropped, before the next page starts. Many press
- * Enter after a digit, and at a normal speed it comes once the answer is recorded, which takes
- * tens of milliseconds: the next page's player would take it as "decide".
+ * How long after an answer, or after the Enter at NVDA's two lines, the keys pressed are dropped,
+ * before the next page starts. Many press Enter after a digit, and at a normal speed it comes once
+ * the answer is recorded, which takes tens of milliseconds; and a person whose NVDA is muted hears
+ * nothing after their Enter until the voice starts, so may press it again. The next page's player
+ * would take either as "decide".
  */
 const SETTLE_MS = 500;
 
@@ -189,6 +193,11 @@ export async function replayReview(
       if (!(await dropWaitingKeys(keys))) return { decisions, outcome: "quit" };
       for (const line of REPLAY_TEXT.nvda) show(line);
       if (!(await enterPressed(keys))) return { decisions, outcome: "quit" };
+      // With NVDA muted, nothing is heard until the voice starts, which invites a second Enter: it
+      // would end page 1 before it was heard.
+      if (!(await settle(keys, options.settleMs ?? SETTLE_MS))) {
+        return { decisions, outcome: "quit" };
+      }
     }
     show(REPLAY_TEXT.keys);
     let { rate } = options;

@@ -20,7 +20,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { main, nvdaRunningOn } from "../src/cli/main.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
-import type { NvdaProcess } from "../src/drivers/guidepup/windows.js";
 import { listManualSessions } from "../src/manual/list.js";
 import type { ReviewsFile, RunJson, SharesFile } from "../src/model.js";
 import type { PlatformReadiness } from "../src/readiness/model.js";
@@ -1563,12 +1562,37 @@ describe("voicecap review --replay", () => {
     );
   });
 
+  // The list doctor reads compiles C# whenever an nvda.exe is running, which can take longer than
+  // the 5 seconds the check is given, so the warning would be skipped just when it's needed.
+  it("asks whether NVDA is running by counting each nvda.exe in Windows' list of programs", async () => {
+    const listProcesses = vi.fn((_image: string) => Promise.resolve([4242]));
+    const nvdaProcesses = vi.fn(() => Promise.reject(new Error("It compiles C# while NVDA runs.")));
+    vi.resetModules();
+    vi.doMock("../src/drivers/guidepup/windows.js", async (importOriginal) => ({
+      ...(await importOriginal<object>()),
+      listProcesses,
+      nvdaProcesses,
+    }));
+    try {
+      const { nvdaRunningOn: byDefault } = await import("../src/cli/main.js");
+      await expect(byDefault("win32")()).resolves.toBe(true);
+      listProcesses.mockResolvedValueOnce([]);
+      await expect(byDefault("win32")()).resolves.toBe(false);
+      expect(listProcesses.mock.calls).toEqual([["nvda.exe"], ["nvda.exe"]]);
+      expect(nvdaProcesses).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("../src/drivers/guidepup/windows.js");
+      vi.resetModules();
+    }
+  });
+
   it("asks whether NVDA is running only on Windows, and starts without the answer after 5 seconds", async () => {
-    const running: NvdaProcess[] = [{ pid: 4242, path: "C:\\Program Files (x86)\\NVDA\\nvda.exe" }];
+    // The process ids of the running nvda.exe, as tasklist lists them.
+    const running = [4242];
     await expect(nvdaRunningOn("win32", () => Promise.resolve(running))()).resolves.toBe(true);
     await expect(nvdaRunningOn("win32", () => Promise.resolve([]))()).resolves.toBe(false);
     // A check that fails says so, and the session starts all the same.
-    const unanswered = new Error("PowerShell didn't answer");
+    const unanswered = new Error("Command failed: tasklist");
     const failing = nvdaRunningOn("win32", () => Promise.reject(unanswered));
     await expect(failing()).rejects.toBe(unanswered);
     // Nowhere else is there an NVDA to ask about.
@@ -1581,9 +1605,9 @@ describe("voicecap review --replay", () => {
     vi.useFakeTimers();
     try {
       // A check that never answers counts as not running after 5 seconds, so the session never
-      // waits on it with the voice open.
+      // waits more than 5 seconds on it.
       let answered: boolean | undefined;
-      void nvdaRunningOn("win32", () => new Promise<NvdaProcess[]>(() => {}))().then((value) => {
+      void nvdaRunningOn("win32", () => new Promise<number[]>(() => {}))().then((value) => {
         answered = value;
       });
       await vi.advanceTimersByTimeAsync(4_999);

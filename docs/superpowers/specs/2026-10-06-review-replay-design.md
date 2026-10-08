@@ -49,7 +49,7 @@ A page picked with nothing to hear (no run that counts read it, or its read tran
 
 **Keys while a transcript plays:**
 - **Space:** pause, and resume. Pausing stops the voice; resuming starts the current line again.
-- **←** and **→:** back a line, and ahead a line.
+- **←** and **→:** back a line, and ahead a line. While the page plays, they pass over the lines with no words ("[no speech]"), as the page passes them at once: ← goes to the nearest line before that has words, or says the line again when there's none, and → to the nearest line after that has words, or to the question when there's none (Ruling R12). While paused, they go line by line (D7).
 - **N:** the next line that raised a flag.
 - **H**, **T**, and **R:** the headings transcript, the Tab transcript, and back to the read transcript, each from its start.
 - **+** and **−:** faster and slower, for the rest of the session: 20 words a minute at a time, from 60 to 540 (D4). **+** is also `=`, and **−** is also `-` and `_`, so neither needs Shift.
@@ -62,7 +62,7 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 - A line that isn't paused always starts. A key already waiting then stops it at once, and acts (Ruling R4).
 - Ctrl+C, or the keys ending, ends the session without waiting for the line to stop: closing the voice ends it (Ruling R6).
 - A line the voice was asked to stop gets 5 seconds to end. A voice that hasn't stopped it by then is stuck, and the session ends with "The computer's voice stopped answering." (Ruling R7).
-- A key meant for one thing never acts on the next (Ruling R9). The keys left waiting before a page, or before NVDA's two lines, are dropped. So are the keys pressed in the half second after an answer, when a page follows: an Enter pressed after the digit, out of habit, would otherwise end the next page before it was heard. A Ctrl+C among them still ends the session.
+- A key meant for one thing never acts on the next (Ruling R9). The keys left waiting before a page, or before NVDA's two lines, are dropped. So are the keys pressed in the half second after an answer, when a page follows: an Enter pressed after the digit, out of habit, would otherwise end the next page before it was heard. So are the keys pressed in the half second after the Enter that goes on from NVDA's two lines: with NVDA muted, nothing is heard until the voice starts, so a second Enter is likely, and it would end page 1 unheard (Ruling R12). A Ctrl+C among them still ends the session.
 
 **The voice:**
 - On Windows, its built-in voice (System.Speech), through a small PowerShell script that ships with voicecap.
@@ -75,14 +75,14 @@ Keys typed while a line is spoken wait their turn: each acts once the voice has 
 
 **It needs a terminal.** Without one (a script, CI), or with the output redirected, `--replay` stops and says so. `review` without `--replay` is unchanged: `--page` and `--status` are still required. voicecap checks them itself now ("--page is required, unless --replay is given."), since with `--replay` neither is required.
 
-**The person's own NVDA.** An NVDA that's running reads each line as it appears in the terminal, so the person would hear it over the replay's voice. On Windows, before the first page, voicecap looks for a running `nvda.exe`, from the same list of processes as `doctor`'s check of the person's NVDA. When it finds one, it says so, and waits:
+**The person's own NVDA.** An NVDA that's running reads each line as it appears in the terminal, so the person would hear it over the replay's voice. On Windows, before the first page, voicecap looks for a running `nvda.exe` in Windows' list of running programs (`tasklist`), as a run does before it starts NVDA (Ruling R12). When it finds one, it says so, and waits:
 
 ```
 NVDA is running, and it will read these lines too, over the replay's voice.
 Mute it (NVDA+S changes its speech mode) or quit it, then press Enter.
 ```
 
-The session starts on Enter. voicecap never stops, starts, or changes the person's NVDA during a replay. When it can't tell whether NVDA is running, it starts anyway. That includes a check that hasn't answered within 5 seconds, so the session never waits on it with the voice open.
+The session starts on Enter. voicecap never stops, starts, or changes the person's NVDA during a replay. When it can't tell whether NVDA is running, it starts anyway. That includes a check that hasn't answered within 5 seconds, so the session never waits more than 5 seconds on it.
 
 ## Safety
 
@@ -109,7 +109,7 @@ Six modules in `src/review-replay/`, each with one job, and the command:
     - with it: "--replay asks for each decision itself, so it doesn't take --status, --note, or --run.", "--all and --page can't be used together.", a `--rate` that isn't a whole number from 60 to 540, and an input or an output that isn't a terminal.
   - It reads the keys from the start, and a closed window ends them (SIGHUP or SIGTERM, and SIGBREAK on Windows). Every way out closes them, which ends raw mode, and stops watching for a closed window: the last page, Ctrl+C, a closed window, and an error, before the voice starts or after.
   - Its exit codes: 0 when the session ends after its last page, or has nothing to hear; 130 when the person ended it first; 2 when there's no voice, or the voice stops working; 1 for a usage error.
-  - Its check for the person's own NVDA is the list of processes `doctor` reads (`nvdaProcesses`), on Windows only. A check that hasn't answered within 5 seconds counts as not running.
+  - Its check for the person's own NVDA counts each running `nvda.exe` in Windows' list of running programs (`listProcesses("nvda.exe")`, which runs `tasklist`), the check a run makes before it starts NVDA, on Windows only (Ruling R12). The list `doctor` reads (`nvdaProcesses`), with each NVDA's path, compiles C# whenever an `nvda.exe` is running, so it's slowest just when the answer matters. A check that hasn't answered within 5 seconds counts as not running.
   - Its tests give it a fake voice and a fake check for NVDA, through `CliContext.replayVoice` and `CliContext.nvdaRunning`, so no test reaches the computer's voice or NVDA.
 
 ## Tests
@@ -165,3 +165,7 @@ The plan (`docs/superpowers/plans/2026-10-08-review-replay-plan-8.md`) corrected
 - **R7:** a stopped line gets 5 seconds, then "The computer's voice stopped answering." ends the session.
 - **R8:** the place rules mark the place they quote, and the other rules mark every line with the quoted words.
 - **R9:** keys left before a page or NVDA's two lines are dropped, and so are the keys pressed in the half second after an answer.
+- **R12:** the final review's fixes, made before the merge:
+  - the check for the person's own NVDA counts each `nvda.exe` that `tasklist` lists, which compiles nothing, so it answers in time when NVDA runs;
+  - the keys pressed in the half second after the Enter that goes on from NVDA's two lines are dropped too, so a second Enter can't end page 1 unheard;
+  - while a page plays, ← and → pass over a line where NVDA said nothing, so ← can reach the lines before one, and → moves one line with words.
