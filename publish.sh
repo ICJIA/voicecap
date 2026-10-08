@@ -23,7 +23,8 @@ set -euo pipefail
 #   - you're logged in to npm and the version isn't on npm or tagged elsewhere yet;
 #   - CHANGELOG.md has an entry for the version;
 #   - CI passed for this commit (when the GitHub CLI is available);
-#   - lint, typecheck, tests, and build pass;
+#   - lint, typecheck, tests, and build pass, and the release's facts (the test counts, the commits,
+#     and CI's matrix) are recorded in the package, in dist/release-facts.json;
 #   - the packed files are right, and the packed tarball installs and runs.
 # If anything fails before the publish, package.json is restored.
 
@@ -169,9 +170,16 @@ pnpm install --frozen-lockfile
 info "Lint, typecheck, tests, build..."
 pnpm lint
 pnpm typecheck
-pnpm test
+# The tests' JSON report goes outside dist, which the build empties next; once the build is done,
+# the release's facts (the test counts, the commits, CI's matrix) are recorded from it. This is
+# `pnpm test`, which runs `vitest run`, with the report added. It runs Vitest through `pnpm exec`
+# because pnpm 12 takes --reporter for itself, and refuses `pnpm test --reporter=json` before
+# Vitest sees it.
+RESULTS="$(mktemp -d)/vitest.json"
+pnpm exec vitest run --reporter=default --reporter=json --outputFile="$RESULTS"
 rm -rf dist
 pnpm build
+node scripts/release-facts.mjs "$RESULTS"
 
 # ─── What's in the package ──────────────────────────────────────────
 
@@ -180,7 +188,7 @@ FILES=$(npm pack --dry-run --json --ignore-scripts | node --input-type=commonjs 
   const [pack] = JSON.parse(require("fs").readFileSync(0, "utf8"));
   console.log(pack.files.map((f) => f.path).join("\n"));
 ')
-for required in package.json README.md CHANGELOG.md LICENSE dist/cli.js dist/index.js dist/index.d.ts demo/site/index.html; do
+for required in package.json README.md CHANGELOG.md LICENSE dist/cli.js dist/index.js dist/index.d.ts dist/release-facts.json demo/site/index.html; do
   grep -qx "$required" <<<"$FILES" || die "The package is missing $required."
 done
 if grep -E '^(src|test|fixture|scripts|docs)/' <<<"$FILES" >/dev/null; then
