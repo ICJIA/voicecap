@@ -599,7 +599,12 @@ describe("renderSiteIndex", () => {
     // the site's name after them, so no two sites' links read alike.
     expect(head.indexOf("<a ")).toBeGreaterThan(head.indexOf("</h3>"));
     expect(textsOf(withoutHidden(head), "a")).toEqual(["Visit the site"]);
-    expect(textsOf(head, "a")).toEqual([`Visit the site at ${DVFR}`]);
+    expect(textsOf(head, "a")).toEqual([`Visit the site at ${DVFR}, in a new tab`]);
+    // It opens the site in a new tab, so a reader can go between the report and the site, and the
+    // site gets no hold on this page.
+    expect(head).toMatch(
+      /<a class="visit" href="[^"]*" target="_blank" rel="noopener noreferrer">/,
+    );
     // The other site's records give no address people visit: its heading stands alone.
     const other = headOf(sectionOf(html, `site-${EXAMPLE}`), "site");
     expect(textsOf(other, "h3")).toEqual([EXAMPLE]);
@@ -1277,8 +1282,10 @@ describe("renderSiteIndex", () => {
       '<span class="sr"> of a&quot;b&amp;c&lt;s&gt;x&lt;/s&gt;, 3 October 2026, 14:05</span>',
     );
     // The link to the second site: its address, and the site's name after its words.
-    expect(markup).toContain('<a class="visit" href="https://a.example.gov/a&amp;b/">');
-    expect(markup).toContain('<span class="sr"> at a.example.gov</span>');
+    expect(markup).toContain(
+      '<a class="visit" href="https://a.example.gov/a&amp;b/" target="_blank" rel="noopener noreferrer">',
+    );
+    expect(markup).toContain('<span class="sr"> at a.example.gov, in a new tab</span>');
     // Nothing the record holds became markup: no element it names, and no attribute it adds. The
     // page's own <b> holds a count's number, so the record's two are looked for as they'd appear.
     const { elements, attributes } = namesIn(markup);

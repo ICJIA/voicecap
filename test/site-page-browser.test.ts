@@ -484,7 +484,12 @@ describe("the site's page", () => {
     const page = await open(files.page);
 
     await expect(
-      page.getByRole("link", { name: "Visit the site at dvfr.illinois.gov", exact: true }).count(),
+      page
+        .getByRole("link", {
+          name: "Visit the site at dvfr.illinois.gov, in a new tab",
+          exact: true,
+        })
+        .count(),
     ).resolves.toBe(1);
   });
 

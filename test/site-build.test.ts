@@ -2864,8 +2864,8 @@ describe("buildSite", () => {
       ]);
       // A site with no address has none at all, rather than one that is undefined.
       for (const at of [0, 2]) expect(content.sites[at]).not.toHaveProperty("address");
-      expect(index.match(/<a class="visit" href="([^"]*)">/g)).toEqual([
-        `<a class="visit" href="${ROOT}">`,
+      expect(index.match(/<a class="visit" href="([^"]*)"/g)).toEqual([
+        `<a class="visit" href="${ROOT}"`,
       ]);
       expect(index).not.toContain("alpha.illinois.gov");
     });

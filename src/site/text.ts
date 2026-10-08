@@ -82,9 +82,10 @@ export const SITE_TEXT = {
   visit: "Visit the site",
   /**
    * What a screen reader hears after the link's words, and a reader doesn't see: " at
-   * dvfr.illinois.gov". So no two sites' links read alike.
+   * dvfr.illinois.gov, in a new tab". So no two sites' links read alike, and a screen reader knows
+   * the site opens in a tab of its own, as the link's arrow shows the eye.
    */
-  visitAt: (site: string): string => ` at ${site}`,
+  visitAt: (site: string): string => ` at ${site}, in a new tab`,
   /** Under the current report's line: who prepared it. */
   preparedBy: (by: string): string => `${TOP_TEXT.preparedBy} ${by}`,
   /** The current report's two links: its page, which opens in the browser, and its Word copy. */

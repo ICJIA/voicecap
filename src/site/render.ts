@@ -334,14 +334,15 @@ function uniqueId(id: string, taken: Set<string>): string {
  * reader hears, and an arrow, which it doesn't. Only to the root of a site people visit, as a share
  * records one (see recordedCanonical), at the host the heading names: never an address on
  * someone's computer, one with a name and password in it, anything that isn't a web address, or
- * another site than the one its heading names. It opens where the page is, as the page's other
- * links do, and the site's Referrer-Policy (see ./netlify.ts) keeps the page's own address from the
- * site. Nothing, for a site with no such address.
+ * another site than the one its heading names. It opens the site in a new tab, so a reader can go
+ * back and forth between the report and the site, and its hidden words say so. `noopener` gives
+ * the site no hold on this page, and `noreferrer`, as the site's Referrer-Policy does (see
+ * ./netlify.ts), keeps the page's own address from it. Nothing, for a site with no such address.
  */
 function visit(name: string, address: string | undefined): string {
   if (address === undefined || recordedCanonical(address) !== address) return "";
   if (canonicalName(address) !== name) return "";
-  return `<a class="visit" href="${esc(address)}">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
+  return `<a class="visit" href="${esc(address)}" target="_blank" rel="noopener noreferrer">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
 }
 
 /**
