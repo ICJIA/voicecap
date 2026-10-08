@@ -1,6 +1,7 @@
 /**
- * The website's pictures: one before each view's heading, one before each site's name, and the arrow
- * of the link to a site itself. Each is inline SVG in the shareable page's style for its pictures
+ * The website's pictures: one before each view's heading, one before each site's name, the arrow of
+ * the link to a site itself, and the shield before the trust page's heading. Each is inline SVG in
+ * the shareable page's style for its pictures
  * (../share/html/icons.ts): outlined in the text's own color, on a 24 by 24 grid, and sized and
  * drawn by attributes, so the page sets no `style` attribute. Each is hidden from screen readers,
  * since the words beside it say it all; the page's style sizes and colors them by their class.
@@ -29,5 +30,9 @@ export const SITE_ICONS = {
   // An arrow out of a box: the link leaves the page for the site itself.
   visit: picture(
     '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  ),
+  // A shield with a check mark: the trust page, and what can be checked.
+  trust: picture(
+    '<path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.3 7.5 9.5 4.4-1.2 7.5-4.9 7.5-9.5V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
   ),
 };

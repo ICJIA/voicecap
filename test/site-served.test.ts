@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { parseSitemapXml } from "../src/pages/sitemap.js";
 import { readShares } from "../src/share/shares.js";
 import { buildSite, type BuildSiteResult } from "../src/site/build.js";
+import { contentSecurityPolicy, inlineHashes } from "../src/site/headers.js";
 import type { SiteContent } from "../src/site/render.js";
 import { sha256 } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
@@ -196,6 +197,22 @@ describe("the site, served as Netlify serves it", () => {
     expect(await page.locator("#theme-toggle").isVisible()).toBe(true);
     await page.locator("#theme-toggle").click();
     expect(await violationsOf(page), "the site's page").toEqual([]);
+
+    // The trust page, at both its addresses: under the policy of its own bytes, which the page's
+    // style block and script run under, and its theme button works.
+    const trust = await readFile(path.join(built.out, "trust.html"), "utf8");
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
+    for (const where of ["trust", "trust.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(trustPolicy);
+      expect(await response.text(), where).toBe(trust);
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      expect(await violationsOf(page), where).toEqual([]);
+    }
 
     // Each page of a report: the three shared, and the one written by hand.
     const pages = pagesOf(built.content);
@@ -379,6 +396,40 @@ describe("the site, served as Netlify serves it", () => {
     ]);
     expect(await theme(page)).toBe("light");
     expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+  });
+
+  it("reaches the trust page from the site's bar", async () => {
+    const page = await newPage();
+    await page.goto(server.url);
+
+    await Promise.all([
+      page.waitForURL(new URL("trust.html", server.url).href),
+      page.getByRole("link", { name: "Can I trust this?" }).click(),
+    ]);
+
+    // It's the trust page, whose own bar says it's the page the reader is on.
+    expect(await page.title()).toBe("Can I trust this? · Screen reader test results");
+    expect(await page.locator("h1").textContent()).toBe("Built to be checked. See for yourself.");
+    expect(await page.locator('.bar nav a[aria-current="page"]').textContent()).toBe(
+      "Can I trust this?",
+    );
+    expect(await violationsOf(page)).toEqual([]);
+  });
+
+  it("reaches the site's page from the trust page's bar", async () => {
+    const page = await newPage();
+    await page.goto(server.url);
+    const siteTitle = await page.title();
+    await page.goto(new URL("trust.html", server.url).href);
+
+    // The bar's views are on the site's page, so its links lead there.
+    await Promise.all([
+      page.waitForURL(new URL("index.html#sites", server.url).href),
+      page.getByRole("link", { name: "The sites" }).click(),
+    ]);
+
+    expect(await page.title()).toBe(siteTitle);
+    expect(await violationsOf(page)).toEqual([]);
   });
 });
 

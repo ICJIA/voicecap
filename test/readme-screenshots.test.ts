@@ -1,9 +1,10 @@
 /**
- * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its eight
+ * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its nine
  * files and no others, no shot may show an IP address or `localhost`, and a shot that would show one
  * stops the script before anything is written. Chromium draws the pages from a temporary home that
  * the script makes from the i2i v3 run of 6 October 2026 (fixture/i2i-v3-run): no screen reader
- * starts, and no person's own transcripts home is read.
+ * starts, and no person's own transcripts home is read. What the trust page's picture says of
+ * voicecap is the script's own example (EXAMPLE_FACTS), so it comes out the same at every release.
  */
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
@@ -16,16 +17,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   AVOIDED,
+  EXAMPLE_FACTS,
+  exampleFacts,
   firstRowWithout,
   makeScreenshots,
   refuseLocalAddress,
   SCREENSHOTS,
   shooter,
 } from "../scripts/readme-screenshots.js";
+import { ciOf } from "../scripts/release-facts.mjs";
+import { parseChangelog } from "../src/site/facts.js";
 import { launchBrowser } from "./helpers/axe.js";
 
-/** The eight files the README names, in the order the script takes them. */
-const EIGHT = [
+/** The nine files the README names, in the order the script takes them. */
+const NINE = [
   "report-top.png",
   "report-heard.png",
   "report-attention.png",
@@ -34,6 +39,7 @@ const EIGHT = [
   "report-fingerprints.png",
   "website-dark.png",
   "website-light.png",
+  "website-trust.png",
 ];
 
 /** The i2i v3 run the shots are made from: a transcripts home with the one site's folder in it. */
@@ -41,6 +47,9 @@ const FIXTURE_HOME = fileURLToPath(new URL("../fixture/i2i-v3-run", import.meta.
 const FIXTURE_SITE = path.join(FIXTURE_HOME, "v3--i2i.netlify.app");
 /** The demo runs of 29 September 2026, which read the demo at an IP address and have no canonical one. */
 const DEMO_HOME = fileURLToPath(new URL("./fixtures/share/demo-2026-09-29", import.meta.url));
+/** This repository's CHANGELOG and CI's workflow, which the trust page's example facts are made from. */
+const CHANGELOG = fileURLToPath(new URL("../CHANGELOG.md", import.meta.url));
+const CI_WORKFLOW = fileURLToPath(new URL("../.github/workflows/ci.yml", import.meta.url));
 
 /** Each folder made here, to remove at the end. */
 const folders: string[] = [];
@@ -296,20 +305,81 @@ describe("a shot of a page", () => {
   });
 });
 
+describe("the facts the trust page's picture states", () => {
+  /** A CHANGELOG's text as a release's own entry lands in it: a new entry under `[Unreleased]`. */
+  function withEntry(changelog: string, entry: string): string {
+    return changelog.replace(/## \[Unreleased\]\r?\n/, `## [Unreleased]\n\n${entry}\n`);
+  }
+
+  it("are the script's own: an example release, then the CHANGELOG's real ones from 0.13.1 back, and what an example release recorded", async () => {
+    const real = parseChangelog(await readFile(CHANGELOG, "utf8"));
+    const from = real.findIndex((release) => release.version === "0.13.1");
+    expect(from).toBeGreaterThanOrEqual(0);
+
+    expect(EXAMPLE_FACTS).toEqual({
+      version: "0.13.2",
+      released: "2026-10-09",
+      releases: [
+        {
+          version: "0.13.2",
+          date: "2026-10-09",
+          headline: 'The website\'s "Can I trust this?" page',
+        },
+        ...real.slice(from),
+      ],
+      release: {
+        tests: { passed: 5000, skipped: 2, files: 120, system: "Windows" },
+        commits: { count: 480, first: "2026-09-26" },
+        // CI's own matrix, as its workflow writes it.
+        ci: ciOf(await readFile(CI_WORKFLOW, "utf8")),
+      },
+    });
+  });
+
+  it("count the same releases when 0.13.2's own entry lands in the CHANGELOG, and when a later release does", async () => {
+    const changelog = await readFile(CHANGELOG, "utf8");
+    const workflow = await readFile(CI_WORKFLOW, "utf8");
+    const own = withEntry(
+      changelog,
+      "## [0.13.2] - 2026-10-10\n\n- **The trust page.** Its entry.\n",
+    );
+    const later = withEntry(
+      own,
+      "## [0.14.0] - 2026-10-20\n\n- **A later release.** Its entry.\n\n## [0.13.3] - 2026-10-15\n\n- **A patch.** Its entry.\n",
+    );
+
+    // Each CHANGELOG has the entries it was given, and the facts are as they were without them.
+    expect(parseChangelog(own)).toHaveLength(parseChangelog(changelog).length + 1);
+    expect(parseChangelog(later)).toHaveLength(parseChangelog(changelog).length + 3);
+    expect(exampleFacts(own, workflow)).toEqual(exampleFacts(changelog, workflow));
+    expect(exampleFacts(later, workflow)).toEqual(exampleFacts(changelog, workflow));
+    // Fixed at 21: the example and the 20 real releases to 0.13.1, so no release can change it (R-T9).
+    expect(EXAMPLE_FACTS.releases).toHaveLength(21);
+  });
+
+  it("stop, naming the release, when the CHANGELOG has no entry for 0.13.1", async () => {
+    const workflow = await readFile(CI_WORKFLOW, "utf8");
+
+    expect(() => exampleFacts("# Changelog\n\n## [Unreleased]\n", workflow)).toThrow(
+      /no entry for 0\.13\.1/,
+    );
+  });
+});
+
 describe("makeScreenshots", () => {
-  it("names the eight files the README shows, and no screenshot of the flags", () => {
-    expect([...SCREENSHOTS]).toEqual(EIGHT);
+  it("names the nine files the README shows, and no screenshot of the flags", () => {
+    expect([...SCREENSHOTS]).toEqual(NINE);
     expect(SCREENSHOTS).not.toContain("report-flags.png");
   });
 
-  it("writes its eight files and no others, each a PNG, at twice the window's size", async () => {
+  it("writes its nine files and no others, each a PNG, at twice the window's size", async () => {
     const out = path.join(await newFolder(), "screenshots");
 
     const written = await makeScreenshots(out);
 
-    expect(written.map((file) => path.basename(file))).toEqual(EIGHT);
-    expect((await readdir(out)).sort()).toEqual([...EIGHT].sort());
-    for (const name of EIGHT) {
+    expect(written.map((file) => path.basename(file))).toEqual(NINE);
+    expect((await readdir(out)).sort()).toEqual([...NINE].sort());
+    for (const name of NINE) {
       const { width, height } = sizeOf(await readFile(path.join(out, name)));
       // The page and the site are shot the window's width, 1200 pixels, at twice its size; a panel
       // or a section is a little narrower than that, by as much as the page's margins.
