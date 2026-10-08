@@ -39,7 +39,7 @@
   - the summary sentence's "<n> problem needs attention, on <m> pages." ("problems need" for more than one, "page" for one).
 - **Chrome's rule, as a card states it** (from Chromium's `ax_image_annotator.cc` and `ax_image_stopwords.cc`, checked 2026-10-06): Chrome splits an image's alt text at spaces, punctuation, and digits. It drops words of one or two letters, and common words such as "logo" and "image". If fewer than three letters are left, it treats the image as having no name.
 - **Commits:** a plain subject line with no trailers of any kind, and no push until the release.
-- **What subagents never do:**
+- **What the build never does:**
   - start NVDA, Word, or any desktop program;
   - run voicecap, except through the test suite's scripted or replay drivers;
   - pass a composed command through `cmd /c` or any shell;
@@ -571,7 +571,7 @@ The owner asked on 2026-10-06: "the what needs attention columns needs to be ful
 
 ## The release (the controller, with the owner)
 
-1. Run the final review on opus, then one fix wave and its re-review (subagent-driven development).
+1. Review the whole branch, then make one round of fixes and review them.
 2. Push the branch, and get CI green on all six jobs.
 3. Merge: `git switch main && git merge --no-ff plan-7-what-needs-attention`.
 4. **"Prepare 0.12.0":**
