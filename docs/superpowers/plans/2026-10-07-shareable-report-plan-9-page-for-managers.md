@@ -1,6 +1,6 @@
 # Plan 9: The page for managers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Build it task by task; each step is a checkbox (`- [ ]`).
 
 **Goal:** Put what a manager needs first on the shareable page and in its Word copy, in this order:
 - **At a glance:** a verdict in words and an icon, the result in one sentence, a ring of the pages, and four big numbers;
@@ -34,7 +34,7 @@ Task 6 writes the decisions below into the spec.
 ## Decisions this plan makes (the owner reviews them with the plan)
 
 - **D1, one count of problems at the top.** On the demo, the verdict says "5 problems need attention, on 2 pages", counting every card. Today's sentence says "4 problems need attention, on 1 page", counting only the cards that come from flags. Shown together they disagree. So the sentence stops counting problems, and the verdict counts them, every card, as What needs attention, the Word copy, and the website's card do. The sentence keeps who ran it, who heard NVDA, who reviewed, and what review found. The demo's becomes "NVDA read all 7 pages."
-  - **The owner chose this on 2026-10-07** ("Verdict counts"), over the sentence counting every card too. They chose subagent-driven development for the build.
+  - **The owner chose this on 2026-10-07** ("Verdict counts"), over the sentence counting every card too. They chose to build it task by task, each task reviewed.
 - **D2, red means a page in scope wasn't read.** The verdict is red when NVDA read fewer pages than are in scope, whether it couldn't read one or skipped it. That's the website card's rule (0.12.3). With no card then, it says "Nothing needs attention on the pages read", as the page's own line does. The spec said "couldn't be read".
 - **D3, the method line keeps "the reading and the deciding".** The spec's copy says "the listening, the reading, and the deciding", which predates the owner's rule of 2026-10-02 against saying a person listened. The page keeps today's words (`summary.second`).
 - **D4, the Word copy matches the page.**
@@ -63,7 +63,7 @@ Task 6 writes the decisions below into the spec.
   - axe reports zero violations;
   - the page sets no `style` attribute: it has one style block and one script, hashed by its Content Security Policy.
 - **Commits:** a plain subject line with no trailers of any kind, and no push until the release.
-- **What subagents never do:**
+- **What the build never does:**
   - start NVDA, Word, or any desktop program;
   - run voicecap, except through the test suite's scripted or replay drivers;
   - pass a composed command through `cmd /c` or any shell;
@@ -404,7 +404,7 @@ Task 6 writes the decisions below into the spec.
 
 ## The release (the controller, with the owner)
 
-1. Run the final review on opus, then one fix wave and its re-review (subagent-driven development).
+1. Review the whole branch, then make one round of fixes and review them.
 2. Push the branch, and get CI green on all six jobs.
 3. Merge: `git switch main && git merge --no-ff plan-9-page-for-managers`.
 4. **"Prepare 0.13.0":**

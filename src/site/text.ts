@@ -34,8 +34,17 @@ export const SITE_TEXT = {
   title: "Screen reader test results",
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   skip: "Skip to main content",
-  /** The label of the bar's navigation, whose links are the views' headings. */
-  nav: "Views",
+  /**
+   * The label of the bar's navigation, which every page of the website has. Its links are the views'
+   * headings, on the website's own page, and the link to the trust page ({@link trust}): the website
+   * itself, so the label names that.
+   */
+  nav: "This website",
+  /**
+   * The words of the bar's last link, to the trust page. The bar of every page says them, so they're
+   * here with the rest of the bar's words, and not with the trust page's own.
+   */
+  trust: "Can I trust this?",
   /** The three views: each one's heading, which is also its link in the bar, and its lead. */
   views: {
     demo: {

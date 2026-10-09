@@ -473,8 +473,8 @@ Two folders whose runs recorded the root are a usage error, naming both folders 
 ## After execution
 
 **How it was built (2026-10-04):**
-- Subagent-driven: one implementer per task (sonnet), each task reviewed (sonnet), with scoped re-reviews of each fix round.
-- A final whole-branch review (opus) found 0 Critical, 3 Important, and 8 Minor. One fix wave (opus) followed, then a scoped re-review: every finding addressed, none new.
+- Built task by task, each task reviewed, with a scoped re-review of each round of fixes.
+- A final whole-branch review found 0 Critical, 3 Important, and 8 Minor. One round of fixes followed, then a scoped re-review: every finding addressed, none new.
 - 35 commits on the branch, including the footer fix it started from.
 - 4,282 tests pass, and 2 skip on Windows. CI is green on all six jobs at the fix wave's head, f320f5c. Two runs needed a re-run of one job: a macOS focus-timing test once, and two Windows timeouts once, each a runner stall.
 
