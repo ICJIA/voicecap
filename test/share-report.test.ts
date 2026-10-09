@@ -127,7 +127,7 @@ const DEMO_FOLDER = "127.0.0.1_4848";
  * The demo's first share's name, without its extension: the demo's canonical name, which
  * report.canonical gives it, then the day.
  */
-const DEMO_FIRST = "voicecap.netlify.app_2027-01-15";
+const DEMO_FIRST = "voicecap.icjia.app_2027-01-15";
 /** The two runs that count, oldest first. */
 const RUN_1315 = "2026-09-29_1315";
 const RUN_1402 = "2026-09-29_1402";
@@ -711,11 +711,11 @@ describe("shareReport", () => {
 
   // Added in 0.10.0. What's sent is named for what readers know the site by, never for the address
   // voicecap read: the demo's runs read a copy at http://127.0.0.1:4848, and the demo's canonical
-  // address is https://voicecap.netlify.app/demo-site/.
+  // address is https://voicecap.icjia.app/demo-site/.
   describe("the site's canonical address", () => {
     /** The day the demo is shared on, and the name its copies are given for it. */
     const ON = new Date(2026, 8, 30, 10, 0);
-    const STEM = "voicecap.netlify.app_2026-09-30";
+    const STEM = "voicecap.icjia.app_2026-09-30";
 
     it("names the copies after the canonical name, in the site's own folder", async () => {
       const { siteDir, options } = await demoHome();
@@ -862,7 +862,7 @@ describe("shareReport", () => {
     });
 
     it.each([
-      ["a path", DEMO_ROOT, DEMO_ROOT, "voicecap.netlify.app"],
+      ["a path", DEMO_ROOT, DEMO_ROOT, "voicecap.icjia.app"],
       [
         "a port",
         "https://staging.dvfr.org:8443/",

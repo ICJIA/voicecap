@@ -154,7 +154,7 @@ const CSP = "Content-Security-Policy";
 /** The folder the build publishes the demo's own pages in, beside the reports' folders. */
 const DEMO_PAGES = "demo-site";
 /** The demo's canonical address: its own pages are published there, in demo-site/. */
-const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+const DEMO_CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /** The policy each of the demo's pages is served with, at each address it answers at. */
 const DEMO_POLICY =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
@@ -615,7 +615,7 @@ describe("buildSite", () => {
       ].join("\n"),
     );
     expect(parseSitemapXml(sitemap)).toEqual({ kind: "urlset", locs: pages });
-    expect(pages[0]).toBe("https://voicecap.netlify.app/demo-site/");
+    expect(pages[0]).toBe("https://voicecap.icjia.app/demo-site/");
   });
 
   it("writes index.html, robots.txt, and _headers", async () => {
@@ -3754,7 +3754,7 @@ describe("buildSite", () => {
       const home = await homeWithSites({
         [COPY_FOLDER]: [{ at: JAN_17, site: ROOT }],
         // A root with a path, as the demo's is, and one with a port.
-        localhost_3000: [{ at: JAN_16, site: "https://voicecap.netlify.app/demo-site/" }],
+        localhost_3000: [{ at: JAN_16, site: "https://voicecap.icjia.app/demo-site/" }],
         localhost_8443: [{ at: JAN_15, site: "https://staging.illinois.gov:8443/" }],
         "example.illinois.gov": ["2027-01-14T10:00:00-06:00"],
       });
@@ -3765,7 +3765,7 @@ describe("buildSite", () => {
         { at: JAN_17, site: NAME, by: "Sam Rivera", href: `${COPY_FOLDER}/${COPY_FOLDER}_1.html` },
         {
           at: JAN_16,
-          site: "voicecap.netlify.app",
+          site: "voicecap.icjia.app",
           by: "Sam Rivera",
           href: "localhost_3000/localhost_3000_1.html",
         },

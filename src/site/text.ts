@@ -99,7 +99,7 @@ export const SITE_TEXT = {
       // relative, and its words are the demo's canonical address, which names the same place.
       lead: [
         "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at ",
-        { link: "voicecap.netlify.app/demo-site/", href: "demo-site/" },
+        { link: "voicecap.icjia.app/demo-site/", href: "demo-site/" },
         ".",
       ] satisfies Sentence,
     },

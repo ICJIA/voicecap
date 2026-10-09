@@ -10,6 +10,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { ForegroundError, type AxeCapture } from "../src/drivers/types.js";
 import type * as Api from "../src/index.js";
 import type { FileHash, PageRecord } from "../src/model.js";
@@ -23,16 +24,7 @@ import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { verifyHome } from "../src/verify.js";
 import { rawAxe, rawRule, type RawAxeRule } from "./helpers/raw-axe.js";
-import {
-  config,
-  hangOnce,
-  ISO_MS,
-  options,
-  outDir,
-  setup,
-  SITE,
-  sitePages,
-} from "./helpers/run-site.js";
+import { config, ISO_MS, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
 /** What axe gives for the page at `url` with these rules failing, kept as the Guidepup driver keeps it. */
@@ -368,8 +360,15 @@ describe("a page's axe results, in a run", () => {
       results(`${SITE}/`, [rawRule("image-alt")]),
       results(`${SITE}/`, [rawRule("link-name"), rawRule("button-name")]),
     ];
+    // The first attempt loses the foreground at its first Down Arrow, which comes after the page
+    // was checked and after the read pass's Ctrl+End and Ctrl+Home, so the run tries the page
+    // again. The call is made to fail at once, as run-events.test.ts does, and not to hang until a
+    // timer ends the step. And the run has the limits of time it has by default, which a pause of
+    // the computer won't pass: no timer decides how many attempts the page gets.
+    let lines = 0;
+    const lost = new ForegroundError("The browser lost the foreground to another window");
     const driver = new ScriptedDriver(sitePages({ home: { axe: captures[0]! } }), {
-      hang: hangOnce("nextLine"),
+      fail: (command) => (command === "nextLine" && ++lines === 1 ? lost : null),
     });
     // A new result for each check: the first attempt's check is the first, the second's the second.
     const check = driver.checkWithAxe!;
@@ -379,8 +378,14 @@ describe("a page's axe results, in a run", () => {
       return captures[checks++]!;
     };
 
-    const run = await runAudit(options(dir, driver));
+    const run = await runAudit(
+      options(dir, driver, { config: config({ timeouts: DEFAULT_CONFIG.timeouts }) }),
+    );
     expect(run.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
+    // The lost foreground at the first Down Arrow failed the first attempt, and nothing else did.
+    expect(run.run.pages[0]?.failedAttempts).toEqual([
+      expect.objectContaining({ n: 1, pass: "read", command: "nextLine", cause: "foreground" }),
+    ]);
     expect(checks).toBe(2);
     expect(await holds(earlierAxeOf(dir, run, 1), captures[0]!.json)).toBe(true);
     expect(existsSync(path.join(path.dirname(earlierAxeOf(dir, run, 1)), "read.txt"))).toBe(true);

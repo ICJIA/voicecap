@@ -23,7 +23,7 @@ import { footerInTwoWindows } from "./helpers/footer.js";
 const MISTAKES = "/common-mistakes/";
 const GOOD_PAGES = DEMO_PAGES.filter((page) => page !== MISTAKES);
 /** The demo's canonical address: its pages are published inside voicecap's website, at /demo-site/. */
-const CANONICAL = "https://voicecap.netlify.app/demo-site/";
+const CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /** The page the server gives for any address it has nothing at: it names no address of its own. */
 const NOT_FOUND = "404.html";
 
@@ -143,7 +143,7 @@ describe("the demo site", () => {
   });
 });
 
-// The demo's canonical address is https://voicecap.netlify.app/demo-site/: the website publishes
+// The demo's canonical address is https://voicecap.icjia.app/demo-site/: the website publishes
 // the demo's own pages there. Each page names its own address under it, so a run on the copy at
 // this computer learns the real name, and its links are relative, so the pages work at either
 // address.
@@ -169,13 +169,13 @@ describe("the demo site's addresses", () => {
     const tagOf = async (file: string) =>
       canonicalTags(await readFile(path.join(DEMO_SITE_DIR, file), "utf8"))[0];
     expect(await tagOf("index.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/" />',
     );
     expect(await tagOf("before-you-start/index.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/before-you-start/" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/before-you-start/" />',
     );
     expect(await tagOf("ask-a-question/sent.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/ask-a-question/sent.html" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/ask-a-question/sent.html" />',
     );
   });
 

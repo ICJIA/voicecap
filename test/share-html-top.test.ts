@@ -708,7 +708,7 @@ describe("renderTop", () => {
   it("leads with the canonical name and the date and time it was tested", () => {
     const html = renderTop(copyModel());
 
-    expect(html).toContain("<h1>voicecap.netlify.app</h1>");
+    expect(html).toContain("<h1>voicecap.icjia.app</h1>");
     expect(html).toContain('<p class="mast-site">The voicecap demo</p>');
     expect(html).toContain('<p class="mast-tested">Tested 29 September 2026, 14:02</p>');
     // Top to bottom: the eyebrow, the name, the name set for the site, when it was tested, the
@@ -742,7 +742,7 @@ describe("renderTop", () => {
       words(new RegExp(`<p class="${className}">(.*?)</p>`, "s").exec(html)?.[1]);
     const meta = /<div class="mast-meta">(.*?)<\/div>\s*<\/header>/s.exec(html)?.[1] ?? "";
 
-    expect(words(/<h1>(.*?)<\/h1>/s.exec(html)?.[1])).toBe("voicecap.netlify.app");
+    expect(words(/<h1>(.*?)<\/h1>/s.exec(html)?.[1])).toBe("voicecap.icjia.app");
     expect(paragraph("mast-site")).toBe("The voicecap demo");
     expect(paragraph("mast-tested")).toBe("Tested 29 September 2026, 14:02");
     expect(

@@ -1533,7 +1533,7 @@ describe("verifyHome, and what was shared", () => {
 
     it.each<[string, string]>([
       ["a canonical address", "https://dvfr.illinois.gov/"],
-      ["a root with a path", "https://voicecap.netlify.app/demo-site/"],
+      ["a root with a path", "https://voicecap.icjia.app/demo-site/"],
       ["a root with a port", "https://staging.dvfr.org:8443/"],
       // What a share records when no canonical address is known: the address voicecap read.
       ["the address of a copy on this computer", "http://127.0.0.1:4848/"],

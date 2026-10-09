@@ -68,7 +68,7 @@ export async function chooseSiteDir(options: {
  *    when the copies were shared. The two are compared as `normalizeCanonical` writes them, and an
  *    IP address or a local address, which can't be a canonical address, skips this step;
  * 3. else the folder the address would have, which a command that may make it makes.
- * A canonical address with a path, such as https://voicecap.netlify.app/demo-site/, is a site that
+ * A canonical address with a path, such as https://voicecap.icjia.app/demo-site/, is a site that
  * lives under its host. Folders are named after hosts, so the one named after this host holds the
  * host's own pages, and for such an address step 2 comes before step 1.
  * Two folders that recorded it are a usage error: the address can't say which one is meant, so it

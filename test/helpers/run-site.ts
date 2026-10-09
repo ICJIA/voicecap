@@ -91,7 +91,11 @@ export async function setup(entries: string[] = ["/", "/about", "/resources"]): 
 
 export function config(user: UserConfig = {}): LoadedConfig {
   const resolved = resolveConfig({
-    timeouts: { stepMs: 300, pageMs: 5000, driverStartMs: 2000 },
+    // A step has 300 ms, so a test that hangs one gets its timeout quickly. The whole page has a
+    // minute, which a pause of the computer won't pass: its timer runs across an attempt's file
+    // writes, and vitest.config.ts notes that Windows CI runners pause for about half a minute. A
+    // test of the page's own limit sets its own.
+    timeouts: { stepMs: 300, pageMs: 60_000, driverStartMs: 2000 },
     readiness: { readySelector: null, settleMs: 0, networkIdleTimeoutMs: 200 },
     reviewer: "Test Reviewer",
     ...user,

@@ -142,7 +142,7 @@ describe("chooseSiteDir", () => {
 
 /** The demo's pages as the owner's computer serves them, and where the website publishes them. */
 const DEMO_READ = "http://127.0.0.1:4848";
-const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
+const DEMO_ROOT = "https://voicecap.icjia.app/demo-site/";
 /** A site read on a copy at localhost, and the address people visit. */
 const COPY_READ = "http://localhost:3000";
 const DVFR_ROOT = "https://dvfr.illinois.gov/";
@@ -210,10 +210,10 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     // However the address is written: without its closing slash, with capitals in its host, and
     // with a query or a hash, which a canonical address doesn't have.
     for (const written of [
-      "https://voicecap.netlify.app/demo-site",
-      "https://VOICECAP.netlify.app/demo-site/",
-      "https://voicecap.netlify.app/demo-site/?tab=1#top",
-      "  https://voicecap.netlify.app/demo-site/  ",
+      "https://voicecap.icjia.app/demo-site",
+      "https://VOICECAP.icjia.app/demo-site/",
+      "https://voicecap.icjia.app/demo-site/?tab=1#top",
+      "  https://voicecap.icjia.app/demo-site/  ",
     ]) {
       expect(await chooseSiteDir({ home, site: written })).toBe(folder);
     }
@@ -332,9 +332,9 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     const home = await makeHome();
     // Folders are named after the host, so this one holds the records of a run on the website's own
     // pages, not of the demo that lives under /demo-site/ on it.
-    await recordRun(home, "voicecap.netlify.app", {
+    await recordRun(home, "voicecap.icjia.app", {
       began: "2026-09-28 09:00",
-      site: "https://voicecap.netlify.app",
+      site: "https://voicecap.icjia.app",
     });
     await recordRun(home, "127.0.0.1_4848", {
       began: "2026-09-29 14:02",
@@ -345,16 +345,16 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(path.join(home, "127.0.0.1_4848"));
     // The host alone is the website's own site. And a root with a path that no run recorded is
     // as it was before canonical addresses: any URL on the host's site.
-    for (const site of ["https://voicecap.netlify.app", "https://voicecap.netlify.app/other/"]) {
-      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.netlify.app"));
+    for (const site of ["https://voicecap.icjia.app", "https://voicecap.icjia.app/other/"]) {
+      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.icjia.app"));
     }
   });
 
   it("names both folders for a root with a path, whatever folder is named after its host", async () => {
     const home = await makeHome();
-    await recordRun(home, "voicecap.netlify.app", {
+    await recordRun(home, "voicecap.icjia.app", {
       began: "2026-09-28 09:00",
-      site: "https://voicecap.netlify.app",
+      site: "https://voicecap.icjia.app",
     });
     await recordRun(home, "localhost_3000", {
       began: "2026-09-29 14:02",
@@ -415,7 +415,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
 
     // As before: the folder the address would have, which a command that may make it makes.
     for (const [site, folder] of [
-      [DEMO_ROOT, "voicecap.netlify.app"],
+      [DEMO_ROOT, "voicecap.icjia.app"],
       ["https://dev.illinois.gov/", "dev.illinois.gov"],
       ["https://dev.illinois.gov:8443/", "dev.illinois.gov_8443"],
     ] as const) {
@@ -479,7 +479,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     await recordRun(home, "127.0.0.1_4848", {
       began: "2026-09-29 14:02",
       site: DEMO_READ,
-      canonical: "https://VOICECAP.netlify.app/demo-site",
+      canonical: "https://VOICECAP.icjia.app/demo-site",
     });
 
     expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(path.join(home, "127.0.0.1_4848"));
@@ -494,8 +494,8 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     });
 
     // The website's own root isn't the demo's, and a page of the demo isn't its root.
-    for (const site of ["https://voicecap.netlify.app", `${DEMO_ROOT}the-report/`]) {
-      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.netlify.app"));
+    for (const site of ["https://voicecap.icjia.app", `${DEMO_ROOT}the-report/`]) {
+      expect(await chooseSiteDir({ home, site })).toBe(path.join(home, "voicecap.icjia.app"));
     }
   });
 
@@ -548,12 +548,12 @@ describe("chooseSiteDir, given a site's canonical address", () => {
     });
 
     // The short way is a canonical address elsewhere, but --site has always wanted a full URL.
-    expect((await refusal({ home, site: "voicecap.netlify.app/demo-site/" })).message).toMatch(
+    expect((await refusal({ home, site: "voicecap.icjia.app/demo-site/" })).message).toMatch(
       /--site must be a full URL/,
     );
-    expect(
-      (await refusal({ home, site: "ftp://voicecap.netlify.app/demo-site/" })).message,
-    ).toMatch(/--site must be an http or https URL/);
+    expect((await refusal({ home, site: "ftp://voicecap.icjia.app/demo-site/" })).message).toMatch(
+      /--site must be an http or https URL/,
+    );
     expect((await refusal({ home, site: "C:/Program Files/Git/demo-site/" })).message).toMatch(
       /looks like a Windows path/,
     );
@@ -562,11 +562,11 @@ describe("chooseSiteDir, given a site's canonical address", () => {
   it("says nothing new in a home with no sites yet", async () => {
     const missing = path.join(await makeHome(), "not-made-yet");
     expect(await chooseSiteDir({ home: missing, site: DEMO_ROOT })).toBe(
-      path.join(missing, "voicecap.netlify.app"),
+      path.join(missing, "voicecap.icjia.app"),
     );
     const empty = await makeHome();
     expect(await chooseSiteDir({ home: empty, site: DEMO_ROOT })).toBe(
-      path.join(empty, "voicecap.netlify.app"),
+      path.join(empty, "voicecap.icjia.app"),
     );
   });
 
@@ -600,7 +600,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
         path.join(moved, "127.0.0.1_4848"),
       );
       expect(await chooseSiteDir({ home: moved, site: DEMO_ROOT })).toBe(
-        path.join(moved, "voicecap.netlify.app"),
+        path.join(moved, "voicecap.icjia.app"),
       );
 
       // The record lists the entries out of order: seq decides which is newest, not the order.
@@ -643,7 +643,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
         began: "2026-09-29 14:02",
         site: "http://localhost:8080",
       });
-      await recordShares(home, "localhost_8080", ["voicecap.netlify.app/demo-site/"]);
+      await recordShares(home, "localhost_8080", ["voicecap.icjia.app/demo-site/"]);
       await recordRun(home, "localhost_9090", {
         began: "2026-09-29 14:02",
         site: "http://localhost:9090",
@@ -653,7 +653,7 @@ describe("chooseSiteDir, given a site's canonical address", () => {
 
       // As before: the folder the address would have.
       expect(await chooseSiteDir({ home, site: DEMO_ROOT })).toBe(
-        path.join(home, "voicecap.netlify.app"),
+        path.join(home, "voicecap.icjia.app"),
       );
       expect(await chooseSiteDir({ home, site: DEMO_READ })).toBe(
         path.join(home, "127.0.0.1_4848"),
@@ -722,9 +722,9 @@ describe("chooseSiteDirOfRun", () => {
     await recordRun(home, "127.0.0.1_4848", { began: "2026-09-29 14:02", site: DEMO_READ });
     await recordShares(home, "127.0.0.1_4848", [DEMO_ROOT]);
     // The website's own pages were read once, in the folder named after its host.
-    await recordRun(home, "voicecap.netlify.app", {
+    await recordRun(home, "voicecap.icjia.app", {
       began: "2026-09-28 09:00",
-      site: "https://voicecap.netlify.app",
+      site: "https://voicecap.icjia.app",
     });
 
     for (const run of ["2026-09-29_1315", "2026-09-29_1402"]) {
@@ -806,9 +806,9 @@ describe("chooseSiteDirOfRun", () => {
 
   it("names both for a root with a path, whose folder named after its host is another site's", async () => {
     const home = await makeHome();
-    await recordRun(home, "voicecap.netlify.app", {
+    await recordRun(home, "voicecap.icjia.app", {
       began: "2026-09-29 14:02",
-      site: "https://voicecap.netlify.app",
+      site: "https://voicecap.icjia.app",
     });
     await recordRun(home, "127.0.0.1_4848", {
       began: "2026-09-29 14:02",
@@ -820,15 +820,15 @@ describe("chooseSiteDirOfRun", () => {
       (await refused(chooseSiteDirOfRun({ home, site: DEMO_ROOT, run: "2026-09-29_1402" })))
         .message,
     ).toBe(
-      `Run 2026-09-29_1402 is in 127.0.0.1_4848 and voicecap.netlify.app: give --site the address voicecap read, http://127.0.0.1:4848 or https://voicecap.netlify.app.`,
+      `Run 2026-09-29_1402 is in 127.0.0.1_4848 and voicecap.icjia.app: give --site the address voicecap read, http://127.0.0.1:4848 or https://voicecap.icjia.app.`,
     );
     expect(
       await chooseSiteDirOfRun({
         home,
-        site: "https://voicecap.netlify.app",
+        site: "https://voicecap.icjia.app",
         run: "2026-09-29_1402",
       }),
-    ).toBe(path.join(home, "voicecap.netlify.app"));
+    ).toBe(path.join(home, "voicecap.icjia.app"));
   });
 
   it("goes as chooseSiteDir goes for the address voicecap read, an address no folder names, and no address", async () => {

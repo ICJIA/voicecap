@@ -119,12 +119,12 @@ describe("the demo server", () => {
 
   it("writes the same sitemap for any address it's given, one with a path too", () => {
     // The website's copy of the demo is at a path of its own.
-    expect(sitemapXml("https://voicecap.netlify.app/demo-site")).toBe(
+    expect(sitemapXml("https://voicecap.icjia.app/demo-site")).toBe(
       [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
         ...DEMO_PAGES.map(
-          (page) => `  <url><loc>https://voicecap.netlify.app/demo-site${page}</loc></url>`,
+          (page) => `  <url><loc>https://voicecap.icjia.app/demo-site${page}</loc></url>`,
         ),
         "</urlset>",
         "",

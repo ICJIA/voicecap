@@ -299,7 +299,7 @@ export function fileBytes(download: Pick<WalkthroughDownload, "base64">): Buffer
 }
 
 /** The demo's canonical address: where `voicecap site` publishes the demo's own pages. */
-export const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
+export const DEMO_ROOT = "https://voicecap.icjia.app/demo-site/";
 
 const demos = new Map<string | null, Promise<ShareModel>>();
 

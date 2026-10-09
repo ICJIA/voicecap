@@ -144,8 +144,8 @@ describe("refuseLocalAddress", () => {
 
   it("lets through a site's name, a browser's version, and a time in brackets", () => {
     for (const text of [
-      "voicecap.netlify.app",
-      "Site address https://voicecap.netlify.app/demo-site/",
+      "voicecap.icjia.app",
+      "Site address https://voicecap.icjia.app/demo-site/",
       "Site address https://v3--i2i.netlify.app/",
       "Chrome 154.0.8037.58",
       "NVDA 2026.2 on Windows 11 Pro 25H2 (10.0.26200)",

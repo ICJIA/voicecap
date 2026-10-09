@@ -486,7 +486,7 @@ describe("renderSiteIndex", () => {
       demo: null,
       sites: [
         {
-          name: "voicecap.netlify.app",
+          name: "voicecap.icjia.app",
           folders: ["127.0.0.1_4848"],
           reports: [reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00")],
         },
@@ -500,11 +500,11 @@ describe("renderSiteIndex", () => {
     });
 
     expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([
-      "voicecap.netlify.app",
+      "voicecap.icjia.app",
       "dvfr.illinois.gov:8443",
     ]);
     for (const [id, name] of [
-      ["site-voicecap.netlify.app", "voicecap.netlify.app"],
+      ["site-voicecap.icjia.app", "voicecap.icjia.app"],
       ["site-dvfr.illinois.gov_8443", "dvfr.illinois.gov:8443"],
     ] as const) {
       expect(textsOf(sectionOf(page, id), "h3")[0], id).toBe(name);
@@ -513,13 +513,13 @@ describe("renderSiteIndex", () => {
     expect(page).not.toContain('id="site-127.0.0.1_4848"');
     expect(page).not.toContain('id="site-localhost_3000"');
     // The report's page, linked from the current report and from the fold of files.
-    expect(linksOf(sectionOf(page, "site-voicecap.netlify.app")).map(({ href }) => href)).toEqual([
+    expect(linksOf(sectionOf(page, "site-voicecap.icjia.app")).map(({ href }) => href)).toEqual([
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
       "127.0.0.1_4848/127.0.0.1_4848_page.html",
     ]);
     // A screen reader hears each report's links named by the site's name, not its folder's.
-    expect(textsOf(sectionOf(page, "site-voicecap.netlify.app"), "a")[0]).toBe(
-      "Open the report of voicecap.netlify.app, 3 October 2026, 10:00",
+    expect(textsOf(sectionOf(page, "site-voicecap.icjia.app"), "a")[0]).toBe(
+      "Open the report of voicecap.icjia.app, 3 October 2026, 10:00",
     );
   });
 
@@ -750,8 +750,8 @@ describe("renderSiteIndex", () => {
       );
 
     // A site at a path of its host is a root too.
-    const demo = "https://voicecap.netlify.app/demo-site/";
-    expect(linksOf(withAddress(demo, "voicecap.netlify.app"))).toEqual([
+    const demo = "https://voicecap.icjia.app/demo-site/";
+    expect(linksOf(withAddress(demo, "voicecap.icjia.app"))).toEqual([
       { href: demo, download: false },
     ]);
     // A root at another host than the heading names would send its reader to another site.
@@ -1249,14 +1249,14 @@ describe("renderSiteIndex", () => {
 
     // The build publishes them in demo-site/, beside this page: a link from the page's own address.
     expect(lead?.[1]).toBe(
-      `voicecap&#39;s report on its own small demo site, as an example of what it makes. The site&#39;s pages are at <a href="${DEMO_PAGES_HREF}">voicecap.netlify.app/demo-site/</a>.`,
+      `voicecap&#39;s report on its own small demo site, as an example of what it makes. The site&#39;s pages are at <a href="${DEMO_PAGES_HREF}">voicecap.icjia.app/demo-site/</a>.`,
     );
     expect(linksOf(demo).filter(({ href }) => href === DEMO_PAGES_HREF)).toEqual([
       { href: DEMO_PAGES_HREF, download: false },
     ]);
     // Only the demo view has it, and the link's words are its address: the demo's canonical one.
     expect(linksOf(html).filter(({ href }) => href === DEMO_PAGES_HREF)).toHaveLength(1);
-    expect(textsOf(demo, "a")[0]).toBe("voicecap.netlify.app/demo-site/");
+    expect(textsOf(demo, "a")[0]).toBe("voicecap.icjia.app/demo-site/");
     expect(`https://${textsOf(demo, "a")[0]}`).toBe(DEMO_CANONICAL);
     expect(demo).not.toMatch(/\shref="(?:[a-z][a-z0-9+.-]*:|\/)/i);
   });
@@ -1610,7 +1610,7 @@ describe("renderSiteIndex", () => {
     expect(sentences).toEqual(
       expect.arrayContaining([
         "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
-        "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.netlify.app/demo-site/.",
+        "voicecap's report on its own small demo site, as an example of what it makes. The site's pages are at voicecap.icjia.app/demo-site/.",
         "Each site's current report, with up to two earlier ones below it.",
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",
