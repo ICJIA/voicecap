@@ -35,6 +35,7 @@ import {
 import { heading, para, wordsOf, type Block } from "../src/share/word/blocks.js";
 import { wordChanges } from "../src/share/word/changes.js";
 import { wordProblems } from "../src/share/word/problems.js";
+import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
 import {
   failedAttempt,
   shareRun,
@@ -1527,6 +1528,28 @@ describe("wordProblems", () => {
       expect(entries).toEqual(["Attempt 1 started", `Failed: step-timeout: ${message}`]);
       expect(entries[1]).toContain("\n  - navigating to");
       expect(saysOf(part)).not.toContain("&lt;");
+    });
+
+    it("keeps an entry of NVDA's own log whole in one line of its cell, as it keeps any entry: the writer breaks the line", () => {
+      const lines = [
+        "Error accepting connection",
+        "Traceback (most recent call last):",
+        '  File "ssl.pyc", line 1418, in accept',
+        "ssl.SSLEOFError: EOF occurred",
+      ];
+      const part = firstProblem(keptLogsModel([problemEntry("ERROR", "14:04:20.123", ...lines)]));
+      const rows = tableAt(part, 1).rows.filter((row) => cellLines(row[1])[0] === "nvda-log");
+
+      // One row, the entry's lines joined with a newline, in the fixed-width font, with the time of
+      // day it was logged, and no heading of its own under the problem's.
+      expect(rows).toHaveLength(1);
+      expect(cellLines(rows[0]?.[0])).toEqual(["14:04:20.123"]);
+      expect(cellLines(rows[0]?.[2])).toEqual([lines.join("\n")]);
+      expect(rows[0]?.[2]?.mono).toBe(true);
+      expect(outlineOf(part)).toEqual([
+        "2 Run 2026-09-26_1402 · Apply",
+        "3 The record of this problem, word for word, on /apply/ in run 2026-09-26_1402, attempt 1",
+      ]);
     });
 
     it("says each problem's heading apart, by its page, its run, and its attempt, or its place among the page's when the run didn't number them", () => {

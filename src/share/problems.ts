@@ -2,7 +2,8 @@
  * The problems during the runs: every failed attempt in the runs a standing draws on, each with
  * its kind, what voicecap did, whether it happened again, what it did to the results, and the
  * record of it. Pure: it works from run records already read, and reads no files. The lines a run's
- * event log has of an attempt come from whoever read the log (see `EventRows`).
+ * event log has of an attempt come from whoever read the log (see `EventRows`), and NVDA's own
+ * warnings and errors from whoever read the copy of NVDA's log (see `NvdaRows`).
  */
 import {
   PASS_NAMES,
@@ -29,8 +30,13 @@ export type ProblemKind =
 
 export interface ProblemRecordRow {
   time: string | null;
-  /** The page's record in run.json, the run's event log, or the stack an unexpected error left. */
-  source: "run.json" | "events.jsonl" | "stack";
+  /**
+   * The page's record in run.json, the run's event log, NVDA's own log (its warnings and errors
+   * during the attempt, from the version that keeps a copy of it), or the stack an unexpected error
+   * left.
+   */
+  source: "run.json" | "events.jsonl" | "nvda-log" | "stack";
+  /** What was recorded. An entry of several lines, such as a traceback, joins them with a newline. */
   entry: string;
 }
 
@@ -48,6 +54,23 @@ export type EventRows = (
   page: PageRecord,
   attempt: AttemptRecord,
 ) => { rows: { time: string; entry: string }[] } | { gap: string } | null;
+
+/**
+ * What the copy of NVDA's own log has of an attempt, for its record, asked only of an attempt whose
+ * voicecap keeps a copy of it (`keepsNvdaLog`, of its session's version):
+ * - `rows`: the copy of the NVDA session the attempt ran in was read, and these are its warnings and
+ *   errors during the attempt's window, the one the event log's rows come from, each with its time
+ *   (a local ISO time, like the event log's) and its message and the lines after it, joined with a
+ *   newline, with the home folder replaced, as the event log's rows have it. None is a copy with
+ *   nothing in the window. The record shows no line of what it lacks;
+ * - `gap`: the page doesn't have the session's copy, why, as the record's line says it
+ *   (PROBLEMS_TEXT.nvdaLog).
+ */
+export type NvdaRows = (
+  run: RunJson,
+  page: PageRecord,
+  attempt: AttemptRecord,
+) => { rows: { time: string; entry: string }[] } | { gap: string };
 
 /**
  * Whether a voicecap keeps a run's event log, and the program that takes the screen when the
@@ -135,8 +158,8 @@ export interface Problem {
   record: ProblemRecordRow[];
   /**
    * What this run didn't record, each where it matters: the step and the key (for an error from a
-   * pass's step, written as text), the program in front (for a foreground loss), and the event log
-   * and NVDA's own log.
+   * pass's step, written as text), the program in front (for a foreground loss), the event log, and
+   * NVDA's own log (where the page has no copy of the session the attempt ran in).
    */
   notRecorded: string[];
 }
@@ -417,17 +440,26 @@ interface Failure {
    * EventRows); null otherwise.
    */
   gap: string | null;
+  /**
+   * What the record has of NVDA's own log (see NvdaRows): "read" when the page has the copy of the
+   * attempt's NVDA session, whatever its rows come to; the line that says why it hasn't, for an
+   * attempt of a voicecap that keeps a copy; and null for an attempt of one that keeps none, and for
+   * a failure written as text, which has no time to take rows over.
+   */
+  nvdaLog: "read" | { gap: string } | null;
 }
 
 /**
  * A failed attempt from its record, with what the run's event log says of it (`events`, see
- * EventRows) among the record's own lines, by time. Its program, for a foreground loss, is as the
- * record keeps it: a name, or null when voicecap couldn't tell.
+ * EventRows) and what NVDA's own log says of it (`nvda`, see NvdaRows; null for an attempt of a
+ * voicecap that keeps no copy of it) among the record's own lines, by time. Its program, for a
+ * foreground loss, is as the record keeps it: a name, or null when voicecap couldn't tell.
  */
 function failureOfRecord(
   attempt: AttemptRecord,
   redact: (text: string) => string,
   events: ReturnType<EventRows>,
+  nvda: ReturnType<NvdaRows> | null,
 ): Failure {
   const message = redact(attempt.message);
   // A cause code this version doesn't know (a newer voicecap's) is an unexpected error, as the
@@ -446,6 +478,10 @@ function failureOfRecord(
     source: "events.jsonl",
     entry,
   }));
+  // NVDA's own log's rows go by time too, after the others where the time is the same.
+  const warned = (nvda !== null && "rows" in nvda ? nvda.rows : []).map(
+    ({ time, entry }): ProblemRecordRow => ({ time, source: "nvda-log", entry }),
+  );
   return {
     attempt: attempt.n,
     next: attempt.n + 1,
@@ -456,6 +492,7 @@ function failureOfRecord(
     at: Date.parse(attempt.startedAt) || 0,
     logged: logged.length > 0,
     gap: events !== null && "gap" in events ? events.gap : null,
+    nvdaLog: nvda === null ? null : "gap" in nvda ? nvda : "read",
     fields: {
       n: attempt.n,
       startedAt: attempt.startedAt,
@@ -468,7 +505,7 @@ function failureOfRecord(
       message,
       ...(program === undefined ? {} : { program }),
       stack,
-      record: byTime([...own, ...logged]),
+      record: byTime([...own, ...logged, ...warned]),
     },
   };
 }
@@ -489,8 +526,8 @@ function programOf(
 /**
  * A record's lines in the order they were recorded: by time, and, where a line of the event log has
  * the same time as one of the record's own (the attempt began, then its page; it failed, then its
- * page), the record's first, as they're given first and the sort keeps their order. A line whose
- * time can't be read leaves every line where it was.
+ * page), the record's first, then the event log's, then NVDA's own log's, as they're given in that
+ * order and the sort keeps it. A line whose time can't be read leaves every line where it was.
  */
 function byTime(rows: ProblemRecordRow[]): ProblemRecordRow[] {
   const times = rows.map((row) => (row.time === null ? NaN : Date.parse(row.time)));
@@ -511,9 +548,10 @@ function failureOfEntry(entry: string, index: number, redact: (text: string) => 
     recorded: false,
     unnamedStep: parsed.inStep,
     at: 0,
-    // Runs that wrote their errors as text recorded no event log.
+    // Runs that wrote their errors as text recorded no event log, and kept no copy of NVDA's log.
     logged: false,
     gap: null,
+    nvdaLog: null,
     fields: {
       n: parsed.n,
       startedAt: null,
@@ -537,6 +575,7 @@ interface PageContext {
   page: PageRecord;
   redact: (text: string) => string;
   eventRows: EventRows;
+  nvdaRows: NvdaRows;
 }
 
 /**
@@ -544,18 +583,26 @@ interface PageContext {
  * page's attempt records when it has them, and otherwise from its errors, whose kind comes from
  * the wording voicecap wrote them in. Oldest first, by when each attempt began; the problems
  * written as text, which don't say, go by run, then page order. `eventRows` gives what a run's
- * event log says of an attempt, for its record; without it, no run has a log.
+ * event log says of an attempt, for its record; without it, no run has a log. `nvdaRows` gives what
+ * the copy of NVDA's own log says of it, for an attempt of a voicecap that keeps one; without it, no
+ * run kept a copy.
  */
 export function problemsOf(
   standing: Standing,
-  options: { home: string; platform: NodeJS.Platform; eventRows?: EventRows },
+  options: {
+    home: string;
+    platform: NodeJS.Platform;
+    eventRows?: EventRows;
+    nvdaRows?: NvdaRows;
+  },
 ): ProblemsSection {
   const redact = (text: string) => redactHome(text, options.home, options.platform);
   const eventRows = options.eventRows ?? (() => null);
+  const nvdaRows = options.nvdaRows ?? (() => ({ gap: PROBLEMS_TEXT.nvdaLog.noCopy }));
   const problems: Problem[] = [];
   for (const run of standing.drawnOn) {
     const found = run.pages.flatMap((page) =>
-      problemsOfPage({ standing, run, page, redact, eventRows }),
+      problemsOfPage({ standing, run, page, redact, eventRows, nvdaRows }),
     );
     // The sort is stable. What's written as text says nothing of when (0 here), so it stays in page
     // order, and a page's own attempts stay as its record lists them, oldest first.
@@ -571,16 +618,24 @@ export function problemsOf(
 
 function problemsOfPage(ctx: PageContext): { problem: Problem; at: number }[] {
   const { run, page, redact } = ctx;
+  const version = run.sessions[0]?.environment?.voicecap.version ?? null;
   const records = page.failedAttempts ?? [];
   const failures =
     records.length > 0
-      ? records.map((attempt) =>
-          failureOfRecord(attempt, redact, ctx.eventRows(run, page, attempt)),
-        )
+      ? records.map((attempt) => {
+          // Whether NVDA's own log has a place here is the voicecap of the attempt's session's:
+          // a run resumed with a later voicecap has copies of its later sessions only.
+          const keeps = keepsNvdaLog(versionAt(run, attempt.startedAt) ?? version);
+          return failureOfRecord(
+            attempt,
+            redact,
+            ctx.eventRows(run, page, attempt),
+            keeps ? ctx.nvdaRows(run, page, attempt) : null,
+          );
+        })
       : page.errors.map((entry, index) => failureOfEntry(entry, index, redact));
   if (failures.length === 0) return [];
 
-  const version = run.sessions[0]?.environment?.voicecap.version ?? null;
   return failures.map((failure, index) => {
     const endsPage = page.status === "failed" && index === failures.length - 1;
     const { verdict, again } = verdictOf(ctx, failures, failure, failures.slice(index + 1));
@@ -822,8 +877,11 @@ function keepsEarlierAttempts(version: string | null): boolean {
  * - The event log: for a problem whose record has none of its lines. From a voicecap that keeps the
  *   log, why: the page doesn't have the log, for the reason the run's evidence gives (`gap`), or the
  *   log has no line of the attempt. From an older voicecap, that it kept none.
- * - NVDA's own log: for every problem, since no voicecap keeps it yet, said by the run's voicecap as
- *   the run's evidence says it.
+ * - NVDA's own log: where the record has none of it. From a voicecap that keeps a copy of it
+ *   (KEEPS_NVDA_LOG_FROM), only when the page doesn't have the copy of the attempt's NVDA session,
+ *   and why; a copy the page has is read, and its warnings and errors are rows of the record, so
+ *   nothing is missing, even when there are none. From an older voicecap, that it kept none, said
+ *   by the run's voicecap as the run's evidence says it.
  */
 function notRecordedOf(failure: Failure, version: string | null): string[] {
   const notRecorded = (what: string) => `${what}: not recorded: this run used ${used(version)}.`;
@@ -838,12 +896,16 @@ function notRecordedOf(failure: Failure, version: string | null): string[] {
     : !keeps
       ? null
       : [failure.gap ?? TIMELINE_TEXT.noLinesOfAttempt];
+  const nvdaLog =
+    failure.nvdaLog === null
+      ? [notRecorded(unrecorded.nvdaLog)]
+      : failure.nvdaLog === "read"
+        ? []
+        : [failure.nvdaLog.gap];
   return [
     ...(failure.unnamedStep ? [notRecorded(unrecorded.stepAndKey)] : []),
     ...program,
-    ...(eventLog === null
-      ? [notRecorded(unrecorded.logs)]
-      : [...eventLog, notRecorded(unrecorded.nvdaLog)]),
+    ...(eventLog === null ? [notRecorded(unrecorded.logs)] : [...eventLog, ...nvdaLog]),
   ];
 }
 

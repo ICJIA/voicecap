@@ -15,6 +15,8 @@ import { redactHome } from "../src/run/failure.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { renderTimelines } from "../src/share/html/timeline.js";
 import {
+  attemptEvents,
+  attemptWindow,
   eventText,
   eventWordsOf,
   timelinesOf,
@@ -626,6 +628,117 @@ describe("eventWordsOf", () => {
     const bare = { ...run, sessions: run.sessions.map((each) => ({ ...each, environment: null })) };
 
     expect(eventWordsOf(bare, (page) => page.url, redact).screenReader).toBe("screen reader");
+  });
+});
+
+describe("attemptWindow", () => {
+  /** An attempt at Apply, as its record times it: the times of day of 26 September 2026. */
+  const attempt = (n: number, startedAt: string, endedAt: string) => ({
+    n,
+    startedAt: at(startedAt),
+    endedAt: at(endedAt),
+  });
+  const started = (n: number, time: string) =>
+    on(time, { type: "page-started", page: APPLY, attempt: n });
+  const failed = (n: number, time: string) =>
+    on(time, {
+      type: "page-failed",
+      page: APPLY,
+      attempt: n,
+      cause: "foreground",
+      message: "Another window.",
+    });
+  const lock = (time: string) => on(time, { type: "screen-reader-lock-released" });
+
+  it("covers an attempt from its start until the next attempt's start, which is not in it", () => {
+    const events = session([
+      started(1, "14:01:00.000"),
+      failed(1, "14:01:30.000"),
+      lock("14:01:40.000"),
+      started(2, "14:02:00.000"),
+      lock("14:02:30.000"),
+    ]);
+    const window = attemptWindow({ events }, APPLY, attempt(1, "14:01:00.000", "14:01:30.000"));
+
+    expect(window).toEqual({
+      events: [events[1], events[2], events[3]],
+      from: at("14:01:00.000"),
+      lasts: 60_000,
+      inclusive: false,
+    });
+  });
+
+  it("covers an attempt nothing followed until 10 seconds after it ended, that moment too", () => {
+    const events = session([
+      started(1, "14:01:00.000"),
+      failed(1, "14:01:30.000"),
+      lock("14:01:40.000"),
+      lock("14:01:40.001"),
+    ]);
+    const window = attemptWindow({ events }, APPLY, attempt(1, "14:01:00.000", "14:01:30.000"));
+
+    expect(window?.events).toEqual([events[1], events[2], events[3]]);
+    expect(window?.from).toBe(at("14:01:00.000"));
+    // 10 seconds after it ended is 40 seconds after it began.
+    expect(window?.lasts).toBe(40_000);
+    expect(window?.inclusive).toBe(true);
+  });
+
+  it("ends where a later session's attempt at the page starts, when that is within those 10 seconds", () => {
+    const events = [
+      on("14:00:00.000", { type: "run-started", session: 1, resumed: false }),
+      started(1, "14:01:00.000"),
+      failed(1, "14:01:30.000"),
+      on("14:01:31.000", { type: "run-ended", session: 1, reason: "interrupted" }),
+      on("14:01:33.000", { type: "run-started", session: 2, resumed: true }),
+      started(2, "14:01:35.000"),
+    ];
+    const window = attemptWindow({ events }, APPLY, attempt(1, "14:01:00.000", "14:01:30.000"));
+
+    expect(window?.events).toEqual([events[1], events[2], events[3], events[4]]);
+    expect(window?.lasts).toBe(35_000);
+    expect(window?.inclusive).toBe(false);
+  });
+
+  it("begins at the attempt's own start in the record when the log has no event in its time", () => {
+    const events = session([started(1, "14:05:00.000")]);
+    const window = attemptWindow({ events }, APPLY, attempt(1, "14:01:00.000", "14:01:30.000"));
+
+    expect(window).toEqual({
+      events: [],
+      from: at("14:01:00.000"),
+      lasts: 40_000,
+      inclusive: true,
+    });
+  });
+
+  it("has no window where the attempt's times can't be read", () => {
+    const events = session([started(1, "14:01:00.000")]);
+
+    expect(
+      attemptWindow({ events }, APPLY, { n: 1, startedAt: "soon", endedAt: "later" }),
+    ).toBeNull();
+    expect(attemptEvents({ events }, APPLY, { n: 1, startedAt: "soon", endedAt: "later" })).toEqual(
+      [],
+    );
+  });
+
+  it("gives attemptEvents its events, and leaves out an event whose time can't be read", () => {
+    const events = session([
+      started(1, "14:01:00.000"),
+      { at: "not a time", type: "screen-reader-lock-released" },
+      failed(1, "14:01:30.000"),
+    ]);
+    const given = attempt(1, "14:01:00.000", "14:01:30.000");
+
+    expect(attemptEvents({ events }, APPLY, given)).toEqual(
+      attemptWindow({ events }, APPLY, given)?.events,
+    );
+    // The lock let go at "not a time" is a line that couldn't be read, and the run's end is later.
+    expect(attemptEvents({ events }, APPLY, given).map((event) => event.type)).toEqual([
+      "page-started",
+      "page-failed",
+    ]);
   });
 });
 

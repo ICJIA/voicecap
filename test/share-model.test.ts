@@ -2655,13 +2655,22 @@ describe("a run's NVDA log, checked against its transcripts", () => {
   });
 
   describe("is kept apart from what the page's verdict goes by", () => {
-    /** What the verdict, the ring, the cards, and the summary say, as the page gives them. */
+    /**
+     * What the verdict, the ring, the cards, and the summary say, as the page gives them, and the
+     * problems as they count: all of each but its record and what it lacks, which show NVDA's own
+     * log (its warnings and errors, or why the page has none) and nothing else.
+     */
     const verdictOfModel = (model: ShareModel) => ({
       result: model.result,
       ring: model.ring,
       attention: model.attention,
       summary: model.summary,
-      problems: model.problems,
+      problems: {
+        ...model.problems,
+        problems: model.problems.problems.map(
+          ({ record: _record, notRecorded: _notRecorded, ...counted }) => counted,
+        ),
+      },
     });
 
     it("changes nothing the verdict goes by, whether every line agrees, some differ, or none was checked", () => {

@@ -265,8 +265,11 @@ function listsCopies(run: RunJson): boolean {
   });
 }
 
-/** Whether a run's latest session with a screen reader recorded one that isn't NVDA. */
-function otherScreenReader(run: RunJson): boolean {
+/**
+ * Whether a run's latest session with a screen reader recorded one that isn't NVDA. The run's
+ * evidence and its problems' records both go by it, so they never say different things.
+ */
+export function otherScreenReader(run: RunJson): boolean {
   const name: unknown = run.sessions.findLast((session) => session.environment?.screenReader)
     ?.environment?.screenReader?.name;
   return typeof name === "string" && name.trim() !== "" && name.trim().toLowerCase() !== "nvda";

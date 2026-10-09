@@ -25,6 +25,7 @@ import type { CheckData } from "../src/share/check.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import { DETAILS_TEXT } from "../src/share/text.js";
+import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
 import { shareRun } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
 import { demoModel, inputOf, loggedModel, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
@@ -206,6 +207,11 @@ describe("renderDetails", () => {
       ["a person's run", richModel()],
       // Two sessions, so each is named by a heading of its own, as deep as a heading goes here.
       ["a run with its event log", loggedModel()],
+      // A traceback of NVDA's own log in a problem's record: a row of its table, no heading of its own.
+      [
+        "a run with NVDA's own log",
+        keptLogsModel([problemEntry("ERROR", "14:04:20.123", "x", "y")]),
+      ],
       ["no counted run", noRunModel()],
     ];
 

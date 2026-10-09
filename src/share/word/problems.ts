@@ -11,6 +11,11 @@
  * word, in the fixed-width font; for an error voicecap didn't expect, where in voicecap's code it
  * happened; and what the run didn't record. The table of kinds is last. It leaves out the words the
  * page says for a screen reader alone, which its own headings say in view. Pure.
+ *
+ * The record's rows from NVDA's own log add no heading and no block of their own: they are rows of
+ * the record's table. An entry of several lines, such as a traceback, is one line of its cell with a
+ * newline between its lines, which the writer (../docx.ts) sets as a line break inside one
+ * fixed-width paragraph, with each line's spaces kept, so it reads line by line.
  */
 import { firstSentenceBold, type Line } from "../line.js";
 import type { ShareModel } from "../model.js";
@@ -70,9 +75,10 @@ function questionsTable(problem: Problem): Block {
 
 /**
  * The record of a problem, word for word: a heading that says which problem, and a table of the time
- * of each line, where it is from, and what was recorded, in the fixed-width font. A time the run
- * didn't record says so, never a blank. A stack is shown apart (`stackBlocks`), where its lines can
- * be read, and not as a row.
+ * of each line, where it is from, and what was recorded, in the fixed-width font. An entry of
+ * several lines is kept whole, newlines and all (see the top of this file). A time the run didn't
+ * record says so, never a blank. A stack is shown apart (`stackBlocks`), where its lines can be
+ * read, and not as a row.
  */
 function recordBlocks(problem: Problem, where: string): Block[] {
   const { record } = PROBLEMS_TEXT;

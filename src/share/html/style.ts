@@ -86,6 +86,9 @@ export const THEME_CSS = `:root {
  *   each in a box of the list the how-it-works sample uses; and the page's full transcript, a fold
  *   at the card's end on the second color of the panels, whose transcripts (`.tx`) sit one under
  *   another, each under an `h4`;
+ * - a problem's record (`table.logtable`): an entry of several lines, such as a traceback, is a line
+ *   break after each line, and keeps its spaces (`white-space: break-spaces`, as the lines NVDA said
+ *   do), so its indentation shows and no space hangs past the box;
  * - a run's NVDA log, checked against the transcripts (`.log-check`): its three tiles (`.cross`, the
  *   mockup's), then the paragraphs and lists under them, one under another. A line that differs sits
  *   in the box the cards of what needs attention give what NVDA said (`.place`), in a list with no
@@ -343,6 +346,7 @@ table.logtable { width: 100%; border-collapse: collapse; font: 0.78rem/1.55 var(
 table.logtable th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 table.logtable td { padding: 3px 10px; vertical-align: top; overflow-wrap: anywhere; }
 table.logtable td.lt { white-space: nowrap; color: var(--muted); } table.logtable td.src { white-space: nowrap; color: var(--accent); }
+table.logtable td code { white-space: break-spaces; }
 table.logtable tr.err td:last-child { color: var(--bad); }
 /* what changed */
 table.difftable { width: 100%; border-collapse: collapse; font: 0.84rem/1.55 var(--mono); background: var(--bg); border: 1px solid var(--line); }

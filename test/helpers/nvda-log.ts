@@ -1,7 +1,8 @@
 /**
  * What the tests of NVDA's own log on the page are made from: cleaned copies of NVDA's log written
  * as NVDA writes one (`copyOf`, `pageEntries`), a run of three NVDA sessions that keeps them as
- * voicecap 0.18.0 does (`keptLogsRun`), and the real run of 6 October 2026 in fixture/nvda-io-run
+ * voicecap 0.18.0 does (`keptLogsRun`), its model with warnings and errors in a copy
+ * (`keptLogsModel`, `problemEntry`), and the real run of 6 October 2026 in fixture/nvda-io-run
  * laid out as a site folder (`nvdaFixtureSite`).
  */
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -11,11 +12,12 @@ import { fileURLToPath } from "node:url";
 import { gestureOf } from "../../src/drivers/guidepup/nvda-log.js";
 import type { DriverCommand, FileHash, RunEvent, RunJson } from "../../src/model.js";
 import type { TranscriptStore } from "../../src/share/load.js";
+import { buildShareModel, type ShareModel } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
 import { fileHash } from "../../src/transcripts/write.js";
 import { sealOf } from "../../src/util/hash.js";
 import { tempOutDir } from "./report-data.js";
-import { LINES, LOG_HASH, loggedRun, storeOf, withOwnFiles } from "./share-model.js";
+import { inputOf, LINES, LOG_HASH, loggedRun, storeOf, withOwnFiles } from "./share-model.js";
 
 const DAY = 86_400_000;
 
@@ -166,6 +168,37 @@ export function keptLogsRun(): KeptLogs {
     copies,
     transcripts: storeOf(),
   };
+}
+
+/** The first NVDA session's copy in `keptLogsRun`: where Apply's first attempt ran. */
+export const FIRST_COPY = "nvda-log/1-1.txt";
+
+/**
+ * An entry of NVDA's log at a level, as NVDA writes one: a header with the entry's time of day
+ * ("14:04:20.123"), then the lines of its message, a traceback's among them.
+ */
+export function problemEntry(level: string, time: string, ...lines: string[]): string[] {
+  return [
+    `${level} - _remoteClient.server.LocalRelayServer.acceptNewConnection (${time}) - Thread-4 (run) (58244):`,
+    ...lines,
+  ];
+}
+
+/**
+ * The page's model of `keptLogsRun`, with its first NVDA session's copy holding `entries` and no
+ * speech. The run's one problem, Apply's first attempt (14:03:56.000 on 26 September 2026, until the
+ * second began at 14:04:48.000), ran in that session, so its record has the entries in that window.
+ */
+export function keptLogsModel(entries: string[][]): ShareModel {
+  const kept = keptLogsRun();
+  const copies = new Map(kept.copies).set(FIRST_COPY, copyOf(...entries));
+  return buildShareModel(
+    inputOf([kept.run], {
+      transcripts: kept.transcripts,
+      events: new Map([[kept.run.id, kept.log]]),
+      nvdaLogs: new Map([[kept.run.id, copies]]),
+    }),
+  );
 }
 
 /** The run with every session's voicecap `version`, sealed again if it was sealed. */

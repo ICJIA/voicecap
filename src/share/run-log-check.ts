@@ -90,7 +90,7 @@ export interface RunLogInput {
 const CANT_CHECK = "NVDA's log can't be checked:";
 
 /** What the event log shows of one of voicecap's NVDA sessions. */
-interface NvdaSession {
+export interface NvdaSession {
   /** The time of its start. */
   from: string;
   /** Whether the log shows voicecap stopping it. */
@@ -115,9 +115,11 @@ const fieldsOf = (event: RunEvent): Fields => event;
  * The NVDA sessions of a run's event log, and the kept attempt at each page: a page's
  * `page-finished` that says it was read in full, with the latest `page-started` for that page before
  * it. An attempt Ctrl+C stopped has a start and no finish, and the next attempt at the page starts
- * again, so the latest start is the kept attempt's.
+ * again, so the latest start is the kept attempt's. The events are those whose time can be read
+ * (`isEventTime`). A problem's record finds the session an attempt ran in by these sessions too
+ * (./nvda-log-rows.ts).
  */
-function sessionsOf(events: readonly RunEvent[]): {
+export function sessionsOf(events: readonly RunEvent[]): {
   sessions: NvdaSession[];
   kept: Map<string, KeptAttempt>;
 } {

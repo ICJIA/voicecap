@@ -430,6 +430,9 @@ export const ISSUES_URL = "https://github.com/ICJIA/voicecap/issues";
 /** The address as the request to report an error, and the table of kinds, print it. */
 const ISSUES_ADDRESS = "github.com/ICJIA/voicecap/issues";
 
+/** What a problem's record calls the copy of NVDA's own log, where it says what the run lacks. */
+const NVDA_OWN_LOG = "NVDA's own log";
+
 /**
  * "Problems during the runs": its heading, what it says of what's in it, the labels of a problem's
  * questions, the request to report an unexpected error, the words for whether a problem happened
@@ -478,13 +481,31 @@ export const PROBLEMS_TEXT = {
    * What a problem says its run didn't record, each where it matters, before "not recorded" and the
    * voicecap the run used: the step and the key (an error from a pass's step, written as text), the
    * program in front (a foreground loss), the event log and NVDA's own log together (a voicecap that
-   * kept neither), or NVDA's own log alone (one that keeps the event log).
+   * kept neither), or NVDA's own log alone (one that keeps the event log but not a copy of NVDA's).
    */
   unrecorded: {
     stepAndKey: "The step and the key",
     program: "Which program came to the front",
     logs: "The event log and NVDA's own log",
-    nvdaLog: "NVDA's own log",
+    nvdaLog: NVDA_OWN_LOG,
+  },
+  /**
+   * What a problem's record says in place of NVDA's own log, for an attempt of a voicecap that keeps
+   * a copy of it (KEEPS_NVDA_LOG_FROM and later) when the page doesn't have the copy of the NVDA
+   * session the attempt ran in, each as a line of what the record lacks, as the event log's are
+   * (TIMELINE_TEXT.gaps): the run's screen reader isn't NVDA; voicecap kept no copy for that session
+   * (`noCopy`, or `reason`, in the run's own words where its log gives some); the copy isn't as the
+   * run recorded it (`changed`: missing, unreadable, or changed, and `voicecap verify` names it); or
+   * the session can't be told (`unplaced`: the page has no event log to say which NVDA session the
+   * attempt ran in, or the log shows none at the attempt's start). A copy the page read that holds
+   * nothing in the attempt's window says nothing: its record has no row from it.
+   */
+  nvdaLog: {
+    notNvda: `${NVDA_OWN_LOG}: not recorded: this run's screen reader isn't NVDA.`,
+    noCopy: `${NVDA_OWN_LOG}: not recorded: voicecap kept no copy of it for the NVDA session this attempt ran in.`,
+    reason: (reason: string): string => `${NVDA_OWN_LOG}: not recorded: ${reason}.`,
+    changed: `${NVDA_OWN_LOG}: not shown: the copy for the NVDA session this attempt ran in isn't as the run recorded it; voicecap verify names it.`,
+    unplaced: `${NVDA_OWN_LOG}: not shown: the event log doesn't show which NVDA session this attempt ran in.`,
   },
   /**
    * Which program came to the front, for a foreground loss in a run that looked (0.11.0 on), said

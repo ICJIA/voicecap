@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RunJson } from "../src/model.js";
 import { docxOf, renderWordCopy } from "../src/share/docx.js";
 import { buildShareModel } from "../src/share/model.js";
+import { wordProblems } from "../src/share/word/problems.js";
 import {
   PAGE_BREAK,
   cell,
@@ -35,6 +36,7 @@ import {
   unzipDocx,
 } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
 import { SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { inputOf, LINES, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
@@ -486,6 +488,34 @@ describe("docxOf", () => {
     expect(document).toContain("<w:tab/>");
     // None inside the words of a run, where Word would show them as spaces.
     expect(document).not.toMatch(/<w:t[ >][^<]*[\n\r\t]/);
+  });
+
+  it("writes an entry of several lines in a problem's record as one fixed-width paragraph, a line break after each line, with its spaces", async () => {
+    const lines = [
+      "Error accepting connection",
+      "Traceback (most recent call last):",
+      '  File "ssl.pyc", line 1418, in accept',
+      "",
+      "ssl.SSLEOFError: EOF occurred",
+    ];
+    const model = keptLogsModel([problemEntry("ERROR", "14:04:20.123", ...lines)]);
+    const { document } = await opened(wordProblems(model));
+
+    // The record's cell holds every line of it, the blank one too.
+    const record = tablesOf(document).find(
+      (each) => each.rows[0]?.[1] === "From" && each.rows[1]?.[2] === "Attempt 1 started",
+    );
+    const [, , entry] = record?.rows.find((cells) => cells[1] === "nvda-log") ?? [];
+    expect(entry).toBe(lines.join("\n"));
+    // One paragraph in the fixed-width style, a line break after each line but the last.
+    const paragraph =
+      /<w:p>(?:(?!<\/w:p>).)*Error accepting connection(?:(?!<\/w:p>).)*<\/w:p>/s.exec(
+        document,
+      )?.[0] ?? "";
+    expect(paragraph).toContain('<w:pStyle w:val="Mono"/>');
+    expect(paragraph.match(/<w:br\/>/g)).toHaveLength(lines.length - 1);
+    // The indentation is kept: Word drops the spaces that begin a run's words unless told to keep them.
+    expect(paragraph).toContain('<w:t xml:space="preserve">  File &quot;ssl.pyc&quot;, line 1418');
   });
 
   it("keeps a long transcript to one paragraph", async () => {

@@ -26,6 +26,7 @@ import {
   whenHowBlocks,
   wordHow,
 } from "../src/share/word/top.js";
+import { keptLogsModel, problemEntry } from "./helpers/nvda-log.js";
 import { shareRun } from "./helpers/share-data.js";
 import { textOf } from "./helpers/share-html.js";
 import { demoModel, inputOf } from "./helpers/share-model.js";
@@ -187,7 +188,9 @@ describe("wordDetails", () => {
   });
 
   it("sets its headings in order, never skipping a level and going no deeper than level 4", async () => {
-    for (const model of [await demoModel(), noRunModel()]) {
+    // A traceback of NVDA's own log in a problem's record is a row of its table, with no heading.
+    const nvda = keptLogsModel([problemEntry("ERROR", "14:04:20.123", "x", "y")]);
+    for (const model of [await demoModel(), noRunModel(), nvda]) {
       const levels = wordDetails(model).flatMap((block) =>
         block.kind === "heading" ? [block.level] : [],
       );
