@@ -144,6 +144,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     events: new Map(),
     screenshots: new Map(),
     axeFiles: new Map(),
+    recordings: new Map(),
     flagsAsRecorded: [],
     unreadableRuns: [],
     siteName: null,
@@ -154,9 +155,17 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     platform: process.platform,
     fileName: "current.html",
     wordName: "current.docx",
+    voiceName: null,
     ...overrides,
   };
 }
+
+/**
+ * The voice page's file name beside a share's page (`example.illinois.gov_2026-09-30.html`), for
+ * the models whose cards and details link to it. A model that sets none (`voiceName: null`) is the
+ * live copy's, which has no voice page beside it.
+ */
+export const VOICE_PAGE = "example.illinois.gov_2026-09-30.voice.html";
 
 /** A flag a run records for a page whose read pass says generic link text. */
 export const LINK_FLAG: FlagResult = {
@@ -292,6 +301,38 @@ export function recordingsOf(runs: RunJson[]): Map<string, Uint8Array> {
             : undefined;
         const webm = typeof sha256 === "string" ? voiceFiles.get(sha256) : undefined;
         return webm === undefined ? [] : [[`${run.id}/${page.slug}`, webm]];
+      }),
+    ),
+  );
+}
+
+/**
+ * A kept recording's record, of a file `seconds` long, with a made-up fingerprint: no file is made,
+ * for the tests that read what a page says of a recording and never play it (`recordedVoice` makes a
+ * real one). `heldRecordings` gives the model a placeholder file for each such record.
+ */
+export function voiceRecord(seconds: number, lostMs = 0): Exclude<VoiceRecord, { error: string }> {
+  return {
+    sha256: "b".repeat(64),
+    bytes: 4_096,
+    seconds,
+    lostMs,
+    recordedAt: VOICE_RECORDED_AT,
+  };
+}
+
+/**
+ * The recordings of some runs as the loader would hold them if every kept record had its file, by
+ * run id and slug: a few placeholder bytes for each, the file of a record `voiceRecord` made.
+ */
+export function heldRecordings(runs: RunJson[]): Map<string, Uint8Array> {
+  return new Map(
+    runs.flatMap((run) =>
+      run.pages.flatMap((page): [string, Uint8Array][] => {
+        const record: unknown = page.voice;
+        return typeof record === "object" && record !== null && "sha256" in record
+          ? [[`${run.id}/${page.slug}`, new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])]]
+          : [];
       }),
     ),
   );

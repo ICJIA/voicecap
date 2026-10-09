@@ -1,6 +1,7 @@
 /**
- * `voicecap share`: a dated copy of a site's shareable page and of its Word copy, made to send, each
- * run's walkthrough file beside them, and the record of what was sent.
+ * `voicecap share`: a dated copy of a site's shareable page and of its Word copy, made to send, the
+ * voice page beside them when a page has a recording of NVDA's voice, each run's walkthrough file,
+ * and the record of what was sent.
  *
  * share/current.html and share/current.docx change with every run, review, and report, so what's
  * sent can't be those. Each share makes a pair of its own, named for the site and the day
@@ -18,11 +19,19 @@
  * that can't have a walkthrough file (see RunWalkthrough) is warned of, and the share goes on
  * without it.
  *
+ * Beside the pair it writes the voice page (`dvfr.illinois.gov_2027-01-15.voice.html`, the pair's
+ * stem and `.voice.html`) when a page of the report has a recording of NVDA's voice to play (see
+ * renderVoicePage): the page's cards link to it, and so do its details and its Word copy's, by that
+ * file name, so it's made from the same model, with the same stem, in the same share. A report
+ * with no recording to play has none, and says so in its details. The live copy (current.html) has
+ * none beside it, and links to none.
+ *
  * share/shares.json (./shares.ts) records every file: when, who by, the root of the site the copies
  * name, the runs the copies drew on, what the copies say of the site (its pages, those NVDA read,
  * and the problems left and the pages they're on, from the model the copies are made from, for the
- * website's card), and each file's size and SHA-256, with a walkthrough file's run. The output ends with a line to paste into the email that sends the pair, so a receiver can
- * check a file against the sender's own fingerprint. The line names only the pair: the walkthrough
+ * website's card), and each file's size and SHA-256, with a walkthrough file's run. The output ends
+ * with a line to paste into the email that sends the pair, so a receiver can check a file against
+ * the sender's own fingerprint. The line names only the pair: the voice page and the walkthrough
  * files aren't what's emailed.
  *
  * A copy is never written over a file: each is opened with the `wx` flag, which refuses a name
@@ -56,6 +65,7 @@ import { loadShareInput, type ShareInput } from "./load.js";
 import { buildShareModel, type RunEvidence } from "./model.js";
 import { appendShare, readShares, recordedNames } from "./shares.js";
 import { MAC_HASH, POWERSHELL_HASH } from "./text.js";
+import { renderVoicePage } from "./voice-page.js";
 
 export interface ShareReportOptions {
   /**
@@ -79,8 +89,8 @@ export interface ShareReportResult {
   /** The entry as shares.json holds it. */
   entry: ShareEntry;
   /**
-   * The page, then its Word copy, then each run's walkthrough file, oldest run first: each file's
-   * full path, with what the entry records of it.
+   * The page, then its Word copy, then the voice page when there is one, then each run's
+   * walkthrough file, oldest run first: each file's full path, with what the entry records of it.
    */
   files: (SharedFile & { path: string })[];
   /** The line to paste into the email that sends the page and its Word copy. */
@@ -175,24 +185,41 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
   const day = localDate(now);
   for (let number = 1; ; number++) {
     const stem = number === 1 ? `${prefix}_${day}` : `${prefix}_${day}-${number}`;
-    const names = { page: `${stem}.html`, word: `${stem}.docx` };
+    const names = {
+      page: `${stem}.html`,
+      word: `${stem}.docx`,
+      voice: `${stem}.voice.html`,
+    };
     // Named for the pair and the run, so that every file of a share has the share's stem.
     const walkthroughCopies = walkthroughs.map(({ run, bytes }): Copy => ({
       name: `${stem}_${run}_walkthrough.json`,
       bytes,
       run,
     }));
-    const everyName = [names.page, names.word, ...walkthroughCopies.map(({ name }) => name)];
+    const everyName = [
+      names.page,
+      names.word,
+      names.voice,
+      ...walkthroughCopies.map(({ name }) => name),
+    ];
     if (await isTaken(dir, everyName, recorded)) continue;
 
-    // Each copy's footer names itself and the other, so a pair's model is its own.
-    const model = buildShareModel({ ...input, fileName: names.page, wordName: names.word });
+    // Each copy's footer names itself and the other, so a pair's model is its own; and the page and
+    // its details link to the voice page by the name it will have.
+    const model = buildShareModel({
+      ...input,
+      fileName: names.page,
+      wordName: names.word,
+      voiceName: names.voice,
+    });
+    const fontCss = await fontFaceCss();
+    // Made from the same model, with the same fonts, and written only when a page has a recording
+    // to play: the cards' lines and the details' link are there exactly then.
+    const voice = renderVoicePage(model, input.recordings, { fontCss });
     const copies: Copy[] = [
-      {
-        name: names.page,
-        bytes: Buffer.from(renderSharePage(model, { fontCss: await fontFaceCss() }), "utf8"),
-      },
+      { name: names.page, bytes: Buffer.from(renderSharePage(model, { fontCss }), "utf8") },
       { name: names.word, bytes: await renderWordCopy(model) },
+      ...(voice === null ? [] : [{ name: names.voice, bytes: Buffer.from(voice, "utf8") }]),
       ...walkthroughCopies,
     ];
     await mkdir(dir, { recursive: true });
@@ -223,8 +250,11 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
     }
 
     const files = entry.files.map((file) => ({ ...file, path: path.join(dir, file.name) }));
-    // What's emailed is the page and its Word copy: the files with no run.
-    const pasteLine = pasteLineOf(entry.files.filter(({ run }) => run === undefined));
+    // What's emailed is the page and its Word copy: the files with no run, but for the voice page,
+    // which is a companion that can be sent on its own.
+    const pasteLine = pasteLineOf(
+      entry.files.filter(({ name, run }) => run === undefined && name !== names.voice),
+    );
     logger.info(
       `Shared ${folder}, as of ${model.header.asOf}: entry ${entry.seq} in ${sharesPath(siteDir)}.`,
     );
@@ -309,9 +339,9 @@ async function exists(file: string): Promise<boolean> {
 }
 
 /**
- * Whether any of the names a share would use (its page, its Word copy, and each walkthrough file) is
- * taken: the record names it (whether or not its file is still there), or anything at all has the
- * name in `dir`.
+ * Whether any of the names a share would use (its page, its Word copy, its voice page, and each
+ * walkthrough file) is taken: the record names it (whether or not its file is still there), or
+ * anything at all has the name in `dir`.
  */
 async function isTaken(
   dir: string,

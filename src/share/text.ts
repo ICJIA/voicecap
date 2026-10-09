@@ -819,6 +819,34 @@ export const VOICE_TEXT = {
   /** Under a page's name, when its recording is of a run before the latest, as its card says it. */
   from: (run: string, date: string): string => `From run ${run}, on ${date}`,
   /**
+   * What the shareable page's card says of a page that has a recording, as a link to the page's
+   * section of this page: "NVDA's voice: 2 min 14 s, on the voice page", the length as `length`
+   * says it, and left out when the record has none ("NVDA's voice, on the voice page"). For a
+   * screen reader alone the link goes on to say which page it's for (`of`), so that no two links
+   * read alike and go to different places.
+   */
+  card: {
+    line: (lengthSeconds: number | null): string =>
+      typeof lengthSeconds === "number"
+        ? `NVDA's voice: ${VOICE_TEXT.length(lengthSeconds)}, on the voice page`
+        : "NVDA's voice, on the voice page",
+    of: (path: string): string => `for ${path}`,
+  },
+  /**
+   * What the details of the shareable page and of its Word copy say of this page: what the
+   * recordings are, then a link to this page (`open`, whose address is its file's name, which both
+   * copies say beside it, for a reader of paper), or why there is none: the copy is the live one,
+   * which a share doesn't write a voice page beside, or no page has a recording to play. A report
+   * from before voicecap recorded NVDA's voice says none of it.
+   */
+  details: {
+    lead: "NVDA's voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds.",
+    open: "Open the voice page",
+    liveCopy:
+      "This copy has no voice page: voicecap share makes one beside each dated copy, when a page has a recording.",
+    noRecording: "There is no voice page, since no page has a recording to play.",
+  },
+  /**
    * What a page says in place of a player: the recorder couldn't record it, with the reason the run
    * recorded (on one line, with no full stop: the sentence adds it), or none; the run's driver
    * records no page; the page wasn't read; the file isn't as the run recorded it; or the run's

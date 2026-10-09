@@ -1,8 +1,8 @@
 /**
  * What the shareable page is made from, read from a site's folder in the transcripts home: its
  * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs of
- * the runs it draws on, and the screenshots and axe results it shows. Every read is here;
- * buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
+ * the runs it draws on, and the screenshots, axe results, and recordings it shows. Every read is
+ * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
  */
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -20,6 +20,7 @@ import {
   AXE_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
+  VOICE_FILE,
   type FlagResult,
   type PageRecord,
   type PassName,
@@ -38,7 +39,7 @@ import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { axeRecordOf, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
 /** The transcripts the page shows or compares, by run id, page slug, and pass. */
@@ -109,6 +110,15 @@ export interface ShareInput {
    */
   axeFiles: Map<string, string>;
   /**
+   * The recording of NVDA's voice (voice.webm) of each page the voice page can play one for, by run
+   * id and page slug, as `screenshots` holds a picture: the file of the record its card speaks for
+   * (the one whose transcripts the page shows, else a page never transcribed's latest failure's),
+   * only when its record lists one (from voicecap 0.18.0), and only as the record has it (its size
+   * and SHA-256), so the voice page plays only what the run's seal covers: a page whose file is
+   * missing or changed isn't in it, and the voice page says so. Its bytes, as they are.
+   */
+  recordings: Map<string, Uint8Array>;
+  /**
    * The pages read here whose flags couldn't be computed afresh, since a JSON transcript of theirs
    * couldn't be read: each keeps the flags its record has, by run id and slug.
    */
@@ -136,6 +146,13 @@ export interface ShareInput {
   fileName: string;
   /** The Word copy's file name, which the footer names too: "current.docx" here, dated likewise. */
   wordName: string;
+  /**
+   * The voice page's file name, which the cards and the details link to
+   * ("example.gov_2027-01-15.voice.html"): written beside the page, in the same folder, by the share
+   * that makes the page. Null where no voice page is written beside the page, as for the live copy
+   * (current.html): nothing is linked, and the details say there is none.
+   */
+  voiceName: string | null;
 }
 
 /**
@@ -164,6 +181,7 @@ export async function loadShareInput(options: {
   now?: Date;
   fileName?: string;
   wordName?: string;
+  voiceName?: string;
 }): Promise<ShareInput> {
   const { siteDir, config } = options;
   const records = await listRuns(siteDir);
@@ -176,14 +194,16 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns, events, screenshots, axeFiles] = await Promise.all([
-    readReviews(siteDir),
-    listManualSessions(siteDir),
-    runsNotRead(siteDir, records),
-    eventLogsOf(siteDir, standing.drawnOn),
-    screenshotsOf(siteDir, standing),
-    axeFilesOf(siteDir, standing),
-  ]);
+  const [reviews, manual, unreadableRuns, events, screenshots, axeFiles, recordings] =
+    await Promise.all([
+      readReviews(siteDir),
+      listManualSessions(siteDir),
+      runsNotRead(siteDir, records),
+      eventLogsOf(siteDir, standing.drawnOn),
+      screenshotsOf(siteDir, standing),
+      axeFilesOf(siteDir, standing),
+      recordingsOf(siteDir, standing),
+    ]);
   const flagsAsRecorded: ShareInput["flagsAsRecorded"] = [];
   return {
     readOrigin: (standing.latest ?? newest).site,
@@ -205,6 +225,7 @@ export async function loadShareInput(options: {
     events,
     screenshots,
     axeFiles,
+    recordings,
     siteName: config.report.siteName,
     flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
@@ -213,6 +234,7 @@ export async function loadShareInput(options: {
     platform: process.platform,
     fileName: options.fileName ?? "current.html",
     wordName: options.wordName ?? "current.docx",
+    voiceName: options.voiceName ?? null,
   };
 }
 
@@ -367,6 +389,40 @@ async function axeFilesOf(siteDir: string, standing: Standing): Promise<ShareInp
     files.set(storeKey(source.run.id, source.page.slug), text);
   }
   return files;
+}
+
+/**
+ * The recording of NVDA's voice of each page, by run id and slug, as `screenshotsOf` reads a page's
+ * picture: the file of the record its card speaks for, when the record lists one (a record of why
+ * there's none lists no file, and neither does a record of no kind voicecap writes) and the file is
+ * there and is as the record has it. A file that isn't (missing, unreadable, or changed since its
+ * run's seal) is left out, and the voice page says so; `voicecap verify` names it. They're read one
+ * at a time, as the screenshots are, and the bytes are held as they are.
+ */
+async function recordingsOf(
+  siteDir: string,
+  standing: Standing,
+): Promise<ShareInput["recordings"]> {
+  const sounds: ShareInput["recordings"] = new Map();
+  for (const card of standing.pages) {
+    const source = cardRecord(card);
+    const recorded = source === null ? undefined : voiceRecordOf(source.page);
+    if (source === null || recorded === undefined || recorded === "unreadable") continue;
+    if ("error" in recorded) continue;
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(
+        path.join(pageDir(siteDir, source.run.id, source.page.slug), VOICE_FILE),
+      );
+    } catch {
+      continue;
+    }
+    const { sha256, bytes: size } = fileHash(bytes);
+    if (sha256 === recorded.sha256 && size === recorded.bytes) {
+      sounds.set(storeKey(source.run.id, source.page.slug), bytes);
+    }
+  }
+  return sounds;
 }
 
 /** A file's text, exactly: UTF-8, with a byte-order mark and line endings kept. */

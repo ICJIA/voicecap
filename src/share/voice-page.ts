@@ -24,12 +24,13 @@
  * that say why it has no player (see `voiceOf`).
  *
  * Which recording a page's section plays is the one its card speaks for: the run whose transcripts
- * the card shows, else, for a page never transcribed, its latest failure's. The model doesn't say
- * which run that is, and no other run's recording is of what the transcripts say. So it's worked out
- * as the loader and the cards do (`cardRecord`, of the standing), from the records the model keeps
- * for its check, which are exactly the runs the standing draws on: the standing of those runs is the
- * model's own, page for page. The recordings come in by run and slug, as the loader holds them
- * (`<run>/<slug>`), only when a file is as its record has it.
+ * the card shows, else, for a page never transcribed, its latest failure's, and no other run's
+ * recording is of what the transcripts say. The model says which record that is, once, for each
+ * card (`PageCard.speaksFor`: the run, and the page's slug in it), as the loader files each file
+ * and the card's line on its recording finds it, so the card's line and its section can't be of
+ * different recordings. The record itself is found among the records the model keeps for its check,
+ * which are exactly the runs its cards draw on. The recordings come in by run and slug, as the
+ * loader holds them (`<run>/<slug>`), only when a file is as its record has it.
  *
  * What the model or a record supplies goes through `esc`, a reason included: the recorder's own
  * words in a reason are text, with the home folder already replaced when the run recorded it. No
@@ -54,7 +55,7 @@ import { firstSentenceBold } from "./line.js";
 import type { PageCard, ShareModel } from "./model.js";
 import { voiceRecordOf } from "./records.js";
 import { keepsVoice, notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
-import { cardRecord, standingOf } from "./standing.js";
+import { standingOf } from "./standing.js";
 import { ABOUT, EVIDENCE_TEXT, FOOTER_TEXT, PAGES_TEXT, TOP_TEXT, VOICE_TEXT } from "./text.js";
 import { generatedLine, testedLine } from "./words.js";
 
@@ -143,15 +144,22 @@ function voiceOf(
   return { record, bytes, source };
 }
 
-/** The record each page's card speaks for, by the page's key: the standing's, of the model's runs. */
+/**
+ * The record each page's card speaks for, by the page's key, as the model says it (`speaksFor`):
+ * the run, and the page in it, found among the records the model keeps for its check. And the latest
+ * run, which decides the pages in scope (a section whose recording is of another run says which),
+ * from the standing of those records, which holds the run itself.
+ */
 function sourcesOf(model: ShareModel): { sources: Map<string, Source>; latest: RunJson | null } {
-  const standing = standingOf(model.check.runs);
+  const runs = new Map(model.check.runs.map((run): [string, RunJson] => [run.id, run]));
   const sources = new Map<string, Source>();
-  for (const page of standing.pages) {
-    const source = cardRecord(page);
-    if (source !== null) sources.set(page.key, source);
+  for (const card of model.pages) {
+    const filed = card.speaksFor;
+    const run = filed === null ? undefined : runs.get(filed.run);
+    const page = run?.pages.find((each) => each.slug === filed?.slug);
+    if (run !== undefined && page !== undefined) sources.set(card.key, { run, page });
   }
-  return { sources, latest: standing.latest };
+  return { sources, latest: standingOf(model.check.runs).latest };
 }
 
 /**
@@ -291,8 +299,9 @@ function checks(model: ShareModel, data: CheckData): string {
 /**
  * What voicecap is, with the link; when the page was made, with its offset from UTC and the offsets
  * the runs recorded their times in; and the shareable page this one belongs to, and its Word copy,
- * by their file names. The voice page's own name isn't the model's: it's the shareable page's stem
- * with `.voice.html`, which the share chooses.
+ * by their file names. The voice page's own name is the shareable page's stem with `.voice.html`,
+ * which the share chooses and gives the model (`voicePage`), so the page and the report's details
+ * link to it; the page itself has no need to say it.
  */
 function footer(model: ShareModel): string {
   const { fileName, wordName } = model.footer;
@@ -370,13 +379,14 @@ export const VOICE_SCRIPT = String.raw`
  * "2026-09-29_1402/home", each only as its record has it), as one file; null when no page has a
  * recording to play, since there's then nothing for a page to be: a run's recordings are written
  * with its share only when it has one. `assets.fontCss` is the fonts' `@font-face` rules
- * (fontFaceCss in ./fonts.ts), which the page's style block holds ahead of its own styles; without
- * it the page is the same, in the reader's own fonts. Pure.
+ * (fontFaceCss in ./fonts.ts), which the page's style block holds ahead of its own styles. It's
+ * required, as the shareable page's is, so a page that forgot its fonts can't be written (give ""
+ * for the reader's own fonts). Pure.
  */
 export function renderVoicePage(
   model: ShareModel,
   recordings: ReadonlyMap<string, Uint8Array>,
-  assets: { fontCss: string } = { fontCss: "" },
+  assets: { fontCss: string },
 ): string | null {
   const { sources, latest } = sourcesOf(model);
   const latestVersion = latest === null ? null : versionOf(latest);

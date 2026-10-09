@@ -6,8 +6,10 @@
  * and then the page's full transcript: the read, headings, and Tab transcripts, word for word. That
  * is the one place for a page's words, since the page has no appendix of transcripts. The folds'
  * ids (`axe-…`, `tx-…`) are for an address that points to them, which opens one and the fold of the
- * quiet pages around it. A card's one kind of link is to axe's own page on each rule its fold names
- * (`axeRulePage`), which leaves the page; the section has no link of its own.
+ * quiet pages around it. A card's links are to axe's own page on each rule its fold names
+ * (`axeRulePage`), which leaves the page, and, for a page that has a recording of NVDA's voice, a
+ * line that links to its section of the voice page, a file beside this one (`voiceLine`); the
+ * section has no link of its own.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
@@ -36,7 +38,7 @@ import {
   type AxeViewRule,
 } from "../axe-view.js";
 import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, VOICE_TEXT } from "../text.js";
 import {
   axeFingerprint,
   capturedOf,
@@ -194,11 +196,27 @@ function heardFirstOf({ heardFirst }: PageCard): string {
 }
 
 /**
+ * A page's line on NVDA's voice, for a page that has a recording to play: its length, and a link to
+ * the page's section of the voice page, which a share writes beside this page ("NVDA's voice: 2 min
+ * 14 s, on the voice page"). The link names the page it's for, for a screen reader alone, so that
+ * the links of a page's cards, which the length can't tell apart, don't read alike and go to
+ * different places. No line for a page with no recording, and none in a copy with no voice page
+ * beside it: the card has no `voice` then.
+ */
+function voiceLine(card: PageCard): string {
+  const { voice } = card;
+  if (voice === null) return "";
+  const words = esc(VOICE_TEXT.card.line(voice.seconds));
+  const ofPage = `<span class="sr"> ${esc(VOICE_TEXT.card.of(card.path))}</span>`;
+  return `<p class="sub"><a href="${esc(voice.href)}">${words}${ofPage}</a></p>`;
+}
+
+/**
  * A page's card, in the spec's order: the picture, then the heading, the title, the chips, the
- * failure, the run its transcripts come from, and the manual sessions; what NVDA said first; what
- * each pass captured, and the strip; then what axe found, folded; and last the page's full
- * transcript, folded. `transcripts` is the page's entry in the model's list of transcripts, and
- * none for a page with none; a part a page has nothing for is left out.
+ * failure, the run its transcripts come from, and the manual sessions; what NVDA said first, and
+ * the line on its recording; what each pass captured, and the strip; then what axe found, folded;
+ * and last the page's full transcript, folded. `transcripts` is the page's entry in the model's
+ * list of transcripts, and none for a page with none; a part a page has nothing for is left out.
  */
 function cardOf(
   card: PageCard,
@@ -217,6 +235,7 @@ function cardOf(
     fromLine(card),
     ...manual,
     heardFirstOf(card),
+    voiceLine(card),
     passesOf(card),
     stripOf(card),
     axeFold(card),

@@ -7,7 +7,17 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import type * as FsPromises from "node:fs/promises";
-import { cp, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +30,14 @@ import { esc } from "../src/report/html.js";
 import { runAudit } from "../src/run/audit.js";
 import { ensureGitFiles } from "../src/run/git-files.js";
 import type * as GitFilesModule from "../src/run/git-files.js";
-import { runJsonPath, shareDir, sharePath, sharesPath, shareWordPath } from "../src/run/paths.js";
+import {
+  pageDir,
+  runJsonPath,
+  shareDir,
+  sharePath,
+  sharesPath,
+  shareWordPath,
+} from "../src/run/paths.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import type * as DocxModule from "../src/share/docx.js";
 import { sizeLine } from "../src/share/format.js";
@@ -37,14 +54,20 @@ import {
 } from "../src/share/share.js";
 import { appendShare, readShares } from "../src/share/shares.js";
 import type * as SharesModule from "../src/share/shares.js";
-import { EVIDENCE_TEXT, MAC_HASH, POWERSHELL_HASH, WORD_TEXT } from "../src/share/text.js";
+import {
+  EVIDENCE_TEXT,
+  MAC_HASH,
+  POWERSHELL_HASH,
+  VOICE_TEXT,
+  WORD_TEXT,
+} from "../src/share/text.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { UsageError } from "../src/util/errors.js";
 import { sealOf, sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, type Logger, type MemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
 import { verifyHome } from "../src/verify.js";
-import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
+import { linksOf, paragraphsOf, tablesOf, unzipDocx } from "./helpers/docx.js";
 import {
   homeWithCountedRun,
   options as runOptions,
@@ -52,9 +75,11 @@ import {
   SITE,
   sitePages,
 } from "./helpers/run-site.js";
-import { ScriptedDriver } from "./helpers/scripted-driver.js";
+import { ScriptedDriver, type ScriptedVoice } from "./helpers/scripted-driver.js";
 import { demoRun } from "./helpers/share-fixture.js";
+import { textOf } from "./helpers/share-html.js";
 import { DEMO_ROOT } from "./helpers/share-model.js";
+import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
 // Every call goes through as it did, and is kept, so a test can count the calls, make one fail, or
 // have something happen in the middle of it: the site's records are read, the model is built, the
@@ -1391,6 +1416,311 @@ describe("shareReport", () => {
 
       expect(logger.text("warn")).toBe("");
     });
+  });
+});
+
+describe("shareReport, with a recording of NVDA's voice on each page", () => {
+  /** What the scripted driver gives for a page: speech and pauses, or other sounds. */
+  const SPEECH: ScriptedVoice = { samples: speechAndPauses() };
+  const BUSY: ScriptedVoice = { samples: busySound(1.5, 3) };
+  const OTHER: ScriptedVoice = { samples: busySound(1.5, 4) };
+
+  /**
+   * A home with one completed, sealed, live run of the scripted site's three pages, each of which
+   * was recorded as `voices` say (the scripted driver gives each its sound; the run encodes it and
+   * keeps voice.webm), and what shares it.
+   */
+  async function homeWithVoice(
+    voices: [ScriptedVoice, ScriptedVoice, ScriptedVoice] = [SPEECH, BUSY, OTHER],
+  ) {
+    const dir = await newHome();
+    const [home, about, resources] = voices;
+    const pages = sitePages({
+      home: { voice: home },
+      about: { voice: about },
+      resources: { voice: resources },
+    });
+    const run = await runAudit(runOptions(dir, new ScriptedDriver(pages)));
+    expect(run.outcome).toBe("completed");
+    return { dir, siteDir: run.siteDir, run, ...sharing(dir) };
+  }
+
+  /** The voice page's name beside a pair whose name starts with `stem`. */
+  const voiceName = (stem: string): string => `${stem}.voice.html`;
+
+  it("writes the voice page beside the pair when a run has a recording, and lists it with its size and SHA-256", async () => {
+    const { siteDir, run, logger, options } = await homeWithVoice();
+
+    const { files, entry } = await shareReport(options);
+
+    // The page, its Word copy, the voice page, then the walkthrough file.
+    expect(files.map(({ name }) => name)).toEqual([
+      `${FIRST}.html`,
+      `${FIRST}.docx`,
+      voiceName(FIRST),
+      walkthroughName(FIRST, run.runId),
+    ]);
+    for (const file of files) {
+      const bytes = await readFile(file.path);
+      expect({ bytes: bytes.length, sha256: sha256(bytes) }, file.name).toEqual({
+        bytes: file.bytes,
+        sha256: file.sha256,
+      });
+    }
+    // The record of what was sent has it too, with its size and SHA-256, and no run: it's no
+    // walkthrough file.
+    const voice = files[2];
+    expect(entry.files).toEqual(files.map(({ path: _path, ...recorded }) => recorded));
+    expect(entry.files[2]).toEqual({
+      name: voiceName(FIRST),
+      bytes: voice?.bytes,
+      sha256: voice?.sha256,
+    });
+    expect(entry.files[2]).not.toHaveProperty("run");
+    expect(voice?.path).toBe(path.join(shareDir(siteDir), voiceName(FIRST)));
+    expect((await readShares(siteDir)).shares).toEqual([entry]);
+    // And said among the files, as the others are.
+    expect(logger.text("info")).toContain(
+      `  ${voice?.path}\n    ${sizeLine(voice?.bytes ?? 0)}, SHA-256 ${voice?.sha256}`,
+    );
+  });
+
+  it("makes the voice page of the run's recordings, with the fonts, and has its footer name the pair", async () => {
+    const { siteDir, run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const html = await readFile(files[2]!.path, "utf8");
+
+    // Each page's recording as the run kept it, in its own player.
+    expect(html.match(/<audio\b/g)).toHaveLength(3);
+    for (const [index, page] of run.run.pages.entries()) {
+      const kept = await readFile(path.join(pageDir(siteDir, run.runId, page.slug), "voice.webm"));
+      expect(html, `page ${index + 1}`).toContain(
+        `src="data:audio/webm;base64,${kept.toString("base64")}"`,
+      );
+    }
+    // Passed the fonts, as the page is: the same nine faces in its one style block.
+    expect(html.match(/@font-face/g)).toHaveLength(9);
+    expect(html.match(/<style\b/g)).toHaveLength(1);
+    // Named for the site and the day, never an address; and the footer names the pair beside it.
+    expect(html).toContain("<title>NVDA&#39;s voice: example.illinois.gov, ");
+    expect(textOf(/<footer>([\s\S]*?)<\/footer>/.exec(html)?.[1] ?? "", "")).toContain(
+      `The shareable page: ${FIRST}.html. Its Word copy: ${FIRST}.docx.`,
+    );
+  });
+
+  it("has the shareable page and its Word copy point to it", async () => {
+    const { run, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+    const page = await readFile(files[0]!.path, "utf8");
+    const parts = await unzipDocx(await readFile(files[1]!.path));
+
+    // Each card links to its page's section, and the details link to the voice page itself.
+    const links = [...page.matchAll(/<a href="([^"]*\.voice\.html[^"]*)">/g)].map(
+      ([, href]) => href,
+    );
+    expect(links).toEqual([
+      ...run.run.pages.map(({ slug }) => `${voiceName(FIRST)}#voice-${slug}`),
+      voiceName(FIRST),
+    ]);
+    expect(page).toContain(
+      `<a href="${voiceName(FIRST)}">Open the voice page</a> (<code>${voiceName(FIRST)}</code>).`,
+    );
+    // The Word copy says it in the details, linked, and lists each recording among its fingerprints.
+    const said = paragraphsOf(parts.document).find(({ text }) => text.startsWith("NVDA's voice:"));
+    expect(said?.text).toBe(
+      `${VOICE_TEXT.details.lead} Open the voice page (${voiceName(FIRST)}).`,
+    );
+    expect(linksOf(parts)).toContain(voiceName(FIRST));
+    const recordings = tablesOf(parts.document)
+      .flatMap(({ rows }) => rows)
+      .filter((cells) => cells[1] === "voice.webm");
+    expect(recordings).toHaveLength(3);
+    // The copies carry no sound: no player, and no recording's address.
+    expect(page).not.toContain("<audio");
+    expect(page).not.toMatch(/data:audio\/webm;base64,[A-Za-z0-9+/]/);
+  });
+
+  it("leaves a home that verify finds whole: the voice page is recorded, as it was written, and each recording is as its run sealed it", async () => {
+    const { dir, siteDir, options } = await homeWithVoice();
+
+    const { files } = await shareReport(options);
+
+    expect(files.map(({ name }) => name)).toContain(voiceName(FIRST));
+    const result = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(result.problems).toBe(0);
+    expect(result.sites[0]).toMatchObject({ shares: 1, problems: [] });
+    // And a voice page changed afterwards is named, as any copy is.
+    await appendFile(path.join(shareDir(siteDir), voiceName(FIRST)), " ");
+    const changed = await verifyHome({
+      home: path.join(dir, "transcripts"),
+      logger: createMemoryLogger(),
+    });
+    expect(changed.problems).toBeGreaterThan(0);
+  });
+
+  it("names only the pair in the line for the email, as before", async () => {
+    const { options } = await homeWithVoice();
+
+    const { files, pasteLine } = await shareReport(options);
+
+    expect(pasteLine).toBe(
+      `Fingerprints (SHA-256): ${files[0]!.name} ${files[0]!.sha256}; ${files[1]!.name} ${files[1]!.sha256}. To check a file you received: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.`,
+    );
+    expect(pasteLine).not.toContain(".voice.html");
+  });
+
+  it("writes no voice page when no run has one", async () => {
+    // The scripted driver records nothing here, so the runs have no record of a recording.
+    const { siteDir, run, options } = await homeWithRun();
+
+    const { files, entry } = await shareReport(options);
+
+    expect(files.map(({ name }) => name)).toEqual([
+      `${FIRST}.html`,
+      `${FIRST}.docx`,
+      walkthroughName(FIRST, run.runId),
+    ]);
+    expect(entry.files.map(({ name }) => name)).not.toContain(voiceName(FIRST));
+    expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
+    // Nor does the page link to one.
+    expect(await readFile(files[0]!.path, "utf8")).not.toContain(".voice.html");
+  });
+
+  it("writes no voice page when every page's recording failed: a reason isn't a recording", async () => {
+    const reasons: ScriptedVoice = { error: "the recorder couldn't start" };
+    const { siteDir, run, options } = await homeWithVoice([reasons, reasons, reasons]);
+
+    const { files } = await shareReport(options);
+
+    // Each page's record is the reason, and lists no file.
+    expect(
+      run.run.pages.map(({ voice }) =>
+        voice !== undefined && "error" in voice ? voice.error : "",
+      ),
+    ).toEqual(Array.from({ length: 3 }, () => "the recorder couldn't start"));
+    expect(files.map(({ name }) => name)).toEqual([
+      `${FIRST}.html`,
+      `${FIRST}.docx`,
+      walkthroughName(FIRST, run.runId),
+    ]);
+    expect((await names(shareDir(siteDir))).filter((name) => name.includes("voice"))).toEqual([]);
+    expect(await readFile(files[0]!.path, "utf8")).not.toContain(".voice.html");
+  });
+
+  it("writes a voice page for the pages that have a recording, and leaves the others to say why", async () => {
+    const reasons: ScriptedVoice = { error: "the recording is silent" };
+    const { options } = await homeWithVoice([SPEECH, reasons, BUSY]);
+
+    const { files } = await shareReport(options);
+    const html = await readFile(files[2]!.path, "utf8");
+
+    expect(files[2]?.name).toBe(voiceName(FIRST));
+    expect(html.match(/<audio\b/g)).toHaveLength(2);
+    expect(html).toContain("Not recorded: the recording is silent.");
+    // Only the pages with a recording have a line on their cards.
+    expect((await readFile(files[0]!.path, "utf8")).match(/on the voice page/g)).toHaveLength(2);
+  });
+
+  it("takes the next number when the voice page's name is taken, recorded or not, and never writes over it", async () => {
+    const { siteDir, options } = await homeWithVoice();
+    await mkdir(shareDir(siteDir), { recursive: true });
+    await writeFile(path.join(shareDir(siteDir), voiceName(FIRST)), "someone's own file");
+
+    const { files } = await shareReport(options);
+
+    expect(files.map(({ name }) => name).slice(0, 3)).toEqual([
+      `${FIRST}-2.html`,
+      `${FIRST}-2.docx`,
+      voiceName(`${FIRST}-2`),
+    ]);
+    expect(await readFile(path.join(shareDir(siteDir), voiceName(FIRST)), "utf8")).toBe(
+      "someone's own file",
+    );
+    // And a name the record has, whose file is gone (the second share's files are there, so -2 is
+    // taken as well).
+    await rm(path.join(shareDir(siteDir), voiceName(FIRST)));
+    await plantRecord(siteDir, [
+      {
+        seq: 1,
+        prev: null,
+        at: isoLocal(NOW),
+        by: "Sam Tester",
+        runs: [],
+        files: [{ name: voiceName(FIRST), bytes: 1, sha256: "a".repeat(64) }],
+        seal: "b".repeat(64),
+      },
+    ]);
+    const third = await shareReport(options);
+    expect(third.files[0]?.name).toBe(`${FIRST}-3.html`);
+  });
+
+  it("writes the voice page with the others, each synced to disk and closed, and takes it away with them when the entry can't be recorded", async () => {
+    const { siteDir, options } = await homeWithVoice();
+    const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+    const steps: string[] = [];
+    vi.mocked(open).mockImplementation(async (file, flags, mode) => {
+      const handle = await real.open(file, flags, mode);
+      const name = path.basename(String(file));
+      const kind = name.endsWith(".voice.html") ? "voice" : path.extname(name).slice(1);
+      if (flags !== "wx" || !["html", "docx", "voice", "json"].includes(kind)) return handle;
+      steps.push(`open ${kind}`);
+      return new Proxy(handle, {
+        get(target, property) {
+          const value: unknown = Reflect.get(target, property, target);
+          if (typeof value !== "function") return value;
+          return (...args: unknown[]): unknown => {
+            if (["writeFile", "sync", "close"].includes(String(property))) {
+              steps.push(`${String(property)} ${kind}`);
+            }
+            return (value as (...called: unknown[]) => unknown).apply(target, args);
+          };
+        },
+      });
+    });
+    vi.mocked(appendShare).mockRejectedValueOnce(new Error("The record is held."));
+
+    await expect(shareReport(options)).rejects.toThrow("The record is held.");
+
+    expect(steps).toEqual(
+      ["html", "docx", "voice", "json"].flatMap((kind) => [
+        `open ${kind}`,
+        `writeFile ${kind}`,
+        `sync ${kind}`,
+        `close ${kind}`,
+      ]),
+    );
+    // Taken away with the rest: nothing records it.
+    expect(await names(shareDir(siteDir))).toEqual(["current.docx", "current.html"]);
+  });
+
+  it("builds the pair's model with the voice page's name, as it does the Word copy's", async () => {
+    const { options } = await homeWithVoice();
+    vi.mocked(buildShareModel).mockClear();
+
+    await shareReport(options);
+
+    const named = vi
+      .mocked(buildShareModel)
+      .mock.calls.map(([input]) => input)
+      .filter((input) => input.fileName !== "current.html");
+    expect(
+      named.map(({ fileName, wordName, voiceName: voice }) => [fileName, wordName, voice]),
+    ).toEqual([[`${FIRST}.html`, `${FIRST}.docx`, voiceName(FIRST)]]);
+  });
+
+  it("leaves current.html and current.docx without a voice page or a link to one", async () => {
+    const { siteDir, options } = await homeWithVoice();
+
+    await shareReport(options);
+
+    // The live copies are as they were when the run ended: no voice page beside them.
+    expect(await names(shareDir(siteDir))).not.toContain("current.voice.html");
+    expect(await readFile(sharePath(siteDir), "utf8")).not.toContain(".voice.html");
   });
 });
 

@@ -48,10 +48,11 @@ import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { i2iModel, linkModel } from "./helpers/share-attention.js";
-import { shareRun } from "./helpers/share-data.js";
+import { failedAttempt, shareRun } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
   DEMO_SITE,
+  heldRecordings,
   inputOf,
   LINES,
   loggedModel,
@@ -60,7 +61,9 @@ import {
   recordingsOf,
   storeOf,
   TRANSCRIPTS,
+  VOICE_PAGE,
   VOICE_RECORDED_AT,
+  voiceRecord,
 } from "./helpers/share-model.js";
 import { busySound, speechAndPauses } from "./helpers/voice-signal.js";
 
@@ -302,6 +305,45 @@ async function modelPage(model: ShareModel, name: string): Promise<string> {
   return file;
 }
 
+/**
+ * A run of voicecap 0.18.0 whose pages NVDA's voice was recorded on, as a share makes the page, with
+ * the voice page beside it: the home page, a page with a label of a dozen words and an hour's
+ * recording, a page at a long address, and a page that failed after it was recorded, so its card has
+ * a line and no transcripts. A fifth page has no recording, and no line. The details link to the
+ * voice page.
+ */
+function voiceCardsModel(): ShareModel {
+  const read = { files: TRANSCRIPTS, passes: LINES };
+  const run = shareRun({
+    id: "2026-10-09_0900",
+    voicecapVersion: "0.18.0",
+    pages: [
+      { path: "/", label: "Home", ...read, voice: voiceRecord(134.2) },
+      {
+        path: "/grants/",
+        label: "A grant program with a label of a dozen words that can't fit one line of a phone",
+        ...read,
+        voice: voiceRecord(3_725),
+      },
+      { path: LONG_PATH, ...read, voice: voiceRecord(61) },
+      {
+        path: "/apply/",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        voice: voiceRecord(7),
+      },
+      { path: "/about/", ...read },
+    ],
+  });
+  return buildShareModel(
+    inputOf([run], {
+      transcripts: storeOf(),
+      recordings: heldRecordings([run]),
+      voiceName: VOICE_PAGE,
+    }),
+  );
+}
+
 /** A word as long as an element's HTML can be in an axe.json (300 code units), less its markup. */
 const LONG_WORD = "x".repeat(280);
 
@@ -407,6 +449,8 @@ let pages: {
   many: string;
   /** A run whose driver checked each page with axe: each card holds what axe found, in a fold. */
   axe: string;
+  /** A run whose pages NVDA's voice was recorded on: each card links to its place on the voice page. */
+  voice: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -442,6 +486,7 @@ beforeAll(async () => {
   // each holds a fold of its own transcript.
   const many = await modelPage(manyPages(13, 2), "many");
   const axe = await axePage();
+  const voice = await modelPage(voiceCardsModel(), "voice");
   pages = {
     demo,
     rich,
@@ -457,6 +502,7 @@ beforeAll(async () => {
     skipped,
     many,
     axe,
+    voice,
   };
   hostileRun = hostile;
   replayRunId = replay.runId;
@@ -955,6 +1001,35 @@ describe("axe, in Chromium", () => {
       expect(await axeFindings(page, width), "light, every fold open").toEqual([]);
       await page.locator("#open-all").click();
       expect(await axeFindings(page, width), "light, folds as written").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the cards' lines that link to the voice page, and the details' link to it, dark and light, with nothing wider than 320",
+    async (width) => {
+      const page = await open(pages.voice);
+
+      // A line on each of the four recorded pages' cards, a link to the voice page in the details,
+      // and no line on the fifth card, which has no recording.
+      expect(await page.locator("#pages article.card a[href*='.voice.html#voice-']").count()).toBe(
+        4,
+      );
+      expect(await page.locator("#pages article.card").count()).toBe(5);
+      expect(await page.locator("#details a[href$='.voice.html']").count()).toBe(1);
+      expect(await axeFindings(page, width), "dark, folds closed").toEqual([]);
+      // The links read apart: each card's names its page, so no two read alike.
+      expect(await identicalLinks(page), "links that read alike").toEqual([]);
+      const wide = await overflowOf(page);
+      expect(wide.beyondTheWindow).toBeLessThanOrEqual(0);
+      expect(wide.boxes).toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "dark, folds open").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, folds open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+      expect((await overflowOf(page)).beyondTheWindow).toBeLessThanOrEqual(0);
     },
     AXE_TIMEOUT,
   );

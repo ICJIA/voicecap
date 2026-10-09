@@ -7,6 +7,7 @@
 import {
   AXE_FILE,
   SCREENSHOT_FILE,
+  VOICE_FILE,
   type EnvironmentRecord,
   type ListenerAnswer,
   type MachineRecord,
@@ -24,7 +25,7 @@ import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import { keepsEventLog } from "./problems.js";
-import { axeRecordOf, isFileHash, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, isFileHash, screenshotRecordOf, voiceRecordOf } from "./records.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
 import {
@@ -99,7 +100,8 @@ export interface RunEvidence {
    * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
    * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
    * then page by page, a page's transcripts, then its screenshot, then its axe results (from
-   * voicecap 0.16.0), each where its record has the file's fingerprint.
+   * voicecap 0.16.0), then its recording of NVDA's voice (from voicecap 0.18.0), each where its
+   * record has the file's fingerprint.
    */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
@@ -257,6 +259,7 @@ export function evidenceOf(input: {
           })),
           ...screenshotFile(page),
           ...axeFile(page),
+          ...voiceFile(page),
         ]),
       ],
       verify: formatCommand(["verify"]),
@@ -304,6 +307,18 @@ function axeFile(page: PageRecord): RunEvidence["fingerprints"] {
   const axe = axeRecordOf(page);
   if (axe === undefined || axe === "unreadable" || "error" in axe) return [];
   return [{ page: pagePath(page.url), file: AXE_FILE, bytes: axe.bytes, sha256: axe.sha256 }];
+}
+
+/**
+ * A page's recording of NVDA's voice as one of its run's files, as its axe results are: when the
+ * page's record has the file's fingerprint (a record of why there's none lists no file, and neither
+ * does one of no kind voicecap writes). The record keeps it apart from the page's transcripts, so
+ * it's added to them here, after the axe results.
+ */
+function voiceFile(page: PageRecord): RunEvidence["fingerprints"] {
+  const voice = voiceRecordOf(page);
+  if (voice === undefined || voice === "unreadable" || "error" in voice) return [];
+  return [{ page: pagePath(page.url), file: VOICE_FILE, bytes: voice.bytes, sha256: voice.sha256 }];
 }
 
 /** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */

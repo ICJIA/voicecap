@@ -87,9 +87,12 @@ function recordedRun(): RunJson {
   });
 }
 
+/** The fonts the page is given: none, as most of these tests read it as text. */
+const NO_FONTS = { fontCss: "" };
+
 /** The page of a model, which must be made. */
 function pageOf(model: ShareModel, recordings: ReadonlyMap<string, Uint8Array>): string {
-  const html = renderVoicePage(model, recordings);
+  const html = renderVoicePage(model, recordings, NO_FONTS);
   if (html === null) throw new Error("No voice page was made.");
   return html;
 }
@@ -352,7 +355,7 @@ describe("renderVoicePage", () => {
     const none = modelOf([
       shareRun({ id: RUN, voicecapVersion: "0.18.0", pages: [read("/"), read("/about/")] }),
     ]);
-    expect(renderVoicePage(none, new Map())).toBeNull();
+    expect(renderVoicePage(none, new Map(), NO_FONTS)).toBeNull();
 
     // Reasons alone make no page: a run whose pages all have the reason they have none.
     const reasons = modelOf([
@@ -362,18 +365,18 @@ describe("renderVoicePage", () => {
         pages: [read("/", reason("the recording is silent")), read("/about/")],
       }),
     ]);
-    expect(renderVoicePage(reasons, new Map())).toBeNull();
+    expect(renderVoicePage(reasons, new Map(), NO_FONTS)).toBeNull();
 
     // A record of a file the loader doesn't hold (it's missing, or isn't as the run recorded it)
     // shows no player, so with no other, there's no page.
     const missing = modelOf([
       shareRun({ id: RUN, voicecapVersion: "0.18.0", pages: [read("/", speech.record)] }),
     ]);
-    expect(renderVoicePage(missing, new Map())).toBeNull();
+    expect(renderVoicePage(missing, new Map(), NO_FONTS)).toBeNull();
 
     // No run counts: no page to give.
     const replayed = modelOf([shareRun({ id: RUN, replayed: true, pages: [read("/")] })]);
-    expect(renderVoicePage(replayed, new Map())).toBeNull();
+    expect(renderVoicePage(replayed, new Map(), NO_FONTS)).toBeNull();
   });
 
   it("keeps the shareable page's rules: one style block, one runnable script, one data block, and no style attribute", () => {
@@ -432,11 +435,20 @@ describe("renderVoicePage", () => {
     expect(style.replace(fontCss, "").replace(SHARE_CSS, "").replace(VOICE_CSS, "").trim()).toBe(
       "",
     );
-    // Without fonts the page is made the same, with none in it.
+    // Given no fonts (""), the page is made the same, with none in it.
     expect(recorded.html).not.toContain("@font-face");
     // The shareable page's own style is as it was: the player's rules are the voice page's alone.
     expect(SHARE_CSS).not.toContain(".speeds");
     expect(VOICE_CSS).toContain(".speeds");
+  });
+
+  it("needs its fonts given, as the shareable page does, so a page that forgot them can't be written", () => {
+    const { model, run } = recorded;
+    // @ts-expect-error The fonts are required: leaving them out doesn't compile.
+    const forgotten = () => renderVoicePage(model, recordingsOf([run]));
+
+    // Nor does it make a page in the reader's own fonts, silently, when it's called without them.
+    expect(forgotten).toThrow(TypeError);
   });
 
   it("offers each player's speeds as a group that starts hidden, which the script shows", () => {

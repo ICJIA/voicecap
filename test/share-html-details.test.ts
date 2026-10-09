@@ -24,10 +24,19 @@ import {
 import type { CheckData } from "../src/share/check.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
-import { DETAILS_TEXT } from "../src/share/text.js";
-import { shareRun } from "./helpers/share-data.js";
+import { DETAILS_TEXT, VOICE_TEXT } from "../src/share/text.js";
+import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
-import { demoModel, inputOf, loggedModel, storeOf, TRANSCRIPTS } from "./helpers/share-model.js";
+import {
+  demoModel,
+  heldRecordings,
+  inputOf,
+  loggedModel,
+  storeOf,
+  TRANSCRIPTS,
+  VOICE_PAGE,
+  voiceRecord,
+} from "./helpers/share-model.js";
 
 const PAT = "Pat Lee";
 
@@ -514,5 +523,93 @@ describe("How voicecap works, in the details", () => {
     expect(inDetails).toBe(demoted(how));
     expect(inDetails).toContain('<h3 id="how-h">How voicecap works</h3>');
     expect(inDetails.match(/<h4[\s>]/g)).toHaveLength(7);
+  });
+});
+
+describe("NVDA's voice, in the details", () => {
+  /** A run of voicecap 0.18.0, the first to record NVDA's voice, of these pages. */
+  const runOf = (pages: SharePageSpec[], version = "0.18.0") =>
+    shareRun({ id: "2026-09-29_1402", voicecapVersion: version, pages });
+
+  /** The details of a run's model: the share's (a voice page beside it), unless `voiceName` says. */
+  function detailsOf(
+    pages: SharePageSpec[],
+    more: { version?: string; voiceName?: string | null } = {},
+  ): { html: string; model: ShareModel } {
+    const run = runOf(pages, more.version);
+    const model = buildShareModel(
+      inputOf([run], {
+        recordings: heldRecordings([run]),
+        voiceName: more.voiceName === undefined ? VOICE_PAGE : more.voiceName,
+      }),
+    );
+    return { html: renderDetails(model), model };
+  }
+
+  /** The paragraph on NVDA's voice, as its markup, or null when the details have none. */
+  const paragraphIn = (html: string): string | null =>
+    /<p class="gist">NVDA&#39;s voice:.*?<\/p>/s.exec(html)?.[0] ?? null;
+
+  const RECORDED: SharePageSpec[] = [
+    { path: "/", files: TRANSCRIPTS, voice: voiceRecord(61) },
+    { path: "/about/", files: TRANSCRIPTS },
+  ];
+
+  it("says what the recordings are, and links to the voice page, in a paragraph under the details' line", () => {
+    const { html } = detailsOf(RECORDED);
+
+    expect(paragraphIn(html)).toBe(
+      `<p class="gist">NVDA&#39;s voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. <a href="${VOICE_PAGE}">Open the voice page</a> (<code>${VOICE_PAGE}</code>).</p>`,
+    );
+    // Right under the line that says what the details are, before their first part.
+    const order = [
+      `<p class="gist">${esc(DETAILS_TEXT.gist)}</p>`,
+      '<p class="gist">NVDA&#39;s voice:',
+      '<section aria-labelledby="todo-h">',
+    ].map((part) => html.indexOf(part));
+    expect(order.every((place) => place >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // Its one link is to the voice page, by its file name.
+    expect(attributes(paragraphIn(html) ?? "", "href")).toEqual([VOICE_PAGE]);
+  });
+
+  it("says why there is no voice page, in place of the link, when no page has a recording or the copy is the live one", () => {
+    const none = detailsOf([{ path: "/", files: TRANSCRIPTS }]);
+    const live = detailsOf(RECORDED, { voiceName: null });
+
+    expect(paragraphIn(none.html)).toBe(
+      `<p class="gist">NVDA&#39;s voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. ${esc(VOICE_TEXT.details.noRecording)}</p>`,
+    );
+    expect(paragraphIn(live.html)).toBe(
+      `<p class="gist">NVDA&#39;s voice: what NVDA said aloud on each page is recorded and sealed with the run, and the voice page plays it at slower speeds. ${esc(VOICE_TEXT.details.liveCopy)}</p>`,
+    );
+    for (const { html } of [none, live]) {
+      expect(html).not.toContain(".voice.html");
+      expect(attributes(paragraphIn(html) ?? "", "href")).toEqual([]);
+    }
+  });
+
+  it("adds nothing for a report whose runs are from before voicecap recorded NVDA's voice", async () => {
+    for (const version of ["0.17.0", "0.11.0"]) {
+      const { html } = detailsOf([{ path: "/", files: TRANSCRIPTS }], { version });
+
+      expect(html, version).not.toContain("NVDA&#39;s voice");
+      expect(html, version).not.toContain("voice page");
+    }
+    // The demo's runs, from voicecap 0.4.1, say nothing of it either.
+    expect(renderDetails(await demoModel())).not.toContain("voice page");
+  });
+
+  it("keeps the details' parts as they were: it is a paragraph, with no heading of its own", () => {
+    const withVoice = detailsOf(RECORDED).html;
+    // The same pages in a run from before voicecap recorded NVDA's voice, which has no paragraph.
+    const without = detailsOf(
+      RECORDED.map(({ voice: _voice, ...page }) => page),
+      { version: "0.17.0" },
+    ).html;
+
+    expect(partsIn(withVoice)).toEqual(PARTS);
+    expect(headingsIn(withVoice)).toEqual(headingsIn(without));
+    expect(withVoice).not.toMatch(/\sstyle\s*=/i);
   });
 });
