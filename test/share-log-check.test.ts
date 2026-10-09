@@ -81,6 +81,10 @@ interface Line {
   key?: boolean;
   /** How long the step took, if not STEP_MS. */
   ms?: number;
+  /** How much later in its step the key came than KEY_MS (more waiting for quiet first). */
+  later?: number;
+  /** When each of its Speaking entries came after the key, if not 40 ms, then 9 ms apart. */
+  at?: number[];
 }
 
 interface Pass {
@@ -109,10 +113,12 @@ function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pas
   let elapsed = 0;
   const steps = lines.map((line, index): StepRecord => {
     const durationMs = line.ms ?? STEP_MS;
-    const pressed = begin + elapsed + KEY_MS;
+    const pressed = begin + elapsed + KEY_MS + (line.later ?? 0);
     if (line.key !== false) entries.push(key(pressed, gestureOf(line.command)!));
     const logged = line.logged ?? [line.spoken.split(", ")];
-    logged.forEach((items, k) => entries.push(said(pressed + SPEECH_MS + 9 * k, ...items)));
+    logged.forEach((items, k) => {
+      entries.push(said(pressed + (line.at?.[k] ?? SPEECH_MS + 9 * k), ...items));
+    });
     elapsed += durationMs;
     return {
       n: index + 1,
@@ -667,9 +673,9 @@ describe("checkAgainstLog on made-up logs", () => {
         logged: [["no next heading"], ["Saving draft"]],
       },
     ]);
-    // The attempt's record ends between the step's two entries.
+    // The attempt's record ends between the step's two entries, 40 and 49 ms after its key.
     const pressed = T0 + 2300 + STEP_MS + KEY_MS;
-    const cut = attempt([pass], pressed + SPEECH_MS + 4 - 250);
+    const cut = attempt([pass], pressed + SPEECH_MS + 4);
     expect(check([copyOf(...pass.entries)], cut)).toEqual({
       transcriptLines: 2,
       logLines: 2,
@@ -680,6 +686,60 @@ describe("checkAgainstLog on made-up logs", () => {
       ],
       outside: 3,
     });
+  });
+
+  it("leaves out what was said after the attempt ended, even within its last step's time", () => {
+    // A page read with no tab pass, so no NVDA+T closes it. Its last step's speech runs on, its
+    // attempt ends 10 ms after the step, and the next page's attempt begins 8 ms later.
+    const read = passAt(T0, HOME, "read", READ);
+    const headings = passAt(read.end + 5000, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      {
+        command: "nextHeading",
+        spoken: "no next heading. Saving draft. Draft saved",
+        logged: [["no next heading"], ["Saving draft"], ["Draft saved"]],
+        at: [40, 940, 1840],
+        ms: 3500,
+      },
+    ]);
+    const ended = headings.end + 10;
+    const home = attempt([read, headings], ended);
+    const next = passAt(ended + 8 + BEFORE_MS + 400, ABOUT, "read", ABOUT_READ);
+    const within = { from: iso(ended + 8), to: iso(next.end + 50) };
+    const about = { ...next, record: { ...next.record, within } };
+    for (const after of [100, 240]) {
+      const spoken = said(ended + after, "Calculator");
+      const log = copyOf(...read.entries, ...headings.entries, spoken, ...next.entries);
+      const result = check([log], [...home, about]);
+      expect(result).toEqual({
+        transcriptLines: 10,
+        logLines: 10,
+        agree: 10,
+        ...AGREED,
+        outside: 7,
+      });
+      expect(JSON.stringify(result)).not.toContain("Calculator");
+    }
+  });
+
+  it("finds the first Tab's speech when the pass's later keys came later in their steps", () => {
+    // The later steps each waited once more for quiet before their keys, so the pass's clock, set
+    // by their keys, puts the first Tab's key that much later than it came.
+    for (const later of [60, 300]) {
+      const pass = passAt(T0, HOME, "tab", [
+        { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+        { command: "nextFocusable", spoken: "Home, link", later },
+        { command: "nextFocusable", spoken: "About, link", later },
+        { command: "nextFocusable", spoken: "Contact, link", later },
+      ]);
+      expect(check([copyOf(...pass.entries)], [pass])).toEqual({
+        transcriptLines: 4,
+        logLines: 4,
+        agree: 4,
+        ...AGREED,
+        outside: 2,
+      });
+    }
   });
 
   it("doesn't give a read pass a person's Down Arrow, pressed as the page loaded", () => {

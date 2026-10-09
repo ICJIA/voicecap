@@ -11,10 +11,14 @@
  *    with its time on the copy's own timeline, parseNvdaLog's way (entryTimes). Whatever falls inside
  *    a thrown-out attempt's window is set aside: it's never paired, and its speech is counted as
  *    outside the steps.
- * 2. **Each pass's window.** A pass was read in one kept attempt at its page, and the run's records
- *    say when that attempt began and ended (`within`). A pass takes only keys and speech inside that
- *    window, so it never takes another page's keys, or those of an attempt the run didn't keep (one
- *    that Ctrl+C stopped leaves no record, so it has no window), whatever order the passes come in.
+ * 2. **Each pass's window.** A pass was read in one kept attempt at its page, and the run's event log
+ *    says when that attempt began and ended (its page-started and page-finished: `within`). A pass
+ *    takes only keys and speech inside that window, so it never takes another page's keys, or those
+ *    of an attempt the run didn't keep (one that Ctrl+C stopped is never kept), whatever order the
+ *    passes come in. The times are used as they are: the event log and NVDA's log read the same
+ *    clock, to the millisecond, and an attempt's events bracket all it does by a second or more (on
+ *    the real run of 6 October 2026, a page's first key came 2.4 s or more after its attempt began,
+ *    its last step's speech 2.5 s before it ended, and its last key 1.0 s before).
  * 3. **Stretches.** The driver presses keys of its own as it opens a page for a pass (NVDA's: NVDA+T
  *    to check the window, Escape to leave focus mode), and no step presses them. They split each
  *    copy into stretches of the steps' keys. Inside a page's window, its passes are lined up with its
@@ -74,8 +78,8 @@ export interface PassSteps {
   pass: PassName;
   steps: StepRecord[];
   /**
-   * When the kept attempt the pass was read in began and ended, as the run's records give them:
-   * local ISO times to the millisecond, as a failed attempt's record gives its startedAt and endedAt.
+   * When the kept attempt the pass was read in began and ended: the times of its page-started and
+   * page-finished in the run's event log, as they are (local ISO times, to the millisecond).
    */
   within: { from: string; to: string };
 }
@@ -109,7 +113,10 @@ interface Stretch {
   keys: Key[];
 }
 
-/** A window of time from the run's records: its start's time of day, and how long it lasted. */
+/**
+ * A window of time the run recorded (a kept attempt's events, or a failed attempt's record): its
+ * start's time of day, and how long it lasted.
+ */
 interface Window {
   timeOfDay: number;
   length: number;
@@ -145,26 +152,25 @@ const LOCAL_TIME =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /**
- * How far past its attempt's recorded start and end a pass may reach. NVDA's log and the run's
- * records read the same clock, each to the millisecond, and a kept attempt's records bracket all it
- * does: its first key comes seconds after it begins (the browser opens and the page loads first),
- * and its last speech a second or more before it ends (its last step waits for a quiet second). On
- * the real run of 6 October 2026 (fixture/nvda-io-run), every page's first key came 2.4 s or more
- * after its attempt began, its last step's speech 2.5 s before it ended, and its last key 1.0 s
- * before; the next page began 6 to 9 ms later. A quarter of a second covers the two clocks
- * rounding apart, and stays well clear of the page before's last key and the next page's first, each
- * a second or more from the window's edge.
+ * How far before the moment its key would have been pressed the first step of a pass may reach back
+ * for its speech, when NVDA logged no key for it (the first Tab of a page). The pass's clock is set
+ * by its other steps' keys, and a step's key comes later in its step when voicecap's capture waits
+ * once more for NVDA to be quiet first (a quarter of a second or so), which puts the clock that much
+ * late. On the real run of 6 October 2026, the first Tabs' speech came 36 to 45 ms after the moment
+ * their clock gave. 300 ms covers one more wait, and stays well clear of what NVDA said as the page
+ * opened (its first line, at the driver's Ctrl+Home, came 1.3 s before).
  */
-const KEPT_SLACK_MS = 250;
+const FIRST_REACH_MS = 300;
 
 /**
  * Pair the steps of a run's kept transcripts with NVDA's own log, and compare what each says. The
  * copies are those of one or more NVDA sessions; the steps are the kept attempts' passes, each with
- * its attempt's window, and a page's passes in the order the run read them (the pages' own order
- * doesn't matter: each pass is placed by its window); the thrown-out windows are the failed
- * attempts', from their records (startedAt to endedAt); and gestureOf gives the key a step's
- * command presses, as NVDA logs it. Throws when a window's times can't be read, or end before they
- * begin: a check that can't place an attempt can't say what's outside it.
+ * its attempt's window (its page-started to its page-finished, from the event log), and a page's
+ * passes in the order the run read them (the pages' own order doesn't matter: each pass is placed
+ * by its window); the thrown-out windows are the failed attempts', from their records (startedAt
+ * to endedAt); and gestureOf gives the key a step's command presses, as NVDA logs it. Throws when a
+ * window's times can't be read, or end before they begin: a check that can't place an attempt can't
+ * say what's outside it.
  */
 export function checkAgainstLog(input: {
   logs: string[];
@@ -180,7 +186,7 @@ export function checkAgainstLog(input: {
   const copies = input.logs.map((log) => readCopy(log, thrownOut));
   const placed = input.steps.map((pass, index): Placed => ({
     pass,
-    spans: copies.map((copy) => spanOn(windows[index]!, copy.start, KEPT_SLACK_MS)),
+    spans: copies.map((copy) => spanOn(windows[index]!, copy.start)),
   }));
   const stepKeys = new Set<string>();
   for (const pass of input.steps) {
@@ -258,9 +264,10 @@ function speechOf(
   const key = placement.keys[k] ?? null;
   // Where the step's key was pressed, or would have been: the pass's clock puts it there.
   const anchor = key?.at ?? placement.clock + startOf(step);
-  // A step with no key of its own reaches back halfway to the step before it, and never to before
-  // its pass began on the clock: the first step's window begins where its key would have been.
-  const reach = Math.max(edgeOf(steps, k), startOf(steps[0]!));
+  // A step with no key of its own reaches back halfway to the step before it. The first, with no
+  // step before it, reaches back FIRST_REACH_MS before its key's moment, but never further, and
+  // never before its own window (half its duration back); its pass's window bounds it too (burst).
+  const reach = Math.max(edgeOf(steps, k), startOf(steps[0]!) - FIRST_REACH_MS);
   const from = key?.at ?? placement.clock + reach;
   const said = burst(copy, from, anchor, step.durationMs, claimed, span);
   return key === null && said.length === 0 ? null : said;
@@ -466,7 +473,7 @@ function readCopy(log: string, thrownOut: readonly Window[]): Copy {
   const entries = splitLogEntries(log);
   const times = entryTimes(entries);
   const start = entries[0]?.timeMs ?? 0;
-  const aside = thrownOut.map((window) => spanOn(window, start, 0));
+  const aside = thrownOut.map((window) => spanOn(window, start));
   const thrown = (at: number) => aside.some(([from, to]) => at >= from && at <= to);
   const copy: Copy = { start, keys: [], said: [], speaking: 0 };
   entries.forEach((entry, index) => {
@@ -487,7 +494,7 @@ function readCopy(log: string, thrownOut: readonly Window[]): Copy {
 }
 
 /**
- * A window from the run's records, read: its start's time of day, and its length from its own two
+ * A window the run recorded, read: its start's time of day, and its length from its own two
  * times. One that can't be read, or that ends before it begins, is an error that names it.
  */
 function readWindow(window: { from: string; to: string }, of: string): Window {
@@ -503,12 +510,12 @@ function readWindow(window: { from: string; to: string }, of: string): Window {
 }
 
 /**
- * A window on a copy's timeline: its start's time of day on the day the log would put it
- * (timeOnLog), and its length, widened by `slack` each side.
+ * A window on a copy's timeline, as its times are: its start's time of day on the day the log
+ * would put it (timeOnLog), and its length.
  */
-function spanOn(window: Window, start: number, slack: number): [number, number] {
+function spanOn(window: Window, start: number): [number, number] {
   const at = timeOnLog(window.timeOfDay, start);
-  return [at - slack, at + window.length + slack];
+  return [at, at + window.length];
 }
 
 /** A local ISO time's wall clock (its date and time, as milliseconds) and its time of day. */
