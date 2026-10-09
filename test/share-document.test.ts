@@ -19,7 +19,8 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { FlagResult, RunJson } from "../src/model.js";
-import { CHECK_LIBRARY, CHECK_SCRIPT, type CheckData } from "../src/share/check.js";
+import { esc } from "../src/report/html.js";
+import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { renderWordCopy } from "../src/share/docx.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
@@ -30,12 +31,16 @@ import { STORY } from "../src/share/text.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { attributes, decode, foldsIn, textOf } from "./helpers/share-html.js";
 import {
+  AXE_RAN_AT,
+  axeFilesOf,
   demoModel,
   downloadOf,
   inputOf,
+  keptAxe,
   LINES,
   loggedModel,
   picturesOf,
@@ -44,13 +49,19 @@ import {
   withNestedSettings,
 } from "./helpers/share-model.js";
 
-/** The only places the page links to outside itself. */
+/**
+ * The only places the page links to outside itself, but for axe's own page on each rule a card's
+ * fold of what axe found names (AXE_RULES).
+ */
 const LINKS_OUT = [
   "https://github.com/ICJIA/voicecap",
   "https://github.com/ICJIA/voicecap/issues",
   "https://www.nvaccess.org/",
   STORY.deque.url,
 ];
+
+/** Where axe's pages on its rules are: a card's fold links to the page on each rule it names. */
+const AXE_RULES = "https://dequeuniversity.com/rules/axe/";
 
 /**
  * The sections' headings, in the spec's order. What needs attention is there only when a card
@@ -206,6 +217,59 @@ function shotsModel(): ShareModel {
   );
 }
 
+/** An element's HTML as a page could have it: markup, a closing script tag, and a comment. */
+const MARKED_HTML = '<button id="menu"></script><!-- & "x" --></button>';
+
+/** What axe found on the home page of axeModel: two issues, and one thing to review. */
+const HOME_AXE = keptAxe({
+  violations: [
+    rawRule("button-name", {
+      impact: "critical",
+      help: "Buttons must have discernible text",
+      nodes: [rawNode("#menu", { html: MARKED_HTML }), rawNode("#search")],
+    }),
+    rawRule("color-contrast", {
+      tags: ["cat.color", "wcag2aa", "wcag143"],
+      help: "Elements must meet minimum color contrast ratio thresholds",
+    }),
+  ],
+  incomplete: [rawRule("aria-valid-attr-value")],
+  passes: 41,
+  inapplicable: 50,
+});
+
+/** What axe found on the grants page of axeModel: nothing. */
+const GRANTS_AXE = keptAxe({ passes: 30, inapplicable: 60 });
+
+/**
+ * A run of voicecap 0.16.0 whose three pages axe checked: the home page's results have issues,
+ * one element's HTML holding markup and a closing script tag (MARKED_HTML); the grants page's have
+ * none; and axe couldn't check the third. Each page shows its results in a fold of its card.
+ */
+function axeModel(): ShareModel {
+  const run = shareRun({
+    id: "2026-09-26_1405",
+    voicecapVersion: "0.16.0",
+    pages: [
+      { path: "/", files: TRANSCRIPTS, passes: LINES, axe: HOME_AXE.record },
+      {
+        path: "/grants/",
+        label: "Grants",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        axe: GRANTS_AXE.record,
+      },
+      {
+        path: "/apply/",
+        files: TRANSCRIPTS,
+        passes: LINES,
+        axe: { error: "timed out after 20s", ranAt: AXE_RAN_AT },
+      },
+    ],
+  });
+  return buildShareModel(inputOf([run], { transcripts: storeOf(), axeFiles: axeFilesOf([run]) }));
+}
+
 /** A site whose only run was a replay, so no run counts yet. */
 function noRunModel(): ShareModel {
   return buildShareModel(
@@ -243,20 +307,22 @@ const DOWNLOAD_ADDRESS = /^data:application\/json;base64,[A-Za-z0-9+/]*={0,2}$/;
 /**
  * The addresses a page has that it shouldn't: the `href` of every tag that has one, an `<a>` or not
  * (a `<use>`, an `<image>`, a `<base>`, an `<area>`; an SVG's old `xlink:href` too), as a reader gets
- * it, but for the page's own parts (`#…`), the four places it names (LINKS_OUT), and a walkthrough
- * file's download. That is one kind of link, and an `<a>` only: one with a `download` attribute that
- * ends `_walkthrough.json`, to a data address that holds JSON in base64. A data address without
- * that name, of another type, or on any other tag is one the page shouldn't have. Each is given as
- * its tag's name and its address.
+ * it, but for the page's own parts (`#…`), the four places it names (LINKS_OUT), axe's own page on a
+ * rule (AXE_RULES, an `<a>` only), and a walkthrough file's download. That is one kind of link, and
+ * an `<a>` only: one with a `download` attribute that ends `_walkthrough.json`, to a data address
+ * that holds JSON in base64. A data address without that name, of another type, or on any other tag
+ * is one the page shouldn't have. Each is given as its tag's name and its address.
  */
 function unlistedLinks(markup: string): string[] {
   return [...markup.matchAll(/<([a-z][\w:-]*)\b[^>]*>/gi)].flatMap(([tag, name = ""]) => {
     const [download = ""] = attributes(tag, "download").map(decode);
+    const link = name.toLowerCase() === "a";
     return [...attributes(tag, "href"), ...attributes(tag, "xlink:href")]
       .map(decode)
       .filter((href) => {
         if (href.startsWith("#") || LINKS_OUT.includes(href)) return false;
-        const file = name.toLowerCase() === "a" && DOWNLOAD_ADDRESS.test(href);
+        if (link && href.startsWith(AXE_RULES)) return false;
+        const file = link && DOWNLOAD_ADDRESS.test(href);
         return !(file && download.endsWith("_walkthrough.json"));
       })
       .map((href) => `<${name.toLowerCase()}> ${href.slice(0, 80)}`);
@@ -352,6 +418,7 @@ describe("renderSharePage", () => {
       ["no run that counts", noRunModel()],
       ["a run with its event log", loggedModel()],
       ["a run with its screenshots", shotsModel()],
+      ["a run with its axe results", axeModel()],
     ];
     pages = models.map(([name, model]) => ({
       name,
@@ -448,6 +515,13 @@ describe("renderSharePage", () => {
         '<a download="r1_walkthrough.json" href="https://example.com/r1_walkthrough.json">x</a>',
       ],
       ["another page of a site it does name", `<a href="${LINKS_OUT[0] ?? ""}/other">x</a>`],
+      // axe's page on a rule is a link a card's fold may have, and nothing else is.
+      ["another page of axe's site", '<a href="https://dequeuniversity.com/other">x</a>'],
+      [
+        "an address that only starts like axe's",
+        '<a href="https://dequeuniversity.com.example/rules/axe/4.13/x">x</a>',
+      ],
+      ["axe's page on a rule, on a tag that isn't an <a>", `<area href="${AXE_RULES}4.13/x">`],
       // A tag that isn't an <a> may have an address too, and the page may load nothing from outside:
       // every tag with an href is looked at, and only an <a> may be a walkthrough file's download.
       [
@@ -476,6 +550,10 @@ describe("renderSharePage", () => {
     for (const [why, link] of refused) expect(unlistedLinks(link), why).toHaveLength(1);
     // Its own parts are still reached from any tag, an SVG's use of a symbol in the page too.
     expect(unlistedLinks('<svg><use href="#symbol"></use></svg>')).toEqual([]);
+    // And axe's page on a rule, from a card's fold of what axe found.
+    expect(
+      unlistedLinks(`<a href="${AXE_RULES}4.13/button-name?application=axeAPI">axe's page</a>`),
+    ).toEqual([]);
   });
 
   it("adds a measured amount for a large site: three runs of 400 pages add exactly the downloads' own size", () => {
@@ -529,6 +607,40 @@ describe("renderSharePage", () => {
     expect(data).toEqual(expect.any(String));
     expect(data).not.toContain(base64);
     expect(data).toContain(TINY_RECORD.sha256);
+  });
+
+  it("carries each axe file once, in the data block, and its words once, in its card's fold", () => {
+    const model = axeModel();
+    const page = renderSharePage(model, { fontCss: "" });
+    const data = /<script type="application\/json" id="fp-data">([\s\S]*?)<\/script>/.exec(
+      page,
+    )?.[1];
+    if (data === undefined) throw new Error("The page has no data for its check.");
+    const carried = JSON.parse(data) as CheckData;
+
+    // The two files whose results the page shows, each exactly as its run wrote it; the page axe
+    // couldn't check has none.
+    expect(carried.axe.map(({ text }) => text)).toEqual([HOME_AXE.text, GRANTS_AXE.text]);
+    expect(carried.axe).toEqual(model.check.axe);
+    for (const { text } of carried.axe) {
+      // Once, in the data, as its JSON writes it; and nowhere else, as it is or as words of a page.
+      const written = JSON.stringify(text).slice(1, -1).replace(/</g, "\\u003c");
+      expect(page.split(written)).toHaveLength(2);
+      expect(page).not.toContain(text);
+      expect(page).not.toContain(esc(text));
+    }
+    // An element's HTML is a word of the fold's, once, escaped, and never markup: the data block
+    // holds it with every < written <, so its closing script tag ends nothing.
+    expect(page.split(esc(MARKED_HTML))).toHaveLength(2);
+    expect(page).not.toContain(MARKED_HTML);
+    expect(page.match(/<\/script>/g)).toHaveLength(2);
+    // The files' text adds to the page only what it adds to the data block: with the same cards
+    // and none of the files in its data, the page is shorter by that and nothing more.
+    const none = { ...model.check, axe: [] };
+    const bare = renderSharePage({ ...model, check: none }, { fontCss: "" });
+    expect(page.length - bare.length).toBe(
+      checkDataJson(model.check).length - checkDataJson(none).length,
+    );
   });
 
   it("puts the sections in the spec's order, each h2 outside every fold, and What needs attention only with a card", () => {

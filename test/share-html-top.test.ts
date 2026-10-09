@@ -25,7 +25,7 @@ import { renderGlance, renderHow, renderTop } from "../src/share/html/top.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
-import { HOW_LEAD, HOW_STEPS, WHEN_TO_RUN } from "../src/share/text.js";
+import { AXE_TEXT, HOW_LEAD, HOW_STEPS, WHEN_TO_RUN } from "../src/share/text.js";
 import { SITE } from "./helpers/report-data.js";
 import { shareRun } from "./helpers/share-data.js";
 import { attributes, textOf } from "./helpers/share-html.js";
@@ -1267,6 +1267,17 @@ describe("renderHow", () => {
       "<b>The person running it reads the transcripts</b> and fixes what they find",
     );
     expect(html.match(/<b>The person/g)).toHaveLength(1);
+  });
+
+  it("says, after the lead, that each page is checked with axe before NVDA reads it, as evidence beside the person's review", async () => {
+    const html = renderHow(await demoModel());
+    const lines = [...html.matchAll(/<p class="gist">(.*?)<\/p>/gs)].map(([, line = ""]) =>
+      textOf(line, ""),
+    );
+
+    expect(lines).toEqual([HOW_LEAD, AXE_TEXT.how]);
+    expect(html).toContain(`<p class="gist">${esc(AXE_TEXT.how)}</p>`);
+    expect(html.indexOf(esc(AXE_TEXT.how))).toBeLessThan(html.indexOf('<ol class="flow"'));
   });
 
   it("lists the six steps in order, each with its picture, its title in an h3, and its words", async () => {

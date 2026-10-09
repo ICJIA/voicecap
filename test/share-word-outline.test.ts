@@ -16,6 +16,7 @@ import { lineOfMarkup, lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import {
   ABOUT,
+  AXE_TEXT,
   HOW_LEAD,
   HOW_STEPS,
   STORY,
@@ -189,6 +190,7 @@ describe("wordOutline", () => {
     const text = wordsOf(wordOutline(model)).join("\n");
     const fixed = [
       HOW_LEAD,
+      AXE_TEXT.how,
       ...HOW_STEPS.flatMap((step) => [step.title, step.text]),
       WHEN_TO_RUN.headline,
       WHEN_TO_RUN.text,

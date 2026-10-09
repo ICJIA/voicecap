@@ -1,15 +1,18 @@
 /**
  * What the shareable page's tests build models from: the input of runs built in memory
  * (`inputOf`), the demo runs of 29 September 2026 as a model (`demoModel`), transcripts held in
- * memory (`storeOf`), screenshots held in memory (`picturesOf`), a run with its event log held in
+ * memory (`storeOf`), screenshots held in memory (`picturesOf`), axe's results kept as a run keeps
+ * them, with their files held in memory (`keptAxe`, `axeFilesOf`), a run with its event log held in
  * memory (`loggedRun`), and a site of many pages read in full (`manyPages`). The tests that render
  * the page, and the one that builds its model, share them, so each file says only what it adds.
  */
 import os from "node:os";
 import path from "node:path";
 
+import { keptAxeResults } from "../../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 import type {
+  AxeRecord,
   FileHash,
   FlagResult,
   NewRunEvent,
@@ -26,8 +29,10 @@ import {
   type WalkthroughDownload,
 } from "../../src/share/model.js";
 import { MAIN_COMMAND } from "../../src/transcripts/format.js";
+import { fileHash } from "../../src/transcripts/write.js";
 import { sealOf } from "../../src/util/hash.js";
 import { TINY_JPEG } from "./jpeg.js";
+import { rawAxe } from "./raw-axe.js";
 import { SITE } from "./report-data.js";
 import { failedAttempt, settingsNested, shareRun, type SharePageSpec } from "./share-data.js";
 import { DEMO_DAY } from "./share-fixture.js";
@@ -134,6 +139,7 @@ export function inputOf(runs: RunJson[], overrides: Partial<ShareInput> = {}): S
     transcripts: NO_TRANSCRIPTS,
     events: new Map(),
     screenshots: new Map(),
+    axeFiles: new Map(),
     flagsAsRecorded: [],
     unreadableRuns: [],
     siteName: null,
@@ -196,6 +202,49 @@ export function picturesOf(runs: RunJson[]): Map<string, Uint8Array> {
         return typeof shot === "object" && shot !== null && "sha256" in shot
           ? [[`${run.id}/${page.slug}`, TINY_JPEG]]
           : [];
+      }),
+    ),
+  );
+}
+
+/** When the runs built here recorded each page's axe check. */
+export const AXE_RAN_AT = "2026-09-26T14:05:02.480-05:00";
+
+/** Each axe file `keptAxe` made, by its fingerprint, so `axeFilesOf` can give a record its file. */
+const axeTexts = new Map<string, string>();
+
+/**
+ * axe's results for a page, kept as a run keeps them: the text of its axe.json (what
+ * keptAxeResults writes of `parts`, built as axe gives them with test/helpers/raw-axe.ts), and the
+ * page's record of it, its fingerprint and what it comes to. No file is written; `axeFilesOf` gives
+ * the model the text of each record made here.
+ */
+export function keptAxe(
+  parts: Parameters<typeof rawAxe>[0] = {},
+  url = SITE,
+): { text: string; record: Exclude<AxeRecord, { error: string }> } {
+  const { json, summary } = keptAxeResults(rawAxe(parts), url);
+  const hash = fileHash(json);
+  axeTexts.set(hash.sha256, json);
+  return { text: json, record: { ...hash, ranAt: AXE_RAN_AT, ...summary } };
+}
+
+/**
+ * The axe files of some runs as the loader holds them: the text `keptAxe` made of each page's
+ * record that has a fingerprint, by run id and slug (`ShareInput.axeFiles`). A record made some
+ * other way has no file.
+ */
+export function axeFilesOf(runs: RunJson[]): Map<string, string> {
+  return new Map(
+    runs.flatMap((run) =>
+      run.pages.flatMap((page): [string, string][] => {
+        const record: unknown = page.axe;
+        const sha256 =
+          typeof record === "object" && record !== null && "sha256" in record
+            ? record.sha256
+            : undefined;
+        const text = typeof sha256 === "string" ? axeTexts.get(sha256) : undefined;
+        return text === undefined ? [] : [[`${run.id}/${page.slug}`, text]];
       }),
     ),
   );

@@ -12,7 +12,7 @@
  * A fold's instruction to open it is the page's alone: the Word copy folds nothing. So a line that
  * has one (`changesGist`) takes the page's sentence, and says none of its own.
  */
-import { PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
+import { AXE_FILE, PASS_NAMES, type FlagResult, type PassName, type RunJson } from "../model.js";
 import { plural } from "../report/html.js";
 import { NO_SPEECH } from "../transcripts/format.js";
 import { formatDuration } from "../util/time.js";
@@ -327,12 +327,14 @@ export function capturedOf({ counts, timeMs }: PageCard): Captured[] | null {
 /**
  * A line that says something wasn't recorded, or isn't shown: the model's own words ("Not
  * recorded: this run used voicecap 0.4.1.", "Not shown: the event log isn't as the run recorded
- * it…"), or, for words that say neither, with "Not recorded: " put in front, so a gap never reads as
- * a pass.
+ * it…", and, of axe, "Not checked: …" and "axe couldn't check this page: …"), or, for words that say
+ * none of that, with "Not recorded: " put in front, so a gap never reads as a pass.
  */
 export function notRecordedLine(text: string): string {
   const line = text.trim();
-  return /\bnot (?:recorded|shown)\b/i.test(line) ? line : `${PAGES_TEXT.notRecorded}: ${line}`;
+  return /\bnot (?:recorded|shown|checked)\b|\bcouldn't check\b/i.test(line)
+    ? line
+    : `${PAGES_TEXT.notRecorded}: ${line}`;
 }
 
 // A page's transcripts.
@@ -367,6 +369,14 @@ export function fileFingerprint(file: AppendixFile): Line {
     `The whole file, its header included: ${byteCount(file.bytes)}, SHA-256 `,
     { text: file.sha256, mono: true },
   ];
+}
+
+/**
+ * A page's axe file's size and fingerprint, as its run recorded them, with the fingerprint in the
+ * fixed-width font: "axe.json: 3,250 bytes, SHA-256 …".
+ */
+export function axeFingerprint({ bytes, sha256 }: { bytes: number; sha256: string }): Line {
+  return [`${AXE_FILE}: ${byteCount(bytes)}, SHA-256 `, { text: sha256, mono: true }];
 }
 
 // What changed since the last run.

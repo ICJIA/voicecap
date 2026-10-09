@@ -6,6 +6,7 @@
  */
 import type { PagePasses } from "../flags/evaluate.js";
 import {
+  AXE_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
   type FileHash,
@@ -21,16 +22,23 @@ import {
 import { normalizeSpeech } from "../passes/steps.js";
 import { MAIN_COMMAND, stepLine } from "../transcripts/format.js";
 import { jpegSize } from "../util/jpeg.js";
+import { axeViewOf, type AxeView } from "./axe-view.js";
 import type { CheckData } from "./check.js";
 import { longDate, pagePath, type Shown } from "./format.js";
 import type { ShareInput, TranscriptStore } from "./load.js";
 import { READ_STOPPED, readStoppedOf, type ProblemsSection } from "./problems.js";
-import { screenshotRecordOf } from "./records.js";
+import { axeRecordOf, screenshotRecordOf } from "./records.js";
 import type { PageReview } from "./review.js";
-import { keepsScreenshots, notRecordedBy, sessionVersion, versionOf } from "./run-evidence.js";
+import {
+  keepsAxe,
+  keepsScreenshots,
+  notRecordedBy,
+  sessionVersion,
+  versionOf,
+} from "./run-evidence.js";
 import { cardRecord, type PageStanding, type Standing } from "./standing.js";
 import { SKIP_REASONS } from "./summary.js";
-import { SCREENSHOT_TEXT } from "./text.js";
+import { AXE_TEXT, SCREENSHOT_TEXT } from "./text.js";
 
 export interface PageCard {
   key: string;
@@ -108,6 +116,17 @@ export interface PageCard {
    */
   screenshot:
     { dataUri: string; alt: string; width: number; height: number } | { notRecorded: string };
+  /**
+   * What axe found on the page, checked as it first loaded, before the screen reader read it, of
+   * the record the card speaks for, as its screenshot is: the file's results (`view`), its exact
+   * text, which the page's fingerprint check carries and checks, and its size and SHA-256 as its
+   * run recorded them. Where there's none, the words that say why (AXE_TEXT): the run's voicecap
+   * didn't check pages with axe (from before 0.16.0), its driver doesn't, the page wasn't read,
+   * axe couldn't check it, or the file isn't as the run recorded it, or isn't axe's results.
+   * Evidence beside the person's review, never its verdict: nothing that counts reads it. Absent
+   * from a card a model didn't make, which says nothing of axe.
+   */
+  axe?: { view: AxeView; text: string; bytes: number; sha256: string } | { notRecorded: string };
   /** When the shown transcripts come from an older run than the latest: its id, and its date. */
   from: { run: string; date: string } | null;
   /** The latest run's failure, or why it skipped the page, in plain words; home replaced. */
@@ -153,6 +172,8 @@ interface CardsInput {
   name: (page: { label?: string; url: string }) => string;
   /** The screenshot files the page can show (ShareInput.screenshots). */
   screenshots: ShareInput["screenshots"];
+  /** The axe files the page can show (ShareInput.axeFiles). */
+  axeFiles: ShareInput["axeFiles"];
   /** A run's screen reader, as its environment records it ("NVDA"). */
   screenReader: (run: RunJson) => string;
   /** The home folder replaced, in what a record's reason says. */
@@ -170,6 +191,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
   const { standing, transcripts } = input;
   const asRecorded = new Set(input.flagsAsRecorded.map(({ run, slug }) => `${run}/${slug}`));
   const tookAny = new Map<RunJson, boolean>();
+  const checkedAny = new Map<RunJson, boolean>();
   return standing.pages.map((page) => {
     const { shown } = page;
     const flags = shown?.page.flags ?? [];
@@ -217,6 +239,7 @@ export function cardsOf(input: CardsInput): PageCard[] {
       })),
       heardFirst: readShown ? firstLinesOf(readSteps) : [],
       screenshot: screenshotOf(source, version, name, input, tookAny),
+      axe: axeOf(source, version, input, checkedAny),
       from:
         shown !== null && shown.run !== standing.latest
           ? { run: shown.run.id, date: longDate(shown.run.createdAt) }
@@ -306,8 +329,53 @@ function screenshotOf(
 }
 
 /**
- * The reason a screenshot couldn't be taken, as a sentence's brackets hold it: the home folder
- * replaced, on one line, and with no full stop at its end, which the sentence puts after its bracket.
+ * What axe found on a page, as its card shows it, of the record the card speaks for, by
+ * `screenshotOf`'s cases. A record with the file's fingerprint is the file's results, when the
+ * loader holds the file (it holds only a file as its record has it) and the file is axe's results
+ * as voicecap keeps them (`axeViewOf`); otherwise it's the words that say why there are none, as
+ * AXE_TEXT has them: the file isn't as recorded, it is but isn't axe's results, axe couldn't check
+ * the page (with the reason the run recorded), or the record itself (read through `axeRecordOf`)
+ * is of no kind voicecap writes. The record's own summary is never read: the file is what's shown.
+ *
+ * A record with no axe check says it as every part a run didn't record is said, when its run is
+ * from before voicecap checked pages with axe (0.16.0). From then on, either its run's driver
+ * checked none of its pages, or this page wasn't read (it was skipped, or it failed before it
+ * loaded). `checkedAny` remembers, by run, whether any page of it has an axe record.
+ */
+function axeOf(
+  source: { run: RunJson; page: PageRecord } | null,
+  version: string | null,
+  input: CardsInput,
+  checkedAny: Map<RunJson, boolean>,
+): NonNullable<PageCard["axe"]> {
+  if (source === null) return { notRecorded: notRecordedBy(version) };
+  const { run, page } = source;
+  const record = axeRecordOf(page);
+  if (record === "unreadable") return { notRecorded: AXE_TEXT.unreadable };
+  if (record === undefined) {
+    if (!keepsAxe(version)) return { notRecorded: notRecordedBy(version) };
+    let checked = checkedAny.get(run);
+    if (checked === undefined) {
+      checked = run.pages.some((each) => each.axe !== undefined);
+      checkedAny.set(run, checked);
+    }
+    return { notRecorded: checked ? AXE_TEXT.notRead : AXE_TEXT.noDriver };
+  }
+  if ("error" in record) {
+    return { notRecorded: AXE_TEXT.failed(reasonOf(record.error, input.redact)) };
+  }
+  // The loader holds a file only when it's as its record has it.
+  const text = input.axeFiles.get(`${run.id}/${page.slug}`);
+  if (text === undefined) return { notRecorded: AXE_TEXT.changed };
+  const view = axeViewOf(text);
+  if (view === null) return { notRecorded: AXE_TEXT.notResults };
+  return { view, text, bytes: record.bytes, sha256: record.sha256 };
+}
+
+/**
+ * The reason a screenshot couldn't be taken, or axe couldn't check a page, as a sentence holds it:
+ * the home folder replaced, on one line, and with no full stop at its end, which the sentence puts
+ * after it.
  */
 function reasonOf(error: unknown, redact: (text: string) => string): string {
   const said = typeof error === "string" ? redact(error) : "";
@@ -343,6 +411,22 @@ export function embeddedOf(standing: Standing, cards: PageCard[]): CheckData["sc
     const shot = cards[index]?.screenshot;
     return source !== null && shot !== undefined && "dataUri" in shot
       ? [{ run: source.run.id, slug: source.page.slug, name: SCREENSHOT_FILE }]
+      : [];
+  });
+}
+
+/**
+ * The axe files the page carries, as its fingerprint check names them: the run and the page of each
+ * file whose results a card shows, in the order of the cards, with the file's exact text. The page
+ * carries each once, in its data, and draws the card's fold from the same text, so a check that
+ * passes vouches for what the fold shows.
+ */
+export function axeCheckedOf(standing: Standing, cards: PageCard[]): CheckData["axe"] {
+  return standing.pages.flatMap((page, index) => {
+    const source = cardRecord(page);
+    const axe = cards[index]?.axe;
+    return source !== null && axe !== undefined && "view" in axe
+      ? [{ run: source.run.id, slug: source.page.slug, name: AXE_FILE, text: axe.text }]
       : [];
   });
 }

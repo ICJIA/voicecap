@@ -14,6 +14,7 @@ import vm from "node:vm";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { ReviewEntry, ReviewsFile, ReviewStatus, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
@@ -26,13 +27,16 @@ import { extractBody } from "../src/transcripts/format.js";
 import { canonicalJson, sealOf } from "../src/util/hash.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
-import { options as runOptions, setup as setupSite, sitePages } from "./helpers/run-site.js";
+import { rawAxe, rawRule } from "./helpers/raw-axe.js";
+import { options as runOptions, setup as setupSite, SITE, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
+import { keptAxe } from "./helpers/share-model.js";
 
 interface Checked {
   files: { label: string; ok: boolean }[];
   screenshots: { label: string; ok: boolean }[];
+  axe: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
   reviewProblems: string[];
   line: string;
@@ -117,7 +121,7 @@ function demoData(): CheckData {
       files.push({ run: source.id, slug: page.slug, name, text });
     }
   }
-  return { runs: [earlier, latest], files, screenshots: [], reviews: null };
+  return { runs: [earlier, latest], files, screenshots: [], axe: [], reviews: null };
 }
 
 /** The demo's data with a screenshot of TINY_JPEG recorded for each of the pages of run 1402 named. */
@@ -135,6 +139,23 @@ function shotData(slugs: string[] = ["home", REPORT]): CheckData {
 
 /** Each screenshot of the page as the page shows it unchanged: once, as TINY_JPEG. */
 const asEmbedded: Pictures = () => [TINY_JPEG];
+
+/**
+ * The demo's data (or `data`) with axe's results recorded for each of the pages of run 1402 named,
+ * and carried as the page carries them: each file's exact text, by its run, its page's slug, and its
+ * name. The first page's has an issue, and the others' none.
+ */
+function axeData(slugs: string[] = ["home", REPORT], data: CheckData = demoData()): CheckData {
+  const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+  for (const [at, slug] of slugs.entries()) {
+    const kept = keptAxe(at === 0 ? { violations: [rawRule("button-name")] } : { passes: 12 });
+    latest.pages.find((page) => page.slug === slug)!.axe = kept.record;
+    data.axe.push({ run: latest.id, slug, name: "axe.json", text: kept.text });
+  }
+  // The record has a new field, so it's sealed again, as voicecap sealed it with the field there.
+  latest.seal = sealOf(latest);
+  return data;
+}
 
 /** `text` with the character at `at` replaced by another one. */
 function changeOneCharacter(text: string, at: number): string {
@@ -526,18 +547,25 @@ describe("checkAll", () => {
     const data = demoData();
 
     const noTranscripts = await check({ ...data, files: [], reviews: null });
-    const onlyReviews = await check({ runs: [], files: [], screenshots: [], reviews: history() });
+    const onlyReviews = await check({
+      runs: [],
+      files: [],
+      screenshots: [],
+      axe: [],
+      reviews: history(),
+    });
 
     expect(noTranscripts.line).toBe("Both runs' seals check out");
     expect(onlyReviews.line).toBe("The review entries' seals and chain check out");
   });
 
   it("says so when the page holds nothing to check", async () => {
-    const result = await check({ runs: [], files: [], screenshots: [], reviews: null });
+    const result = await check({ runs: [], files: [], screenshots: [], axe: [], reviews: null });
 
     expect(result).toEqual({
       files: [],
       screenshots: [],
+      axe: [],
       runs: [],
       reviewProblems: [],
       line: "This page holds no transcripts or run records to check",
@@ -794,6 +822,145 @@ describe("checkAll, with the screenshots a page shows", () => {
   });
 });
 
+describe("checkAll, with the axe results a page carries", () => {
+  const HOME_LABEL = "Run 1402 · / · axe.json";
+  const REPORT_LABEL = "Run 1402 · /the-report/ · axe.json";
+
+  it("checks each axe file against its run's record, and counts them in words of their own", async () => {
+    const result = await check(axeData(), library.sha256Hex, asShown);
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.files).toHaveLength(21);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("names an axe file changed by one character, by its page, and says how many match", async () => {
+    const data = axeData();
+    const target = data.axe[1]!;
+    target.text = changeOneCharacter(target.text, 40);
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: false },
+    ]);
+    expect(result.files.every((file) => file.ok)).toBe(true);
+    expect(result.line).toBe(
+      `${REPORT_LABEL} doesn't match its fingerprint. ` +
+        "21 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("checks an axe file's whole text, which has no header to leave out, and compares nothing shown with it", async () => {
+    const data = axeData();
+    // A change in the file's first line, which a transcript's check reads as part of its header,
+    // since that's where a transcript's header is.
+    const target = data.axe[0]!;
+    target.text = target.text.replace('"axeVersion": "4.13.0"', '"axeVersion": "4.13.1"');
+    // The page shows its words in a fold, never its text: the check never asks what it shows.
+    const shown: Shown = (file) => {
+      if (file.name === "axe.json")
+        throw new Error("The check asked for an axe file's text shown.");
+      return asShown(file);
+    };
+
+    const result = await check(data, library.sha256Hex, shown);
+
+    expect(result.axe.map(({ ok }) => ok)).toEqual([false, true]);
+    expect(result.line).toContain(`${HOME_LABEL} doesn't match its fingerprint.`);
+    expect((await check(axeData(), library.sha256Hex, shown)).axe.every(({ ok }) => ok)).toBe(true);
+  });
+
+  it("names an axe file its run's record doesn't list, or lists only the reason for, or a run the page doesn't carry", async () => {
+    const data = axeData();
+    const latest = data.runs[1]!;
+    // The page /ask-a-question/ has a record of why axe has no result, which has no fingerprint.
+    latest.pages.find((page) => page.slug === ASK)!.axe = {
+      error: "timed out after 20s",
+      ranAt: "2026-09-29T14:03:00.000-05:00",
+    };
+    latest.seal = sealOf(latest);
+    const text = data.axe[0]!.text;
+    data.axe.push({ run: latest.id, slug: ASK, name: "axe.json", text });
+    data.axe.push({ run: "2026-01-01_0000", slug: "home", name: "axe.json", text });
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe.slice(2)).toEqual([
+      { label: "Run 1402 · /ask-a-question/ · axe.json", ok: false },
+      { label: "Run 0000 · home · axe.json", ok: false },
+    ]);
+    expect(result.line).toContain("2 of 4 axe results match their fingerprints");
+  });
+
+  it("names a run whose record was changed to match a changed axe file, by its seal", async () => {
+    const data = axeData();
+    const changed = changeOneCharacter(data.axe[0]!.text, 40);
+    data.axe[0]!.text = changed;
+    // Whoever changed the file also puts its new fingerprint in the run's record: the file now
+    // matches the record, so only the run's seal gives it away.
+    const page = data.runs[1]!.pages.find((candidate) => candidate.slug === "home")!;
+    const recorded = page.axe;
+    if (recorded === undefined || "error" in recorded) throw new Error("No fingerprint to change.");
+    page.axe = { ...recorded, sha256: nodeHex(new TextEncoder().encode(changed)) };
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe.map(({ ok }) => ok)).toEqual([true, true]);
+    expect(result.runs.map((run) => run.ok)).toEqual([true, false]);
+    expect(result.line).toContain("Run 1402's record doesn't match its seal.");
+  });
+
+  it("gives the same result with Web Crypto's digest, which is async", async () => {
+    const data = axeData();
+    data.axe[1]!.text = changeOneCharacter(data.axe[1]!.text, 7);
+
+    expect(await check(data, webCryptoHex, asShown)).toEqual(
+      await check(data, library.sha256Hex, asShown),
+    );
+  });
+
+  it("counts the axe results after the screenshots and before the seals", async () => {
+    // Both kinds on run 1402's pages, its record sealed again with both.
+    const data = axeData(["home", REPORT], shotData());
+
+    expect((await check(data, library.sha256Hex, asShown, asEmbedded)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
+        "and 2 of 2 axe results match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("words one axe result in the singular, and none as nothing to say", async () => {
+    const one = axeData(["home"]);
+
+    expect((await check(one, library.sha256Hex, asShown)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 1 of 1 axe result matches its fingerprint, " +
+        "and both runs' seals check out",
+    );
+    one.axe[0]!.text += " ";
+    expect((await check(one, library.sha256Hex, asShown)).line).toContain(
+      "0 of 1 axe result matches its fingerprint",
+    );
+    // A page that carries none, and data from before it carried a list of them, say nothing of them.
+    const { axe: _list, ...older } = demoData();
+    for (const data of [demoData(), older as CheckData]) {
+      const result = await check(data, library.sha256Hex, asShown);
+      expect(result.axe).toEqual([]);
+      expect(result.line).toBe(
+        "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+      );
+    }
+  });
+});
+
 describe("checkDataJson", () => {
   it("keeps </script> and <!-- in a transcript intact through the page's data", async () => {
     // Text that would end or hide the data block if it went in as it is, and the two line
@@ -909,20 +1076,37 @@ ${picturesIn(data)}
 
 /**
  * The page voicecap writes for a run of the scripted site, each of whose three pages took a
- * screenshot: written from the run's own records, as a reader gets it. Gives the folder the run's
- * home is in, to remove, and the page's file.
+ * screenshot (and, `withAxe`, was checked with axe, the home page with an issue): written from the
+ * run's own records, as a reader gets it. Gives the folder the run's home is in, to remove, and the
+ * page's file.
  */
-async function generatedPage(folder: string): Promise<{ home: string; file: string }> {
+async function generatedPage(
+  folder: string,
+  withAxe = false,
+): Promise<{ home: string; file: string }> {
   const home = await setupSite(["/", "/about", "/resources"]);
-  const picture = { screenshot: { jpeg: TINY_JPEG } };
+  const page = (path: string, issues: number) => ({
+    screenshot: { jpeg: TINY_JPEG },
+    ...(withAxe
+      ? {
+          axe: keptAxeResults(
+            rawAxe({
+              violations: Array.from({ length: issues }, (_, at) => rawRule(`rule-${at}`)),
+              passes: 20,
+            }),
+            `${SITE}${path}`,
+          ),
+        }
+      : {}),
+  });
   const driver = new ScriptedDriver(
-    sitePages({ home: picture, about: picture, resources: picture }),
+    sitePages({ home: page("/", 1), about: page("/about", 0), resources: page("/resources", 0) }),
   );
   const ran = await runAudit(runOptions(home, driver, { now: () => new Date(2026, 8, 26, 14, 5) }));
   const model = buildShareModel(
     await loadShareInput({ siteDir: ran.siteDir, config: DEFAULT_CONFIG }),
   );
-  const file = path.join(folder, "generated.html");
+  const file = path.join(folder, withAxe ? "generated-axe.html" : "generated.html");
   await writeFile(file, renderSharePage(model, { fontCss: "" }));
   return { home, file };
 }
@@ -930,16 +1114,19 @@ async function generatedPage(folder: string): Promise<{ home: string; file: stri
 describe("the check in a browser", () => {
   let browser: Browser;
   let folder: string;
-  /** The home of the run the generated page was written for. */
-  let generatedHome: string;
+  /** The homes of the runs the generated pages were written for. */
+  let generatedHomes: string[];
   /**
-   * The page with the demo runs' transcripts, and the same with a review history besides, and with
-   * two screenshots; and a page as voicecap generates it, with three.
+   * The page with the demo runs' transcripts, and the same with a review history besides, with
+   * two screenshots, and with two axe results; and a page as voicecap generates it, with three
+   * screenshots, and the same with three axe results besides.
    */
   let pageUrl: string;
   let reviewsUrl: string;
   let shotsUrl: string;
+  let axeUrl: string;
   let generatedUrl: string;
+  let generatedAxeUrl: string;
   const contexts: BrowserContext[] = [];
 
   beforeAll(async () => {
@@ -948,15 +1135,20 @@ describe("the check in a browser", () => {
     const plain = path.join(folder, "check.html");
     const reviewed = path.join(folder, "check-reviews.html");
     const shots = path.join(folder, "check-shots.html");
+    const axe = path.join(folder, "check-axe.html");
     await writeFile(plain, checkPage(demoData()));
     await writeFile(reviewed, checkPage({ ...demoData(), reviews: history() }));
     await writeFile(shots, checkPage(shotData()));
+    await writeFile(axe, checkPage(axeData()));
     const generated = await generatedPage(folder);
-    generatedHome = generated.home;
+    const generatedAxe = await generatedPage(folder, true);
+    generatedHomes = [generated.home, generatedAxe.home];
     pageUrl = pathToFileURL(plain).href;
     reviewsUrl = pathToFileURL(reviewed).href;
     shotsUrl = pathToFileURL(shots).href;
+    axeUrl = pathToFileURL(axe).href;
     generatedUrl = pathToFileURL(generated.file).href;
+    generatedAxeUrl = pathToFileURL(generatedAxe.file).href;
   });
 
   afterEach(async () => {
@@ -966,12 +1158,12 @@ describe("the check in a browser", () => {
   afterAll(async () => {
     await browser.close();
     await rm(folder, { recursive: true, force: true });
-    await rm(generatedHome, { recursive: true, force: true });
+    for (const home of generatedHomes) await rm(home, { recursive: true, force: true });
   });
 
   /**
-   * The page, open: the demo's, or with `reviews`, `shots`, or `generated`, the one of those.
-   * `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
+   * The page, open: the demo's, or with `reviews`, `shots`, `axe`, `generated`, or `generatedAxe`,
+   * the one of those. `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
    */
   async function open(
     options: {
@@ -979,7 +1171,9 @@ describe("the check in a browser", () => {
       scripts?: boolean;
       reviews?: boolean;
       shots?: boolean;
+      axe?: boolean;
       generated?: boolean;
+      generatedAxe?: boolean;
     } = {},
   ): Promise<Page> {
     const context = await browser.newContext({ javaScriptEnabled: options.scripts ?? true });
@@ -1001,9 +1195,13 @@ describe("the check in a browser", () => {
       ? reviewsUrl
       : options.shots
         ? shotsUrl
-        : options.generated
-          ? generatedUrl
-          : pageUrl;
+        : options.axe
+          ? axeUrl
+          : options.generated
+            ? generatedUrl
+            : options.generatedAxe
+              ? generatedAxeUrl
+              : pageUrl;
     await page.goto(url);
     return page;
   }
@@ -1304,11 +1502,116 @@ describe("the check in a browser", () => {
     });
   });
 
+  describe("with the axe results a page carries", () => {
+    const AXE_MATCHING =
+      "Checked just now, in this browser. " +
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+      "and both runs' seals check out.";
+
+    it.each([true, false])(
+      "checks each axe file against its run's record, and lists each, with Web Crypto: %s",
+      async (webCrypto) => {
+        const page = await open({ axe: true, webCrypto });
+        await page.locator("#fp-run").click();
+
+        await expect.poll(() => result(page), { timeout: 10_000 }).toBe(AXE_MATCHING);
+
+        expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+        expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 0 not matching");
+        const rows = page.locator("#fp-rows tr");
+        // After the transcripts and before the seals, each with the fingerprint its run recorded.
+        const recorded = axeData().runs[1]!.pages.find((each) => each.slug === "home")!.axe;
+        const sha256 = recorded && "sha256" in recorded ? recorded.sha256 : "";
+        expect(await rows.nth(21).locator("td").allTextContents()).toEqual([
+          "Run 1402 · / · axe.json",
+          `${sha256.slice(0, 12)}…${sha256.slice(-6)}`,
+          "matches",
+        ]);
+        expect((await rows.nth(22).locator("td").allTextContents())[0]).toBe(
+          "Run 1402 · /the-report/ · axe.json",
+        );
+        expect((await rows.nth(23).locator("td").allTextContents())[0]).toBe(
+          "Run 1315 · its record's seal",
+        );
+      },
+    );
+
+    it("names an axe file changed in the page's own data", async () => {
+      const page = await open({ axe: true });
+      await page.evaluate(() => {
+        const element = document.getElementById("fp-data")!;
+        const data = JSON.parse(element.textContent ?? "") as { axe: { text: string }[] };
+        data.axe[1]!.text = data.axe[1]!.text.replace('"passes": 12', '"passes": 13');
+        element.textContent = JSON.stringify(data);
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1402 · /the-report/ · axe.json doesn't match its fingerprint. " +
+            "21 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 1 not matching");
+    });
+
+    it("shows a change being caught in a transcript and in an axe file, and leaves the page's data as it was", async () => {
+      const page = await open({ axe: true });
+      const before = await page.locator("#fp-data").textContent();
+      await page.locator("#fp-demo").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Demonstration, on a copy with one character changed in each of two files " +
+            "(the first character of Run 1402 · / · read.txt, “#” to “$”, and of Run 1402 · / · axe.json, “{” to “#”); " +
+            "the page itself is unchanged. " +
+            "Run 1402 · / · read.txt doesn't match its fingerprint. " +
+            "Run 1402 · / · axe.json doesn't match its fingerprint. " +
+            "20 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 2 not matching");
+      expect(await page.locator("#fp-data").textContent()).toBe(before);
+
+      await page.locator("#fp-run").click();
+      await expect.poll(() => result(page), { timeout: 10_000 }).toBe(AXE_MATCHING);
+    });
+  });
+
   describe("on a page as voicecap generates it", () => {
     const GENERATED_MATCHING =
       "Checked just now, in this browser. " +
       "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
       "and the run's seal checks out.";
+
+    it("checks each page's axe results, carried once in its data, with its transcripts and its screenshot", async () => {
+      const page = await open({ generatedAxe: true });
+
+      // Each page's results are in a fold of its card, and each file's text is in the page's data.
+      expect(await page.locator("#pg-home details#axe-home").count()).toBe(1);
+      expect(await page.locator("details.axe-page").count()).toBe(3);
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
+            "and 3 of 3 axe results match their fingerprints, and the run's seal checks out.",
+        );
+      expect(await page.locator("#fp-count").textContent()).toBe("16 checked, 0 not matching");
+      await page.locator("#fp-demo").click();
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toMatch(
+          /^Demonstration, on a copy with one character changed in each of two files \(the first character of Run 1405 · \/ · read\.txt, “#” to “\$”, and of Run 1405 · \/ · axe\.json, “\{” to “#”\); the page itself is unchanged\. Run 1405 · \/ · read\.txt doesn't match its fingerprint\. Run 1405 · \/ · axe\.json doesn't match its fingerprint\. 8 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, and 2 of 3 axe results match their fingerprints, and the run's seal checks out\.$/,
+        );
+    });
 
     it("finds every transcript and screenshot matching, a page's picture on its card and its transcripts in the card's fold", async () => {
       const page = await open({ generated: true });

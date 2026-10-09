@@ -7,13 +7,15 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { FlagResult, PassName, RunJson } from "../src/model.js";
+import { MAX_NODES } from "../src/axe/results.js";
+import type { AxeRecord, FlagResult, PassName, RunJson } from "../src/model.js";
 import { esc, idFragment } from "../src/report/html.js";
 import { renderPages } from "../src/share/html/pages.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import { NO_SPEECH } from "../src/transcripts/format.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
+import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import {
   attributes,
@@ -24,8 +26,11 @@ import {
   textOf,
 } from "./helpers/share-html.js";
 import {
+  AXE_RAN_AT,
+  axeFilesOf,
   demoModel,
   inputOf as inputWithoutTranscripts,
+  keptAxe,
   LINES,
   LINK_FLAG,
   manyPages,
@@ -89,6 +94,10 @@ function withCard(model: ShareModel, index: number, patch: Partial<PageCard>): S
 function cardsIn(html: string): string[] {
   return html.split('<article class="card"').slice(1);
 }
+
+/** The opening tag of each fold in some markup, by its classes: what kinds of fold it has. */
+const foldKinds = (html: string): string[] =>
+  [...html.matchAll(/<details class="fold ([^"]*)"/g)].map(([, kind = ""]) => kind);
 
 /**
  * The section split at its fold of the pages with nothing to note: what comes before it (the cards
@@ -443,7 +452,7 @@ describe("renderPages", () => {
         `^ id="pg-[^"]+">\\s*<img src="${uri}" alt="The page &quot;/&quot; as it loaded, before NVDA read it" width="632" height="419" loading="lazy" data-slug="home" data-file="screenshot.jpg">\\s*<div class="card-body">`,
       ),
     );
-    expect(card).not.toContain("not-recorded");
+    expect(card).not.toContain('<div role="group" aria-label="Screenshot">');
     // Each picture has the size its own record gives, never one the page fixes for every picture.
     const [taller = ""] = cardsIn(renderPages(shot(640, 480)));
     expect(taller).toContain('width="640" height="480"');
@@ -520,14 +529,15 @@ describe("renderPages", () => {
       'class="heard-first"',
       'class="passes"',
       'class="strip-fig"',
+      'class="fold axe-page"',
       'class="fold tx-page"',
     ];
     const places = parts.map((part) => card.indexOf(part));
 
     expect(places.every((place) => place >= 0)).toBe(true);
     // The picture's place first, as the mockup's picture is, then the card's words in this order:
-    // what the mockup had no place for, what NVDA said first, the numbers, the strip, and last
-    // the page's full transcript.
+    // what the mockup had no place for, what NVDA said first, the numbers, the strip, what axe
+    // found, and last the page's full transcript.
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
@@ -544,9 +554,10 @@ describe("renderPages", () => {
     expect(bare).not.toContain("heard-first");
     expect(bare).not.toContain("Heard first");
     expect(bare).toContain('class="fold tx-page"');
-    // A page with no entry in the appendix has no transcripts to fold, and keeps the rest.
+    // A page with no entry in the appendix has no transcripts to fold, and keeps the rest: its only
+    // fold is what axe found (here, that the run's voicecap didn't check pages with axe).
     expect(cut).not.toContain("tx-page");
-    expect(cut).not.toContain("<details");
+    expect(foldKinds(cut)).toEqual(["axe-page"]);
     expect(cut).toContain("strip-fig");
     expect(cut).toContain('class="heard-first"');
   });
@@ -587,16 +598,18 @@ describe("renderPages", () => {
     const twelve = renderPages(twelveOf);
     const thirteen = renderPages(thirteenOf);
 
-    // At 12, every card is in the open, each with a fold of its own transcript and no other.
+    // At 12, every card is in the open, each with a fold of its own transcript (and one of what axe
+    // found), and no fold of quiet pages.
     expect(cardsIn(twelve)).toHaveLength(12);
     expect(quietLines(twelve)).toEqual([]);
     expect(twelve).not.toContain('<div class="folds">');
     expect(foldLines(twelve)).toEqual(pathsOf(twelveOf).map(allThree));
 
     // At 13, the 11 with nothing to note fold behind one line, closed, with their cards inside, and
-    // each card still holds its own fold: 13 transcripts, and the one fold around 11 of them.
+    // each card still holds its own folds: 13 of transcripts, 13 of what axe found, and the one fold
+    // around 11 of the cards.
     expect(quietLines(thirteen)).toEqual(["The other 11 pages: nothing to note, all read in full"]);
-    expect(foldsIn(thirteen)).toHaveLength(1 + 13);
+    expect(foldsIn(thirteen)).toHaveLength(1 + 13 + 13);
     expect(thirteen).toContain(
       '<div class="folds"><details class="fold"><summary><span class="what">The other 11 pages:</span> <span class="sub">nothing to note, all read in full</span></summary>',
     );
@@ -782,8 +795,11 @@ describe("renderPages", () => {
       }
       expect(markup.match(/<h[1-6]>/g), card.path).toEqual(["<h3>", "<h4>", "<h4>", "<h4>"]);
     }
-    // The page's words are in its cards and nowhere else: 7 folds, and 21 transcripts in them.
-    expect(foldsIn(html)).toHaveLength(7);
+    // The page's words are in its cards and nowhere else: 7 folds of them, and 21 transcripts in
+    // them. Each card has its fold of what axe found too.
+    expect(foldKinds(html).filter((kind) => kind === "tx-page")).toHaveLength(7);
+    expect(foldKinds(html).filter((kind) => kind === "axe-page")).toHaveLength(7);
+    expect(foldsIn(html)).toHaveLength(14);
     expect(html.match(/<section class="tx"/g)).toHaveLength(21);
 
     // A picture is on its card once, and never in the fold: one img[data-file] for each page with a
@@ -815,8 +831,10 @@ describe("renderPages", () => {
       [uri[1]],
       [uri[2]],
     ]);
-    // Two of the pages have a fold; their pictures are above it.
-    expect(foldsIn(withPictures)).toHaveLength(2);
+    // Two of the pages have a fold of their transcripts, and all three one of what axe found; their
+    // pictures are above them.
+    expect(foldKinds(withPictures).filter((kind) => kind === "tx-page")).toHaveLength(2);
+    expect(foldsIn(withPictures)).toHaveLength(5);
     for (const fold of foldsIn(withPictures)) {
       expect(fold.split("</details>")[0]).not.toContain("<img");
     }
@@ -877,7 +895,8 @@ describe("renderPages", () => {
       expect(card).not.toContain("Heard first");
       expect(card).not.toContain("tx-page");
       expect(card).not.toContain("The full transcript");
-      expect(card).not.toContain("<details");
+      // Its one fold is what axe found, which says why there's nothing.
+      expect(foldKinds(card)).toEqual(["axe-page"]);
       expect(card).not.toContain("<section");
     }
     // The page that was read has both.
@@ -1200,7 +1219,7 @@ describe("a card's full transcript", () => {
     expect(bare.match(/class="fp">From run/g)).toHaveLength(1);
     expect(bare).toContain('<p class="fp">From run <code>2026-09-29_1315</code>');
     // Nothing stands in for the line: the first page's transcripts start its fold's inside.
-    expect(foldsIn(bare)[0]).toContain(
+    expect(foldsIn(bare).find((fold) => fold.startsWith(' class="fold tx-page"'))).toContain(
       '<div class="inside"><section class="tx" data-run="2026-09-29_1402" data-slug="home" data-file="read.txt"><h4>Read',
     );
   });
@@ -1222,7 +1241,7 @@ describe("a card's full transcript", () => {
       '<h3><span class="num">2</span> The &lt;read&gt; page <span class="sub">/read</span></h3>',
     );
     expect(read).toContain(`id="tx-${idFragment(model.pages[1]?.slug ?? "")}"`);
-    expect(never).not.toContain("<details");
+    expect(foldKinds(never)).toEqual(["axe-page"]);
     expect(html).toContain('aria-label="Read transcript, /read"');
     expect(html).not.toContain("The <read>");
   });
@@ -1448,5 +1467,357 @@ describe("the cards together", () => {
     // None of it is markup, and every word of it is shown, escaped, somewhere.
     expect(html.match(/.{0,30}<x.{0,30}/g) ?? []).toEqual([]);
     for (const field of fields) expect(html, field).toContain(esc(marked(field)));
+  });
+});
+
+describe("what axe found, on a page's card", () => {
+  /** WCAG 2.0 A 4.1.2: what button-name tests. */
+  const NAME_ROLE = ["cat.name-role-value", "wcag2a", "wcag412", "section508", "ACT"];
+  /** WCAG 2.0 AA 1.4.3: color-contrast. */
+  const CONTRAST = ["cat.color", "wcag2aa", "wcag143", "EN-301-549"];
+  /** A best practice, which names no WCAG criterion. */
+  const BEST = ["cat.keyboard", "best-practice"];
+
+  /**
+   * What axe found on /about/: three issues and one to review, given in axe's order, which isn't
+   * the order of how much each matters. button-name found two elements.
+   */
+  const aboutAxe = () =>
+    keptAxe({
+      violations: [
+        rawRule("region", {
+          impact: "moderate",
+          tags: BEST,
+          help: "All page content should be contained by landmarks",
+          nodes: [rawNode("#promo", { html: '<div id="promo">Grants</div>' })],
+        }),
+        rawRule("button-name", {
+          impact: "critical",
+          tags: NAME_ROLE,
+          help: "Buttons must have discernible text",
+          nodes: [
+            rawNode("#menu", {
+              html: '<button id="menu"></button>',
+              failureSummary:
+                "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n\nFix all of the following:\n  Element is in tab order and does not have accessible text",
+            }),
+            rawNode("#search", { html: '<button id="search"><svg></svg></button>' }),
+          ],
+        }),
+        rawRule("color-contrast", {
+          impact: "serious",
+          tags: CONTRAST,
+          help: "Elements must meet minimum color contrast ratio thresholds",
+          nodes: [rawNode(".pale", { html: '<p class="pale">Apply by 1 May</p>' })],
+        }),
+      ],
+      incomplete: [
+        rawRule("color-contrast", {
+          impact: "serious",
+          tags: CONTRAST,
+          help: "Elements must meet minimum color contrast ratio thresholds",
+          nodes: [
+            rawNode(".hero h2", {
+              html: "<h2>Welcome</h2>",
+              failureSummary:
+                "Fix any of the following:\n  Element's background color could not be determined due to a background image",
+            }),
+          ],
+        }),
+      ],
+      passes: 41,
+      inapplicable: 50,
+    });
+
+  /** A run of voicecap 0.16.0 of these pages. */
+  const runOf = (pages: SharePageSpec[]): RunJson =>
+    shareRun({ id: "r1", voicecapVersion: "0.16.0", pages });
+
+  /** The model of a run, with its transcripts and the axe files keptAxe made of its records. */
+  const modelWithAxe = (run: RunJson): ShareModel =>
+    buildShareModel(inputOf([run], { axeFiles: axeFilesOf([run]) }));
+
+  /** The cards of a run, each as its markup. */
+  const cardsOf = (run: RunJson): string[] => cardsIn(renderPages(modelWithAxe(run)));
+
+  /** A card's fold of what axe found: its markup, from `<details` to its end. */
+  function axeFoldIn(card: string): string {
+    const found = /<details class="fold axe-page"[^>]*>.*?<\/div><\/details>/s.exec(card);
+    if (found === null) throw new Error("The card has no fold of what axe found.");
+    return found[0];
+  }
+
+  /** The inside of a card's fold of what axe found. */
+  const insideOf = (card: string): string =>
+    /<div class="inside">(.*)<\/div><\/details>$/s.exec(axeFoldIn(card))?.[1] ?? "";
+
+  /** The chips of a card, each as its kind and its words. */
+  const chipsIn = (card: string): [string, string][] =>
+    [
+      ...(/<div class="chips">(.*?)<\/div>/s.exec(card)?.[1] ?? "").matchAll(
+        /<span class="chip c-(\w+)">(.*?)<\/span>/g,
+      ),
+    ].map(([, kind = "", words = ""]): [string, string] => [kind, decode(words)]);
+
+  it("says how many issues axe found, in a chip after the flags' chips", () => {
+    const run = runOf([
+      done("/none", { axe: keptAxe({ passes: 3 }).record }),
+      done("/one", { axe: keptAxe({ violations: [rawRule("label")] }).record, flags: [LINK_FLAG] }),
+      done("/three", {
+        axe: keptAxe({ violations: [rawRule("a"), rawRule("b"), rawRule("c")] }).record,
+      }),
+      done("/error", { axe: { error: "timed out after 20s", ranAt: AXE_RAN_AT } }),
+      done("/unread"),
+    ]);
+    const [none = "", one = "", three = "", error = "", unread = ""] = cardsOf(run);
+
+    expect(chipsIn(none).at(-1)).toEqual(["quiet", "axe: no issues"]);
+    expect(chipsIn(one)).toEqual([
+      ["ok", "Transcribed"],
+      ["warn", "generic-link-text"],
+      ["warn", "axe: 1 issue"],
+    ]);
+    expect(chipsIn(three).at(-1)).toEqual(["warn", "axe: 3 issues"]);
+    // With no result, no chip: the fold says why.
+    for (const card of [error, unread]) {
+      expect(chipsIn(card).filter(([, words]) => words.startsWith("axe"))).toEqual([]);
+      expect(axeFoldIn(card)).toContain('class="not-recorded"');
+    }
+    // After the person's review, too: the review is the person's, and axe's chip is apart from it.
+    const reviewed = renderPages(
+      withCard(modelWithAxe(run), 2, { reviewChips: ["Reviewed, no issues"] }),
+    );
+    expect(chipsIn(cardsIn(reviewed)[2] ?? "").slice(-2)).toEqual([
+      ["ok", "Reviewed, no issues"],
+      ["warn", "axe: 3 issues"],
+    ]);
+  });
+
+  it("folds what axe found after Heard first, closed, named for its page for a screen reader", () => {
+    const run = runOf([done("/about/", { axe: aboutAxe().record })]);
+    const [card = ""] = cardsOf(run);
+    const slug = run.pages[0]?.slug ?? "";
+
+    expect(card).toContain(
+      `<details class="fold axe-page" id="axe-${idFragment(slug)}"><summary><span class="what">What axe found<span class="sr"> on /about/</span></span></summary><div class="inside">`,
+    );
+    // After what NVDA said first, its numbers, and its strip, and before its full transcript.
+    const order = [
+      'class="heard-first"',
+      'class="passes"',
+      'class="strip-fig"',
+      'class="fold axe-page"',
+      'class="fold tx-page"',
+    ].map((part) => card.indexOf(part));
+    expect(order.every((place) => place >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(summariesIn(card)).toContain("What axe found on /about/");
+  });
+
+  it("lays out what axe found: what axe is, its version and rules, the counts, the issues most severe first, what needs review, and the file's fingerprint", () => {
+    const kept = aboutAxe();
+    const { sha256, bytes } = kept.record;
+    const run = runOf([done("/about/", { axe: kept.record })]);
+    const inside = insideOf(cardsOf(run)[0] ?? "");
+    const parts = [
+      "<p>axe is an automated checker: it tests a page&#39;s code against rules, and finds what code can find. A person&#39;s review finds the rest.</p>",
+      '<p class="sub">axe-core 4.13.0, with its rules for WCAG 2.0 and 2.1 at levels A and AA, WCAG 2.2 at level AA, and best practices.</p>',
+      '<dl class="axe-counts">',
+      '<h4>Issues<span class="sr"> on /about/</span>, most severe first</h4>',
+      "<h5>Buttons must have discernible text</h5>",
+      "<h5>Elements must meet minimum color contrast ratio thresholds</h5>",
+      "<h5>All page content should be contained by landmarks</h5>",
+      '<h4>Needs review<span class="sr"> on /about/</span></h4>',
+      "<p>axe couldn&#39;t decide these, so each needs a person to check it.</p>",
+      `<p class="fp">axe.json: ${bytes.toLocaleString("en-US")} bytes, SHA-256 <code>${sha256}</code></p>`,
+    ];
+    const places = parts.map((part) => inside.indexOf(part));
+
+    for (const [at, part] of parts.entries()) expect(places[at], part).toBeGreaterThanOrEqual(0);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    // The fingerprint is last.
+    expect(inside.endsWith(parts.at(-1) ?? "")).toBe(true);
+    // The counts: the issues, each impact, what needs review, and the rules passed.
+    expect(/<dl class="axe-counts">(.*?)<\/dl>/s.exec(inside)?.[1]).toBe(
+      [
+        ["Issues", "3"],
+        ["Critical", "1"],
+        ["Serious", "1"],
+        ["Moderate", "1"],
+        ["Minor", "0"],
+        ["Needs review", "1"],
+        ["Rules passed", "41"],
+      ]
+        .map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`)
+        .join(""),
+    );
+    // A heading for each issue, and for each thing to review, one level under the fold's own.
+    expect(inside.match(/<h[1-6]\b/g)).toEqual(["<h4", "<h5", "<h5", "<h5", "<h4", "<h5"]);
+    expect(inside).not.toContain("axe found no issues on this page.");
+  });
+
+  it("gives each issue its impact, its WCAG criteria or best practice, its elements with axe's words on how to fix each, and axe's page on it", () => {
+    const run = runOf([done("/about/", { axe: aboutAxe().record })]);
+    const inside = insideOf(cardsOf(run)[0] ?? "");
+    const [button = "", contrast = "", region = ""] = inside.split("<h5>").slice(1);
+
+    expect(button).toMatch(
+      /^Buttons must have discernible text<\/h5><p class="sub">Impact: critical · WCAG 2\.0 A 4\.1\.2<\/p><ol class="axe-nodes">/,
+    );
+    expect(contrast).toContain('<p class="sub">Impact: serious · WCAG 2.0 AA 1.4.3</p>');
+    expect(region).toContain('<p class="sub">Impact: moderate · best practice</p>');
+    // Each element: its selector and its HTML in the fixed-width font, and axe's words on how to
+    // fix it, each lead with what's under it.
+    expect(button).toContain(
+      '<li><dl class="axe-node"><div><dt>Element</dt><dd><code>#menu</code></dd></div>' +
+        "<div><dt>Its HTML</dt><dd><code>&lt;button id=&quot;menu&quot;&gt;&lt;/button&gt;</code></dd></div>" +
+        "<div><dt>How to fix it, in axe&#39;s words</dt><dd>" +
+        "<p>Fix any of the following:</p><ul><li>Element does not have inner text that is visible to screen readers</li><li>aria-label attribute does not exist or is empty</li></ul>" +
+        "<p>Fix all of the following:</p><ul><li>Element is in tab order and does not have accessible text</li></ul>" +
+        "</dd></div></dl></li>",
+    );
+    expect(button.match(/<dl class="axe-node">/g)).toHaveLength(2);
+    // axe's page on the rule, which leaves the page: each named for its rule.
+    expect(button).toContain(
+      '<p><a href="https://dequeuniversity.com/rules/axe/4.13/button-name?application=axeAPI">axe&#39;s page on button-name</a></p>',
+    );
+    expect(attributes(inside, "href")).toEqual([
+      "https://dequeuniversity.com/rules/axe/4.13/button-name?application=axeAPI",
+      "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+      "https://dequeuniversity.com/rules/axe/4.13/region?application=axeAPI",
+      "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=axeAPI",
+    ]);
+    // What needs review is listed the same way, its edge quiet where an issue's is amber.
+    expect(inside.match(/<ol class="axe-rules[^"]*" role="list">/g)).toEqual([
+      '<ol class="axe-rules" role="list">',
+      '<ol class="axe-rules axe-review" role="list">',
+    ]);
+    const review = inside.slice(inside.indexOf("<h4>Needs review"));
+    expect(review).toContain(
+      '<h5>Elements must meet minimum color contrast ratio thresholds</h5><p class="sub">Impact: serious · WCAG 2.0 AA 1.4.3</p>',
+    );
+    expect(review).toContain("<dt>Element</dt><dd><code>.hero h2</code></dd>");
+  });
+
+  it("says axe found no issues, with the counts, and lists what needs review", () => {
+    const quiet = keptAxe({ passes: 30, inapplicable: 60 });
+    const toReview = keptAxe({
+      incomplete: [rawRule("color-contrast", { tags: CONTRAST })],
+      passes: 30,
+    });
+    const run = runOf([done("/", { axe: quiet.record }), done("/a", { axe: toReview.record })]);
+    const [first = "", second = ""] = cardsOf(run).map(insideOf);
+
+    expect(first).toContain(
+      '<dl class="axe-counts"><div><dt>Issues</dt><dd>0</dd></div><div><dt>Critical</dt><dd>0</dd></div><div><dt>Serious</dt><dd>0</dd></div><div><dt>Moderate</dt><dd>0</dd></div><div><dt>Minor</dt><dd>0</dd></div><div><dt>Needs review</dt><dd>0</dd></div><div><dt>Rules passed</dt><dd>30</dd></div></dl><p>axe found no issues on this page.</p>',
+    );
+    expect(first).not.toMatch(/<h[45]/);
+    expect(second).toContain("<p>axe found no issues on this page.</p>");
+    expect(second).toContain('<h4>Needs review<span class="sr"> on /a</span></h4>');
+    expect(second.indexOf("axe found no issues")).toBeLessThan(second.indexOf("<h4>Needs review"));
+  });
+
+  it("says why there's no result, in the fold, as the screenshot's place says it", () => {
+    const missing = keptAxe({ passes: 1 }).record;
+    const run = runOf([
+      done("/", { axe: keptAxe({ passes: 2 }).record }),
+      done("/error", { axe: { error: "timed out after 20s", ranAt: AXE_RAN_AT } }),
+      done("/missing", { axe: { ...missing, sha256: "d".repeat(64) } as AxeRecord }),
+      { path: "/pdf", status: "skipped" },
+    ]);
+    const older = shareRun({ id: "r1", voicecapVersion: "0.15.0", pages: [done("/")] });
+    const noDriver = runOf([done("/")]);
+    const reasonOf = (card: string) =>
+      /^<p class="not-recorded">(.*)<\/p>$/s.exec(insideOf(card))?.[1];
+
+    expect(cardsOf(run).slice(1).map(reasonOf)).toEqual(
+      [
+        "axe couldn't check this page: timed out after 20s.",
+        "Not shown: axe.json isn't as the run recorded it; voicecap verify names it.",
+        "Not checked: axe didn't check this page, since it wasn't read.",
+      ].map(esc),
+    );
+    expect(reasonOf(cardsOf(older)[0] ?? "")).toBe("Not recorded: this run used voicecap 0.15.0.");
+    expect(reasonOf(cardsOf(noDriver)[0] ?? "")).toBe(
+      esc("Not checked: this run's driver doesn't check pages with axe."),
+    );
+  });
+
+  it("draws everything axe supplies as text", () => {
+    const script = "<script>alert(1)</script>";
+    const hostile = keptAxe({
+      violations: [
+        rawRule(`x"><img src=x onerror=alert(1)>`, {
+          help: `Help ${script} & more`,
+          helpUrl: "javascript:alert(1)",
+          tags: ["wcag2a", "<b>tag</b>"],
+          nodes: [
+            rawNode(".a", {
+              html: `<div title="a & b">${script} &amp; &lt;</div>`,
+              target: [`div[title="${script}"]`],
+              failureSummary: `Fix any of the following:\n  ${script} & "quoted"`,
+            }),
+          ],
+        }),
+      ],
+    });
+    const run = runOf([done("/", { axe: hostile.record })]);
+    const inside = insideOf(cardsOf(run)[0] ?? "");
+
+    // Nothing of it is markup: every < is written as &lt;, so none starts a tag.
+    expect(inside).not.toContain("<script");
+    expect(inside).not.toContain("<img");
+    expect(inside).not.toContain("<b>tag");
+    expect(inside).toContain(
+      "<code>&lt;div title=&quot;a &amp; b&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &amp;lt;&lt;/div&gt;</code>",
+    );
+    expect(inside).toContain("<h5>Help &lt;script&gt;alert(1)&lt;/script&gt; &amp; more</h5>");
+    expect(inside).toContain(
+      "<code>div[title=&quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;]</code>",
+    );
+    expect(inside).toContain(
+      "<li>&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quoted&quot;</li>",
+    );
+    // An address that isn't axe's own page on a rule is never a link.
+    expect(attributes(inside, "href")).toEqual([]);
+    expect(inside).not.toContain("javascript:");
+    // Each word reads back exactly as axe gave it.
+    expect(decode(inside)).toContain(`<div title="a & b">${script} &amp; &lt;</div>`);
+  });
+
+  it("shows 50 of a rule's 400 elements, and says how many more there were", () => {
+    const nodes = Array.from({ length: 400 }, (_, index) => rawNode(`#b-${index}`));
+    const run = runOf([
+      done("/", { axe: keptAxe({ violations: [rawRule("button-name", { nodes })] }).record }),
+    ]);
+    const inside = insideOf(cardsOf(run)[0] ?? "");
+
+    expect(inside.match(/<dl class="axe-node">/g)).toHaveLength(MAX_NODES);
+    expect(inside).toContain("<code>#b-49</code>");
+    expect(inside).not.toContain("<code>#b-50</code>");
+    expect(inside).toContain('</ol><p class="sub">and 350 more elements</p>');
+    // One more is said in the singular.
+    const oneMore = Array.from({ length: 51 }, (_, index) => rawNode(`#c-${index}`));
+    const single = runOf([
+      done("/", { axe: keptAxe({ violations: [rawRule("label", { nodes: oneMore })] }).record }),
+    ]);
+    expect(insideOf(cardsOf(single)[0] ?? "")).toContain('<p class="sub">and 1 more element</p>');
+  });
+
+  it("heads a rule axe gave no words for by its id", () => {
+    const run = runOf([
+      done("/", { axe: keptAxe({ violations: [rawRule("label", { help: "" })] }).record }),
+    ]);
+
+    expect(insideOf(cardsOf(run)[0] ?? "")).toContain("<h5>label</h5>");
+  });
+
+  it("leaves out the chip and the fold for a card that says nothing of axe", async () => {
+    const model = await demoModel();
+    const [card = ""] = cardsIn(renderPages(withCard(model, 0, { axe: undefined })));
+
+    expect(card).not.toContain("axe-page");
+    expect(card).not.toContain("axe:");
+    expect(foldKinds(card)).toEqual(["tx-page"]);
   });
 });

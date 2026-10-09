@@ -1,18 +1,22 @@
 /**
  * The shareable page's fingerprint check: what the page carries so a reader can check, offline and
- * in one click, that the transcripts and screenshots it shows are the ones its sealed records list.
+ * in one click, that the transcripts, screenshots, and axe results it shows are the ones its sealed
+ * records list.
  *
  * The page carries the data (`checkDataJson`) and a small script (`CHECK_SCRIPT`). The script
  * recomputes what voicecap recorded: each transcript file's SHA-256, each run record's seal (the
  * record without its `seal`, as JSON with its keys sorted, hashed), and each review entry's seal
  * and the review chain, by the rules `verify` uses (see `chainProblems` in src/verify.ts). It also
  * compares each transcript the page shows (folded in its page's card) with the body of the file the
- * page carries for it, so the transcripts shown are exactly the ones the sealed records list. And it
+ * page carries for it, so the transcripts shown are exactly the ones the sealed records list. It
  * hashes the bytes of each screenshot the page shows (the JPEG in each image's address, on a page's
  * card), against the fingerprint its run's record has for it: the page carries no picture twice
- * over for this, only which pictures it shows. It uses the browser's own SHA-256 (Web Crypto) where
- * there is one, and a small one of its own where there isn't (a page opened from an address that
- * isn't secure).
+ * over for this, only which pictures it shows. And it hashes the text of each axe file the page
+ * carries, whole, as a transcript's (an axe file has no header to leave out), against its run's
+ * record: the page carries each once, in its data, and a card's fold of what axe found is drawn
+ * from that same text, never shown as it is, so there's no text shown to compare. It uses the
+ * browser's own SHA-256 (Web Crypto) where there is one, and a small one of its own where there
+ * isn't (a page opened from an address that isn't secure).
  *
  * Both scripts are plain browser JavaScript (ES2020, no imports), held as strings the way
  * src/report/client.ts holds the report's script. The check proves the page is consistent with
@@ -37,6 +41,13 @@ export interface CheckData {
    * address, so the data has no copy of the picture.
    */
   screenshots: { run: string; slug: string; name: string }[];
+  /**
+   * Each axe file whose results the page shows ("axe.json"), by its run, its page's slug, and its
+   * name, with its exact text: the fingerprint it's held to is in that run's record, which the seal
+   * covers. This is the page's one copy of the file: a card's fold of what axe found is drawn from
+   * it, and never shows it as it is.
+   */
+  axe: { run: string; slug: string; name: string; text: string }[];
   /** reviews.json's pages, or null when there's none. */
   reviews: ReviewsFile["pages"] | null;
 }
@@ -56,7 +67,7 @@ export function checkDataJson(data: CheckData): string {
  * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest, shown,
  * pictures)`.
  *
- * `checkAll` resolves to `{ files, screenshots, runs, reviewProblems, line }`:
+ * `checkAll` resolves to `{ files, screenshots, axe, runs, reviewProblems, line }`:
  * - `files` has each transcript's label ("Run 1402 · /about/ · read.txt") and whether it matches:
  *   the SHA-256 of its text is the one its run records for it, and the text the page shows for it
  *   is its body;
@@ -64,14 +75,17 @@ export function checkDataJson(data: CheckData): string {
  *   it matches: the page shows at least one copy of it, and the SHA-256 of every copy's bytes is
  *   the one its run records for it. It's named for that, once, as a transcript is: "doesn't match
  *   its fingerprint". It's empty without `pictures`;
+ * - `axe` has each axe file's label ("Run 1402 · /about/ · axe.json") and whether it matches: the
+ *   SHA-256 of its whole text is the one its run records for it (`page.axe`);
  * - `runs` has each run's id and whether its record still matches its seal;
  * - `reviewProblems` lists, in words, each review entry that doesn't match its seal and each break
  *   in the chain (seq running from 1 with no gaps or repeats, entry 1's prev null, each prev the
  *   seal of the entry before); entries from before seals are left out;
  * - `line` is the result in words, without its closing full stop: a sentence for each mismatch,
  *   naming what doesn't match, then the count ("21 of 21 transcripts match their fingerprints, and
- *   7 of 7 screenshots match their fingerprints, and both runs' seals check out"; a page that
- *   shows no screenshot says nothing of them).
+ *   7 of 7 screenshots match their fingerprints, and 7 of 7 axe results match their fingerprints,
+ *   and both runs' seals check out"; a page that shows no screenshot, or carries no axe results,
+ *   says nothing of them).
  *
  * `digest(bytes)` gives the SHA-256 of a Uint8Array as hex, now or as a promise: Web Crypto's where
  * the browser has it, else `sha256Hex`, which is also the default.
@@ -238,6 +252,14 @@ function shotRecord(runs, shot) {
   return record && typeof record.sha256 === "string" ? record : undefined;
 }
 
+// What a run's record has for an axe file the page carries: the file's fingerprint, which the run's
+// seal covers. A page with none, or only the reason axe has no result, has none.
+function axeRecord(runs, item) {
+  var page = pageOf(runs, item);
+  var record = page && page.axe;
+  return record && typeof record.sha256 === "string" ? record : undefined;
+}
+
 function reviewEntries(reviews) {
   var found = [];
   Object.keys(reviews || {}).forEach(function (key) {
@@ -318,11 +340,17 @@ function shotsPhrase(total, ok) {
   return ok + " of " + total + which;
 }
 
+function axePhrase(total, ok) {
+  var which = total === 1 ? " axe result matches its fingerprint" : " axe results match their fingerprints";
+  return ok + " of " + total + which;
+}
+
 async function checkAll(data, digest, shown, pictures) {
   digest = digest || sha256Hex;
   var runs = data.runs || [];
   var files = [];
   var shots = [];
+  var axe = [];
   var sentences = [];
   for (var file of data.files || []) {
     var label = fileLabel(runs, file);
@@ -350,6 +378,15 @@ async function checkAll(data, digest, shown, pictures) {
     shots.push({ label: shotLabel, ok: shotOk });
     if (!shotOk) sentences.push(shotLabel + " doesn't match its fingerprint.");
   }
+  // Each axe file the page carries, by its whole text: it has no header to leave out, and the page
+  // shows its words in a fold, never its text, so there's nothing shown to compare.
+  for (var item of data.axe || []) {
+    var axeLabel = fileLabel(runs, item);
+    var axeKept = axeRecord(runs, item);
+    var axeOk = !!axeKept && (await digest(utf8(item.text))) === axeKept.sha256;
+    axe.push({ label: axeLabel, ok: axeOk });
+    if (!axeOk) sentences.push(axeLabel + " doesn't match its fingerprint.");
+  }
   var seals = [];
   for (var run of runs) {
     seals.push({ id: run.id, ok: (await digest(sealedBytes(run))) === run.seal });
@@ -368,6 +405,10 @@ async function checkAll(data, digest, shown, pictures) {
     var shotsMatching = shots.filter(function (each) { return each.ok; }).length;
     clauses.push(shotsPhrase(shots.length, shotsMatching));
   }
+  if (axe.length > 0) {
+    var axeMatching = axe.filter(function (each) { return each.ok; }).length;
+    clauses.push(axePhrase(axe.length, axeMatching));
+  }
   if (seals.length > 0) {
     var sealed = seals.filter(function (seal) { return seal.ok; }).length;
     clauses.push(sealsPhrase(seals.length, sealed));
@@ -384,6 +425,7 @@ async function checkAll(data, digest, shown, pictures) {
   return {
     files: files,
     screenshots: shots,
+    axe: axe,
     runs: seals,
     reviewProblems: reviews.problems,
     line: sentences.join(" ")
@@ -404,8 +446,9 @@ async function checkAll(data, digest, shown, pictures) {
  * a transcript with no lines; it is found wherever it is on the page, folded or not. Each
  * screenshot is an `img` that names its page and file (`data-slug` and `data-file`), with the JPEG
  * in its address in base64: a page's card has one, and every one the page has is decoded and
- * hashed. "Show a change being caught" runs the same check on a copy with the first character of
- * the first file changed, in memory only: the page's own data is never changed.
+ * hashed. Each axe file is in the data alone. "Show a change being caught" runs the same check on a
+ * copy with the first character of the first transcript changed, and of the first axe file too
+ * when the page carries one, in memory only: the page's own data is never changed.
  *
  * A page without that markup is left alone. Each script starts and ends on a new line, so it can
  * follow another in the page's one `<script>`, even one that ends without its semicolon.
@@ -506,14 +549,24 @@ export const CHECK_SCRIPT =
     return found;
   }
 
+  // A copy of the data with the first character changed of the first transcript, and of the first
+  // axe file: each that the page carries. What was changed, in words: each file and its characters.
   function withFirstCharacterChanged(data) {
     var copy = JSON.parse(JSON.stringify(data));
-    var file = copy.files[0];
-    var point = file.text.codePointAt(0);
-    var from = point === undefined ? "" : String.fromCodePoint(point);
-    var to = from === "#" ? "$" : "#";
-    file.text = to + file.text.slice(from.length);
-    return { data: copy, file: file, from: from, to: to };
+    var changes = [];
+    [(copy.files || [])[0], (copy.axe || [])[0]].forEach(function (file) {
+      if (!file) return;
+      var point = file.text.codePointAt(0);
+      var from = point === undefined ? "" : String.fromCodePoint(point);
+      var to = from === "#" ? "$" : "#";
+      file.text = to + file.text.slice(from.length);
+      changes.push(fileLabel(copy.runs || [], file) + ", “" + from + "” to “" + to + "”");
+    });
+    var what = changes.length === 1
+      ? "one character changed (the first character of " + changes[0] + ")"
+      : "one character changed in each of two files (the first character of " + changes[0] +
+        ", and of " + changes[1] + ")";
+    return { data: copy, what: what };
   }
 
   async function check(demo) {
@@ -521,14 +574,13 @@ export const CHECK_SCRIPT =
       var data = JSON.parse(source.textContent);
       var intro = "Checked just now, in this browser. ";
       if (demo) {
-        if (!data.files || data.files.length === 0) {
-          throw new Error("this page has no transcripts to change a character in");
+        if ((data.files || []).length === 0 && (data.axe || []).length === 0) {
+          throw new Error("this page has no transcripts or axe results to change a character in");
         }
         var changed = withFirstCharacterChanged(data);
         data = changed.data;
-        intro = "Demonstration, on a copy with one character changed (the first character of " +
-          fileLabel(data.runs || [], changed.file) + ", “" + changed.from + "” to “" + changed.to +
-          "”); the page itself is unchanged. ";
+        intro = "Demonstration, on a copy with " + changed.what +
+          "; the page itself is unchanged. ";
       }
       var runs = data.runs || [];
       var checked = await checkAll(data, digest, shownText, shownPictures);
@@ -540,6 +592,10 @@ export const CHECK_SCRIPT =
       checked.screenshots.forEach(function (shot, index) {
         var kept = shotRecord(runs, data.screenshots[index]);
         table.push([shot.label, kept ? kept.sha256 : "none recorded", shot.ok]);
+      });
+      checked.axe.forEach(function (item, index) {
+        var kept = axeRecord(runs, data.axe[index]);
+        table.push([item.label, kept ? kept.sha256 : "none recorded", item.ok]);
       });
       checked.runs.forEach(function (run, index) {
         table.push([runLabel(runs, run.id) + " · its record's seal", runs[index].seal, run.ok]);

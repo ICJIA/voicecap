@@ -334,6 +334,89 @@ export const SCREENSHOT_TEXT = {
 };
 
 /**
+ * What axe found on a page (from voicecap 0.16.0): its card's chip and fold, and the line in "How
+ * voicecap works". axe is called an automated checker, and voicecap never is: it's a person's
+ * review, sped up. axe's own words (a rule's `help`, and its words on how to fix an element) are
+ * shown as axe's, in the fold, and nothing here calls a page accessible or not. axe's results are
+ * evidence beside the person's review, never its verdict: the verdict, the ring, the numbers, and
+ * What needs attention say nothing of them.
+ */
+export const AXE_TEXT = {
+  /** The fold's line; for a screen reader alone, the page's address follows (`onPage`). */
+  title: "What axe found",
+  /**
+   * The chip, after the flags' chips and the person's review: how many issues axe found, which are
+   * the rules a page broke (axe's violations). What needs review isn't counted.
+   */
+  chip: (issues: number): string =>
+    issues === 0 ? "axe: no issues" : `axe: ${plural(issues, "issue")}`,
+  /** The fold's first line: what axe is, and what it can't do. */
+  what: "axe is an automated checker: it tests a page's code against rules, and finds what code can find. A person's review finds the rest.",
+  /**
+   * The version of axe-core that checked the page, and its rules as `axeRulesRun` names them from
+   * the file's tags ("WCAG 2.0 and 2.1 at levels A and AA, …"), or none, when no tag is named.
+   */
+  version: (version: string, rules: string): string =>
+    rules === "" ? `axe-core ${version}.` : `axe-core ${version}, with its rules for ${rules}.`,
+  /** The labels of the counts: the issues, each of their impacts, what needs review, and passed. */
+  counts: {
+    issues: "Issues",
+    critical: "Critical",
+    serious: "Serious",
+    moderate: "Moderate",
+    minor: "Minor",
+    incomplete: "Needs review",
+    passes: "Rules passed",
+  },
+  /** Said after the counts, in place of the issues, when axe found none. */
+  none: "axe found no issues on this page.",
+  /**
+   * The heading of the issues and that of what needs review (axe's "incomplete"), each with the
+   * page's address set apart for a screen reader after its first word, and what is said under the
+   * second.
+   */
+  issues: { title: "Issues", after: ", most severe first" },
+  review: "Needs review",
+  reviewLead: "axe couldn't decide these, so each needs a person to check it.",
+  /** A rule's impact, as axe rates it: "Impact: serious". */
+  impact: (impact: string | null): string =>
+    impact === null ? "Impact: not given" : `Impact: ${impact}`,
+  /** What a rule is that names no WCAG success criterion: one of axe's best practices. */
+  bestPractice: "best practice",
+  /** The labels of an element's parts: its selector, its HTML, and axe's words on how to fix it. */
+  element: "Element",
+  html: "Its HTML",
+  fix: "How to fix it, in axe's words",
+  /** After a rule's elements, those its file counts and doesn't keep: "and 350 more elements". */
+  more: (elements: number): string => `and ${plural(elements, "more element", "more elements")}`,
+  /**
+   * The words of the link to axe's page on a rule (its `helpUrl`), which name the rule, so each
+   * link says where it goes; and where those pages are: a card links to an address there, and to
+   * none elsewhere.
+   */
+  rulePage: (rule: string): string => `axe's page on ${rule}`,
+  rulePages: "https://dequeuniversity.com/rules/axe/",
+  /**
+   * What the fold says in place of results: axe couldn't check the page, with the reason the run
+   * recorded (on one line, with no full stop: the sentence adds it), or none; the run's driver
+   * checks no page; the page wasn't read; the file isn't as the run recorded it, or is but isn't
+   * axe's results as voicecap keeps them; or the page's record is of no kind voicecap writes. A run
+   * from before voicecap checked pages with axe says it as every part such a run didn't record
+   * (`notRecordedBy`).
+   */
+  failed: (reason: string): string =>
+    reason === "" ? "axe couldn't check this page." : `axe couldn't check this page: ${reason}.`,
+  noDriver: "Not checked: this run's driver doesn't check pages with axe.",
+  notRead: "Not checked: axe didn't check this page, since it wasn't read.",
+  changed: "Not shown: axe.json isn't as the run recorded it; voicecap verify names it.",
+  notResults:
+    "Not shown: axe.json is as the run recorded it, but it isn't axe's results as voicecap keeps them.",
+  unreadable: "Not shown: the run's record of this page's axe check couldn't be read.",
+  /** The line in "How voicecap works", after its lead. */
+  how: "Each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
+};
+
+/**
  * "What needs attention": its heading, the line under it, the labels of a card's parts, the line of
  * the fold a card's pages are behind, and the verdict's words (`headline` when something needs
  * attention, `nothing` and `nothingOnRead` when nothing does). What a card itself says is
