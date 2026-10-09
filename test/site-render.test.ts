@@ -271,6 +271,15 @@ const bottomBarOf = (markup: string): string =>
 const rowOf = (markup: string): string =>
   /<nav\b[^>]*\saria-label="On this page"[^>]*>[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
 
+/** The front page's What's New banner: the newest release. */
+const newsOf = (markup: string): string =>
+  /<div class="news">[\s\S]*?<\/div>/.exec(markup)?.[0] ?? "";
+
+/** Some markup's words as a screen reader gets them: without what it doesn't read. */
+function heardOf(html: string): string {
+  return textOf(html.replace(/<span[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, ""), "");
+}
+
 /**
  * Each link in some markup, in order: where it goes, as a reader gets it, its words, and whether it
  * says it's the page the reader is on.
@@ -1288,6 +1297,131 @@ describe("renderSiteIndex", () => {
     expect(topBarOf(html)).not.toMatch(/\shref="[^"]*#/);
   });
 
+  it("puts the kicker over the front page's heading", () => {
+    const main = /<main id="main">\n([\s\S]*?)\n<\/main>/.exec(html)?.[1] ?? "";
+    const kicker = /^<p class="kicker">([\s\S]*?)<\/p>\n<h1>/.exec(main)?.[1] ?? "";
+
+    // It opens the main part, right over the heading: the audit tool's trust page heads itself so.
+    expect(kicker).not.toBe("");
+    // A reader sees its parts set apart by dots; a screen reader hears commas for them, and no dot.
+    expect(textOf(withoutHidden(kicker), "")).toBe(
+      "ICJIA · Built for Title II of the ADA · WCAG · Illinois IITAA",
+    );
+    expect(heardOf(kicker)).toBe("ICJIA, Built for Title II of the ADA, WCAG, Illinois IITAA");
+    // Each dot after a space that doesn't break, so a dot ends a line rather than start one.
+    expect(kicker.match(/<span aria-hidden="true">[^<]*<\/span>/g)).toEqual(
+      Array.from({ length: 3 }, () => '<span aria-hidden="true">\u00a0·</span>'),
+    );
+    expect(kicker.match(/<span class="sr">[^<]*<\/span>/g)).toEqual(
+      Array.from({ length: 3 }, () => '<span class="sr">,</span>'),
+    );
+    // The three names are the words that matter in it, in --act.
+    expect(
+      [...kicker.matchAll(/<span class="act">([^<]*)<\/span>/g)].map(([, name]) => name),
+    ).toEqual(["Title II of the ADA", "WCAG", "Illinois IITAA"]);
+    // Its words are the page's own, written in ordinary case, as pieces that mark the names.
+    expect(SITE_TEXT.kicker).toEqual([
+      ["ICJIA"],
+      ["Built for ", { name: "Title II of the ADA" }],
+      [{ name: "WCAG" }],
+      [{ name: "Illinois IITAA" }],
+    ]);
+    // The same on a page with no demo, no site, and no release.
+    const bare = renderSiteIndex({ demo: null, sites: [] }, { ...FACTS, releases: [] });
+    expect(bare).toContain(`<main id="main">\n<p class="kicker">${kicker}</p>\n<h1>`);
+  });
+
+  it("shows the newest release between the lead and 'On this page'", () => {
+    const banner = newsOf(html);
+    const [newest] = FACTS.releases;
+    if (newest === undefined) throw new Error("The facts have a release.");
+
+    // A card that's no landmark: "What's new", as a kicker; the version, a pill in --good; its
+    // headline; and the day it was released, with the link to every update.
+    expect(banner).toMatch(/^<div class="news">\n<p class="kicker">What&#39;s new<\/p>\n/);
+    expect(banner).toContain(`<span class="pill good">${newest.version}</span>`);
+    expect(textsOf(banner, "p")).toEqual([
+      "What's new",
+      newest.headline,
+      "Released 9 October 2026 · See all updates",
+    ]);
+    // The dot after the day is after a space that doesn't break, so it ends a line rather than
+    // start one.
+    expect(banner).toContain(
+      `<p class="released">Released <time datetime="${newest.date}">9 October 2026</time>\u00a0<span class="sep" aria-hidden="true">·</span> <a href="whats-new.html">See all updates</a></p>`,
+    );
+    expect(linksWithWordsOf(banner)).toEqual([
+      { href: WHATS_NEW_HREF, words: "See all updates", current: false },
+    ]);
+    expect(banner).not.toMatch(
+      /<(?:section|nav|aside|header|footer|h[1-6])\b|\srole=|\saria-label/,
+    );
+    // After the heading and its lead, and before "On this page".
+    const places = ["<h1>", '<p class="lead">', '<div class="news">', rowOf(html)].map((part) =>
+      html.indexOf(part),
+    );
+    expect(places.every((place) => place > 0)).toBe(true);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    expect(html).toContain(`</p>\n${banner}\n<nav class="jump"`);
+    expect(html.match(/<div class="news">/g)).toHaveLength(1);
+
+    // It's the newest release the facts give, the CHANGELOG's first: here, one of 8 October.
+    const older = newsOf(renderSiteIndex(CONTENT, { ...FACTS, releases: FACTS.releases.slice(1) }));
+    expect(older).toContain('<span class="pill good">0.13.1</span>');
+    expect(textsOf(older, "p")).toEqual([
+      "What's new",
+      "The website's headings say more at a glance, and each site links to the site itself",
+      "Released 8 October 2026 · See all updates",
+    ]);
+  });
+
+  it("shows no banner when no release is recorded", () => {
+    const page = renderSiteIndex(CONTENT, { ...FACTS, releases: [] });
+
+    expect(page).not.toContain('class="news"');
+    expect(page).not.toContain("What&#39;s new");
+    expect(page).not.toContain("See all updates");
+    // The lead is followed by "On this page", with nothing between them.
+    expect(page).toMatch(/<p class="lead">[^<]*<\/p>\n<nav class="jump"/);
+    // A release with no headline has a banner with none, and no empty paragraph.
+    const plain = newsOf(
+      renderSiteIndex(CONTENT, {
+        ...FACTS,
+        releases: [{ version: "0.15.0", date: "2026-10-09", headline: "", items: [] }],
+      }),
+    );
+    expect(textsOf(plain, "p")).toEqual([
+      "What's new",
+      "Released 9 October 2026 · See all updates",
+    ]);
+    expect(plain).not.toContain('class="headline"');
+  });
+
+  it("draws the newest release's words in the banner as plain text, whatever they hold", () => {
+    // A CHANGELOG line with markup in it, an ampersand, and quotes, and a version that would end an
+    // attribute. (A headline has no backtick, which the CHANGELOG's reader takes out, and a date is
+    // always YYYY-MM-DD: it takes no other.)
+    const hostile = "<script>alert(1)</script> & a lone ' and \" too";
+    const banner = newsOf(
+      renderSiteIndex(CONTENT, {
+        ...FACTS,
+        releases: [
+          { version: '0.15.0"><b>x</b>', date: "2026-10-09", headline: hostile, items: [] },
+          ...FACTS.releases,
+        ],
+      }),
+    );
+
+    expect(banner).toContain(
+      '<p class="headline">&lt;script&gt;alert(1)&lt;/script&gt; &amp; a lone &#39; and &quot; too</p>',
+    );
+    expect(banner).toContain('<span class="pill good">0.15.0&quot;&gt;&lt;b&gt;x&lt;/b&gt;</span>');
+    expect(textsOf(banner, "p")[1]).toBe(hostile);
+    const { elements, attributes } = namesIn(banner);
+    expect(elements.filter((element) => ["script", "b"].includes(element))).toEqual([]);
+    expect(attributes.filter((name) => /^(?:on|style$|src)/.test(name))).toEqual([]);
+  });
+
   it("has no demo view, and no link to one, without a demo", () => {
     const page = frontPage({ ...CONTENT, demo: null });
 
@@ -1470,14 +1604,17 @@ describe("renderSiteIndex", () => {
     );
   });
 
-  it("puts the skip link and the top bar first, then the main part with its row and its views, then the bottom bar and the script", () => {
+  it("puts the skip link and the top bar first, then the main part with its kicker, heading, banner, row, and views, then the bottom bar and the script", () => {
     const places = [
       '<a class="skip" href="#main">Skip to main content</a>',
       '<header class="bar">',
       '<a class="name"',
       '<nav aria-label="This website">',
       '<main id="main">',
+      '<p class="kicker">',
       "<h1>",
+      '<p class="lead">',
+      '<div class="news">',
       'aria-label="On this page"',
       'id="demo"',
       'id="sites"',
@@ -2009,6 +2146,74 @@ describe("SITE_CSS", () => {
         ]),
       );
     }
+  });
+
+  it("draws the front page's banner as a card, its version's pill at its left and its words beside it", () => {
+    // The card's look, from the card's own rule.
+    expect(declarationsFor(SITE_CSS, ".news")).toEqual(
+      expect.arrayContaining([
+        "background: var(--panel)",
+        "border: 1px solid var(--line)",
+        "border-radius: 14px",
+        "padding: 22px 20px",
+      ]),
+    );
+    expect(cssRules(SITE_CSS).some(({ prelude }) => prelude === ".card, .news")).toBe(true);
+    // The pill in a column of its own, no wider than 40% of the card, so a long version breaks in
+    // it; the kicker, the headline, and the day beside it, in a column that shrinks to nothing.
+    expect(declarationsFor(SITE_CSS, ".news")).toEqual(
+      expect.arrayContaining([
+        "grid-template-columns: fit-content(40%) minmax(0, 1fr)",
+        'grid-template-areas: "pill kicker" "pill headline" "pill released"',
+      ]),
+    );
+    for (const [part, area] of [
+      [".news > .pill", "pill"],
+      [".news > .kicker", "kicker"],
+      [".news > .headline", "headline"],
+      [".news > .released", "released"],
+    ] as const) {
+      expect(declarationsFor(SITE_CSS, part), part).toContain(`grid-area: ${area}`);
+    }
+    // The day it was released and the link to every update are quieter and smaller.
+    expect(declarationsFor(SITE_CSS, ".news > .released")).toEqual(
+      expect.arrayContaining(["color: var(--muted)", "font-size: 0.875rem"]),
+    );
+  });
+
+  it("draws the trust page's stamp as the audit tool's amber box, and a headline's second line in --good, on a line of its own", () => {
+    // A 2px line in --warn round it, on --warn-tint, in --warn: its label at its left, and the
+    // records' date at its right, at weight 900, which goes under the label where there's no room.
+    expect(declarationsFor(SITE_CSS, ".stamp")).toEqual(
+      expect.arrayContaining([
+        "border: 2px solid var(--warn)",
+        "background: var(--warn-tint)",
+        "color: var(--warn)",
+        "display: flex",
+        "flex-wrap: wrap",
+        "justify-content: space-between",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, ".stamp > .date")).toContain("font-weight: 900");
+    expect(declarationsFor(SITE_CSS, ".stamp > .source")).toContain("font-weight: 700");
+    expect(declarationsFor(SITE_CSS, "h1 .good")).toEqual(["color: var(--good)", "display: block"]);
+  });
+
+  it("draws a link in a trust card's heading as a link, and a release's version as What's New's pill", () => {
+    // A link is in --link, and underlined, as the spec's colors have every link: a card's heading,
+    // in --good, leaves a link in it alone. Technical details' related documents keep their titles'
+    // links in the headline's color, as the audit tool's are.
+    expect(declarationsFor(SITE_CSS, ".card > h3")).toContain("color: var(--good)");
+    expect(cssRules(SITE_CSS).map(({ prelude }) => prelude)).not.toContain(".card > h3 a");
+    expect(declarationsFor(SITE_CSS, ".related-cards > .card > h3 a")).toEqual(["color: inherit"]);
+    // A release's line on the trust page is What's New's: its version a pill, and its day quieter.
+    expect(declarationsFor(SITE_CSS, ".releases .on")).toEqual(
+      declarationsFor(SITE_CSS, ".update-line"),
+    );
+    expect(declarationsFor(SITE_CSS, ".releases .on time")).toEqual(["color: var(--muted)"]);
+    expect(cssRules(SITE_CSS).map(({ prelude }) => prelude)).not.toContain(".releases .version");
+    // The trust page's line of links is gone: the bottom bar has them.
+    expect(cssRules(SITE_CSS).map(({ prelude }) => prelude)).not.toContain(".links");
   });
 
   it("draws the verdicts in the audit tool's colors: green as good, amber as warn, red as bad", () => {

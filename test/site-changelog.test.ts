@@ -488,7 +488,8 @@ describe("changelogHref", () => {
   it("goes to the same CHANGELOG the trust page links to", () => {
     const href = changelogHref({ version: "0.13.1", date: "2026-10-08" });
 
-    expect(href.startsWith(`${TRUST_TEXT.links.changelog.href}#`)).toBe(true);
+    expect(href.startsWith(`${TRUST_TEXT.releases.changelog.href}#`)).toBe(true);
+    expect(TRUST_TEXT.builder.dated.link.href).toBe(TRUST_TEXT.releases.changelog.href);
   });
 
   it("gives each release of the real CHANGELOG an address of its own", async () => {

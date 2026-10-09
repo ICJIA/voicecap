@@ -39,10 +39,41 @@ function pagesRead({ pages, read }: ShareResult): string {
  */
 export type Sentence = (string | { code: string } | { link: string; href: string })[];
 
+/**
+ * A part of the front page's kicker: plain words, and the names that matter in it (`name`), which
+ * the page marks for the style to draw in --act. It holds no markup, and nothing in it is escaped.
+ */
+export type KickerPart = (string | { name: string })[];
+
 export const SITE_TEXT = {
+  /**
+   * Over the page's heading, as the audit tool's trust page heads itself: who the website is from,
+   * and the law it's built for. Its parts are set apart by a dot a reader sees and a comma a screen
+   * reader hears, and the law's three names are the words that matter in it. It's written in
+   * ordinary case: the style draws it in small capitals.
+   */
+  kicker: [
+    ["ICJIA"],
+    ["Built for ", { name: "Title II of the ADA" }],
+    [{ name: "WCAG" }],
+    [{ name: "Illinois IITAA" }],
+  ] satisfies KickerPart[],
   /** The page's title, and its one heading of the first level. */
   title: SITE_TITLE,
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
+  /**
+   * The banner under the lead, of the newest release the CHANGELOG records: a kicker that says
+   * what it is; then, after the release's version and its headline, which are the CHANGELOG's,
+   * the day it was released, "Released 9 October 2026", and the link to What's New, which has
+   * every release.
+   */
+  news: {
+    kicker: "What's new",
+    released: "Released",
+    /** The release's day, after `released`: "9 October 2026". */
+    day,
+    all: "See all updates",
+  },
   skip: "Skip to main content",
   /** The website's name, which starts the top bar of every page, as a link to the front page. */
   siteName: "ICJIA Screen Reader Tests",

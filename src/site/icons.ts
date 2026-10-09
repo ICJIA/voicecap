@@ -1,8 +1,9 @@
 /**
- * The website's pictures: one before each view's heading, one before each site's name, the arrow of
- * the link to a site itself, and the shield before the trust page's heading; and the frame's (see
- * ./frame.ts): an icon before each link of the bottom bar, the theme button's sun and moon, and the
- * arrow of the way back to the test results. Each is inline SVG in the shareable page's style for
+ * The website's pictures: one before each view's heading, one before each site's name, and the
+ * arrow of the link to a site itself; and the frame's (see ./frame.ts): an icon before each link of
+ * the bottom bar, the shield with a check among them, the theme button's sun and moon, and the
+ * arrow of the way back to the test results. A page's own heading has no picture: the trust page's
+ * is the audit tool's, a kicker over a headline. Each is inline SVG in the shareable page's style for
  * its pictures (../share/html/icons.ts): outlined in the text's own color, on a 24 by 24 grid, and
  * drawn by attributes, so the page sets no `style` attribute. GitHub's mark is the one picture that
  * is filled, as GitHub draws it. Each is hidden from screen readers, since the words beside it say
@@ -48,7 +49,6 @@ export const SITE_ICONS = {
   visit: picture(
     '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   ),
-  trust: SHIELD,
 };
 
 /** The frame's pictures: the bottom bar's five, the theme button's two, and the way back's arrow. */

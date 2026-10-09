@@ -11,11 +11,14 @@
  *
  * The two bars are checked whole at 200% and 400% text, on all four pages, in a wide window and a
  * phone's: nothing in them overlaps or leaves the window, and focus shows on each of their links
- * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels.
+ * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels. The front
+ * page's kicker is heard with commas where it shows dots, and its What's New banner is a card with
+ * its version's pill at its left, at any width, its words as long as words can be too.
  *
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
- * under the bar, its fold, and its bar's link to it, the page the reader is on.
+ * under the bar, its two-line heading, its stamp's amber box, its colors, the newest five releases
+ * with the link to the rest, and its bar's link to it, the page the reader is on.
  *
  * What's New (renderWhatsNew) is checked the same ways too, with its releases, with words as long as
  * words can be, and with no release: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
@@ -207,8 +210,9 @@ let folder: string;
 /**
  * The page files: the tests' content, a site with names as long as they can be, many sites, no
  * report at all, each kind of verdict, the tests' content built by a voicecap whose version is 40
- * characters long, and a page with the bars the trust page has. And the trust page, with its facts
- * and seven releases, so that two are in its fold; and with no release facts and no report.
+ * characters long, the tests' content with a newest release whose words are as long as words can
+ * be, in its banner, and a page with the bars the trust page has. And the trust page, with its facts
+ * and seven releases, so that two are left for What's New; and with no release facts and no report.
  */
 let files: {
   page: string;
@@ -217,6 +221,7 @@ let files: {
   empty: string;
   verdicts: string;
   fortyVersion: string;
+  bannerLong: string;
   trustBar: string;
   trust: string;
   trustBare: string;
@@ -251,6 +256,8 @@ beforeAll(async () => {
       ...FACTS,
       version: FORTY_VERSION,
     }),
+    // The banner's newest release: a version of 44 characters, and a headline with a word of 112.
+    bannerLong: await write("banner-long.html", CONTENT, NEWS_LONG),
     // The shell and the bars of the trust page, over a main part of one heading. It sits beside
     // index.html, which the website's name in its bar goes to.
     trustBar: await writeHtml(
@@ -505,6 +512,39 @@ async function spokenTexts(page: Page): Promise<string[]> {
   }
 }
 
+/**
+ * The words Chromium's accessibility tree hands a screen reader in the element `selector` finds, in
+ * order, joined: each piece of text (`StaticText`) under it that the tree doesn't ignore, through
+ * the objects it does ignore, whose text reads on in their parent's. Nothing that's hidden from a
+ * screen reader is among them, whatever the style draws.
+ */
+async function heardIn(page: Page, selector: string): Promise<string> {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { root } = await client.send("DOM.getDocument", { depth: 0 });
+    const { nodeId } = await client.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+    const { node } = await client.send("DOM.describeNode", { nodeId });
+    const { nodes } = await client.send("Accessibility.getFullAXTree");
+    const byId = new Map(nodes.map((each) => [each.nodeId, each]));
+    const texts: string[] = [];
+    const walk = (id: string): void => {
+      const each = byId.get(id);
+      if (each === undefined) return;
+      if (each.role?.value === "StaticText") {
+        if (!each.ignored) texts.push(String(each.name?.value ?? ""));
+        return;
+      }
+      for (const child of each.childIds ?? []) walk(child);
+    };
+    const start = nodes.find((each) => each.backendDOMNodeId === node.backendNodeId);
+    if (start === undefined) throw new Error(`The tree has nothing for ${selector}.`);
+    walk(start.nodeId);
+    return texts.join("");
+  } finally {
+    await client.detach();
+  }
+}
+
 /** Axe over a page as tall as its content takes a while, more on a slow computer. */
 const AXE_TIMEOUT = 120_000;
 
@@ -628,6 +668,7 @@ describe("the site's page", () => {
     ["names as long as they can be", 390, "long"],
     ["names as long as they can be", 320, "long"],
     ["each kind of verdict", 320, "verdicts"],
+    ["a banner whose words are as long as they can be", 320, "bannerLong"],
   ] as const)(
     "passes axe with zero violations, dark and light, at a phone's width: %s, %i px",
     async (_, width, which) => {
@@ -642,7 +683,7 @@ describe("the site's page", () => {
   );
 
   it("fits a window 320 pixels wide, with its folds open", async () => {
-    for (const which of ["page", "long", "verdicts"] as const) {
+    for (const which of ["page", "long", "verdicts", "bannerLong"] as const) {
       const page = await open(files[which], { width: 320 });
       await openFolds(page);
       const width = (): Promise<number> =>
@@ -733,6 +774,136 @@ describe("the site's page", () => {
         })
         .count(),
     ).resolves.toBe(1);
+  });
+
+  it("puts its kicker over its heading: dots between its parts for the eye, commas for a screen reader, and the three names in --act", async () => {
+    const page = await open(files.page);
+    const kicker = page.locator("main > p.kicker");
+
+    // What Chromium's accessibility tree hands a screen reader, piece by piece: commas, and no
+    // dot, in ordinary case. Each comma's own box, clipped to a pixel, is no object of its own in
+    // the tree, so its text reads on in the paragraph's. (A name made from content, such as
+    // Playwright's snapshot of the paragraph, puts a space before each, since the box is a
+    // positioned one; a paragraph is read as its text.)
+    expect(await heardIn(page, "main > p.kicker")).toBe(
+      "ICJIA, Built for Title II of the ADA, WCAG, Illinois IITAA",
+    );
+    const look = () =>
+      kicker.evaluate((element) => {
+        // What a reader sees: every piece of text but the commas, which are clipped to a pixel.
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        let seen = "";
+        for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+          if (text.parentElement?.closest(".sr") == null) seen += text.textContent ?? "";
+        }
+        const heading = document.querySelector("main > h1")?.getBoundingClientRect();
+        return {
+          seen: seen.replace(/\s+/g, " ").trim(),
+          commas: [...element.querySelectorAll(".sr")].map((comma) => {
+            const box = comma.getBoundingClientRect();
+            return Math.max(box.width, box.height);
+          }),
+          names: [...element.querySelectorAll(".act")].map((name) => getComputedStyle(name).color),
+          words: getComputedStyle(element).color,
+          over: heading !== undefined && element.getBoundingClientRect().bottom <= heading.top,
+        };
+      });
+
+    // Over the heading, in the quieter color, with the names in --act, in both themes.
+    const colors = {
+      dark: { act: "rgb(103, 232, 249)", muted: "rgb(163, 163, 163)" },
+      light: { act: "rgb(44, 98, 106)", muted: "rgb(75, 85, 99)" },
+    };
+    for (const theme of ["dark", "light"] as const) {
+      const seen = await look();
+      expect(seen, theme).toEqual({
+        seen: "ICJIA · Built for Title II of the ADA · WCAG · Illinois IITAA",
+        commas: [1, 1, 1],
+        names: Array.from({ length: 3 }, () => colors[theme].act),
+        words: colors[theme].muted,
+        over: true,
+      });
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+  });
+
+  it("draws the newest release as the audit tool's banner: a card, its version's pill at its left, and its words beside it, at any width", async () => {
+    for (const [which, width] of [
+      ["page", 1280],
+      ["page", 320],
+      ["bannerLong", 320],
+    ] as const) {
+      const page = await open(files[which], { width });
+      const layout = await page.evaluate(() => {
+        const boxOf = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const { left, right, top, bottom } = element.getBoundingClientRect();
+          return { left, right, top, bottom };
+        };
+        return {
+          card: boxOf(".news"),
+          pill: boxOf(".news > .pill"),
+          kicker: boxOf(".news > .kicker"),
+          headline: boxOf(".news > .headline"),
+          released: boxOf(".news > .released"),
+          lead: boxOf("main > .lead"),
+          row: boxOf("nav.jump"),
+        };
+      });
+      const where = `${which}, ${width} px`;
+      const { card, pill, kicker, headline, released } = layout;
+
+      // The pill at the card's left, its top level with the kicker's; the kicker, the headline,
+      // and the day it was released one under another beside it.
+      expect(pill.right, where).toBeLessThanOrEqual(kicker.left);
+      expect(Math.abs(pill.top - kicker.top), where).toBeLessThanOrEqual(6);
+      expect(kicker.bottom, where).toBeLessThanOrEqual(headline.top);
+      expect(headline.bottom, where).toBeLessThanOrEqual(released.top);
+      expect(headline.left, where).toBe(kicker.left);
+      expect(released.left, where).toBe(kicker.left);
+      // Each inside the card, the card inside the window, after the lead and before the row.
+      for (const [name, part] of Object.entries({ pill, kicker, headline, released })) {
+        expect(part.left, `${where}: ${name}`).toBeGreaterThanOrEqual(card.left);
+        expect(part.right, `${where}: ${name}`).toBeLessThanOrEqual(card.right);
+        expect(part.bottom, `${where}: ${name}`).toBeLessThanOrEqual(card.bottom);
+      }
+      expect(card.right, where).toBeLessThanOrEqual(width);
+      expect(card.top, where).toBeGreaterThan(layout.lead.bottom);
+      expect(layout.row.top, where).toBeGreaterThan(card.bottom);
+    }
+
+    // The card's look, and its words' colors, in both themes: a version's pill in --good on its
+    // tint, the day quieter, and the link a link.
+    const page = await open(files.page);
+    const looks = () =>
+      page.evaluate(() => {
+        const style = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          return getComputedStyle(element);
+        };
+        const card = style(".news");
+        return {
+          card: [card.backgroundColor, card.borderTopWidth, card.borderTopLeftRadius],
+          pill: style(".news > .pill").color,
+          released: style(".news > .released").color,
+          link: [style(".news a").color, style(".news a").textDecorationLine],
+        };
+      });
+    expect(await looks()).toEqual({
+      card: ["rgb(17, 17, 17)", "1px", "14px"],
+      pill: "rgb(52, 211, 153)",
+      released: "rgb(163, 163, 163)",
+      link: ["rgb(96, 165, 250)", "underline"],
+    });
+    await page.locator("#theme-toggle").click();
+    expect(await looks()).toEqual({
+      card: ["rgb(255, 255, 255)", "1px", "14px"],
+      pill: "rgb(25, 101, 73)",
+      released: "rgb(75, 85, 99)",
+      link: ["rgb(37, 99, 235)", "underline"],
+    });
   });
 
   it("draws its words in the system's fonts, and its big numbers in the fixed-width one, and loads no font, on both pages", async () => {
@@ -894,12 +1065,12 @@ describe("the site's page", () => {
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
     // The skip link, the top bar's four links (the website's name and its three pages) and its
-    // button, the "On this page" row's three links, the link to the demo's pages, the link to the
-    // first site itself (the second has no address people visit), the current reports' links (the
-    // demo's two, the first site's two, and the second site's one: its Word copy is missing), the
-    // earlier report's one (its Word copy changed), the three folds' summaries, each report's page
-    // by date, and the bottom bar's five links.
-    const closed = 1 + 4 + 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 5;
+    // button, the banner's link to every update, the "On this page" row's three links, the link to
+    // the demo's pages, the link to the first site itself (the second has no address people
+    // visit), the current reports' links (the demo's two, the first site's two, and the second
+    // site's one: its Word copy is missing), the earlier report's one (its Word copy changed), the
+    // three folds' summaries, each report's page by date, and the bottom bar's five links.
+    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 5;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -1182,8 +1353,8 @@ describe("the trust page", () => {
     "passes axe with zero violations, dark and light, %s, at %i pixels",
     async (_, width, which) => {
       const page = await open(files[which], { width });
-      // Closed, the fold's releases aren't drawn, so axe wouldn't check them.
-      await openFolds(page);
+      // It has no fold: everything it says is drawn, and checked.
+      expect(await page.locator("details").count()).toBe(0);
 
       expect(await theme(page)).toBe("dark");
       expect(await axeFindings(page, width), "dark").toEqual([]);
@@ -1196,15 +1367,13 @@ describe("the trust page", () => {
 
   it("has no two links that read alike and go to different places", async () => {
     const page = await open(files.trust);
-    await openFolds(page);
 
     expect(await identicalLinks(page)).toEqual([]);
   });
 
-  it("fits a window 320 pixels wide, with its fold open", async () => {
+  it("fits a window 320 pixels wide", async () => {
     for (const which of ["trust", "trustBare"] as const) {
       const page = await open(files[which], { width: 320 });
-      await openFolds(page);
       const width = (): Promise<number> =>
         page.evaluate(() => document.documentElement.scrollWidth);
 
@@ -1234,41 +1403,137 @@ describe("the trust page", () => {
     }
   });
 
-  it("is complete without JavaScript, and its fold opens by mouse and by keyboard", async () => {
+  it("is complete without JavaScript: every section, the stamp, every big number's link, the newest five releases, and the link to the rest are there and in view", async () => {
     const page = await open(files.trust, { scripts: false });
 
-    // Every section, and every big number's link, is there, and in view.
+    // Every section, the stamp, and every big number's link, in view.
     expect(await page.locator("main h2").allTextContents()).toEqual(SECTION_HEADINGS);
     for (const heading of await page.locator("main h2").all()) {
       expect(await heading.isVisible()).toBe(true);
     }
+    expect(await page.locator(".stamp").isVisible()).toBe(true);
     const tileLinks = page.locator(".tile a");
     expect(await tileLinks.count()).toBe(4);
     for (const link of await tileLinks.all()) expect(await link.isVisible()).toBe(true);
 
-    // The newest five releases are in view, and the two before them are in the fold, closed.
-    expect(await page.locator("#releases > ol > li").count()).toBe(5);
-    const folded = page.locator("#releases details li");
-    expect(await folded.count()).toBe(2);
-    const inView = async (): Promise<boolean[]> =>
-      Promise.all((await folded.all()).map((item) => item.isVisible()));
-    expect(await inView()).toEqual([false, false]);
-
-    // By mouse, open and closed again; then by keyboard, Enter and Space each turn it.
-    const summary = page.locator("#releases summary");
-    await summary.click();
-    expect(await inView()).toEqual([true, true]);
-    await summary.click();
-    expect(await inView()).toEqual([false, false]);
-    await summary.focus();
-    await page.keyboard.press("Enter");
-    expect(await inView()).toEqual([true, true]);
-    await page.keyboard.press("Space");
-    expect(await inView()).toEqual([false, false]);
+    // The newest five of the seven releases, in view, with no fold: the link after them goes to
+    // What's New, which has every one.
+    const releases = page.locator("#releases > ol > li");
+    expect(await releases.count()).toBe(5);
+    for (const release of await releases.all()) expect(await release.isVisible()).toBe(true);
+    expect(await page.locator("details, summary").count()).toBe(0);
+    const rest = page.locator("#releases a", { hasText: "See all 7 releases" });
+    expect(await rest.isVisible()).toBe(true);
+    expect(await rest.getAttribute("href")).toBe("whats-new.html");
 
     // The button does nothing without the script, so it's hidden, and the page is dark.
     expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
     expect(await background(page)).toBe(DARK);
+  });
+
+  it("heads the page in two lines: the second, 'See for yourself.', on a line of its own, in --good", async () => {
+    const page = await open(files.trust);
+    const look = () =>
+      page.locator("main h1").evaluate((heading) => {
+        const second = heading.querySelector(".good");
+        if (second === null) throw new Error("The heading has no second line.");
+        const box = heading.getBoundingClientRect();
+        const line = parseFloat(getComputedStyle(heading).lineHeight);
+        const { top, left } = second.getBoundingClientRect();
+        return {
+          first: getComputedStyle(heading).color,
+          second: getComputedStyle(second).color,
+          display: getComputedStyle(second).display,
+          // The first sentence is one line at 1280, and the second starts at the heading's left,
+          // on the line under it.
+          lines: Math.round((top - box.top) / line),
+          left: left - box.left,
+        };
+      });
+
+    expect(await look()).toEqual({
+      first: "rgb(255, 255, 255)",
+      second: "rgb(52, 211, 153)",
+      display: "block",
+      lines: 1,
+      left: 0,
+    });
+    await page.locator("#theme-toggle").click();
+    expect(await look()).toEqual({
+      first: "rgb(17, 24, 39)",
+      second: "rgb(25, 101, 73)",
+      display: "block",
+      lines: 1,
+      left: 0,
+    });
+    // At 320 pixels the first sentence takes two lines, and the second still starts a line of its
+    // own: it never shares one with the first.
+    await page.setViewportSize({ width: 320, height: 800 });
+    expect(await look()).toMatchObject({ display: "block", lines: 2, left: 0 });
+    // One heading, read as its two sentences.
+    expect(await page.locator("main h1").ariaSnapshot()).toBe(
+      '- heading "Built to be checked. See for yourself." [level=1]',
+    );
+  });
+
+  it("draws the stamp as the audit tool's amber box: its label at its left, and the records' date, big, at its right, under the label on a phone", async () => {
+    const page = await open(files.trust);
+    const look = () =>
+      page.evaluate(() => {
+        const element = (selector: string) => {
+          const found = document.querySelector(selector);
+          if (found === null) throw new Error(`The page has no ${selector}.`);
+          return found;
+        };
+        const [stamp, source, date] = [
+          element(".stamp"),
+          element(".stamp > .source"),
+          element(".stamp > .date"),
+        ];
+        const box = (part: Element) => {
+          const { left, right, top, bottom } = part.getBoundingClientRect();
+          return { left, right, top, bottom };
+        };
+        const style = getComputedStyle(stamp);
+        return {
+          stamp: box(stamp),
+          source: box(source),
+          date: box(date),
+          border: [style.borderTopWidth, style.borderTopStyle, style.borderTopColor],
+          color: [style.color, getComputedStyle(source).color, getComputedStyle(date).color],
+          tinted: style.backgroundColor !== "rgba(0, 0, 0, 0)",
+          weights: [getComputedStyle(source).fontWeight, getComputedStyle(date).fontWeight],
+          sizes: [
+            parseFloat(getComputedStyle(source).fontSize),
+            parseFloat(getComputedStyle(date).fontSize),
+          ],
+        };
+      });
+    const warn = { dark: "rgb(251, 191, 36)", light: "rgb(112, 85, 16)" };
+
+    // At 1280: one row, the label at the left and the date at the right, big and at weight 900.
+    for (const theme of ["dark", "light"] as const) {
+      const wide = await look();
+      expect(wide.border, theme).toEqual(["2px", "solid", warn[theme]]);
+      expect(wide.color, theme).toEqual([warn[theme], warn[theme], warn[theme]]);
+      expect(wide.tinted, theme).toBe(true);
+      expect(wide.weights, theme).toEqual(["700", "900"]);
+      expect(wide.sizes[1], theme).toBeGreaterThan((wide.sizes[0] ?? 0) * 1.5);
+      expect(wide.source.right, theme).toBeLessThan(wide.date.left);
+      expect(wide.date.top, theme).toBeLessThan(wide.source.bottom);
+      // The date ends where the box's inside does: 2 pixels of line, and 20 inside it.
+      expect(wide.stamp.right - wide.date.right, theme).toBeCloseTo(22, 0);
+      // The box is as wide as the page's column.
+      expect(wide.stamp.right - wide.stamp.left, theme).toBe(896);
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+
+    // On a phone, the date goes under the label, inside the window.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const narrow = await look();
+    expect(narrow.date.top).toBeGreaterThanOrEqual(narrow.source.bottom);
+    expect(narrow.date.left).toBe(narrow.source.left);
+    expect(narrow.stamp.right).toBeLessThanOrEqual(320 - 16);
   });
 
   it("marks its own link in the bar as the page the reader is on: bold, and underlined more heavily", async () => {
@@ -1393,33 +1658,41 @@ describe("the trust page", () => {
     expect(kicker.right).toBeLessThanOrEqual(320);
   });
 
-  it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, and a card's heading, its link, and a big number in --good", async () => {
+  it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, a card's heading in --good and a link in it a link, the big numbers in --good, --good, --act, and --warn, and a release's version a pill in --good", async () => {
     const page = await open(files.trust);
     const colors = () =>
       page.evaluate(() => {
-        const color = (selector: string): string => {
+        const style = (selector: string) => {
           const element = document.querySelector(selector);
           if (element === null) throw new Error(`The page has no ${selector}.`);
-          return getComputedStyle(element).color;
+          return getComputedStyle(element);
         };
         return {
-          tag: color(".card > .tag"),
-          heading: color(".card > h3"),
-          headingLink: color(".card > h3 > a"),
-          number: color(".tile > .n:not(.none)"),
+          tag: style(".card > .tag").color,
+          heading: style(".card > h3").color,
+          headingLink: [style(".card > h3 > a").color, style(".card > h3 > a").textDecorationLine],
+          numbers: [...document.querySelectorAll(".tile > .n")].map(
+            (number) => getComputedStyle(number).color,
+          ),
+          release: [style("#releases .pill").color, style("#releases .pill").backgroundColor],
         };
       });
 
-    // #67e8f9 and #34d399, dark; #2c626a and #196549, light.
+    // #67e8f9, #34d399, #fbbf24, and #60a5fa, dark; #2c626a, #196549, #705510, and #2563eb, light.
     const good = { dark: "rgb(52, 211, 153)", light: "rgb(25, 101, 73)" };
     const act = { dark: "rgb(103, 232, 249)", light: "rgb(44, 98, 106)" };
+    const warn = { dark: "rgb(251, 191, 36)", light: "rgb(112, 85, 16)" };
+    const link = { dark: "rgb(96, 165, 250)", light: "rgb(37, 99, 235)" };
     for (const theme of ["dark", "light"] as const) {
-      expect(await colors(), theme).toEqual({
+      const seen = await colors();
+      expect(seen, theme).toMatchObject({
         tag: act[theme],
         heading: good[theme],
-        headingLink: good[theme],
-        number: good[theme],
+        headingLink: [link[theme], "underline"],
+        numbers: [good[theme], good[theme], act[theme], warn[theme]],
       });
+      expect(seen.release[0], theme).toBe(good[theme]);
+      expect(seen.release[1], theme).not.toBe("rgba(0, 0, 0, 0)");
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
   });
@@ -1453,37 +1726,36 @@ describe("the trust page", () => {
     expect(words?.width).toBeLessThanOrEqual(1);
   });
 
-  it("never hides what has focus under the bar, 1100 pixels wide, with its fold closed or open", async () => {
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.trust, { width: 1100, height: 500 });
 
     expect(await stopsUnderTheBar(page)).toEqual([]);
-    await openFolds(page);
-    expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("puts the part a big number's link points to below the bar, 1100 pixels wide", async () => {
-    // A window short enough that each part can be scrolled to the top of it.
+  it("puts what a big number's link points to below the bar, 1100 pixels wide: a part's kicker, or how to check a copy", async () => {
+    // A window short enough that each can be scrolled to the top of it.
     const page = await open(files.trust, { width: 1100, height: 300 });
 
-    for (const [words, id] of [
-      ["How it's tested", "tested"],
-      ["How to check a copy", "evidence"],
-      ["How it got here", "releases"],
+    for (const [words, target, first] of [
+      ["How it's tested", "#tested", "#tested > .kicker"],
+      ["How to check a copy", "#check", "#check > p"],
+      ["How it got here", "#releases", "#releases > .kicker"],
     ] as const) {
       await page.locator(".tile a", { hasText: words }).click();
 
-      const result = await page.evaluate((id) => {
-        const kicker = document.querySelector(`#${id} > .kicker`);
+      expect(new URL(page.url()).hash, words).toBe(target);
+      const result = await page.evaluate((selector) => {
+        const shown = document.querySelector(selector);
         const bar = document.querySelector(".bar");
-        if (kicker === null || bar === null) return "the part or the bar isn't there";
-        const box = kicker.getBoundingClientRect();
+        if (shown === null || bar === null) return "what it points to, or the bar, isn't there";
+        const box = shown.getBoundingClientRect();
         const hit = document.elementFromPoint(box.left + 10, box.top + box.height / 2);
         const barBottom = bar.getBoundingClientRect().bottom;
-        return hit === kicker && box.top >= barBottom
+        return hit !== null && shown.contains(hit) && box.top >= barBottom && box.top < 300
           ? null
-          : `its kicker is at ${box.top}, and the bar ends at ${barBottom}`;
-      }, id);
-      expect(result, id).toBeNull();
+          : `it's at ${box.top}, and the bar ends at ${barBottom}`;
+      }, first);
+      expect(result, words).toBeNull();
     }
   });
 });

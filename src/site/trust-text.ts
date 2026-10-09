@@ -24,17 +24,15 @@
  */
 import { count, dateAndTime, names } from "../share/format.js";
 import type { Line } from "../share/line.js";
+import { MAC_HASH, POWERSHELL_HASH } from "../share/text.js";
 import type { RecordFacts, ReleaseFacts } from "./facts.js";
 import { day, SITE_TEXT } from "./text.js";
 
-/** voicecap's repository on GitHub, where the footer's link goes too. */
+/** voicecap's repository on GitHub, where the bottom bar's link goes too. */
 const GITHUB = SITE_TEXT.github;
 
 /** voicecap's CHANGELOG, as GitHub shows it. */
 const CHANGELOG = `${GITHUB}/blob/main/CHANGELOG.md`;
-
-/** voicecap's package on npm. */
-const NPM = "https://www.npmjs.com/package/@icjia/voicecap";
 
 /**
  * What a line says in place of a fact this build of voicecap doesn't have, as a build that wasn't
@@ -42,8 +40,8 @@ const NPM = "https://www.npmjs.com/package/@icjia/voicecap";
  */
 const NOT_RECORDED = "not recorded in this build of voicecap";
 
-/** What the stamp says of a website with no report yet, not even the demo's. */
-const NO_REPORT = "no report has been shared yet";
+/** What the stamp's date says of a website with no report yet, not even the demo's. */
+const NO_REPORT = "No report has been shared yet.";
 
 /**
  * What needs attention in the pages counted, at the end of their line: ", where nothing needs
@@ -66,23 +64,35 @@ export const TRUST_TEXT = {
   title: `${SITE_TEXT.trust} · ${SITE_TEXT.title}`,
   /** What a screen reader hears in place of a big number's "—": a fact this build doesn't have. */
   notRecorded: "not recorded",
-  /** The page's banner, and what follows it. */
+  /** The page's head: its kicker, its heading, its lead, and the stamp under them. */
   hero: {
-    /** The page's one heading of the first level, in its banner. */
-    heading: "Built to be checked. See for yourself.",
+    /**
+     * The page's one heading of the first level, in two lines, as the audit tool's: the first in the
+     * headline's color, and the second in the color of what's good. A screen reader hears the two
+     * sentences.
+     */
+    heading: { first: "Built to be checked.", second: "See for yourself." },
     kicker: "voicecap · a human review, sped up",
     lead: "Every claim on this page can be checked without taking anyone's word for it, the builder's included.",
     /**
-     * Where the numbers come from, under the lead: the version and the day it was released, then
-     * when the newest report was shared. "voicecap 0.13.2, released 9 October 2026 · records as of
-     * 3 October 2026, 14:05".
+     * The stamp under the lead, in the audit tool's amber box: the 0.13.2 stamp's words, divided
+     * between its two sides. Its label, at the left, says where the counts come from: the version
+     * and the day it was released, and the records. The law's numbers are no count, and nor is the
+     * version whose reports began to keep screenshots, so it says "the counts", not every number.
+     * The records' date, big, at the right, is when the newest report was shared: "As of 3 October
+     * 2026, 14:05", which the label reads into, or, with no report, that none has been shared, which
+     * reads as well after it.
      */
-    stamp: (version: string, released: string | null, newest: string | null): string => {
-      const which =
-        released === null
-          ? `voicecap ${version}, whose release date isn't recorded in this build`
-          : `voicecap ${version}, released ${day(released)}`;
-      return `${which} · ${newest === null ? NO_REPORT : `records as of ${dateAndTime(newest)}`}`;
+    stamp: {
+      label: (version: string, released: string | null): string => {
+        const when =
+          released === null
+            ? "whose release date isn't recorded in this build"
+            : `released ${day(released)}`;
+        return `The counts below come from voicecap ${version}, ${when}, and from this website's records`;
+      },
+      date: (newest: string | null): string =>
+        newest === null ? NO_REPORT : `As of ${dateAndTime(newest)}`,
     },
   },
   /**
@@ -163,7 +173,11 @@ export const TRUST_TEXT = {
   does: {
     kicker: "what it does",
     heading: "One job: hear a website the way a screen reader user hears it.",
-    text: "Many people who are blind or can't see well use a screen reader: software that reads what's on the screen out loud. voicecap has a real screen reader, NVDA, read every page of a website three ways (line by line, heading by heading, and control by control) and saves every word it says. A person then reads what it said, and decides what each page needs. It's a human review, sped up.",
+    /**
+     * "Each page of a website", never "every page": a run reads the pages it's given, and --limit,
+     * --page, --include, and --exclude give it fewer than the whole website has.
+     */
+    text: "Many people who are blind or can't see well use a screen reader: software that reads what's on the screen out loud. voicecap has a real screen reader, NVDA, read each page of a website three ways (line by line, heading by heading, and control by control) and saves every word it says. A person then reads what it said, and decides what each page needs. It's a human review, sped up.",
   },
   nvda: {
     kicker: "the screen reader",
@@ -208,8 +222,9 @@ export const TRUST_TEXT = {
     ],
   },
   /**
-   * How every word can be checked, a point each. Four of the five link to where they're shown or
-   * described; the one on the files this website publishes has no link.
+   * How every word can be checked, a point each. Five of the six link to where they're shown or
+   * described; the one on the files this website publishes has no link, and the one after it says
+   * how to check a copy of one of them.
    */
   evidence: {
     kicker: "the evidence",
@@ -243,6 +258,23 @@ export const TRUST_TEXT = {
      */
     published: ({ published, leftOut }: RecordFacts["files"]): string =>
       `Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: ${count(published)} today${leftOut > 0 ? `, and ${count(leftOut)} left out` : ""}.`,
+    /**
+     * How to check a copy of one of the files, step by step, which the files tile links to: the
+     * command that gives its fingerprint, PowerShell's on Windows or the Mac's, the same two the
+     * shareable page and the website's own page name (POWERSHELL_HASH and MAC_HASH); and the
+     * fingerprint to compare it with, which the website's own page lists with each file, as it was
+     * recorded when the file was shared. Its link goes to them.
+     */
+    check: {
+      words: [
+        "To check a copy you downloaded, run ",
+        { text: POWERSHELL_HASH, mono: true },
+        " in PowerShell on Windows, or ",
+        { text: MAC_HASH, mono: true },
+        " on a Mac, and compare the fingerprint it gives with the one listed for the file on the test results page. If they match, the copy hasn't changed since it was shared. PowerShell shows the same letters in capitals.",
+      ] satisfies Line,
+      link: "The files and their fingerprints",
+    },
     /**
      * Of each walkthrough file a report offers, with no version named: a report shared with
      * voicecap 0.7.0, the first to share, offers none.
@@ -362,23 +394,19 @@ export const TRUST_TEXT = {
       link: { words: "The CHANGELOG", href: CHANGELOG },
     },
   },
-  /** Every release, the newest first, from the CHANGELOG. */
+  /** The newest five releases, from the CHANGELOG, and the way to every one. */
   releases: {
     kicker: "the record",
     heading: "How it got here.",
     /** A release's day, after its version: "9 October 2026". */
     day,
-    /** The fold of the releases after the newest five: "Every earlier release (15)". */
-    earlier: (releases: number): string => `Every earlier release (${count(releases)})`,
+    /**
+     * The link after the newest five, when there are more, to What's New, which has every release:
+     * "See all 22 releases".
+     */
+    all: (releases: number): string => `See all ${count(releases)} releases`,
     /** Said in place of the releases, when the CHANGELOG has none. */
     none: `The releases are ${NOT_RECORDED}.`,
     changelog: { words: "The full CHANGELOG", href: CHANGELOG },
-  },
-  /** The line of links above the footer, and the version that ends it. */
-  links: {
-    github: { words: "voicecap on GitHub", href: GITHUB },
-    changelog: { words: "The CHANGELOG", href: CHANGELOG },
-    npm: { words: "voicecap on npm", href: NPM },
-    version: (version: string): string => `voicecap ${version}`,
   },
 };

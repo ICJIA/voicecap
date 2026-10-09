@@ -9,12 +9,14 @@
  * The head, the skip link, the two bars, and the script are the website's frame (./frame.ts), which
  * its other pages, the trust page, What's New, and Technical details, have too; this module draws
  * what is between the bars. In order: the head; a skip link to the main content; the top bar, whose
- * name is this page; `main`, with the page's heading and lead, "On this page", a row of links to
- * the views that are there, the views (the demo's, the sites', and, when two sites or more have
- * reports, every report by date), and what to know about a file's fingerprint and a walkthrough
- * file; the bottom bar, which says the version of voicecap that built the page; and last, the
- * script. What the model or a record supplies goes through `esc`, and so does the fixed text
- * (./text.ts), which is plain words.
+ * name is this page; `main`, with the kicker, as the audit tool's trust page heads itself ("ICJIA ·
+ * Built for Title II of the ADA · WCAG · Illinois IITAA", the law's three names marked), the page's
+ * heading and lead, the banner of the newest release ("What's new", when the CHANGELOG records
+ * one), "On this page", a row of links to the views that are there, the views (the demo's, the
+ * sites', and, when two sites or more have reports, every report by date), and what to know about
+ * a file's fingerprint and a walkthrough file; the bottom bar, which says the version of voicecap
+ * that built the page; and last, the script. What the model, a record, or the CHANGELOG supplies
+ * goes through `esc`, and so does the fixed text (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
@@ -34,10 +36,10 @@ import { folderSafe } from "../run/paths.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
-import type { VoicecapFacts } from "./facts.js";
-import { sitePage } from "./frame.js";
+import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
+import { sitePage, WHATS_NEW_HREF } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
-import { SITE_TEXT, type Sentence } from "./text.js";
+import { type KickerPart, SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
 export interface PublishedFile {
@@ -434,6 +436,58 @@ function byDateView(sites: SiteContent["sites"]): string {
 }
 
 /**
+ * What sets two parts of the kicker apart: a comma for a screen reader, which a reader doesn't see
+ * (`.sr`), and a dot for the eye, which a screen reader doesn't read, after a space that doesn't
+ * break, so the dot ends a line rather than start one; then a space for both. A reader sees "ICJIA ·
+ * Built for", and a screen reader hears "ICJIA, Built for".
+ */
+const KICKER_SEPARATOR = '<span class="sr">,</span><span aria-hidden="true">\u00a0·</span> ';
+
+/** What sets the day a release came out apart from the link after it, a dot that ends a line. */
+const DAY_SEPARATOR = `\u00a0${SEPARATOR} `;
+
+/**
+ * The kicker over the page's heading, from its parts (SITE_TEXT.kicker): each piece escaped, and
+ * each name that matters in it marked, for the style to draw in --act.
+ */
+function kicker(parts: readonly KickerPart[]): string {
+  const part = (pieces: KickerPart): string =>
+    pieces
+      .map((piece) =>
+        typeof piece === "string" ? esc(piece) : `<span class="act">${esc(piece.name)}</span>`,
+      )
+      .join("");
+  return `<p class="kicker">${parts.map(part).join(KICKER_SEPARATOR)}</p>`;
+}
+
+/**
+ * The banner of the newest release, the first the facts give, under the lead: a card that's no
+ * landmark, holding "What's new", as a kicker; the release's version, as a pill; its headline,
+ * when its entry has one; and the day it was released, in a `time` that holds the day it names,
+ * with the link to What's New, which has every release. Its words are the CHANGELOG's, escaped, so
+ * a line with markup in it is plain text here. Nothing, when the CHANGELOG records no release, as a
+ * developer's build may not.
+ */
+function news(releases: readonly VoicecapRelease[]): string[] {
+  const [newest] = releases;
+  if (newest === undefined) return [];
+  const words = SITE_TEXT.news;
+  const { version, date, headline } = newest;
+  const day = `<time datetime="${esc(date)}">${esc(words.day(date))}</time>`;
+  return [
+    [
+      '<div class="news">',
+      `<p class="kicker">${esc(words.kicker)}</p>`,
+      `<span class="pill good">${esc(version)}</span>`,
+      // No paragraph with nothing in it.
+      ...(headline === "" ? [] : [`<p class="headline">${esc(headline)}</p>`]),
+      `<p class="released">${esc(words.released)} ${day}${DAY_SEPARATOR}<a href="${WHATS_NEW_HREF}">${esc(words.all)}</a></p>`,
+      "</div>",
+    ].join("\n"),
+  ];
+}
+
+/**
  * "On this page": a navigation of the page's views that are there, the demo's, the sites', and
  * every report by date, each a link to its view by the view's heading. Its name stands before its
  * links for the eye too, hidden from a screen reader, which would otherwise hear it twice, as
@@ -461,7 +515,8 @@ function onThisPage(content: SiteContent): string {
 /**
  * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts),
  * whose top bar says the page is the website's own, and whose bottom bar says the version of
- * `voicecap`, the voicecap that built it. Pure.
+ * `voicecap`, the voicecap that built it; the banner under the lead is the newest of its releases.
+ * Pure.
  */
 export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): string {
   return sitePage({
@@ -469,8 +524,10 @@ export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): 
     current: "index",
     version: voicecap.version,
     main: [
+      kicker(SITE_TEXT.kicker),
       `<h1>${esc(SITE_TEXT.title)}</h1>`,
       `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+      ...news(voicecap.releases),
       onThisPage(content),
       ...(content.demo === null ? [] : [demoView(content.demo)]),
       sitesView(content.sites),

@@ -64,7 +64,7 @@
  * - the parts, as the audit tool draws them:
  *   - a card has the panel behind it, a 1px border in the line's color, corners of 14 pixels, and
  *     22 by 20 pixels inside; a card's words are in `--text-2`, and a card in a card, or a table's
- *     header, is on `--panel-2`;
+ *     header, is on `--panel-2`. The front page's banner is one;
  *   - a part of a page (`.part`) has 44 pixels above and below it, and a line between it and the
  *     part before;
  *   - a pill is small, at weight 700, in its color on its color's tint, with corners of 6 pixels:
@@ -99,24 +99,26 @@
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the main part grows, keeping its measure.
  *   In print the page is laid out as it was;
- * - the trust page (./trust.ts): its heading is the page's headline, and not a card, as the audit
- *   tool's trust page heads itself, with its picture, in its circle, over it where the headline is
- *   too long to sit beside it; then a kicker, the lead, the stamp of where
- *   its numbers come from, in the audit tool's amber box, and four big numbers, each in a card with
- *   its line and its link, which ends the card so the links of a row line up. The cards are one a
- *   row on a phone, two from 36em, and four from 60em, in columns that shrink to nothing. Each part
- *   after it has its kicker over a heavy heading; its points are cards, one under another; its
- *   cards are three a row where each has 17rem, and one a row on a phone, headed in `--good` as the
- *   audit tool's are; a law's tag is a pill; and its releases run down a line, each version in
- *   `--act`, the earlier ones in the website's fold. A big number that isn't recorded is a dash,
- *   in the quieter color;
+ * - the trust page (./trust.ts) is headed as the audit tool's trust page: a kicker over the page's
+ *   headline, in two lines, the second, on a line of its own, in `--good`; then the lead; the stamp,
+ *   in the audit tool's amber box (a 2px line in `--warn` on `--warn-tint`), its label, small and
+ *   bold, at its left, and the records' date, big and at weight 900, at its right, or under the
+ *   label where there's no room; and four big numbers, in the audit tool's tiles' colors (`--good`,
+ *   `--good`, `--act`, and `--warn`), each in a card with its line and its link, which ends the card
+ *   so the links of a row line up. The cards are one a row on a phone, two from 36em, and four from
+ *   60em, in columns that shrink to nothing. Each part after it has its kicker over a heavy heading;
+ *   its points are cards, one under another; its cards are three a row where each has 17rem, and
+ *   one a row on a phone, headed in `--good` as the audit tool's are, and a heading that links to
+ *   its source is a link, in `--link`; a law's tag is a pill; and its newest five releases run down
+ *   a line, each one's line as What's New's, its version a pill in `--good`, with a line of links
+ *   after them. A big number that isn't recorded is a dash, in the quieter color;
  * - What's New (./whats-new.ts): its head is the trust page's block, a kicker over the heading and
  *   then the lead, with the heading's own margin left out of it; then a card for each release, one
  *   under another, 16 pixels apart. A card is the card (`.card`): its first line is the version's
  *   pill in `--good`, its day, and, on the version that built the website, "the current version" in
- *   the quieter color; its headline is a smaller, heavy heading of the card's, in the headline's
- *   color; its points are a list in the card's words' color; and the link to its entry ends it, in
- *   bold, as a card's link does;
+ *   the quieter color, the line the trust page gives each of its releases too; its headline is a
+ *   smaller, heavy heading of the card's, in the headline's color; its points are a list in the
+ *   card's words' color; and the link to its entry ends it, in bold, as a card's link does;
  * - Technical details (./technical.ts): its head is What's New's, with the version it's from under
  *   the lead, in the quieter color. "On this page" is a card of numbered links to its parts, in two
  *   columns where each has 17rem, and a part a link goes to keeps its kicker in view above its
@@ -141,7 +143,13 @@
  * - the way back to the test results, which opens the trust page, What's New, and Technical
  *   details, is an arrow and its words, in the quieter color, as the audit tool's "Back" is;
  * - the front page's "On this page" is a row: its name, a kicker, then a link to each view, which
- *   wraps.
+ *   wraps;
+ * - the front page opens with its kicker over its heading, 18 pixels above it, as the website's
+ *   other pages keep theirs, its names in `--act`. Under the lead, its What's New banner is a card,
+ *   as the audit tool's: the newest release's version, a pill in `--good`, at its left, in a column
+ *   no wider than 40% of the card, so a long version breaks in it; and beside it the kicker, the
+ *   release's headline, in the card's words' color, and the day it was released with the link to
+ *   every update, quieter and smaller.
  */
 export const SITE_CSS = `:root {
   --bg: #0a0a0a; --panel: #111111; --panel-2: #141414; --line: #222222;
@@ -174,8 +182,8 @@ h1 { font-size: clamp(2.125rem, 6vw, 3.875rem); line-height: 1.05; font-weight: 
 h2 { font-size: clamp(1.625rem, 4.2vw, 2.5rem); line-height: 1.1; font-weight: 900; }
 h3 { font-size: 1.1875rem; line-height: 1.25; font-weight: 800; }
 h4 { font-size: 1.0625rem; line-height: 1.3; font-weight: 700; }
-/* A page's h1 may have a second line in the color of what's good, as the trust page's does. */
-h1 .good { color: var(--good); }
+/* A page's h1 may have a second line, on a line of its own, in the color of what's good, as the trust page's does. */
+h1 .good { color: var(--good); display: block; }
 p { margin: 0; }
 code { font-family: var(--mono); font-size: 0.88em; overflow-wrap: anywhere; }
 /* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. So do the bars' words, at a large text size in a narrow window, and a long version. */
@@ -211,9 +219,9 @@ main { box-sizing: border-box; width: 100%; max-width: calc(56rem + 32px); margi
   .bar, footer { padding-inline: max(24px, calc(50% - 36rem)); }
 }
 main > .lead { margin-bottom: 8px; }
-/* a card: the panel behind it, a thin line around it, round corners, and 22 by 20 pixels inside; its words in --text-2 */
-.card { display: grid; gap: 10px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
-.card > * { min-width: 0; }
+/* a card: the panel behind it, a thin line around it, round corners, and 22 by 20 pixels inside; its words in --text-2. The front page's banner is one. */
+.card, .news { display: grid; gap: 10px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
+.card > *, .news > * { min-width: 0; }
 /* a pill: small, bold, in its color on its color's tint, with corners of 6 pixels: a version, a law's tag, and a verdict (below) */
 .pill, .verdict, .tag { display: inline-flex; justify-self: start; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 6px; font-weight: 700; }
 /* A version's pill is digits, which small capitals leave as they are, at the spec's size. A verdict is a sentence, in ordinary case: in capitals it reads worse, and its digits would stand above small-cap letters. */
@@ -248,7 +256,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 /* a view's head, as a card: its title row, a picture in a circle (which only repeats the heading's words) and the heading, which stay on one line together; and, at the end of the line, or under them where there's no room, how many it holds, as a big number in --good with its word after it */
 .view-head { container-type: inline-size; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .view-head > .title { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.view-head h2, .view-head h1 { min-width: 0; }
+.view-head h2 { min-width: 0; }
 .view-head > .title > .icon { flex: none; box-sizing: content-box; width: 1.75rem; height: 1.75rem; padding: 0.75rem; border-radius: 50%; background: var(--act-tint); color: var(--act); }
 .view-head > .count { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; border: 0; border-radius: 0; background: none; padding: 0; color: var(--muted); font-family: var(--sans); font-size: 1rem; font-weight: 600; }
 .view-head > .count b { color: var(--good); font-family: var(--mono); font-weight: 900; font-size: clamp(1.5rem, 17cqi, 2.375rem); line-height: 1; font-variant-numeric: tabular-nums; }
@@ -318,15 +326,15 @@ details.fold > .inside { padding: 0 20px 20px; display: grid; gap: 18px; }
 /* how to check a file */
 .note { color: var(--muted); max-width: 72ch; margin-top: 16px; }
 .view + .note { margin-top: 48px; }
-/* the head of a page that has no card for it: the trust page's heading is the page's headline, and not a card, with its picture over it where the headline is too long to sit beside it; its kicker, its lead, the stamp of where its numbers come from, and its four big numbers follow it. What's New's is a kicker over its heading, then its lead: a heading that is no part of a banner has no margin of its own, since the block spaces it */
+/* the head of a page that has no card for it, as the audit tool's pages are headed: a kicker over the page's heading, then its lead, 18 pixels apart, with the heading's own margin left out, since the block spaces it. The trust page's goes on with the stamp and its four big numbers, and Technical details' with the version it's from */
 .hero { display: grid; gap: 18px; padding-bottom: 44px; }
 .hero > * { min-width: 0; }
-.hero > .view-head { padding: 0; background: none; border: 0; border-radius: 0; }
-.hero > .view-head > .title { flex-wrap: wrap; }
-.view-head h1, .hero > h1 { margin: 0; }
+.hero > h1 { margin: 0; }
 .hero > .lead, .part > .lead { margin: 0; }
-/* the stamp, in the audit tool's amber box */
-.stamp { justify-self: start; padding: 14px 20px; border: 2px solid var(--warn); border-radius: 14px; background: var(--warn-tint); color: var(--warn); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* the stamp, in the audit tool's amber box: a 2px line in --warn round it, on --warn-tint, in --warn, as wide as the page's column; at its left, its label, which says where the counts come from, small and bold, in ordinary case, since it holds digits; and at its right, the records' date, big and at weight 900, which goes under the label where there's no room for both */
+.stamp { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; padding: 16px 20px; border: 2px solid var(--warn); border-radius: 14px; background: var(--warn-tint); color: var(--warn); font-variant-numeric: tabular-nums; }
+.stamp > .source { flex: 1 1 16rem; max-width: 30rem; font-size: 0.875rem; font-weight: 700; line-height: 1.45; }
+.stamp > .date { font-size: clamp(1.375rem, 3.2vw, 1.875rem); font-weight: 900; line-height: 1.15; }
 /* four big numbers: one a row on a phone, two from 36em, and four from 60em, in columns that shrink to nothing, so none runs past its box */
 .tiles { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 @media (min-width: 36em) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -350,24 +358,21 @@ details.fold > .inside { padding: 0 20px 20px; display: grid; gap: 18px; }
 .points > li > * { min-width: 0; }
 .points > li > p { color: var(--text-2); }
 .points > li > a { justify-self: start; font-weight: 700; }
-/* cards: three a row where each has 17rem, fewer where they don't, and one a row on a phone; each headed in --good, as the audit tool's are, and a heading that links to its source keeps that color, underlined */
+/* cards: three a row where each has 17rem, fewer where they don't, and one a row on a phone; each headed in --good, as the audit tool's are. A heading that links to its source is a link, in --link and underlined, as the spec's colors have every link. */
 .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 12px; }
 .card > h3 { color: var(--good); font-weight: 900; }
-.card > h3 a { color: inherit; }
 /* a card's words, but its tag, which is a pill in its own color */
 .card > p:not(.tag) { color: var(--text-2); }
 .card > a { justify-self: start; font-weight: 700; }
-/* the releases, the newest first: each one's version, in --act, and day, then its headline, along a line down the side */
+/* the trust page's newest five releases, each one's line, as What's New's cards have theirs (below), then its headline, along a line down the side; and after them a line of links, bold */
 .releases { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
-.releases > li { display: grid; gap: 2px; padding-left: 18px; border-left: 2px solid var(--line); }
+.releases > li { display: grid; gap: 6px; padding-left: 18px; border-left: 2px solid var(--line); }
 .releases > li > * { min-width: 0; }
-.releases .on { color: var(--muted); font-variant-numeric: tabular-nums; }
-.releases .version { color: var(--act); font-family: var(--mono); font-weight: 700; }
 .more > a { font-weight: 700; }
-/* What's New: a card for each release, one under another, the newest first. A card's first line is its version, in a pill, its day, and, on the version that built the website, that it's the current one; then its headline, its points as a list, and the link to its entry, which ends the card */
+/* What's New: a card for each release, one under another, the newest first. A card's first line is its version, in a pill, its day, quieter, and, on the version that built the website, that it's the current one; then its headline, its points as a list, and the link to its entry, which ends the card. A release's line on the trust page is the same. */
 .updates { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
-.update-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
-.update-line time { color: var(--muted); }
+.update-line, .releases .on { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.update-line time, .releases .on time { color: var(--muted); }
 .update-line .current { color: var(--muted); font-weight: 700; }
 .update > h2 { font-size: 1.3125rem; font-weight: 800; line-height: 1.25; }
 .update > ul { list-style: disc; margin: 0; padding-left: 1.25rem; color: var(--text-2); }
@@ -417,9 +422,8 @@ table.toolchain { min-width: 48rem; }
 .related-cards > .card { gap: 4px; padding: 16px 18px; border-radius: 10px; background: var(--panel-2); }
 .related-cards > .card > .kicker { font-size: calc(0.75rem * var(--caps-scale)); }
 .related-cards > .card > h3 { color: var(--heading); font-size: 1.0625rem; font-weight: 700; }
+.related-cards > .card > h3 a { color: inherit; }
 .related-cards > .card > p:not(.kicker) { color: var(--muted); font-size: 0.9375rem; }
-/* the line of links to voicecap, at the end of the page's main part */
-.links { color: var(--muted); }
 /* the bottom bar, as the audit tool's: a line above it, then one row of six items, small, quieter, and centered, which wraps on a phone, each row centered. A thin line comes before each item but the first, drawn by the style alone, so a screen reader hears a list of six. A link is its icon and its words, which go under the icon where there's no room for both, and the version is plain text. */
 footer { border-top: 1px solid var(--line); padding-block: 22px 32px; color: var(--muted); font-size: 0.875rem; }
 footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; row-gap: 10px; }
@@ -433,6 +437,16 @@ footer .icon { flex: none; width: 1.125em; height: 1.125em; }
 /* the front page's "On this page": its name, a kicker, then a row of links to the views, which wraps */
 .jump { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; margin-top: 24px; }
 .jump > ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; }
+/* the front page's kicker, over its heading, as far from it as the website's other pages keep theirs */
+main > .kicker { margin-bottom: 18px; }
+/* the front page's What's New banner, a card, as the audit tool's: the newest release's version, a pill in --good, at its left, and beside it the kicker, the release's headline, and the day it was released with the link to every update, quieter and smaller. The pill's column is no wider than 40% of the card, so a long version breaks in it, and the words' column shrinks to nothing, so nothing runs out of the window. */
+.news { grid-template-columns: fit-content(40%) minmax(0, 1fr); grid-template-areas: "pill kicker" "pill headline" "pill released"; gap: 4px 16px; margin-top: 28px; }
+.news > .pill { grid-area: pill; align-self: start; }
+.news > .kicker { grid-area: kicker; }
+.news > .headline { grid-area: headline; color: var(--text-2); }
+.news > .released { grid-area: released; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+/* The link to every update stays whole on a line where it fits, and wraps inside it where it doesn't, at a large text size: a box of its own in the line, not text that never breaks. It's the line's last: a box before the dot would let the line break between them, and the dot start the next line. */
+.news > .released > a { display: inline-block; }
 /* On screen, a page shorter than the window ends at its bottom: the main part grows, keeping its measure, so the footer sits there. */
 @media screen {
   body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }

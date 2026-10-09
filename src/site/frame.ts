@@ -42,6 +42,12 @@ export type SitePage = "index" | "trust" | "technical" | "whats-new";
 /** The website's own page, with the test results, as the other pages link to it: beside them. */
 const INDEX_HREF = "index.html";
 
+/**
+ * What's New, beside the other pages: both bars link to it, and so do the front page's banner of the
+ * newest release and the trust page's newest five releases, for the rest.
+ */
+export const WHATS_NEW_HREF = "whats-new.html";
+
 /** One of the website's three other pages: its address beside this page, its words, and its icon. */
 interface OtherPage {
   page: SitePage;
@@ -58,7 +64,7 @@ const TRUST: OtherPage = {
 };
 const WHATS_NEW: OtherPage = {
   page: "whats-new",
-  href: "whats-new.html",
+  href: WHATS_NEW_HREF,
   words: SITE_TEXT.whatsNew.heading,
   icon: FRAME_ICONS.whatsNew,
 };
