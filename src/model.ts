@@ -309,7 +309,15 @@ export interface AttemptRecord {
   pass: PassName | null;
   /** The 1-based step that failed (its keystroke was discarded), or null outside a step. */
   step: number | null;
-  /** The driver command that step sent ("nextLine", "openPage", …), or null. */
+  /**
+   * The driver command that step sent ("nextLine", "openPage", …), or null. "openPage" stands for
+   * every failure before a pass's first key, which has no step: the page that wouldn't open, and the
+   * page's check with axe, which a browser that's gone ends as it would the opening of the page. So
+   * the shareable page words a failed check "…while opening the page for the read pass", and only
+   * the page's `errors` line names axe ("Could not check the page with axe for the read pass: …").
+   * A check that fails, or runs out of its 20 seconds, isn't a failure: the page's `axe` records
+   * why, and the page is read as usual.
+   */
   command: DriverCommand | "openPage" | null;
   cause: FailureCause;
   message: string;

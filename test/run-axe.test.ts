@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { keptAxeResults } from "../src/axe/results.js";
 import type { AxeCapture } from "../src/drivers/types.js";
+import type * as Api from "../src/index.js";
 import type { FileHash, PageRecord } from "../src/model.js";
 import { runAudit, type RunAuditOptions, type RunAuditResult } from "../src/run/audit.js";
 import { attemptsDir, pageDir } from "../src/run/paths.js";
@@ -392,5 +393,28 @@ describe("a page's axe record, read for the shareable page", () => {
     for (const odd of [null, "axe", 7, true, [], [kept], {}, { ranAt }, { sha256: "abc" }]) {
       expect(axeRecordOf(withAxe(odd)), JSON.stringify(odd)).toBe("unreadable");
     }
+  });
+});
+
+describe("the package's entry", () => {
+  it("exports the name of a page's axe file", async () => {
+    const api = await import("../src/index.js");
+
+    expect(api.AXE_FILE).toBe("axe.json");
+  });
+
+  it("exports the types of a driver's check with axe, and of what a page's record keeps of it", () => {
+    // This compiles only if the entry exports each of these types.
+    const types: [
+      // What `ScreenReaderDriver.checkWithAxe` gives: the file's text and what it comes to, or why
+      // there's none.
+      Api.AxeCapture | null,
+      // What a page's record keeps of the results, beside the file's fingerprint.
+      Api.AxeSummary | null,
+      // The record itself (`PageRecord.axe`).
+      Api.AxeRecord | null,
+    ] = [null, null, null];
+
+    expect(types).toHaveLength(3);
   });
 });

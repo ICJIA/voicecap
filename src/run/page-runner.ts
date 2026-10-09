@@ -442,10 +442,13 @@ async function keepAxe(
 
 /**
  * What the record of a failed pass, or of a page that couldn't be opened for it (command
- * "openPage"), says went wrong. The program that took the foreground is kept when the driver named
- * one (or said it couldn't). An unexpected error's stack is kept with the home folder replaced, so
- * the record doesn't name the account that ran voicecap. Its message is kept word for word: the
- * report replaces the home folder where it shows one.
+ * "openPage"), says went wrong. A browser that's gone during the page's check with axe is recorded
+ * the same way, as a failure with no step (see AttemptRecord.command): the shareable page words it
+ * "…while opening the page for the read pass", and only the page's errors name axe. The program
+ * that took the foreground is kept when the driver named one (or said it couldn't). An unexpected
+ * error's stack is kept with the home folder replaced, so the record doesn't name the account that
+ * ran voicecap. Its message is kept word for word: the report replaces the home folder where it
+ * shows one.
  */
 function problemOf(
   pass: PassName,
