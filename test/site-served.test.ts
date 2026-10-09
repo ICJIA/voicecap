@@ -220,6 +220,25 @@ describe("the site, served as Netlify serves it", () => {
       expect(await violationsOf(page), where).toEqual([]);
     }
 
+    // What's New, at both its addresses: under the policy of its own bytes, which the page's style
+    // block and script run under, and which allows no font, since the page embeds none; and its
+    // theme button works.
+    const whatsNew = await readFile(path.join(built.out, "whats-new.html"), "utf8");
+    const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
+    expect(whatsNewPolicy).toContain("; font-src 'none';");
+    for (const where of ["whats-new", "whats-new.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(whatsNewPolicy);
+      expect(await response.text(), where).toBe(whatsNew);
+      expect(await page.title(), where).toBe("What's New · Screen reader test results");
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+
     // Each page of a report: the three shared, and the one written by hand.
     const pages = pagesOf(built.content);
     expect(pages.toSorted()).toEqual(

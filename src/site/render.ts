@@ -7,13 +7,13 @@
  * its style block and its script allows nothing else.
  *
  * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
- * which its other page, the trust page, has too; this module draws what is between the bar and the
- * footer. In order: the head; a skip link to the main content; the bar, whose links go to the views
- * and, last, to the trust page, and which holds the theme button; `main`, with the page's heading
- * and lead, the views (the demo's, the sites', and, when two sites or more have reports, every
- * report by date), and what to know about a file's fingerprint and a walkthrough file; the footer;
- * and last, the script. What the model or a record supplies goes through `esc`, and so does the
- * fixed text (./text.ts), which is plain words.
+ * which its other pages, the trust page and What's New, have too; this module draws what is between
+ * the bar and the footer. In order: the head; a skip link to the main content; the bar, whose links
+ * go to the views and, last, to the trust page, and which holds the theme button; `main`, with the
+ * page's heading and lead, the views (the demo's, the sites', and, when two sites or more have
+ * reports, every report by date), and what to know about a file's fingerprint and a walkthrough
+ * file; the footer; and last, the script. What the model or a record supplies goes through `esc`,
+ * and so does the fixed text (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its

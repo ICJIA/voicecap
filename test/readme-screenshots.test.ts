@@ -26,7 +26,7 @@ import {
   shooter,
 } from "../scripts/readme-screenshots.js";
 import { ciOf } from "../scripts/release-facts.mjs";
-import { parseChangelog } from "../src/site/facts.js";
+import { parseChangelog } from "../src/site/changelog.js";
 import { launchBrowser } from "./helpers/axe.js";
 
 /** The nine files the README names, in the order the script takes them. */
@@ -324,6 +324,7 @@ describe("the facts the trust page's picture states", () => {
           version: "0.13.2",
           date: "2026-10-09",
           headline: 'The website\'s "Can I trust this?" page',
+          items: [],
         },
         ...real.slice(from),
       ],

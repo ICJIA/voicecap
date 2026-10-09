@@ -5,13 +5,14 @@
  *
  * Every number and date about voicecap in these words is a fact the page is given (./facts.ts), and
  * none is typed here: a function makes each line that holds one, with `count` for a number,
- * `longDate` for a day, and `dateAndTime` for when the newest report was shared, and a list in
- * words is "A, B, and C", or "A and B" (`names`). The one exception is the law's: its compliance
- * dates are the rule's own, quoted, with a link to it. A fact that isn't there is said not to be,
- * in its place ("not recorded in this build of voicecap"), and no line gives a number it doesn't
- * have. The words "since voicecap 0.11.0", on the card of what each report keeps, are a part of
- * voicecap's history, not a fact of this build: the version whose reports began to keep a
- * screenshot of each page, so a report shared before it has none.
+ * `day` for a day (./text.ts, which What's New says its days with too), and `dateAndTime` for when
+ * the newest report was shared, and a list in words is "A, B, and C", or "A and B" (`names`). The
+ * one exception is the law's: its compliance dates are the rule's own, quoted, with a link to it.
+ * A fact that isn't there is said not to be, in its place ("not recorded in this build of
+ * voicecap"), and no line gives a number it doesn't have. The words "since voicecap 0.11.0", on
+ * the card of what each report keeps, are a part of voicecap's history, not a fact of this build:
+ * the version whose reports began to keep a screenshot of each page, so a report shared before it
+ * has none.
  *
  * The wording is voicecap's, as on every page made for managers: voicecap is a person's review of a
  * website with a real screen reader, sped up; a person hears what NVDA says, reads it, and decides.
@@ -21,10 +22,10 @@
  * a link to a part of the page, or to the website's own page, is its words alone here, and the page
  * knows where it goes.
  */
-import { count, dateAndTime, longDate, names } from "../share/format.js";
+import { count, dateAndTime, names } from "../share/format.js";
 import type { Line } from "../share/line.js";
 import type { RecordFacts, ReleaseFacts } from "./facts.js";
-import { SITE_TEXT } from "./text.js";
+import { day, SITE_TEXT } from "./text.js";
 
 /** voicecap's repository on GitHub, where the footer's link goes too. */
 const GITHUB = SITE_TEXT.github;
@@ -43,9 +44,6 @@ const NOT_RECORDED = "not recorded in this build of voicecap";
 
 /** What the stamp says of a website with no report yet, not even the demo's. */
 const NO_REPORT = "no report has been shared yet";
-
-/** A day the facts give as YYYY-MM-DD, as the page says it: "9 October 2026". */
-const day = (date: string): string => longDate(`${date}T00:00`);
 
 /**
  * What needs attention in the pages counted, at the end of their line: ", where nothing needs

@@ -12,6 +12,10 @@
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
  * under the bar, its fold, and its bar's link to it, the page the reader is on.
+ *
+ * What's New (renderWhatsNew) is checked the same ways too, with its releases, with words as long as
+ * words can be, and with no release: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
+ * its landmarks, what has focus never under the bar, and complete without JavaScript.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,11 +25,12 @@ import { pathToFileURL } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { recordFactsOf } from "../src/site/facts.js";
+import { recordFactsOf, type ReleaseItem, type VoicecapFacts } from "../src/site/facts.js";
 import { siteBar, sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { renderTrustPage } from "../src/site/trust.js";
 import { TRUST_TEXT } from "../src/site/trust-text.js";
+import { renderWhatsNew } from "../src/site/whats-new.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
@@ -137,6 +142,53 @@ function manyContent(): SiteContent {
   };
 }
 
+/** The points of a release's card: words and code, one longer than the others. */
+function pointsFor(version: string): ReleaseItem[] {
+  return [
+    ["The first point of ", { code: "voicecap site" }, `, in release ${version}`],
+    [
+      "A second point, a little longer than the first: it says what changed for the person running voicecap, and how it reads on a phone",
+    ],
+    [{ code: "--rate <wpm>" }, " sets the voice's speed, and the page says so"],
+  ];
+}
+
+/**
+ * The releases What's New draws: FACTS's three and four before them, each but every third with
+ * points of its own, and the newest the current version.
+ */
+const NEWS: VoicecapFacts = {
+  ...FACTS,
+  releases: [...FACTS.releases, ...EARLIER_RELEASES].map((release, index) => ({
+    ...release,
+    items: index % 3 === 2 ? [] : pointsFor(release.version),
+  })),
+};
+
+/**
+ * The same, with words as long as words can be: a version of 44 characters, and in its card a
+ * headline, a point, and a code span that each hold a word of 112 characters. Nothing in the page
+ * may run past a window 320 pixels wide.
+ */
+const LONG_WORD = "voicecap".repeat(14);
+const LONG_VERSION = `0.${"1".repeat(40)}.0`;
+const NEWS_LONG: VoicecapFacts = {
+  ...FACTS,
+  version: LONG_VERSION,
+  releases: [
+    {
+      version: LONG_VERSION,
+      date: "2026-10-09",
+      headline: `A headline with ${LONG_WORD} in it`,
+      items: [
+        [`A point with ${LONG_WORD} in it`],
+        ["A code span: ", { code: `${LONG_WORD}/${LONG_WORD}` }],
+      ],
+    },
+    ...NEWS.releases.slice(1, 3),
+  ],
+};
+
 let browser: Browser;
 let folder: string;
 /**
@@ -154,6 +206,9 @@ let files: {
   trustBar: string;
   trust: string;
   trustBare: string;
+  whatsNew: string;
+  whatsNewLong: string;
+  whatsNewBare: string;
 };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
@@ -199,6 +254,23 @@ beforeAll(async () => {
       renderTrustPage({
         voicecap: { ...FACTS, release: null },
         records: recordFactsOf({ demo: null, sites: [] }),
+        content: { demo: null, sites: [] },
+      }),
+    ),
+    // What's New, beside index.html, as the website has it: seven releases; with words as long as
+    // words can be; and with no release recorded.
+    whatsNew: await writeHtml(
+      "whats-new.html",
+      renderWhatsNew({ voicecap: NEWS, content: RESULTS_CONTENT }),
+    ),
+    whatsNewLong: await writeHtml(
+      "whats-new-long.html",
+      renderWhatsNew({ voicecap: NEWS_LONG, content: RESULTS_CONTENT }),
+    ),
+    whatsNewBare: await writeHtml(
+      "whats-new-bare.html",
+      renderWhatsNew({
+        voicecap: { ...FACTS, releases: [], release: null },
         content: { demo: null, sites: [] },
       }),
     ),
@@ -1280,6 +1352,252 @@ describe("the trust page", () => {
       }, id);
       expect(result, id).toBeNull();
     }
+  });
+});
+
+describe("What's New", () => {
+  /** Each card's headline, in order: the page's h2s. */
+  const HEADLINES = NEWS.releases.map(({ headline }) => headline);
+
+  it.each([
+    ["with its releases", 1280, "whatsNew"],
+    ["with its releases", 390, "whatsNew"],
+    ["with its releases", 320, "whatsNew"],
+    ["with words as long as they can be", 390, "whatsNewLong"],
+    ["with words as long as they can be", 320, "whatsNewLong"],
+    ["with no release recorded", 1280, "whatsNewBare"],
+    ["with no release recorded", 390, "whatsNewBare"],
+    ["with no release recorded", 320, "whatsNewBare"],
+  ] as const)(
+    "passes axe with zero violations, dark and light, %s, at %i pixels",
+    async (_, width, which) => {
+      const page = await open(files[which], { width });
+
+      expect(await theme(page)).toBe("dark");
+      expect(await axeFindings(page, width), "dark").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page)).toBe("light");
+      expect(await axeFindings(page, width), "light").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("has no two links that read alike and go to different places", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(await identicalLinks(page)).toEqual([]);
+  });
+
+  it("fits a window 320 pixels wide, however long its words", async () => {
+    for (const which of ["whatsNew", "whatsNewLong", "whatsNewBare"] as const) {
+      const page = await open(files[which], { width: 320 });
+      const width = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth);
+
+      expect(await width(), `${which}, dark`).toBeLessThanOrEqual(320);
+      await page.locator("#theme-toggle").click();
+      expect(await width(), `${which}, light`).toBeLessThanOrEqual(320);
+      // Nothing in it is wider than the window, whether or not it makes the page scroll.
+      expect(await widerThan320(page), which).toEqual([]);
+    }
+  });
+
+  it("is complete without JavaScript: every card is there and in view, and the page is dark with no button", async () => {
+    const page = await open(files.whatsNew, { scripts: false });
+
+    expect(await page.locator("main h1").allTextContents()).toEqual(["What's New"]);
+    expect(await page.locator("main h2").allTextContents()).toEqual(HEADLINES);
+    for (const heading of await page.locator("main h2").all()) {
+      expect(await heading.isVisible()).toBe(true);
+    }
+    expect(await page.locator("ol.updates > li").count()).toBe(NEWS.releases.length);
+    // Each card's link to its entry is in view.
+    const links = page.locator("ol.updates > li > a");
+    expect(await links.count()).toBe(NEWS.releases.length);
+    for (const link of await links.all()) expect(await link.isVisible()).toBe(true);
+    // The button does nothing without the script, so it's hidden, and the page is dark.
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+    expect(await background(page)).toBe(DARK);
+  });
+
+  it("has the page's landmarks, and no region for a card, however many releases", async () => {
+    const landmarks: Landmark[] = [
+      ["banner", ""],
+      ["navigation", "This website"],
+      ["main", ""],
+      ["contentinfo", ""],
+    ];
+
+    for (const which of ["whatsNew", "whatsNewBare"] as const) {
+      const page = await open(files[which]);
+      expect(await landmarksOf(page), which).toEqual([...landmarks].sort(byRoleThenName));
+    }
+  });
+
+  it("gives a screen reader its list of releases, newest first, each with its version and its headline", async () => {
+    const page = await open(files.whatsNew);
+
+    // The ordered list and its items, as Chromium's accessibility tree has them.
+    const snapshot = await page.locator("main").ariaSnapshot();
+
+    expect(snapshot).toContain("- list:");
+    expect((snapshot.match(/- listitem:/g) ?? []).length).toBeGreaterThanOrEqual(
+      NEWS.releases.length,
+    );
+    for (const { version, headline } of NEWS.releases) {
+      expect(snapshot, version).toContain(version);
+      expect(snapshot, version).toContain(headline);
+    }
+    // The newest first: each version comes after the one before it.
+    const places = NEWS.releases.map(({ version }) => snapshot.indexOf(version));
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+  });
+
+  it("gives a screen reader its kicker's words as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.whatsNew);
+
+    const texts = await spokenTexts(page);
+
+    expect(texts).toContain("Every release");
+    expect(texts).not.toContain("EVERY RELEASE");
+  });
+
+  it("draws a release as a card in the audit tool's look: its version a pill in --good, its headline heavy, and its link bold", async () => {
+    const page = await open(files.whatsNew);
+    const looks = () =>
+      page.evaluate(() => {
+        const look = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const style = getComputedStyle(element);
+          return {
+            color: style.color,
+            background: style.backgroundColor,
+            weight: style.fontWeight,
+            radius: style.borderTopLeftRadius,
+            padding: style.padding,
+            border: style.borderTopWidth,
+          };
+        };
+        return {
+          card: look("ol.updates > li"),
+          pill: look("ol.updates .pill"),
+          headline: look("ol.updates > li > h2"),
+          link: look("ol.updates > li > a"),
+          page: look("main h1"),
+        };
+      });
+
+    const dark = await looks();
+
+    // A card: the panel behind it, a 1px line, corners of 14 pixels, 22 by 20 pixels inside.
+    expect(dark.card).toMatchObject({
+      background: "rgb(17, 17, 17)",
+      radius: "14px",
+      padding: "22px 20px",
+      border: "1px",
+    });
+    // The version is a pill, in --good on its tint, its corners of 6 pixels.
+    expect(dark.pill).toMatchObject({ color: "rgb(52, 211, 153)", weight: "700", radius: "6px" });
+    expect(dark.pill.background).not.toBe("rgba(0, 0, 0, 0)");
+    // Headlines are heavy: the page's h1 at 900, a card's own at 800, in the headline's color.
+    expect(dark.page).toMatchObject({ weight: "900", color: "rgb(255, 255, 255)" });
+    expect(dark.headline).toMatchObject({ weight: "800", color: "rgb(255, 255, 255)" });
+    expect(dark.link.weight).toBe("700");
+
+    await page.locator("#theme-toggle").click();
+    const light = await looks();
+    expect(light.card.background).toBe("rgb(255, 255, 255)");
+    expect(light.pill.color).toBe("rgb(25, 101, 73)");
+    expect(light.headline.color).toBe("rgb(17, 24, 39)");
+  });
+
+  it("puts its cards one under another, in the page's column of 56rem, 16 pixels apart", async () => {
+    const page = await open(files.whatsNew);
+
+    const boxes = await page.locator("ol.updates > li").evaluateAll((all) =>
+      all.map((card) => {
+        const { left, right, top, bottom } = card.getBoundingClientRect();
+        return { left, right, top, bottom };
+      }),
+    );
+
+    expect(boxes).toHaveLength(NEWS.releases.length);
+    for (const [index, box] of boxes.entries()) {
+      // One column: every card as wide as the main part's 56rem, 896 pixels.
+      expect(box.right - box.left, `card ${index + 1}`).toBe(896);
+      expect(box.left, `card ${index + 1}`).toBe(boxes[0]?.left);
+      // 16 pixels between a card and the one before it.
+      const before = boxes[index - 1];
+      if (before !== undefined) expect(box.top - before.bottom, `card ${index + 1}`).toBe(16);
+    }
+  });
+
+  it("spaces its head as the audit tool's pages are: the kicker, the heading, and the lead 18 pixels apart, and 44 pixels between the lead and the first card", async () => {
+    const page = await open(files.whatsNew);
+
+    const gaps = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`The page has no ${selector}.`);
+        return element.getBoundingClientRect();
+      };
+      const [kicker, heading, lead, card] = [
+        box("main .kicker"),
+        box("main h1"),
+        box("main .lead"),
+        box("ol.updates > li"),
+      ];
+      return {
+        kickerToHeading: heading.top - kicker.bottom,
+        headingToLead: lead.top - heading.bottom,
+        leadToCard: card.top - lead.bottom,
+      };
+    });
+
+    expect(gaps).toEqual({ kickerToHeading: 18, headingToLead: 18, leadToCard: 44 });
+  });
+
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
+    const page = await open(files.whatsNew, { width: 1100, height: 500 });
+
+    expect(await stopsUnderTheBar(page)).toEqual([]);
+  });
+
+  it("has the bar of its page, in which no link is the page the reader is on, and whose views go to the website's own page", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(await page.locator('.bar nav a[aria-current="page"]').count()).toBe(0);
+    // index.html sits beside this page's file, as the website's pages sit beside each other.
+    await page.locator("nav a", { hasText: "The sites" }).click();
+    const url = new URL(page.url());
+    expect(url.pathname.endsWith("/index.html")).toBe(true);
+    expect(url.hash).toBe("#sites");
+  });
+
+  it("switches the theme and keeps the choice, as the other pages do", async () => {
+    const page = await open(files.whatsNew);
+    const toggle = page.locator("#theme-toggle");
+
+    expect(await theme(page)).toBe("dark");
+    expect(await background(page)).toBe(DARK);
+    expect(await toggle.isVisible()).toBe(true);
+
+    await toggle.click();
+    expect(await theme(page)).toBe("light");
+    expect(await background(page)).toBe(LIGHT);
+    expect(await stored(page)).toBe("light");
+    await page.reload();
+    expect(await theme(page)).toBe("light");
+  });
+
+  it("is light in print, without the theme button", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(await background(page)).toBe(DARK);
+    await page.emulateMedia({ media: "print" });
+    expect(await background(page)).toBe(LIGHT);
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
   });
 });
 

@@ -101,6 +101,13 @@
  *   audit tool's are; a law's tag is a pill; and its releases run down a line, each version in
  *   `--act`, the earlier ones in the website's fold. A big number that isn't recorded is a dash,
  *   in the quieter color;
+ * - What's New (./whats-new.ts): its head is the trust page's block, a kicker over the heading and
+ *   then the lead, with the heading's own margin left out of it; then a card for each release, one
+ *   under another, 16 pixels apart. A card is the card (`.card`): its first line is the version's
+ *   pill in `--good`, its day, and, on the version that built the website, "the current version" in
+ *   the quieter color; its headline is a smaller, heavy heading of the card's, in the headline's
+ *   color; its points are a list in the card's words' color; and the link to its entry ends it, in
+ *   bold, as a card's link does;
  * - the footer has a line above it, and its lines are small, in the quieter color, and centered in
  *   the bars' column, as the audit tool's are, each no longer than 80 characters, so a line is no
  *   longer to read than a note's.
@@ -271,12 +278,12 @@ details.fold > .inside { padding: 0 20px 20px; display: grid; gap: 18px; }
 /* how to check a file */
 .note { color: var(--muted); max-width: 72ch; margin-top: 16px; }
 .view + .note { margin-top: 48px; }
-/* the trust page: its heading is the page's headline, and not a card, with its picture over it where the headline is too long to sit beside it; its kicker, its lead, the stamp of where its numbers come from, and its four big numbers follow it */
+/* the head of a page that has no card for it: the trust page's heading is the page's headline, and not a card, with its picture over it where the headline is too long to sit beside it; its kicker, its lead, the stamp of where its numbers come from, and its four big numbers follow it. What's New's is a kicker over its heading, then its lead: a heading that is no part of a banner has no margin of its own, since the block spaces it */
 .hero { display: grid; gap: 18px; padding-bottom: 44px; }
 .hero > * { min-width: 0; }
 .hero > .view-head { padding: 0; background: none; border: 0; border-radius: 0; }
 .hero > .view-head > .title { flex-wrap: wrap; }
-.view-head h1 { margin: 0; }
+.view-head h1, .hero > h1 { margin: 0; }
 .hero > .lead, .part > .lead { margin: 0; }
 /* the stamp, in the audit tool's amber box */
 .stamp { justify-self: start; padding: 14px 20px; border: 2px solid var(--warn); border-radius: 14px; background: var(--warn-tint); color: var(--warn); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -317,6 +324,14 @@ details.fold > .inside { padding: 0 20px 20px; display: grid; gap: 18px; }
 .releases .on { color: var(--muted); font-variant-numeric: tabular-nums; }
 .releases .version { color: var(--act); font-family: var(--mono); font-weight: 700; }
 .more > a { font-weight: 700; }
+/* What's New: a card for each release, one under another, the newest first. A card's first line is its version, in a pill, its day, and, on the version that built the website, that it's the current one; then its headline, its points as a list, and the link to its entry, which ends the card */
+.updates { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.update-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.update-line time { color: var(--muted); }
+.update-line .current { color: var(--muted); font-weight: 700; }
+.update > h2 { font-size: 1.3125rem; font-weight: 800; line-height: 1.25; }
+.update > ul { list-style: disc; margin: 0; padding-left: 1.25rem; color: var(--text-2); }
+.update > ul > li + li { margin-top: 6px; }
 /* the line of links to voicecap, at the end of the page's main part */
 .links { color: var(--muted); }
 /* the footer: a line above it, and its lines small, quieter, and centered, each no longer than 80 characters */

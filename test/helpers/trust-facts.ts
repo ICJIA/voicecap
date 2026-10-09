@@ -35,17 +35,20 @@ export const FACTS: VoicecapFacts = {
       version: "0.13.2",
       date: "2026-10-09",
       headline: "A page that shows how voicecap can be checked",
+      items: [],
     },
     {
       version: "0.13.1",
       date: "2026-10-08",
       headline:
         "The website's headings say more at a glance, and each site links to the site itself",
+      items: [],
     },
     {
       version: "0.13.0",
       date: "2026-10-08",
       headline: "The shareable page has a new order, and its Word copy follows it",
+      items: [],
     },
   ],
   release: {
@@ -61,21 +64,25 @@ export const EARLIER_RELEASES: VoicecapRelease[] = [
     version: "0.12.3",
     date: "2026-10-07",
     headline: "The website's card says what a report found",
+    items: [],
   },
   {
     version: "0.12.2",
     date: "2026-10-07",
     headline: "The website shows each site's newest three reports, and leads with the current one",
+    items: [],
   },
   {
     version: "0.12.1",
     date: "2026-10-07",
     headline: "The summary's four panels are full-width rows",
+    items: [],
   },
   {
     version: "0.12.0",
     date: "2026-10-07",
     headline: "What needs attention is a section of its own",
+    items: [],
   },
 ];
 

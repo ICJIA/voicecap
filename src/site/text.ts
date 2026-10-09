@@ -10,8 +10,17 @@
  */
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
-import { dateAndTime } from "../share/format.js";
+import { dateAndTime, longDate } from "../share/format.js";
 import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+
+/** The website's title, which its own page is headed by, and which every page's title ends with. */
+const SITE_TITLE = "Screen reader test results";
+
+/**
+ * A day the facts give as YYYY-MM-DD, as the website says it: "9 October 2026". The trust page says
+ * each release's day so, and so does What's New.
+ */
+export const day = (date: string): string => longDate(`${date}T00:00`);
 
 /**
  * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
@@ -31,7 +40,7 @@ export type Sentence = (string | { code: string } | { link: string; href: string
 
 export const SITE_TEXT = {
   /** The page's title, and its one heading of the first level. */
-  title: "Screen reader test results",
+  title: SITE_TITLE,
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   skip: "Skip to main content",
   /**
@@ -163,4 +172,31 @@ export const SITE_TEXT = {
   github: TOP_TEXT.github,
   /** The theme button says what it switches to. */
   theme: { light: "Light version", dark: "Dark version" },
+  /**
+   * The What's New page (./whats-new.ts): a card for each release of voicecap, from its CHANGELOG.
+   * Everything the CHANGELOG says of a release (its version, its day, its headline, its points) is
+   * the page's to draw from the facts, so these are only the words around it.
+   */
+  whatsNew: {
+    /** The page's title, as the trust page's is: its heading's words, then the website's title. */
+    title: `What's New · ${SITE_TITLE}`,
+    /** Above the heading, a few words that say what follows: the page is every release. */
+    kicker: "Every release",
+    /** The page's one heading of the first level. */
+    heading: "What's New",
+    lead: "Every release of voicecap, newest first, from its CHANGELOG. The front page shows the newest one.",
+    /** A release's day, after its version: "9 October 2026". */
+    day,
+    /** After the day of the version that built the website, so a reader knows which one it is. */
+    current: "the current version",
+    /** The link at the end of each card, to the release's entry in the CHANGELOG on GitHub. */
+    link: "The full entry in the CHANGELOG",
+    /**
+     * What a screen reader hears after the link's words, and a reader doesn't see: " for 0.13.1". So
+     * no two cards' links sound alike, and the visible words stay the start of what's heard.
+     */
+    linkFor: (version: string): string => ` for ${version}`,
+    /** Said in place of the cards, when the CHANGELOG records no release. */
+    none: "No release is recorded in this build of voicecap.",
+  },
 };

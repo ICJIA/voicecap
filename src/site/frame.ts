@@ -1,8 +1,8 @@
 /**
  * What every page of the website shares: the bar, the footer, and the shell around a page's main
- * part. The website has two pages, its own (`index.html`, drawn by ./render.ts) and the trust page
- * (`trust.html`), and both take these from here, so the two bars, and the two footers, can't drift
- * apart.
+ * part. The website has three pages, its own (`index.html`, drawn by ./render.ts), the trust page
+ * (`trust.html`), and What's New (`whats-new.html`), and each takes these from here, so the three
+ * bars, and the three footers, can't drift apart.
  *
  * The shell is built as the shareable page's is (see ../share/html/document.ts), in the look of the
  * audit tool, audit.icjia.app (see ./style.ts): one self-contained file, dark by default with a
@@ -23,10 +23,10 @@ import type { SiteContent } from "./render.js";
 import { SITE_CSS } from "./style.js";
 import { SITE_TEXT } from "./text.js";
 
-/** The pages of the website: its own, and the trust page. */
-export type SitePage = "index" | "trust";
+/** The pages of the website: its own, the trust page, and What's New. */
+export type SitePage = "index" | "trust" | "whats-new";
 
-/** The website's own page, as the trust page links to it: beside it. */
+/** The website's own page, as the other pages link to it: beside them. */
 const INDEX_HREF = "index.html";
 
 /** The trust page, as the website's own page links to it: beside it. */
@@ -44,10 +44,11 @@ export function listsByDate(content: SiteContent): boolean {
 /**
  * The bar of the page `current`: a link to each view of the website's own page that's there (the
  * demo's, the sites', and, when `listsByDate` says so, every report by date), then the link to the
- * trust page, and the theme button. The views are on the website's own page, so on the trust page
+ * trust page, and the theme button. The views are on the website's own page, so on any other page
  * each view's link goes to its place there (`index.html#sites`) and not to a place on the page the
  * reader is on. On the trust page, the link to it is the page the reader is on, and says so
- * (`aria-current="page"`): the page's style (see ./style.ts) draws it by more than its color.
+ * (`aria-current="page"`): the page's style (see ./style.ts) draws it by more than its color. The
+ * bar has no link to What's New, so there no link is the page the reader is on.
  */
 export function siteBar(content: SiteContent, current: SitePage): string {
   const { views } = SITE_TEXT;
@@ -57,8 +58,8 @@ export function siteBar(content: SiteContent, current: SitePage): string {
     ...(listsByDate(content) ? [{ id: "by-date", title: views.byDate.title }] : []),
   ];
   const onTrustPage = current === "trust";
-  // The views are on the website's own page, so from the trust page each link names that page.
-  const viewsAt = onTrustPage ? INDEX_HREF : "";
+  // The views are on the website's own page, so from every other page each link names that page.
+  const viewsAt = current === "index" ? "" : INDEX_HREF;
   return [
     '<header class="bar">',
     `<nav aria-label="${esc(SITE_TEXT.nav)}">`,

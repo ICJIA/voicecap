@@ -7,9 +7,9 @@
  * website's own page does. A fact that isn't there is said not to be, in its place, and a big
  * number that isn't there is a "—", which a screen reader hears as "not recorded".
  *
- * It's the website's other page, in the website's frame (./frame.ts): the same head, with one style
- * block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the bar, whose
- * link to this page says it's the page the reader is on; and the footer. It sets no `style`
+ * It's one of the website's pages, in the website's frame (./frame.ts): the same head, with one
+ * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the bar,
+ * whose link to this page says it's the page the reader is on; and the footer. It sets no `style`
  * attribute, since a Content Security Policy that hashes its style block and its script allows
  * nothing else.
  *

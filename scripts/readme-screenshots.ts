@@ -55,7 +55,8 @@ import { chromium, type Browser, type Page } from "playwright";
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import { shareReport } from "../src/share/share.js";
 import { buildSite } from "../src/site/build.js";
-import { parseChangelog, type VoicecapFacts, type VoicecapRelease } from "../src/site/facts.js";
+import { parseChangelog } from "../src/site/changelog.js";
+import type { VoicecapFacts, VoicecapRelease } from "../src/site/facts.js";
 import { hashJson } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
 import { ciOf } from "./release-facts.mjs";
@@ -95,6 +96,7 @@ const EXAMPLE_RELEASE: VoicecapRelease = {
   version: "0.13.2",
   date: "2026-10-09",
   headline: 'The website\'s "Can I trust this?" page',
+  items: [],
 };
 /**
  * The newest release of the CHANGELOG that the picture takes as it is, for the releases it counts

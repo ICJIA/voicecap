@@ -386,8 +386,8 @@ describe("renderTrustPage", () => {
       version: "9.8.7",
       released: "2025-03-03",
       releases: [
-        { version: "9.8.7", date: "2025-03-03", headline: "Another release" },
-        { version: "9.8.6", date: "2025-02-02", headline: "The one before" },
+        { version: "9.8.7", date: "2025-03-03", headline: "Another release", items: [] },
+        { version: "9.8.6", date: "2025-02-02", headline: "The one before", items: [] },
       ],
       release: {
         tests: { passed: 4321, skipped: 1007, files: 1098, system: "Linux" },
@@ -888,7 +888,7 @@ describe("renderTrustPage", () => {
 
   it("says nothing after a release's date when its entry has no headline", () => {
     const releases = [
-      { version: "0.13.2", date: "2026-10-09", headline: "" },
+      { version: "0.13.2", date: "2026-10-09", headline: "", items: [] },
       ...FACTS.releases.slice(1),
     ];
 
@@ -1011,7 +1011,7 @@ describe("renderTrustPage", () => {
         ...FACTS,
         version: "0.13.2<i>x</i>",
         releases: [
-          { version: "0.13.2<u>x</u>", date: "2026-10-09", headline: hostile },
+          { version: "0.13.2<u>x</u>", date: "2026-10-09", headline: hostile, items: [] },
           ...FACTS.releases.slice(1),
         ],
         release: {
