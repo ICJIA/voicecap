@@ -388,12 +388,18 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "run.json",
                       words: [
-                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log and of each page's transcripts, screenshot, and axe results, and, once it completes, its seal",
+                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log, of each copy of NVDA's own log, and of each page's transcripts, screenshot, and axe results, and, once it completes, its seal",
                       ],
                     },
                     {
                       name: "events.jsonl",
                       words: ["The event log: one line for each event, as it happens"],
+                    },
+                    {
+                      name: "nvda-log/",
+                      words: [
+                        "NVDA's own log, cleaned: a copy for each time voicecap's NVDA quit, with what NVDA said, the keys voicecap pressed, and NVDA's warnings and errors",
+                      ],
                     },
                     {
                       name: "pages/<page>/",
@@ -478,7 +484,7 @@ export const TECHNICAL_TEXT = {
       heading: ["Fingerprints, seals, and ", { code: "voicecap verify" }] satisfies Sentence,
       points: [
         [
-          "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
+          "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log and each copy of NVDA's own log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
           { code: "shares.json" },
           " records each shared copy's.",
         ],
@@ -634,7 +640,7 @@ export const TECHNICAL_TEXT = {
             "The browser gets a new profile for each page load, deleted after, with sync, background networking, and extensions off, and downloads refused.",
           ],
           [
-            "A window's title, which can hold private text, is kept only in the event log, never on a page or in a Word copy.",
+            "A window's title, which can hold private text, is kept in the event log, never on a page or in a Word copy. A run's copies of NVDA's own log can hold it too, as NVDA said it: a page counts what NVDA said outside voicecap's steps, and never shows it.",
           ],
           [
             "An NVDA log from a manual session can hold every keystroke, so voicecap warns, can take typed text out, and keeps the raw copy out of Git.",
