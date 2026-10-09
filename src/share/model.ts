@@ -55,6 +55,7 @@ import {
   dateRange,
   longDate,
   names,
+  pageTitle,
   seconds,
   utcOffset,
   type Shown,
@@ -84,10 +85,13 @@ import {
 export type { NoLongerListed, PageCard } from "./cards.js";
 export type {
   EvidenceRow,
+  NvdaLogChecked,
+  NvdaLogSource,
   RunEvidence,
   RunWalkthrough,
   WalkthroughDownload,
 } from "./run-evidence.js";
+export type { NotChecked } from "./run-log-check.js";
 
 /**
  * A transcript file a page's card folds in (the model's `appendix`): what NVDA said in a pass, with
@@ -326,6 +330,14 @@ export function buildShareModel(input: ShareInput): ShareModel {
       redact,
       eventLog,
       words: wordsFor,
+      // A page is named in the lists of lines that differ as its card gives its path: its label, else
+      // its address without the site's.
+      nvdaLog: (run) => ({
+        copies: input.nvdaLogs.get(run.id) ?? new Map<string, string>(),
+        steps: (slug, pass) => input.transcripts.steps(run.id, slug, pass),
+        gestureOf: input.gestureOf,
+        pageName: pageTitle,
+      }),
     }),
     leftOut: leftOutOf(standing, input.unreadableRuns),
     appendix: appendixOf(standing, input.transcripts, nameOf),

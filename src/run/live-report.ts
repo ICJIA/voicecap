@@ -1,4 +1,5 @@
 import type { VoicecapConfig } from "../config/schema.js";
+import { nvdaGestureOf } from "../drivers/index.js";
 import type { RunJson } from "../model.js";
 import { generateReport, resolveCompareBase } from "../report/index.js";
 import { writeShareFiles } from "../share/write.js";
@@ -69,7 +70,12 @@ export async function regenerateLiveFiles(options: LiveReportOptions): Promise<L
     config,
     compare: base ? { base, diffDir: liveCompareDir(outDir, base.id, run.id) } : null,
   });
-  const shared = await writeShareFiles({ siteDir: outDir, config, logger });
+  const shared = await writeShareFiles({
+    siteDir: outDir,
+    config,
+    logger,
+    gestureOf: nvdaGestureOf,
+  });
   return { report: file, share: shared?.page ?? null, word: shared?.word ?? null };
 }
 

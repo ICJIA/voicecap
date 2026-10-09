@@ -6,6 +6,7 @@ import { startDemoServer } from "../demo/server.js";
 import { runTour } from "../demo/tour.js";
 import { DEMO_OUT, INPUT_ENDED, NOT_A_TERMINAL } from "../demo/words.js";
 import { listProcesses } from "../drivers/guidepup/windows.js";
+import { nvdaGestureOf } from "../drivers/index.js";
 import { createPrompter, deferPrompter, InputEndedError, type Prompter } from "../init/prompt.js";
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
@@ -568,6 +569,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
         cwd: ctx.cwd,
         env: ctx.env,
         logger,
+        gestureOf: nvdaGestureOf,
       });
       setExit(ExitCode.ok);
     });

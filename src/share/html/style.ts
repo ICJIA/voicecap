@@ -86,6 +86,10 @@ export const THEME_CSS = `:root {
  *   each in a box of the list the how-it-works sample uses; and the page's full transcript, a fold
  *   at the card's end on the second color of the panels, whose transcripts (`.tx`) sit one under
  *   another, each under an `h4`;
+ * - a run's NVDA log, checked against the transcripts (`.log-check`): its three tiles (`.cross`, the
+ *   mockup's), then the paragraphs and lists under them, one under another. A line that differs sits
+ *   in the box the cards of what needs attention give what NVDA said (`.place`), in a list with no
+ *   bullets (`.diffs`), under a heading of its own;
  * - the folds' triangle is drawn but not read aloud;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the page's middle row grows. In print the
@@ -247,8 +251,13 @@ details.log > .events { margin-top: 8px; }
 .ev-fail td { color: var(--bad); } .ev-own td { color: var(--warn); } .ev-lock td { color: var(--accent); }
 .ev-screen-reader td { color: var(--ok); } .ev-browser td { color: var(--muted); } .ev-run td { font-weight: 600; }
 .cross { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
-.cross div { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
-.cross .big { font: 700 1.8rem/1 var(--display); }
+.cross > div { border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
+.cross .big { font: 700 1.8rem/1 var(--display); font-variant-numeric: tabular-nums; }
+/* a run's NVDA log, checked against the transcripts: the tiles, then what is said of them, one under another; the lines that differ in the boxes of the cards of what needs attention */
+.log-check { display: grid; gap: 12px; align-content: start; }
+.log-check > p { margin: 0; }
+.log-check h5 { margin: 4px 0 0; font: 600 0.95rem var(--display); }
+.diffs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 dl.spec { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; margin: 0; border-top: 1px solid var(--line); }
 dl.spec dt, dl.spec dd { padding: 9px 10px; border-bottom: 1px solid var(--line); margin: 0; font-size: 0.9rem; }
 dl.spec dt { color: var(--muted); }

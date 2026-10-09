@@ -172,7 +172,7 @@ async function checkDateFolder(home: string, dateDir: string, site: SiteTally): 
 
 /**
  * A run. A sealed one is checked in full: its seal, where it's filed, each file it records beside
- * its pages (its event log, from 0.11.0, and its copies of NVDA's log, from 0.12.0) and any event
+ * its pages (its event log, from 0.11.0, and its copies of NVDA's log, from 0.18.0) and any event
  * log or copy it doesn't, and every file in pages/, recorded or not. An unsealed one is a completed
  * run from before seals, which can't be checked, or an incomplete run, which must look as voicecap
  * writes one and be where voicecap puts it, and is then listed rather than checked.

@@ -23,6 +23,7 @@ import { fontFaceCss } from "./fonts.js";
 import { renderSharePage } from "./html/document.js";
 import { loadShareInput, type ShareInput } from "./load.js";
 import { buildShareModel, type ShareModel } from "./model.js";
+import type { GestureOf } from "./run-log-check.js";
 
 export interface WriteShareFilesOptions {
   /** The site's folder in the transcripts home, not the home itself (see siteDirFor). */
@@ -33,6 +34,12 @@ export interface WriteShareFilesOptions {
   now?: Date;
   /** Replaces fs.rename in both writes (tests). */
   rename?: (from: string, to: string) => Promise<void>;
+  /**
+   * NVDA's keys, which the check of NVDA's own log goes by (see ShareInput.gestureOf). The page
+   * never imports a driver, so whatever calls this gives them. Default: none, and the page says it
+   * was made without them where it would show the check.
+   */
+  gestureOf?: GestureOf | null;
 }
 
 /**
@@ -92,12 +99,12 @@ function heldReason(code: string, site: string, siteDir: string): string {
  * close it in Word and run the exact `voicecap report` command that writes it again.
  */
 export async function writeShareFiles(options: WriteShareFilesOptions): Promise<ShareFiles | null> {
-  const { siteDir, config, logger, now, rename } = options;
+  const { siteDir, config, logger, now, rename, gestureOf } = options;
   let input: ShareInput;
   let model: ShareModel;
   try {
     if ((await listRuns(siteDir)).length === 0) return null;
-    input = await loadShareInput({ siteDir, config, now });
+    input = await loadShareInput({ siteDir, config, now, gestureOf });
     model = buildShareModel(input);
   } catch (error) {
     // Neither file was tried, so no file of Word's was refused: the reason is all there is to say.

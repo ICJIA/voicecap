@@ -29,7 +29,7 @@ export const EVENT_LOG = "events.jsonl";
 
 /**
  * The folder in a run's folder that holds the cleaned copies of the screen reader's own log, one
- * for each time voicecap's screen reader quit (from voicecap 0.12.0): "nvda-log/<session>-<n>.txt",
+ * for each time voicecap's screen reader quit (from voicecap 0.18.0): "nvda-log/<session>-<n>.txt",
  * the session's number in the run, then the copy's number in the session, each counting from 1.
  * The run lists each in its record (RunJson.files), as it lists the event log.
  */
@@ -68,6 +68,18 @@ export function copiesInFolder(runFolder: string, lastSession: number): string[]
   return found
     .sort((a, b) => a.session - b.session || a.n - b.n)
     .map(({ name }) => `${NVDA_LOG_FOLDER}/${name}`);
+}
+
+/**
+ * Whether a path from a run's folder is a copy's as `screenReaderLog` names it: exactly
+ * "nvda-log/<session>-<n>.txt", with "/" and plain numbers. A run's record is data, so whatever reads
+ * a file the record names asks this first, and a name with a ".." in it, a folder inside the
+ * copies' folder, or another case or extension is not a copy.
+ */
+export function isCopyPath(file: string): boolean {
+  return (
+    file.startsWith(`${NVDA_LOG_FOLDER}/`) && COPY_NAME.test(file.slice(NVDA_LOG_FOLDER.length + 1))
+  );
 }
 
 export interface EventLog extends EventRecorder {

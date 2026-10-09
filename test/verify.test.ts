@@ -324,7 +324,7 @@ describe("verifyHome", () => {
     ]);
   });
 
-  // The cleaned copies of NVDA's own log that a run keeps (from voicecap 0.12.0), one for each time
+  // The cleaned copies of NVDA's own log that a run keeps (from voicecap 0.18.0), one for each time
   // its NVDA quit: nvda-log/<session>-<n>.txt, recorded in run.files beside the event log.
   describe("a run's copies of NVDA's log", () => {
     const COPY = `${RUN}/nvda-log/1-1.txt`;

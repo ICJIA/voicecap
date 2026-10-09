@@ -528,7 +528,7 @@ export interface RunJson {
   /**
    * The run's own evidence files, beside its pages': each one's SHA-256 and size, by its path from
    * the run's folder, written with "/". Those are "events.jsonl", the run's event log (from voicecap
-   * 0.11.0), and, from 0.12.0, each cleaned copy of the screen reader's own log that a session kept
+   * 0.11.0), and, from 0.18.0, each cleaned copy of the screen reader's own log that a session kept
    * ("nvda-log/<session>-<n>.txt"). Each session's end sets them, so the seal covers every file, and
    * `voicecap verify` checks each one, and reports an event log or a copy that the run doesn't list.
    * A session that never reached its end (it crashed, or its window was closed) lists no copy of its

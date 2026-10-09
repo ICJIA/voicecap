@@ -12,6 +12,14 @@ import type { ScreenReaderDriver } from "./types.js";
 
 export type DriverName = VoicecapConfig["driver"];
 
+/**
+ * The key a step's command presses, as NVDA's own log names it (`gestureOf`, in ./guidepup/nvda-log.ts).
+ * It is the one thing of a driver that the shareable page's check of that log goes by, and the page
+ * never imports a driver: whatever makes the page passes this in (ShareInput.gestureOf). Only NVDA
+ * keeps such a log, so it is NVDA's.
+ */
+export { gestureOf as nvdaGestureOf } from "./guidepup/nvda-log.js";
+
 export interface DriverSelection {
   name: DriverName;
   /** Replay driver: the run folder, absolute. */

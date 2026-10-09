@@ -9,6 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import type { PassName, RunEvent, RunJson } from "../src/model.js";
 import { esc, plural } from "../src/report/html.js";
 import { CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
@@ -19,13 +21,20 @@ import {
   renderFooter,
   renderStory,
 } from "../src/share/html/evidence.js";
-import type { ShareInput, TranscriptStore } from "../src/share/load.js";
-import { buildShareModel, type ShareModel } from "../src/share/model.js";
+import { renderSharePage } from "../src/share/html/document.js";
+import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
+import {
+  buildShareModel,
+  type NvdaLogChecked,
+  type RunEvidence,
+  type ShareModel,
+} from "../src/share/model.js";
 import { ABOUT, STORY, TIMELINE, WORTH_KNOWING } from "../src/share/text.js";
 import type { SessionTimeline } from "../src/share/timeline.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { inRun } from "../src/share/words.js";
 import { TINY_RECORD } from "./helpers/jpeg.js";
+import { nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
 import {
@@ -1167,6 +1176,265 @@ describe("renderEvidence", () => {
       expect(html).not.toContain('class="timeline"');
       expect(html).not.toContain('class="log"');
       expect(html).not.toContain('class="events"');
+    });
+  });
+
+  describe("a run's NVDA log, checked against the transcripts", () => {
+    /** The heading of the part, as the markup spells it. */
+    const TITLE = "NVDA&#39;s own log, checked against the transcripts";
+
+    /** The model of the real run of 6 October 2026, as a voicecap that keeps NVDA's log could have made it. */
+    async function fixtureModel(
+      options: Parameters<typeof nvdaFixtureSite>[0] = {},
+    ): Promise<ShareModel> {
+      const { siteDir } = await nvdaFixtureSite(options);
+      return buildShareModel(await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }));
+    }
+
+    /** The model with the check its first run shows replaced. */
+    function showing(model: ShareModel, nvdaLog: RunEvidence["nvdaLog"]): ShareModel {
+      const [first, ...rest] = model.evidence;
+      if (first === undefined) throw new Error("The model has no run.");
+      return { ...model, evidence: [{ ...first, nvdaLog }, ...rest] };
+    }
+
+    /** A check of 12 steps, all agreed, with 3 lines of speech outside them, and what a test changes. */
+    function checked(overrides: Partial<NvdaLogChecked> = {}): NvdaLogChecked {
+      return {
+        transcriptLines: 12,
+        logLines: 12,
+        agree: 12,
+        onlyInLog: [],
+        onlyInTranscripts: [],
+        outside: 3,
+        notChecked: [],
+        ...overrides,
+      };
+    }
+
+    /**
+     * The NVDA-log part of the first run's fold, from its heading to the next part's (a run's
+     * timeline has folds inside it, so the fold isn't cut at its first closing tag).
+     */
+    function partOfModel(model: ShareModel): string {
+      const html = renderEvidence(model);
+      const start = html.indexOf(`<div><h3>${TITLE}`);
+      if (start === -1) throw new Error("The evidence has no NVDA-log part.");
+      return html.slice(start, html.indexOf("<div><h3>", start + 1));
+    }
+
+    /** The tiles of a part: each one's number and what it counts. */
+    const tilesOf = (part: string): [string, string][] =>
+      [...part.matchAll(/<div class="big">(.*?)<\/div><div class="sub">(.*?)<\/div>/g)].map(
+        ([, big = "", label = ""]): [string, string] => [textOf(big), textOf(label)],
+      );
+
+    /** The lines of each list of a part, as their words. */
+    const listsOfPart = (part: string): string[][] =>
+      [...part.matchAll(/<ul class="diffs">(.*?)<\/ul>/gs)].map(([, list = ""]) =>
+        [...list.matchAll(/<li class="place">(.*?)<\/li>/gs)].map(([, item = ""]) => textOf(item)),
+      );
+
+    /** The headings inside a part. */
+    const headingsOfPart = (part: string): string[] =>
+      [...part.matchAll(/<h4>(.*?)<\/h4>/g)].map(([, heading = ""]) => textOf(heading));
+
+    const OUTSIDE =
+      "(while pages loaded, before the run, or in attempts that were thrown out) aren't compared or shown.";
+
+    it("shows the real run: three tiles with the counts, that every line agrees, and the speech left out", async () => {
+      const part = partOfModel(await fixtureModel());
+
+      expect(tilesOf(part)).toEqual([
+        ["204", "lines in voicecap's transcripts for this run"],
+        ["204", "lines NVDA's own log has for those steps"],
+        ["204", "agree"],
+      ]);
+      expect(part).toContain('<div class="cross">');
+      expect(part).toContain('<p class="prob-verdict"><b>Every line agrees.</b></p>');
+      expect(textOf(part)).toContain(`177 lines NVDA spoke outside voicecap's steps ${OUTSIDE}`);
+      // Nothing to list, and nothing unchecked.
+      expect(headingsOfPart(part)).toEqual([]);
+      expect(part).not.toContain('class="diffs"');
+      expect(textOf(part)).not.toContain("checked:");
+    });
+
+    it("lists a line that differs under each heading, with its page, pass, step, and words", async () => {
+      const model = showing(
+        await fixtureModel(),
+        checked({
+          transcriptLines: 204,
+          logLines: 204,
+          agree: 202,
+          onlyInLog: [{ page: "/about/", pass: "read", step: 12, text: "Read the guides." }],
+          onlyInTranscripts: [
+            { page: "/about/", pass: "read", step: 12, text: "Read the guide." },
+            { page: "Home", pass: "tab", step: 3, text: "Skip to main content, link" },
+          ],
+        }),
+      );
+      const part = partOfModel(model);
+
+      expect(tilesOf(part)).toEqual([
+        ["204", "lines in voicecap's transcripts for this run"],
+        ["204", "lines NVDA's own log has for those steps"],
+        ["202", "agree"],
+      ]);
+      expect(headingsOfPart(part)).toEqual([
+        "Said in NVDA's own log, not in the transcripts",
+        "In the transcripts, not in NVDA's own log",
+      ]);
+      expect(listsOfPart(part)).toEqual([
+        ["/about/, Read pass, step 12: “Read the guides.”"],
+        [
+          "/about/, Read pass, step 12: “Read the guide.”",
+          "Home, Tab pass, step 3: “Skip to main content, link”",
+        ],
+      ]);
+      // Lines that differ, so it doesn't say they all agree.
+      expect(textOf(part)).not.toContain("Every line agrees.");
+    });
+
+    it("gives a list its heading only when it has a line", () => {
+      const only = (key: "onlyInLog" | "onlyInTranscripts") =>
+        partOfModel(
+          showing(
+            modelOf([{ path: "/" }]),
+            checked({ agree: 11, [key]: [{ page: "/", pass: "tab", step: 1, text: "x" }] }),
+          ),
+        );
+
+      expect(headingsOfPart(only("onlyInLog"))).toEqual([
+        "Said in NVDA's own log, not in the transcripts",
+      ]);
+      expect(headingsOfPart(only("onlyInTranscripts"))).toEqual([
+        "In the transcripts, not in NVDA's own log",
+      ]);
+    });
+
+    it("says in the singular what is one", () => {
+      const part = partOfModel(
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({ transcriptLines: 1, logLines: 1, agree: 1, outside: 1 }),
+        ),
+      );
+
+      expect(tilesOf(part)).toEqual([
+        ["1", "line in voicecap's transcripts for this run"],
+        ["1", "line NVDA's own log has for those steps"],
+        ["1", "agrees"],
+      ]);
+      expect(textOf(part)).toContain(
+        `1 line NVDA spoke outside voicecap's steps ${OUTSIDE.replace("aren't", "isn't")}`,
+      );
+    });
+
+    it("says how many steps had no words when the transcripts have more lines than the log", () => {
+      const part = partOfModel(
+        showing(modelOf([{ path: "/" }]), checked({ transcriptLines: 14, logLines: 12 })),
+      );
+
+      expect(tilesOf(part).map(([big]) => big)).toEqual(["14", "12", "12"]);
+      expect(part).toContain(
+        '<p class="prob-verdict"><b>Every line agrees.</b> 2 steps had no words in the transcripts or in NVDA&#39;s own log.</p>',
+      );
+    });
+
+    it("says how many steps weren't checked, and why, for each group", () => {
+      const part = partOfModel(
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({
+            transcriptLines: 16,
+            logLines: 16,
+            agree: 16,
+            notChecked: [
+              {
+                steps: 8,
+                from: "2026-09-26T14:04:45.729-05:00",
+                why: "reason",
+                detail: "NVDA's log wasn't there.",
+              },
+              { steps: 1, from: null, why: "unread", detail: null },
+            ],
+          }),
+        ),
+      );
+      const said = [...part.matchAll(/<p>(.*?)<\/p>/g)].map(([, words = ""]) => textOf(words));
+
+      expect(said).toEqual([
+        `3 lines NVDA spoke outside voicecap's steps ${OUTSIDE}`,
+        "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log wasn't there.",
+        "1 step wasn't checked: the transcripts' steps couldn't be read here.",
+      ]);
+    });
+
+    it("says what stands in its place as a run says every part it didn't record", async () => {
+      for (const words of [
+        "Not recorded: this run kept no copy of NVDA's log.",
+        "Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.",
+        "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+      ]) {
+        const part = partOfModel(showing(await fixtureModel(), { notRecorded: words }));
+
+        expect(part).toContain(`<p class="not-recorded">${esc(words)}</p>`);
+        expect(part).not.toContain('class="cross"');
+      }
+      expect(partOfModel(await fixtureModel({ unlisted: true }))).toContain(
+        '<p class="not-recorded">Not recorded: this run kept no copy of NVDA&#39;s log.</p>',
+      );
+    });
+
+    it("escapes the words of a line, and sets no style", () => {
+      const hostile = '<b>bold</b> & "quoted" <script>alert(1)</script>';
+      const html = renderEvidence(
+        showing(
+          modelOf([{ path: "/" }]),
+          checked({
+            agree: 11,
+            onlyInLog: [{ page: "<i>page</i>", pass: "read", step: 1, text: hostile }],
+            onlyInTranscripts: [{ page: "<i>page</i>", pass: "read", step: 1, text: hostile }],
+          }),
+        ),
+      );
+      const part = html.slice(html.indexOf(TITLE));
+
+      expect(part).toContain(`<code>“${esc(hostile)}”</code>`);
+      expect(part).toContain("&lt;i&gt;page&lt;/i&gt;, Read pass, step 1:");
+      expect(part).not.toContain("<script>alert");
+      expect(part).not.toContain("<i>page</i>");
+      expect(html).not.toMatch(/\sstyle=/);
+    });
+
+    it("shows nothing NVDA said outside the steps, anywhere on the page", async () => {
+      const html = renderSharePage(await fixtureModel(), { fontCss: "" });
+
+      // Said before the run began, and as pages opened and closed: counted, never shown.
+      for (const outside of [
+        "Calculator",
+        "Connected as controlled computer",
+        "Display is 0",
+        "voicecap check lzquyq",
+        "Skipping certificate verification",
+      ]) {
+        expect(html, outside).not.toContain(outside);
+      }
+      expect(textOf(withoutData(html))).toContain("177 lines NVDA spoke outside voicecap's steps");
+    });
+
+    it("sets its headings one level under the part's, so the details set them to h5 and none goes below h6", async () => {
+      const model = showing(
+        await fixtureModel(),
+        checked({ agree: 11, onlyInLog: [{ page: "/", pass: "read", step: 1, text: "x" }] }),
+      );
+      const html = renderSharePage(model, { fontCss: "" });
+      const part = html.slice(html.indexOf(`<h4>${TITLE}`));
+
+      // The part's own heading is an h4 on the page, and its list's an h5.
+      expect(part.startsWith("<h4>NVDA&#39;s own log, checked against the transcripts")).toBe(true);
+      expect(part).toContain("<h5>Said in NVDA&#39;s own log, not in the transcripts</h5>");
+      expect(html).not.toMatch(/<h6[\s>]/);
     });
   });
 

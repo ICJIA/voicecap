@@ -535,8 +535,46 @@ describe("eventText", () => {
       { type: "foreground-lost", program: null, title: PRIVATE_TITLE },
       "Another window came to the front",
     ],
+    [
+      { type: "screen-reader-log", file: "nvda-log/1-2.txt", reason: null },
+      "voicecap kept a copy of NVDA's own log: nvda-log/1-2.txt",
+    ],
+    [
+      { type: "screen-reader-log", file: null, reason: "NVDA's log wasn't there." },
+      "voicecap kept no copy of NVDA's own log: NVDA's log wasn't there.",
+    ],
+    [
+      { type: "screen-reader-log", file: null, reason: null },
+      "voicecap kept no copy of NVDA's own log",
+    ],
   ])("says %j as the page words it", (event, text) => {
     expect(say(event)).toBe(text);
+  });
+
+  it("names the screen reader in the words of its own log, and shows the home folder as it does everywhere", () => {
+    const voiceOver = { ...words, screenReader: "VoiceOver" };
+    const reason = `EBUSY: ${path.join(home, "AppData", "Local", "Temp", "nvda.log")}`;
+    const event = { type: "screen-reader-log", file: null, reason } as const;
+
+    expect(eventText({ at: at("14:00:00.000"), ...event }, voiceOver)).toContain(
+      "voicecap kept no copy of VoiceOver's own log: EBUSY: ",
+    );
+    expect(say(event)).not.toContain(home);
+    expect(say(event)).toContain(REPLACED);
+    // A path the record gives for a copy is a record's too: the page never shows the account's name.
+    const kept = say({ type: "screen-reader-log", file: path.join(home, "1-1.txt"), reason: null });
+    expect(kept).not.toContain(home);
+    expect(kept).toContain(REPLACED);
+  });
+
+  it("shows a screen reader's log event whose fields it can't read as its type", () => {
+    const odd = (event: Record<string, unknown>) =>
+      eventText({ at: at("14:00:00.000"), ...event } as RunEvent, words);
+
+    expect(odd({ type: "screen-reader-log", file: 7, reason: null })).toBe("screen-reader-log");
+    expect(odd({ type: "screen-reader-log", file: "  ", reason: null })).toBe("screen-reader-log");
+    expect(odd({ type: "screen-reader-log", reason: "x" })).toBe("screen-reader-log");
+    expect(odd({ type: "screen-reader-log", file: null, reason: ["x"] })).toBe("screen-reader-log");
   });
 
   it("names the screen reader as the run's environment records it", () => {

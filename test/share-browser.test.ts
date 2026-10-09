@@ -10,11 +10,13 @@
  * page that failed, whose runs record their event logs; a site whose transcripts hold markup and a
  * closing script tag; a site whose host is one long word, with no name set and no title on its home
  * page; a site whose config gives it a canonical address and a long name, which the page leads
- * with; and a site whose only run was a replay, as in CI's smoke test. Seven more pages are written
+ * with; and a site whose only run was a replay, as in CI's smoke test. Nine more pages are written
  * from models: a run whose event log has all a chart can draw, three of what needs attention, with
  * 5 cards, 6 cards, and i2i's one card on 32 pages, two with no problem to name: one where every
- * page was read, and one with a page skipped; and one of 13 pages, whose 11 with nothing to note
- * fold behind one line, each card holding a fold of its own transcript.
+ * page was read, and one with a page skipped; one of 13 pages, whose 11 with nothing to note
+ * fold behind one line, each card holding a fold of its own transcript; and two of the real run of
+ * 6 October 2026 with NVDA's own log checked against its transcripts: one where every line agrees,
+ * and one with a line that differs in each direction and steps that weren't checked.
  *
  * axe finds no background for words drawn in an SVG, so the words of an event log's chart are
  * measured here instead, against the bars and the fold they're drawn on, in both themes.
@@ -28,12 +30,14 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import { addManualSession } from "../src/manual-add.js";
 import { addReview } from "../src/reviews/review.js";
 import { runAudit } from "../src/run/audit.js";
 import { runDir, sharePath } from "../src/run/paths.js";
 import { fontFaceCss } from "../src/share/fonts.js";
 import { renderSharePage } from "../src/share/html/document.js";
+import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import { walkthroughJson, walkthroughOf } from "../src/share/walkthrough.js";
 import { writeShareFiles } from "../src/share/write.js";
@@ -42,6 +46,7 @@ import { createMemoryLogger } from "../src/util/log.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
+import { nvdaFixtureSite } from "./helpers/nvda-log.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { i2iModel, linkModel } from "./helpers/share-attention.js";
@@ -295,6 +300,41 @@ async function modelPage(model: ShareModel, name: string): Promise<string> {
   return file;
 }
 
+/**
+ * The model of the real run of 6 October 2026 as a voicecap that keeps NVDA's log could have made
+ * it. With `differing`, NVDA's log says something else of two steps (one more word in one, one
+ * fewer in the other), so the check lists a line in each direction, and two groups of steps weren't
+ * checked.
+ */
+async function nvdaLogModel(differing: boolean): Promise<ShareModel> {
+  const { siteDir } = await nvdaFixtureSite({
+    change: (parts) => {
+      if (!differing) return;
+      parts.copy = parts.copy
+        .replace(
+          "'This small site shows how voicecap works, one page at a time.'",
+          "'This small site shows how voicecap works, one page at a time, today.'",
+        )
+        .replace("'Welcome to the voicecap demo'", "'Welcome'");
+    },
+  });
+  const model = buildShareModel(
+    await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
+  );
+  const [first, ...rest] = model.evidence;
+  if (!differing || first === undefined || "notRecorded" in first.nvdaLog) return model;
+  const notChecked = [
+    {
+      steps: 8,
+      from: "2026-10-06T08:08:14.442-05:00",
+      why: "reason" as const,
+      detail: "NVDA's log wasn't there.",
+    },
+    { steps: 3, from: null, why: "unread" as const, detail: null },
+  ];
+  return { ...model, evidence: [{ ...first, nvdaLog: { ...first.nvdaLog, notChecked } }, ...rest] };
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -319,6 +359,9 @@ let pages: {
   named: string;
   replay: string;
   logged: string;
+  /** NVDA's own log, checked against the transcripts: every line agrees, and lines that differ. */
+  nvdaAgree: string;
+  nvdaDiffers: string;
   /** What needs attention: 5 cards (all open), 6 (all folded), and i2i's one card on 32 pages. */
   five: string;
   six: string;
@@ -347,6 +390,8 @@ beforeAll(async () => {
   const named = await namedPage();
   const replay = await replayPage();
   const logged = await loggedPage();
+  const nvdaAgree = await modelPage(await nvdaLogModel(false), "nvda-agree");
+  const nvdaDiffers = await modelPage(await nvdaLogModel(true), "nvda-differs");
   const five = await modelPage(linkModel(PHRASES.slice(0, 5)), "five");
   const six = await modelPage(linkModel(PHRASES.slice(0, 6)), "six");
   const i2i = await modelPage(i2iModel(), "i2i");
@@ -370,6 +415,8 @@ beforeAll(async () => {
     named,
     replay: replay.file,
     logged,
+    nvdaAgree,
+    nvdaDiffers,
     five,
     six,
     i2i,
@@ -732,6 +779,36 @@ describe("axe, in Chromium", () => {
       expect(await axeFindings(page, width), "light, folds open").toEqual([]);
       await page.locator("#open-all").click();
       expect(await axeFindings(page, width), "light, folds closed").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
+    "has no axe violations at %i px on a page with NVDA's own log checked against the transcripts, folds closed and open, dark and light",
+    async (width) => {
+      // The check: three tiles, a line that differs in each direction (two in each list), and two
+      // groups of steps that weren't checked. The first page has every line agreeing.
+      for (const which of ["nvdaAgree", "nvdaDiffers"] as const) {
+        const page = await open(pages[which]);
+        const lists = which === "nvdaDiffers" ? 2 : 0;
+
+        expect(await axeFindings(page, width), `${which}, dark, folds closed`).toEqual([]);
+        await page.locator("#open-all").click();
+        // Open, the part is in view: its tiles, and its lists of lines.
+        const part = page.locator(".log-check").first();
+        expect(await part.isVisible(), which).toBe(true);
+        expect(await part.locator(".cross > div").count(), which).toBe(3);
+        expect(await part.locator("ul.diffs").count(), which).toBe(lists);
+        expect(await part.locator("h5").count(), which).toBe(lists);
+        for (const line of await part.locator("ul.diffs li").all()) {
+          expect(await line.isVisible(), which).toBe(true);
+        }
+        expect(await axeFindings(page, width), `${which}, dark, folds open`).toEqual([]);
+        await page.locator("#theme-toggle").click();
+        expect(await axeFindings(page, width), `${which}, light, folds open`).toEqual([]);
+        await page.locator("#open-all").click();
+        expect(await axeFindings(page, width), `${which}, light, folds closed`).toEqual([]);
+      }
     },
     AXE_TIMEOUT,
   );

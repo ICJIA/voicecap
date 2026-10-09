@@ -266,6 +266,16 @@ function wordsOf(event: Fields, said: EventWords): string | null {
       const program = words(event.program);
       return EVENT_TEXT.foreground(program === null ? null : said.redact(program));
     }
+    case "screen-reader-log": {
+      // A copy's path, or none and the reason the log gives for it, which is empty or a sentence.
+      const { file, reason } = event;
+      const kept = words(file);
+      if (file !== null && kept === null) return null;
+      if (reason !== null && reason !== undefined && typeof reason !== "string") return null;
+      if (kept !== null) return EVENT_TEXT.logKept(sr, said.redact(kept));
+      const why = words(reason);
+      return EVENT_TEXT.logNotKept(sr, why === null ? null : said.redact(why));
+    }
     default:
       return null;
   }

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
+import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import type { PageScreenshot } from "../src/drivers/types.js";
 import { flagRulesSha256 } from "../src/flags/evaluate.js";
 import type {
@@ -38,7 +39,7 @@ import { eventLogFile, pageDir, runJsonPath, siteFolder } from "../src/run/paths
 import { attentionWords } from "../src/share/attention-words.js";
 import type { AttentionCard } from "../src/share/attention.js";
 import { CHECK_LIBRARY, type CheckData } from "../src/share/check.js";
-import { loadShareInput, type TranscriptStore } from "../src/share/load.js";
+import { loadShareInput, type ShareInput, type TranscriptStore } from "../src/share/load.js";
 import {
   buildShareModel,
   type PageCard,
@@ -54,6 +55,7 @@ import {
 } from "../src/share/walkthrough.js";
 import { writeWalkthrough } from "../src/share/write-walkthrough.js";
 import { bodyLines, extractBody } from "../src/transcripts/format.js";
+import { fileHash } from "../src/transcripts/write.js";
 import { sealOf } from "../src/util/hash.js";
 import { createMemoryLogger } from "../src/util/log.js";
 import { isoLocal } from "../src/util/time.js";
@@ -67,6 +69,14 @@ import {
   type SyntheticRun,
 } from "./helpers/report-data.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import {
+  addEarlierRun,
+  addLaterRun,
+  keptLogsRun,
+  type KeptLogs,
+  NVDA_FIXTURE,
+  nvdaFixtureSite,
+} from "./helpers/nvda-log.js";
 import {
   config as runConfig,
   options as runOptions,
@@ -353,6 +363,144 @@ describe("loadShareInput", () => {
       expect(
         (await loadShareInput({ siteDir: DEMO_SITE, config: DEFAULT_CONFIG })).events.size,
       ).toBe(0);
+    });
+  });
+
+  describe("each run's copies of NVDA's log", () => {
+    const COPY = "nvda-log/1-1.txt";
+
+    /** The site's one run, written with its copy listed in its record (the real run, with its log). */
+    async function copySite(options: Parameters<typeof nvdaFixtureSite>[0] = {}) {
+      const site = await nvdaFixtureSite(options);
+      const input = await loadShareInput({
+        siteDir: site.siteDir,
+        config: DEFAULT_CONFIG,
+        gestureOf,
+      });
+      return { ...site, input };
+    }
+
+    it("reads the copies each run the page draws on lists, by their path from the run's folder", async () => {
+      const { input, runId } = await copySite();
+
+      expect([...input.nvdaLogs.keys()]).toEqual([runId]);
+      expect([...(input.nvdaLogs.get(runId)?.keys() ?? [])]).toEqual([COPY]);
+      expect(input.nvdaLogs.get(runId)?.get(COPY)).toBe(await NVDA_FIXTURE.copy());
+    });
+
+    it("leaves out a copy that isn't as its run recorded it: longer, changed in place, or missing", async () => {
+      const longer = await nvdaFixtureSite();
+      await appendFile(path.join(longer.runFolder, "nvda-log", "1-1.txt"), "# edited\n");
+      expect(
+        (await loadShareInput({ siteDir: longer.siteDir, config: DEFAULT_CONFIG, gestureOf }))
+          .nvdaLogs.size,
+      ).toBe(0);
+
+      // One word said otherwise, of the same length: only its fingerprint can tell.
+      const changed = await nvdaFixtureSite();
+      const file = path.join(changed.runFolder, "nvda-log", "1-1.txt");
+      const text = await readFile(file, "utf8");
+      await writeFile(file, text.replace("'Calculator'", "'Calculatoz'"));
+      expect((await readFile(file, "utf8")).length).toBe(text.length);
+      expect(
+        (await loadShareInput({ siteDir: changed.siteDir, config: DEFAULT_CONFIG, gestureOf }))
+          .nvdaLogs.size,
+      ).toBe(0);
+
+      const missing = await nvdaFixtureSite();
+      await rm(path.join(missing.runFolder, "nvda-log", "1-1.txt"));
+      expect(
+        (await loadShareInput({ siteDir: missing.siteDir, config: DEFAULT_CONFIG, gestureOf }))
+          .nvdaLogs.size,
+      ).toBe(0);
+    });
+
+    it("leaves out a copy its run's record doesn't list, as one dropped into the folder", async () => {
+      const { input } = await copySite({ unlisted: true });
+
+      expect(input.nvdaLogs.size).toBe(0);
+    });
+
+    it("reads only a path that is a copy's, so a record can't send it anywhere else", async () => {
+      const { siteDir, runFolder, runId } = await nvdaFixtureSite();
+      const events = await readFile(path.join(runFolder, "events.jsonl"));
+      // The record lists a path that climbs out of the copies' folder, with the fingerprint of a file
+      // that is there: it is not a copy, and it isn't read.
+      const { seal: _seal, ...record } = JSON.parse(
+        await readFile(path.join(runFolder, "run.json"), "utf8"),
+      ) as RunJson;
+      const files = { ...record.files, "nvda-log/../events.jsonl": fileHash(events) };
+      const changed = { ...record, files };
+      await writeFile(
+        path.join(runFolder, "run.json"),
+        JSON.stringify({ ...changed, seal: sealOf(changed) }),
+      );
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf });
+
+      expect([...(input.nvdaLogs.get(runId)?.keys() ?? [])]).toEqual([COPY]);
+    });
+
+    it("has none for a run whose record lists none, as every run before the copies were kept", async () => {
+      const input = await loadShareInput({
+        siteDir: DEMO_SITE,
+        config: DEFAULT_CONFIG,
+        gestureOf,
+      });
+
+      expect(input.nvdaLogs.size).toBe(0);
+    });
+
+    it("reads every pass of every page of a run that kept copies, not only those the page shows", async () => {
+      const { siteDir, runId } = await nvdaFixtureSite();
+      const later = await addLaterRun(siteDir);
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf });
+      const run = input.records.find((record) => record.id === runId)!;
+
+      // The later run is the latest: the page shows its transcripts of the seven pages, not the
+      // first run's. The first run's steps are read all the same, for its copy to be checked against.
+      expect(input.records.map((record) => record.id)).toEqual([runId, later]);
+      expect(run.pages).toHaveLength(7);
+      for (const page of run.pages) {
+        for (const pass of ["read", "headings", "tab"] as const) {
+          const steps = input.transcripts.steps(runId, page.slug, pass);
+          expect(steps, `${page.slug} ${pass}`).toHaveLength(page.passes[pass]!.steps);
+        }
+      }
+      // Its TXT isn't read: the page doesn't show it.
+      expect(input.transcripts.txt(runId, run.pages[0]!.slug, "read")).toBeNull();
+    });
+
+    it("reads the steps of no run that kept no copy, whose pages the page doesn't show", async () => {
+      const { siteDir, runId } = await nvdaFixtureSite();
+      const earlier = await addEarlierRun(siteDir);
+      const input = await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf });
+      const [page] = input.records.find((record) => record.id === earlier)!.pages;
+
+      // The fixture's run is the latest and shows its pages; the earlier run is the run before it,
+      // drawn on, with nothing to check its pages against.
+      expect(input.records.map((record) => record.id)).toEqual([earlier, runId]);
+      expect(input.transcripts.steps(earlier, page!.slug, "read")).toBeNull();
+      expect(input.transcripts.steps(runId, page!.slug, "read")).not.toBeNull();
+    });
+
+    it("reads no steps it has no use for: none for a run without copies, and none when the page is made without NVDA's keys", async () => {
+      const { siteDir, runId } = await nvdaFixtureSite();
+      await addLaterRun(siteDir);
+      const withoutKeys = await loadShareInput({
+        siteDir,
+        config: DEFAULT_CONFIG,
+        gestureOf: null,
+      });
+      const [page] = withoutKeys.records.find((record) => record.id === runId)!.pages;
+
+      expect(withoutKeys.transcripts.steps(runId, page!.slug, "read")).toBeNull();
+      // The copies are read all the same: they are what the page's problems draw on.
+      expect(withoutKeys.nvdaLogs.get(runId)?.size).toBe(1);
+      expect(withoutKeys.gestureOf).toBeNull();
+
+      const later = await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf });
+      expect(later.gestureOf).toBe(gestureOf);
+      expect(later.nvdaLogs.has("2026-10-07_0900")).toBe(false);
     });
   });
 
@@ -2137,6 +2285,411 @@ describe("buildShareModel", () => {
 
       expect(evidence?.fingerprints).toEqual([
         { page: "The run", file: "events.jsonl", ...LOG_HASH },
+      ]);
+    });
+  });
+});
+
+describe("a run's NVDA log, checked against its transcripts", () => {
+  /** What the real run of 6 October 2026 comes to: all 204 steps agree (see share-log-check). */
+  const EVERY_STEP = {
+    transcriptLines: 204,
+    logLines: 204,
+    agree: 204,
+    onlyInLog: [],
+    onlyInTranscripts: [],
+    outside: 177,
+    notChecked: [],
+  };
+
+  /** The model of a site folder voicecap 0.18.0 could have made of the real run, as `share` reads it. */
+  async function fixtureModel(
+    options: Parameters<typeof nvdaFixtureSite>[0] = {},
+    keys: typeof gestureOf | null = gestureOf,
+  ): Promise<ShareModel> {
+    const { siteDir } = await nvdaFixtureSite(options);
+    return buildShareModel(
+      await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf: keys }),
+    );
+  }
+
+  /** The run that keeps its copies, with its record listing none of them: only its event log. */
+  function withoutListedCopies(kept: KeptLogs): KeptLogs {
+    return { ...kept, run: withOwnFiles(kept.run, { "events.jsonl": LOG_HASH }) };
+  }
+
+  /** The model of the three-session run that keeps its copies, with parts of its input changed. */
+  function keptModel(
+    change: (kept: KeptLogs) => Partial<ShareInput> = () => ({}),
+    kept: KeptLogs = keptLogsRun(),
+  ): ShareModel {
+    return buildShareModel(
+      inputOf([kept.run], {
+        transcripts: kept.transcripts,
+        events: new Map([[kept.run.id, kept.log]]),
+        nvdaLogs: new Map([[kept.run.id, kept.copies]]),
+        ...change(kept),
+      }),
+    );
+  }
+
+  it("checks the real run's 204 steps against its log, and every one agrees", async () => {
+    const model = await fixtureModel();
+
+    expect(latestEvidence(model).nvdaLog).toEqual(EVERY_STEP);
+  });
+
+  it("checks the run's steps, and not what NVDA said outside them: the log's other windows aren't on the page", async () => {
+    const model = await fixtureModel();
+    const shownWords = stringsIn(shown(model)).join("\n");
+
+    // NVDA said these before the run began, and as pages opened: counted, never shown.
+    for (const outside of ["Calculator", "Connected as controlled computer", "Display is 0"]) {
+      expect(shownWords, outside).not.toContain(outside);
+    }
+  });
+
+  it("lists a line that differs under its page, pass, and step, in both lists", async () => {
+    const model = await fixtureModel({
+      change: (parts) => {
+        parts.copy = parts.copy.replace(
+          "'This small site shows how voicecap works, one page at a time.'",
+          "'This small site shows how voicecap work, one page at a time.'",
+        );
+      },
+    });
+
+    expect(latestEvidence(model).nvdaLog).toEqual({
+      ...EVERY_STEP,
+      agree: 203,
+      onlyInLog: [
+        {
+          page: "/",
+          pass: "read",
+          step: 6,
+          text: "This small site shows how voicecap work, one page at a time.",
+        },
+      ],
+      onlyInTranscripts: [
+        {
+          page: "/",
+          pass: "read",
+          step: 6,
+          text: "This small site shows how voicecap works, one page at a time.",
+        },
+      ],
+    });
+  });
+
+  it("checks a run it draws on though none of its pages is shown, as the run before the latest", async () => {
+    const { siteDir, runId } = await nvdaFixtureSite();
+    const later = await addLaterRun(siteDir);
+    const model = buildShareModel(
+      await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
+    );
+
+    expect(model.evidence.map((each) => each.run.id)).toEqual([later, runId]);
+    expect(model.evidence[1]?.nvdaLog).toEqual(EVERY_STEP);
+    // The later run kept no copy.
+    expect(model.evidence[0]?.nvdaLog).toEqual({
+      notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
+    });
+  });
+
+  it("names a page by its label, else by its address without the site's", async () => {
+    const { siteDir } = await nvdaFixtureSite({
+      change: (parts) => {
+        parts.copy = parts.copy.replace(
+          "'This small site shows how voicecap works, one page at a time.'",
+          "'Something else.'",
+        );
+        const home = parts.run.pages[0]!;
+        parts.run = {
+          ...parts.run,
+          pages: [{ ...home, label: "  The home page " }, ...parts.run.pages.slice(1)],
+        };
+      },
+    });
+    const model = buildShareModel(
+      await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
+    );
+    const log = latestEvidence(model).nvdaLog;
+
+    expect("notRecorded" in log ? [] : log.onlyInLog.map(({ page }) => page)).toEqual([
+      "The home page",
+    ]);
+  });
+
+  describe("adds the NVDA sessions of a run up, each checked with its own copy", () => {
+    it("checks all three of a run that restarted NVDA and resumed", () => {
+      expect(latestEvidence(keptModel()).nvdaLog).toEqual({
+        transcriptLines: 24,
+        logLines: 24,
+        agree: 24,
+        onlyInLog: [],
+        onlyInTranscripts: [],
+        outside: 21,
+        notChecked: [],
+      });
+    });
+
+    it("counts the steps of a session that has no copy, with its reason, and lists none of them", () => {
+      const model = keptModel((kept) => ({
+        events: new Map([
+          [
+            kept.run.id,
+            {
+              unreadable: 0,
+              events: kept.log.events.map((event) =>
+                event.type === "screen-reader-log" && event.file === "nvda-log/1-2.txt"
+                  ? { ...event, file: null, reason: "NVDA's log wasn't there." }
+                  : event,
+              ),
+            },
+          ],
+        ]),
+      }));
+
+      expect(latestEvidence(model).nvdaLog).toEqual({
+        transcriptLines: 16,
+        logLines: 16,
+        agree: 16,
+        onlyInLog: [],
+        onlyInTranscripts: [],
+        outside: 15,
+        notChecked: [
+          {
+            steps: 8,
+            from: "2026-09-26T14:04:45.729-05:00",
+            why: "reason",
+            detail: "NVDA's log wasn't there.",
+          },
+        ],
+      });
+    });
+  });
+
+  describe("says why a run's NVDA log isn't checked, in place of the check", () => {
+    const logOf = (model: ShareModel) => latestEvidence(model).nvdaLog;
+
+    it("says a run of a voicecap before the one that keeps NVDA's log used that voicecap", async () => {
+      // The real run's own record: voicecap 0.11.0-rc.0.
+      expect(logOf(await fixtureModel({ version: "0.11.0-rc.0" }))).toEqual({
+        notRecorded: "Not recorded: this run used voicecap 0.11.0-rc.0.",
+      });
+      expect(logOf(await fixtureModel({ version: "0.17.9" }))).toEqual({
+        notRecorded: "Not recorded: this run used voicecap 0.17.9.",
+      });
+      // A run whose sessions recorded no environment doesn't say which.
+      const run = keptLogsRun().run;
+      const unknown = keptModel(() => ({
+        runs: [
+          {
+            ...run,
+            sessions: run.sessions.map((session) => ({ ...session, environment: null })),
+          },
+        ],
+      }));
+      expect(logOf(unknown)).toEqual({
+        notRecorded: "Not recorded: this run used an earlier version of voicecap.",
+      });
+    });
+
+    it("keeps to the demo runs' own words: they are from before NVDA's log was kept", async () => {
+      for (const each of (await demoModel()).evidence) {
+        expect(each.nvdaLog).toEqual({ notRecorded: BEFORE_0_6 });
+      }
+    });
+
+    it("says a run of the voicecap that keeps NVDA's log, whose record lists no copy, kept none", async () => {
+      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual({
+        notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
+      });
+      const none = keptModel(() => ({ nvdaLogs: new Map() }), withoutListedCopies(keptLogsRun()));
+      expect(logOf(none)).toEqual({
+        notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
+      });
+    });
+
+    it("says a run's copy that isn't as the run recorded it isn't shown", async () => {
+      const { siteDir, runFolder } = await nvdaFixtureSite();
+      await appendFile(path.join(runFolder, "nvda-log", "1-1.txt"), "# edited\n");
+      const model = buildShareModel(
+        await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
+      );
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+      });
+      // Copies the loader didn't read, for all three sessions, say the same.
+      expect(logOf(keptModel(() => ({ nvdaLogs: new Map() })))).toEqual({
+        notRecorded:
+          "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+      });
+    });
+
+    it("says a run of a screen reader other than NVDA has no such check", () => {
+      const kept = keptLogsRun();
+      const sessions = kept.run.sessions.map((session) =>
+        session.environment?.screenReader
+          ? {
+              ...session,
+              environment: {
+                ...session.environment,
+                screenReader: { ...session.environment.screenReader, name: "VoiceOver" },
+              },
+            }
+          : session,
+      );
+      const model = keptModel(() => ({ runs: [{ ...kept.run, sessions }] }));
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.",
+      });
+    });
+
+    it("says a run that kept only the first thing NVDA said for each step can't be checked", () => {
+      const kept = keptLogsRun();
+      const run = { ...kept.run, settings: { ...kept.run.settings, capture: "initial" as const } };
+
+      expect(logOf(keptModel(() => ({ runs: [run] })))).toEqual({
+        notRecorded:
+          "Not shown: this run kept only the first thing NVDA said for each step, so a step can't be compared with all that NVDA's log has.",
+      });
+    });
+
+    it("says a copy with no speech in it can't be checked", () => {
+      const model = keptModel((kept) => ({
+        nvdaLogs: new Map([
+          [
+            kept.run.id,
+            new Map(
+              [...kept.copies].map(([name]) => [name, "# NVDA's own log, with no speech.\n"]),
+            ),
+          ],
+        ]),
+      }));
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not shown: NVDA's log has no speech in it, since NVDA's logging level was below input and output.",
+      });
+    });
+
+    it("says what the check needs of the event log when the page has none", () => {
+      const model = keptModel(() => ({ events: new Map() }));
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not shown: the event log isn't as the run recorded it; voicecap verify names it. NVDA's log is paired with the steps by the event log, so it can't be checked here.",
+      });
+    });
+
+    it("says the same when the page has the event log but no line of it can be read", () => {
+      const model = keptModel((kept) => ({
+        events: new Map([[kept.run.id, { events: [], unreadable: 5 }]]),
+      }));
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not shown: no line of the event log could be read. NVDA's log is paired with the steps by the event log, so it can't be checked here.",
+      });
+    });
+
+    it("says a page made without NVDA's keys can't make the check", () => {
+      expect(logOf(keptModel(() => ({ gestureOf: null })))).toEqual({
+        notRecorded:
+          "Not shown: this copy was made without the keys NVDA presses for each step, which the check needs.",
+      });
+    });
+
+    it("says a run with no steps has nothing to check against", () => {
+      const kept = keptLogsRun();
+      const run = {
+        ...kept.run,
+        pages: kept.run.pages.map((page) => ({ ...page, status: "failed" as const })),
+      };
+
+      expect(logOf(keptModel(() => ({ runs: [run] })))).toEqual({
+        notRecorded: "Not recorded: this run has no transcripts to check NVDA's log against.",
+      });
+    });
+
+    it("says each group of steps that weren't checked when the reasons differ", () => {
+      const model = keptModel((kept) => {
+        const copies = new Map(kept.copies);
+        copies.delete("nvda-log/1-2.txt");
+        return {
+          nvdaLogs: new Map([[kept.run.id, copies]]),
+          events: new Map([
+            [
+              kept.run.id,
+              {
+                unreadable: 0,
+                events: kept.log.events
+                  .filter(
+                    (event) =>
+                      event.type !== "screen-reader-log" || event.file !== "nvda-log/1-1.txt",
+                  )
+                  .map((event) =>
+                    event.type === "screen-reader-log" && event.file === "nvda-log/2-1.txt"
+                      ? { ...event, file: null, reason: "EBUSY: resource busy or locked" }
+                      : event,
+                  ),
+              },
+            ],
+          ]),
+        };
+      });
+
+      expect(logOf(model)).toEqual({
+        notRecorded:
+          "Not shown: no step could be checked. " +
+          "8 steps from the NVDA session that started 26 September 2026, 14:02 weren't checked: voicecap kept no copy of NVDA's log for that session. " +
+          "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: NVDA's log isn't as the run recorded it; voicecap verify names it. " +
+          "8 steps from the NVDA session that started 28 September 2026, 09:00 weren't checked: EBUSY: resource busy or locked.",
+      });
+    });
+  });
+
+  describe("is kept apart from what the page's verdict goes by", () => {
+    /** What the verdict, the ring, the cards, and the summary say, as the page gives them. */
+    const verdictOfModel = (model: ShareModel) => ({
+      result: model.result,
+      ring: model.ring,
+      attention: model.attention,
+      summary: model.summary,
+      problems: model.problems,
+    });
+
+    it("changes nothing the verdict goes by, whether every line agrees, some differ, or none was checked", () => {
+      const bare = verdictOfModel(keptModel(() => ({ nvdaLogs: new Map() })));
+      // NVDA said otherwise of every step in Apply's copy.
+      const differing = verdictOfModel(
+        keptModel((each) => ({
+          nvdaLogs: new Map([
+            [
+              each.run.id,
+              new Map(
+                [...each.copies].map(([name, text]): [string, string] => [
+                  name,
+                  text.replaceAll("'Grants'", "'Grant'"),
+                ]),
+              ),
+            ],
+          ]),
+        })),
+      );
+
+      expect(verdictOfModel(keptModel())).toEqual(bare);
+      expect(differing).toEqual(bare);
+      expect(Object.keys(keptModel().result)).toEqual([
+        "pages",
+        "read",
+        "problems",
+        "problemPages",
       ]);
     });
   });

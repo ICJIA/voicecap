@@ -59,6 +59,35 @@ export function keepsEventLog(version: string | null): boolean {
   return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 11);
 }
 
+/**
+ * The first version of voicecap that keeps a cleaned copy of NVDA's own log with each run. It is
+ * one constant, which the places that say a run's voicecap kept no copy all go by, and it is set
+ * again when the release is prepared, if the release that ships the copies changes. 0.12.0 to
+ * 0.17.x shipped before the copies were kept.
+ */
+export const KEEPS_NVDA_LOG_FROM = "0.18.0";
+
+/** A version's major, minor, and patch numbers (a release candidate's suffix is dropped), or null. */
+function versionNumbers(version: string): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+/**
+ * Whether a voicecap keeps a copy of NVDA's own log with each run: KEEPS_NVDA_LOG_FROM, a release
+ * candidate of it, and every version since. An unknown version counts as an earlier one.
+ */
+export function keepsNvdaLog(version: string | null): boolean {
+  const have = version === null ? null : versionNumbers(version);
+  const from = versionNumbers(KEEPS_NVDA_LOG_FROM);
+  if (have === null || from === null) return false;
+  for (const [index, number] of have.entries()) {
+    const needed = from[index] ?? 0;
+    if (number !== needed) return number > needed;
+  }
+  return true;
+}
+
 export interface Problem {
   run: string;
   page: { key: string; slug: string; url: string; label?: string };

@@ -12,20 +12,25 @@ import {
   type PageRecord,
   type PageSource,
   type PageStatus,
+  type PassName,
   type RunEvent,
   type RunJson,
   type SessionRecord,
+  type StepRecord,
 } from "../model.js";
 import { describeChanges, distinctEnvironments } from "../report/compare.js";
-import { EVENT_LOG } from "../run/events.js";
+import { EVENT_LOG, isCopyPath } from "../run/events.js";
 import { siteFolder } from "../run/paths.js";
 import { environmentLines } from "../transcripts/format.js";
 import { formatCommand } from "../util/command-line.js";
 import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
-import { keepsEventLog } from "./problems.js";
+import type { LogCheck } from "./log-check.js";
+import { nothingCheckedLine } from "./log-words.js";
+import { keepsEventLog, keepsNvdaLog } from "./problems.js";
 import { isFileHash, screenshotRecordOf } from "./records.js";
+import { checkRunAgainstLog, type GestureOf, type NotChecked } from "./run-log-check.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
-import { EVIDENCE_TEXT, TIMELINE_TEXT } from "./text.js";
+import { EVIDENCE_TEXT, NVDA_LOG_TEXT, TIMELINE_TEXT } from "./text.js";
 import {
   isEventTime,
   restartsOf,
@@ -64,6 +69,13 @@ export interface WalkthroughDownload {
  */
 export type RunWalkthrough = WalkthroughDownload | { problem: string };
 
+/**
+ * A run's NVDA log, checked against its transcripts: the counts and every line that differs (see
+ * LogCheck), added up over the run's NVDA sessions, and the steps that weren't checked, each group
+ * with why (see NotChecked). A run's part is this, or the words that stand in its place.
+ */
+export type NvdaLogChecked = LogCheck & { notChecked: NotChecked[] };
+
 export interface RunEvidence {
   /** The run's record exactly as its run.json holds it: its id, its seal, and its fingerprints. */
   run: RunJson;
@@ -92,8 +104,14 @@ export interface RunEvidence {
   unlogged: UnloggedSession[];
   /** The run's screen reader, as its environment records it, which the timeline's chart names. */
   screenReader: string;
-  /** Evidence C, NVDA's own log checked against the transcripts: no version records it yet. */
-  nvdaLog: { notRecorded: string };
+  /**
+   * Evidence C, NVDA's own log checked against the transcripts (from voicecap 0.18.0): the check,
+   * or what the page says in its place: that the run's voicecap kept no copy (`notRecordedBy`, for
+   * an earlier one), or its screen reader isn't NVDA, or the check can't be shown or made, as
+   * NVDA_LOG_TEXT words it. It is the evidence's alone: nothing the verdict, the ring, or What needs
+   * attention goes by draws on it.
+   */
+  nvdaLog: NvdaLogChecked | { notRecorded: string };
   /**
    * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
    * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
@@ -164,14 +182,26 @@ export interface EventLog {
   unreadable: number;
 }
 
+/** What a run's NVDA log is checked from, as the model has it. */
+export interface NvdaLogSource {
+  /** The copies the loader read, by their path from the run's folder. */
+  copies: ReadonlyMap<string, string>;
+  /** A pass's steps in the run, or null when they can't be read. */
+  steps: (slug: string, pass: PassName) => StepRecord[] | null;
+  /** NVDA's keys, or null when the page was made without them. */
+  gestureOf: GestureOf | null;
+  /** A page as the lists of lines that differ name it. */
+  pageName: (page: PageRecord) => string;
+}
+
 /**
  * The evidence of each run the standing draws on, the latest first. `recordOf` gives a run's record
  * as its run.json holds it; `redact` replaces the home folder in what the page shows. `site` is the
  * site as the page names it (its canonical address, else the address voicecap read), which the
  * commands and the walkthrough files' names take, and `shown` gives any other address as the page
  * shows it. A run's record, and the walkthrough file made of it, keep the address voicecap read.
- * `eventLog` gives a run's event log, when the page has it, and `words` what its events' words
- * need of the run.
+ * `eventLog` gives a run's event log, when the page has it, `words` what its events' words need of
+ * the run, and `nvdaLog` what its NVDA log is checked from.
  */
 export function evidenceOf(input: {
   standing: Standing;
@@ -181,12 +211,12 @@ export function evidenceOf(input: {
   redact: (text: string) => string;
   eventLog: (run: RunJson) => EventLog | null;
   words: (run: RunJson) => EventWords;
+  nvdaLog: (run: RunJson) => NvdaLogSource;
 }): RunEvidence[] {
   const { standing, site, shown, redact } = input;
   const before = standing.latest && runBefore(standing.counted, standing.latest);
   return standing.drawnOn.toReversed().map((run) => {
     const fromRun = standing.pages.filter((page) => page.shown?.run === run).length;
-    const notRecorded = notRecordedBy(versionOf(run));
     const record = input.recordOf(run);
     const words = input.words(run);
     const log = input.eventLog(run);
@@ -204,7 +234,7 @@ export function evidenceOf(input: {
       timeline,
       unlogged,
       screenReader: words.screenReader,
-      nvdaLog: { notRecorded },
+      nvdaLog: nvdaLogOf(run, log, input.nvdaLog(run), redact),
       fingerprints: [
         ...ownFiles(run),
         ...run.pages.flatMap((page) => [
@@ -221,6 +251,67 @@ export function evidenceOf(input: {
       walkthrough: walkthroughFor(record, site),
     };
   });
+}
+
+/**
+ * Whether a run's record lists a copy of NVDA's log: a file under a path that is a copy's, with a
+ * fingerprint as voicecap writes one.
+ */
+function listsCopies(run: RunJson): boolean {
+  const files: unknown = run.files;
+  if (typeof files !== "object" || files === null) return false;
+  return Object.entries(files).some(([file, hash]: [string, unknown]) => {
+    return isCopyPath(file) && isFileHash(hash);
+  });
+}
+
+/** Whether a run's latest session with a screen reader recorded one that isn't NVDA. */
+function otherScreenReader(run: RunJson): boolean {
+  const name: unknown = run.sessions.findLast((session) => session.environment?.screenReader)
+    ?.environment?.screenReader?.name;
+  return typeof name === "string" && name.trim() !== "" && name.trim().toLowerCase() !== "nvda";
+}
+
+/**
+ * A run's NVDA log as the page shows it: the log checked against the run's transcripts, session by
+ * session (checkRunAgainstLog), or, where the page can't show that, why, in the order the reader
+ * can act on it:
+ * - the run's screen reader isn't NVDA, which keeps this log;
+ * - the run's voicecap is from before NVDA's log was kept (`notRecordedBy`);
+ * - its record lists no copy, so it kept none;
+ * - the page was made without NVDA's keys, which the check goes by;
+ * - the page can't show the run's event log, which pairs each copy with its steps (the event log's
+ *   own reason, which `eventLogGap` gives, and what it means here);
+ * - no session could be checked (`nothingCheckedLine`).
+ */
+function nvdaLogOf(
+  run: RunJson,
+  log: EventLog | null,
+  source: NvdaLogSource,
+  redact: (text: string) => string,
+): RunEvidence["nvdaLog"] {
+  if (otherScreenReader(run)) return { notRecorded: NVDA_LOG_TEXT.notNvda };
+  const version = versionOf(run);
+  if (!keepsNvdaLog(version)) return { notRecorded: notRecordedBy(version) };
+  if (!listsCopies(run)) return { notRecorded: NVDA_LOG_TEXT.noCopy };
+  if (source.gestureOf === null) return { notRecorded: NVDA_LOG_TEXT.noKeys };
+  // A voicecap that keeps NVDA's log keeps the event log, so a page without it has its reason.
+  const gap = eventLogGap(run, log);
+  if (log === null || gap !== null) {
+    return { notRecorded: NVDA_LOG_TEXT.needsEventLog(TIMELINE_TEXT.gaps[gap ?? "unlisted"].part) };
+  }
+  const { check, notChecked } = checkRunAgainstLog({
+    run,
+    events: log.events,
+    copies: source.copies,
+    steps: source.steps,
+    gestureOf: source.gestureOf,
+    pageName: source.pageName,
+    redact,
+  });
+  return check === null
+    ? { notRecorded: nothingCheckedLine(notChecked) }
+    : { ...check, notChecked };
 }
 
 /**

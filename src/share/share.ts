@@ -54,6 +54,7 @@ import { MEGABYTE, sizeLine, sizeWords } from "./format.js";
 import { renderSharePage } from "./html/document.js";
 import { loadShareInput, type ShareInput } from "./load.js";
 import { buildShareModel, type RunEvidence } from "./model.js";
+import type { GestureOf } from "./run-log-check.js";
 import { appendShare, readShares, recordedNames } from "./shares.js";
 import { MAC_HASH, POWERSHELL_HASH } from "./text.js";
 
@@ -72,6 +73,11 @@ export interface ShareReportOptions {
   config?: LoadedConfig;
   logger?: Logger;
   now?: Date;
+  /**
+   * NVDA's keys, which the check of NVDA's own log goes by (see ShareInput.gestureOf). Default:
+   * none, and the copies say they were made without them where they would show the check.
+   */
+  gestureOf?: GestureOf | null;
 }
 
 export interface ShareReportResult {
@@ -142,7 +148,7 @@ export async function shareReport(options: ShareReportOptions = {}): Promise<Sha
 
   // Every record is read here, once: it's what takes the time. The model is built from it again for
   // each pair of names tried, which is cheap.
-  const input = await loadShareInput({ siteDir, config, now });
+  const input = await loadShareInput({ siteDir, config, now, gestureOf: options.gestureOf });
   // The model as the current copies have it: it says whether a run counts, and it has each run's
   // walkthrough file, which no name changes.
   const current = buildShareModel(input);

@@ -23,6 +23,7 @@ import type { OnlyInOnePage } from "./changes.js";
 import { count } from "./format.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
+import type { WhyNotChecked } from "./run-log-check.js";
 import type { VerdictKind } from "./verdict.js";
 
 /**
@@ -650,6 +651,89 @@ export const EVIDENCE_TEXT = {
 };
 
 /**
+ * "NVDA's own log, checked against the transcripts": what a run's part says, around the numbers and
+ * the lines it works out. The wording is the plan's (the owner reads it with the release). The page
+ * and its Word copy both say these, from ./log-words.ts, and the Word copy has no headings under the
+ * part's own, so its two lists' headings are bold lines. What a sentence takes, it takes as a number
+ * or a string, so it is the same sentence wherever it is said.
+ */
+export const NVDA_LOG_TEXT = {
+  /**
+   * The three tiles, what each counts after its number ("204 lines in voicecap's transcripts for this
+   * run"). The page sets the number large and the rest small; the Word copy says each as a line.
+   */
+  tiles: {
+    transcripts: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} in voicecap's transcripts for this run`,
+    inLog: (lines: number): string =>
+      `${lines === 1 ? "line" : "lines"} NVDA's own log has for those steps`,
+    agree: (lines: number): string => (lines === 1 ? "agrees" : "agree"),
+  },
+  /** The headings of the two lists of lines that differ, in the order the lists come. */
+  lists: {
+    onlyInLog: "Said in NVDA's own log, not in the transcripts",
+    onlyInTranscripts: "In the transcripts, not in NVDA's own log",
+  },
+  /** Where a line that differs is, before its words: "/about/, Read pass, step 12". */
+  where: (page: string, pass: PassName, step: number): string =>
+    `${page}, ${PASS_TITLE[pass]} pass, step ${step}`,
+  /** Said when both lists are empty, always beside the three tiles. */
+  same: "Every line agrees.",
+  /**
+   * Said after it when the transcripts have more lines than the log does: steps that said nothing,
+   * in the transcripts and in the log alike, so there is no line of theirs to compare.
+   */
+  noWords: (steps: number): string =>
+    `${plural(steps, "step")} had no words in the transcripts or in NVDA's own log.`,
+  /** How much speech the check leaves out, and why. */
+  outside: (lines: number): string =>
+    `${count(lines)} ${lines === 1 ? "line" : "lines"} NVDA spoke outside voicecap's steps (while pages loaded, before the run, or in attempts that were thrown out) ${lines === 1 ? "isn't" : "aren't"} compared or shown.`,
+  /**
+   * Why some steps weren't checked, each as a clause that follows "...weren't checked: " and "Not
+   * shown: ". The reason a run's own log gives for a session with no copy is said in its own words,
+   * and `none` where the log gives none.
+   */
+  because: {
+    none: "voicecap kept no copy of NVDA's log for that session",
+    altered: "NVDA's log isn't as the run recorded it; voicecap verify names it",
+    silent: "NVDA's log has no speech in it, since NVDA's logging level was below input and output",
+    initial:
+      "this run kept only the first thing NVDA said for each step, so a step can't be compared with all that NVDA's log has",
+    times: "the times of the pages couldn't be read",
+    unread: "the transcripts' steps couldn't be read here",
+    placed: "the event log doesn't show when the pages were read",
+  } satisfies Record<Exclude<WhyNotChecked, "reason">, string>,
+  /**
+   * Some steps that weren't checked, with when the NVDA session they were read in started, as the
+   * event log's rows give a time, when they belong to one: "6 steps from the NVDA session that
+   * started 26 September 2026, 14:04 weren't checked: voicecap kept no copy of NVDA's log for that
+   * session."
+   */
+  notChecked: (steps: number, when: string | null, because: string): string => {
+    const from = when === null ? "" : ` from the NVDA session that started ${when}`;
+    return `${plural(steps, "step")}${from} ${steps === 1 ? "wasn't" : "weren't"} checked: ${because}.`;
+  },
+  /** What the part says when no step was checked, for one reason, and, for mixed reasons, first. */
+  notShown: (because: string): string => `Not shown: ${because}.`,
+  noneChecked: "Not shown: no step could be checked.",
+  /** The part of a run with no step to check against, which read no page in full. */
+  noSteps: "Not recorded: this run has no transcripts to check NVDA's log against.",
+  /** The part of a run of a voicecap that keeps NVDA's log, with no copy in its record. */
+  noCopy: "Not recorded: this run kept no copy of NVDA's log.",
+  /** The part of a run whose screen reader isn't NVDA's. */
+  notNvda: "Not recorded: this check is NVDA's only, since VoiceOver keeps no log of what it says.",
+  /**
+   * The part of a run whose event log the page can't show, which pairs each copy with its steps: the
+   * event log's own reason (TIMELINE_TEXT.gaps), then what it means here.
+   */
+  needsEventLog: (reason: string): string =>
+    `${reason} NVDA's log is paired with the steps by the event log, so it can't be checked here.`,
+  /** The part of a page made without the keys a step presses, which the check goes by. */
+  noKeys:
+    "Not shown: this copy was made without the keys NVDA presses for each step, which the check needs.",
+};
+
+/**
  * Each event of a run's event log (events.jsonl), in the words its row of the table says, and the
  * problems' records quote. `sr` is the run's screen reader as its environment records it ("NVDA");
  * `name` is a page as the page names it, and `n` its number in the run. The screen reader voicecap
@@ -708,6 +792,13 @@ export const EVENT_TEXT = {
   /** Another window took the screen: the program's name, when Windows said it. Never the title. */
   foreground: (program: string | null): string =>
     `Another window came to the front${program === null ? "" : `: ${program}`}`,
+  /**
+   * The screen reader's own log of a session that has just ended: the copy voicecap kept (its path
+   * from the run's folder), or, with the reason when the log gives one, that it kept none.
+   */
+  logKept: (sr: string, file: string): string => `voicecap kept a copy of ${sr}'s own log: ${file}`,
+  logNotKept: (sr: string, reason: string | null): string =>
+    `voicecap kept no copy of ${sr}'s own log${reason === null ? "" : `: ${reason}`}`,
 };
 
 /**

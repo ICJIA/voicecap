@@ -4,7 +4,12 @@ import path from "node:path";
 
 import { loadConfig, type LoadedConfig } from "../config/load.js";
 import type { VoicecapConfig } from "../config/schema.js";
-import { createDriver, selectDriver, type DriverSelection } from "../drivers/index.js";
+import {
+  createDriver,
+  nvdaGestureOf,
+  selectDriver,
+  type DriverSelection,
+} from "../drivers/index.js";
 import { loadPlatformReadiness } from "../drivers/readiness.js";
 import { BROWSER_WINDOW, type ScreenReaderDriver } from "../drivers/types.js";
 import { evaluateFlags, flagRulesSha256 } from "../flags/evaluate.js";
@@ -840,7 +845,13 @@ async function complete(ctx: ExecuteContext): Promise<void> {
   });
   // The shareable page and its Word copy too, now the sealed run is on disk. One that can't be
   // written is a warning, never a failed run.
-  await writeShareFiles({ siteDir: outDir, config, logger, now: now() });
+  await writeShareFiles({
+    siteDir: outDir,
+    config,
+    logger,
+    now: now(),
+    gestureOf: nvdaGestureOf,
+  });
   logger.info(`Run ${run.id} complete. Report: ${live.file}`);
   // A repeat says how it sounds against the original, from its own finished record.
   if (ctx.walkthrough) {
