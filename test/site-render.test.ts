@@ -5,8 +5,11 @@
  * sites or more have reports. The content is small (test/helpers/site-content.ts): a demo, two
  * sites with three reports, a Word copy that isn't published, and a report with no walkthrough file.
  *
- * The bar, the footer, and the shell that every page of the website shares (src/site/frame.ts) are
- * here too: the bar of this page and of the trust page, whose last link is the one to the trust page.
+ * The frame that every page of the website shares (src/site/frame.ts) is here too: the top bar, with
+ * the website's name, its three pages, and the theme button; the bottom bar, with GitHub, the
+ * CHANGELOG, the three pages, and the version; the way back to the test results that the other
+ * three pages open with; and the shell around a page, the same bars on each of the four pages but
+ * for the link of the page the reader is on.
  *
  * What the page does in a browser is in test/site-page-browser.test.ts.
  */
@@ -18,9 +21,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEMO_CANONICAL } from "../src/demo/server.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { SHARE_CSS, THEME_CSS } from "../src/share/html/style.js";
-import { ABOUT } from "../src/share/text.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
-import { siteBar, siteFooter, sitePage } from "../src/site/frame.js";
+import { backLink, siteBar, siteFooter, sitePage, type SitePage } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import {
   fileKind,
@@ -29,7 +31,10 @@ import {
   type SiteContent,
 } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
+import { renderTechnical } from "../src/site/technical.js";
 import { SITE_TEXT } from "../src/site/text.js";
+import { renderTrustPage } from "../src/site/trust.js";
+import { renderWhatsNew } from "../src/site/whats-new.js";
 import { decode, summariesIn, textOf } from "./helpers/share-html.js";
 import {
   CONTENT,
@@ -45,14 +50,40 @@ import {
   published,
   reportsOf,
 } from "./helpers/site-content.js";
+import { FACTS, RECORDS } from "./helpers/trust-facts.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
+/** voicecap's CHANGELOG on GitHub, which the bottom bar links to. */
+const CHANGELOG = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
 /** Where the build publishes the demo's own pages, from the site's top: a relative link goes there. */
 const DEMO_PAGES_HREF = "demo-site/";
-/** Where the build publishes the trust page, beside this one: a relative link goes there. */
+/** The website's four pages, beside each other: a relative link goes to each. */
+const INDEX_HREF = "index.html";
 const TRUST_PAGE_HREF = "trust.html";
-/** The words of the bar's last link, which goes to the trust page. */
-const TRUST_WORDS = "Can I trust this?";
+const WHATS_NEW_HREF = "whats-new.html";
+const TECHNICAL_HREF = "technical-details.html";
+/** The website's four pages, as the frame knows them. */
+const PAGES: SitePage[] = ["index", "trust", "whats-new", "technical"];
+/** Each page's own link, in both bars: the front page's is the website's name, in the top bar alone. */
+const OWN_HREF: Record<SitePage, string> = {
+  index: INDEX_HREF,
+  trust: TRUST_PAGE_HREF,
+  "whats-new": WHATS_NEW_HREF,
+  technical: TECHNICAL_HREF,
+};
+
+/** The website's own page, drawn by the voicecap of FACTS: its bottom bar says FACTS's version. */
+const frontPage = (content: SiteContent): string => renderSiteIndex(content, FACTS);
+
+/** The website's four pages, each drawn from the tests' facts, by the page it is. */
+function fourPages(): [SitePage, string][] {
+  return [
+    ["index", frontPage(CONTENT)],
+    ["trust", renderTrustPage({ voicecap: FACTS, records: RECORDS })],
+    ["whats-new", renderWhatsNew({ voicecap: FACTS })],
+    ["technical", renderTechnical({ voicecap: FACTS, records: RECORDS, keptPerSite: 3 })],
+  ];
+}
 
 /** The system's own fonts, as the audit tool uses them: the words', and the big numbers' and commands'. */
 const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -228,8 +259,35 @@ function earlierItemsOf(html: string): string[] {
   );
 }
 
-/** The bar's navigation. */
-const barOf = (markup: string): string => /<nav\b[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
+/** The top bar: the website's name, its navigation, and the theme button. */
+const topBarOf = (markup: string): string =>
+  /<header class="bar">[\s\S]*?<\/header>/.exec(markup)?.[0] ?? "";
+
+/** The bottom bar. */
+const bottomBarOf = (markup: string): string =>
+  /<footer>[\s\S]*?<\/footer>/.exec(markup)?.[0] ?? "";
+
+/** The front page's "On this page" row: the navigation of its views. */
+const rowOf = (markup: string): string =>
+  /<nav\b[^>]*\saria-label="On this page"[^>]*>[\s\S]*?<\/nav>/.exec(markup)?.[0] ?? "";
+
+/**
+ * Each link in some markup, in order: where it goes, as a reader gets it, its words, and whether it
+ * says it's the page the reader is on.
+ */
+function linksWithWordsOf(html: string): { href: string; words: string; current: boolean }[] {
+  return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(([, tag = "", inner = ""]) => ({
+    href: decode(/\shref="([^"]*)"/.exec(tag)?.[1] ?? ""),
+    words: textOf(inner, ""),
+    current: /\saria-current="page"/.test(tag),
+  }));
+}
+
+/** Where each link of some markup that says it's the page the reader is on goes. */
+const currentIn = (html: string): string[] =>
+  linksWithWordsOf(html)
+    .filter(({ current }) => current)
+    .map(({ href }) => href);
 
 /**
  * What heads a view's section, or a site's: its title row (its picture and its heading), then what's
@@ -275,7 +333,7 @@ describe("renderSiteIndex", () => {
   let html: string;
 
   beforeAll(() => {
-    html = renderSiteIndex(CONTENT);
+    html = frontPage(CONTENT);
   });
 
   it("is one file: one style block, one script last, no style attribute, nothing from outside", () => {
@@ -298,7 +356,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("draws the website in the system's fonts, and embeds none", () => {
-    const page = renderSiteIndex(CONTENT);
+    const page = frontPage(CONTENT);
     const style = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? "";
 
     // No font is in the page, nor loaded from anywhere: its words are in the system's own fonts.
@@ -322,20 +380,25 @@ describe("renderSiteIndex", () => {
     expect(places).toEqual([...places].sort((a, b) => a - b));
   });
 
-  it("links only to its files, its own anchors, the trust page, the demo's pages, voicecap's GitHub page, and each site's own address", () => {
+  it("links only to its files, its own anchors, the website's pages, the demo's pages, voicecap on GitHub and its CHANGELOG, and each site's own address", () => {
     const links = linksOf(html);
     const files = filesOf(CONTENT);
     const anchors = ["#main", "#demo", "#sites", "#by-date"];
     const allowed = [
       ...anchors,
+      INDEX_HREF,
       TRUST_PAGE_HREF,
+      WHATS_NEW_HREF,
+      TECHNICAL_HREF,
       DEMO_PAGES_HREF,
       GITHUB,
+      CHANGELOG,
       DVFR_ADDRESS,
       ...files.map(({ href }) => href),
     ];
 
     expect(links.filter(({ href }) => !allowed.includes(href))).toEqual([]);
+    expect(new Set(links.map(({ href }) => href))).toEqual(new Set(allowed));
     // Each anchor lands on something in the page, and each published file is offered.
     for (const anchor of anchors) expect(html, anchor).toContain(`id="${anchor.slice(1)}"`);
     const offered = links.map((link) => link.href);
@@ -399,13 +462,18 @@ describe("renderSiteIndex", () => {
       expect(openingOf(html, id)[0], id).not.toMatch(/\saria-label(?:ledby)?=/);
       expect(/<h([1-6])\b/.exec(sectionOf(html, id))?.[1], id).toBe("3");
     }
-    // The three views are named by their headings, and the bar's navigation by its label: no more.
+    // The three views are named by their headings; the top bar's navigation and the "On this page"
+    // row by their labels, and the theme button by its own: no more.
     expect(html.match(/\saria-labelledby=/g)).toHaveLength(3);
-    expect(html.match(/\saria-label=/g)).toHaveLength(1);
+    expect([...html.matchAll(/\saria-label="([^"]*)"/g)].map(([, label]) => label)).toEqual([
+      "This website",
+      "Switch to the light theme",
+      "On this page",
+    ]);
   });
 
   it("heads a site by its name, which needn't be a folder's, and makes its section's id from the name", () => {
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [
         {
@@ -453,7 +521,7 @@ describe("renderSiteIndex", () => {
       reportAt("127.0.0.1_4848", "2026-10-03T10:00:00-05:00"),
       reportAt(DVFR, "2026-10-02T10:00:00-05:00"),
     ];
-    const page = renderSiteIndex({ demo: null, sites: [{ name: DVFR, folders, reports }] });
+    const page = frontPage({ demo: null, sites: [{ name: DVFR, folders, reports }] });
 
     expect(textsOf(sectionOf(page, "sites"), "h3")).toEqual([DVFR]);
     const site = sectionOf(page, `site-${DVFR}`);
@@ -474,7 +542,7 @@ describe("renderSiteIndex", () => {
       ...reportAt(DVFR, `2026-10-0${5 - index}T10:00:00-05:00`),
       id: `report-${DVFR}-${5 - index}`,
     }));
-    const page = renderSiteIndex({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] });
+    const page = frontPage({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] });
 
     const site = sectionOf(page, `site-${DVFR}`);
     expect(reportIdsOf(site)).toEqual(reports.map(({ id }) => id));
@@ -483,7 +551,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("gives every id once, whatever the sites are named", () => {
-    const page = renderSiteIndex({
+    const page = frontPage({
       ...sitesAt(
         ["x", "2026-10-03T10:00:00-05:00"],
         ["x-h", "2026-10-02T10:00:00-05:00"],
@@ -506,7 +574,7 @@ describe("renderSiteIndex", () => {
     // "example.gov:8080" is made safe as "example.gov_8080", which is the name of the folder a run
     // of that site makes, and a name can end in "-2" too.
     const names = ["example.gov:8080", "example.gov_8080", "example.gov_8080-2"];
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: names.map((name, index) => ({
         name,
@@ -663,7 +731,7 @@ describe("renderSiteIndex", () => {
     const withAddress = (address: string, name = DVFR): string =>
       headOf(
         sectionOf(
-          renderSiteIndex({
+          frontPage({
             demo: null,
             sites: [{ name, folders: [DVFR], reports: [DVFR_NEWEST], address }],
           }),
@@ -713,10 +781,10 @@ describe("renderSiteIndex", () => {
     expect(textsOf(headOf(sectionOf(html, "by-date"), "view"), "span")).toEqual(["3 reports"]);
     expect(headOf(sectionOf(html, "demo"), "view")).not.toContain("<span");
     // One of each is one.
-    const one = renderSiteIndex(sitesAt([DVFR, "2026-10-03T14:05:00-05:00"]));
+    const one = frontPage(sitesAt([DVFR, "2026-10-03T14:05:00-05:00"]));
     expect(textsOf(headOf(sectionOf(one, "sites"), "view"), "span")).toEqual(["1 site"]);
     // With no report shared, there's nothing to count.
-    const none = renderSiteIndex({ demo: null, sites: [] });
+    const none = frontPage({ demo: null, sites: [] });
     expect(headOf(sectionOf(none, "sites"), "view")).not.toContain("<span");
   });
 
@@ -731,7 +799,7 @@ describe("renderSiteIndex", () => {
   it("counts a site's earlier reports beside their heading, for the eye: their list says how many to a screen reader", () => {
     const withEarlier = (...earlier: PublishedReport[]): string =>
       sectionOf(
-        renderSiteIndex({
+        frontPage({
           demo: null,
           sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, ...earlier] }],
         }),
@@ -755,7 +823,7 @@ describe("renderSiteIndex", () => {
     /** The card of a site whose only report records `result`. */
     const cardWith = (result: PublishedReport["result"]): string =>
       articleOf(
-        renderSiteIndex({
+        frontPage({
           demo: null,
           sites: [{ name: DVFR, folders: [DVFR], reports: [{ ...DVFR_NEWEST, result }] }],
         }),
@@ -851,7 +919,7 @@ describe("renderSiteIndex", () => {
     });
 
     it("gives no earlier report a verdict: only the current one answers for the site", () => {
-      const page = renderSiteIndex({
+      const page = frontPage({
         demo: null,
         sites: [
           {
@@ -871,7 +939,7 @@ describe("renderSiteIndex", () => {
     });
 
     it("gives the demo's card its verdict too", () => {
-      const page = renderSiteIndex({
+      const page = frontPage({
         demo: { ...DEMO_REPORT, result: { pages: 7, read: 7, problems: 3, problemPages: 2 } },
         sites: [],
       });
@@ -894,7 +962,7 @@ describe("renderSiteIndex", () => {
 
     const currentOf = (report: PublishedReport): string =>
       articleOf(
-        renderSiteIndex({
+        frontPage({
           demo: null,
           sites: [{ name: DVFR, folders: [DVFR], reports: [report] }],
         }),
@@ -960,7 +1028,7 @@ describe("renderSiteIndex", () => {
       files: [published("word", DVFR, `${DVFR}_2026-09-28.docx`, 50)],
       notPublished: [{ name: `${DVFR}_2026-09-28.html`, reason: "missing" }],
     };
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [{ name: DVFR, folders: [DVFR], reports: [DVFR_NEWEST, withWord, wordOnly] }],
     });
@@ -1007,7 +1075,7 @@ describe("renderSiteIndex", () => {
 
   it("doesn't say no walkthrough file was shared when one was, and isn't here", () => {
     const withoutWalkthrough = (reason: "changed" | "missing"): string =>
-      renderSiteIndex({
+      frontPage({
         demo: null,
         sites: [
           {
@@ -1042,7 +1110,7 @@ describe("renderSiteIndex", () => {
       files: [],
       notPublished: [{ name: `${DVFR}_2026-09-29.html`, reason: "changed" }],
     };
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [{ name: DVFR, folders: [DVFR], reports: [empty] }],
     });
@@ -1065,13 +1133,16 @@ describe("renderSiteIndex", () => {
     const withEarlier = CONTENT.sites.filter(({ reports }) => reports.length > 1);
 
     // A list of files for each report that has one published, a list of earlier reports for each
-    // site that has them, and the list by date: no other list.
+    // site that has them, the list by date, the "On this page" row's list of the views, and the
+    // bottom bar's list of six: no other list.
     expect(tags.filter((tag) => /\sclass="files"/.test(tag))).toHaveLength(withFiles.length);
     expect(tags.filter((tag) => /\sclass="earlier"/.test(tag))).toHaveLength(withEarlier.length);
     expect(tags.filter((tag) => tag.startsWith("<ol"))).toHaveLength(1);
-    expect(tags).toHaveLength(withFiles.length + withEarlier.length + 1);
+    expect(tags).toHaveLength(withFiles.length + withEarlier.length + 1 + 2);
     for (const tag of tags) expect(tag).toMatch(/\srole="list"/);
     expect(sectionOf(html, "by-date")).toMatch(/<ol\b[^>]*\srole="list"/);
+    expect(rowOf(html)).toMatch(/<ul\b[^>]*\srole="list"/);
+    expect(bottomBarOf(html)).toMatch(/<ul\b[^>]*\srole="list"/);
   });
 
   it("lists every report by date across the sites, newest first, without the demo", () => {
@@ -1090,7 +1161,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("lists reports by date with their sites' names, as the headings give them, not their folders'", () => {
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [
         // One site, whose reports are in two folders: a copy on a tester's computer, and the site's own.
@@ -1121,7 +1192,7 @@ describe("renderSiteIndex", () => {
 
   it("orders them by the moment each names, not by the text of its time", () => {
     // The clocks read 03:00, 00:30, and 23:00 the day before. In UTC they are 01:00, 05:30, and 04:00.
-    const page = renderSiteIndex(
+    const page = frontPage(
       sitesAt(
         ["a.example.gov", "2026-10-03T03:00:00+02:00"],
         ["b.example.gov", "2026-10-03T00:30:00-05:00"],
@@ -1133,7 +1204,7 @@ describe("renderSiteIndex", () => {
   });
 
   it("keeps the order it was given for reports of the same moment", () => {
-    const page = renderSiteIndex(
+    const page = frontPage(
       sitesAt(
         ["a.example.gov", "2026-10-03T10:00:00-05:00"],
         ["b.example.gov", "2026-10-03T15:00:00Z"],
@@ -1151,7 +1222,7 @@ describe("renderSiteIndex", () => {
       notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "changed" }],
     };
     // Two sites, so that there's a list by date.
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [{ name: DVFR, folders: [DVFR], reports: [wordOnly] }, ...CONTENT.sites.slice(1)],
     });
@@ -1181,75 +1252,85 @@ describe("renderSiteIndex", () => {
     expect(demo).not.toMatch(/\shref="(?:[a-z][a-z0-9+.-]*:|\/)/i);
   });
 
-  it("links the bar to the trust page, last", () => {
-    const bar = barOf(html);
+  it("links the front page's views from its 'On this page' row", () => {
+    const hrefs = (page: string): string[] => linksOf(rowOf(page)).map(({ href }) => href);
 
-    // The views, by their anchors on this page, then the trust page, a page of its own beside this one.
-    expect(linksOf(bar).map(({ href }) => href)).toEqual([
+    // The views that are there, by their anchors on this page, in their order, each named by its
+    // heading.
+    expect(hrefs(html)).toEqual(["#demo", "#sites", "#by-date"]);
+    expect(textsOf(rowOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
+    for (const href of hrefs(html)) expect(html, href).toContain(`id="${href.slice(1)}"`);
+    // No demo, no link to it; one site, no list by date, and no link to it; no report at all, the
+    // sites alone.
+    expect(hrefs(frontPage({ ...CONTENT, demo: null }))).toEqual(["#sites", "#by-date"]);
+    expect(hrefs(frontPage({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) }))).toEqual([
       "#demo",
       "#sites",
-      "#by-date",
+    ]);
+    expect(hrefs(frontPage({ demo: null, sites: [] }))).toEqual(["#sites"]);
+    // A navigation, named for a screen reader, whose name stands before its links for the eye too,
+    // hidden from a screen reader, which would otherwise hear it twice.
+    expect(rowOf(html)).toMatch(/^<nav\b[^>]*\saria-label="On this page"/);
+    expect(rowOf(html)).toContain('<p class="kicker" aria-hidden="true">On this page</p>');
+    // After the page's heading and its lead, and before the first view.
+    const places = ["<h1>", '<p class="lead">', rowOf(html), 'id="demo"'].map((part) =>
+      html.indexOf(part),
+    );
+    expect(places.every((place) => place > 0)).toBe(true);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    // The top bar holds none of them: its links are the website's pages.
+    expect(linksOf(topBarOf(html)).map(({ href }) => href)).toEqual([
+      INDEX_HREF,
       TRUST_PAGE_HREF,
+      WHATS_NEW_HREF,
+      TECHNICAL_HREF,
     ]);
-    expect(textsOf(bar, "a")).toEqual([
-      "The demo",
-      "The sites",
-      "Every report, by date",
-      TRUST_WORDS,
-    ]);
-    // This is the website's own page, not the trust page, so none of the links is the page it is on.
-    expect(bar).not.toContain("aria-current");
+    expect(topBarOf(html)).not.toMatch(/\shref="[^"]*#/);
   });
 
   it("has no demo view, and no link to one, without a demo", () => {
-    const page = renderSiteIndex({ ...CONTENT, demo: null });
+    const page = frontPage({ ...CONTENT, demo: null });
 
     expect(page).not.toContain('id="demo"');
     expect(page).not.toContain('href="#demo"');
     expect(page).not.toContain("The demo");
     expect(page).not.toContain("report-demo");
     expect(page).not.toContain("demo-site");
-    // The bar's links go to the views that are there, then to the trust page.
-    expect(textsOf(barOf(page), "a")).toEqual(["The sites", "Every report, by date", TRUST_WORDS]);
-    expect(textsOf(barOf(html), "a")).toEqual([
-      "The demo",
-      "The sites",
-      "Every report, by date",
-      TRUST_WORDS,
-    ]);
+    // The row's links go to the views that are there.
+    expect(textsOf(rowOf(page), "a")).toEqual(["The sites", "Every report, by date"]);
   });
 
-  it("lists reports by date, with its link in the bar, only when two sites or more have reports", () => {
+  it("lists reports by date, with its link in the 'On this page' row, only when two sites or more have reports", () => {
     // With one site, the list would be that site's own again.
-    const one = renderSiteIndex({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) });
+    const one = frontPage({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) });
     expect(one).not.toContain('id="by-date"');
     expect(one).not.toContain('href="#by-date"');
     expect(one).not.toContain("Every report, by date");
     expect(one).not.toMatch(/<ol\b/);
-    expect(textsOf(barOf(one), "a")).toEqual(["The demo", "The sites", TRUST_WORDS]);
+    expect(textsOf(rowOf(one), "a")).toEqual(["The demo", "The sites"]);
     // Two views are regions, named by their headings.
     expect(one.match(/\saria-labelledby=/g)).toHaveLength(2);
 
-    // With two, it's there, after the sites, and in the bar, ahead of the link to the trust page.
-    expect(textsOf(barOf(html), "a")).toEqual([
-      "The demo",
-      "The sites",
-      "Every report, by date",
-      TRUST_WORDS,
-    ]);
+    // With two, it's there, after the sites, and in the row, after the sites' link.
+    expect(textsOf(rowOf(html), "a")).toEqual(["The demo", "The sites", "Every report, by date"]);
     expect(html.indexOf('id="by-date"')).toBeGreaterThan(html.indexOf('id="sites"'));
   });
 
   it("says no reports have been shared yet when there are none", () => {
-    const page = renderSiteIndex({ demo: null, sites: [] });
+    const page = frontPage({ demo: null, sites: [] });
 
     expect(textsOf(sectionOf(page, "sites"), "p")).toEqual(["No reports have been shared yet."]);
     expect(page).not.toContain('id="by-date"');
-    expect(page).not.toMatch(/<article\b|<ol\b|<ul\b|<li\b|<details\b/);
-    expect(textsOf(barOf(page), "a")).toEqual(["The sites", TRUST_WORDS]);
+    // No report, no list, no fold: the page's only lists are its row's and its bottom bar's.
+    const main = (/<main id="main">([\s\S]*?)<\/main>/.exec(page)?.[1] ?? "").replace(
+      rowOf(page),
+      "",
+    );
+    expect(main).not.toMatch(/<article\b|<ol\b|<ul\b|<li\b|<details\b/);
+    expect(textsOf(rowOf(page), "a")).toEqual(["The sites"]);
 
     // The demo isn't a site: with a demo and no site, the sites still have none.
-    const withDemo = renderSiteIndex({ demo: DEMO_REPORT, sites: [] });
+    const withDemo = frontPage({ demo: DEMO_REPORT, sites: [] });
     expect(textsOf(sectionOf(withDemo, "sites"), "p")).toEqual([
       "No reports have been shared yet.",
     ]);
@@ -1292,7 +1373,7 @@ describe("renderSiteIndex", () => {
     // A second site, linked: a root may hold an ampersand, which URL leaves as it is. Its name is
     // its host, as the build gives a site its name, since a link goes only to the heading's host.
     const linked = { ...report, folder: "a.example.gov", id: "report-a.example.gov-1" };
-    const page = renderSiteIndex({
+    const page = frontPage({
       demo: null,
       sites: [
         { name, folders: ['a"b&c'], reports: [report] },
@@ -1351,8 +1432,6 @@ describe("renderSiteIndex", () => {
         "Every site's reports, the newest first, each with its page.",
         "A file's SHA-256 fingerprint is the one recorded when it was shared, so a copy can be checked against it: Get-FileHash <file> in PowerShell, or shasum -a 256 <file> on a Mac. PowerShell shows the same letters in capitals.",
         "A walkthrough file repeats its run, with the same pages, passes, and limits: npx @icjia/voicecap --walkthrough <file>.",
-        ABOUT,
-        "Made with voicecap",
       ]),
     );
     // The commands are in the fixed-width font.
@@ -1367,22 +1446,39 @@ describe("renderSiteIndex", () => {
     expect(html).toContain(
       '<details class="fold">\n<summary>Files and fingerprints, to check a copy</summary>',
     );
-    // The bar's label, which names the website, since its links go to the views and to the trust
-    // page; the button, which is hidden until the script shows it; and the footer's link.
+    // The top bar: the website's name, and the label of its navigation, which names the website,
+    // since its links go to its pages; the button, which is hidden until the script shows it, and
+    // whose words are for a screen reader.
+    expect(html).toContain(
+      '<a class="name" href="index.html" aria-current="page">ICJIA Screen Reader Tests</a>',
+    );
     expect(html).toContain('<nav aria-label="This website">');
     expect(html).toContain(
-      '<button class="theme" id="theme-toggle" type="button" hidden>Light version</button>',
+      '<button class="theme" id="theme-toggle" type="button" hidden aria-label="Switch to the light theme">',
     );
-    expect(html).toContain(`Made with <a href="${GITHUB}">voicecap</a>`);
+    // The bottom bar: its five links' words, and the version, as a reader sees it and as a screen
+    // reader hears it.
+    expect(textsOf(bottomBarOf(html), "a")).toEqual([
+      "GitHub",
+      "Changelog",
+      "What's New",
+      "Can I trust this?",
+      "Technical details",
+    ]);
+    expect(bottomBarOf(html)).toContain(
+      '<span aria-hidden="true">v0.13.2</span><span class="sr">voicecap version 0.13.2</span>',
+    );
   });
 
-  it("puts the skip link and the bar first, then the main part with its views, then the footer and the script", () => {
+  it("puts the skip link and the top bar first, then the main part with its row and its views, then the bottom bar and the script", () => {
     const places = [
       '<a class="skip" href="#main">Skip to main content</a>',
       '<header class="bar">',
-      "<nav ",
+      '<a class="name"',
+      '<nav aria-label="This website">',
       '<main id="main">',
       "<h1>",
+      'aria-label="On this page"',
       'id="demo"',
       'id="sites"',
       'id="by-date"',
@@ -1397,9 +1493,9 @@ describe("renderSiteIndex", () => {
     const note = html.indexOf("A file&#39;s SHA-256 fingerprint");
     expect(note).toBeGreaterThan(html.indexOf('id="by-date"'));
     expect(note).toBeLessThan(html.indexOf("</main>"));
-    // The footer holds what voicecap is, and the link to it, in two paragraphs.
-    const footer = /<footer>([\s\S]*?)<\/footer>/.exec(html)?.[1] ?? "";
-    expect(textsOf(footer, "p")).toEqual([ABOUT, "Made with voicecap"]);
+    // The bottom bar is a list, and nothing else: no line of words about voicecap.
+    expect(textsOf(bottomBarOf(html), "p")).toEqual([]);
+    expect(textsOf(bottomBarOf(html), "li")).toHaveLength(6);
   });
 
   it("never calls voicecap automated, or says a person listened", () => {
@@ -1411,107 +1507,163 @@ describe("renderSiteIndex", () => {
 });
 
 describe("siteBar", () => {
-  /** Whether each link of a bar marks the page it's on, in order. */
-  const currentOf = (bar: string): boolean[] =>
-    [...barOf(bar).matchAll(/<a\b([^>]*)>/g)].map(([, tag = ""]) =>
-      /\saria-current="page"/.test(tag),
+  it("heads every page with the website's name, then three links, then the theme button", () => {
+    const bar = siteBar("trust");
+
+    // The website's name, a link to the front page.
+    expect(bar).toContain('<a class="name" href="index.html">ICJIA Screen Reader Tests</a>');
+    // Then the navigation, named for the website, with its three pages in this order, by their
+    // names.
+    const nav = /<nav aria-label="This website">([\s\S]*?)<\/nav>/.exec(bar)?.[1] ?? "";
+    expect(linksWithWordsOf(nav)).toEqual([
+      { href: TRUST_PAGE_HREF, words: "Can I trust this?", current: true },
+      { href: WHATS_NEW_HREF, words: "What's New", current: false },
+      { href: TECHNICAL_HREF, words: "Technical details", current: false },
+    ]);
+    // Then the theme button, the bar's last.
+    const places = [
+      '<a class="name"',
+      '<nav aria-label="This website">',
+      `href="${TRUST_PAGE_HREF}"`,
+      `href="${WHATS_NEW_HREF}"`,
+      `href="${TECHNICAL_HREF}"`,
+      '<button class="theme"',
+    ].map((part) => bar.indexOf(part));
+    expect(places.every((place) => place >= 0)).toBe(true);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    // On the trust page, only the trust link is the page the reader is on; on the front page, only
+    // the name is.
+    expect(currentIn(bar)).toEqual([TRUST_PAGE_HREF]);
+    expect(currentIn(siteBar("index"))).toEqual([INDEX_HREF]);
+    expect(siteBar("index")).toContain(
+      '<a class="name" href="index.html" aria-current="page">ICJIA Screen Reader Tests</a>',
     );
-
-  it("on the trust page, links each view by its anchor on the website's own page, and marks the link to the trust page as the page it's on", () => {
-    const bar = siteBar(CONTENT, "trust");
-
-    expect(linksOf(barOf(bar)).map(({ href }) => href)).toEqual([
-      "index.html#demo",
-      "index.html#sites",
-      "index.html#by-date",
-      TRUST_PAGE_HREF,
-    ]);
-    expect(textsOf(barOf(bar), "a")).toEqual([
-      "The demo",
-      "The sites",
-      "Every report, by date",
-      TRUST_WORDS,
-    ]);
-    // Only the last link, the one to the trust page itself, is the page the reader is on.
-    expect(currentOf(bar)).toEqual([false, false, false, true]);
+    expect(SITE_TEXT.siteName).toBe("ICJIA Screen Reader Tests");
   });
 
-  it("is the same bar on both pages but for where its views go and which link is the page it's on, so the two can't drift apart", () => {
-    const index = siteBar(CONTENT, "index");
-
-    expect(siteBar(CONTENT, "trust")).toBe(
-      index
-        .replaceAll('href="#', 'href="index.html#')
-        .replace(
-          `<a href="${TRUST_PAGE_HREF}">`,
-          `<a href="${TRUST_PAGE_HREF}" aria-current="page">`,
-        ),
-    );
-    // Nothing else of the bar is left to differ: the header, the navigation, and the theme button.
-    expect(index).toMatch(/^<header class="bar">\n<nav aria-label="This website">\n<a href="#/);
-    expect(index).toMatch(
-      /<\/a>\n<\/nav>\n<button class="theme" id="theme-toggle" type="button" hidden>Light version<\/button>\n<\/header>$/,
-    );
-  });
-
-  it.each(["index", "trust"] as const)(
-    "links the views that are there, on the %s page, and the trust page after them",
-    (current) => {
-      // The views are on the website's own page: from the trust page, a link to it names the page.
-      const here = current === "index" ? "" : "index.html";
-      const hrefs = (content: SiteContent): string[] =>
-        linksOf(barOf(siteBar(content, current))).map(({ href }) => href);
-
-      expect(hrefs(CONTENT)).toEqual([
-        `${here}#demo`,
-        `${here}#sites`,
-        `${here}#by-date`,
-        TRUST_PAGE_HREF,
-      ]);
-      // No demo, no link to it; one site, no list by date; and no report at all, the sites alone.
-      expect(hrefs({ ...CONTENT, demo: null })).toEqual([
-        `${here}#sites`,
-        `${here}#by-date`,
-        TRUST_PAGE_HREF,
-      ]);
-      expect(hrefs({ demo: DEMO_REPORT, sites: CONTENT.sites.slice(0, 1) })).toEqual([
-        `${here}#demo`,
-        `${here}#sites`,
-        TRUST_PAGE_HREF,
-      ]);
-      expect(hrefs({ demo: null, sites: [] })).toEqual([`${here}#sites`, TRUST_PAGE_HREF]);
+  it.each(PAGES)(
+    "on the %s page, says the page's own link, and no other, is the page the reader is on",
+    (page) => {
+      expect(currentIn(siteBar(page))).toEqual([OWN_HREF[page]]);
     },
   );
 
-  it("is how the website's own page draws its bar", () => {
-    expect(renderSiteIndex(CONTENT)).toContain(`\n${siteBar(CONTENT, "index")}\n`);
+  it("is the same bar on every page but for which link is the page it's on, so the four can't drift apart", () => {
+    const bars = PAGES.map((page) => siteBar(page).replace(' aria-current="page"', ""));
+
+    expect(new Set(bars).size).toBe(1);
+    // It's the header, the name, and the navigation with its three links and the button: nothing
+    // else, and none of the front page's views, which its "On this page" row links to.
+    expect(siteBar("whats-new")).toMatch(
+      /^<header class="bar">\n<a class="name" href="index\.html">[^<]*<\/a>\n<nav aria-label="This website">\n(?:<a href="[^"#]*"[^>]*>[^<]*<\/a>\n){3}<button\b[^>]*>[\s\S]*<\/button>\n<\/nav>\n<\/header>$/,
+    );
+  });
+
+  it("makes the theme button an icon with words for a screen reader", () => {
+    const button = /<button\b[^>]*>([\s\S]*?)<\/button>/.exec(siteBar("index"));
+    const inside = button?.[1] ?? "";
+
+    // Hidden until the script shows it, as without the script it would do nothing. Its words are
+    // its label's: what it switches to.
+    expect(button?.[0]).toMatch(
+      /^<button class="theme" id="theme-toggle" type="button" hidden aria-label="Switch to the light theme">/,
+    );
+    expect(SITE_TEXT.theme.light).toBe("Switch to the light theme");
+    // A sun and a moon, of which the style shows the one for the theme, each hidden from a screen
+    // reader, and no words for the eye.
+    const icons = [...inside.matchAll(/<svg\b([^>]*)>/g)].map(([, tag = ""]) => tag);
+    expect(icons.map((tag) => /\sclass="([^"]*)"/.exec(tag)?.[1])).toEqual([
+      "icon sun",
+      "icon moon",
+    ]);
+    for (const tag of icons) expect(tag).toMatch(/\saria-hidden="true"/);
+    expect(textOf(inside)).toBe("");
   });
 });
 
 describe("siteFooter", () => {
-  it("says what voicecap is, and links to it", () => {
-    const footer = siteFooter();
+  /** Each item of a bottom bar's list, as markup. */
+  const itemsOf = (footer: string): string[] =>
+    [
+      ...(/<ul\b[^>]*>([\s\S]*?)<\/ul>/.exec(footer)?.[1] ?? "").matchAll(/<li>([\s\S]*?)<\/li>/g),
+    ].map(([, item = ""]) => item);
 
-    expect(footer).toMatch(/^<footer>\n<p>[\s\S]*<\/p>\n<p>[\s\S]*<\/p>\n<\/footer>$/);
-    expect(textsOf(footer, "p")).toEqual([ABOUT, "Made with voicecap"]);
-    expect(linksOf(footer)).toEqual([{ href: GITHUB, download: false }]);
+  it("ends every page with a list of six", () => {
+    const footer = siteFooter("technical", "0.15.0");
+    const items = itemsOf(footer);
+
+    // A list, and nothing else, so a screen reader hears a list of six, and no dividers: those are
+    // the style's.
+    expect(footer).toMatch(/^<footer>\n<ul role="list">\n(?:<li>.*<\/li>\n){6}<\/ul>\n<\/footer>$/);
+    expect(items).toHaveLength(6);
+    // GitHub, the CHANGELOG, and the website's three pages, by their names, each in the same tab.
+    expect(linksWithWordsOf(footer)).toEqual([
+      { href: GITHUB, words: "GitHub", current: false },
+      { href: CHANGELOG, words: "Changelog", current: false },
+      { href: WHATS_NEW_HREF, words: "What's New", current: false },
+      { href: TRUST_PAGE_HREF, words: "Can I trust this?", current: false },
+      { href: TECHNICAL_HREF, words: "Technical details", current: true },
+    ]);
+    expect(footer).not.toContain("target=");
+    // Then the version, which a reader sees as "v0.15.0", and a screen reader hears as "voicecap
+    // version 0.15.0".
+    expect(items[5]).toBe(
+      '<span aria-hidden="true">v0.15.0</span><span class="sr">voicecap version 0.15.0</span>',
+    );
+    // An icon before each link's words, each hidden from a screen reader.
+    const icons = footer.match(/<svg\b[^>]*>/g) ?? [];
+    expect(icons).toHaveLength(5);
+    for (const icon of icons) expect(icon).toMatch(/\saria-hidden="true"/);
+    for (const item of items.slice(0, 5)) expect(item).toMatch(/^<a\b[^>]*><svg\b/);
   });
 
-  it("is how the website's own page draws its footer", () => {
-    expect(renderSiteIndex(CONTENT)).toContain(`\n${siteFooter()}\n`);
+  it.each(PAGES)(
+    "on the %s page, says its own link, when it has one, is the page the reader is on",
+    (page) => {
+      // The front page's own link is the website's name, in the top bar.
+      expect(currentIn(siteFooter(page, "0.15.0"))).toEqual(
+        page === "index" ? [] : [OWN_HREF[page]],
+      );
+    },
+  );
+
+  it("is the same on every page but for which link is the page it's on", () => {
+    const footers = PAGES.map((page) =>
+      siteFooter(page, "0.15.0").replace(' aria-current="page"', ""),
+    );
+
+    expect(new Set(footers).size).toBe(1);
+  });
+
+  it("draws the version it's given as text", () => {
+    const footer = siteFooter("index", '0.15.0<b>"x"</b>');
+
+    expect(footer).toContain(
+      '<span aria-hidden="true">v0.15.0&lt;b&gt;&quot;x&quot;&lt;/b&gt;</span><span class="sr">voicecap version 0.15.0&lt;b&gt;&quot;x&quot;&lt;/b&gt;</span>',
+    );
+    expect(footer).not.toContain("<b>");
+  });
+});
+
+describe("backLink", () => {
+  it("leads back to the test results, after an arrow a screen reader skips", () => {
+    expect(backLink()).toMatch(
+      /^<a class="back" href="index\.html"><svg\b[^>]*\saria-hidden="true"[^>]*>[\s\S]*?<\/svg>Back to the test results<\/a>$/,
+    );
   });
 });
 
 describe("sitePage", () => {
   const PARTS = {
     title: "A page of the website",
-    bar: '<header class="bar">The bar</header>',
+    current: "whats-new",
+    version: "0.15.0",
     main: ["<h1>The page</h1>", "<p>Its words</p>"],
-  };
+  } as const;
 
-  it("is the shell around what it's given: the head, the skip link, the bar, the main part, the footer, and the script", () => {
+  it("is the shell around what it's given: the head, the skip link, the top bar of its page, the main part, the bottom bar with the version, and the script", () => {
     // The style block is the website's style alone: no font goes ahead of it.
-    expect(sitePage(PARTS)).toBe(
+    expect(sitePage({ ...PARTS, main: [...PARTS.main] })).toBe(
       [
         "<!doctype html>",
         '<html lang="en">',
@@ -1524,12 +1676,12 @@ describe("sitePage", () => {
         "</head>",
         "<body>",
         '<a class="skip" href="#main">Skip to main content</a>',
-        '<header class="bar">The bar</header>',
+        siteBar("whats-new"),
         '<main id="main">',
         "<h1>The page</h1>",
         "<p>Its words</p>",
         "</main>",
-        siteFooter(),
+        siteFooter("whats-new", "0.15.0"),
         `<script>${SITE_SCRIPT}</script>`,
         "</body>",
         "</html>",
@@ -1538,16 +1690,57 @@ describe("sitePage", () => {
     );
   });
 
-  it("escapes the title, which is text, and takes the bar and the main part as the markup they are", () => {
+  it("escapes the title, which is text, and takes the main part as the markup it is", () => {
     const page = sitePage({
       title: 'Q & A <i>"x"</i>',
-      bar: "<header>The <b>bar</b></header>",
+      current: "index",
+      version: "0.15.0",
       main: ["<h1>A &amp; B</h1>"],
     });
 
     expect(page).toContain("<title>Q &amp; A &lt;i&gt;&quot;x&quot;&lt;/i&gt;</title>");
-    expect(page).toContain("\n<header>The <b>bar</b></header>\n");
     expect(page).toContain('\n<main id="main">\n<h1>A &amp; B</h1>\n</main>\n');
+  });
+});
+
+describe("the website's four pages", () => {
+  it("gives each the two bars of its page, the same but for the link of the page it's on", () => {
+    const pages = fourPages();
+
+    for (const [current, html] of pages) {
+      expect(html, current).toContain(`\n${siteBar(current)}\n<main id="main">\n`);
+      expect(html, current).toContain(`\n</main>\n${siteFooter(current, FACTS.version)}\n<script>`);
+    }
+    // Every page's bars are the same, but for the link that says it's the page the reader is on.
+    const frames = pages.map(([, html]) =>
+      `${topBarOf(html)}\n${bottomBarOf(html)}`.replaceAll(' aria-current="page"', ""),
+    );
+    expect(new Set(frames).size).toBe(1);
+    // Each page's own link, in both bars, is the one that says so.
+    for (const [current, html] of pages) {
+      expect(currentIn(`${topBarOf(html)}${bottomBarOf(html)}`), current).toEqual(
+        current === "index" ? [INDEX_HREF] : [OWN_HREF[current], OWN_HREF[current]],
+      );
+    }
+  });
+
+  it("opens the trust page, Technical details, and What's New with the way back", () => {
+    const mainOf = (html: string): string =>
+      /<main id="main">\n([\s\S]*?)\n<\/main>/.exec(html)?.[1] ?? "";
+
+    for (const [current, html] of fourPages()) {
+      if (current === "index") {
+        // The front page is where it leads: it has none.
+        expect(html).not.toContain('class="back"');
+        continue;
+      }
+      expect(mainOf(html).startsWith(`${backLink()}\n`), current).toBe(true);
+      expect(html.match(/<a class="back"/g), current).toHaveLength(1);
+      const back = linksWithWordsOf(backLink());
+      expect(back).toEqual([
+        { href: INDEX_HREF, words: "Back to the test results", current: false },
+      ]);
+    }
   });
 });
 
@@ -1892,12 +2085,69 @@ describe("SITE_CSS", () => {
     ]);
   });
 
-  it("tells the link of the page the reader is on from the others by more than color: bold, and underlined more heavily", () => {
+  it("tells the link of the page the reader is on from the others by more than color, in both bars: bold, and underlined more heavily", () => {
     // The line is 0.15em thick, not a number of pixels: the others' underline is the browser's own,
     // which grows with the text, so a fixed thickness would be the lighter of the two at a large size.
-    expect(SITE_CSS).toMatch(
-      /\n\.bar nav a\[aria-current="page"\] \{[^}]*font-weight: 700;[^}]*text-decoration: underline;[^}]*text-decoration-thickness: 0\.15em;/,
+    for (const selector of ['.bar nav a[aria-current="page"]', 'footer a[aria-current="page"]']) {
+      expect(declarationsFor(SITE_CSS, selector), selector).toEqual(
+        expect.arrayContaining([
+          "color: var(--heading)",
+          "font-weight: 700",
+          "text-decoration: underline",
+          "text-decoration-thickness: 0.15em",
+        ]),
+      );
+    }
+  });
+
+  it("draws the top bar as the audit tool's: the website's name at 600 in the headline's color, and links in the quieter one, turning the headline's under the pointer", () => {
+    expect(declarationsFor(SITE_CSS, ".bar .name")).toEqual(
+      expect.arrayContaining(["font-weight: 600", "color: var(--heading)"]),
     );
+    for (const links of [".bar nav a", "footer a", ".back"]) {
+      expect(declarationsFor(SITE_CSS, links), links).toContain("color: var(--muted)");
+      expect(declarationsFor(SITE_CSS, `${links}:hover`), links).toContain("color: var(--heading)");
+    }
+  });
+
+  it("draws the bottom bar as a centered row that wraps, small and quieter, with dividers the style draws", () => {
+    expect(declarationsFor(SITE_CSS, "footer")).toEqual(
+      expect.arrayContaining([
+        "font-size: 0.875rem",
+        "color: var(--muted)",
+        "border-top: 1px solid var(--line)",
+      ]),
+    );
+    expect(declarationsFor(SITE_CSS, "footer ul")).toEqual(
+      expect.arrayContaining([
+        "list-style: none",
+        "display: flex",
+        "flex-wrap: wrap",
+        "justify-content: center",
+      ]),
+    );
+    // A thin line before each item but the first, which a screen reader doesn't hear: it hears a
+    // list of six.
+    expect(declarationsFor(SITE_CSS, "footer li + li")).toEqual([
+      "border-left: 1px solid var(--line)",
+    ]);
+  });
+
+  it("shows the theme button's sun in the dark theme and its moon in the light one, and keeps its corners when it has focus", () => {
+    // Dark first: the sun, and the moon left out until the light theme is picked.
+    expect(declarationsFor(SITE_CSS, ".theme .moon")).toEqual(["display: none"]);
+    expect(declarationsFor(SITE_CSS, ':root[data-theme="light"] .theme .sun')).toEqual([
+      "display: none",
+    ]);
+    expect(declarationsFor(SITE_CSS, ':root[data-theme="light"] .theme .moon')).toEqual([
+      "display: block",
+    ]);
+    // The focus ring of a button rounds its corners at 4 pixels; the theme button keeps its own.
+    const radius = declarationsFor(SITE_CSS, ".theme").find((each) =>
+      each.startsWith("border-radius:"),
+    );
+    expect(radius).toEqual(expect.any(String));
+    expect(declarationsFor(SITE_CSS, ".theme:focus-visible")).toContain(radius);
   });
 });
 
@@ -1909,18 +2159,34 @@ describe("SITE_SCRIPT", () => {
     expect(() => new vm.Script(SITE_SCRIPT)).not.toThrow();
   });
 
-  it("is the shareable page's theme, kept under the same name, with the same words", () => {
+  it("is the shareable page's theme, kept under the same name, but for the button's words, which are its label", () => {
     const themeOf = (script: string): string => {
       const start = script.indexOf("  function theme() {");
       const end = script.indexOf("\n  }\n", start);
       return script.slice(start, end + "\n  }\n".length);
     };
+    const shared = themeOf(SHARE_SCRIPT);
+    const sharedWords =
+      'button.textContent = choice === "light" ? "Dark version" : "Light version";';
 
     expect(themeOf(SITE_SCRIPT)).toContain('var KEY = "voicecap-theme";');
-    expect(themeOf(SITE_SCRIPT)).toBe(themeOf(SHARE_SCRIPT));
+    // The same theme as the shareable page's, so a choice carries between them; only the button's
+    // words differ. The website's button is an icon, which the style changes with the theme, so its
+    // words are its label, for a screen reader, where the shareable page's button has them as text.
+    expect(shared).toContain(sharedWords);
+    expect(themeOf(SITE_SCRIPT)).toBe(
+      shared.replace(
+        sharedWords,
+        'button.setAttribute("aria-label", choice === "light" ? "Switch to the dark theme" : "Switch to the light theme");',
+      ),
+    );
+    expect(SITE_SCRIPT).not.toContain("textContent");
     // The words of the button are the page's own.
     expect(SITE_SCRIPT).toContain(`"${SITE_TEXT.theme.dark}" : "${SITE_TEXT.theme.light}"`);
-    expect(SITE_TEXT.theme).toEqual({ light: "Light version", dark: "Dark version" });
+    expect(SITE_TEXT.theme).toEqual({
+      light: "Switch to the light theme",
+      dark: "Switch to the dark theme",
+    });
   });
 
   it("adds no name to the page, and looks only for the theme's button", () => {

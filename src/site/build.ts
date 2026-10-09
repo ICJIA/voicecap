@@ -122,10 +122,11 @@ export interface BuildSiteOptions {
   env?: NodeJS.ProcessEnv;
   logger?: Logger;
   /**
-   * What the trust page, What's New, and Technical details say of voicecap: its version, its
-   * releases, and what its release recorded of itself (see ./facts.ts). Default: what the package
-   * that runs the build says of itself (readVoicecapFacts), read with the records, before the folder
-   * is emptied. Given, these are all the pages say of voicecap, and the package's own package.json,
+   * What the website's pages say of voicecap: its version, which every page's bottom bar says, and,
+   * on the trust page, What's New, and Technical details, its releases and what its release
+   * recorded of itself (see ./facts.ts). Default: what the package that runs the build says of
+   * itself (readVoicecapFacts), read with the records, before the folder is emptied. Given, these
+   * are all the pages say of voicecap, and the package's own package.json,
    * CHANGELOG, and release-facts.json aren't read for them: only the facts come from outside, and
    * the pages are still drawn by the voicecap that runs the build.
    */
@@ -355,16 +356,17 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const content: SiteContent = { demo, sites };
   await publishDemoSite(out, demoFiles);
 
-  const index = renderSiteIndex(content);
+  // Every page's bottom bar says the version of voicecap the facts are of: the one that runs the
+  // build, unless facts were given.
+  const index = renderSiteIndex(content, voicecap);
   // The trust page and Technical details count the records' facts from what was just published, so
   // they're drawn after it. Technical details is told how many shares a site keeps.
   const recordFacts = recordFactsOf(content);
-  const trust = renderTrustPage({ voicecap, records: recordFacts, content });
-  const whatsNew = renderWhatsNew({ voicecap, content });
+  const trust = renderTrustPage({ voicecap, records: recordFacts });
+  const whatsNew = renderWhatsNew({ voicecap });
   const technical = renderTechnical({
     voicecap,
     records: recordFacts,
-    content,
     keptPerSite: KEPT_PER_SITE,
   });
   await writeFile(path.join(out, "index.html"), index);

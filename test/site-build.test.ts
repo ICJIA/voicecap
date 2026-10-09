@@ -626,10 +626,15 @@ describe("buildSite", () => {
     const whatsNew = await readFile(path.join(out, "whats-new.html"), "utf8");
     const technical = await readFile(path.join(out, "technical-details.html"), "utf8");
 
-    // The page is what renderSiteIndex makes of the content the result gives, drawn once.
+    // The page is what renderSiteIndex makes of the content the result gives, drawn once, with the
+    // facts voicecap reads of itself, whose version its bottom bar says.
+    const facts = await readVoicecapFacts();
     expect(vi.mocked(renderSiteIndex)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(renderSiteIndex).mock.calls[0]?.[0]).toBe(content);
-    expect(await readFile(path.join(out, "index.html"), "utf8")).toBe(renderSiteIndex(content));
+    expect(vi.mocked(renderSiteIndex).mock.calls[0]?.[1]).toEqual(facts);
+    expect(await readFile(path.join(out, "index.html"), "utf8")).toBe(
+      renderSiteIndex(content, facts),
+    );
     expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
 
     const headers = await readFile(path.join(out, "_headers"), "utf8");
@@ -700,12 +705,10 @@ describe("buildSite", () => {
 
     const { out, content } = await build(home, { voicecapFacts: FACTS });
 
-    // The page is what renderTrustPage makes of the facts it was given, the records' facts counted
-    // from the content the result gives, and that content.
+    // The page is what renderTrustPage makes of the facts it was given, and the records' facts
+    // counted from the content the result gives.
     const trust = await readFile(path.join(out, "trust.html"), "utf8");
-    expect(trust).toBe(
-      renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }),
-    );
+    expect(trust).toBe(renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content) }));
     expect(trust).toContain(`voicecap ${FACTS.version}, released 9 October 2026`);
 
     // Each of its two addresses has the policy of the page's own bytes: its one style block and its
@@ -742,14 +745,14 @@ describe("buildSite", () => {
   it("writes What's New, with its own policy at both its addresses", async () => {
     const home = await newHome();
 
-    const { out, content } = await build(home, { voicecapFacts: FACTS });
+    const { out } = await build(home, { voicecapFacts: FACTS });
 
-    // The page is what renderWhatsNew makes of the facts it was given and the content the result
-    // gives, drawn once, and it's a file beside the other two pages.
+    // The page is what renderWhatsNew makes of the facts it was given, drawn once, and it's a file
+    // beside the other two pages.
     expect(vi.mocked(renderWhatsNew)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(renderWhatsNew).mock.calls[0]?.[0]).toEqual({ voicecap: FACTS, content });
+    expect(vi.mocked(renderWhatsNew).mock.calls[0]?.[0]).toEqual({ voicecap: FACTS });
     const page = await readFile(path.join(out, "whats-new.html"), "utf8");
-    expect(page).toBe(renderWhatsNew({ voicecap: FACTS, content }));
+    expect(page).toBe(renderWhatsNew({ voicecap: FACTS }));
     expect(page).toContain("<h1>What&#39;s New</h1>");
     // A card for each release the facts give, newest first.
     expect(page.match(/<li class="card update">/g)).toHaveLength(FACTS.releases.length);
@@ -825,12 +828,11 @@ describe("buildSite", () => {
     const { out, content } = await build(home, { voicecapFacts: FACTS });
 
     // The page is what renderTechnical makes of the facts it was given, the records' facts counted
-    // from the content the result gives, that content, and how many shares a site keeps, drawn
-    // once, and it's a file beside the other three pages.
+    // from the content the result gives, and how many shares a site keeps, drawn once, and it's a
+    // file beside the other three pages.
     const input = {
       voicecap: FACTS,
       records: recordFactsOf(content),
-      content,
       keptPerSite: KEPT_PER_SITE,
     };
     expect(vi.mocked(renderTechnical)).toHaveBeenCalledTimes(1);
@@ -922,13 +924,13 @@ describe("buildSite", () => {
   it("draws What's New from voicecap's own CHANGELOG when no facts are given", async () => {
     const home = await newHome();
 
-    const { out, content } = await build(home);
+    const { out } = await build(home);
 
     const page = await readFile(path.join(out, "whats-new.html"), "utf8");
     const facts = await readVoicecapFacts();
     expect(facts.releases.length).toBeGreaterThan(1);
     // It's the page of the facts voicecap reads of itself: a card for each release it records.
-    expect(page).toBe(renderWhatsNew({ voicecap: facts, content }));
+    expect(page).toBe(renderWhatsNew({ voicecap: facts }));
     expect(page.match(/<li class="card update">/g)).toHaveLength(facts.releases.length);
     expect(page).toContain(`<span class="pill good">${voicecapVersion()}</span>`);
   });
@@ -1056,7 +1058,6 @@ describe("buildSite", () => {
       renderTrustPage({
         voicecap: await readVoicecapFacts(),
         records: recordFactsOf(content),
-        content,
       }),
     );
   });
@@ -1687,9 +1688,7 @@ describe("buildSite", () => {
       // page, a file (a folder of that name would have taken its place), with the page's own rules.
       expect(existsSync(path.join(out, "trust"))).toBe(false);
       const trust = await readFile(path.join(out, "trust.html"), "utf8");
-      expect(trust).toBe(
-        renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }),
-      );
+      expect(trust).toBe(renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content) }));
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
       const policy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
       expect(rules.filter(([rulePath]) => rulePath.startsWith("/trust"))).toEqual([
@@ -1732,7 +1731,7 @@ describe("buildSite", () => {
       // rules.
       expect(existsSync(path.join(out, "whats-new"))).toBe(false);
       const page = await readFile(path.join(out, "whats-new.html"), "utf8");
-      expect(page).toBe(renderWhatsNew({ voicecap: FACTS, content }));
+      expect(page).toBe(renderWhatsNew({ voicecap: FACTS }));
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
       const policy = contentSecurityPolicy(inlineHashes(page), { fonts: false });
       expect(rules.filter(([rulePath]) => rulePath.startsWith("/whats-new"))).toEqual([
@@ -1779,7 +1778,6 @@ describe("buildSite", () => {
         renderTechnical({
           voicecap: FACTS,
           records: recordFactsOf(content),
-          content,
           keptPerSite: KEPT_PER_SITE,
         }),
       );
@@ -3694,11 +3692,12 @@ describe("buildSite", () => {
         ].sort(),
       );
       // The page links to each, twice (as the current report or an earlier one, and in the fold of
-      // files), and each link leads to the file of the folder it names. The bar's link to the trust
-      // page is a page of the website, not a report's file.
+      // files), and each link leads to the file of the folder it names. The bars' links to the
+      // website's pages are pages of the website, not a report's files.
+      const website = new Set(["trust.html", "whats-new.html", "technical-details.html"]);
       const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)]
         .map(([, href = ""]) => href)
-        .filter((href) => href !== "trust.html");
+        .filter((href) => !website.has(href));
       expect(links.toSorted()).toEqual(
         [COPY_FOLDER, NAME].flatMap((folder) => [`${folder}/${page}`, `${folder}/${page}`]).sort(),
       );

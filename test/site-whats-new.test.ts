@@ -20,13 +20,11 @@ import {
   type VoicecapFacts,
   type VoicecapRelease,
 } from "../src/site/facts.js";
-import { siteBar, siteFooter } from "../src/site/frame.js";
+import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
-import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderWhatsNew } from "../src/site/whats-new.js";
 import { decode, textOf } from "./helpers/share-html.js";
-import { CONTENT } from "./helpers/site-content.js";
 import { FACTS } from "./helpers/trust-facts.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
@@ -53,9 +51,9 @@ const WITH_POINTS: VoicecapFacts = {
   releases: FACTS.releases.map((release, index) => ({ ...release, items: POINTS[index] ?? [] })),
 };
 
-/** The page the tests mostly read: the facts with points, and the tests' content. */
-function pageWith(voicecap: VoicecapFacts = WITH_POINTS, content: SiteContent = CONTENT): string {
-  return renderWhatsNew({ voicecap, content });
+/** The page the tests mostly read: the facts with points. */
+function pageWith(voicecap: VoicecapFacts = WITH_POINTS): string {
+  return renderWhatsNew({ voicecap });
 }
 
 /** How a policy names the hash of `text`: 'sha256-' and its SHA-256 as base64, in single quotes. */
@@ -149,33 +147,28 @@ describe("renderWhatsNew", () => {
     });
   });
 
-  it("has its own title, the bar the website's other pages have, with the views on the website's own page, and the website's footer", () => {
+  it("has its own title, and the two bars of its page, whose link to it is the page the reader is on", () => {
     expect(html).toMatch(/^<!doctype html>\n<html lang="en">\n<head>\n/);
     expect(textsOf(html, "title")).toEqual(["What's New · Screen reader test results"]);
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+    const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(linksOf(bar)).toEqual([
-      { href: "index.html#demo", words: "The demo" },
-      { href: "index.html#sites", words: "The sites" },
-      { href: "index.html#by-date", words: "Every report, by date" },
+      { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "whats-new.html", words: "What's New" },
+      { href: "technical-details.html", words: "Technical details" },
     ]);
-    // None of its links is this page: the bar doesn't link to it yet.
-    expect(bar).not.toContain("aria-current");
-    expect(html).toContain(`\n${siteBar(CONTENT, "whats-new")}\n`);
-    expect(html).toContain(siteFooter());
+    expect(bar.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(bar).toContain('<a href="whats-new.html" aria-current="page">');
+    expect(html).toContain(`\n${siteBar("whats-new")}\n`);
+    // The bottom bar says the version of the facts, and that this page is the current one.
+    const footer = siteFooter("whats-new", WITH_POINTS.version);
+    expect(html).toContain(`\n${footer}\n`);
+    expect(footer).toContain('<span class="sr">voicecap version 0.13.2</span>');
+    expect(footer).toContain('<a href="whats-new.html" aria-current="page">');
   });
 
-  it("takes the bar's views from the content it's given, and nothing else from it", () => {
-    const oneSite: SiteContent = {
-      demo: null,
-      sites: [{ name: "a.gov", folders: ["a.gov"], reports: [] }],
-    };
-
-    const page = pageWith(WITH_POINTS, oneSite);
-
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(page)?.[0] ?? "";
-    expect(linksOf(bar).map(({ href }) => href)).toEqual(["index.html#sites", "trust.html"]);
-    expect(page.replace(bar, "")).toBe(html.replace(/<nav\b[\s\S]*?<\/nav>/, ""));
+  it("opens its main part with the way back to the test results", () => {
+    expect(html).toContain(`<main id="main">\n${backLink()}\n<div class="hero">`);
   });
 
   it("opens with its kicker, its heading, and its lead, in the words the design gives them", () => {
@@ -388,38 +381,29 @@ describe("renderWhatsNew", () => {
   });
 
   it("says when no release is recorded, with no list and no card", () => {
-    for (const content of [CONTENT, { demo: null, sites: [] }] as SiteContent[]) {
-      const page = pageWith({ ...FACTS, releases: [] }, content);
+    const page = pageWith({ ...FACTS, releases: [] });
 
-      expect(textsOf(page, "p")).toContain(NONE);
-      expect(page).not.toContain("<ol");
-      expect(cardsOf(page)).toEqual([]);
-      // The rest is there: the heading and the lead, and no link to a CHANGELOG entry.
-      expect(textsOf(page, "h1")).toEqual(["What's New"]);
-      expect(headingsOf(page)).toEqual([[1, "What's New"]]);
-      expect(linksOf(page).filter((link) => link.href.includes("CHANGELOG.md"))).toEqual([]);
-    }
+    expect(textsOf(page, "p")).toContain(NONE);
+    expect(page).not.toContain("<ol");
+    expect(cardsOf(page)).toEqual([]);
+    // The rest is there: the heading and the lead, and no link to a CHANGELOG entry: the bottom
+    // bar's link is to the CHANGELOG itself.
+    expect(textsOf(page, "h1")).toEqual(["What's New"]);
+    expect(headingsOf(page)).toEqual([[1, "What's New"]]);
+    expect(linksOf(page).filter((link) => link.href.includes("CHANGELOG.md#"))).toEqual([]);
     // With releases, it doesn't say so.
     expect(textOf(markupOf(html))).not.toContain(NONE);
   });
 
-  it("draws a website with no report yet, whole", () => {
-    const page = pageWith(WITH_POINTS, { demo: null, sites: [] });
-
-    expect(cardsOf(page)).toHaveLength(3);
-    // The bar's one view is the sites', and each link goes to a page of the website.
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(page)?.[0] ?? "";
-    expect(linksOf(bar).map(({ href }) => href)).toEqual(["index.html#sites", "trust.html"]);
-  });
-
-  it("links only where it says: the bar's pages, the skip link, each release's entry, and voicecap on GitHub", () => {
+  it("links only where it says: the website's pages, the skip link, each release's entry, and voicecap on GitHub and its CHANGELOG", () => {
     const allowed = new Set([
       "#main",
-      "index.html#demo",
-      "index.html#sites",
-      "index.html#by-date",
+      "index.html",
       "trust.html",
+      "whats-new.html",
+      "technical-details.html",
       GITHUB,
+      `${GITHUB}/blob/main/CHANGELOG.md`,
       ...FACTS.releases.map((release) => changelogHref(release)),
     ]);
 
@@ -485,9 +469,9 @@ describe("renderWhatsNew", () => {
   });
 
   it("is the same page for the same facts, and changes none of them", () => {
-    const before = structuredClone({ voicecap: WITH_POINTS, content: CONTENT });
+    const before = structuredClone({ voicecap: WITH_POINTS });
 
     expect(pageWith()).toBe(html);
-    expect({ voicecap: WITH_POINTS, content: CONTENT }).toEqual(before);
+    expect({ voicecap: WITH_POINTS }).toEqual(before);
   });
 });

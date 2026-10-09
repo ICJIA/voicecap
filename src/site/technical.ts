@@ -10,12 +10,14 @@
  * writes the same bytes, as the website's other pages do.
  *
  * It's one of the website's pages, in the website's frame (./frame.ts): the same head, with one
- * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the bar;
- * and the footer. It sets no `style` attribute, since a Content Security Policy that hashes its
- * style block and its script allows nothing else.
+ * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; and the
+ * two bars, whose links to this page say it's the page the reader is on. It sets no `style`
+ * attribute, since a Content Security Policy that hashes its style block and its script allows
+ * nothing else.
  *
- * Its main part, in order: a kicker over the page's heading, an h1, then its lead and the version it
- * is from; "On this page", a navigation with a numbered link to each part; and the parts, each a
+ * Its main part, in order: the way back to the test results, on the website's front page; a kicker
+ * over the page's heading, an h1, then its lead and the version it is from; "On this page", a
+ * navigation with a numbered link to each part; and the parts, each a
  * section with a kicker over its heading, an h2 with an id, and, inside it, h3s where it needs them:
  *
  *   1. what voicecap does;
@@ -48,8 +50,7 @@ import { esc } from "../report/html.js";
 import { count } from "../share/format.js";
 import { HOW_TEXT } from "../share/text.js";
 import type { RecordFacts, VoicecapFacts } from "./facts.js";
-import { siteBar, sitePage } from "./frame.js";
-import type { SiteContent } from "./render.js";
+import { backLink, sitePage } from "./frame.js";
 import {
   buildCommand,
   duration,
@@ -66,8 +67,6 @@ export interface TechnicalInput {
   voicecap: VoicecapFacts;
   /** What it says of the records, counted from what the website shows (recordFactsOf). */
   records: RecordFacts;
-  /** What the website shows: only for the bar's links to the views of its own page (siteBar). */
-  content: SiteContent;
   /** How many of a site's shares the website keeps: KEPT_PER_SITE, which the build passes. */
   keptPerSite: number;
 }
@@ -462,13 +461,15 @@ function onThisPage(): string {
 }
 
 /**
- * The page, from what it's given: its main part, in the website's frame (sitePage in ./frame.ts),
- * with the bar of this page, whose links to the views follow `content`. Pure.
+ * The page, from what it's given: its main part, which starts with the way back to the test
+ * results, in the website's frame (sitePage in ./frame.ts), with the bars of this page, the bottom
+ * one saying voicecap's version. Pure.
  */
 export function renderTechnical(input: TechnicalInput): string {
   return sitePage({
     title: TECHNICAL_TEXT.title,
-    bar: siteBar(input.content, "technical"),
-    main: [hero(input.voicecap), onThisPage(), ...PARTS.map(({ draw }) => draw(input))],
+    current: "technical",
+    version: input.voicecap.version,
+    main: [backLink(), hero(input.voicecap), onThisPage(), ...PARTS.map(({ draw }) => draw(input))],
   });
 }

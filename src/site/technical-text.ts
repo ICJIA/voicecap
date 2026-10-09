@@ -149,9 +149,9 @@ export interface Tool {
 
 export const TECHNICAL_TEXT = {
   /** The page's title, as the website's other pages' are: its kicker's words, then the website's. */
-  title: `Technical details · ${SITE_TEXT.title}`,
-  /** Above the heading, a few words that say what follows. */
-  kicker: "Technical details",
+  title: `${SITE_TEXT.technical} · ${SITE_TEXT.title}`,
+  /** Above the heading, a few words that say what follows: the page's name, as both bars say it. */
+  kicker: SITE_TEXT.technical,
   /** The page's one heading of the first level. */
   heading: "How voicecap works",
   /** Under the heading: what the page is, with a link to the short version, the trust page. */
@@ -170,7 +170,7 @@ export const TECHNICAL_TEXT = {
     notRecorded: `whose release date is ${NOT_RECORDED}`,
   },
   /** The name of the navigation that links to each part, which its words show too. */
-  onThisPage: "On this page",
+  onThisPage: SITE_TEXT.onThisPage,
   /** The page's parts, in order: each one's id (its heading's), kicker, heading, and words. */
   parts: {
     does: {

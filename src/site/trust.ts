@@ -8,12 +8,13 @@
  * number that isn't there is a "—", which a screen reader hears as "not recorded".
  *
  * It's one of the website's pages, in the website's frame (./frame.ts): the same head, with one
- * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the bar,
- * whose link to this page says it's the page the reader is on; and the footer. It sets no `style`
- * attribute, since a Content Security Policy that hashes its style block and its script allows
- * nothing else.
+ * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; and the
+ * two bars, whose links to this page say it's the page the reader is on, the bottom one with the
+ * version of voicecap that built it. It sets no `style` attribute, since a Content Security Policy
+ * that hashes its style block and its script allows nothing else.
  *
  * Its main part, in order:
+ * - the way back to the test results, on the website's front page;
  * - its banner, in the website's banner style (`view-head`): the shield, in its circle, and the
  *   page's heading, an h1; then a kicker, the lead, the stamp of where its numbers come from, and
  *   four big numbers, each with a line that says what it counts and a link to where it's shown;
@@ -33,9 +34,8 @@ import { count } from "../share/format.js";
 import { lineHtml } from "../share/html/parts.js";
 import type { Line } from "../share/line.js";
 import type { RecordFacts, ReleaseFacts, VoicecapFacts, VoicecapRelease } from "./facts.js";
-import { siteBar, sitePage } from "./frame.js";
+import { backLink, sitePage } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
-import type { SiteContent } from "./render.js";
 import { TRUST_TEXT } from "./trust-text.js";
 
 /** What the page is drawn from. */
@@ -44,8 +44,6 @@ export interface TrustInput {
   voicecap: VoicecapFacts;
   /** What it says of the records, counted from what the website shows (recordFactsOf). */
   records: RecordFacts;
-  /** What the website shows: only for the bar's links to the views of its own page (siteBar). */
-  content: SiteContent;
 }
 
 /** The reports, on the website's own page, beside this one: its view of the sites. */
@@ -321,16 +319,19 @@ function links(version: string): string {
 }
 
 /**
- * The page, from the facts it states: its main part, in the website's frame (sitePage in
- * ./frame.ts), with the bar of this page, whose links to the views follow `content`. Pure.
+ * The page, from the facts it states: its main part, which starts with the way back to the test
+ * results, in the website's frame (sitePage in ./frame.ts), with the bars of this page, the bottom
+ * one saying voicecap's version. Pure.
  */
 export function renderTrustPage(input: TrustInput): string {
-  const { voicecap, records, content } = input;
+  const { voicecap, records } = input;
   const { does, nvda, limits } = TRUST_TEXT;
   return sitePage({
     title: TRUST_TEXT.title,
-    bar: siteBar(content, "trust"),
+    current: "trust",
+    version: voicecap.version,
     main: [
+      backLink(),
       hero(input),
       part(PARTS.does, does, [`<p class="lead">${esc(does.text)}</p>`]),
       part(PARTS.nvda, nvda, [`<p class="lead">${esc(nvda.text)}</p>`]),

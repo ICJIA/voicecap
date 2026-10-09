@@ -19,14 +19,14 @@ import {
   type ReleaseFacts,
   type VoicecapFacts,
 } from "../src/site/facts.js";
-import { siteFooter } from "../src/site/frame.js";
+import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTrustPage, type TrustInput } from "../src/site/trust.js";
 import { decode, textOf } from "./helpers/share-html.js";
-import { CONTENT, DEMO_REPORT, DVFR, DVFR_NEWEST } from "./helpers/site-content.js";
-import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
+import { CONTENT, DEMO_REPORT, DVFR_NEWEST } from "./helpers/site-content.js";
+import { EARLIER_RELEASES, FACTS, RECORDS } from "./helpers/trust-facts.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const CHANGELOG = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
@@ -50,7 +50,7 @@ const SECTIONS = ["does", "nvda", "law", "evidence", "tested", "limits", "builde
 const NOT_RECORDED = "not recorded in this build of voicecap";
 
 /** The page the tests mostly read: FACTS, and the records of the tests' content with results. */
-const INPUT: TrustInput = { voicecap: FACTS, records: RECORDS, content: RESULTS_CONTENT };
+const INPUT: TrustInput = { voicecap: FACTS, records: RECORDS };
 
 /** The page, with some of its input changed. */
 function pageWith(changes: Partial<TrustInput> = {}): string {
@@ -234,33 +234,28 @@ describe("renderTrustPage", () => {
     });
   });
 
-  it("has its own title, the bar of the trust page, and the website's footer", () => {
+  it("has its own title, and the two bars of the trust page, whose link to it is the page the reader is on", () => {
     expect(html).toMatch(/^<!doctype html>\n<html lang="en">\n<head>\n/);
     expect(html).toContain("<title>Can I trust this? · Screen reader test results</title>");
-    // The bar's views are on the website's own page, and the link to this page is the current one.
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+    // The top bar: the website's name, then its three pages, of which this is the current one.
+    const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(linksOf(bar)).toEqual([
-      { href: "index.html#demo", words: "The demo" },
-      { href: "index.html#sites", words: "The sites" },
-      { href: "index.html#by-date", words: "Every report, by date" },
+      { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "whats-new.html", words: "What's New" },
+      { href: "technical-details.html", words: "Technical details" },
     ]);
     expect(bar).toContain('<a href="trust.html" aria-current="page">');
-    expect(html).toContain(siteFooter());
+    expect(html).toContain(`\n${siteBar("trust")}\n`);
+    // The bottom bar, with the version of the facts, and its link to this page the current one.
+    const footer = siteFooter("trust", FACTS.version);
+    expect(html).toContain(`\n${footer}\n`);
+    expect(footer).toContain('<a href="trust.html" aria-current="page">');
+    expect(footer).toContain('<span class="sr">voicecap version 0.13.2</span>');
   });
 
-  it("takes the bar's views from the content it's given, and nothing else from it", () => {
-    // One site and no demo: the bar has no link to the demo, and none to the list by date.
-    const oneSite: SiteContent = {
-      demo: null,
-      sites: [{ name: DVFR, folders: [DVFR], reports: [] }],
-    };
-    const page = pageWith({ content: oneSite });
-
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(page)?.[0] ?? "";
-    expect(linksOf(bar).map(({ href }) => href)).toEqual(["index.html#sites", "trust.html"]);
-    // What the page says of the records is the records' facts, not the content's.
-    expect(page.replace(bar, "")).toBe(html.replace(/<nav\b[\s\S]*?<\/nav>/, ""));
+  it("opens its main part with the way back to the test results", () => {
+    expect(html).toContain(`<main id="main">\n${backLink()}\n<div class="hero">`);
   });
 
   it("puts its headings in order", () => {
@@ -490,7 +485,7 @@ describe("renderTrustPage", () => {
     );
 
     // No report at all, not even the demo's. With no file, there is nothing to say "each" of.
-    const empty = pageWith({ records: NO_REPORTS, content: { demo: null, sites: [] } });
+    const empty = pageWith({ records: NO_REPORTS });
     expect(stampOf(empty)).toBe(
       "voicecap 0.13.2, released 9 October 2026 · no report has been shared yet",
     );
@@ -514,7 +509,7 @@ describe("renderTrustPage", () => {
       newest: DEMO_REPORT.at,
     });
 
-    const page = pageWith({ records, content: demoOnly });
+    const page = pageWith({ records });
 
     expect(stampOf(page)).toBe(
       "voicecap 0.13.2, released 9 October 2026 · records as of 29 September 2026, 15:40",
@@ -536,7 +531,7 @@ describe("renderTrustPage", () => {
     const records = recordFactsOf(CONTENT);
     expect(records).toMatchObject({ reports: 3, reading: null });
 
-    expect(tileOf(pageWith({ records, content: CONTENT }), 1)).toEqual({
+    expect(tileOf(pageWith({ records }), 1)).toEqual({
       looks: "—",
       heard: "not recorded",
       line: "pages NVDA read in the current reports: not recorded in the shares on this website",
@@ -960,10 +955,11 @@ describe("renderTrustPage", () => {
       "#tested",
       "#evidence",
       "#releases",
-      "index.html#demo",
+      "index.html",
       "index.html#sites",
-      "index.html#by-date",
       "trust.html",
+      "whats-new.html",
+      "technical-details.html",
       GITHUB,
       CHANGELOG,
       NPM,
@@ -974,8 +970,9 @@ describe("renderTrustPage", () => {
     for (const page of pages) {
       const hrefs = linksOf(page).map(({ href }) => href);
       expect(hrefs.filter((href) => !allowed.has(href))).toEqual([]);
-      // And it links to each of them: the bar's views (a demo and two sites), its own parts, the
-      // README's, the law's sources, GitHub, the CHANGELOG, and npm.
+      // And it links to each of them: the website's pages, from its bars and its way back; the
+      // reports on the front page; its own parts, the README's, the law's sources, GitHub, the
+      // CHANGELOG, and npm.
       expect(new Set(hrefs)).toEqual(allowed);
       // Each of its own anchors lands on something in the page.
       for (const href of hrefs.filter((each) => each.startsWith("#"))) {
@@ -988,8 +985,8 @@ describe("renderTrustPage", () => {
     const pages = [
       html,
       pageWith({ voicecap: { ...FACTS, release: null, released: null } }),
-      pageWith({ records: NO_REPORTS, content: { demo: null, sites: [] } }),
-      pageWith({ records: recordFactsOf(CONTENT), content: CONTENT }),
+      pageWith({ records: NO_REPORTS }),
+      pageWith({ records: recordFactsOf(CONTENT) }),
       pageWith({ voicecap: { ...FACTS, releases: [] } }),
     ];
 

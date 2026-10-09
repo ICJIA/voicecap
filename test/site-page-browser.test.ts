@@ -5,9 +5,13 @@
  * landmarks in Chromium's own accessibility tree), for fitting a window 320 pixels wide, for its
  * layout (the audit tool's columns and gutters), for what the bar does (it scrolls with the page,
  * at the reader's text size too, and never hides what has focus or what a link points to), for the
- * bar the trust page has (its own link told apart from the others by more than color, and its links
- * to the views going to this page), for the theme button, and for being complete without
- * JavaScript, its folds too.
+ * bars the trust page has (its own link told apart from the others by more than color, in both,
+ * and the website's name going to this page), for the theme button (its icon and its words follow
+ * the theme), and for being complete without JavaScript, its folds too.
+ *
+ * The two bars are checked whole at 200% and 400% text, on all four pages, in a wide window and a
+ * phone's: nothing in them overlaps or leaves the window, and focus shows on each of their links
+ * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels.
  *
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
@@ -31,7 +35,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { recordFactsOf, type ReleaseItem, type VoicecapFacts } from "../src/site/facts.js";
-import { siteBar, sitePage } from "../src/site/frame.js";
+import { sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { renderTechnical } from "../src/site/technical.js";
 import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
@@ -41,7 +45,7 @@ import { renderWhatsNew } from "../src/site/whats-new.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
-import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
+import { EARLIER_RELEASES, FACTS, RECORDS } from "./helpers/trust-facts.js";
 
 /** The page's background in each theme: the audit tool's, #0a0a0a and #f9fafb. */
 const DARK = "rgb(10, 10, 10)";
@@ -179,6 +183,8 @@ const NEWS: VoicecapFacts = {
  */
 const LONG_WORD = "voicecap".repeat(14);
 const LONG_VERSION = `0.${"1".repeat(40)}.0`;
+/** A version 40 characters long, one word with no place to break it: the bottom bar must fit it. */
+const FORTY_VERSION = `9.${"8".repeat(36)}.7`;
 const NEWS_LONG: VoicecapFacts = {
   ...FACTS,
   version: LONG_VERSION,
@@ -200,9 +206,9 @@ let browser: Browser;
 let folder: string;
 /**
  * The page files: the tests' content, a site with names as long as they can be, many sites, no
- * report at all, each kind of verdict, and a page with the bar the trust page has. And the trust
- * page, with its facts and seven releases, so that two are in its fold; and with no release facts
- * and no report.
+ * report at all, each kind of verdict, the tests' content built by a voicecap whose version is 40
+ * characters long, and a page with the bars the trust page has. And the trust page, with its facts
+ * and seven releases, so that two are in its fold; and with no release facts and no report.
  */
 let files: {
   page: string;
@@ -210,6 +216,7 @@ let files: {
   many: string;
   empty: string;
   verdicts: string;
+  fortyVersion: string;
   trustBar: string;
   trust: string;
   trustBare: string;
@@ -232,22 +239,27 @@ beforeAll(async () => {
     await writeFile(file, html);
     return file;
   };
-  const write = (name: string, content: SiteContent): Promise<string> =>
-    writeHtml(name, renderSiteIndex(content));
+  const write = (name: string, content: SiteContent, facts = FACTS): Promise<string> =>
+    writeHtml(name, renderSiteIndex(content, facts));
   files = {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
     many: await write("many.html", manyContent()),
     empty: await write("empty.html", { demo: null, sites: [] }),
     verdicts: await write("verdicts.html", verdictContent()),
-    // The shell and the bar of the trust page, over a main part of one heading. It sits beside
-    // index.html, which the links of its bar go to.
+    fortyVersion: await write("forty-version.html", CONTENT, {
+      ...FACTS,
+      version: FORTY_VERSION,
+    }),
+    // The shell and the bars of the trust page, over a main part of one heading. It sits beside
+    // index.html, which the website's name in its bar goes to.
     trustBar: await writeHtml(
       "trust-bar.html",
       sitePage({
-        title: "A page with the trust page's bar",
-        bar: siteBar(CONTENT, "trust"),
-        main: ["<h1>A page with the trust page's bar</h1>"],
+        title: "A page with the trust page's bars",
+        current: "trust",
+        version: FACTS.version,
+        main: ["<h1>A page with the trust page's bars</h1>"],
       }),
     ),
     // The trust page, beside index.html, as the website has it.
@@ -256,7 +268,6 @@ beforeAll(async () => {
       renderTrustPage({
         voicecap: { ...FACTS, releases: [...FACTS.releases, ...EARLIER_RELEASES] },
         records: RECORDS,
-        content: RESULTS_CONTENT,
       }),
     ),
     trustBare: await writeHtml(
@@ -264,43 +275,27 @@ beforeAll(async () => {
       renderTrustPage({
         voicecap: { ...FACTS, release: null },
         records: recordFactsOf({ demo: null, sites: [] }),
-        content: { demo: null, sites: [] },
       }),
     ),
     // What's New, beside index.html, as the website has it: seven releases; with words as long as
     // words can be; and with no release recorded.
-    whatsNew: await writeHtml(
-      "whats-new.html",
-      renderWhatsNew({ voicecap: NEWS, content: RESULTS_CONTENT }),
-    ),
-    whatsNewLong: await writeHtml(
-      "whats-new-long.html",
-      renderWhatsNew({ voicecap: NEWS_LONG, content: RESULTS_CONTENT }),
-    ),
+    whatsNew: await writeHtml("whats-new.html", renderWhatsNew({ voicecap: NEWS })),
+    whatsNewLong: await writeHtml("whats-new-long.html", renderWhatsNew({ voicecap: NEWS_LONG })),
     whatsNewBare: await writeHtml(
       "whats-new-bare.html",
-      renderWhatsNew({
-        voicecap: { ...FACTS, releases: [], release: null },
-        content: { demo: null, sites: [] },
-      }),
+      renderWhatsNew({ voicecap: { ...FACTS, releases: [], release: null } }),
     ),
     // Technical details, beside index.html, as the website has it: with its facts; with no release
     // facts, no release date, and no report; and with a version as long as one can be.
     technical: await writeHtml(
       "technical-details.html",
-      renderTechnical({
-        voicecap: FACTS,
-        records: RECORDS,
-        content: RESULTS_CONTENT,
-        keptPerSite: 3,
-      }),
+      renderTechnical({ voicecap: FACTS, records: RECORDS, keptPerSite: 3 }),
     ),
     technicalBare: await writeHtml(
       "technical-details-bare.html",
       renderTechnical({
         voicecap: { ...FACTS, released: null, release: null },
         records: recordFactsOf({ demo: null, sites: [] }),
-        content: { demo: null, sites: [] },
         keptPerSite: 3,
       }),
     ),
@@ -309,7 +304,6 @@ beforeAll(async () => {
       renderTechnical({
         voicecap: { ...FACTS, version: LONG_VERSION },
         records: RECORDS,
-        content: RESULTS_CONTENT,
         keptPerSite: 3,
       }),
     ),
@@ -662,6 +656,47 @@ describe("the site's page", () => {
     }
   });
 
+  it("fits a long version in the bottom bar at 320 pixels", async () => {
+    const page = await open(files.fortyVersion, { width: 320 });
+    const version = page.locator("footer li").last();
+
+    // All 40 characters, for the eye, and with its words for a screen reader.
+    expect(FORTY_VERSION).toHaveLength(40);
+    expect(await version.locator('[aria-hidden="true"]').textContent()).toBe(`v${FORTY_VERSION}`);
+    expect(await version.ariaSnapshot()).toBe(`- listitem: voicecap version ${FORTY_VERSION}`);
+    // It breaks where it must, and nothing of it, or of the rest of the bottom bar, runs past the
+    // window: not an item, nor anything in it, nor any of its text a reader sees. (The words only a
+    // screen reader gets are clipped to a pixel, and drawn nowhere.)
+    const outside = await page.evaluate(() => {
+      const hidden = (element: Element | null): boolean => element?.closest(".sr") != null;
+      const boxes = [...document.querySelectorAll("footer li, footer li *")]
+        .filter((element) => !hidden(element))
+        .map((element) => ({
+          what: element.tagName.toLowerCase(),
+          box: element.getBoundingClientRect(),
+        }));
+      const walker = document.createTreeWalker(
+        document.querySelector("footer") ?? document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+        if (hidden(text.parentElement)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        for (const box of range.getClientRects())
+          boxes.push({ what: `"${text.textContent ?? ""}"`, box });
+      }
+      return boxes
+        .filter(({ box }) => box.left < -0.5 || box.right > 320 + 0.5)
+        .map(({ what, box }) => `${what} from ${box.left} to ${box.right}`);
+    });
+    expect(outside).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      320,
+    );
+    expect(await widerThan320(page)).toEqual([]);
+  });
+
   it("keeps each heading beside its picture, 320 pixels wide, however long its words", async () => {
     for (const which of ["page", "long"] as const) {
       const page = await open(files[which], { width: 320 });
@@ -768,28 +803,44 @@ describe("the site's page", () => {
     }
   });
 
-  it("centers the footer's lines under the page, each no longer to read than a note's, on a wide window", async () => {
+  it("centers the bottom bar's six items under the page, in one row on a wide window, and in rows that wrap, each centered, on a phone's", async () => {
     const page = await open(files.page, { width: 1600 });
+    const rows = () =>
+      page.evaluate(() => {
+        const items = [...document.querySelectorAll("footer li")].map((item) =>
+          item.getBoundingClientRect(),
+        );
+        // The items of each row, by their tops: where the row starts and ends.
+        const byTop = new Map<number, { left: number; right: number }>();
+        for (const { top, left, right } of items) {
+          const row = byTop.get(Math.round(top));
+          byTop.set(Math.round(top), {
+            left: Math.min(row?.left ?? left, left),
+            right: Math.max(row?.right ?? right, right),
+          });
+        }
+        return {
+          middle: document.documentElement.clientWidth / 2,
+          items: items.length,
+          rows: [...byTop.values()],
+        };
+      });
 
-    const { middle, lines, notes } = await page.evaluate(() => {
-      const boxes = (selector: string) =>
-        [...document.querySelectorAll(selector)].map((element) => element.getBoundingClientRect());
-      return {
-        middle: document.documentElement.clientWidth / 2,
-        lines: boxes("footer > p").map(({ left, right, width }) => ({
-          centre: (left + right) / 2,
-          width,
-        })),
-        notes: Math.max(...boxes("p.note").map(({ width }) => width)),
-      };
-    });
-
-    // As the audit tool's footer is: each line across the window's middle. A line is 80 characters
-    // of its smaller text at the most, so it's no longer to read than a note's 72.
-    expect(lines).toHaveLength(2);
-    for (const line of lines) {
-      expect(Math.abs(line.centre - middle)).toBeLessThanOrEqual(0.5);
-      expect(line.width).toBeLessThanOrEqual(notes + 1);
+    // As the audit tool's bottom bar is: one row across the window's middle.
+    const wide = await rows();
+    expect(wide.items).toBe(6);
+    expect(wide.rows).toHaveLength(1);
+    for (const row of wide.rows) {
+      expect(Math.abs((row.left + row.right) / 2 - wide.middle)).toBeLessThanOrEqual(1);
+    }
+    // On a phone, the row wraps, and each row is centered.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const narrow = await rows();
+    expect(narrow.rows.length).toBeGreaterThan(1);
+    for (const row of narrow.rows) {
+      expect(Math.abs((row.left + row.right) / 2 - narrow.middle)).toBeLessThanOrEqual(1);
+      expect(row.left).toBeGreaterThanOrEqual(16);
+      expect(row.right).toBeLessThanOrEqual(320 - 16);
     }
   });
 
@@ -842,12 +893,13 @@ describe("the site's page", () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
-    // The skip link, the bar's four links (the three views, and the trust page) and its button, the
-    // link to the demo's pages, the link to the first site itself (the second has no address people
-    // visit), the current reports' links (the demo's two, the first site's two, and the second
-    // site's one: its Word copy is missing), the earlier report's one (its Word copy changed), the
-    // three folds' summaries, each report's page by date, and the footer's link.
-    const closed = 1 + 4 + 1 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
+    // The skip link, the top bar's four links (the website's name and its three pages) and its
+    // button, the "On this page" row's three links, the link to the demo's pages, the link to the
+    // first site itself (the second has no address people visit), the current reports' links (the
+    // demo's two, the first site's two, and the second site's one: its Word copy is missing), the
+    // earlier report's one (its Word copy changed), the three folds' summaries, each report's page
+    // by date, and the bottom bar's five links.
+    const closed = 1 + 4 + 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 5;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -858,12 +910,12 @@ describe("the site's page", () => {
     expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("puts what a link in the bar points to below the bar, 1100 pixels wide", async () => {
+  it("puts what a link of the 'On this page' row points to below the bar, 1100 pixels wide", async () => {
     // A window short enough that each view can be scrolled to the top of it.
     const page = await open(files.page, { width: 1100, height: 300 });
 
     for (const view of ["demo", "sites", "by-date"]) {
-      await page.locator(`nav a[href="#${view}"]`).click();
+      await page.locator(`nav[aria-label="On this page"] a[href="#${view}"]`).click();
 
       const result = await page.evaluate((id) => {
         const heading = document.querySelector(`#${id} > .view-head > .title > h2`);
@@ -880,56 +932,72 @@ describe("the site's page", () => {
     }
   });
 
-  it("tells the link of the page it is on from the others by more than color: bold, and underlined more heavily", async () => {
+  it("tells the link of the page it is on from the others by more than color, in both bars: bold, and underlined more heavily", async () => {
     const page = await open(files.trustBar);
 
-    const links = await page.locator(".bar nav a").evaluateAll((all) =>
-      all.map((link) => {
-        const style = getComputedStyle(link);
-        return {
-          words: link.textContent ?? "",
-          current: link.getAttribute("aria-current"),
-          weight: style.fontWeight,
-          line: style.textDecorationLine,
-          thickness: style.textDecorationThickness,
-          size: style.fontSize,
-        };
-      }),
-    );
+    for (const bar of [".bar nav", "footer"]) {
+      const links = await page.locator(`${bar} a`).evaluateAll((all) =>
+        all.map((link) => {
+          const style = getComputedStyle(link);
+          return {
+            words: link.textContent ?? "",
+            current: link.getAttribute("aria-current"),
+            weight: style.fontWeight,
+            line: style.textDecorationLine,
+            thickness: style.textDecorationThickness,
+            size: style.fontSize,
+            color: style.color,
+          };
+        }),
+      );
 
-    const look = ({ weight, line, thickness }: (typeof links)[number]) => ({
-      weight,
-      line,
-      thickness,
-    });
-    const here = links.filter(({ current }) => current === "page");
-    const others = links.filter(({ current }) => current !== "page");
+      const look = ({ weight, line, thickness, color }: (typeof links)[number]) => ({
+        weight,
+        line,
+        thickness,
+        color,
+      });
+      const here = links.filter(({ current }) => current === "page");
+      const others = links.filter(({ current }) => current !== "page");
 
-    // Only the link to the trust page is the page the reader is on. The others are regular, with the
-    // browser's own underline (`auto`, which grows with the text); it is bold, with a heavier one,
-    // 0.15 of its text's size thick, so that it stays heavier as the text grows.
-    expect(here.map(({ words }) => words)).toEqual(["Can I trust this?"]);
-    expect(here.map(({ weight, line }) => ({ weight, line }))).toEqual([
-      { weight: "700", line: "underline" },
-    ]);
-    expect(here.map(({ thickness, size }) => parseFloat(thickness) / parseFloat(size))).toEqual([
-      expect.closeTo(0.15, 3),
-    ]);
-    expect(others.map(look)).toEqual(
-      Array.from({ length: 3 }, () => ({ weight: "400", line: "underline", thickness: "auto" })),
-    );
+      // Only the link to the trust page is the page the reader is on. The others are regular, in
+      // the quieter color, with the browser's own underline (`auto`, which grows with the text); it
+      // is in the headline's color, bold, with a heavier one, 0.15 of its text's size thick, so
+      // that it stays heavier as the text grows.
+      expect(
+        here.map(({ words }) => words),
+        bar,
+      ).toEqual(["Can I trust this?"]);
+      expect(
+        here.map(({ weight, line, color }) => ({ weight, line, color })),
+        bar,
+      ).toEqual([{ weight: "700", line: "underline", color: "rgb(255, 255, 255)" }]);
+      expect(
+        here.map(({ thickness, size }) => parseFloat(thickness) / parseFloat(size)),
+        bar,
+      ).toEqual([expect.closeTo(0.15, 3)]);
+      expect(others.map(look), bar).toEqual(
+        Array.from({ length: bar === "footer" ? 4 : 2 }, () => ({
+          weight: "400",
+          line: "underline",
+          thickness: "auto",
+          color: "rgb(163, 163, 163)",
+        })),
+      );
+    }
   });
 
-  it("takes a link of the trust page's bar to its view on the website's own page", async () => {
+  it("takes the website's name in the bar to the front page", async () => {
     const page = await open(files.trustBar);
 
-    await page.locator("nav a", { hasText: "The sites" }).click();
+    await page.locator(".bar a.name").click();
 
     // index.html sits beside the trust page's file, as the website's pages sit beside each other.
     const url = new URL(page.url());
     expect(url.pathname.endsWith("/index.html")).toBe(true);
-    expect(url.hash).toBe("#sites");
-    expect(await page.locator("#sites > .view-head > .title > h2").textContent()).toBe("The sites");
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
+    // There, the name is the page the reader is on.
+    expect(await page.locator(".bar a.name").getAttribute("aria-current")).toBe("page");
   });
 
   it("lets the bar scroll away with the page, at any width", async () => {
@@ -957,34 +1025,53 @@ describe("the site's page", () => {
     }
   });
 
-  it("switches the theme and keeps the choice", async () => {
+  it("switches the theme, and its words, with the button, and keeps the choice", async () => {
     const page = await open(files.page);
     const toggle = page.locator("#theme-toggle");
+    /** What the button shows, and what a screen reader hears of it, as Chromium has them. */
+    const button = async () => ({
+      label: await toggle.getAttribute("aria-label"),
+      sun: await toggle.locator("svg.sun").isVisible(),
+      moon: await toggle.locator("svg.moon").isVisible(),
+      heard: await toggle.ariaSnapshot(),
+    });
 
-    // Dark until the reader picks light, and the button says what it switches to.
+    // Dark until the reader picks light: the button shows a sun, and says what it switches to.
     expect(await theme(page)).toBe("dark");
     expect(await background(page)).toBe(DARK);
     expect(await toggle.isVisible()).toBe(true);
-    expect(await toggle.textContent()).toBe("Light version");
+    expect(await button()).toEqual({
+      label: "Switch to the light theme",
+      sun: true,
+      moon: false,
+      heard: '- button "Switch to the light theme"',
+    });
 
     await toggle.click();
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await toggle.textContent()).toBe("Dark version");
+    expect(await button()).toEqual({
+      label: "Switch to the dark theme",
+      sun: false,
+      moon: true,
+      heard: '- button "Switch to the dark theme"',
+    });
     expect(await stored(page)).toBe("light");
 
     // Kept: the page opens as it was left.
     await page.reload();
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+    expect(await toggle.getAttribute("aria-label")).toBe("Switch to the dark theme");
+    expect(await toggle.locator("svg.moon").isVisible()).toBe(true);
 
-    await page.locator("#theme-toggle").click();
+    await toggle.click();
     expect(await theme(page)).toBe("dark");
     expect(await stored(page)).toBe("dark");
     await page.reload();
     expect(await background(page)).toBe(DARK);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Light version");
+    expect(await toggle.getAttribute("aria-label")).toBe("Switch to the light theme");
+    expect(await toggle.locator("svg.sun").isVisible()).toBe(true);
   });
 
   it("opens in the theme a report was left in, under the same name", async () => {
@@ -994,7 +1081,9 @@ describe("the site's page", () => {
 
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+    expect(await page.locator("#theme-toggle").getAttribute("aria-label")).toBe(
+      "Switch to the dark theme",
+    );
   });
 
   it("is light in print, without the theme button", async () => {
@@ -1051,6 +1140,7 @@ describe("the site's page", () => {
       ["banner", ""],
       ["navigation", "This website"],
       ["main", ""],
+      ["navigation", "On this page"],
       ["region", "The demo"],
       ["region", "The sites"],
       ["region", "Every report, by date"],
@@ -1607,15 +1697,19 @@ describe("What's New", () => {
     expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("has the bar of its page, in which no link is the page the reader is on, and whose views go to the website's own page", async () => {
+  it("marks its own link in both bars as the page the reader is on, and takes the way back to the front page", async () => {
     const page = await open(files.whatsNew);
 
-    expect(await page.locator('.bar nav a[aria-current="page"]').count()).toBe(0);
+    expect(
+      await page
+        .locator('.bar a[aria-current="page"], footer a[aria-current="page"]')
+        .allTextContents(),
+    ).toEqual(["What's New", "What's New"]);
     // index.html sits beside this page's file, as the website's pages sit beside each other.
-    await page.locator("nav a", { hasText: "The sites" }).click();
+    await page.locator("main > a.back").click();
     const url = new URL(page.url());
     expect(url.pathname.endsWith("/index.html")).toBe(true);
-    expect(url.hash).toBe("#sites");
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
   });
 
   it("switches the theme and keeps the choice, as the other pages do", async () => {
@@ -1883,14 +1977,18 @@ describe("Technical details", () => {
     expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("has the bar of its page, in which no link is the page the reader is on, and whose views go to the website's own page", async () => {
+  it("marks its own link in both bars as the page the reader is on, and takes the way back to the front page", async () => {
     const page = await open(files.technical);
 
-    expect(await page.locator('.bar nav a[aria-current="page"]').count()).toBe(0);
-    await page.locator(".bar nav a", { hasText: "The sites" }).click();
+    expect(
+      await page
+        .locator('.bar a[aria-current="page"], footer a[aria-current="page"]')
+        .allTextContents(),
+    ).toEqual(["Technical details", "Technical details"]);
+    await page.locator("main > a.back").click();
     const url = new URL(page.url());
     expect(url.pathname.endsWith("/index.html")).toBe(true);
-    expect(url.hash).toBe("#sites");
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
   });
 
   it("switches the theme and keeps the choice, and is light in print, without the theme button", async () => {
@@ -1911,6 +2009,173 @@ describe("Technical details", () => {
     expect(await background(printed)).toBe(LIGHT);
     expect(await printed.locator("#theme-toggle").isVisible()).toBe(false);
   });
+});
+
+describe("the two bars at 200% and 400% text", () => {
+  /** The website's four pages, as files beside each other. */
+  const FOUR_PAGES = ["page", "trust", "whatsNew", "technical"] as const;
+
+  /**
+   * What the Tab key reaches in the two bars: the website's name, the top bar's three links and its
+   * button, once the script has shown it, and the bottom bar's five links.
+   */
+  const BAR_STOPS = ".bar a[href], .bar button:not([hidden]), footer a[href]";
+
+  /** The page's text at `size` of the browser's own, as a reader sets it: the root's font size. */
+  async function textAt(page: Page, size: string): Promise<void> {
+    await page.evaluate((percent) => {
+      document.documentElement.style.fontSize = percent;
+    }, size);
+  }
+
+  /**
+   * What's wrong with the two bars as they're drawn now, a line each: an item of either (the top
+   * bar's name, links, and button, and each of the bottom bar's six items) that isn't drawn, whose
+   * box or text a reader sees leaves the window, or that overlaps another. The words only a screen
+   * reader gets are clipped to a pixel, and drawn nowhere.
+   */
+  async function barProblems(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
+      const width = document.documentElement.clientWidth;
+      const items = [...document.querySelectorAll(".bar .name, .bar nav a, .bar .theme, footer li")]
+        .filter((element) => !(element as HTMLElement).hidden)
+        .map((element) => ({
+          element,
+          name: `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim() || element.getAttribute("aria-label")}"`,
+          box: element.getBoundingClientRect(),
+        }));
+      /** The boxes of the text a reader sees in an element: not what's only a screen reader's. */
+      const seenText = (element: Element): DOMRect[] => {
+        const boxes: DOMRect[] = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+          if (text.parentElement?.closest(".sr") != null) continue;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          boxes.push(...range.getClientRects());
+        }
+        return boxes;
+      };
+      const problems: string[] = [];
+      for (const { element, name, box } of items) {
+        if (box.width === 0 || box.height === 0) problems.push(`${name} isn't drawn`);
+        for (const { left, right } of [box, ...seenText(element)]) {
+          if (left < -0.5 || right > width + 0.5) {
+            problems.push(`${name} runs from ${left} to ${right}, in a window ${width} wide`);
+          }
+        }
+      }
+      items.forEach((one, index) => {
+        for (const other of items.slice(index + 1)) {
+          const [a, b] = [one.box, other.box];
+          if (
+            a.left < b.right - 0.5 &&
+            b.left < a.right - 0.5 &&
+            a.top < b.bottom - 0.5 &&
+            b.top < a.bottom - 0.5
+          ) {
+            problems.push(`${one.name} overlaps ${other.name}`);
+          }
+        }
+      });
+      return problems;
+    });
+  }
+
+  /**
+   * Tabs to each stop of the two bars in turn, from the stop before it, as a reader does, and says
+   * what's wrong with its focus, a line each: the Tab went elsewhere, or no focus ring is drawn
+   * (`:focus-visible`, and an outline at least 2 pixels wide), or the stop isn't in the window, or
+   * something else is drawn over it.
+   */
+  async function focusProblems(page: Page): Promise<string[]> {
+    const stops = await page.evaluate(
+      ({ all, bars }) => {
+        const every = [...document.querySelectorAll(all)];
+        return [...document.querySelectorAll(bars)].map((stop) => every.indexOf(stop));
+      },
+      { all: STOPS, bars: BAR_STOPS },
+    );
+    const problems: string[] = [];
+    for (const at of stops) {
+      await page.evaluate(
+        ({ selector, index }) => {
+          const before = document.querySelectorAll<HTMLElement>(selector)[index - 1];
+          if (before !== undefined) {
+            before.focus();
+          } else {
+            document.body.tabIndex = -1;
+            document.body.focus();
+            document.body.removeAttribute("tabindex");
+          }
+        },
+        { selector: STOPS, index: at },
+      );
+      await page.keyboard.press("Tab");
+      const problem = await page.evaluate(
+        ({ selector, index }) => {
+          const expected = document.querySelectorAll<HTMLElement>(selector)[index];
+          const focused = document.activeElement;
+          const name = (element: Element | null | undefined): string =>
+            element == null
+              ? "nothing"
+              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim() || element.getAttribute("aria-label")}"`;
+          if (focused === null || focused !== expected) {
+            return `${name(focused)} has focus, not ${name(expected)}`;
+          }
+          const style = getComputedStyle(focused);
+          if (!focused.matches(":focus-visible") || style.outlineStyle === "none") {
+            return `${name(focused)} shows no focus`;
+          }
+          if (parseFloat(style.outlineWidth) < 2) {
+            return `${name(focused)} has an outline ${style.outlineWidth} wide`;
+          }
+          // In the window, which the browser scrolls it into, to within a pixel's rounding.
+          const box = focused.getBoundingClientRect();
+          if (box.top < -1 || box.bottom > window.innerHeight + 1 || box.left < -1) {
+            return `${name(focused)} is out of the window, at ${box.top} to ${box.bottom}`;
+          }
+          if (box.right > document.documentElement.clientWidth + 1) {
+            return `${name(focused)} runs past the window's right edge, to ${box.right}`;
+          }
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          if (hit === null || (hit !== focused && !focused.contains(hit))) {
+            return `${name(focused)} is under ${name(hit)}`;
+          }
+          return null;
+        },
+        { selector: STOPS, index: at },
+      );
+      if (problem !== null) problems.push(problem);
+    }
+    return problems;
+  }
+
+  it.each([
+    ["200%", 1280],
+    ["200%", 320],
+    ["400%", 1280],
+    ["400%", 320],
+  ] as const)(
+    "keeps both bars whole at %s text, %i pixels wide, on all four pages, with focus visible on each of their links and on the button",
+    async (size, width) => {
+      for (const which of FOUR_PAGES) {
+        const page = await open(files[which], { width, height: 800 });
+        await textAt(page, size);
+        const where = `${which}, ${size} text, ${width} px`;
+
+        // The text is the size asked for: 2 and 4 times the browser's own 16 pixels.
+        expect(
+          await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+          where,
+        ).toBe(`${16 * (size === "200%" ? 2 : 4)}px`);
+        expect(await page.locator(BAR_STOPS).count(), where).toBe(4 + 1 + 5);
+        expect(await barProblems(page), where).toEqual([]);
+        expect(await focusProblems(page), where).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
 });
 
 describe("the bar at a larger default text size", () => {

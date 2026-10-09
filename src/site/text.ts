@@ -1,17 +1,18 @@
 /**
- * The website's fixed text: the words of its page that aren't a report's own. A report's date, who
- * prepared it, and its files' names, sizes, and fingerprints come from the records (./render.ts),
- * and the words that say the same as the shareable page's (what voicecap is, the link to it, who
+ * The website's fixed text: the words of its page that aren't a report's own, and the words of the
+ * frame every page of the website has (./frame.ts), its two bars and its way back. A report's date,
+ * who prepared it, and its files' names, sizes, and fingerprints come from the records
+ * (./render.ts), and the words that say the same as the shareable page's (voicecap's address, who
  * prepared a report) are that page's (../share/text.ts).
  *
  * The wording is the design's. voicecap is a person's review of a website with a real screen
  * reader, sped up, so every report here is a person's, and nothing says otherwise. The functions
- * are for lines with a name or a date in them.
+ * are for lines with a name, a date, or a version in them.
  */
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
 import { dateAndTime, longDate } from "../share/format.js";
-import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
 
 /** The website's title, which its own page is headed by, and which every page's title ends with. */
 const SITE_TITLE = "Screen reader test results";
@@ -43,18 +44,23 @@ export const SITE_TEXT = {
   title: SITE_TITLE,
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   skip: "Skip to main content",
+  /** The website's name, which starts the top bar of every page, as a link to the front page. */
+  siteName: "ICJIA Screen Reader Tests",
   /**
-   * The label of the bar's navigation, which every page of the website has. Its links are the views'
-   * headings, on the website's own page, and the link to the trust page ({@link trust}): the website
-   * itself, so the label names that.
+   * The label of the top bar's navigation, which every page of the website has. Its links are the
+   * website's three other pages: the website itself, so the label names that.
    */
   nav: "This website",
   /**
-   * The words of the bar's last link, to the trust page. The bar of every page says them, so they're
-   * here with the rest of the bar's words, and not with the trust page's own.
+   * The words of the links to the trust page and to Technical details, in both bars of every page,
+   * so they're here with the rest of the bars' words, and not with those pages' own. The link to
+   * What's New says that page's heading ({@link whatsNew}).
    */
   trust: "Can I trust this?",
-  /** The three views: each one's heading, which is also its link in the bar, and its lead. */
+  technical: "Technical details",
+  /** The label of the front page's row of links to its views, and of Technical details' list. */
+  onThisPage: "On this page",
+  /** The three views: each one's heading, which is also its link in "On this page", and its lead. */
   views: {
     demo: {
       title: "The demo",
@@ -165,13 +171,26 @@ export const SITE_TEXT = {
     { code: "npx @icjia/voicecap --walkthrough <file>" },
     ".",
   ] satisfies Sentence,
-  /** The footer: what voicecap is, and the words and the address of the link to it. */
-  about: ABOUT,
-  madeWith: TOP_TEXT.madeWith,
-  madeWithLink: TOP_TEXT.madeWithLink,
+  /** voicecap on GitHub: the bottom bar links to it, and the pages to its code there. */
   github: TOP_TEXT.github,
-  /** The theme button says what it switches to. */
-  theme: { light: "Light version", dark: "Dark version" },
+  /**
+   * The theme button's words, which are its label, since the button is an icon: what it switches to,
+   * the light theme while the page is dark, and the dark one while it's light.
+   */
+  theme: { light: "Switch to the light theme", dark: "Switch to the dark theme" },
+  /**
+   * The bottom bar's words, after the website's pages': its links to voicecap on GitHub and to its
+   * CHANGELOG, and the version of voicecap that built the website, which a reader sees as "v0.15.0"
+   * and a screen reader hears as "voicecap version 0.15.0".
+   */
+  footer: {
+    github: "GitHub",
+    changelog: "Changelog",
+    version: (version: string): string => `v${version}`,
+    versionHeard: (version: string): string => `voicecap version ${version}`,
+  },
+  /** The way back from each of the other pages to the front page, which holds the test results. */
+  back: "Back to the test results",
   /**
    * The What's New page (./whats-new.ts): a card for each release of voicecap, from its CHANGELOG.
    * Everything the CHANGELOG says of a release (its version, its day, its headline, its points) is

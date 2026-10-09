@@ -20,7 +20,7 @@ import { PASS_NAMES } from "../src/model.js";
 import { count } from "../src/share/format.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { recordFactsOf, type VoicecapFacts } from "../src/site/facts.js";
-import { siteBar, siteFooter } from "../src/site/frame.js";
+import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import { netlifyToml } from "../src/site/netlify.js";
 import type { SiteContent } from "../src/site/render.js";
@@ -29,7 +29,7 @@ import { renderTechnical, type TechnicalInput } from "../src/site/technical.js";
 import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
 import { packageRoot } from "../src/util/version.js";
 import { decode, rowsOf, tableOf, textOf } from "./helpers/share-html.js";
-import { RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
+import { RECORDS } from "./helpers/trust-facts.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const NPM = "https://www.npmjs.com/package/";
@@ -57,7 +57,6 @@ const FACTS: VoicecapFacts = {
 const INPUT: TechnicalInput = {
   voicecap: FACTS,
   records: RECORDS,
-  content: RESULTS_CONTENT,
   keptPerSite: 4,
 };
 
@@ -174,20 +173,28 @@ describe("renderTechnical", () => {
     });
   });
 
-  it("has its own title, the bar the website's other pages have, with the views on the website's own page, and the website's footer", () => {
+  it("has its own title, and the two bars of its page, whose link to it is the page the reader is on", () => {
     expect(html).toMatch(/^<!doctype html>\n<html lang="en">\n<head>\n/);
     expect(textsOf(html, "title")).toEqual(["Technical details · Screen reader test results"]);
     const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(linksOf(bar)).toEqual([
-      { href: "index.html#demo", words: "The demo" },
-      { href: "index.html#sites", words: "The sites" },
-      { href: "index.html#by-date", words: "Every report, by date" },
+      { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "whats-new.html", words: "What's New" },
+      { href: "technical-details.html", words: "Technical details" },
     ]);
-    // None of its links is this page: the bar doesn't link to it yet.
-    expect(bar).not.toContain("aria-current");
-    expect(html).toContain(`\n${siteBar(RESULTS_CONTENT, "technical")}\n`);
-    expect(html).toContain(siteFooter());
+    expect(bar.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(bar).toContain('<a href="technical-details.html" aria-current="page">');
+    expect(html).toContain(`\n${siteBar("technical")}\n`);
+    // The bottom bar says the version of the facts, and that this page is the current one.
+    const footer = siteFooter("technical", FACTS.version);
+    expect(html).toContain(`\n${footer}\n`);
+    expect(footer).toContain('<span class="sr">voicecap version 9.8.7</span>');
+    expect(footer).toContain('<a href="technical-details.html" aria-current="page">');
+  });
+
+  it("opens its main part with the way back to the test results", () => {
+    expect(mainOf(html).startsWith(`\n${backLink()}\n<div class="hero">`)).toBe(true);
   });
 
   it("opens with its kicker, its heading, its lead, and the version it's from, then 'On this page' and the parts", () => {
@@ -350,7 +357,6 @@ describe("renderTechnical", () => {
   it("draws whole for a website with no report", () => {
     const page = pageWith({
       records: recordFactsOf(NO_REPORT),
-      content: NO_REPORT,
       voicecap: { ...FACTS, release: null },
     });
 
@@ -362,9 +368,14 @@ describe("renderTechnical", () => {
     expect(now).toContain(
       "this website publishes only those that still match the fingerprints recorded when they were shared: 0 today.",
     );
-    // The bar's one view is the sites', and nothing is empty.
+    // The bars are the same as ever, and nothing is empty.
     const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(page)?.[0] ?? "";
-    expect(linksOf(bar).map(({ href }) => href)).toEqual(["index.html#sites", "trust.html"]);
+    expect(linksOf(bar).map(({ href }) => href)).toEqual([
+      "index.html",
+      "trust.html",
+      "whats-new.html",
+      "technical-details.html",
+    ]);
     expect(page).not.toMatch(/<(ul|ol|p|li|td|h2|h3)\b[^>]*>\s*<\/\1>/);
   });
 
@@ -454,13 +465,13 @@ describe("renderTechnical", () => {
     const parts = headingsOf(html).filter(({ level }) => level === 2);
     const allowed = new Set([
       "#main",
-      "index.html#demo",
-      "index.html#sites",
-      "index.html#by-date",
+      "index.html",
       "trust.html",
       "whats-new.html",
+      "technical-details.html",
       GITHUB,
       `${GITHUB}/blob/main/README.md`,
+      `${GITHUB}/blob/main/CHANGELOG.md`,
       ...parts.map(({ id }) => `#${id}`),
       ...TECHNICAL_TEXT.code.map(({ path: file }) => `${GITHUB}/tree/v9.8.7/${file}`),
       ...TECHNICAL_TEXT.toolchain.flatMap(({ npm, source }) =>
@@ -474,7 +485,7 @@ describe("renderTechnical", () => {
     // Each is a part of this page, a page of the website, or on GitHub or npm.
     for (const href of hrefs) {
       expect(href, href).toMatch(
-        /^(?:#[a-z-]+|(?:index|trust|whats-new)\.html(?:#[a-z-]+)?|https:\/\/(?:github\.com|www\.npmjs\.com)\/\S+)$/,
+        /^(?:#[a-z-]+|(?:index|trust|whats-new|technical-details)\.html|https:\/\/(?:github\.com|www\.npmjs\.com)\/\S+)$/,
       );
     }
   });

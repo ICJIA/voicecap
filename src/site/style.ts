@@ -42,14 +42,23 @@
  *   phone and 24 from 40em, which is 640 pixels at the browser's own text size: an em in a media
  *   query is the reader's own size, so a reader who has made it larger gets the narrower layout in
  *   a wider window. Every width the style changes at is in em, for the same reason;
- * - the bar scrolls with the page, as the audit tool's does: nothing on the page sticks, so no room
- *   is kept clear for it (the `scroll-padding-top` of 0.13.2 is gone), and nothing that has focus,
- *   or that a link points to, can be under it;
- * - the bar's links are in the quieter color, turning the headline's under the pointer. The link of
- *   the page the reader is on (`aria-current="page"`, which the trust page's bar has on its own
- *   link) is in the headline's color, bold, and underlined more heavily than the other links, which
- *   the browser underlines too, so it is told apart by more than its color. Its line is 0.15em
- *   thick, in proportion to the text as theirs is, so it stays the heavier at a larger size;
+ * - the top bar scrolls with the page, as the audit tool's does: nothing on the page sticks, so no
+ *   room is kept clear for it (the `scroll-padding-top` of 0.13.2 is gone), and nothing that has
+ *   focus, or that a link points to, can be under it;
+ * - the top bar is the audit tool's: the website's name at its left, at weight 600 in the
+ *   headline's color, and the website's navigation at its right, which wraps under the name where
+ *   there's no room. The links of both bars are in the quieter color, turning the headline's under
+ *   the pointer. The link of the page the reader is on (`aria-current="page"`) is in the
+ *   headline's color, bold, and underlined more heavily than the other links, which the browser
+ *   underlines too, so it is told apart by more than its color. Its line is 0.15em thick, in
+ *   proportion to the text as theirs is, so it stays the heavier at a larger size. On the front
+ *   page, that link is the website's name, which is drawn as ever;
+ * - the theme button is an icon in the quieter color, the sun in the dark theme and the moon in the
+ *   light one, each shown by the root's `data-theme`, with a line around it under the pointer. A
+ *   button's focus ring rounds its corners at 4 pixels: the theme button keeps its own 8;
+ * - the bars' words, and a long version, break where they must at a large text size in a narrow
+ *   window, so neither bar runs out of the window, and the bottom bar's links put their words under
+ *   their icon where there's no room for both;
  * - a name or a fingerprint is one word, longer than any box, so the text it can be in breaks it
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
  * - the parts, as the audit tool draws them:
@@ -124,9 +133,15 @@
  *   its columns can be read at, so on a phone it scrolls in its box. Related documents is a card of
  *   four cards, two a row where each has 19rem, each on the second panel, with a small label, its
  *   title, a link in the headline's color, and a line in the quieter one;
- * - the footer has a line above it, and its lines are small, in the quieter color, and centered in
- *   the bars' column, as the audit tool's are, each no longer than 80 characters, so a line is no
- *   longer to read than a note's.
+ * - the bottom bar has a line above it, then one row of six items, centered in the bars' column,
+ *   small (0.875rem), in the quieter color, each link its icon and its words, as the audit tool's
+ *   is. On a phone the row wraps, each of its rows centered. Its dividers are a thin line before
+ *   each item but the first (`li + li`), drawn by the style alone, so a screen reader hears a list
+ *   of six, and no dividers;
+ * - the way back to the test results, which opens the trust page, What's New, and Technical
+ *   details, is an arrow and its words, in the quieter color, as the audit tool's "Back" is;
+ * - the front page's "On this page" is a row: its name, a kicker, then a link to each view, which
+ *   wraps.
  */
 export const SITE_CSS = `:root {
   --bg: #0a0a0a; --panel: #111111; --panel-2: #141414; --line: #222222;
@@ -163,22 +178,31 @@ h4 { font-size: 1.0625rem; line-height: 1.3; font-weight: 700; }
 h1 .good { color: var(--good); }
 p { margin: 0; }
 code { font-family: var(--mono); font-size: 0.88em; overflow-wrap: anywhere; }
-/* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. */
-main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflow-wrap: anywhere; }
+/* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. So do the bars' words, at a large text size in a narrow window, and a long version. */
+main :where(h1, h2, h3, h4, p, li, a, span, code), .bar a, footer li { overflow-wrap: anywhere; }
 /* a kicker: a few words that say what follows, small, bold, spaced out, and in small capitals, which leave its words as they're written for a screen reader, in lines of an even length where it wraps; the words that matter in it are in --act. Its capitals are as tall as the spec's 0.8125rem capitals, at the caps scale, with the spec's spacing of 0.14em and line of 1.4 kept. */
 .kicker { font-size: calc(0.8125rem * var(--caps-scale)); font-weight: 700; line-height: calc(1.4 / var(--caps-scale)); letter-spacing: calc(0.14em / var(--caps-scale)); font-variant-caps: all-small-caps; color: var(--muted); text-wrap: balance; }
 .kicker .act { color: var(--act); }
 /* a lead: quieter than the words, and no more than 64 characters a line */
 .lead { font-size: clamp(1rem, 2vw, 1.1875rem); color: var(--muted); max-width: 64ch; }
-/* the bar: the views, the trust page, and the theme button, a line under them, scrolling with the page */
+/* the top bar, as the audit tool's: the website's name at its left, a link to the front page, and the website's navigation at its right, its three pages and the theme button, which wraps under the name where there's no room; a line under it, scrolling with the page */
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; padding-block: 14px; border-bottom: 1px solid var(--line); }
-.bar nav { display: flex; flex-wrap: wrap; gap: 4px 22px; }
+.bar .name { color: var(--heading); font-size: 1.125rem; font-weight: 600; line-height: 1.3; text-decoration: none; }
+.bar .name:hover { text-decoration: underline; }
+.bar nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 22px; }
 .bar nav a { display: inline-block; padding-block: 4px; color: var(--muted); font-size: 0.9375rem; font-weight: 400; }
-.bar nav a:hover { color: var(--heading); }
-/* the page the reader is on: in the headline's color, bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color; the line is in proportion to the text, as the browser's own is */
-.bar nav a[aria-current="page"] { color: var(--heading); font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.15em; }
-.theme { border: 1px solid var(--line); background: var(--panel); color: var(--heading); border-radius: 8px; padding: 6px 14px; font-family: inherit; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
-.theme:hover { border-color: var(--muted); }
+/* a link of either bar, and the way back, turns the headline's color under the pointer */
+.bar nav a:hover, footer a:hover, .back:hover { color: var(--heading); }
+/* the page the reader is on, in either bar: in the headline's color, bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color; the line is in proportion to the text, as the browser's own is. On the front page, it's the website's name, which is drawn as ever. */
+.bar nav a[aria-current="page"], footer a[aria-current="page"] { color: var(--heading); font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.15em; }
+/* the theme button: an icon, in the quieter color, turning the headline's under the pointer, with a line around it then, and 32 pixels square at the browser's own text size. It shows the sun in the dark theme and the moon in the light one; its words are its label. Its focus keeps its corners. */
+.theme { padding: 6px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); line-height: 0; cursor: pointer; }
+.theme:hover { color: var(--heading); border-color: var(--line); }
+.theme:focus-visible { border-radius: 8px; }
+.theme .icon { display: block; width: 1.25rem; height: 1.25rem; }
+.theme .moon { display: none; }
+:root[data-theme="light"] .theme .sun { display: none; }
+:root[data-theme="light"] .theme .moon { display: block; }
 /* the page: the main part in a column of 56rem, and what's in the bars and the footer in one of 72rem, each across the window's middle, with a gutter of 16 pixels, and 24 from 40em */
 main { box-sizing: border-box; width: 100%; max-width: calc(56rem + 32px); margin-inline: auto; padding: 48px 16px 64px; }
 .bar, footer { padding-inline: max(16px, calc(50% - 36rem)); }
@@ -396,9 +420,19 @@ table.toolchain { min-width: 48rem; }
 .related-cards > .card > p:not(.kicker) { color: var(--muted); font-size: 0.9375rem; }
 /* the line of links to voicecap, at the end of the page's main part */
 .links { color: var(--muted); }
-/* the footer: a line above it, and its lines small, quieter, and centered, each no longer than 80 characters */
-footer { border-top: 1px solid var(--line); padding-block: 22px 32px; color: var(--muted); font-size: 0.875rem; text-align: center; display: grid; gap: 6px; }
-footer > * { min-width: 0; max-width: 80ch; margin-inline: auto; }
+/* the bottom bar, as the audit tool's: a line above it, then one row of six items, small, quieter, and centered, which wraps on a phone, each row centered. A thin line comes before each item but the first, drawn by the style alone, so a screen reader hears a list of six. A link is its icon and its words, which go under the icon where there's no room for both, and the version is plain text. */
+footer { border-top: 1px solid var(--line); padding-block: 22px 32px; color: var(--muted); font-size: 0.875rem; }
+footer ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; row-gap: 10px; }
+footer li { min-width: 0; padding-inline: 14px; }
+footer li + li { border-left: 1px solid var(--line); }
+footer a { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; color: var(--muted); }
+footer .icon { flex: none; width: 1.125em; height: 1.125em; }
+/* the way back to the test results, which opens the website's other pages: an arrow, then its words, in the quieter color, with room under it */
+.back { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; width: fit-content; margin-bottom: 28px; color: var(--muted); font-size: 0.9375rem; }
+.back > .icon { flex: none; width: 1.125rem; height: 1.125rem; }
+/* the front page's "On this page": its name, a kicker, then a row of links to the views, which wraps */
+.jump { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; margin-top: 24px; }
+.jump > ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; }
 /* On screen, a page shorter than the window ends at its bottom: the main part grows, keeping its measure, so the footer sits there. */
 @media screen {
   body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }

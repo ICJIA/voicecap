@@ -24,8 +24,11 @@
  */
 import type { ReleaseItem, VoicecapRelease } from "./facts.js";
 
-/** voicecap's CHANGELOG, as GitHub shows it: where each release's entry is linked to. */
-const CHANGELOG_URL = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
+/**
+ * voicecap's CHANGELOG, as GitHub shows it: where each release's entry is linked to, and where the
+ * bottom bar of every page of the website links (see ./frame.ts).
+ */
+export const CHANGELOG_URL = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
 
 /** A release's heading in the CHANGELOG: `## [0.13.1] - 2026-10-08`. */
 const RELEASE_HEADING = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/;

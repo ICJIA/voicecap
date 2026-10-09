@@ -6,14 +6,15 @@
  * not even a font. The page sets no `style` attribute, since a Content Security Policy that hashes
  * its style block and its script allows nothing else.
  *
- * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
- * which its other pages, the trust page and What's New, have too; this module draws what is between
- * the bar and the footer. In order: the head; a skip link to the main content; the bar, whose links
- * go to the views and, last, to the trust page, and which holds the theme button; `main`, with the
- * page's heading and lead, the views (the demo's, the sites', and, when two sites or more have
+ * The head, the skip link, the two bars, and the script are the website's frame (./frame.ts), which
+ * its other pages, the trust page, What's New, and Technical details, have too; this module draws
+ * what is between the bars. In order: the head; a skip link to the main content; the top bar, whose
+ * name is this page; `main`, with the page's heading and lead, "On this page", a row of links to
+ * the views that are there, the views (the demo's, the sites', and, when two sites or more have
  * reports, every report by date), and what to know about a file's fingerprint and a walkthrough
- * file; the footer; and last, the script. What the model or a record supplies goes through `esc`,
- * and so does the fixed text (./text.ts), which is plain words.
+ * file; the bottom bar, which says the version of voicecap that built the page; and last, the
+ * script. What the model or a record supplies goes through `esc`, and so does the fixed text
+ * (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
@@ -33,7 +34,8 @@ import { folderSafe } from "../run/paths.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
-import { listsByDate, siteBar, sitePage } from "./frame.js";
+import type { VoicecapFacts } from "./facts.js";
+import { sitePage } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 
@@ -95,6 +97,15 @@ export function fileKind(name: string): PublishedFile["kind"] {
 
 /** The id of the heading that names a view's section, from the section's own id. */
 const headingId = (id: string): string => `heading-${id}`;
+
+/**
+ * Whether the page lists every report by date: only when two sites or more have reports. With one,
+ * the list would be that site's own again. The page has the view, and "On this page" a link to it,
+ * only then.
+ */
+function listsByDate(content: SiteContent): boolean {
+  return content.sites.length > 1;
+}
 
 /**
  * What each of the page's lists says it is. WebKit takes the semantics of a list from one whose
@@ -396,8 +407,8 @@ function sitesView(sites: SiteContent["sites"]): string {
  * The view of every report, across the sites (the demo isn't a site's), newest first by the moment
  * each names. Reports of the same moment stay in the order they were given. Each item has its time,
  * its site's name, who prepared it, and a link to its page, or says the page isn't here. It's on the
- * page only when two sites or more have reports (see listsByDate in ./frame.ts, which the bar's link
- * to it follows too).
+ * page only when two sites or more have reports (see listsByDate, which the link to it in "On this
+ * page" follows too).
  */
 function byDateView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.byDate;
@@ -423,16 +434,44 @@ function byDateView(sites: SiteContent["sites"]): string {
 }
 
 /**
- * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts)
- * with the bar of its own page. Pure.
+ * "On this page": a navigation of the page's views that are there, the demo's, the sites', and
+ * every report by date, each a link to its view by the view's heading. Its name stands before its
+ * links for the eye too, hidden from a screen reader, which would otherwise hear it twice, as
+ * Technical details' "On this page" is (see ./technical.ts). The views were the bar's links before
+ * 0.15.0; the bar is the website's now, and the same on every page.
  */
-export function renderSiteIndex(content: SiteContent): string {
+function onThisPage(content: SiteContent): string {
+  const { views } = SITE_TEXT;
+  const links = [
+    ...(content.demo === null ? [] : [{ id: "demo", title: views.demo.title }]),
+    { id: "sites", title: views.sites.title },
+    ...(listsByDate(content) ? [{ id: "by-date", title: views.byDate.title }] : []),
+  ];
+  const name = esc(SITE_TEXT.onThisPage);
+  return [
+    `<nav class="jump" aria-label="${name}">`,
+    `<p class="kicker" aria-hidden="true">${name}</p>`,
+    `<ul${IS_A_LIST}>`,
+    ...links.map(({ id, title }) => `<li><a href="#${esc(id)}">${esc(title)}</a></li>`),
+    "</ul>",
+    "</nav>",
+  ].join("\n");
+}
+
+/**
+ * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts),
+ * whose top bar says the page is the website's own, and whose bottom bar says the version of
+ * `voicecap`, the voicecap that built it. Pure.
+ */
+export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): string {
   return sitePage({
     title: SITE_TEXT.title,
-    bar: siteBar(content, "index"),
+    current: "index",
+    version: voicecap.version,
     main: [
       `<h1>${esc(SITE_TEXT.title)}</h1>`,
       `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+      onThisPage(content),
       ...(content.demo === null ? [] : [demoView(content.demo)]),
       sitesView(content.sites),
       ...(listsByDate(content) ? [byDateView(content.sites)] : []),

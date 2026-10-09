@@ -450,7 +450,7 @@ describe("the site, served as Netlify serves it", () => {
 
     await Promise.all([
       page.waitForURL(new URL("trust.html", server.url).href),
-      page.getByRole("link", { name: "Can I trust this?" }).click(),
+      page.locator(".bar").getByRole("link", { name: "Can I trust this?" }).click(),
     ]);
 
     // It's the trust page, whose own bar says it's the page the reader is on.
@@ -462,20 +462,95 @@ describe("the site, served as Netlify serves it", () => {
     expect(await violationsOf(page)).toEqual([]);
   });
 
-  it("reaches the site's page from the trust page's bar", async () => {
+  it("reaches the site's page from the trust page's bar, by the website's name", async () => {
     const page = await newPage();
     await page.goto(server.url);
     const siteTitle = await page.title();
     await page.goto(new URL("trust.html", server.url).href);
 
-    // The bar's views are on the site's page, so its links lead there.
     await Promise.all([
-      page.waitForURL(new URL("index.html#sites", server.url).href),
-      page.getByRole("link", { name: "The sites" }).click(),
+      page.waitForURL(new URL("index.html", server.url).href),
+      page.getByRole("link", { name: "ICJIA Screen Reader Tests" }).click(),
     ]);
 
     expect(await page.title()).toBe(siteTitle);
     expect(await violationsOf(page)).toEqual([]);
+  });
+
+  it("follows every link of both bars on all four pages to a page that's there", async () => {
+    const page = await newPage();
+    // Where each link is followed to, in a page of its own, so the page it's on stays as it is.
+    const other = await newPage();
+    const titles = new Set([
+      "Screen reader test results",
+      "Can I trust this? · Screen reader test results",
+      "What's New · Screen reader test results",
+      "Technical details · Screen reader test results",
+    ]);
+    const followed = new Set<string>();
+
+    for (const where of ["", "trust", "whats-new.html", "technical-details"]) {
+      await visit(page, new URL(where, server.url).href);
+      // Each link of the top bar, of the bottom bar, and the way back, as the browser resolves it.
+      const links = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLAnchorElement>(".bar a, footer a, main > a.back")].map(
+          (link) => link.href,
+        ),
+      );
+      expect(links.length, where).toBeGreaterThanOrEqual(4 + 5);
+      // The website's own pages answer here; voicecap on GitHub and its CHANGELOG are on GitHub,
+      // which the tests never reach.
+      const own = links.filter((link) => link.startsWith(server.url));
+      expect(links.filter((link) => !own.includes(link)).toSorted(), where).toEqual(
+        [
+          "https://github.com/ICJIA/voicecap",
+          "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md",
+        ].toSorted(),
+      );
+      for (const link of own) {
+        await visit(other, link);
+        expect(titles.has(await other.title()), `${where}: ${link}`).toBe(true);
+        expect(await violationsOf(other), link).toEqual([]);
+        followed.add(new URL(link).pathname);
+      }
+    }
+    // Between them, the bars reach each of the four pages.
+    expect([...followed].toSorted()).toEqual(
+      ["/index.html", "/trust.html", "/whats-new.html", "/technical-details.html"].toSorted(),
+    );
+  });
+
+  it("draws every page whole without JavaScript, dark and with no theme button, its bars' links all answering", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    contexts.push(context);
+    const page = await context.newPage();
+
+    for (const where of ["", "trust.html", "whats-new", "technical-details.html"]) {
+      const response = await page.goto(new URL(where, server.url).href);
+      expect(response?.status(), where).toBe(200);
+      // The button does nothing without the script, so it stays hidden, and the page is dark.
+      expect(await page.locator("#theme-toggle").isHidden(), where).toBe(true);
+      expect(await page.getAttribute("html", "data-theme"), where).toBeNull();
+      expect(
+        await page.evaluate(() => getComputedStyle(document.body).backgroundColor),
+        where,
+      ).toBe("rgb(10, 10, 10)");
+      // Both bars are there, whole: the name and three links above, and six items below.
+      expect(await page.locator(".bar a").count(), where).toBe(4);
+      expect(await page.locator("footer li").count(), where).toBe(6);
+      for (const bar of await page.locator(".bar, footer").all()) {
+        expect(await bar.isVisible(), where).toBe(true);
+      }
+      // Each of their links to the website's pages answers.
+      const links = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLAnchorElement>(".bar a, footer a")].map(
+          (link) => link.href,
+        ),
+      );
+      for (const link of links.filter((each) => each.startsWith(server.url))) {
+        expect((await page.request.get(link)).status(), `${where}: ${link}`).toBe(200);
+      }
+    }
   });
 });
 

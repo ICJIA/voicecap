@@ -9,13 +9,15 @@
  * it.
  *
  * It's one of the website's pages, in the website's frame (./frame.ts): the same head, with one
- * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; the
- * bar; and the footer. It sets no `style` attribute, since a Content Security Policy that hashes its
- * style block and its script allows nothing else.
+ * style block (SITE_CSS, which embeds no font) and one script (SITE_SCRIPT); the skip link; and the
+ * two bars, whose links to this page say it's the page the reader is on. It sets no `style`
+ * attribute, since a Content Security Policy that hashes its style block and its script allows
+ * nothing else.
  *
- * Its main part, in order: a kicker over the page's heading, an h1, then its lead; and an ordered
- * list of cards, one for each release, in the order the facts give them, which is the CHANGELOG's,
- * the newest first. Each card holds, in order:
+ * Its main part, in order: the way back to the test results, on the website's front page; a kicker
+ * over the page's heading, an h1, then its lead; and an ordered list of cards, one for each release,
+ * in the order the facts give them, which is the CHANGELOG's, the newest first. Each card holds, in
+ * order:
  *
  *   - its first line: the version, as a pill; its day, in a `time` that holds the day it names; and,
  *     on the version that built the website, "the current version";
@@ -35,16 +37,13 @@
 import { esc } from "../report/html.js";
 import { changelogHref } from "./changelog.js";
 import type { ReleaseItem, VoicecapFacts, VoicecapRelease } from "./facts.js";
-import { siteBar, sitePage } from "./frame.js";
-import type { SiteContent } from "./render.js";
+import { backLink, sitePage } from "./frame.js";
 import { SITE_TEXT } from "./text.js";
 
 /** What the page is drawn from. */
 export interface WhatsNewInput {
   /** What it says of voicecap: its version, and each release its CHANGELOG records. */
   voicecap: VoicecapFacts;
-  /** What the website shows: only for the bar's links to the views of its own page (siteBar). */
-  content: SiteContent;
 }
 
 /**
@@ -89,18 +88,20 @@ function card(release: VoicecapRelease, current: boolean): string {
 }
 
 /**
- * The page, from the facts it states: its main part, in the website's frame (sitePage in
- * ./frame.ts), with the bar of this page, whose links to the views follow `content`. Each release
- * the facts give is a card, in their order; the one that is `voicecap.version` says it's the
- * current version. Pure.
+ * The page, from the facts it states: its main part, which starts with the way back to the test
+ * results, in the website's frame (sitePage in ./frame.ts), with the bars of this page, the bottom
+ * one saying voicecap's version. Each release the facts give is a card, in their order; the one
+ * that is `voicecap.version` says it's the current version. Pure.
  */
-export function renderWhatsNew({ voicecap, content }: WhatsNewInput): string {
+export function renderWhatsNew({ voicecap }: WhatsNewInput): string {
   const words = SITE_TEXT.whatsNew;
   const { releases, version } = voicecap;
   return sitePage({
     title: words.title,
-    bar: siteBar(content, "whats-new"),
+    current: "whats-new",
+    version,
     main: [
+      backLink(),
       '<div class="hero">',
       `<p class="kicker">${esc(words.kicker)}</p>`,
       `<h1>${esc(words.heading)}</h1>`,
