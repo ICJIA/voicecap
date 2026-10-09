@@ -316,8 +316,8 @@ export const TRUST_TEXT = {
         : `On every change: the same tests on ${names(ci.systems)}, with Node ${names(ci.node)}: ${count(ci.systems.length * ci.node.length)} combinations, and a run of the command line with its replay driver.`,
     /**
      * Only the pages whose tests run axe in both themes and at a phone's width: the shareable
-     * page (the report) and the website's own two pages. A run's own report and the demo site's
-     * pages aren't checked that way, so no line says every page voicecap writes is.
+     * page (the report) and each of the website's own pages. A run's own report and the demo
+     * site's pages aren't checked that way, so no line says every page voicecap writes is.
      */
     axe: "The shareable page (the report you open from this website) and this website itself are checked with axe, an accessibility testing engine, in a real browser, in both themes and at a phone's width.",
     nvda: "A run with real NVDA at a PC comes before any release that changes how voicecap drives NVDA.",

@@ -192,7 +192,7 @@ export const TECHNICAL_TEXT = {
           { code: "voicecap verify" },
           " work on any computer, and hearing a page again with ",
           { code: "voicecap review --replay" },
-          " needs Windows or a Mac. VoiceOver on a Mac comes later.",
+          " needs Windows or a Mac. VoiceOver runs on a Mac come later.",
         ],
       ] satisfies Sentence[],
     },
@@ -371,7 +371,7 @@ export const TECHNICAL_TEXT = {
       id: "what-a-run-records",
       kicker: "the record",
       heading: "What a run records",
-      lead: "The transcripts home, where voicecap keeps every record, and what each part of it holds:",
+      lead: "The transcripts home, where voicecap keeps every record, and what its main parts hold:",
       tree: [
         {
           name: "<transcripts home>/",
@@ -406,6 +406,28 @@ export const TECHNICAL_TEXT = {
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
+                  ],
+                },
+                {
+                  name: "<date>/<time>_manual_<page>/",
+                  words: [
+                    "One hands-on NVDA session on a page, from ",
+                    { code: "voicecap manual add" },
+                  ],
+                  inside: [
+                    { name: "session.txt", words: ["Its transcript"] },
+                    {
+                      name: "session.json",
+                      words: [
+                        "Its record: every line, the fingerprints of the transcript and of the file it came from, and its seal",
+                      ],
+                    },
+                    {
+                      name: "raw/",
+                      words: [
+                        "The file it came from, as it was, when it's kept, which voicecap keeps out of Git",
+                      ],
+                    },
                   ],
                 },
                 { name: "reviews.json", words: ["The review history, by page"] },
@@ -465,7 +487,7 @@ export const TECHNICAL_TEXT = {
         ],
         [
           { code: "voicecap verify" },
-          ` checks every seal, every chain, and every file the records list in the home, but not the page list, sitemaps, or config, which aren't in the home. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
+          ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
           "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
@@ -750,7 +772,7 @@ export const TECHNICAL_TEXT = {
     { name: "voicecap review", job: "Adds a person's decision on a page to its review history." },
     {
       name: "voicecap review --replay",
-      job: 'Reads the saved words of the pages "What needs attention" names aloud (every page\'s, with `--all`), at a speed a person can follow, and records each decision.',
+      job: 'Reads aloud the saved words of the pages "What needs attention" names (every page\'s, with `--all`), at a speed a person can follow, and records each decision.',
     },
     {
       name: "voicecap manual add",

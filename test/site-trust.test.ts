@@ -893,7 +893,7 @@ describe("renderTrustPage", () => {
       },
       {
         // Only the pages whose tests run axe in both themes and at a phone's width: the shareable
-        // page (test/share-browser.test.ts) and this website's two pages
+        // page (test/share-browser.test.ts) and each of this website's own pages
         // (test/site-page-browser.test.ts). A run's own report and the demo site's pages aren't
         // checked that way, so they aren't named.
         words:

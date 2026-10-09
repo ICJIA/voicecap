@@ -574,9 +574,19 @@ describe("renderTechnical", () => {
 
     // A run's record holds the fingerprints of each page's transcripts and screenshot and of the
     // event log, and nothing else of the run's: not of kept tries, its report, or its comparisons.
-    expect(part("what-a-run-records")).toContain(
+    const record = part("what-a-run-records");
+    expect(record).toContain(
       "the fingerprints of each page's transcripts and screenshot and of the event log",
     );
+    // The tree is the home's main parts, not all of it (a site's report.html and compare/, say,
+    // aren't in it), and a manual session's sealed record is one of them.
+    expect(record).toContain("what its main parts hold:");
+    expect(record).toContain(
+      "<date>/<time>_manual_<page>/One hands-on NVDA session on a page, from voicecap manual add",
+    );
+    for (const file of ["session.txt", "session.json", "raw/"]) {
+      expect(record, file).toContain(file);
+    }
     const evidence = part("fingerprints-and-seals");
     expect(evidence).toContain(
       "A run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session.",
@@ -584,14 +594,19 @@ describe("renderTechnical", () => {
     expect(evidence).toContain(
       "Earlier tries a run kept, its own report, and its comparisons have none.",
     );
+    // What verify checks, and what it doesn't: a raw copy that isn't there, which a clone of the
+    // home never has, and an incomplete run's files (src/verify.ts).
     expect(evidence).toContain(
-      "voicecap verify checks every seal, every chain, and every file the records list in the home, but not the page list, sitemaps, or config, which aren't in the home.",
+      "voicecap verify checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed.",
     );
     for (const overstated of [
       "fingerprint of every file",
       "checks all of it",
       "every transcript and screenshot",
       "does the same",
+      "every file the records list",
+      "which aren't in the home",
+      "what each part of it holds",
     ]) {
       expect(text, overstated).not.toContain(overstated);
     }
@@ -624,7 +639,10 @@ describe("renderTechnical", () => {
     // The commands say what their code does.
     const jobs = Object.fromEntries(TECHNICAL_TEXT.commands.map(({ name, job }) => [name, job]));
     expect(Object.keys(jobs)).toContain("voicecap --site <url> …");
-    expect(jobs["voicecap review --replay"]).toContain('the pages "What needs attention" names');
+    // "Aloud" goes with "Reads", not with what the pages are named.
+    expect(jobs["voicecap review --replay"]).toMatch(
+      /^Reads aloud the saved words of the pages "What needs attention" names \(/,
+    );
     expect(jobs["voicecap review --replay"]).toContain("`--all`");
     expect(jobs["voicecap manual add"]).toContain("for a page");
     expect(jobs["voicecap manual add"]).toContain("a sealed record of its own");
@@ -650,10 +668,14 @@ describe("renderTechnical", () => {
       "While a page is open, its browser's debugging port can be reached by other people signed in to the same computer at the same time.",
     );
 
-    // Guidepup and its setup do VoiceOver's part on a Mac, too.
+    // Guidepup and its setup do VoiceOver's part on a Mac, too, so what comes later is VoiceOver's
+    // runs, as the limits say, and not VoiceOver on a Mac.
     const tools = Object.fromEntries(TECHNICAL_TEXT.toolchain.map(({ tool, job }) => [tool, job]));
     expect(tools.Guidepup).toContain("VoiceOver");
     expect(tools["@guidepup/setup"]).toContain("VoiceOver");
+    expect(part("what-voicecap-does")).toContain("VoiceOver runs on a Mac come later.");
+    expect(limits).toContain("VoiceOver runs on a Mac come later.");
+    expect(text).not.toContain("VoiceOver on a Mac comes later");
   });
 
   it("draws every fact as text", () => {

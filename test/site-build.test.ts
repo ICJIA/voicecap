@@ -748,7 +748,7 @@ describe("buildSite", () => {
     const { out } = await build(home, { voicecapFacts: FACTS });
 
     // The page is what renderWhatsNew makes of the facts it was given, drawn once, and it's a file
-    // beside the other two pages.
+    // beside the website's other pages.
     expect(vi.mocked(renderWhatsNew)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(renderWhatsNew).mock.calls[0]?.[0]).toEqual({ voicecap: FACTS });
     const page = await readFile(path.join(out, "whats-new.html"), "utf8");
