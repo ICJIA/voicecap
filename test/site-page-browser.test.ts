@@ -1476,7 +1476,7 @@ describe("the trust page", () => {
     );
   });
 
-  it("draws the stamp as the audit tool's amber box: its label at its left, and the records' date, big, at its right, under the label on a phone", async () => {
+  it("draws the stamp as the audit tool's amber box: its label at its left, and the records' date, big, at its right where the two fit on one row, and under the label where they don't, as on a phone", async () => {
     const page = await open(files.trust);
     const look = () =>
       page.evaluate(() => {
@@ -1495,6 +1495,15 @@ describe("the trust page", () => {
           return { left, right, top, bottom };
         };
         const style = getComputedStyle(stamp);
+        // The date's width on one line, which is what the row makes room for beside the label: a
+        // copy of it, taken out of the row and as wide as its words, is measured, then removed.
+        const copy = date.cloneNode(true) as HTMLElement;
+        copy.style.position = "absolute";
+        copy.style.width = "max-content";
+        copy.style.visibility = "hidden";
+        stamp.append(copy);
+        const oneLine = copy.getBoundingClientRect().width;
+        copy.remove();
         return {
           stamp: box(stamp),
           source: box(source),
@@ -1507,24 +1516,50 @@ describe("the trust page", () => {
             parseFloat(getComputedStyle(source).fontSize),
             parseFloat(getComputedStyle(date).fontSize),
           ],
+          // What a row needs, and what it has: the label's basis, the gap after it, and the date on
+          // one line, in the box's inside, its width less its line and its padding.
+          room: {
+            basis: parseFloat(getComputedStyle(source).flexBasis),
+            gap: parseFloat(style.columnGap),
+            date: oneLine,
+            inside:
+              stamp.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          },
         };
       });
     const warn = { dark: "rgb(251, 191, 36)", light: "rgb(112, 85, 16)" };
 
-    // At 1280: one row, the label at the left and the date at the right, big and at weight 900.
+    // At 1280: the box as wide as the page's column, and the date big and at weight 900. Whether the
+    // date fits beside the label depends on the font, since the website embeds none: of the box's
+    // 852 pixels inside, the label's 16rem and the gap leave 572 for it. In Segoe UI's Black, which
+    // Windows draws it in, it needs 528. DejaVu Sans, which Chromium draws system-ui in on Ubuntu,
+    // has no Black, and its Bold is about as wide as Verdana's, in which it needs 616: there, the
+    // date goes under the label, as the style lets it.
     for (const theme of ["dark", "light"] as const) {
       const wide = await look();
-      expect(wide.border, theme).toEqual(["2px", "solid", warn[theme]]);
-      expect(wide.color, theme).toEqual([warn[theme], warn[theme], warn[theme]]);
-      expect(wide.tinted, theme).toBe(true);
-      expect(wide.weights, theme).toEqual(["700", "900"]);
-      expect(wide.sizes[1], theme).toBeGreaterThan((wide.sizes[0] ?? 0) * 1.5);
-      expect(wide.source.right, theme).toBeLessThan(wide.date.left);
-      expect(wide.date.top, theme).toBeLessThan(wide.source.bottom);
-      // The date ends where the box's inside does: 2 pixels of line, and 20 inside it.
-      expect(wide.stamp.right - wide.date.right, theme).toBeCloseTo(22, 0);
+      const { basis, gap, date, inside } = wide.room;
+      const where = `${theme}, the date ${date} pixels on one line`;
+      expect(wide.border, where).toEqual(["2px", "solid", warn[theme]]);
+      expect(wide.color, where).toEqual([warn[theme], warn[theme], warn[theme]]);
+      expect(wide.tinted, where).toBe(true);
+      expect(wide.weights, where).toEqual(["700", "900"]);
+      expect(wide.sizes[1], where).toBeGreaterThan((wide.sizes[0] ?? 0) * 1.5);
       // The box is as wide as the page's column.
-      expect(wide.stamp.right - wide.stamp.left, theme).toBe(896);
+      expect(wide.stamp.right - wide.stamp.left, where).toBe(896);
+      expect(inside, where).toBe(852);
+      if (basis + gap + date <= inside) {
+        // One row: the label at the left, and the date at the right, ending where the box's inside
+        // does: 2 pixels of line, and 20 inside it.
+        expect(wide.source.right, where).toBeLessThan(wide.date.left);
+        expect(wide.date.top, where).toBeLessThan(wide.source.bottom);
+        expect(wide.stamp.right - wide.date.right, where).toBeCloseTo(22, 0);
+      } else {
+        // Two rows: the date under the label, at the inside's left, and inside the box.
+        expect(wide.date.top, where).toBeGreaterThanOrEqual(wide.source.bottom);
+        expect(wide.date.left, where).toBe(wide.source.left);
+        expect(wide.stamp.right - wide.date.right, where).toBeGreaterThanOrEqual(22);
+        expect(wide.stamp.bottom - wide.date.bottom, where).toBeGreaterThanOrEqual(18);
+      }
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
 
