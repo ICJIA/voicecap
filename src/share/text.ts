@@ -806,6 +806,12 @@ export const EVENT_TEXT = {
   /** Another window took the screen: the program's name, when Windows said it. Never the title. */
   foreground: (program: string | null): string =>
     `Another window came to the front${program === null ? "" : `: ${program}`}`,
+  /**
+   * voicecap closed a program that had come in front of the browser, with one Escape: what it was
+   * ("Windows Search", "the Start menu"; any other program, by its name, which no voicecap closes).
+   */
+  foregroundCleared: (closed: string): string =>
+    `voicecap closed ${closed}, which had come in front of the browser`,
 };
 
 /**

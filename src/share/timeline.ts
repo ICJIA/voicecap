@@ -19,6 +19,7 @@
  * program's name, with the home folder replaced, as is everything else taken from the log.
  */
 import type { NewRunEvent, RunEvent, RunJson } from "../model.js";
+import { closedProgram } from "../util/foreground.js";
 import { clock, names } from "./format.js";
 import { keepsEventLog, kindOfCause, PHRASES } from "./problems.js";
 import { EVENT_TEXT, TIMELINE_TEXT } from "./text.js";
@@ -43,8 +44,9 @@ export interface Span {
 
 /**
  * What an event is about: the run, the lock, voicecap's screen reader, the computer's own, the
- * browser, a page, or a failure: a page's, or what makes one fail (the computer locked, or another
- * window came to the front).
+ * browser (its window too: voicecap closing a program that came in front of it), a page, or a
+ * failure: a page's, or what makes one fail (the computer locked, or another window came to the
+ * front).
  */
 export type EventKind = "run" | "lock" | "screen-reader" | "own" | "browser" | "page" | "fail";
 
@@ -119,6 +121,7 @@ const KINDS: Record<NewRunEvent["type"], EventKind> = {
   "page-failed": "fail",
   "computer-locked": "fail",
   "foreground-lost": "fail",
+  "foreground-cleared": "browser",
 };
 
 /** An event's kind; one of a type this version doesn't know is the run's. */
@@ -264,6 +267,14 @@ function wordsOf(event: Fields, said: EventWords): string | null {
     case "foreground-lost": {
       const program = words(event.program);
       return EVENT_TEXT.foreground(program === null ? null : said.redact(program));
+    }
+    case "foreground-cleared": {
+      // A program voicecap closes is said by what it is; any other, which no voicecap closes, by its
+      // name, with the home folder replaced.
+      const program = words(event.program);
+      return program === null
+        ? null
+        : EVENT_TEXT.foregroundCleared(closedProgram(program)?.words ?? said.redact(program));
     }
     default:
       return null;

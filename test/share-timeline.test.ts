@@ -322,6 +322,34 @@ describe("timelinesOf", () => {
     });
   });
 
+  it("shows voicecap closing a program that came in front of the browser as a row of its own, not as a failure", () => {
+    const [timeline] = timelinesFor(
+      session([
+        on("14:00:05.000", { type: "page-started", page: HOME, attempt: 1 }),
+        on("14:00:09.000", { type: "foreground-lost", program: "SearchHost", title: "Search" }),
+        on("14:00:09.400", { type: "foreground-cleared", program: "SearchHost" }),
+        on("14:00:20.000", { type: "page-finished", page: HOME, attempt: 1, status: "done" }),
+      ]),
+    );
+
+    expect(timeline?.rows.slice(2, 4)).toEqual([
+      {
+        time: at("14:00:09.000"),
+        kind: "fail",
+        text: "Another window came to the front: SearchHost",
+      },
+      {
+        time: at("14:00:09.400"),
+        kind: "browser",
+        text: "voicecap closed Windows Search, which had come in front of the browser",
+      },
+    ]);
+    // The page's attempt went on to be read in full: nothing in the chart says it failed.
+    expect(timeline?.pages).toEqual([
+      { from: at("14:00:05.000"), to: at("14:00:20.000"), n: 1, failed: false },
+    ]);
+  });
+
   it("carries the lines of the log it couldn't read, on the last session, since no line says which it was", () => {
     const { run, log } = loggedRun();
     const timelines = timelinesOf(run, { ...log, unreadable: 2 }, wordsOfLogged());
@@ -535,6 +563,18 @@ describe("eventText", () => {
       { type: "foreground-lost", program: null, title: PRIVATE_TITLE },
       "Another window came to the front",
     ],
+    [
+      { type: "foreground-cleared", program: "SearchHost" },
+      "voicecap closed Windows Search, which had come in front of the browser",
+    ],
+    [
+      { type: "foreground-cleared", program: "Windows Start Experience Host" },
+      "voicecap closed the Start menu, which had come in front of the browser",
+    ],
+    [
+      { type: "foreground-cleared", program: "StartMenuExperienceHost" },
+      "voicecap closed the Start menu, which had come in front of the browser",
+    ],
   ])("says %j as the page words it", (event, text) => {
     expect(say(event)).toBe(text);
   });
@@ -560,6 +600,28 @@ describe("eventText", () => {
 
     expect(said).not.toContain(home);
     expect(said).toContain(REPLACED);
+  });
+
+  it("says a closed program by what it is, and any other by its name, with the home folder replaced", () => {
+    expect(say({ type: "foreground-cleared", program: " SEARCHHOST " })).toBe(
+      "voicecap closed Windows Search, which had come in front of the browser",
+    );
+    expect(say({ type: "foreground-cleared", program: "Notes" })).toBe(
+      "voicecap closed Notes, which had come in front of the browser",
+    );
+    const program = path.join(home, "AppData", "Local", "Programs", "Tool", "tool.exe");
+    const said = say({ type: "foreground-cleared", program });
+
+    expect(said).not.toContain(home);
+    expect(said).toContain(REPLACED);
+  });
+
+  it("says a closed program it can't read as its type", () => {
+    for (const program of [undefined, null, "", "  ", 7]) {
+      const odd = { at: at("14:00:00.000"), type: "foreground-cleared", program } as RunEvent;
+
+      expect(eventText(odd, words), String(program)).toBe("foreground-cleared");
+    }
   });
 
   it("names a page the run doesn't have by its address, and no number, as its type", () => {
