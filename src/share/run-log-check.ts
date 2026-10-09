@@ -38,8 +38,10 @@ export type GestureOf = (command: DriverCommand) => string | null;
  * - `none`: the session's copy wasn't kept, and the log says nothing of why: it ended without
  *   voicecap stopping NVDA, or its stop has no `screen-reader-log` event;
  * - `reason`: the log says why none was kept (`detail`);
- * - `altered`: the copy the log names isn't among those read: the run's record doesn't list it, or
- *   its file is missing or isn't as the record has it;
+ * - `altered`: the copy the log names, which the run's record lists, isn't among those read: its file
+ *   is missing or isn't as the record has it, which `voicecap verify` names;
+ * - `unlisted`: the run's record doesn't list the copy the log names, so `voicecap verify`, which
+ *   goes by the record, never looks for it;
  * - `silent`: the copy has no speech in it (as when NVDA's logging level is below input and output);
  * - `initial`: the run kept only the first thing NVDA said for each step, so a step's line can't be
  *   compared with all that NVDA said;
@@ -48,7 +50,17 @@ export type GestureOf = (command: DriverCommand) => string | null;
  * - `placed`: the event log doesn't show when the page was read.
  */
 export type WhyNotChecked =
-  "none" | "reason" | "altered" | "silent" | "initial" | "times" | "unread" | "placed";
+  "none" | "reason" | "altered" | "unlisted" | "silent" | "initial" | "times" | "unread" | "placed";
+
+/**
+ * Whether a run's record lists a file: its `files` has an entry of that path. A copy the event log
+ * names, and the record lists, that the page didn't read is missing or changed, which `voicecap
+ * verify` names; one the record doesn't list, verify never looks for.
+ */
+export function listsFile(run: RunJson, file: string): boolean {
+  const files: unknown = run.files;
+  return typeof files === "object" && files !== null && Object.hasOwn(files, file);
+}
 
 /** Some steps that weren't checked against NVDA's log, and why. */
 export interface NotChecked {
@@ -327,7 +339,7 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
     }
     const copy = input.copies.get(log.file);
     if (copy === undefined) {
-      skip("altered");
+      skip(listsFile(run, log.file) ? "altered" : "unlisted");
       continue;
     }
     if (initial) {

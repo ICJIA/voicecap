@@ -1133,9 +1133,11 @@ describe("wordEvidence", () => {
         },
       });
       expect(logOf(unlisted)).toEqual([para("Not recorded: this run kept no copy of NVDA's log.")]);
-      // One whose event log names a copy that its record doesn't list: it isn't as recorded.
+      // One whose event log names a copy that its record doesn't list: the record has no line of it.
       expect(logOf(await fixtureModel({ unlisted: true }))).toEqual([
-        para("Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it."),
+        para(
+          "Not shown: the run's record doesn't list the copy of NVDA's log that its event log names.",
+        ),
       ]);
     });
 

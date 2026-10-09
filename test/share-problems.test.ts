@@ -36,7 +36,15 @@ import {
 import { findPage, SITE } from "./helpers/report-data.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { demoRun } from "./helpers/share-fixture.js";
-import { inputOf, logged, loggedModel, loggedRun, PRIVATE_TITLE } from "./helpers/share-model.js";
+import {
+  inputOf,
+  LOG_HASH,
+  logged,
+  loggedModel,
+  loggedRun,
+  PRIVATE_TITLE,
+  withOwnFiles,
+} from "./helpers/share-model.js";
 
 // What voicecap 0.4.1 and 0.5.0 wrote into a page's errors, word for word (from the drivers in
 // src/drivers/guidepup-nvda.ts, guidepup/chrome.ts, and guidepup/nvda.ts, the timeouts in
@@ -2644,6 +2652,8 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     "NVDA's own log: not recorded: voicecap kept no copy of it for the NVDA session this attempt ran in.";
   const CHANGED =
     "NVDA's own log: not shown: the copy for the NVDA session this attempt ran in isn't as the run recorded it; voicecap verify names it.";
+  const UNLISTED =
+    "NVDA's own log: not shown: the run's record doesn't list the copy of NVDA's log that its event log names for the NVDA session this attempt ran in.";
   const UNPLACED =
     "NVDA's own log: not shown: the event log doesn't show which NVDA session this attempt ran in.";
   const NOT_NVDA = "NVDA's own log: not recorded: this run's screen reader isn't NVDA.";
@@ -3063,11 +3073,25 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
       }
     });
 
-    it("says the copy isn't as the run recorded it, when the page didn't read it", () => {
+    it("says the copy isn't as the run recorded it, when the run's record lists it and the page didn't read it", () => {
       for (const copies of [new Map<string, string>(), null]) {
         const [problem] = modelWith([], { copies }).problems.problems;
 
         expect(problem?.notRecorded).toEqual([CHANGED]);
+        expect(fromNvda(problem)).toEqual([]);
+      }
+    });
+
+    it("says the run's record doesn't list the copy its event log names, when it doesn't, with nothing said of verify", () => {
+      // verify goes by the record, so a copy the record doesn't list is one it never looks for.
+      const run = withOwnFiles(keptLogsRun().run, { "events.jsonl": LOG_HASH });
+      for (const copies of [new Map<string, string>(), null]) {
+        const [problem] = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)], {
+          run,
+          copies,
+        }).problems.problems;
+
+        expect(problem?.notRecorded).toEqual([UNLISTED]);
         expect(fromNvda(problem)).toEqual([]);
       }
     });

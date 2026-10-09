@@ -494,17 +494,20 @@ export const PROBLEMS_TEXT = {
    * a copy of it (KEEPS_NVDA_LOG_FROM and later) when the page doesn't have the copy of the NVDA
    * session the attempt ran in, each as a line of what the record lacks, as the event log's are
    * (TIMELINE_TEXT.gaps): the run's screen reader isn't NVDA; voicecap kept no copy for that session
-   * (`noCopy`, or `reason`, in the run's own words where its log gives some); the copy isn't as the
-   * run recorded it (`changed`: missing, unreadable, or changed, and `voicecap verify` names it); or
-   * the session can't be told (`unplaced`: the page has no event log to say which NVDA session the
-   * attempt ran in, or the log shows none at the attempt's start). A copy the page read that holds
-   * nothing in the attempt's window says nothing: its record has no row from it.
+   * (`noCopy`, or `reason`, in the run's own words where its log gives some); the copy, which the
+   * run's record lists, isn't as the run recorded it (`changed`: missing, unreadable, or changed,
+   * and `voicecap verify` names it); the run's record doesn't list the copy its event log names
+   * (`unlisted`, which verify never looks for); or the session can't be told (`unplaced`: the page
+   * has no event log to say which NVDA session the attempt ran in, or the log shows none at the
+   * attempt's start). A copy the page read that holds nothing in the attempt's window says nothing:
+   * its record has no row from it.
    */
   nvdaLog: {
     notNvda: `${NVDA_OWN_LOG}: not recorded: this run's screen reader isn't NVDA.`,
     noCopy: `${NVDA_OWN_LOG}: not recorded: voicecap kept no copy of it for the NVDA session this attempt ran in.`,
     reason: (reason: string): string => `${NVDA_OWN_LOG}: not recorded: ${reason}.`,
     changed: `${NVDA_OWN_LOG}: not shown: the copy for the NVDA session this attempt ran in isn't as the run recorded it; voicecap verify names it.`,
+    unlisted: `${NVDA_OWN_LOG}: not shown: the run's record doesn't list the copy of NVDA's log that its event log names for the NVDA session this attempt ran in.`,
     unplaced: `${NVDA_OWN_LOG}: not shown: the event log doesn't show which NVDA session this attempt ran in.`,
   },
   /**
@@ -730,6 +733,7 @@ export const NVDA_LOG_TEXT = {
   because: {
     none: "voicecap kept no copy of NVDA's log for that session",
     altered: "NVDA's log isn't as the run recorded it; voicecap verify names it",
+    unlisted: "the run's record doesn't list the copy of NVDA's log that its event log names",
     silent:
       "NVDA's log has no speech in it, as when NVDA's logging level is below input and output",
     initial:

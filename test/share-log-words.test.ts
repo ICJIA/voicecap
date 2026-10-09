@@ -21,6 +21,7 @@ describe("notCheckedLine", () => {
   it.each<[WhyNotChecked, string]>([
     ["none", "voicecap kept no copy of NVDA's log for that session"],
     ["altered", "NVDA's log isn't as the run recorded it; voicecap verify names it"],
+    ["unlisted", "the run's record doesn't list the copy of NVDA's log that its event log names"],
     [
       "silent",
       "NVDA's log has no speech in it, as when NVDA's logging level is below input and output",
@@ -81,7 +82,7 @@ describe("nothingCheckedLine", () => {
   });
 
   it("says the one reason of any other kind, when every group has it", () => {
-    for (const why of ["silent", "initial", "times", "unread", "placed"] as const) {
+    for (const why of ["unlisted", "silent", "initial", "times", "unread", "placed"] as const) {
       expect(nothingCheckedLine([unchecked(why), unchecked(why)]), why).toBe(
         `Not shown: ${NVDA_LOG_TEXT.because[why]}.`,
       );

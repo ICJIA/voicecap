@@ -878,10 +878,14 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     [[["Up 5%"]], "Up 5 percent", "a symbol that ends an item after a digit, said by name"],
     [[["Name*"]], "Name star", "a symbol that ends an item after a letter, said by name"],
     [[["Name*", "edit"]], "Name star, edit", "a symbol that ends an item, then an item"],
-    // The words for a symbol inside an item are any one to four whole words: they aren't compared
-    // with NVDA's own names for it, so these agree though NVDA never says them.
+    // The words for any symbol but a closing mark right after a letter or digit at an item's end are
+    // any one to four whole words: they aren't compared with NVDA's own names for it, so these agree
+    // though NVDA never says them.
     [[["Price: 10"]], "Price is not 10", "a symbol inside an item, as any few words"],
     [[["Hello - World"]], "Hello not World", "a symbol inside an item, as any word"],
+    [[["Up 5%"]], "Up 5 is not good", "a symbol that ends an item, as any few words"],
+    [[["Name*"]], "Name is not required", "another symbol that ends an item, as any few words"],
+    [[["Really?!"]], "Really now please", "a closing mark that follows another, as any words"],
     [[["Next"], ["•"]], "Next. bullet", "an entry that's only a symbol, said by name"],
     [[["Two   spaces"]], "Two spaces", "spaces"],
     [[["A"], []], "A.", "an entry with no text, come through"],

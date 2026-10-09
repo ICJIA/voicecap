@@ -238,15 +238,40 @@ describe("checkRunAgainstLog", () => {
     });
   });
 
-  it("says a copy that isn't among those read isn't as the run recorded it", () => {
+  it("says a copy that isn't among those read isn't as the run recorded it, when the run's record lists it", () => {
     const kept = keptLogsRun();
     const copies = new Map(kept.copies);
     copies.delete("nvda-log/1-2.txt");
 
+    // Listed and not read: missing or changed on disk, which voicecap verify names.
     expect(checkOf(kept, { copies })).toEqual({
       check: { ...EVERY_STEP, transcriptLines: 16, logLines: 16, agree: 16, outside: 15 },
       notChecked: [{ steps: 8, from: STARTED[1], why: "altered", detail: null }],
     });
+  });
+
+  it("says the run's record doesn't list a copy the event log names, when it doesn't", () => {
+    const kept = keptLogsRun();
+    const copies = new Map(kept.copies);
+    copies.delete("nvda-log/1-2.txt");
+    // The record has no line of the copy, so voicecap verify, which goes by the record, never looks
+    // for it: the copy can't be said to be one verify names.
+    const { ["nvda-log/1-2.txt"]: _unlisted, ...files } = kept.run.files ?? {};
+    const run = { ...kept.run, files };
+
+    expect(checkOf(kept, { run, copies })).toEqual({
+      check: { ...EVERY_STEP, transcriptLines: 16, logLines: 16, agree: 16, outside: 15 },
+      notChecked: [{ steps: 8, from: STARTED[1], why: "unlisted", detail: null }],
+    });
+    // A path that is an object's own property name, with no file of it listed, isn't listed.
+    const named = kept.log.events.map((event) =>
+      event.type === "screen-reader-log" && event.file === "nvda-log/1-2.txt"
+        ? { ...event, file: "constructor" }
+        : event,
+    );
+    expect(checkOf(kept, { events: named }).notChecked).toEqual([
+      { steps: 8, from: STARTED[1], why: "unlisted", detail: null },
+    ]);
   });
 
   it("doesn't check a session whose copy has no speech in it, which lists no mismatch", () => {

@@ -1455,10 +1455,33 @@ describe("renderEvidence", () => {
       expect(partOfModel(unlisted)).toContain(
         '<p class="not-recorded">Not recorded: this run kept no copy of NVDA&#39;s log.</p>',
       );
-      // One whose event log names a copy that its record doesn't list: it isn't as recorded.
+      // One whose event log names a copy that its record doesn't list: the record has no line of it.
       expect(partOfModel(await fixtureModel({ unlisted: true }))).toContain(
-        '<p class="not-recorded">Not shown: NVDA&#39;s log isn&#39;t as the run recorded it; voicecap verify names it.</p>',
+        '<p class="not-recorded">Not shown: the run&#39;s record doesn&#39;t list the copy of NVDA&#39;s log that its event log names.</p>',
       );
+    });
+
+    it("says a copy the record lists, which the page didn't read, isn't as recorded, and that the record doesn't list one it doesn't", () => {
+      const kept = keptLogsRun();
+      const modelWith = (run: RunJson) =>
+        buildShareModel(
+          inputOf([run], {
+            transcripts: kept.transcripts,
+            events: new Map([[run.id, kept.log]]),
+            nvdaLogs: new Map(),
+          }),
+        );
+
+      // Listed: missing or changed on disk, which voicecap verify names.
+      expect(partOfModel(modelWith(kept.run))).toContain(
+        `<p class="not-recorded">${esc("Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.")}</p>`,
+      );
+      // Not listed: verify, which goes by the record, never looks for it, so the page says only that.
+      const unlisted = partOfModel(modelWith(withOwnFiles(kept.run, { "events.jsonl": LOG_HASH })));
+      expect(unlisted).toContain(
+        `<p class="not-recorded">${esc("Not shown: the run's record doesn't list the copy of NVDA's log that its event log names.")}</p>`,
+      );
+      expect(unlisted).not.toContain("verify names");
     });
 
     it("says, of a page made without NVDA's keys, that this page was made without them", () => {

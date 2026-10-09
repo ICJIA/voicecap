@@ -608,20 +608,23 @@ type Token =
  * - where an item has a symbol, the transcript can have the symbol, nothing, or up to NAME_WORDS
  *   whole words (a name, perhaps with the symbol after it). The words aren't compared with NVDA's
  *   own names for symbols, which the comparison doesn't know: any one to four words can stand for
- *   a symbol, so "Price: 10" agrees with "Price is not 10";
- * - except a sentence's or a phrase's mark (`.` `,` `;` `:` `!` `?`, or an ellipsis) that ends an
- *   item right after a letter or digit: NVDA's usual symbol level doesn't say these, so it can be
- *   there or not, never said by name, and words after a line's last mark always differ. Any other
- *   symbol that ends an item may be said by name, as NVDA says it ("Up 5%" as "Up 5 percent");
+ *   a symbol, so "Price: 10" agrees with "Price is not 10", and "Up 5%" with "Up 5 percent" (as
+ *   NVDA says it) and with "Up 5 is not good" alike;
+ * - except a closing mark (CLOSING: `.` `,` `;` `:` `!` `?`, or an ellipsis) right after a letter or
+ *   digit at the end of an item: NVDA's usual symbol level doesn't say these, so it can only be
+ *   there or not, never words, and words after a line's last mark always differ. A closing mark
+ *   that follows another mark isn't right after a letter or digit, so "Really?!" agrees with
+ *   "Really now please";
  * - the ", " between items and the ". " between entries come from voicecap's capture, not from
  *   NVDA, so each must be there, as it is. Only an entry with no text (NVDA's commands alone) may
  *   or may not have come through: the ". " beside it can be there or not;
  * - spaces don't count.
- * Two gaps remain: the words for a symbol inside an item, which can be any one to four; and a line
- * that's only symbols, which agrees with an empty line ("." and ""), though NVDA says a "." on its
- * own as "dot": which symbols NVDA leaves out depends on its symbol level, and the comparison lets
- * any be left out. A step whose two sides would take more than MOST_PLACES places to search is
- * compared as it is, which can only find a difference.
+ * Two gaps remain: the words for every symbol but a closing mark right after a letter or digit at
+ * the end of an item, which can be any one to four; and a line that's only symbols, which agrees
+ * with an empty line ("." and ""), though NVDA says a "." on its own as "dot": which symbols NVDA
+ * leaves out depends on its symbol level, and the comparison lets any be left out. A step whose two
+ * sides would take more than MOST_PLACES places to search is compared as it is, which can only find
+ * a difference.
  */
 export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: string): boolean {
   if (normalizeSpeech(joinedText(logged)) === normalizeSpeech(spoken)) return true;

@@ -2555,14 +2555,14 @@ describe("a run's NVDA log, checked against its transcripts", () => {
       expect(logOf(keptModel(input({ gestureOf: null }), kept))).toEqual(said);
     });
 
-    it("says a copy the event log names, which the run's record doesn't list, isn't as the run recorded it", async () => {
-      const altered = {
+    it("says the run's record doesn't list a copy its event log names, with nothing said of verify, which never looks for it", async () => {
+      const unlisted = {
         notRecorded:
-          "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+          "Not shown: the run's record doesn't list the copy of NVDA's log that its event log names.",
       };
-      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual(altered);
+      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual(unlisted);
       const none = keptModel(() => ({ nvdaLogs: new Map() }), withoutListedCopies(keptLogsRun()));
-      expect(logOf(none)).toEqual(altered);
+      expect(logOf(none)).toEqual(unlisted);
     });
 
     it("says a run's copy that isn't as the run recorded it isn't shown", async () => {

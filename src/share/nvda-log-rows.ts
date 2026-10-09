@@ -22,13 +22,14 @@
  *
  * Where the page doesn't have the session's copy, it says why (`PROBLEMS_TEXT.nvdaLog`), in the
  * order the reader can act on it: the screen reader isn't NVDA; the event log doesn't show which
- * session the attempt ran in; voicecap kept no copy for it; the copy isn't as the run recorded it.
+ * session the attempt ran in; voicecap kept no copy for it; the copy, which the run's record lists,
+ * isn't as the run recorded it; or the run's record doesn't list the copy its event log names.
  */
 import { entryTimes, splitLogEntries, timeOnLog } from "../manual/nvda-log.js";
 import type { RunEvent, RunJson } from "../model.js";
 import type { NvdaRows } from "./problems.js";
 import { otherScreenReader } from "./run-evidence.js";
-import { sessionsOf, type NvdaSession } from "./run-log-check.js";
+import { listsFile, sessionsOf, type NvdaSession } from "./run-log-check.js";
 import { PROBLEMS_TEXT } from "./text.js";
 import { attemptWindow, isEventTime, type AttemptWindow } from "./timeline.js";
 
@@ -203,7 +204,10 @@ export function nvdaLogRows(input: {
       return { gap: why === null ? nvdaLog.noCopy : nvdaLog.reason(why) };
     }
     const text = input.copies(run).get(kept.file);
-    if (text === undefined) return { gap: nvdaLog.changed };
+    // The record lists it, so it's missing or changed, which verify names; or the record doesn't.
+    if (text === undefined) {
+      return { gap: listsFile(run, kept.file) ? nvdaLog.changed : nvdaLog.unlisted };
+    }
     return { rows: rowsIn(readOnce(run, kept.file, text), span, input.redact) };
   };
 }
