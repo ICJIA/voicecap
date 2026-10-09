@@ -519,9 +519,9 @@ export type NewRunEvent =
   /**
    * voicecap pressed Escape to close a program that had come in front of the browser, which kept the
    * browser from coming forward, and tried again: Windows Search or the Start menu, the only two it
-   * closes. The program's name is as "foreground-lost" gave it a moment before, and never the
-   * window's title. It's recorded once the key is sent, not once the program has closed: the next try
-   * says whether it did.
+   * presses Escape for. The program's name is as "foreground-lost" gave it a moment before, and
+   * never the window's title. It's recorded once the key is sent, not once the program has closed:
+   * the next try says whether it did.
    */
   | { type: "foreground-cleared"; program: string };
 

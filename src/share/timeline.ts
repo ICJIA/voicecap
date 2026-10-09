@@ -44,9 +44,9 @@ export interface Span {
 
 /**
  * What an event is about: the run, the lock, voicecap's screen reader, the computer's own, the
- * browser (its window too: voicecap closing a program that came in front of it), a page, or a
- * failure: a page's, or what makes one fail (the computer locked, or another window came to the
- * front).
+ * browser (its window too: voicecap pressing Escape to close a program that came in front of it), a
+ * page, or a failure: a page's, or what makes one fail (the computer locked, or another window came
+ * to the front).
  */
 export type EventKind = "run" | "lock" | "screen-reader" | "own" | "browser" | "page" | "fail";
 
@@ -269,8 +269,8 @@ function wordsOf(event: Fields, said: EventWords): string | null {
       return EVENT_TEXT.foreground(program === null ? null : said.redact(program));
     }
     case "foreground-cleared": {
-      // A program voicecap closes is said by what it is; any other, which no voicecap closes, by its
-      // name, with the home folder replaced.
+      // A program voicecap presses Escape for is said by what it is; any other, which no voicecap
+      // does, by its name, with the home folder replaced.
       const program = words(event.program);
       return program === null
         ? null

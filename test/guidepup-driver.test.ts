@@ -1840,10 +1840,12 @@ describe("reporting to the run's event log", () => {
   });
 });
 
-// Another window taking the foreground is looked up once, and its program named: in the event log,
-// with the window's title, and on the error, by its name only. The lookup comes a moment after the
-// loss, so the window in front may be voicecap's own browser again: no program took the foreground
-// then, and the answer is "not known".
+// Another window taking the foreground is looked up as the loss is found, and its program named: in
+// the event log, with the window's title, and on the error, by its name only. A step's loss is looked
+// up once. A page that can't be brought to the front is looked up after each failed try, so Search or
+// the Start menu coming up on a later one is found, and recorded once for the failure, as ever. The
+// lookup comes a moment after the loss, so the window in front may be voicecap's own browser again:
+// no program took the foreground then, and the answer is "not known".
 describe("the program that took the foreground", () => {
   const OUTLOOK: NewRunEvent = {
     type: "foreground-lost",
@@ -1953,9 +1955,10 @@ describe("the program that took the foreground", () => {
     });
     await expect(open).rejects.not.toThrow(/Outlook|Inbox/);
     expect(only(recorder.events, "foreground-lost")).toEqual([OUTLOOK]);
-    // Once, though the browser was raised three times: the page is given up on after the last.
+    // Recorded once, though the browser was raised three times and the window in front looked up
+    // after each: the page is given up on after the last.
     expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
-    expect(lookups(desktop)).toBe(1);
+    expect(lookups(desktop)).toBe(3);
   });
 
   it("is named null when the lookup doesn't answer for a page that wouldn't come to the front", async () => {
@@ -2122,6 +2125,20 @@ describe("Windows Search or the Start menu in front of the browser", () => {
   const foregroundEvents = (events: NewRunEvent[]) =>
     only(events, "foreground-lost", "foreground-cleared");
 
+  /**
+   * Runs `change` as the `nth` wait of the page's opening begins. Each try waits once after raising
+   * the browser, and the moment after an Escape is a wait too, so what's in front can change
+   * between tries.
+   */
+  function atWait(deps: GuidepupDriverDeps, nth: number, change: () => void): void {
+    const wait = deps.sleep;
+    let waits = 0;
+    deps.sleep = (ms, signal) => {
+      if (++waits === nth) change();
+      return wait(ms, signal);
+    };
+  }
+
   it("closes Windows Search with one Escape, and goes on with the page", async () => {
     const { driver, desktop, logger } = recording();
     await driver.start();
@@ -2144,7 +2161,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(logger.text("warn")).toBe("");
   });
 
-  it("records that Search had come in front, and that voicecap closed it, in that order", async () => {
+  it("records that Search had come in front, and that voicecap pressed Escape for it, in that order", async () => {
     const { driver, desktop, recorder } = recording();
     await driver.start();
     comesInFront(desktop, SEARCH, "Search");
@@ -2227,6 +2244,60 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(keysSent(desktop)).toEqual([]);
   });
 
+  it("finds Search that arrives on the second try, and closes it then", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    // Outlook is in front for the first try, and keeps the browser back. It's gone, and Search is
+    // up, when the second try begins.
+    comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false);
+    atWait(deps, 2, () => comesInFront(desktop, SEARCH, "Search"));
+    const info = await driver.openPage(URL_HOME);
+
+    expect(info).toMatchObject({ finalUrl: URL_HOME, title: "Fake page" });
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    // Outlook, which passed, isn't recorded: the page didn't fail for it.
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, CLEARED_SEARCH]);
+    expect(lookups(desktop)).toBe(2);
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
+  });
+
+  it("finds Search that arrives on the last try, and presses nothing: no try is left", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false);
+    atWait(deps, 3, () => comesInFront(desktop, SEARCH, "Search"));
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program: SEARCH });
+    expect(desktop.strayKeys).toEqual([]);
+    // Found, and recorded as it was found: not again for the failure.
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH]);
+    expect(lookups(desktop)).toBe(3);
+  });
+
+  it("records the program that stays in front after Search was closed, once, for the failure", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    // The wait after Search's Escape ends with Outlook in front, which stays.
+    atWait(deps, 2, () => comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false));
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({
+      failure: "foreground",
+      program: "Microsoft Outlook",
+    });
+    // The one Escape was for Search. Outlook was asked about after each of its two tries, and
+    // recorded once, as the failure's.
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    expect(foregroundEvents(recorder.events)).toEqual([
+      LOST_SEARCH,
+      CLEARED_SEARCH,
+      { type: "foreground-lost", program: "Microsoft Outlook", title: "Inbox - Outlook" },
+    ]);
+    expect(lookups(desktop)).toBe(3);
+  });
+
   it.each([
     ["Microsoft Outlook", "Inbox - Outlook"],
     ["Microsoft Teams", "Chat | Microsoft Teams"],
@@ -2249,7 +2320,8 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(foregroundEvents(recorder.events)).toEqual([
       { type: "foreground-lost", program, title },
     ]);
-    expect(lookups(desktop)).toBe(1);
+    // Asked after each of the three tries, and recorded once, for the failure.
+    expect(lookups(desktop)).toBe(3);
     expect(logger.text("warn")).toContain("The browser couldn't be brought to the front");
   });
 

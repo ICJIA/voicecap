@@ -33,16 +33,18 @@
  *   stamped with when it happened: NVDA's start with when it finished, before the lookup of its
  *   process id, and the person's own NVDA's shutdown with when the start began. The exit hook
  *   (abandon) records nothing.
- * - When another window has the foreground, it looks up which program has it, once, as the loss is
- *   found. The log gets the program and the window's title (foreground-lost), and the
- *   ForegroundError names the program only: a title can hold private text. Not knowing the program
- *   (the lookup fails, Windows doesn't say, or the foreground has come back to the page's own
- *   browser, which took it from no one) changes nothing else about the failure.
+ * - When another window has the foreground, it looks up which program has it as the loss is found:
+ *   once for a step, and after each try that fails when it brings the browser forward. The log gets
+ *   the program and the window's title (foreground-lost), once for the loss that fails a step or a
+ *   page, and the ForegroundError names the program only: a title can hold private text. Not knowing
+ *   the program (the lookup fails, Windows doesn't say, or the foreground has come back to the
+ *   page's own browser, which took it from no one) changes nothing else about the failure.
  * - Windows Search and the Start menu sometimes come in front of the browser by themselves, and keep
- *   it from coming forward. Where it brings the browser forward, if the program in front is one of
- *   those two (closedProgram), it closes it with one Escape, sent through NVDA to the window in
- *   front, records that it did (foreground-cleared), and tries again within its tries. No other
- *   program gets an Escape, and a step that loses the foreground still fails.
+ *   it from coming forward. Where it brings the browser forward, when it finds one of those two
+ *   (closedProgram) in front, it presses Escape once to close it, through NVDA, to the window in
+ *   front, records that it did (foreground-cleared: the key sent, not that the program closed), and
+ *   tries again within its tries. It presses Escape only after finding one of those two in front,
+ *   and a step that loses the foreground still fails.
  * - Each HTML page's screenshot is taken through the browser's DevTools connection once the page
  *   has loaded, before the browser is brought to the front and before any key, so it shows the page
  *   as the screen reader finds it, and taking it doesn't move the window. One that can't be taken
@@ -815,12 +817,13 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * Bring the browser window to the front (without keystrokes) and confirm it with NVDA+T against
    * a unique marker title, trying again a few times if another window stays in front.
    *
-   * When a try fails, it asks which program is in front (foregroundTakenBy, which records it). If
-   * it's Windows Search or the Start menu (closedProgram), which come in front by themselves and
-   * keep the browser from coming forward, it closes it with one Escape (closeForeground) and tries
-   * again, within the same tries: after the last there's no try to make, so it presses nothing. Any
-   * other program is left alone: asked about once, its name stands for the tries after, and for the
-   * error, which says no more than before.
+   * When a try fails, it asks which program is in front (windowInFront). If it's Windows Search or
+   * the Start menu (closedProgram), which come in front by themselves and keep the browser from
+   * coming forward, it records the loss as it's found and presses Escape once to close it
+   * (closeForeground), then tries again, within the same tries: after the last there's no try to
+   * make, so it presses nothing. For any other program, or none known, it only asks again after the
+   * next try; the loss that fails the page is recorded once, with what the last try found, and the
+   * error says no more than before.
    *
    * With openPage's Escape and Ctrl+Home, this is navigateToWebContent from @guidepup/playwright
    * 0.19.1, lib/nvdaTest.js (by Craig Morten, MIT License), adapted: the window is raised instead
@@ -834,8 +837,8 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     const restore = await session.setTitle(marker);
     try {
       let spoken = "";
-      // The program found in front by the last time it was asked: undefined until it has been.
-      let taken: string | null | undefined;
+      // What the last try that failed found in front.
+      let front: InFront = { program: null, title: null };
       for (let attempt = 0; attempt < RAISE_ATTEMPTS; attempt++) {
         // Raise before asking NVDA anything: a window in front that keeps changing (a terminal
         // with a spinner, say) keeps NVDA talking, and Guidepup waits for silence before every
@@ -845,22 +848,27 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         this.checkLive(page.generation);
         spoken = await this.heard(page, await this.command(() => nvda.press("reportTitle")));
         if (titleMatches(spoken, marker)) return;
-        // Ask when a try fails the first time, and again after each time the program found was one
-        // voicecap closes, which may still be there. A program it leaves alone has been named, and
-        // stays named, so a window that stays in front is looked up and recorded once.
-        if (taken === undefined || closedProgram(taken) !== null) {
-          taken = await this.foregroundTakenBy(session);
-          if (taken !== null && closedProgram(taken) !== null && attempt < RAISE_ATTEMPTS - 1) {
-            await this.closeForeground(page, taken);
-          }
+        // Another window is in front: which? Asked after every try that fails, so Search or the
+        // Start menu coming up on a later one is found too.
+        front = await this.windowInFront(session);
+        this.checkLive(page.generation);
+        const { program } = front;
+        if (program !== null && closedProgram(program) !== null) {
+          // Recorded as it's found, as any loss is. Another try follows, or there's nothing to close
+          // it for.
+          this.recordForegroundLost(front);
+          if (attempt < RAISE_ATTEMPTS - 1) await this.closeForeground(page, program);
         }
       }
       this.options.logger.warn(
         `The browser couldn't be brought to the front; NVDA reports this window in front: "${spoken}".`,
       );
+      // The loss that fails the page is recorded once: what the last try found in front, unless it
+      // was Search or the Start menu, which were recorded as they were found.
+      if (closedProgram(front.program) === null) this.recordForegroundLost(front);
       throw new ForegroundError(
         "The browser window couldn't be brought to the front, so keystrokes would have gone to another window. Keep the computer free while voicecap runs: close dialogs, and don't use other windows.",
-        { program: taken ?? null },
+        { program: front.program },
       );
     } finally {
       await restore();
@@ -868,10 +876,10 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   }
 
   /**
-   * Close `program`, which came in front of the browser (Windows Search or the Start menu: see
-   * closedProgram), with one Escape. It goes through NVDA, as openPage's Escape does, to the window
+   * Press Escape once to close `program`, which came in front of the browser (Windows Search or the
+   * Start menu: see closedProgram). It goes through NVDA, as openPage's Escape does, to the window
    * in front, which isn't the page's: the page has no focus, so press()'s check of it would refuse.
-   * It's recorded once it's sent, with the program's name as foregroundTakenBy gave it, and then
+   * It's recorded once it's sent, with the program's name as windowInFront gave it, and then
    * Windows gets a moment to close it before the browser is raised again.
    */
   private async closeForeground(page: Current, program: string): Promise<void> {
@@ -930,16 +938,26 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   }
 
   /**
-   * Another window has the foreground: which program has it is looked up, once, and recorded as the
-   * loss is found (a step's error is made, or a try at bringing the browser forward fails: see
-   * bringToFront). Gives the program's name, null when it isn't known: the lookup failed, Windows
-   * didn't say, or the window in front is the page's own browser (`session`, told by its process
-   * id). The lookup comes a moment after the loss, and the foreground may have come back to the
-   * browser by then: no program took it. A browser with no process id can't be told from another
-   * program's window, so the answer stands. The error gets the name only, as the window's title,
-   * which the log keeps, can hold private text. Not knowing mustn't change what the step fails with.
+   * Another window has the foreground, as a step's error is made: which program has it is looked up,
+   * once, and recorded (foreground-lost). Gives the program's name, null when it isn't known (see
+   * windowInFront). The error gets the name only, as the window's title, which the log keeps, can
+   * hold private text. Not knowing mustn't change what the step fails with.
    */
   private async foregroundTakenBy(session: BrowserSession): Promise<string | null> {
+    const front = await this.windowInFront(session);
+    this.recordForegroundLost(front);
+    return front.program;
+  }
+
+  /**
+   * The window in front now, as the log keeps it: its program's name and its title, each null when
+   * it isn't known: the lookup failed, Windows didn't say, or the window in front is the page's own
+   * browser (`session`, told by its process id). The lookup comes a moment after the loss, and the
+   * foreground may have come back to the browser by then: no program took it. A browser with no
+   * process id can't be told from another program's window, so the answer stands. Nothing is
+   * recorded: whoever asks decides which loss is the one to record.
+   */
+  private async windowInFront(session: BrowserSession): Promise<InFront> {
     let front: ForegroundWindow | null = null;
     try {
       front = await this.deps.foregroundWindow();
@@ -947,12 +965,12 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       // Counts as not known.
     }
     if (front !== null && front.pid === session.pid) front = null;
-    this.events.record({
-      type: "foreground-lost",
-      program: front?.program ?? null,
-      title: front?.title ?? null,
-    });
-    return front?.program ?? null;
+    return { program: front?.program ?? null, title: front?.title ?? null };
+  }
+
+  /** Another window took the foreground from the browser: recorded, with the program and its title. */
+  private recordForegroundLost(front: InFront): void {
+    this.events.record({ type: "foreground-lost", program: front.program, title: front.title });
   }
 
   /** Windows was found locked: recorded, as the error that says so is made. */
@@ -1166,6 +1184,14 @@ interface Current {
   generation: number;
   nvda: NvdaControl;
   session: BrowserSession;
+}
+
+/** The window found in front of the browser: what a lost foreground is recorded with. */
+interface InFront {
+  /** The program that owns it, by the name the lookup gives it; null when that isn't known. */
+  program: string | null;
+  /** Its title, which can hold private text: the log keeps it, and no report shows it. */
+  title: string | null;
 }
 
 /**

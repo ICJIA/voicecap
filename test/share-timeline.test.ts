@@ -322,7 +322,7 @@ describe("timelinesOf", () => {
     });
   });
 
-  it("shows voicecap closing a program that came in front of the browser as a row of its own, not as a failure", () => {
+  it("shows voicecap pressing Escape to close a program that came in front of the browser as a row of its own, not as a failure", () => {
     const [timeline] = timelinesFor(
       session([
         on("14:00:05.000", { type: "page-started", page: HOME, attempt: 1 }),
@@ -341,7 +341,7 @@ describe("timelinesOf", () => {
       {
         time: at("14:00:09.400"),
         kind: "browser",
-        text: "voicecap closed Windows Search, which had come in front of the browser",
+        text: "voicecap pressed Escape to close Windows Search, which had come in front of the browser",
       },
     ]);
     // The page's attempt went on to be read in full: nothing in the chart says it failed.
@@ -565,15 +565,15 @@ describe("eventText", () => {
     ],
     [
       { type: "foreground-cleared", program: "SearchHost" },
-      "voicecap closed Windows Search, which had come in front of the browser",
+      "voicecap pressed Escape to close Windows Search, which had come in front of the browser",
     ],
     [
       { type: "foreground-cleared", program: "Windows Start Experience Host" },
-      "voicecap closed the Start menu, which had come in front of the browser",
+      "voicecap pressed Escape to close the Start menu, which had come in front of the browser",
     ],
     [
       { type: "foreground-cleared", program: "StartMenuExperienceHost" },
-      "voicecap closed the Start menu, which had come in front of the browser",
+      "voicecap pressed Escape to close the Start menu, which had come in front of the browser",
     ],
   ])("says %j as the page words it", (event, text) => {
     expect(say(event)).toBe(text);
@@ -604,10 +604,10 @@ describe("eventText", () => {
 
   it("says a closed program by what it is, and any other by its name, with the home folder replaced", () => {
     expect(say({ type: "foreground-cleared", program: " SEARCHHOST " })).toBe(
-      "voicecap closed Windows Search, which had come in front of the browser",
+      "voicecap pressed Escape to close Windows Search, which had come in front of the browser",
     );
     expect(say({ type: "foreground-cleared", program: "Notes" })).toBe(
-      "voicecap closed Notes, which had come in front of the browser",
+      "voicecap pressed Escape to close Notes, which had come in front of the browser",
     );
     const program = path.join(home, "AppData", "Local", "Programs", "Tool", "tool.exe");
     const said = say({ type: "foreground-cleared", program });

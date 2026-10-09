@@ -807,11 +807,13 @@ export const EVENT_TEXT = {
   foreground: (program: string | null): string =>
     `Another window came to the front${program === null ? "" : `: ${program}`}`,
   /**
-   * voicecap closed a program that had come in front of the browser, with one Escape: what it was
-   * ("Windows Search", "the Start menu"; any other program, by its name, which no voicecap closes).
+   * voicecap pressed Escape to close a program that had come in front of the browser: what it was
+   * ("Windows Search", "the Start menu"; any other program, by its name, which no voicecap presses
+   * Escape for). It says the key was pressed, never that the program closed: the log records the key
+   * sent, and the try after it shows whether the program went.
    */
   foregroundCleared: (closed: string): string =>
-    `voicecap closed ${closed}, which had come in front of the browser`,
+    `voicecap pressed Escape to close ${closed}, which had come in front of the browser`,
 };
 
 /**
