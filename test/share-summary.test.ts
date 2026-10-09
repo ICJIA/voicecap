@@ -1720,7 +1720,7 @@ describe("summaryOf: the counts of the problems", () => {
     expect(summarize({ runs: [run], reviews }).todo).toEqual([
       "Fix the issue found on Common mistakes, then record it as fixed.",
       "Run voicecap again on The report: it couldn't be read after every attempt.",
-      "Take a closer listen to Before you start and Ask a question, where flags were raised, and record what you decide.",
+      "Read the transcripts of Before you start and Ask a question again, where flags were raised, and record what you decide.",
     ]);
 
     const done = sevenPages({ page: (path) => (path === COMMON ? { flags } : {}) });
@@ -1755,7 +1755,7 @@ describe("summaryOf: the counts of the problems", () => {
     expect(summarize({ runs: [run], reviews }).todo).toEqual([
       "Fix the issues found on Before you start, How a run works, and Reading transcripts, then record them as fixed.",
       "Run voicecap again on The report: it couldn't be read after every attempt.",
-      "Take a closer listen to Ask a question and Common mistakes, where flags were raised, and record what you decide.",
+      "Read the transcripts of Ask a question and Common mistakes again, where flags were raised, and record what you decide.",
     ]);
 
     const many = shareRun({
@@ -1766,9 +1766,9 @@ describe("summaryOf: the counts of the problems", () => {
         flags,
       })),
     });
-    const [listen] = summarize({ runs: [many] }).todo;
-    expect(listen).toBe(
-      "Take a closer listen to Page 1, Page 2, Page 3, and 9 more, where flags were raised, and record what you decide.",
+    const [reread] = summarize({ runs: [many] }).todo;
+    expect(reread).toBe(
+      "Read the transcripts of Page 1, Page 2, Page 3, and 9 more again, where flags were raised, and record what you decide.",
     );
   });
 
@@ -2098,7 +2098,7 @@ describe("summaryOf: pages that were skipped", () => {
       "Run voicecap again on The report: it couldn't be read after every attempt.",
       "Home was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
       "How a run works was skipped: it redirected to another site. Check whether it belongs on the list.",
-      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
+      "Read the transcripts of Common mistakes again, where flags were raised, and record what you decide.",
     ]);
   });
 });
@@ -2318,7 +2318,7 @@ describe("summaryOf: a read that stopped before the page's end", () => {
     // No one has decided about its flag: it is to be run again, and to be decided about.
     expect(summarize({ runs: [run] }).todo).toEqual([
       runAgain,
-      "Take a closer listen to How a run works, where flags were raised, and record what you decide.",
+      "Read the transcripts of How a run works again, where flags were raised, and record what you decide.",
     ]);
     // An issue is open on it: it is to be fixed, and run again.
     expect(summarize({ runs: [run], reviews: entries("issue") }).todo).toEqual([
@@ -2384,7 +2384,7 @@ describe("summaryOf: a read that stopped before the page's end", () => {
       "Run voicecap again on The report: it couldn't be read after every attempt.",
       "Run How a run works again with --page: its reading stopped before the page's end.",
       "Home was skipped: the site didn't answer with an HTML page. Check whether it belongs on the list.",
-      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
+      "Read the transcripts of Common mistakes again, where flags were raised, and record what you decide.",
     ]);
   });
 });
@@ -2426,7 +2426,7 @@ describe("summaryOf: a page that reads differently since its review", () => {
 
     // Its flags count again, and the line that asks for a decision on them names it.
     expect(summarize({ runs: [flagged], reviews: reviewsOf(stale(flagged, HOW)) }).todo).toEqual([
-      "Take a closer listen to How a run works, where flags were raised, and record what you decide.",
+      "Read the transcripts of How a run works again, where flags were raised, and record what you decide.",
     ]);
     // An issue found in the transcripts it read before is still open: the line to fix it names it.
     expect(summarize({ runs: [run], reviews: reviewsOf(stale(run, HOW, "issue")) }).todo).toEqual([
@@ -2463,7 +2463,7 @@ describe("summaryOf: a page that reads differently since its review", () => {
     });
 
     expect(summarize({ runs: [run], reviews: reviewsOf(stale(run, HOW)) }).todo).toEqual([
-      "Take a closer listen to Common mistakes, where flags were raised, and record what you decide.",
+      "Read the transcripts of Common mistakes again, where flags were raised, and record what you decide.",
       reviewAgain,
     ]);
   });
@@ -2523,7 +2523,7 @@ describe("summaryOf: the demo runs of 29 September 2026", () => {
     );
     expect(todo).toEqual([
       "/how-a-run-works/ couldn't be read in the latest run (another window took the screen). Its transcripts are from run 2026-09-29_1315. Read it again.",
-      "Take a closer listen to /common-mistakes/, where flags were raised, and record what you decide.",
+      "Read the transcripts of /common-mistakes/ again, where flags were raised, and record what you decide.",
     ]);
   });
 

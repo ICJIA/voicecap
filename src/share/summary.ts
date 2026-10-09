@@ -568,7 +568,7 @@ function todoOf({
   );
   if (undecided.length > 0) {
     todo.push(
-      `Take a closer listen to ${pageList(undecided)}, where flags were raised, and record what you decide.`,
+      `Read the transcripts of ${pageList(undecided)} again, where flags were raised, and record what you decide.`,
     );
   }
   todo.push(...changedTasks(changed));
