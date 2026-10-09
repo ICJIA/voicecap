@@ -4,7 +4,9 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
-The website has the look of the audit tool (audit.icjia.app), two new pages, Technical details and What's New, and a top bar and a bottom bar on every page. Shared reports are as they were, and no report needs sharing again.
+## [0.15.0] - 2026-10-09
+
+The website has the look of the audit tool (audit.icjia.app), two new pages, Technical details and What's New, and a top bar and a bottom bar on each of its own pages. Shared reports are as they were, and no report needs sharing again.
 
 ### Added
 
@@ -16,7 +18,7 @@ The website has the look of the audit tool (audit.icjia.app), two new pages, Tec
   - **A card for each dated release:** its version as a pill, its day (and "the current version" on the one that built the website), its headline, the bold words that begin each bullet of its entry, at its first two levels, and a link to its entry in the CHANGELOG on GitHub, which a screen reader hears with its version.
   - **What's New is made at each build of the website,** from the CHANGELOG that comes with the package, so a new release appears on its own once a build runs with it. `## [Unreleased]` is skipped, and so are the bullets under a heading that isn't one of Keep a Changelog's kinds of change, such as 0.1.0's `### Not yet`. Every word is plain text, so a line with markup in it can't change the page.
 - **A What's New banner on the front page,** under the lead: the newest release's version, its headline, and "Released 8 October 2026 · See all updates", where "See all updates" is a link to What's New. A build whose CHANGELOG records no release has no banner.
-- **A top bar and a bottom bar on every page,** as the audit tool's pages have them:
+- **A top bar and a bottom bar on each of the website's own pages,** as the audit tool's pages have them:
   - **The top bar has the website's name and a navigation of its three other pages,** and last the theme button: "ICJIA Screen Reader Tests", a link to the front page, and a navigation, "This website", with "Can I trust this?", "What's New", and "Technical details".
   - **The bottom bar is a row of six items,** in place of the footer's two lines: GitHub, Changelog, What's New, Can I trust this?, Technical details, and the version of the voicecap that built the website (`v0.15.0`, which a screen reader hears as "voicecap version 0.15.0"). The icons, and the lines between the items, are hidden from a screen reader, which hears a list of six.
   - **Each page's own link is marked as the current page** in the bars, for a screen reader. On the trust page, What's New, and Technical details it's drawn in bold and underlined more heavily too, so the eye tells it by more than its color; on the front page it's the website's name, drawn as ever.
@@ -583,7 +585,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/ICJIA/voicecap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ICJIA/voicecap/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/ICJIA/voicecap/compare/v0.13.0...v0.13.1
