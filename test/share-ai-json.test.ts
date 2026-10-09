@@ -224,10 +224,10 @@ const PAGE = obj({
   firstLines: strs,
   flags: list(FLAG),
   flagsNote: maybe(str),
-  passesNote: maybe(str),
   axe: maybe(AXE),
   review: strs,
   transcriptsFrom: maybe(obj({ run: str, date: maybe(str) })),
+  passesNote: maybe(str),
   passes: list(PASS),
 });
 const CARD = obj({
@@ -1548,12 +1548,18 @@ describe("the pages of renderAiJson", () => {
       "firstLines",
       "flags",
       "flagsNote",
-      "passesNote",
       "axe",
       "review",
       "transcriptsFrom",
+      "passesNote",
       "passes",
     ]);
+    // Each note sits beside the list it explains, and the page ends with its transcripts.
+    const keys = Object.keys(grants);
+
+    expect(keys.indexOf("flagsNote")).toBe(keys.indexOf("flags") + 1);
+    expect(keys.indexOf("passesNote")).toBe(keys.indexOf("passes") - 1);
+    expect(keys.slice(-3)).toEqual(["transcriptsFrom", "passesNote", "passes"]);
     // Its number, name, label, and address.
     expect(grants).toMatchObject({
       number: 1,

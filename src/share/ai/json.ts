@@ -17,7 +17,8 @@
  * fingerprints), then when it was made. A page has its findings first and its transcripts last, as
  * the Markdown has them, so a reader of the start of a long file sees what was found before every
  * word NVDA said: its address, title, and status, its first lines, its flags, axe's results, and
- * the review, then its passes' steps.
+ * the review, then its transcripts (where they are from, a note on them, and their steps). Each of
+ * a page's two notes sits beside the list it explains.
  *
  * What it leaves out is what a file of data has no use for: the page's pictures and charts, each
  * run's minute-by-minute event log, its walkthrough files, how voicecap came to be, and the
@@ -301,7 +302,8 @@ export interface AiUnreadablePass {
 
 /**
  * One page's card: what the page says of itself, and what NVDA and axe found on it, with the
- * findings first and the page's transcripts last.
+ * findings first and the page's transcripts last. A page's notes sit beside what they explain:
+ * `flagsNote` after `flags`, and `passesNote` before `passes`.
  */
 export interface AiPage {
   /** As the page is numbered in the Markdown: from 1. */
@@ -340,17 +342,17 @@ export interface AiPage {
   flags: AiFlag[];
   /** Where the flags are not the plain list: that nothing was read, none were raised, or they are as the run recorded them. */
   flagsNote: string | null;
-  /**
-   * Said when the page has transcripts and its record lists no transcript file for it, so `passes`
-   * has none to give; null otherwise.
-   */
-  passesNote: string | null;
   /** What axe found; null for a card that says nothing of axe. */
   axe: AiNotRecorded | AiAxeResults | null;
   /** The person's review as far as the records show it. Nothing for a page with none. */
   review: string[];
   /** The run its transcripts are from, and its date for a run before the latest. */
   transcriptsFrom: { run: string; date: string | null } | null;
+  /**
+   * Said when the page has transcripts and its record lists no transcript file for it, so `passes`
+   * has none to give; null otherwise.
+   */
+  passesNote: string | null;
   /** The page's transcripts, in pass order, last of the page. None for a page with none. */
   passes: (AiTranscript | AiUnreadablePass)[];
 }
@@ -730,7 +732,9 @@ function axeOf({ axe }: PageCard): AiPage["axe"] {
 
 /**
  * A page, findings first and transcripts last: its number, name, and address, its title and status,
- * its first lines, its flags, what axe found, the person's review, and its transcripts' steps.
+ * its first lines, its flags with their note, what axe found, the person's review, and then its
+ * transcripts: where they are from, a note on them, and their steps. A note sits beside the list it
+ * explains.
  */
 function pageOf(
   card: PageCard,
@@ -757,10 +761,10 @@ function pageOf(
       wcag: [...wcagOf(flag.rule)],
     })),
     flagsNote: flagsNoteOf(card),
-    passesNote: passesNoteOf(transcripts, passes),
     axe: axeOf(card),
     review: [...card.reviewChips, ...card.manual.map(manualLine)],
     transcriptsFrom: originOf(card, transcripts, latest),
+    passesNote: passesNoteOf(transcripts, passes),
     passes,
   };
 }
