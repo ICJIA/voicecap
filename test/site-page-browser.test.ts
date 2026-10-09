@@ -1,16 +1,33 @@
 /**
- * The website's page as a reader gets it: written to a file by renderSiteIndex, with the fonts
- * embedded, and opened from there in headless Chromium. It's checked for accessibility (axe, in both
- * themes, and at a phone's width, with the folds of files open; and the landmarks in Chromium's own
- * accessibility tree), for fitting a window 320 pixels wide, for what the bar does (it stays in view
- * where it fits, at the reader's text size, and never hides what has focus or what a link points
- * to), for the bar the trust page has (its own link told apart from the others by more than color,
- * and its links to the views going to this page), for the theme button, and for being complete
- * without JavaScript, its folds too.
+ * The website's page as a reader gets it: written to a file by renderSiteIndex, in the system's own
+ * fonts (it embeds none), and opened from there in headless Chromium. It's checked for
+ * accessibility (axe, in both themes, and at a phone's width, with the folds of files open; and the
+ * landmarks in Chromium's own accessibility tree), for fitting a window 320 pixels wide, for its
+ * layout (the audit tool's columns and gutters), for what the bar does (it scrolls with the page,
+ * at the reader's text size too, and never hides what has focus or what a link points to), for the
+ * bars the trust page has (its own link told apart from the others by more than color, in both,
+ * and the website's name going to this page), for the theme button (its icon and its words follow
+ * the theme), and for being complete without JavaScript, its folds too.
+ *
+ * The two bars are checked whole at 200% and 400% text, on all four pages, in a wide window and a
+ * phone's: nothing in them overlaps or leaves the window, and focus shows on each of their links
+ * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels. The front
+ * page's kicker is heard with commas where it shows dots, and its What's New banner is a card with
+ * its version's pill at its left, at any width, its words as long as words can be too.
  *
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
- * under the bar, its fold, and its bar's link to it, the page the reader is on.
+ * under the bar, its two-line heading, its stamp's amber box, its colors, the newest five releases
+ * with the link to the rest, and its bar's link to it, the page the reader is on.
+ *
+ * What's New (renderWhatsNew) is checked the same ways too, with its releases, with words as long as
+ * words can be, and with no release: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
+ * its landmarks, what has focus never under the bar, and complete without JavaScript.
+ *
+ * So is Technical details (renderTechnical), with its facts, with none and no report, and with a
+ * version as long as one can be: axe in both themes at 1280, 390, and 320 pixels, its fit at 320,
+ * where its tables scroll in their boxes, which a keyboard reaches and a screen reader hears named,
+ * the flow of a run drawn across and down, its landmarks, and complete without JavaScript.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -20,19 +37,26 @@ import { pathToFileURL } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { fontFaceCss } from "../src/share/fonts.js";
-import { recordFactsOf } from "../src/site/facts.js";
-import { siteBar, sitePage } from "../src/site/frame.js";
+import { recordFactsOf, type ReleaseItem, type VoicecapFacts } from "../src/site/facts.js";
+import { sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
+import { renderTechnical } from "../src/site/technical.js";
+import { TECHNICAL_TEXT } from "../src/site/technical-text.js";
 import { renderTrustPage } from "../src/site/trust.js";
+import { TRUST_TEXT } from "../src/site/trust-text.js";
+import { renderWhatsNew } from "../src/site/whats-new.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
-import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
+import { EARLIER_RELEASES, FACTS, RECORDS } from "./helpers/trust-facts.js";
 
-/** The page's background in each theme. */
-const DARK = "rgb(11, 16, 21)";
-const LIGHT = "rgb(255, 255, 255)";
+/** The page's background in each theme: the audit tool's, #0a0a0a and #f9fafb. */
+const DARK = "rgb(10, 10, 10)";
+const LIGHT = "rgb(249, 250, 251)";
+
+/** The system's own fonts, which the words are in, and the fixed-width one, the big numbers'. */
+const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace';
 
 /**
  * A site whose names are as long as a name can be: a host of 88 characters, a person's name that is
@@ -132,13 +156,63 @@ function manyContent(): SiteContent {
   };
 }
 
+/** The points of a release's card: words and code, one longer than the others. */
+function pointsFor(version: string): ReleaseItem[] {
+  return [
+    ["The first point of ", { code: "voicecap site" }, `, in release ${version}`],
+    [
+      "A second point, a little longer than the first: it says what changed for the person running voicecap, and how it reads on a phone",
+    ],
+    [{ code: "--rate <wpm>" }, " sets the voice's speed, and the page says so"],
+  ];
+}
+
+/**
+ * The releases What's New draws: FACTS's three and four before them, each but every third with
+ * points of its own, and the newest the current version.
+ */
+const NEWS: VoicecapFacts = {
+  ...FACTS,
+  releases: [...FACTS.releases, ...EARLIER_RELEASES].map((release, index) => ({
+    ...release,
+    items: index % 3 === 2 ? [] : pointsFor(release.version),
+  })),
+};
+
+/**
+ * The same, with words as long as words can be: a version of 44 characters, and in its card a
+ * headline, a point, and a code span that each hold a word of 112 characters. Nothing in the page
+ * may run past a window 320 pixels wide.
+ */
+const LONG_WORD = "voicecap".repeat(14);
+const LONG_VERSION = `0.${"1".repeat(40)}.0`;
+/** A version 40 characters long, one word with no place to break it: the bottom bar must fit it. */
+const FORTY_VERSION = `9.${"8".repeat(36)}.7`;
+const NEWS_LONG: VoicecapFacts = {
+  ...FACTS,
+  version: LONG_VERSION,
+  releases: [
+    {
+      version: LONG_VERSION,
+      date: "2026-10-09",
+      headline: `A headline with ${LONG_WORD} in it`,
+      items: [
+        [`A point with ${LONG_WORD} in it`],
+        ["A code span: ", { code: `${LONG_WORD}/${LONG_WORD}` }],
+      ],
+    },
+    ...NEWS.releases.slice(1, 3),
+  ],
+};
+
 let browser: Browser;
 let folder: string;
 /**
  * The page files: the tests' content, a site with names as long as they can be, many sites, no
- * report at all, each kind of verdict, and a page with the bar the trust page has. And the trust
- * page, with its facts and seven releases, so that two are in its fold; and with no release facts
- * and no report.
+ * report at all, each kind of verdict, the tests' content built by a voicecap whose version is 40
+ * characters long, the tests' content with a newest release whose words are as long as words can
+ * be, in its banner, and a page with the bars the trust page has. And the trust page, with its facts
+ * and seven releases, so that two are left for What's New; and with no release facts and no report.
  */
 let files: {
   page: string;
@@ -146,9 +220,17 @@ let files: {
   many: string;
   empty: string;
   verdicts: string;
+  fortyVersion: string;
+  bannerLong: string;
   trustBar: string;
   trust: string;
   trustBare: string;
+  whatsNew: string;
+  whatsNewLong: string;
+  whatsNewBare: string;
+  technical: string;
+  technicalBare: string;
+  technicalLong: string;
 };
 const contexts: BrowserContext[] = [];
 /** What each page opened in a test reported going wrong: errors thrown, and errors in its console. */
@@ -157,55 +239,80 @@ const reported: string[] = [];
 beforeAll(async () => {
   browser = await launchBrowser();
   folder = await mkdtemp(path.join(tmpdir(), "voicecap-site-page-"));
-  const fontCss = await fontFaceCss();
   const writeHtml = async (name: string, html: string): Promise<string> => {
     const file = path.join(folder, name);
     await writeFile(file, html);
     return file;
   };
-  const write = (name: string, content: SiteContent): Promise<string> =>
-    writeHtml(name, renderSiteIndex(content, { fontCss }));
+  const write = (name: string, content: SiteContent, facts = FACTS): Promise<string> =>
+    writeHtml(name, renderSiteIndex(content, facts));
   files = {
     page: await write("index.html", CONTENT),
     long: await write("long.html", longContent()),
     many: await write("many.html", manyContent()),
     empty: await write("empty.html", { demo: null, sites: [] }),
     verdicts: await write("verdicts.html", verdictContent()),
-    // The shell and the bar of the trust page, over a main part of one heading. It sits beside
-    // index.html, which the links of its bar go to.
+    fortyVersion: await write("forty-version.html", CONTENT, {
+      ...FACTS,
+      version: FORTY_VERSION,
+    }),
+    // The banner's newest release: a version of 44 characters, and a headline with a word of 112.
+    bannerLong: await write("banner-long.html", CONTENT, NEWS_LONG),
+    // The shell and the bars of the trust page, over a main part of one heading. It sits beside
+    // index.html, which the website's name in its bar goes to.
     trustBar: await writeHtml(
       "trust-bar.html",
-      sitePage(
-        {
-          title: "A page with the trust page's bar",
-          bar: siteBar(CONTENT, "trust"),
-          main: ["<h1>A page with the trust page's bar</h1>"],
-        },
-        { fontCss },
-      ),
+      sitePage({
+        title: "A page with the trust page's bars",
+        current: "trust",
+        version: FACTS.version,
+        main: ["<h1>A page with the trust page's bars</h1>"],
+      }),
     ),
     // The trust page, beside index.html, as the website has it.
     trust: await writeHtml(
       "trust.html",
-      renderTrustPage(
-        {
-          voicecap: { ...FACTS, releases: [...FACTS.releases, ...EARLIER_RELEASES] },
-          records: RECORDS,
-          content: RESULTS_CONTENT,
-        },
-        { fontCss },
-      ),
+      renderTrustPage({
+        voicecap: { ...FACTS, releases: [...FACTS.releases, ...EARLIER_RELEASES] },
+        records: RECORDS,
+      }),
     ),
     trustBare: await writeHtml(
       "trust-bare.html",
-      renderTrustPage(
-        {
-          voicecap: { ...FACTS, release: null },
-          records: recordFactsOf({ demo: null, sites: [] }),
-          content: { demo: null, sites: [] },
-        },
-        { fontCss },
-      ),
+      renderTrustPage({
+        voicecap: { ...FACTS, release: null },
+        records: recordFactsOf({ demo: null, sites: [] }),
+      }),
+    ),
+    // What's New, beside index.html, as the website has it: seven releases; with words as long as
+    // words can be; and with no release recorded.
+    whatsNew: await writeHtml("whats-new.html", renderWhatsNew({ voicecap: NEWS })),
+    whatsNewLong: await writeHtml("whats-new-long.html", renderWhatsNew({ voicecap: NEWS_LONG })),
+    whatsNewBare: await writeHtml(
+      "whats-new-bare.html",
+      renderWhatsNew({ voicecap: { ...FACTS, releases: [], release: null } }),
+    ),
+    // Technical details, beside index.html, as the website has it: with its facts; with no release
+    // facts, no release date, and no report; and with a version as long as one can be.
+    technical: await writeHtml(
+      "technical-details.html",
+      renderTechnical({ voicecap: FACTS, records: RECORDS, keptPerSite: 3 }),
+    ),
+    technicalBare: await writeHtml(
+      "technical-details-bare.html",
+      renderTechnical({
+        voicecap: { ...FACTS, released: null, release: null },
+        records: recordFactsOf({ demo: null, sites: [] }),
+        keptPerSite: 3,
+      }),
+    ),
+    technicalLong: await writeHtml(
+      "technical-details-long.html",
+      renderTechnical({
+        voicecap: { ...FACTS, version: LONG_VERSION },
+        records: RECORDS,
+        keptPerSite: 3,
+      }),
     ),
   };
 });
@@ -232,7 +339,10 @@ interface OpenOptions {
   before?: string;
 }
 
-/** A page, open from its file, with every font it declares loaded, so its layout is the final one. */
+/**
+ * A page, open from its file, with every font it declares loaded, so its layout is the final one.
+ * The website's pages declare none (see "draws its words in the system's fonts").
+ */
 async function open(file: string, options: OpenOptions = {}): Promise<Page> {
   const context = await (options.browser ?? browser).newContext({
     javaScriptEnabled: options.scripts ?? true,
@@ -263,9 +373,11 @@ const stored = (page: Page): Promise<string | null> =>
 
 /**
  * What the Tab key reaches: the page's links, but those in a closed fold, its button once the script
- * has shown it, and each fold's summary.
+ * has shown it, each fold's summary, and each box a table scrolls in, which takes focus so a
+ * keyboard can scroll it (Technical details' tables).
  */
-const STOPS = "a[href]:not(details:not([open]) > :not(summary) a), button:not([hidden]), summary";
+const STOPS =
+  'a[href]:not(details:not([open]) > :not(summary) a), button:not([hidden]), summary, [tabindex="0"]';
 
 /** Open every fold of the page, so that what's in it is drawn, and checked. */
 async function openFolds(page: Page): Promise<void> {
@@ -274,82 +386,79 @@ async function openFolds(page: Page): Promise<void> {
   });
 }
 
+/** Where stopsUnderTheBar puts each stop before the Tab: this many pixels from the window's top. */
+const STOP_OFFSET = 10;
+
 /**
- * Tabs through every stop of the page, and says which of them ends up under the bar, one line each.
- * Each stop is tried twice. Before the Tab, the page is scrolled so that the stop is 10 pixels from
- * the top of the window, which is under the bar: a browser that doesn't know about the bar takes it
- * for a stop in view, and leaves it there. And so that it is 1 pixel inside the edge that
- * `scroll-padding-top` keeps clear: a stop that is already in view stays where it is, so a bar
- * taller than its padding covers it. What is at the middle of a stop, and at its top edge, is the
- * stop or is inside it. A bar that doesn't stick has no such edge, so each stop is tried once.
+ * Tabs through every stop of the page, and says which of them ends up under the bar, or under
+ * anything else, one line each. Before the Tab, the page is scrolled so that the stop is 10 pixels
+ * from the top of the window, where a bar that stuck would be: a browser takes a stop there for one
+ * in view, and leaves it there, so a bar that covered it would hide it. The website's bar scrolls
+ * with the page, so nothing should: what is at the middle of a stop, and at its top edge, is the
+ * stop or is inside it. A stop taller than the window (a table's box) is checked at the middle of
+ * what's in view of it, since no point below the window's bottom is anything's, and at the top of
+ * what's in view of it: Chromium brings such a box into view with its inside at the window's top,
+ * so its line, a pixel wide, can end up above the window, by a fraction of a pixel more or less as
+ * the page's layout falls.
  */
 async function stopsUnderTheBar(page: Page): Promise<string[]> {
   const count = await page.evaluate(
     (selector) => document.querySelectorAll(selector).length,
     STOPS,
   );
-  const padding = await page.evaluate(() =>
-    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
-  );
   const found: string[] = [];
-  for (const offset of Number.isFinite(padding) ? [10, padding + 1] : [10]) {
-    for (let stop = 0; stop < count; stop++) {
-      await page.evaluate(
-        ({ selector, at, offset }) => {
-          const stops = document.querySelectorAll<HTMLElement>(selector);
-          // The stop before has focus, without the page moving, so the Tab goes on from it. For the
-          // first stop, the body has it: where a Tab starts from the top of the page, even after a
-          // tour that ended at the last stop.
-          const before = stops[at - 1];
-          if (before !== undefined) {
-            before.focus({ preventScroll: true });
-          } else {
-            document.body.tabIndex = -1;
-            document.body.focus({ preventScroll: true });
-            document.body.removeAttribute("tabindex");
-          }
-          const next = stops[at];
-          // A stop in the bar is in view wherever the page is scrolled.
-          if (next === undefined || next.closest(".bar") !== null) return;
-          window.scrollTo(
-            0,
-            Math.max(0, next.getBoundingClientRect().top + window.scrollY - offset),
-          );
-        },
-        { selector: STOPS, at: stop, offset },
-      );
-      await page.keyboard.press("Tab");
+  for (let stop = 0; stop < count; stop++) {
+    await page.evaluate(
+      ({ selector, at, offset }) => {
+        const stops = document.querySelectorAll<HTMLElement>(selector);
+        // The stop before has focus, without the page moving, so the Tab goes on from it. For the
+        // first stop, the body has it: where a Tab starts from the top of the page, even after a
+        // tour that ended at the last stop.
+        const before = stops[at - 1];
+        if (before !== undefined) {
+          before.focus({ preventScroll: true });
+        } else {
+          document.body.tabIndex = -1;
+          document.body.focus({ preventScroll: true });
+          document.body.removeAttribute("tabindex");
+        }
+        const next = stops[at];
+        // A stop in the bar is where the bar is, wherever the page is scrolled.
+        if (next === undefined || next.closest(".bar") !== null) return;
+        window.scrollTo(0, Math.max(0, next.getBoundingClientRect().top + window.scrollY - offset));
+      },
+      { selector: STOPS, at: stop, offset: STOP_OFFSET },
+    );
+    await page.keyboard.press("Tab");
 
-      const problem = await page.evaluate(
-        ({ selector, at }) => {
-          const focused = document.activeElement;
-          const expected = document.querySelectorAll(selector)[at];
-          const name = (element: Element | null): string =>
-            element === null
-              ? "nothing"
-              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
-          if (focused === null || focused !== expected) {
-            return `${name(focused)} has focus, not ${name(expected ?? null)}`;
+    const problem = await page.evaluate(
+      ({ selector, at }) => {
+        const focused = document.activeElement;
+        const expected = document.querySelectorAll(selector)[at];
+        const name = (element: Element | null): string =>
+          element === null
+            ? "nothing"
+            : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`;
+        if (focused === null || focused !== expected) {
+          return `${name(focused)} has focus, not ${name(expected ?? null)}`;
+        }
+        const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
+        const middle = box.left + box.width / 2;
+        const inView = Math.min(box.bottom, window.innerHeight);
+        for (const [where, top] of [
+          ["middle", (box.top + inView) / 2],
+          ["top edge", Math.max(box.top, 0) + 1],
+        ] as const) {
+          const hit = document.elementFromPoint(middle, top);
+          if (hit === null || (hit !== focused && !focused.contains(hit))) {
+            return `its ${where} is under ${name(hit)}`;
           }
-          const box = focused.getClientRects()[0] ?? focused.getBoundingClientRect();
-          const middle = box.left + box.width / 2;
-          for (const [where, top] of [
-            ["middle", box.top + box.height / 2],
-            ["top edge", box.top + 1],
-          ] as const) {
-            const hit = document.elementFromPoint(middle, top);
-            if (hit === null || (hit !== focused && !focused.contains(hit))) {
-              return `its ${where} is under ${name(hit)}`;
-            }
-          }
-          return null;
-        },
-        { selector: STOPS, at: stop },
-      );
-      if (problem !== null) {
-        found.push(`stop ${stop + 1} of ${count}, ${offset} px from the top: ${problem}`);
-      }
-    }
+        }
+        return null;
+      },
+      { selector: STOPS, at: stop },
+    );
+    if (problem !== null) found.push(`stop ${stop + 1} of ${count}: ${problem}`);
   }
   return found;
 }
@@ -384,6 +493,56 @@ async function landmarksOf(page: Page): Promise<Landmark[]> {
         return [[role, typeof name === "string" ? name : ""]];
       })
       .sort(byRoleThenName);
+  } finally {
+    await client.detach();
+  }
+}
+
+/**
+ * The words Chromium's accessibility tree gives a screen reader, in order: the name of each piece of
+ * text (`StaticText`), as the browser hands it on, whatever the style draws.
+ */
+async function spokenTexts(page: Page): Promise<string[]> {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = await client.send("Accessibility.getFullAXTree");
+    return nodes
+      .filter((node) => node.role?.value === "StaticText")
+      .map((node): unknown => node.name?.value)
+      .filter((name): name is string => typeof name === "string");
+  } finally {
+    await client.detach();
+  }
+}
+
+/**
+ * The words Chromium's accessibility tree hands a screen reader in the element `selector` finds, in
+ * order, joined: each piece of text (`StaticText`) under it that the tree doesn't ignore, through
+ * the objects it does ignore, whose text reads on in their parent's. Nothing that's hidden from a
+ * screen reader is among them, whatever the style draws.
+ */
+async function heardIn(page: Page, selector: string): Promise<string> {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { root } = await client.send("DOM.getDocument", { depth: 0 });
+    const { nodeId } = await client.send("DOM.querySelector", { nodeId: root.nodeId, selector });
+    const { node } = await client.send("DOM.describeNode", { nodeId });
+    const { nodes } = await client.send("Accessibility.getFullAXTree");
+    const byId = new Map(nodes.map((each) => [each.nodeId, each]));
+    const texts: string[] = [];
+    const walk = (id: string): void => {
+      const each = byId.get(id);
+      if (each === undefined) return;
+      if (each.role?.value === "StaticText") {
+        if (!each.ignored) texts.push(String(each.name?.value ?? ""));
+        return;
+      }
+      for (const child of each.childIds ?? []) walk(child);
+    };
+    const start = nodes.find((each) => each.backendDOMNodeId === node.backendNodeId);
+    if (start === undefined) throw new Error(`The tree has nothing for ${selector}.`);
+    walk(start.nodeId);
+    return texts.join("");
   } finally {
     await client.detach();
   }
@@ -458,33 +617,52 @@ describe("the site's page", () => {
       page.locator("p.verdict").evaluateAll((lines) =>
         lines.map((line) => {
           const before = getComputedStyle(line, "::before");
-          return { content: before.content, color: before.color };
+          return {
+            content: before.content,
+            color: before.color,
+            words: getComputedStyle(line).color,
+            caps: getComputedStyle(line).fontVariantCaps,
+          };
         }),
       );
+    // The audit tool's colors: green as --good, amber as --warn, and red as --bad, in each theme.
+    const colors = {
+      dark: ["rgb(52, 211, 153)", "rgb(251, 191, 36)", "rgb(248, 113, 113)"],
+      light: ["rgb(25, 101, 73)", "rgb(112, 85, 16)", "rgb(139, 63, 63)"],
+    };
 
-    for (const theme of ["dark", "light"]) {
+    for (const theme of ["dark", "light"] as const) {
       const seen = await signs();
       // The sign, with no words for a screen reader to read: the line's own words say it.
       expect(
         seen.map(({ content }) => content),
         theme,
       ).toEqual(['"✓" / ""', '"⚠" / ""', '"⚠" / ""']);
-      expect(new Set(seen.map(({ color }) => color)).size, theme).toBe(3);
+      // The sign and the words are in the verdict's color.
+      expect(
+        seen.map(({ color }) => color),
+        theme,
+      ).toEqual(colors[theme]);
+      expect(
+        seen.map(({ words }) => words),
+        theme,
+      ).toEqual(colors[theme]);
+      // A verdict is a sentence, drawn in ordinary case: no capitals, small or not.
+      expect(
+        seen.map(({ caps }) => caps),
+        theme,
+      ).toEqual(["normal", "normal", "normal"]);
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
-    // What Chromium's accessibility tree gives a screen reader for each line: its words alone.
-    const client = await page.context().newCDPSession(page);
-    try {
-      const { nodes } = await client.send("Accessibility.getFullAXTree");
-      const texts = nodes
-        .map((node): unknown => node.name?.value)
-        .filter((name): name is string => typeof name === "string")
-        .filter((name) => /needs? attention/.test(name));
-      expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
-      expect(texts).toContain("Nothing needs attention");
-    } finally {
-      await client.detach();
-    }
+    // What Chromium's accessibility tree gives a screen reader for each line: its words alone, with no
+    // sign, and as they're written.
+    const texts = (await spokenTexts(page)).filter((name) => /needs? attention/i.test(name));
+    expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
+    expect(texts).toEqual([
+      "Nothing needs attention",
+      "1 problem needs attention, on 32 pages",
+      "2 problems need attention, on 2 pages",
+    ]);
   });
 
   it.each([
@@ -493,6 +671,9 @@ describe("the site's page", () => {
     ["names as long as they can be", 390, "long"],
     ["names as long as they can be", 320, "long"],
     ["each kind of verdict", 320, "verdicts"],
+    ["a banner whose words are as long as they can be", 320, "bannerLong"],
+    ["no report at all", 390, "empty"],
+    ["no report at all", 320, "empty"],
   ] as const)(
     "passes axe with zero violations, dark and light, at a phone's width: %s, %i px",
     async (_, width, which) => {
@@ -507,7 +688,7 @@ describe("the site's page", () => {
   );
 
   it("fits a window 320 pixels wide, with its folds open", async () => {
-    for (const which of ["page", "long", "verdicts"] as const) {
+    for (const which of ["page", "long", "verdicts", "bannerLong"] as const) {
       const page = await open(files[which], { width: 320 });
       await openFolds(page);
       const width = (): Promise<number> =>
@@ -519,6 +700,47 @@ describe("the site's page", () => {
       // Nothing in it is wider than the window, whether or not it makes the page scroll.
       expect(await widerThan320(page), which).toEqual([]);
     }
+  });
+
+  it("fits a long version in the bottom bar at 320 pixels", async () => {
+    const page = await open(files.fortyVersion, { width: 320 });
+    const version = page.locator("footer li").last();
+
+    // All 40 characters, for the eye, and with its words for a screen reader.
+    expect(FORTY_VERSION).toHaveLength(40);
+    expect(await version.locator('[aria-hidden="true"]').textContent()).toBe(`v${FORTY_VERSION}`);
+    expect(await version.ariaSnapshot()).toBe(`- listitem: voicecap version ${FORTY_VERSION}`);
+    // It breaks where it must, and nothing of it, or of the rest of the bottom bar, runs past the
+    // window: not an item, nor anything in it, nor any of its text a reader sees. (The words only a
+    // screen reader gets are clipped to a pixel, and drawn nowhere.)
+    const outside = await page.evaluate(() => {
+      const hidden = (element: Element | null): boolean => element?.closest(".sr") != null;
+      const boxes = [...document.querySelectorAll("footer li, footer li *")]
+        .filter((element) => !hidden(element))
+        .map((element) => ({
+          what: element.tagName.toLowerCase(),
+          box: element.getBoundingClientRect(),
+        }));
+      const walker = document.createTreeWalker(
+        document.querySelector("footer") ?? document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+        if (hidden(text.parentElement)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        for (const box of range.getClientRects())
+          boxes.push({ what: `"${text.textContent ?? ""}"`, box });
+      }
+      return boxes
+        .filter(({ box }) => box.left < -0.5 || box.right > 320 + 0.5)
+        .map(({ what, box }) => `${what} from ${box.left} to ${box.right}`);
+    });
+    expect(outside).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      320,
+    );
+    expect(await widerThan320(page)).toEqual([]);
   });
 
   it("keeps each heading beside its picture, 320 pixels wide, however long its words", async () => {
@@ -559,25 +781,243 @@ describe("the site's page", () => {
     ).resolves.toBe(1);
   });
 
-  it("ends the footer's lines where the notes' lines end, on a wide window", async () => {
-    const page = await open(files.page, { width: 1600 });
+  it("puts its kicker over its heading: dots between its parts for the eye, commas for a screen reader, and the three names in --act", async () => {
+    const page = await open(files.page);
+    const kicker = page.locator("main > p.kicker");
 
-    // Both start where the main part's words do, so their widths say where their lines end.
-    const width = await page.evaluate(() => {
-      const widest = (selector: string): number =>
-        Math.max(
-          ...[...document.querySelectorAll(selector)].map(
-            (element) => element.getBoundingClientRect().width,
-          ),
-        );
-      return { notes: widest("p.note"), footer: widest("footer > p") };
+    // What Chromium's accessibility tree hands a screen reader, piece by piece: commas, and no
+    // dot, in ordinary case. Each comma's own box, clipped to a pixel, is no object of its own in
+    // the tree, so its text reads on in the paragraph's. (A name made from content, such as
+    // Playwright's snapshot of the paragraph, puts a space before each, since the box is a
+    // positioned one; a paragraph is read as its text.)
+    expect(await heardIn(page, "main > p.kicker")).toBe(
+      "ICJIA, Built for Title II of the ADA, WCAG, Illinois IITAA",
+    );
+    const look = () =>
+      kicker.evaluate((element) => {
+        // What a reader sees: every piece of text but the commas, which are clipped to a pixel.
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        let seen = "";
+        for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+          if (text.parentElement?.closest(".sr") == null) seen += text.textContent ?? "";
+        }
+        const heading = document.querySelector("main > h1")?.getBoundingClientRect();
+        return {
+          seen: seen.replace(/\s+/g, " ").trim(),
+          commas: [...element.querySelectorAll(".sr")].map((comma) => {
+            const box = comma.getBoundingClientRect();
+            return Math.max(box.width, box.height);
+          }),
+          names: [...element.querySelectorAll(".act")].map((name) => getComputedStyle(name).color),
+          words: getComputedStyle(element).color,
+          over: heading !== undefined && element.getBoundingClientRect().bottom <= heading.top,
+        };
+      });
+
+    // Over the heading, in the quieter color, with the names in --act, in both themes.
+    const colors = {
+      dark: { act: "rgb(103, 232, 249)", muted: "rgb(163, 163, 163)" },
+      light: { act: "rgb(44, 98, 106)", muted: "rgb(75, 85, 99)" },
+    };
+    for (const theme of ["dark", "light"] as const) {
+      const seen = await look();
+      expect(seen, theme).toEqual({
+        seen: "ICJIA · Built for Title II of the ADA · WCAG · Illinois IITAA",
+        commas: [1, 1, 1],
+        names: Array.from({ length: 3 }, () => colors[theme].act),
+        words: colors[theme].muted,
+        over: true,
+      });
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+  });
+
+  it("draws the newest release as the audit tool's banner: a card, its version's pill at its left, and its words beside it, at any width", async () => {
+    for (const [which, width] of [
+      ["page", 1280],
+      ["page", 320],
+      ["bannerLong", 320],
+    ] as const) {
+      const page = await open(files[which], { width });
+      const layout = await page.evaluate(() => {
+        const boxOf = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const { left, right, top, bottom } = element.getBoundingClientRect();
+          return { left, right, top, bottom };
+        };
+        return {
+          card: boxOf(".news"),
+          pill: boxOf(".news > .pill"),
+          kicker: boxOf(".news > .kicker"),
+          headline: boxOf(".news > .headline"),
+          released: boxOf(".news > .released"),
+          lead: boxOf("main > .lead"),
+          row: boxOf("nav.jump"),
+        };
+      });
+      const where = `${which}, ${width} px`;
+      const { card, pill, kicker, headline, released } = layout;
+
+      // The pill at the card's left, its top level with the kicker's; the kicker, the headline,
+      // and the day it was released one under another beside it.
+      expect(pill.right, where).toBeLessThanOrEqual(kicker.left);
+      expect(Math.abs(pill.top - kicker.top), where).toBeLessThanOrEqual(6);
+      expect(kicker.bottom, where).toBeLessThanOrEqual(headline.top);
+      expect(headline.bottom, where).toBeLessThanOrEqual(released.top);
+      expect(headline.left, where).toBe(kicker.left);
+      expect(released.left, where).toBe(kicker.left);
+      // Each inside the card, the card inside the window, after the lead and before the row.
+      for (const [name, part] of Object.entries({ pill, kicker, headline, released })) {
+        expect(part.left, `${where}: ${name}`).toBeGreaterThanOrEqual(card.left);
+        expect(part.right, `${where}: ${name}`).toBeLessThanOrEqual(card.right);
+        expect(part.bottom, `${where}: ${name}`).toBeLessThanOrEqual(card.bottom);
+      }
+      expect(card.right, where).toBeLessThanOrEqual(width);
+      expect(card.top, where).toBeGreaterThan(layout.lead.bottom);
+      expect(layout.row.top, where).toBeGreaterThan(card.bottom);
+    }
+
+    // The card's look, and its words' colors, in both themes: a version's pill in --good on its
+    // tint, the day quieter, and the link a link.
+    const page = await open(files.page);
+    const looks = () =>
+      page.evaluate(() => {
+        const style = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          return getComputedStyle(element);
+        };
+        const card = style(".news");
+        return {
+          card: [card.backgroundColor, card.borderTopWidth, card.borderTopLeftRadius],
+          pill: style(".news > .pill").color,
+          released: style(".news > .released").color,
+          link: [style(".news a").color, style(".news a").textDecorationLine],
+        };
+      });
+    expect(await looks()).toEqual({
+      card: ["rgb(17, 17, 17)", "1px", "14px"],
+      pill: "rgb(52, 211, 153)",
+      released: "rgb(163, 163, 163)",
+      link: ["rgb(96, 165, 250)", "underline"],
     });
+    await page.locator("#theme-toggle").click();
+    expect(await looks()).toEqual({
+      card: ["rgb(255, 255, 255)", "1px", "14px"],
+      pill: "rgb(25, 101, 73)",
+      released: "rgb(75, 85, 99)",
+      link: ["rgb(37, 99, 235)", "underline"],
+    });
+  });
 
-    // The footer's smaller text keeps the notes' measure, so a line of it is no longer to read: its
-    // 80 characters are as wide as their 72. Where a character's width is rounded to a whole pixel,
-    // as in Chromium on Linux, the footer's can come out up to 2% short of theirs, but never wider.
-    expect(width.footer).toBeLessThanOrEqual(width.notes + 1);
-    expect(width.footer).toBeGreaterThanOrEqual(width.notes * 0.98);
+  it("draws its words in the system's fonts, and its big numbers in the fixed-width one, and loads no font, on both pages", async () => {
+    for (const [which, number] of [
+      ["page", ".view-head > .count b"],
+      ["trust", ".tile > .n"],
+    ] as const) {
+      const page = await open(files[which]);
+
+      const fonts = await page.evaluate(
+        (selector) => ({
+          declared: document.fonts.size,
+          words: getComputedStyle(document.body).fontFamily,
+          number: getComputedStyle(document.querySelector(selector) ?? document.body).fontFamily,
+        }),
+        number,
+      );
+
+      // No font is in the page, nor loaded from anywhere.
+      expect(fonts, which).toEqual({ declared: 0, words: SANS, number: MONO });
+    }
+  });
+
+  it("lays the page out in the audit tool's columns: what's in the bars in 72rem, the main part in 56rem, across the window's middle, with a gutter of 16 pixels, and 24 from 40em", async () => {
+    const page = await open(files.page, { width: 1600 });
+    /** Where the content of the bar, of the footer, and of the main part starts and ends. */
+    const columns = () =>
+      page.evaluate(() => {
+        const contentOf = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const box = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          const left = box.left + parseFloat(style.paddingLeft);
+          const right = box.right - parseFloat(style.paddingRight);
+          return { left, right, width: right - left };
+        };
+        return {
+          window: document.documentElement.clientWidth,
+          parts: { bar: contentOf(".bar"), footer: contentOf("footer"), main: contentOf("main") },
+        };
+      });
+
+    // At 16 pixels, the browser's own text size, 72rem is 1152 pixels, and 56rem 896.
+    const wide = await columns();
+    expect(wide.parts.bar.width).toBe(1152);
+    expect(wide.parts.footer.width).toBe(1152);
+    expect(wide.parts.main.width).toBe(896);
+    for (const [name, part] of Object.entries(wide.parts)) {
+      expect(Math.abs((part.left + part.right) / 2 - wide.window / 2), name).toBeLessThanOrEqual(
+        0.5,
+      );
+    }
+    // Narrower than its column, each starts and ends a gutter from the window's edges: 16 pixels on
+    // a phone, and 24 from 40em, which is 640 pixels at 16.
+    for (const [width, gutter] of [
+      [320, 16],
+      [639, 16],
+      [640, 24],
+      [900, 24],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      const narrow = await columns();
+      for (const [name, part] of Object.entries(narrow.parts)) {
+        expect(part.left, `${name}, ${width} px`).toBe(gutter);
+        expect(narrow.window - part.right, `${name}, ${width} px`).toBe(gutter);
+      }
+    }
+  });
+
+  it("centers the bottom bar's six items under the page, in one row on a wide window, and in rows that wrap, each centered, on a phone's", async () => {
+    const page = await open(files.page, { width: 1600 });
+    const rows = () =>
+      page.evaluate(() => {
+        const items = [...document.querySelectorAll("footer li")].map((item) =>
+          item.getBoundingClientRect(),
+        );
+        // The items of each row, by their tops: where the row starts and ends.
+        const byTop = new Map<number, { left: number; right: number }>();
+        for (const { top, left, right } of items) {
+          const row = byTop.get(Math.round(top));
+          byTop.set(Math.round(top), {
+            left: Math.min(row?.left ?? left, left),
+            right: Math.max(row?.right ?? right, right),
+          });
+        }
+        return {
+          middle: document.documentElement.clientWidth / 2,
+          items: items.length,
+          rows: [...byTop.values()],
+        };
+      });
+
+    // As the audit tool's bottom bar is: one row across the window's middle.
+    const wide = await rows();
+    expect(wide.items).toBe(6);
+    expect(wide.rows).toHaveLength(1);
+    for (const row of wide.rows) {
+      expect(Math.abs((row.left + row.right) / 2 - wide.middle)).toBeLessThanOrEqual(1);
+    }
+    // On a phone, the row wraps, and each row is centered.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const narrow = await rows();
+    expect(narrow.rows.length).toBeGreaterThan(1);
+    for (const row of narrow.rows) {
+      expect(Math.abs((row.left + row.right) / 2 - narrow.middle)).toBeLessThanOrEqual(1);
+      expect(row.left).toBeGreaterThanOrEqual(16);
+      expect(row.right).toBeLessThanOrEqual(320 - 16);
+    }
   });
 
   it.each([
@@ -601,13 +1041,20 @@ describe("the site's page", () => {
   it.each([
     ["with no report at all", "empty"],
     ["with the demo and two sites", "page"],
-  ] as const)("keeps the main part as wide as its box allows, %s", async (_, which) => {
+  ] as const)("keeps the main part as wide as its column, %s", async (_, which) => {
     const page = await open(files[which]);
 
-    const width = await page.locator("main").evaluate((main) => main.getBoundingClientRect().width);
+    const width = await page.locator("main").evaluate((main) => {
+      const style = getComputedStyle(main);
+      return (
+        main.getBoundingClientRect().width -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
 
-    // 1120 pixels in a window 1280 wide, however little is in it.
-    expect(width).toBe(1120);
+    // 56rem, 896 pixels at the browser's own text size, in a window 1280 wide, however little is in it.
+    expect(width).toBe(896);
   });
 
   it("prints as before: the page is no flex column in print", async () => {
@@ -622,12 +1069,13 @@ describe("the site's page", () => {
     const page = await open(files.page, { width: 1100, height: 500 });
     const stops = (): Promise<number> =>
       page.evaluate((selector) => document.querySelectorAll(selector).length, STOPS);
-    // The skip link, the bar's four links (the three views, and the trust page) and its button, the
-    // link to the demo's pages, the link to the first site itself (the second has no address people
+    // The skip link, the top bar's four links (the website's name and its three pages) and its
+    // button, the banner's link to every update, the "On this page" row's three links, the link to
+    // the demo's pages, the link to the first site itself (the second has no address people
     // visit), the current reports' links (the demo's two, the first site's two, and the second
     // site's one: its Word copy is missing), the earlier report's one (its Word copy changed), the
-    // three folds' summaries, each report's page by date, and the footer's link.
-    const closed = 1 + 4 + 1 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 1;
+    // three folds' summaries, each report's page by date, and the bottom bar's five links.
+    const closed = 1 + 4 + 1 + 1 + 3 + 1 + 1 + 5 + 1 + 3 + reportsOf(CONTENT).length + 5;
     expect(await stops()).toBe(closed);
     expect(await stopsUnderTheBar(page)).toEqual([]);
 
@@ -638,12 +1086,12 @@ describe("the site's page", () => {
     expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("puts what a link in the bar points to below the bar, 1100 pixels wide", async () => {
+  it("puts what a link of the 'On this page' row points to below the bar, 1100 pixels wide", async () => {
     // A window short enough that each view can be scrolled to the top of it.
     const page = await open(files.page, { width: 1100, height: 300 });
 
     for (const view of ["demo", "sites", "by-date"]) {
-      await page.locator(`nav a[href="#${view}"]`).click();
+      await page.locator(`nav[aria-label="On this page"] a[href="#${view}"]`).click();
 
       const result = await page.evaluate((id) => {
         const heading = document.querySelector(`#${id} > .view-head > .title > h2`);
@@ -660,68 +1108,78 @@ describe("the site's page", () => {
     }
   });
 
-  it("tells the link of the page it is on from the others by more than color: bold, and underlined more heavily", async () => {
+  it("tells the link of the page it is on from the others by more than color, in both bars: bold, and underlined more heavily", async () => {
     const page = await open(files.trustBar);
 
-    const links = await page.locator(".bar nav a").evaluateAll((all) =>
-      all.map((link) => {
-        const style = getComputedStyle(link);
-        return {
-          words: link.textContent ?? "",
-          current: link.getAttribute("aria-current"),
-          weight: style.fontWeight,
-          line: style.textDecorationLine,
-          thickness: style.textDecorationThickness,
-          size: style.fontSize,
-        };
-      }),
-    );
+    for (const bar of [".bar nav", "footer"]) {
+      const links = await page.locator(`${bar} a`).evaluateAll((all) =>
+        all.map((link) => {
+          const style = getComputedStyle(link);
+          return {
+            words: link.textContent ?? "",
+            current: link.getAttribute("aria-current"),
+            weight: style.fontWeight,
+            line: style.textDecorationLine,
+            thickness: style.textDecorationThickness,
+            size: style.fontSize,
+            color: style.color,
+          };
+        }),
+      );
 
-    const look = ({ weight, line, thickness }: (typeof links)[number]) => ({
-      weight,
-      line,
-      thickness,
-    });
-    const here = links.filter(({ current }) => current === "page");
-    const others = links.filter(({ current }) => current !== "page");
+      const look = ({ weight, line, thickness, color }: (typeof links)[number]) => ({
+        weight,
+        line,
+        thickness,
+        color,
+      });
+      const here = links.filter(({ current }) => current === "page");
+      const others = links.filter(({ current }) => current !== "page");
 
-    // Only the link to the trust page is the page the reader is on. The others are medium, with the
-    // browser's own underline (`auto`, which grows with the text); it is bold, with a heavier one,
-    // 0.15 of its text's size thick, so that it stays heavier as the text grows.
-    expect(here.map(({ words }) => words)).toEqual(["Can I trust this?"]);
-    expect(here.map(({ weight, line }) => ({ weight, line }))).toEqual([
-      { weight: "700", line: "underline" },
-    ]);
-    expect(here.map(({ thickness, size }) => parseFloat(thickness) / parseFloat(size))).toEqual([
-      expect.closeTo(0.15, 3),
-    ]);
-    expect(others.map(look)).toEqual(
-      Array.from({ length: 3 }, () => ({ weight: "500", line: "underline", thickness: "auto" })),
-    );
+      // Only the link to the trust page is the page the reader is on. The others are regular, in
+      // the quieter color, with the browser's own underline (`auto`, which grows with the text); it
+      // is in the headline's color, bold, with a heavier one, 0.15 of its text's size thick, so
+      // that it stays heavier as the text grows.
+      expect(
+        here.map(({ words }) => words),
+        bar,
+      ).toEqual(["Can I trust this?"]);
+      expect(
+        here.map(({ weight, line, color }) => ({ weight, line, color })),
+        bar,
+      ).toEqual([{ weight: "700", line: "underline", color: "rgb(255, 255, 255)" }]);
+      expect(
+        here.map(({ thickness, size }) => parseFloat(thickness) / parseFloat(size)),
+        bar,
+      ).toEqual([expect.closeTo(0.15, 3)]);
+      expect(others.map(look), bar).toEqual(
+        Array.from({ length: bar === "footer" ? 4 : 2 }, () => ({
+          weight: "400",
+          line: "underline",
+          thickness: "auto",
+          color: "rgb(163, 163, 163)",
+        })),
+      );
+    }
   });
 
-  it("takes a link of the trust page's bar to its view on the website's own page", async () => {
+  it("takes the website's name in the bar to the front page", async () => {
     const page = await open(files.trustBar);
 
-    await page.locator("nav a", { hasText: "The sites" }).click();
+    await page.locator(".bar a.name").click();
 
     // index.html sits beside the trust page's file, as the website's pages sit beside each other.
     const url = new URL(page.url());
     expect(url.pathname.endsWith("/index.html")).toBe(true);
-    expect(url.hash).toBe("#sites");
-    expect(await page.locator("#sites > .view-head > .title > h2").textContent()).toBe("The sites");
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
+    // There, the name is the page the reader is on.
+    expect(await page.locator(".bar a.name").getAttribute("aria-current")).toBe("page");
   });
 
-  it("keeps the bar in view from 640 pixels wide, and scrolls it away on a narrower window", async () => {
-    // At the browser's own text size, 16 pixels, 40em is 640 pixels.
+  it("lets the bar scroll away with the page, at any width", async () => {
     const page = await open(files.page, { width: 1100, height: 600 });
 
-    for (const [width, sticks] of [
-      [1100, true],
-      [640, true],
-      [639, false],
-      [320, false],
-    ] as const) {
+    for (const width of [1100, 640, 639, 320]) {
       await page.setViewportSize({ width, height: 600 });
       const bar = await page.evaluate(() => {
         window.scrollTo(0, 400);
@@ -729,52 +1187,67 @@ describe("the site's page", () => {
         return {
           position: header === null ? "" : getComputedStyle(header).position,
           top: header?.getBoundingClientRect().top ?? NaN,
-          height: header?.getBoundingClientRect().height ?? NaN,
-          padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+          padding: getComputedStyle(document.documentElement).scrollPaddingTop,
           scrolled: window.scrollY,
         };
       });
 
+      // As the audit tool's bar does: it's in the page's flow, so it went up with the page, and no
+      // room is kept clear for it.
       expect(bar.scrolled, `${width} px`).toBe(400);
-      expect(bar.position, `${width} px`).toBe(sticks ? "sticky" : "static");
-      if (sticks) {
-        expect(bar.top, `${width} px`).toBe(0);
-        // The bar is one line even at 640 pixels, and what has focus is kept below all of it.
-        expect(bar.height, `${width} px`).toBeLessThan(bar.padding);
-      } else {
-        expect(bar.top, `${width} px`).toBeLessThan(0);
-      }
+      expect(bar.position, `${width} px`).toBe("static");
+      expect(bar.top, `${width} px`).toBeLessThan(0);
+      expect(bar.padding, `${width} px`).toBe("auto");
     }
   });
 
-  it("switches the theme and keeps the choice", async () => {
+  it("switches the theme, and its words, with the button, and keeps the choice", async () => {
     const page = await open(files.page);
     const toggle = page.locator("#theme-toggle");
+    /** What the button shows, and what a screen reader hears of it, as Chromium has them. */
+    const button = async () => ({
+      label: await toggle.getAttribute("aria-label"),
+      sun: await toggle.locator("svg.sun").isVisible(),
+      moon: await toggle.locator("svg.moon").isVisible(),
+      heard: await toggle.ariaSnapshot(),
+    });
 
-    // Dark until the reader picks light, and the button says what it switches to.
+    // Dark until the reader picks light: the button shows a sun, and says what it switches to.
     expect(await theme(page)).toBe("dark");
     expect(await background(page)).toBe(DARK);
     expect(await toggle.isVisible()).toBe(true);
-    expect(await toggle.textContent()).toBe("Light version");
+    expect(await button()).toEqual({
+      label: "Switch to the light theme",
+      sun: true,
+      moon: false,
+      heard: '- button "Switch to the light theme"',
+    });
 
     await toggle.click();
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await toggle.textContent()).toBe("Dark version");
+    expect(await button()).toEqual({
+      label: "Switch to the dark theme",
+      sun: false,
+      moon: true,
+      heard: '- button "Switch to the dark theme"',
+    });
     expect(await stored(page)).toBe("light");
 
     // Kept: the page opens as it was left.
     await page.reload();
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+    expect(await toggle.getAttribute("aria-label")).toBe("Switch to the dark theme");
+    expect(await toggle.locator("svg.moon").isVisible()).toBe(true);
 
-    await page.locator("#theme-toggle").click();
+    await toggle.click();
     expect(await theme(page)).toBe("dark");
     expect(await stored(page)).toBe("dark");
     await page.reload();
     expect(await background(page)).toBe(DARK);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Light version");
+    expect(await toggle.getAttribute("aria-label")).toBe("Switch to the light theme");
+    expect(await toggle.locator("svg.sun").isVisible()).toBe(true);
   });
 
   it("opens in the theme a report was left in, under the same name", async () => {
@@ -784,7 +1257,9 @@ describe("the site's page", () => {
 
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
-    expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+    expect(await page.locator("#theme-toggle").getAttribute("aria-label")).toBe(
+      "Switch to the dark theme",
+    );
   });
 
   it("is light in print, without the theme button", async () => {
@@ -841,6 +1316,7 @@ describe("the site's page", () => {
       ["banner", ""],
       ["navigation", "This website"],
       ["main", ""],
+      ["navigation", "On this page"],
       ["region", "The demo"],
       ["region", "The sites"],
       ["region", "Every report, by date"],
@@ -882,8 +1358,8 @@ describe("the trust page", () => {
     "passes axe with zero violations, dark and light, %s, at %i pixels",
     async (_, width, which) => {
       const page = await open(files[which], { width });
-      // Closed, the fold's releases aren't drawn, so axe wouldn't check them.
-      await openFolds(page);
+      // It has no fold: everything it says is drawn, and checked.
+      expect(await page.locator("details").count()).toBe(0);
 
       expect(await theme(page)).toBe("dark");
       expect(await axeFindings(page, width), "dark").toEqual([]);
@@ -896,15 +1372,13 @@ describe("the trust page", () => {
 
   it("has no two links that read alike and go to different places", async () => {
     const page = await open(files.trust);
-    await openFolds(page);
 
     expect(await identicalLinks(page)).toEqual([]);
   });
 
-  it("fits a window 320 pixels wide, with its fold open", async () => {
+  it("fits a window 320 pixels wide", async () => {
     for (const which of ["trust", "trustBare"] as const) {
       const page = await open(files[which], { width: 320 });
-      await openFolds(page);
       const width = (): Promise<number> =>
         page.evaluate(() => document.documentElement.scrollWidth);
 
@@ -915,60 +1389,196 @@ describe("the trust page", () => {
     }
   });
 
-  it("puts its four big numbers one a row at 320 pixels, and four across at 1280, with their links in a line", async () => {
+  it("puts its four big numbers one a row at 320 pixels, and four across at 1280, with their links ending on one line", async () => {
     for (const [width, rows] of [
       [320, 4],
       [1280, 1],
     ] as const) {
       const page = await open(files.trust, { width });
-      const topsOf = (selector: string): Promise<number[]> =>
+      const edgesOf = (selector: string, edge: "top" | "bottom"): Promise<number[]> =>
         page
           .locator(selector)
-          .evaluateAll((all) => all.map((each) => Math.round(each.getBoundingClientRect().top)));
+          .evaluateAll(
+            (all, side) => all.map((each) => Math.round(each.getBoundingClientRect()[side])),
+            edge,
+          );
 
-      const tops = await topsOf(".tile");
+      const tops = await edgesOf(".tile", "top");
       expect(tops, `${width} px`).toHaveLength(4);
       expect(new Set(tops).size, `${width} px`).toBe(rows);
-      // A row's links line up, however long each line above them is.
-      expect(new Set(await topsOf(".tile > a")).size, `${width} px`).toBe(rows);
+      // A row's links end on one line, however long each line above them is, and however many
+      // lines a link takes in the reader's font: in Segoe UI each takes one, and in a wider face,
+      // such as Verdana or DejaVu Sans, "How to check a copy" takes two.
+      expect(new Set(await edgesOf(".tile > a", "bottom")).size, `${width} px`).toBe(rows);
     }
   });
 
-  it("is complete without JavaScript, and its fold opens by mouse and by keyboard", async () => {
+  it("is complete without JavaScript: every section, the stamp, every big number's link, the newest five releases, and the link to the rest are there and in view", async () => {
     const page = await open(files.trust, { scripts: false });
 
-    // Every section, and every big number's link, is there, and in view.
+    // Every section, the stamp, and every big number's link, in view.
     expect(await page.locator("main h2").allTextContents()).toEqual(SECTION_HEADINGS);
     for (const heading of await page.locator("main h2").all()) {
       expect(await heading.isVisible()).toBe(true);
     }
+    expect(await page.locator(".stamp").isVisible()).toBe(true);
     const tileLinks = page.locator(".tile a");
     expect(await tileLinks.count()).toBe(4);
     for (const link of await tileLinks.all()) expect(await link.isVisible()).toBe(true);
 
-    // The newest five releases are in view, and the two before them are in the fold, closed.
-    expect(await page.locator("#releases > ol > li").count()).toBe(5);
-    const folded = page.locator("#releases details li");
-    expect(await folded.count()).toBe(2);
-    const inView = async (): Promise<boolean[]> =>
-      Promise.all((await folded.all()).map((item) => item.isVisible()));
-    expect(await inView()).toEqual([false, false]);
-
-    // By mouse, open and closed again; then by keyboard, Enter and Space each turn it.
-    const summary = page.locator("#releases summary");
-    await summary.click();
-    expect(await inView()).toEqual([true, true]);
-    await summary.click();
-    expect(await inView()).toEqual([false, false]);
-    await summary.focus();
-    await page.keyboard.press("Enter");
-    expect(await inView()).toEqual([true, true]);
-    await page.keyboard.press("Space");
-    expect(await inView()).toEqual([false, false]);
+    // The newest five of the seven releases, in view, with no fold: the link after them goes to
+    // What's New, which has every one.
+    const releases = page.locator("#releases > ol > li");
+    expect(await releases.count()).toBe(5);
+    for (const release of await releases.all()) expect(await release.isVisible()).toBe(true);
+    expect(await page.locator("details, summary").count()).toBe(0);
+    const rest = page.locator("#releases a", { hasText: "See all 7 releases" });
+    expect(await rest.isVisible()).toBe(true);
+    expect(await rest.getAttribute("href")).toBe("whats-new.html");
 
     // The button does nothing without the script, so it's hidden, and the page is dark.
     expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
     expect(await background(page)).toBe(DARK);
+  });
+
+  it("heads the page in two lines: the second, 'See for yourself.', on a line of its own, in --good", async () => {
+    const page = await open(files.trust);
+    const look = () =>
+      page.locator("main h1").evaluate((heading) => {
+        const second = heading.querySelector(".good");
+        if (second === null) throw new Error("The heading has no second line.");
+        const box = heading.getBoundingClientRect();
+        const line = parseFloat(getComputedStyle(heading).lineHeight);
+        const { top, left } = second.getBoundingClientRect();
+        return {
+          first: getComputedStyle(heading).color,
+          second: getComputedStyle(second).color,
+          display: getComputedStyle(second).display,
+          // The first sentence is one line at 1280, and the second starts at the heading's left,
+          // on the line under it.
+          lines: Math.round((top - box.top) / line),
+          left: left - box.left,
+        };
+      });
+
+    expect(await look()).toEqual({
+      first: "rgb(255, 255, 255)",
+      second: "rgb(52, 211, 153)",
+      display: "block",
+      lines: 1,
+      left: 0,
+    });
+    await page.locator("#theme-toggle").click();
+    expect(await look()).toEqual({
+      first: "rgb(17, 24, 39)",
+      second: "rgb(25, 101, 73)",
+      display: "block",
+      lines: 1,
+      left: 0,
+    });
+    // At 320 pixels the first sentence takes two lines, and the second still starts a line of its
+    // own: it never shares one with the first.
+    await page.setViewportSize({ width: 320, height: 800 });
+    expect(await look()).toMatchObject({ display: "block", lines: 2, left: 0 });
+    // One heading, read as its two sentences.
+    expect(await page.locator("main h1").ariaSnapshot()).toBe(
+      '- heading "Built to be checked. See for yourself." [level=1]',
+    );
+  });
+
+  it("draws the stamp as the audit tool's amber box: its label at its left, and the records' date, big, at its right where the two fit on one row, and under the label where they don't, as on a phone", async () => {
+    const page = await open(files.trust);
+    const look = () =>
+      page.evaluate(() => {
+        const element = (selector: string) => {
+          const found = document.querySelector(selector);
+          if (found === null) throw new Error(`The page has no ${selector}.`);
+          return found;
+        };
+        const [stamp, source, date] = [
+          element(".stamp"),
+          element(".stamp > .source"),
+          element(".stamp > .date"),
+        ];
+        const box = (part: Element) => {
+          const { left, right, top, bottom } = part.getBoundingClientRect();
+          return { left, right, top, bottom };
+        };
+        const style = getComputedStyle(stamp);
+        // The date's width on one line, which is what the row makes room for beside the label: a
+        // copy of it, taken out of the row and as wide as its words, is measured, then removed.
+        const copy = date.cloneNode(true) as HTMLElement;
+        copy.style.position = "absolute";
+        copy.style.width = "max-content";
+        copy.style.visibility = "hidden";
+        stamp.append(copy);
+        const oneLine = copy.getBoundingClientRect().width;
+        copy.remove();
+        return {
+          stamp: box(stamp),
+          source: box(source),
+          date: box(date),
+          border: [style.borderTopWidth, style.borderTopStyle, style.borderTopColor],
+          color: [style.color, getComputedStyle(source).color, getComputedStyle(date).color],
+          tinted: style.backgroundColor !== "rgba(0, 0, 0, 0)",
+          weights: [getComputedStyle(source).fontWeight, getComputedStyle(date).fontWeight],
+          sizes: [
+            parseFloat(getComputedStyle(source).fontSize),
+            parseFloat(getComputedStyle(date).fontSize),
+          ],
+          // What a row needs, and what it has: the label's basis, the gap after it, and the date on
+          // one line, in the box's inside, its width less its line and its padding.
+          room: {
+            basis: parseFloat(getComputedStyle(source).flexBasis),
+            gap: parseFloat(style.columnGap),
+            date: oneLine,
+            inside:
+              stamp.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          },
+        };
+      });
+    const warn = { dark: "rgb(251, 191, 36)", light: "rgb(112, 85, 16)" };
+
+    // At 1280: the box as wide as the page's column, and the date big and at weight 900. Whether the
+    // date fits beside the label depends on the font, since the website embeds none: of the box's
+    // 852 pixels inside, the label's 16rem and the gap leave 572 for it. In Segoe UI's Black, which
+    // Windows draws it in, it needs 528. DejaVu Sans, which Chromium draws system-ui in on Ubuntu,
+    // has no Black, and its Bold is about as wide as Verdana's, in which it needs 616: there, the
+    // date goes under the label, as the style lets it.
+    for (const theme of ["dark", "light"] as const) {
+      const wide = await look();
+      const { basis, gap, date, inside } = wide.room;
+      const where = `${theme}, the date ${date} pixels on one line`;
+      expect(wide.border, where).toEqual(["2px", "solid", warn[theme]]);
+      expect(wide.color, where).toEqual([warn[theme], warn[theme], warn[theme]]);
+      expect(wide.tinted, where).toBe(true);
+      expect(wide.weights, where).toEqual(["700", "900"]);
+      expect(wide.sizes[1], where).toBeGreaterThan((wide.sizes[0] ?? 0) * 1.5);
+      // The box is as wide as the page's column.
+      expect(wide.stamp.right - wide.stamp.left, where).toBe(896);
+      expect(inside, where).toBe(852);
+      if (basis + gap + date <= inside) {
+        // One row: the label at the left, and the date at the right, ending where the box's inside
+        // does: 2 pixels of line, and 20 inside it.
+        expect(wide.source.right, where).toBeLessThan(wide.date.left);
+        expect(wide.date.top, where).toBeLessThan(wide.source.bottom);
+        expect(wide.stamp.right - wide.date.right, where).toBeCloseTo(22, 0);
+      } else {
+        // Two rows: the date under the label, at the inside's left, and inside the box.
+        expect(wide.date.top, where).toBeGreaterThanOrEqual(wide.source.bottom);
+        expect(wide.date.left, where).toBe(wide.source.left);
+        expect(wide.stamp.right - wide.date.right, where).toBeGreaterThanOrEqual(22);
+        expect(wide.stamp.bottom - wide.date.bottom, where).toBeGreaterThanOrEqual(18);
+      }
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
+
+    // On a phone, the date goes under the label, inside the window.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const narrow = await look();
+    expect(narrow.date.top).toBeGreaterThanOrEqual(narrow.source.bottom);
+    expect(narrow.date.left).toBe(narrow.source.left);
+    expect(narrow.stamp.right).toBeLessThanOrEqual(320 - 16);
   });
 
   it("marks its own link in the bar as the page the reader is on: bold, and underlined more heavily", async () => {
@@ -989,6 +1599,157 @@ describe("the trust page", () => {
     expect(look).toEqual({ weight: "700", line: "underline" });
     // Its line is 0.15 of its text's size thick, so it stays the heavier as the text grows.
     expect(thickness).toBeCloseTo(0.15, 3);
+  });
+
+  it("gives a screen reader its kickers' words and its law's tags as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.trust);
+
+    const texts = await spokenTexts(page);
+
+    // The banner's kicker, two parts' kickers, and the law's three tags: each is drawn in small
+    // capitals, and each reaches a screen reader in ordinary case, so it reads words, not letters.
+    const written = [
+      TRUST_TEXT.hero.kicker,
+      TRUST_TEXT.does.kicker,
+      TRUST_TEXT.law.kicker,
+      ...TRUST_TEXT.law.cards.map(({ tag }) => tag),
+    ];
+    expect(written).toHaveLength(6);
+    for (const words of written) {
+      expect(texts, words).toContain(words);
+      expect(texts, words).not.toContain(words.toUpperCase());
+    }
+  });
+
+  it("draws its short labels, a kicker, a law's tag, and a table's header, in small capitals at 1.4 times the spec's size, with the spec's spacing, on the spec's line, and wraps a kicker at 320 pixels", async () => {
+    const page = await open(files.trust);
+    const closeTo = (value: number): unknown => expect.closeTo(value, 2);
+
+    const looks = await page.evaluate(() => {
+      // The page has no table: one is put in it, so that the style draws a table's header.
+      const table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>A header</th></tr></thead>";
+      document.querySelector("main")?.append(table);
+      const look = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`The page has no ${selector}.`);
+        const style = getComputedStyle(element);
+        return {
+          size: parseFloat(style.fontSize),
+          spacing: parseFloat(style.letterSpacing),
+          line: parseFloat(style.lineHeight),
+          caps: style.fontVariantCaps,
+        };
+      };
+      return { kicker: look(".hero > .kicker"), tag: look(".card > .tag"), header: look("th") };
+    });
+
+    // A small capital is about as tall as a lowercase letter, so each is drawn at 1.4 times the
+    // spec's size, to stand as tall as the spec's capitals. A kicker and a tag: 0.8125rem, 13
+    // pixels at the browser's own size, times 1.4, spaced as 0.14em and 0.06em of 13 pixels were,
+    // on a line as tall as 1.4 of 13 pixels was.
+    expect(looks.kicker).toEqual({
+      size: closeTo(18.2),
+      spacing: closeTo(1.82),
+      line: closeTo(18.2),
+      caps: "all-small-caps",
+    });
+    expect(looks.tag).toEqual({
+      size: closeTo(18.2),
+      spacing: closeTo(0.78),
+      line: closeTo(18.2),
+      caps: "all-small-caps",
+    });
+    // A table's header: 0.75rem, 12 pixels, times 1.4, spaced as 0.08em of 12 pixels was, on the
+    // body's line of 1.55 of 12 pixels.
+    expect(looks.header).toEqual({
+      size: closeTo(16.8),
+      spacing: closeTo(0.96),
+      line: closeTo(18.6),
+      caps: "all-small-caps",
+    });
+
+    // A tag has a color of its own behind it, so its text's box, which is taller than its line,
+    // stays inside the tag, where axe can tell what each letter is drawn on: at the browser's own
+    // text size, 16 pixels, and at the larger ones a reader may set, 20, 24, and 32, since the room
+    // above and below its words grows with them.
+    for (const size of ["100%", "125%", "150%", "200%"]) {
+      await page.evaluate((percent) => {
+        document.documentElement.style.fontSize = percent;
+      }, size);
+      const outside = await page.locator(".tag").evaluateAll((tags) =>
+        tags.flatMap((tag) => {
+          const box = tag.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(tag);
+          return [...range.getClientRects()].flatMap((text) =>
+            text.top < box.top ||
+            text.bottom > box.bottom ||
+            text.left < box.left ||
+            text.right > box.right
+              ? [
+                  `${tag.textContent ?? ""}: its text runs from ${text.top} to ${text.bottom}, the tag from ${box.top} to ${box.bottom}`,
+                ]
+              : [],
+          );
+        }),
+      );
+      expect(outside, size).toEqual([]);
+    }
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "";
+    });
+
+    // In a window 320 pixels wide, the banner's kicker takes two lines or more, inside the window.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const kicker = await page.locator(".hero > .kicker").evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        lines: box.height / parseFloat(getComputedStyle(element).lineHeight),
+        right: box.right,
+      };
+    });
+    expect(Math.round(kicker.lines)).toBeGreaterThanOrEqual(2);
+    expect(kicker.right).toBeLessThanOrEqual(320);
+  });
+
+  it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, a card's heading in --good and a link in it a link, the big numbers in --good, --good, --act, and --warn, and a release's version a pill in --good", async () => {
+    const page = await open(files.trust);
+    const colors = () =>
+      page.evaluate(() => {
+        const style = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          return getComputedStyle(element);
+        };
+        return {
+          tag: style(".card > .tag").color,
+          heading: style(".card > h3").color,
+          headingLink: [style(".card > h3 > a").color, style(".card > h3 > a").textDecorationLine],
+          numbers: [...document.querySelectorAll(".tile > .n")].map(
+            (number) => getComputedStyle(number).color,
+          ),
+          release: [style("#releases .pill").color, style("#releases .pill").backgroundColor],
+        };
+      });
+
+    // #67e8f9, #34d399, #fbbf24, and #60a5fa, dark; #2c626a, #196549, #705510, and #2563eb, light.
+    const good = { dark: "rgb(52, 211, 153)", light: "rgb(25, 101, 73)" };
+    const act = { dark: "rgb(103, 232, 249)", light: "rgb(44, 98, 106)" };
+    const warn = { dark: "rgb(251, 191, 36)", light: "rgb(112, 85, 16)" };
+    const link = { dark: "rgb(96, 165, 250)", light: "rgb(37, 99, 235)" };
+    for (const theme of ["dark", "light"] as const) {
+      const seen = await colors();
+      expect(seen, theme).toMatchObject({
+        tag: act[theme],
+        heading: good[theme],
+        headingLink: [link[theme], "underline"],
+        numbers: [good[theme], good[theme], act[theme], warn[theme]],
+      });
+      expect(seen.release[0], theme).toBe(good[theme]);
+      expect(seen.release[1], theme).not.toBe("rgba(0, 0, 0, 0)");
+      if (theme === "dark") await page.locator("#theme-toggle").click();
+    }
   });
 
   it("has the page's landmarks, and a region for each of its sections", async () => {
@@ -1020,39 +1781,755 @@ describe("the trust page", () => {
     expect(words?.width).toBeLessThanOrEqual(1);
   });
 
-  it("never hides what has focus under the bar, 1100 pixels wide, with its fold closed or open", async () => {
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
     const page = await open(files.trust, { width: 1100, height: 500 });
 
     expect(await stopsUnderTheBar(page)).toEqual([]);
-    await openFolds(page);
-    expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
-  it("puts the part a big number's link points to below the bar, 1100 pixels wide", async () => {
-    // A window short enough that each part can be scrolled to the top of it.
+  it("puts what a big number's link points to below the bar, 1100 pixels wide: a part's kicker, or how to check a copy", async () => {
+    // A window short enough that each can be scrolled to the top of it.
     const page = await open(files.trust, { width: 1100, height: 300 });
 
-    for (const [words, id] of [
-      ["How it's tested", "tested"],
-      ["How to check a copy", "evidence"],
-      ["How it got here", "releases"],
+    for (const [words, target, first] of [
+      ["How it's tested", "#tested", "#tested > .kicker"],
+      ["How to check a copy", "#check", "#check > p"],
+      ["How it got here", "#releases", "#releases > .kicker"],
     ] as const) {
       await page.locator(".tile a", { hasText: words }).click();
 
-      const result = await page.evaluate((id) => {
-        const kicker = document.querySelector(`#${id} > .kicker`);
+      expect(new URL(page.url()).hash, words).toBe(target);
+      const result = await page.evaluate((selector) => {
+        const shown = document.querySelector(selector);
         const bar = document.querySelector(".bar");
-        if (kicker === null || bar === null) return "the part or the bar isn't there";
-        const box = kicker.getBoundingClientRect();
+        if (shown === null || bar === null) return "what it points to, or the bar, isn't there";
+        const box = shown.getBoundingClientRect();
         const hit = document.elementFromPoint(box.left + 10, box.top + box.height / 2);
         const barBottom = bar.getBoundingClientRect().bottom;
-        return hit === kicker && box.top >= barBottom
+        return hit !== null && shown.contains(hit) && box.top >= barBottom && box.top < 300
           ? null
-          : `its kicker is at ${box.top}, and the bar ends at ${barBottom}`;
-      }, id);
-      expect(result, id).toBeNull();
+          : `it's at ${box.top}, and the bar ends at ${barBottom}`;
+      }, first);
+      expect(result, words).toBeNull();
     }
   });
+});
+
+describe("What's New", () => {
+  /** Each card's headline, in order: the page's h2s. */
+  const HEADLINES = NEWS.releases.map(({ headline }) => headline);
+
+  it.each([
+    ["with its releases", 1280, "whatsNew"],
+    ["with its releases", 390, "whatsNew"],
+    ["with its releases", 320, "whatsNew"],
+    ["with words as long as they can be", 390, "whatsNewLong"],
+    ["with words as long as they can be", 320, "whatsNewLong"],
+    ["with no release recorded", 1280, "whatsNewBare"],
+    ["with no release recorded", 390, "whatsNewBare"],
+    ["with no release recorded", 320, "whatsNewBare"],
+  ] as const)(
+    "passes axe with zero violations, dark and light, %s, at %i pixels",
+    async (_, width, which) => {
+      const page = await open(files[which], { width });
+
+      expect(await theme(page)).toBe("dark");
+      expect(await axeFindings(page, width), "dark").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page)).toBe("light");
+      expect(await axeFindings(page, width), "light").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("has no two links that read alike and go to different places", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(await identicalLinks(page)).toEqual([]);
+  });
+
+  it("fits a window 320 pixels wide, however long its words", async () => {
+    for (const which of ["whatsNew", "whatsNewLong", "whatsNewBare"] as const) {
+      const page = await open(files[which], { width: 320 });
+      const width = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth);
+
+      expect(await width(), `${which}, dark`).toBeLessThanOrEqual(320);
+      await page.locator("#theme-toggle").click();
+      expect(await width(), `${which}, light`).toBeLessThanOrEqual(320);
+      // Nothing in it is wider than the window, whether or not it makes the page scroll.
+      expect(await widerThan320(page), which).toEqual([]);
+    }
+  });
+
+  it("is complete without JavaScript: every card is there and in view, and the page is dark with no button", async () => {
+    const page = await open(files.whatsNew, { scripts: false });
+
+    expect(await page.locator("main h1").allTextContents()).toEqual(["What's New"]);
+    expect(await page.locator("main h2").allTextContents()).toEqual(HEADLINES);
+    for (const heading of await page.locator("main h2").all()) {
+      expect(await heading.isVisible()).toBe(true);
+    }
+    expect(await page.locator("ol.updates > li").count()).toBe(NEWS.releases.length);
+    // Each card's link to its entry is in view.
+    const links = page.locator("ol.updates > li > a");
+    expect(await links.count()).toBe(NEWS.releases.length);
+    for (const link of await links.all()) expect(await link.isVisible()).toBe(true);
+    // The button does nothing without the script, so it's hidden, and the page is dark.
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+    expect(await background(page)).toBe(DARK);
+  });
+
+  it("has the page's landmarks, and no region for a card, however many releases", async () => {
+    const landmarks: Landmark[] = [
+      ["banner", ""],
+      ["navigation", "This website"],
+      ["main", ""],
+      ["contentinfo", ""],
+    ];
+
+    for (const which of ["whatsNew", "whatsNewBare"] as const) {
+      const page = await open(files[which]);
+      expect(await landmarksOf(page), which).toEqual([...landmarks].sort(byRoleThenName));
+    }
+  });
+
+  it("gives a screen reader its list of releases, newest first, each with its version and its headline", async () => {
+    const page = await open(files.whatsNew);
+
+    // The ordered list and its items, as Chromium's accessibility tree has them.
+    const snapshot = await page.locator("main").ariaSnapshot();
+
+    expect(snapshot).toContain("- list:");
+    expect((snapshot.match(/- listitem:/g) ?? []).length).toBeGreaterThanOrEqual(
+      NEWS.releases.length,
+    );
+    for (const { version, headline } of NEWS.releases) {
+      expect(snapshot, version).toContain(version);
+      expect(snapshot, version).toContain(headline);
+    }
+    // The newest first: each version comes after the one before it.
+    const places = NEWS.releases.map(({ version }) => snapshot.indexOf(version));
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+  });
+
+  it("gives a screen reader its kicker's words as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.whatsNew);
+
+    const texts = await spokenTexts(page);
+
+    expect(texts).toContain("Every release");
+    expect(texts).not.toContain("EVERY RELEASE");
+  });
+
+  it("draws a release as a card in the audit tool's look: its version a pill in --good, its headline heavy, and its link bold", async () => {
+    const page = await open(files.whatsNew);
+    const looks = () =>
+      page.evaluate(() => {
+        const look = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`The page has no ${selector}.`);
+          const style = getComputedStyle(element);
+          return {
+            color: style.color,
+            background: style.backgroundColor,
+            weight: style.fontWeight,
+            radius: style.borderTopLeftRadius,
+            padding: style.padding,
+            border: style.borderTopWidth,
+          };
+        };
+        return {
+          card: look("ol.updates > li"),
+          pill: look("ol.updates .pill"),
+          headline: look("ol.updates > li > h2"),
+          link: look("ol.updates > li > a"),
+          page: look("main h1"),
+        };
+      });
+
+    const dark = await looks();
+
+    // A card: the panel behind it, a 1px line, corners of 14 pixels, 22 by 20 pixels inside.
+    expect(dark.card).toMatchObject({
+      background: "rgb(17, 17, 17)",
+      radius: "14px",
+      padding: "22px 20px",
+      border: "1px",
+    });
+    // The version is a pill, in --good on its tint, its corners of 6 pixels.
+    expect(dark.pill).toMatchObject({ color: "rgb(52, 211, 153)", weight: "700", radius: "6px" });
+    expect(dark.pill.background).not.toBe("rgba(0, 0, 0, 0)");
+    // Headlines are heavy: the page's h1 at 900, a card's own at 800, in the headline's color.
+    expect(dark.page).toMatchObject({ weight: "900", color: "rgb(255, 255, 255)" });
+    expect(dark.headline).toMatchObject({ weight: "800", color: "rgb(255, 255, 255)" });
+    expect(dark.link.weight).toBe("700");
+
+    await page.locator("#theme-toggle").click();
+    const light = await looks();
+    expect(light.card.background).toBe("rgb(255, 255, 255)");
+    expect(light.pill.color).toBe("rgb(25, 101, 73)");
+    expect(light.headline.color).toBe("rgb(17, 24, 39)");
+  });
+
+  it("puts its cards one under another, in the page's column of 56rem, 16 pixels apart", async () => {
+    const page = await open(files.whatsNew);
+
+    const boxes = await page.locator("ol.updates > li").evaluateAll((all) =>
+      all.map((card) => {
+        const { left, right, top, bottom } = card.getBoundingClientRect();
+        return { left, right, top, bottom };
+      }),
+    );
+
+    expect(boxes).toHaveLength(NEWS.releases.length);
+    for (const [index, box] of boxes.entries()) {
+      // One column: every card as wide as the main part's 56rem, 896 pixels.
+      expect(box.right - box.left, `card ${index + 1}`).toBe(896);
+      expect(box.left, `card ${index + 1}`).toBe(boxes[0]?.left);
+      // 16 pixels between a card and the one before it.
+      const before = boxes[index - 1];
+      if (before !== undefined) expect(box.top - before.bottom, `card ${index + 1}`).toBe(16);
+    }
+  });
+
+  it("spaces its head as the audit tool's pages are: the kicker, the heading, and the lead 18 pixels apart, and 44 pixels between the lead and the first card", async () => {
+    const page = await open(files.whatsNew);
+
+    const gaps = await page.evaluate(() => {
+      const box = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`The page has no ${selector}.`);
+        return element.getBoundingClientRect();
+      };
+      const [kicker, heading, lead, card] = [
+        box("main .kicker"),
+        box("main h1"),
+        box("main .lead"),
+        box("ol.updates > li"),
+      ];
+      return {
+        kickerToHeading: heading.top - kicker.bottom,
+        headingToLead: lead.top - heading.bottom,
+        leadToCard: card.top - lead.bottom,
+      };
+    });
+
+    expect(gaps).toEqual({ kickerToHeading: 18, headingToLead: 18, leadToCard: 44 });
+  });
+
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
+    const page = await open(files.whatsNew, { width: 1100, height: 500 });
+
+    expect(await stopsUnderTheBar(page)).toEqual([]);
+  });
+
+  it("marks its own link in both bars as the page the reader is on, and takes the way back to the front page", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(
+      await page
+        .locator('.bar a[aria-current="page"], footer a[aria-current="page"]')
+        .allTextContents(),
+    ).toEqual(["What's New", "What's New"]);
+    // index.html sits beside this page's file, as the website's pages sit beside each other.
+    await page.locator("main > a.back").click();
+    const url = new URL(page.url());
+    expect(url.pathname.endsWith("/index.html")).toBe(true);
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
+  });
+
+  it("switches the theme and keeps the choice, as the other pages do", async () => {
+    const page = await open(files.whatsNew);
+    const toggle = page.locator("#theme-toggle");
+
+    expect(await theme(page)).toBe("dark");
+    expect(await background(page)).toBe(DARK);
+    expect(await toggle.isVisible()).toBe(true);
+
+    await toggle.click();
+    expect(await theme(page)).toBe("light");
+    expect(await background(page)).toBe(LIGHT);
+    expect(await stored(page)).toBe("light");
+    await page.reload();
+    expect(await theme(page)).toBe("light");
+  });
+
+  it("is light in print, without the theme button", async () => {
+    const page = await open(files.whatsNew);
+
+    expect(await background(page)).toBe(DARK);
+    await page.emulateMedia({ media: "print" });
+    expect(await background(page)).toBe(LIGHT);
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+  });
+});
+
+describe("Technical details", () => {
+  /** The headings of its parts, in order: the page's h2s. */
+  const PART_HEADINGS = [
+    "What voicecap does",
+    "How a run works",
+    "NVDA's three passes",
+    "What a run records",
+    "The flags: what voicecap points out for a person to check",
+    "Fingerprints, seals, and voicecap verify",
+    "How this website is built and protected",
+    "The toolchain",
+    "Privacy and security",
+    "What it can't do: the limits",
+    "Verify for yourself",
+    "Related documents",
+  ];
+  /** Each table's box, by the heading that names it, in order. */
+  const BOXES = [
+    "The commands",
+    "NVDA's three passes",
+    "voicecap's defaults",
+    "The 7 built-in rules",
+    "The toolchain",
+  ];
+
+  /**
+   * What in a page runs past the right edge of a window 320 pixels wide, but for what's in a
+   * table's box, which scrolls when the table is wider: the box itself counts.
+   */
+  async function widerOutsideTheBoxes(page: Page): Promise<string[]> {
+    return page.evaluate(() =>
+      [...document.querySelectorAll("body *")]
+        .filter((element) => !element.closest(".skip, .sr"))
+        .filter((element) => element.parentElement?.closest(".scroll") == null)
+        .filter((element) => element.getBoundingClientRect().right > 320 + 0.5)
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className}`),
+    );
+  }
+
+  it.each([
+    ["with its facts", 1280, "technical"],
+    ["with its facts", 390, "technical"],
+    ["with its facts", 320, "technical"],
+    ["with no release facts and no report", 1280, "technicalBare"],
+    ["with no release facts and no report", 390, "technicalBare"],
+    ["with no release facts and no report", 320, "technicalBare"],
+    ["with a version as long as one can be", 320, "technicalLong"],
+  ] as const)(
+    "passes axe with zero violations, dark and light, %s, at %i pixels",
+    async (_, width, which) => {
+      const page = await open(files[which], { width });
+
+      expect(await theme(page)).toBe("dark");
+      expect(await axeFindings(page, width), "dark").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page)).toBe("light");
+      expect(await axeFindings(page, width), "light").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it("has no two links that read alike and go to different places", async () => {
+    const page = await open(files.technical);
+
+    expect(await identicalLinks(page)).toEqual([]);
+  });
+
+  it("fits a window 320 pixels wide, its wide tables scrolling in their boxes", async () => {
+    for (const which of ["technical", "technicalBare", "technicalLong"] as const) {
+      const page = await open(files[which], { width: 320 });
+      const width = (): Promise<number> =>
+        page.evaluate(() => document.documentElement.scrollWidth);
+
+      expect(await width(), `${which}, dark`).toBeLessThanOrEqual(320);
+      await page.locator("#theme-toggle").click();
+      expect(await width(), `${which}, light`).toBeLessThanOrEqual(320);
+      // Nothing outside a table's box is wider than the window, and each box fits it: what's
+      // wider than the box is its table, which scrolls in it.
+      expect(await widerOutsideTheBoxes(page), which).toEqual([]);
+      const boxes = await page.locator(".scroll").evaluateAll((all) =>
+        all.map((box) => ({
+          fits: box.getBoundingClientRect().right <= 320.5,
+          scrolls: box.scrollWidth > box.clientWidth,
+        })),
+      );
+      expect(boxes, which).toHaveLength(BOXES.length);
+      expect(
+        boxes.every(({ fits }) => fits),
+        which,
+      ).toBe(true);
+      expect(
+        boxes.every(({ scrolls }) => scrolls),
+        which,
+      ).toBe(true);
+    }
+  });
+
+  it("lets a keyboard reach and scroll each table's box, which a screen reader hears named by its heading", async () => {
+    const page = await open(files.technical, { width: 320 });
+
+    // Each box is a region named by its table's heading, as Chromium's accessibility tree has it.
+    for (const name of BOXES) {
+      expect(await page.getByRole("region", { name, exact: true }).count(), name).toBe(1);
+    }
+    // Tab reaches each box in turn, after the links before it, and its focus is drawn.
+    const boxes = page.locator(".scroll");
+    await page.locator("nav.toc a").last().focus();
+    for (let index = 0; index < BOXES.length; index++) {
+      for (let presses = 0; presses < 40; presses++) {
+        await page.keyboard.press("Tab");
+        if (await boxes.nth(index).evaluate((box) => box === document.activeElement)) break;
+      }
+      const box = boxes.nth(index);
+      expect(
+        await box.evaluate((element) => element === document.activeElement),
+        BOXES[index],
+      ).toBe(true);
+      expect(
+        await box.evaluate((element) => getComputedStyle(element).outlineStyle),
+        BOXES[index],
+      ).toBe("solid");
+      // An arrow key scrolls the table in its box.
+      const before = await box.evaluate((element) => element.scrollLeft);
+      await page.keyboard.press("ArrowRight");
+      await expect
+        .poll(() => box.evaluate((element) => element.scrollLeft), { timeout: 2_000 })
+        .toBeGreaterThan(before);
+    }
+  });
+
+  it("draws how a run works as an ordered list, with an arrow on after each box at 1280 and down at 320, which a screen reader doesn't hear", async () => {
+    const arrows = async (width: number): Promise<string[]> => {
+      const page = await open(files.technical, { width });
+      return page
+        .locator("ol.flow > li")
+        .evaluateAll((items) => items.map((item) => getComputedStyle(item, "::after").content));
+    };
+
+    const across = await arrows(1280);
+    expect(across).toHaveLength(10);
+    for (const content of across.slice(0, -1)) expect(content).toContain("→");
+    expect(across.at(-1)).toBe("none");
+    const down = await arrows(320);
+    for (const content of down.slice(0, -1)) expect(content).toContain("↓");
+    expect(down.at(-1)).toBe("none");
+
+    // Three boxes a row at 1280, and one under another at 320.
+    const rows = async (width: number): Promise<number> => {
+      const page = await open(files.technical, { width });
+      const tops = await page
+        .locator("ol.flow > li > .box")
+        .evaluateAll((boxes) => boxes.map((box) => Math.round(box.getBoundingClientRect().top)));
+      return new Set(tops).size;
+    };
+    expect(await rows(1280)).toBe(4);
+    expect(await rows(320)).toBe(10);
+
+    // A screen reader hears a list of ten, and neither the arrows nor the boxes' numbers.
+    const page = await open(files.technical);
+    const snapshot = await page.locator("ol.flow").ariaSnapshot();
+    expect(snapshot).toMatch(/^- list:/);
+    expect(snapshot.match(/- listitem:/g)).toHaveLength(10);
+    const texts = await spokenTexts(page);
+    expect(texts.filter((text) => /[→↓]/.test(text))).toEqual([]);
+    expect(texts).not.toContain("1");
+  });
+
+  it("is complete without JavaScript: every part is there and in view, and the page is dark with no button", async () => {
+    const page = await open(files.technical, { scripts: false });
+
+    expect(await page.locator("main h1").allTextContents()).toEqual(["How voicecap works"]);
+    expect(await page.locator("main h2").allTextContents()).toEqual(PART_HEADINGS);
+    for (const heading of await page.locator("main h2").all()) {
+      expect(await heading.isVisible()).toBe(true);
+    }
+    for (const table of await page.locator("main table").all()) {
+      expect(await table.isVisible()).toBe(true);
+    }
+    expect(await page.locator("#theme-toggle").isVisible()).toBe(false);
+    expect(await background(page)).toBe(DARK);
+  });
+
+  it("has the page's landmarks: its two navigations, and a region for each table's box", async () => {
+    const landmarks: Landmark[] = [
+      ["banner", ""],
+      ["navigation", "This website"],
+      ["navigation", "On this page"],
+      ["main", ""],
+      ...BOXES.map((name): Landmark => ["region", name]),
+      ["contentinfo", ""],
+    ];
+
+    for (const which of ["technical", "technicalBare"] as const) {
+      const page = await open(files[which]);
+      expect(await landmarksOf(page), which).toEqual([...landmarks].sort(byRoleThenName));
+    }
+  });
+
+  it("gives a screen reader its kickers' words as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.technical);
+
+    const texts = await spokenTexts(page);
+
+    const written = [
+      TECHNICAL_TEXT.kicker,
+      TECHNICAL_TEXT.parts.does.kicker,
+      TECHNICAL_TEXT.parts.related.heading,
+      ...TECHNICAL_TEXT.related.map(({ label }) => label),
+    ];
+    for (const words of written) {
+      expect(texts, words).toContain(words);
+      expect(texts, words).not.toContain(words.toUpperCase());
+    }
+  });
+
+  it("brings a part a link of 'On this page' goes to into view with its kicker", async () => {
+    const page = await open(files.technical, { width: 1100, height: 400 });
+
+    for (const name of ["The toolchain", "Verify for yourself"]) {
+      await page.locator("nav.toc a", { hasText: name }).click();
+      const kicker = await page.evaluate((heading) => {
+        const target = [...document.querySelectorAll("main h2")].find(
+          (element) => element.textContent === heading,
+        );
+        const box = target?.previousElementSibling?.getBoundingClientRect();
+        return box === undefined ? null : { top: box.top, bottom: box.bottom };
+      }, name);
+      expect(kicker, name).not.toBeNull();
+      expect(kicker?.top, name).toBeGreaterThanOrEqual(0);
+      expect(kicker?.bottom, name).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it("never hides what has focus under the bar, 1100 pixels wide", async () => {
+    const page = await open(files.technical, { width: 1100, height: 500 });
+
+    expect(await stopsUnderTheBar(page)).toEqual([]);
+  });
+
+  it("draws each related document's title, a link, in --link and underlined, as the trust page draws its cards' titles, in both themes", async () => {
+    const [technical, trust] = [await open(files.technical), await open(files.trust)];
+    /** Each card title that's a link, on a page: its color, and its line. */
+    const titles = (page: Page) =>
+      page.evaluate(() =>
+        [...document.querySelectorAll(".card > h3 > a")].map((link) => {
+          const style = getComputedStyle(link);
+          return [style.color, style.textDecorationLine];
+        }),
+      );
+    // #60a5fa dark, #2563eb light: the link color, the same on both pages.
+    const link = { dark: "rgb(96, 165, 250)", light: "rgb(37, 99, 235)" };
+
+    for (const theme of ["dark", "light"] as const) {
+      const related = await titles(technical);
+      expect(related, theme).toEqual(TECHNICAL_TEXT.related.map(() => [link[theme], "underline"]));
+      // The trust page's three law cards, whose titles link to their sources.
+      expect(await titles(trust), theme).toEqual(
+        Array.from({ length: 3 }, () => [link[theme], "underline"]),
+      );
+      if (theme === "dark") {
+        await technical.locator("#theme-toggle").click();
+        await trust.locator("#theme-toggle").click();
+      }
+    }
+  });
+
+  it("marks its own link in both bars as the page the reader is on, and takes the way back to the front page", async () => {
+    const page = await open(files.technical);
+
+    expect(
+      await page
+        .locator('.bar a[aria-current="page"], footer a[aria-current="page"]')
+        .allTextContents(),
+    ).toEqual(["Technical details", "Technical details"]);
+    await page.locator("main > a.back").click();
+    const url = new URL(page.url());
+    expect(url.pathname.endsWith("/index.html")).toBe(true);
+    expect(await page.locator("main h1").textContent()).toBe("Screen reader test results");
+  });
+
+  it("switches the theme and keeps the choice, and is light in print, without the theme button", async () => {
+    const page = await open(files.technical);
+    const toggle = page.locator("#theme-toggle");
+
+    expect(await theme(page)).toBe("dark");
+    await toggle.click();
+    expect(await theme(page)).toBe("light");
+    expect(await background(page)).toBe(LIGHT);
+    expect(await stored(page)).toBe("light");
+    await page.reload();
+    expect(await theme(page)).toBe("light");
+
+    const printed = await open(files.technical);
+    expect(await background(printed)).toBe(DARK);
+    await printed.emulateMedia({ media: "print" });
+    expect(await background(printed)).toBe(LIGHT);
+    expect(await printed.locator("#theme-toggle").isVisible()).toBe(false);
+  });
+});
+
+describe("the two bars at 200% and 400% text", () => {
+  /** The website's four pages, as files beside each other. */
+  const FOUR_PAGES = ["page", "trust", "whatsNew", "technical"] as const;
+
+  /**
+   * What the Tab key reaches in the two bars: the website's name, the top bar's three links and its
+   * button, once the script has shown it, and the bottom bar's five links.
+   */
+  const BAR_STOPS = ".bar a[href], .bar button:not([hidden]), footer a[href]";
+
+  /** The page's text at `size` of the browser's own, as a reader sets it: the root's font size. */
+  async function textAt(page: Page, size: string): Promise<void> {
+    await page.evaluate((percent) => {
+      document.documentElement.style.fontSize = percent;
+    }, size);
+  }
+
+  /**
+   * What's wrong with the two bars as they're drawn now, a line each: an item of either (the top
+   * bar's name, links, and button, and each of the bottom bar's six items) that isn't drawn, whose
+   * box or text a reader sees leaves the window, or that overlaps another. The words only a screen
+   * reader gets are clipped to a pixel, and drawn nowhere.
+   */
+  async function barProblems(page: Page): Promise<string[]> {
+    return page.evaluate(() => {
+      const width = document.documentElement.clientWidth;
+      const items = [...document.querySelectorAll(".bar .name, .bar nav a, .bar .theme, footer li")]
+        .filter((element) => !(element as HTMLElement).hidden)
+        .map((element) => ({
+          element,
+          name: `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim() || element.getAttribute("aria-label")}"`,
+          box: element.getBoundingClientRect(),
+        }));
+      /** The boxes of the text a reader sees in an element: not what's only a screen reader's. */
+      const seenText = (element: Element): DOMRect[] => {
+        const boxes: DOMRect[] = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+          if (text.parentElement?.closest(".sr") != null) continue;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          boxes.push(...range.getClientRects());
+        }
+        return boxes;
+      };
+      const problems: string[] = [];
+      for (const { element, name, box } of items) {
+        if (box.width === 0 || box.height === 0) problems.push(`${name} isn't drawn`);
+        for (const { left, right } of [box, ...seenText(element)]) {
+          if (left < -0.5 || right > width + 0.5) {
+            problems.push(`${name} runs from ${left} to ${right}, in a window ${width} wide`);
+          }
+        }
+      }
+      items.forEach((one, index) => {
+        for (const other of items.slice(index + 1)) {
+          const [a, b] = [one.box, other.box];
+          if (
+            a.left < b.right - 0.5 &&
+            b.left < a.right - 0.5 &&
+            a.top < b.bottom - 0.5 &&
+            b.top < a.bottom - 0.5
+          ) {
+            problems.push(`${one.name} overlaps ${other.name}`);
+          }
+        }
+      });
+      return problems;
+    });
+  }
+
+  /**
+   * Tabs to each stop of the two bars in turn, from the stop before it, as a reader does, and says
+   * what's wrong with its focus, a line each: the Tab went elsewhere, or no focus ring is drawn
+   * (`:focus-visible`, and an outline at least 2 pixels wide), or the stop isn't in the window, or
+   * something else is drawn over it.
+   */
+  async function focusProblems(page: Page): Promise<string[]> {
+    const stops = await page.evaluate(
+      ({ all, bars }) => {
+        const every = [...document.querySelectorAll(all)];
+        return [...document.querySelectorAll(bars)].map((stop) => every.indexOf(stop));
+      },
+      { all: STOPS, bars: BAR_STOPS },
+    );
+    const problems: string[] = [];
+    for (const at of stops) {
+      await page.evaluate(
+        ({ selector, index }) => {
+          const before = document.querySelectorAll<HTMLElement>(selector)[index - 1];
+          if (before !== undefined) {
+            before.focus();
+          } else {
+            document.body.tabIndex = -1;
+            document.body.focus();
+            document.body.removeAttribute("tabindex");
+          }
+        },
+        { selector: STOPS, index: at },
+      );
+      await page.keyboard.press("Tab");
+      const problem = await page.evaluate(
+        ({ selector, index }) => {
+          const expected = document.querySelectorAll<HTMLElement>(selector)[index];
+          const focused = document.activeElement;
+          const name = (element: Element | null | undefined): string =>
+            element == null
+              ? "nothing"
+              : `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim() || element.getAttribute("aria-label")}"`;
+          if (focused === null || focused !== expected) {
+            return `${name(focused)} has focus, not ${name(expected)}`;
+          }
+          const style = getComputedStyle(focused);
+          if (!focused.matches(":focus-visible") || style.outlineStyle === "none") {
+            return `${name(focused)} shows no focus`;
+          }
+          if (parseFloat(style.outlineWidth) < 2) {
+            return `${name(focused)} has an outline ${style.outlineWidth} wide`;
+          }
+          // In the window, which the browser scrolls it into, to within a pixel's rounding.
+          const box = focused.getBoundingClientRect();
+          if (box.top < -1 || box.bottom > window.innerHeight + 1 || box.left < -1) {
+            return `${name(focused)} is out of the window, at ${box.top} to ${box.bottom}`;
+          }
+          if (box.right > document.documentElement.clientWidth + 1) {
+            return `${name(focused)} runs past the window's right edge, to ${box.right}`;
+          }
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          if (hit === null || (hit !== focused && !focused.contains(hit))) {
+            return `${name(focused)} is under ${name(hit)}`;
+          }
+          return null;
+        },
+        { selector: STOPS, index: at },
+      );
+      if (problem !== null) problems.push(problem);
+    }
+    return problems;
+  }
+
+  it.each([
+    ["200%", 1280],
+    ["200%", 320],
+    ["400%", 1280],
+    ["400%", 320],
+  ] as const)(
+    "keeps both bars whole at %s text, %i pixels wide, on all four pages, with focus visible on each of their links and on the button",
+    async (size, width) => {
+      for (const which of FOUR_PAGES) {
+        const page = await open(files[which], { width, height: 800 });
+        await textAt(page, size);
+        const where = `${which}, ${size} text, ${width} px`;
+
+        // The text is the size asked for: 2 and 4 times the browser's own 16 pixels.
+        expect(
+          await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+          where,
+        ).toBe(`${16 * (size === "200%" ? 2 : 4)}px`);
+        expect(await page.locator(BAR_STOPS).count(), where).toBe(4 + 1 + 5);
+        expect(await barProblems(page), where).toEqual([]);
+        expect(await focusProblems(page), where).toEqual([]);
+      }
+    },
+    AXE_TIMEOUT,
+  );
 });
 
 describe("the bar at a larger default text size", () => {
@@ -1060,8 +2537,8 @@ describe("the bar at a larger default text size", () => {
    * Sizes a reader can set the browser's text to, in pixels: its own is 16. A browser starts a page
    * at that size, and an em in a media query is that size too, so each of these is a browser of its
    * own, started with the size set. They go to three and a half times the default size: past twice
-   * it the bar's links, and then its button, take lines of their own, and the bar has to stay
-   * shorter than the room kept clear for it all the same.
+   * it the bar's links, and then its button, take lines of their own, and the bar still scrolls with
+   * the page, and covers nothing.
    */
   const SIZES = [24, 32, 40, 48, 56];
   const sized = new Map<number, Browser>();
@@ -1077,30 +2554,26 @@ describe("the bar at a larger default text size", () => {
   });
 
   it.each(SIZES)(
-    "sticks from 40em wide, is shorter than the room kept clear for it, and hides nothing that has focus, at %i pixels",
+    "scrolls with the page, and hides nothing that has focus, at %i pixels",
     async (size) => {
       const own = sized.get(size);
       if (own === undefined) throw new Error(`No browser was started for a text size of ${size}.`);
-      // The bar sticks from 40em wide: 640 pixels at 16, and wider as the text gets larger.
-      const sticksFrom = 40 * size;
 
-      for (const width of [640, sticksFrom - 1, sticksFrom]) {
+      // 640 pixels, and 40em, where the gutter widens: 640 pixels at 16, and wider as the text gets
+      // larger.
+      for (const width of [640, 40 * size]) {
         const page = await open(files.page, { browser: own, width, height: 500 });
         const bar = await page.evaluate(() => {
           const header = document.querySelector(".bar");
           return {
             text: getComputedStyle(document.documentElement).fontSize,
             position: header === null ? "" : getComputedStyle(header).position,
-            height: header?.getBoundingClientRect().height ?? NaN,
-            padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
           };
         });
         const where = `${width} px wide, text at ${size} px`;
 
         expect(bar.text, where).toBe(`${size}px`);
-        expect(bar.position, where).toBe(width >= sticksFrom ? "sticky" : "static");
-        // Where it sticks it's shorter than the room kept clear for it, however many lines it takes.
-        if (width >= sticksFrom) expect(bar.height, where).toBeLessThan(bar.padding);
+        expect(bar.position, where).toBe("static");
         expect(await stopsUnderTheBar(page), where).toEqual([]);
       }
     },

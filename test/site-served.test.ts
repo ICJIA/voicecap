@@ -192,16 +192,22 @@ describe("the site, served as Netlify serves it", () => {
   it("runs every page under its own policy, with no violation", async () => {
     const page = await newPage();
 
-    // The site's page, at the site's top.
-    expect(await visit(page, server.url)).toMatch(A_HASHED_POLICY);
+    // The site's page, at the site's top: under the policy of its own bytes, which allows no font,
+    // since the page embeds none.
+    const index = await readFile(path.join(built.out, "index.html"), "utf8");
+    const indexPolicy = await visit(page, server.url);
+    expect(indexPolicy).toMatch(A_HASHED_POLICY);
+    expect(indexPolicy).toBe(contentSecurityPolicy(inlineHashes(index), { fonts: false }));
+    expect(indexPolicy).toContain("; font-src 'none';");
     expect(await page.locator("#theme-toggle").isVisible()).toBe(true);
     await page.locator("#theme-toggle").click();
     expect(await violationsOf(page), "the site's page").toEqual([]);
 
     // The trust page, at both its addresses: under the policy of its own bytes, which the page's
-    // style block and script run under, and its theme button works.
+    // style block and script run under, and which allows no font, since the page embeds none; and
+    // its theme button works.
     const trust = await readFile(path.join(built.out, "trust.html"), "utf8");
-    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust), { fonts: false });
     for (const where of ["trust", "trust.html"]) {
       expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
       const response = await page.request.get(new URL(where, server.url).href);
@@ -211,6 +217,46 @@ describe("the site, served as Netlify serves it", () => {
       expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
       await page.locator("#theme-toggle").click();
       expect(await theme(page), where).not.toBe(before);
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+
+    // What's New, at both its addresses: under the policy of its own bytes, which the page's style
+    // block and script run under, and which allows no font, since the page embeds none; and its
+    // theme button works.
+    const whatsNew = await readFile(path.join(built.out, "whats-new.html"), "utf8");
+    const whatsNewPolicy = contentSecurityPolicy(inlineHashes(whatsNew), { fonts: false });
+    expect(whatsNewPolicy).toContain("; font-src 'none';");
+    for (const where of ["whats-new", "whats-new.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(whatsNewPolicy);
+      expect(await response.text(), where).toBe(whatsNew);
+      expect(await page.title(), where).toBe("What's New · Screen reader test results");
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+
+    // Technical details, at both its addresses: under the policy of its own bytes, which the page's
+    // style block and script run under, and which allows no font, since the page embeds none; and
+    // its theme button works. Its tables' boxes take focus, as a keyboard reaches them.
+    const technical = await readFile(path.join(built.out, "technical-details.html"), "utf8");
+    const technicalPolicy = contentSecurityPolicy(inlineHashes(technical), { fonts: false });
+    expect(technicalPolicy).toContain("; font-src 'none';");
+    for (const where of ["technical-details", "technical-details.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(technicalPolicy);
+      expect(await response.text(), where).toBe(technical);
+      expect(await page.title(), where).toBe("Technical details · Screen reader test results");
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      await page.locator(".scroll").first().focus();
+      expect(await page.evaluate(() => document.activeElement?.className), where).toBe("scroll");
       expect(await violationsOf(page), where).toEqual([]);
     }
 
@@ -404,7 +450,7 @@ describe("the site, served as Netlify serves it", () => {
 
     await Promise.all([
       page.waitForURL(new URL("trust.html", server.url).href),
-      page.getByRole("link", { name: "Can I trust this?" }).click(),
+      page.locator(".bar").getByRole("link", { name: "Can I trust this?" }).click(),
     ]);
 
     // It's the trust page, whose own bar says it's the page the reader is on.
@@ -416,20 +462,95 @@ describe("the site, served as Netlify serves it", () => {
     expect(await violationsOf(page)).toEqual([]);
   });
 
-  it("reaches the site's page from the trust page's bar", async () => {
+  it("reaches the site's page from the trust page's bar, by the website's name", async () => {
     const page = await newPage();
     await page.goto(server.url);
     const siteTitle = await page.title();
     await page.goto(new URL("trust.html", server.url).href);
 
-    // The bar's views are on the site's page, so its links lead there.
     await Promise.all([
-      page.waitForURL(new URL("index.html#sites", server.url).href),
-      page.getByRole("link", { name: "The sites" }).click(),
+      page.waitForURL(new URL("index.html", server.url).href),
+      page.getByRole("link", { name: "ICJIA Screen Reader Tests" }).click(),
     ]);
 
     expect(await page.title()).toBe(siteTitle);
     expect(await violationsOf(page)).toEqual([]);
+  });
+
+  it("follows every link of both bars on all four pages to a page that's there", async () => {
+    const page = await newPage();
+    // Where each link is followed to, in a page of its own, so the page it's on stays as it is.
+    const other = await newPage();
+    const titles = new Set([
+      "Screen reader test results",
+      "Can I trust this? · Screen reader test results",
+      "What's New · Screen reader test results",
+      "Technical details · Screen reader test results",
+    ]);
+    const followed = new Set<string>();
+
+    for (const where of ["", "trust", "whats-new.html", "technical-details"]) {
+      await visit(page, new URL(where, server.url).href);
+      // Each link of the top bar, of the bottom bar, and the way back, as the browser resolves it.
+      const links = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLAnchorElement>(".bar a, footer a, main > a.back")].map(
+          (link) => link.href,
+        ),
+      );
+      expect(links.length, where).toBeGreaterThanOrEqual(4 + 5);
+      // The website's own pages answer here; voicecap on GitHub and its CHANGELOG are on GitHub,
+      // which the tests never reach.
+      const own = links.filter((link) => link.startsWith(server.url));
+      expect(links.filter((link) => !own.includes(link)).toSorted(), where).toEqual(
+        [
+          "https://github.com/ICJIA/voicecap",
+          "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md",
+        ].toSorted(),
+      );
+      for (const link of own) {
+        await visit(other, link);
+        expect(titles.has(await other.title()), `${where}: ${link}`).toBe(true);
+        expect(await violationsOf(other), link).toEqual([]);
+        followed.add(new URL(link).pathname);
+      }
+    }
+    // Between them, the bars reach each of the four pages.
+    expect([...followed].toSorted()).toEqual(
+      ["/index.html", "/trust.html", "/whats-new.html", "/technical-details.html"].toSorted(),
+    );
+  });
+
+  it("draws every page whole without JavaScript, dark and with no theme button, its bars' links all answering", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    contexts.push(context);
+    const page = await context.newPage();
+
+    for (const where of ["", "trust.html", "whats-new", "technical-details.html"]) {
+      const response = await page.goto(new URL(where, server.url).href);
+      expect(response?.status(), where).toBe(200);
+      // The button does nothing without the script, so it stays hidden, and the page is dark.
+      expect(await page.locator("#theme-toggle").isHidden(), where).toBe(true);
+      expect(await page.getAttribute("html", "data-theme"), where).toBeNull();
+      expect(
+        await page.evaluate(() => getComputedStyle(document.body).backgroundColor),
+        where,
+      ).toBe("rgb(10, 10, 10)");
+      // Both bars are there, whole: the name and three links above, and six items below.
+      expect(await page.locator(".bar a").count(), where).toBe(4);
+      expect(await page.locator("footer li").count(), where).toBe(6);
+      for (const bar of await page.locator(".bar, footer").all()) {
+        expect(await bar.isVisible(), where).toBe(true);
+      }
+      // Each of their links to the website's pages answers.
+      const links = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLAnchorElement>(".bar a, footer a")].map(
+          (link) => link.href,
+        ),
+      );
+      for (const link of links.filter((each) => each.startsWith(server.url))) {
+        expect((await page.request.get(link)).status(), `${where}: ${link}`).toBe(200);
+      }
+    }
   });
 });
 
