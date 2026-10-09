@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { FocusedElement } from "../src/drivers/types.js";
 import {
+  BUILT_IN_RULES,
   contentSteps,
   evaluateFlags,
   flagItemLines,
@@ -73,6 +74,23 @@ function tab(stops: { spoken: string; focused: FocusedElement }[]): PassData {
 
 const rulesOf = (flags: ReturnType<typeof evaluateFlags>) =>
   flags.map((flag) => `${flag.rule}:${flag.pass}`);
+
+describe("the built-in rules", () => {
+  it("lists every built-in rule once, and each has its settings", () => {
+    // A rule's id in camelCase is the name of its settings in the config: generic-link-text's are
+    // flags.genericLinkText. The config's flags hold the built-in rules' settings, and the custom
+    // rules, which are no built-in rule.
+    const camelCase = (id: string): string =>
+      id.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
+
+    expect(new Set(BUILT_IN_RULES).size).toBe(BUILT_IN_RULES.length);
+    expect(BUILT_IN_RULES.map(camelCase).sort()).toEqual(
+      Object.keys(DEFAULT_CONFIG.flags)
+        .filter((key) => key !== "custom")
+        .sort(),
+    );
+  });
+});
 
 describe("generic link text", () => {
   it("flags repeated generic links in browse and focus phrasing", () => {

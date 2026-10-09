@@ -1,17 +1,27 @@
 /**
- * The website's fixed text: the words of its page that aren't a report's own. A report's date, who
- * prepared it, and its files' names, sizes, and fingerprints come from the records (./render.ts),
- * and the words that say the same as the shareable page's (what voicecap is, the link to it, who
+ * The website's fixed text: the words of its page that aren't a report's own, and the words of the
+ * frame every page of the website has (./frame.ts), its two bars and its way back. A report's date,
+ * who prepared it, and its files' names, sizes, and fingerprints come from the records
+ * (./render.ts), and the words that say the same as the shareable page's (voicecap's address, who
  * prepared a report) are that page's (../share/text.ts).
  *
  * The wording is the design's. voicecap is a person's review of a website with a real screen
  * reader, sped up, so every report here is a person's, and nothing says otherwise. The functions
- * are for lines with a name or a date in them.
+ * are for lines with a name, a date, or a version in them.
  */
 import type { ShareResult } from "../model.js";
 import { plural } from "../report/html.js";
-import { dateAndTime } from "../share/format.js";
-import { ABOUT, MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+import { dateAndTime, longDate } from "../share/format.js";
+import { MAC_HASH, POWERSHELL_HASH, TOP_TEXT } from "../share/text.js";
+
+/** The website's title, which its own page is headed by, and which every page's title ends with. */
+const SITE_TITLE = "Screen reader test results";
+
+/**
+ * A day the facts give as YYYY-MM-DD, as the website says it: "9 October 2026". The trust page says
+ * each release's day so, and so does What's New.
+ */
+export const day = (date: string): string => longDate(`${date}T00:00`);
 
 /**
  * How many pages NVDA read, as the page's own summary says it: "all 9 pages", "1 page", or "7 of
@@ -29,23 +39,59 @@ function pagesRead({ pages, read }: ShareResult): string {
  */
 export type Sentence = (string | { code: string } | { link: string; href: string })[];
 
+/**
+ * A part of the front page's kicker: plain words, and the names that matter in it (`name`), which
+ * the page marks for the style to draw in --act. It holds no markup, and nothing in it is escaped.
+ */
+export type KickerPart = (string | { name: string })[];
+
 export const SITE_TEXT = {
-  /** The page's title, and its one heading of the first level. */
-  title: "Screen reader test results",
-  lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
-  skip: "Skip to main content",
   /**
-   * The label of the bar's navigation, which every page of the website has. Its links are the views'
-   * headings, on the website's own page, and the link to the trust page ({@link trust}): the website
-   * itself, so the label names that.
+   * Over the page's heading, as the audit tool's trust page heads itself: who the website is from,
+   * and the law it's built for. Its parts are set apart by a dot a reader sees and a comma a screen
+   * reader hears, and the law's three names are the words that matter in it. It's written in
+   * ordinary case: the style draws it in small capitals.
+   */
+  kicker: [
+    ["ICJIA"],
+    ["Built for ", { name: "Title II of the ADA" }],
+    [{ name: "WCAG" }],
+    [{ name: "Illinois IITAA" }],
+  ] satisfies KickerPart[],
+  /** The page's title, and its one heading of the first level. */
+  title: SITE_TITLE,
+  lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
+  /**
+   * The banner under the lead, of the newest release the CHANGELOG records: a kicker that says
+   * what it is; then, after the release's version and its headline, which are the CHANGELOG's,
+   * the day it was released, "Released 9 October 2026", and the link to What's New, which has
+   * every release.
+   */
+  news: {
+    kicker: "What's new",
+    released: "Released",
+    /** The release's day, after `released`: "9 October 2026". */
+    day,
+    all: "See all updates",
+  },
+  skip: "Skip to main content",
+  /** The website's name, which starts the top bar of every page, as a link to the front page. */
+  siteName: "ICJIA Screen Reader Tests",
+  /**
+   * The label of the top bar's navigation, which every page of the website has. Its links are the
+   * website's three other pages: the website itself, so the label names that.
    */
   nav: "This website",
   /**
-   * The words of the bar's last link, to the trust page. The bar of every page says them, so they're
-   * here with the rest of the bar's words, and not with the trust page's own.
+   * The words of the links to the trust page and to Technical details, in both bars of every page,
+   * so they're here with the rest of the bars' words, and not with those pages' own. The link to
+   * What's New says that page's heading ({@link whatsNew}).
    */
   trust: "Can I trust this?",
-  /** The three views: each one's heading, which is also its link in the bar, and its lead. */
+  technical: "Technical details",
+  /** The label of the front page's row of links to its views, and of Technical details' list. */
+  onThisPage: "On this page",
+  /** The three views: each one's heading, which is also its link in "On this page", and its lead. */
   views: {
     demo: {
       title: "The demo",
@@ -156,11 +202,51 @@ export const SITE_TEXT = {
     { code: "npx @icjia/voicecap --walkthrough <file>" },
     ".",
   ] satisfies Sentence,
-  /** The footer: what voicecap is, and the words and the address of the link to it. */
-  about: ABOUT,
-  madeWith: TOP_TEXT.madeWith,
-  madeWithLink: TOP_TEXT.madeWithLink,
+  /** voicecap on GitHub: the bottom bar links to it, and the pages to its code there. */
   github: TOP_TEXT.github,
-  /** The theme button says what it switches to. */
-  theme: { light: "Light version", dark: "Dark version" },
+  /**
+   * The theme button's words, which are its label, since the button is an icon: what it switches to,
+   * the light theme while the page is dark, and the dark one while it's light.
+   */
+  theme: { light: "Switch to the light theme", dark: "Switch to the dark theme" },
+  /**
+   * The bottom bar's words, after the website's pages': its links to voicecap on GitHub and to its
+   * CHANGELOG, and the version of voicecap that built the website, which a reader sees as "v0.15.0"
+   * and a screen reader hears as "voicecap version 0.15.0".
+   */
+  footer: {
+    github: "GitHub",
+    changelog: "Changelog",
+    version: (version: string): string => `v${version}`,
+    versionHeard: (version: string): string => `voicecap version ${version}`,
+  },
+  /** The way back from each of the other pages to the front page, which holds the test results. */
+  back: "Back to the test results",
+  /**
+   * The What's New page (./whats-new.ts): a card for each release of voicecap, from its CHANGELOG.
+   * Everything the CHANGELOG says of a release (its version, its day, its headline, its points) is
+   * the page's to draw from the facts, so these are only the words around it.
+   */
+  whatsNew: {
+    /** The page's title, as the trust page's is: its heading's words, then the website's title. */
+    title: `What's New · ${SITE_TITLE}`,
+    /** Above the heading, a few words that say what follows: the page is every release. */
+    kicker: "Every release",
+    /** The page's one heading of the first level. */
+    heading: "What's New",
+    lead: "Every release of voicecap, newest first, from its CHANGELOG. The front page shows the newest one.",
+    /** A release's day, after its version: "9 October 2026". */
+    day,
+    /** After the day of the version that built the website, so a reader knows which one it is. */
+    current: "the current version",
+    /** The link at the end of each card, to the release's entry in the CHANGELOG on GitHub. */
+    link: "The full entry in the CHANGELOG",
+    /**
+     * What a screen reader hears after the link's words, and a reader doesn't see: " for 0.13.1". So
+     * no two cards' links sound alike, and the visible words stay the start of what's heard.
+     */
+    linkFor: (version: string): string => ` for ${version}`,
+    /** Said in place of the cards, when the CHANGELOG records no release. */
+    none: "No release is recorded in this build of voicecap.",
+  },
 };

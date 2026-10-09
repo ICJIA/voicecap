@@ -18,6 +18,47 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
   - **`axe-core` is now a dependency,** pinned at 4.13.0 (MPL-2.0), where it was a development dependency, and its own file is used unchanged, with its license notice. `@axe-core/playwright` stays a development dependency, for voicecap's own tests.
   - **Reports show axe's results from each site's next run, once it's shared.** A report already shared is as it was, and one made from runs from before 0.16.0 shows each page's "What axe found" with the reason it isn't recorded. There's no option to turn axe off, and a walkthrough file and a resume are as they were.
 
+## [0.15.0] - 2026-10-09
+
+The website has the look of the audit tool (audit.icjia.app), two new pages, Technical details and What's New, and a top bar and a bottom bar on each of its own pages. Shared reports are as they were, and no report needs sharing again.
+
+### Added
+
+- **Technical details, `technical-details.html`: how voicecap works, for auditors and developers.** A new page of the website, which the site serves at `/technical-details` too, in the shape of the audit tool's technical page. The README's "Technical details", under "The website: `voicecap site`", describes it, with a picture of its top.
+  - **Twelve parts, each linked from "On this page":** what voicecap does; how a run works, as a flow of boxes from the page list to this website, then the commands in a table; NVDA's three passes, with their keys, where each starts, and what ends it, and voicecap's defaults in a table; what a run records, as a tree of the transcripts home; the flags, with the built-in rules in a table; fingerprints, seals, and `voicecap verify`; how this website is built and protected; the toolchain, with each tool's license; privacy and security; what voicecap can't do; verify for yourself, with links to the code at the version's tag; and related documents. Every part is open, so the page is complete without JavaScript.
+  - **What voicecap's code holds, the page takes from the code,** so it can't fall behind it: the passes, the built-in flag rules and how many there are, the defaults (the step caps, the repeat limit, the time limits, the tries a page gets, how often NVDA and the browser are started again, and how many failed pages in a row stop a run), how many shares a site keeps on the website, and the version and its day. A fact the build doesn't have says `not recorded in this build of voicecap`. The rest is words, and the page's tests hold the commands, files, and rules it names to the code.
+  - **The toolchain's licenses are held to the packages:** a test checks each npm package's license in the table against the one of the package voicecap installs.
+- **What's New, `whats-new.html`: every release, newest first, from the CHANGELOG.** A new page of the website, which the site serves at `/whats-new` too. The README's "What's New", under "The website: `voicecap site`", describes it, with a picture of its top.
+  - **A card for each dated release:** its version as a pill, its day (and "the current version" on the one that built the website), its headline, the bold words that begin each bullet of its entry, at its first two levels, and a link to its entry in the CHANGELOG on GitHub, which a screen reader hears with its version.
+  - **What's New is made at each build of the website,** from the CHANGELOG that comes with the package, so a new release appears on its own once a build runs with it. `## [Unreleased]` is skipped, and so are the bullets under a heading that isn't one of Keep a Changelog's kinds of change, such as 0.1.0's `### Not yet`. Every word is plain text, so a line with markup in it can't change the page.
+- **A What's New banner on the front page,** under the lead: the newest release's version, its headline, and "Released 8 October 2026 · See all updates", where "See all updates" is a link to What's New. A build whose CHANGELOG records no release has no banner.
+- **A top bar and a bottom bar on each of the website's own pages,** as the audit tool's pages have them:
+  - **The top bar has the website's name and a navigation of its three other pages,** and last the theme button: "ICJIA Screen Reader Tests", a link to the front page, and a navigation, "This website", with "Can I trust this?", "What's New", and "Technical details".
+  - **The bottom bar is a row of six items,** in place of the footer's two lines: GitHub, Changelog, What's New, Can I trust this?, Technical details, and the version of the voicecap that built the website (`v0.15.0`, which a screen reader hears as "voicecap version 0.15.0"). The icons, and the lines between the items, are hidden from a screen reader, which hears a list of six.
+  - **Each page's own link is marked as the current page** in the bars, for a screen reader. On the trust page, What's New, and Technical details it's drawn in bold and underlined more heavily too, so the eye tells it by more than its color; on the front page it's the website's name, drawn as ever.
+- **The trust page, What's New, and Technical details open with a link back to the test results:** "Back to the test results", after an arrow, goes to the front page.
+- **The front page opens with a kicker,** "ICJIA · Built for Title II of the ADA · WCAG · Illinois IITAA", over its heading, and has an "On this page" row of links to its views, which were links in the bar.
+- **A site folder named `technical-details.html`, `technical-details`, `whats-new.html`, or `whats-new` is left out of the website,** as one named `trust.html` or `trust` is: it would take the place of the page, or of its other address. `voicecap site --help` names the two new pages too.
+- **`pnpm readme:screenshots` makes eleven pictures,** the two new ones being the tops of Technical details and What's New.
+
+### Changed
+
+- **The website is drawn in the audit tool's look.** Its colors are the audit tool's, dark first, with the audit tool's light colors when the reader switches and in print. A near-black page with its main part in one centered column; a small kicker over a very heavy headline, then a quieter lead; cards with thin borders and rounded corners; and big numbers in a fixed-width font. A kicker, a law's tag, and a table's header row are in small capitals that the style draws, so a screen reader gets their words as they're written. The shared reports keep their own look.
+- **No page of the website embeds a font.** Its words are in the system's own fonts, as the audit tool's are, and its big numbers, commands, and fingerprints in the system's fixed-width one. Each page sheds the nine IBM Plex faces it carried, about 240 KB as data in its style block, and its Content Security Policy now allows no font from anywhere (`font-src 'none'`), at both of its addresses. The shared reports embed IBM Plex as before, and keep `font-src data:`.
+- **The top bar is no longer sticky.** It scrolls with the page, as the audit tool's does, so the room 0.13.2 kept clear for it above whatever has focus is gone too.
+- **The theme button is an icon,** a sun while the page is dark and a moon while it's light. Its words are its label for a screen reader, "Switch to the light theme" or "Switch to the dark theme", where the button said "Light version" and "Dark version". The choice is still kept under the name the reports keep theirs, so it carries between the website and its reports.
+- **The trust page is headed as the audit tool's trust page is:** its kicker over a heading of two lines, "Built to be checked." and, in green, "See for yourself." The shield in a circle before the heading is gone.
+  - **The trust page's stamp is the audit tool's amber box:** at its left, small, where the counts come from (the version of voicecap, the day it was released, and this website's records), and at its right, big, the records' date: "Records as of 6 October 2026, 15:00".
+  - **The trust page's four big numbers are in the colors of the audit tool's tiles:** green, green, cyan, and amber.
+  - **The trust page's "How it got here" shows the newest five releases,** each with its version as a pill, then "See all N releases", a link to What's New, and "The full CHANGELOG". It showed every release, the newest five in view and the rest in a fold. The closing line of links is gone, since the bottom bar has GitHub, the CHANGELOG, and the version on every page, and Technical details links voicecap's package on npm.
+  - **The trust page says "each page of a website," not "every page":** a run reads fewer pages with `--limit`, `--page`, `--include`, or `--exclude`.
+  - **The trust page's "How to check a copy" goes to steps that say how:** `Get-FileHash <file>` in PowerShell, or `shasum -a 256 <file>` on a Mac, against the fingerprint the front page lists for the file. They're a new point in the evidence part.
+- **Programmatic API:**
+  - `VoicecapRelease` has a new, required `items`: the points of a release's CHANGELOG entry, each a `ReleaseItem` (its words, and each code span in it as `{ code }`). It's a compile-time change for code that builds `voicecapFacts` by hand, which now has to give each release its `items` (`[]` for none). The facts a build reads for itself have them. The type `ReleaseItem` is exported.
+  - `buildSite` writes two more pages, `technical-details.html` and `whats-new.html`, beside `index.html` and `trust.html`. Its options and its result are as they were.
+- **The README's "The website: `voicecap site`" describes the four pages, both bars, and the look,** and has a section for Technical details and one for What's New. Its pictures of the website are drawn again, from the example release that the script that makes them gives the website, so they come out the same at every release.
+- **Only the website's own pages change.** This is a new minor version, so a website shows it once the build command in the home's `netlify.toml` names it.
+
 ## [0.14.0] - 2026-10-08
 
 ### Added
@@ -558,7 +599,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/ICJIA/voicecap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ICJIA/voicecap/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ICJIA/voicecap/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/ICJIA/voicecap/compare/v0.13.0...v0.13.1
