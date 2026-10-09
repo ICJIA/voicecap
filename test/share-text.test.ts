@@ -325,6 +325,61 @@ describe("the fixed text", () => {
     );
   });
 
+  it("words At a glance as the spec pins it: its heading, the ring's three parts, and the links' lead", () => {
+    const { GLANCE_TEXT, DETAILS_TEXT, ATTENTION_TEXT, PAGES_TEXT } = text;
+
+    expect(GLANCE_TEXT.title).toBe("At a glance");
+    // The owner's choice of 2026-10-07 (D6): each part says whether NVDA read the page, so a page
+    // that was never read isn't one that "needs attention" beside a verdict that counts a card.
+    expect(GLANCE_TEXT.parts).toEqual({
+      noProblems: "Read, no problems",
+      needAttention: "Read, with problems",
+      notRead: "Not read",
+    });
+    expect(GLANCE_TEXT.onThisPage).toBe("On this page");
+    // The words under the number in the ring's middle: "page" for one, and "pages" for none or many.
+    expect([0, 1, 2, 1204].map((pages) => GLANCE_TEXT.ringUnit(pages))).toEqual([
+      "pages",
+      "page",
+      "pages",
+      "pages",
+    ]);
+    // The legend's name for a screen reader, which can't see the number in the ring's middle: the
+    // total with its unit, as the middle shows them, with thousands set apart.
+    expect([0, 1, 2, 7, 1204].map((pages) => GLANCE_TEXT.ringName(pages))).toEqual([
+      "0 pages",
+      "1 page",
+      "2 pages",
+      "7 pages",
+      "1,204 pages",
+    ]);
+    // The links say their sections' own words, from wherever those are.
+    expect([ATTENTION_TEXT.title, PAGES_TEXT.title, DETAILS_TEXT.link]).toEqual([
+      "What needs attention",
+      "Every page",
+      "The details",
+    ]);
+  });
+
+  it("words a page's first lines and its full transcript as the spec pins them", () => {
+    const { PAGES_TEXT } = text;
+
+    expect(PAGES_TEXT.heardFirst).toBe("Heard first");
+    expect(PAGES_TEXT.fullTranscript).toBe("The full transcript");
+  });
+
+  it("names where the sample's transcripts are by their section, never by above or below", () => {
+    const { HOW_TEXT, PAGES_TEXT } = text;
+
+    // The sample is in the details, which come after the cards, and each page's transcripts are in
+    // its card, under Every page. "Below" was false once the page put the cards first, and the
+    // Word copy has the same order; the section's name stays true wherever the sections go.
+    expect(HOW_TEXT.heardNote).toBe(
+      `NVDA's own words: the first lines of each pass, from the transcripts under ${PAGES_TEXT.title}. Each time is how long that line took, which includes the wait for NVDA to finish speaking.`,
+    );
+    expect(HOW_TEXT.heardNote).not.toMatch(/\b(?:above|below)\b/i);
+  });
+
   it("never names a library as how voicecap began", () => {
     expect(everyString().join("\n")).not.toMatch(/guidepup/i);
   });

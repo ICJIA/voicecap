@@ -11,13 +11,14 @@
  * rest of the story and the six cards are in the open. It has no fingerprint check of its own, so it
  * leaves out everything of the page's: its buttons, its result line, its list of every file checked,
  * its line on the sealed records the page carries, its line for a page without scripts, and its note
- * on the transcripts the check leaves out (the appendix says which transcript couldn't be read,
- * under its page). It says in their place what a reader can check, and that the web page can check
- * the transcripts it shows. It also leaves out the words the page says for a screen reader alone
- * that its own headings say in view (a table's caption, a box's name), the summary lines of its
- * folds, the page's links to its own sections, which follow one another in this copy, and the link
- * that downloads a run's walkthrough file, which a Word document can't carry: it says how to get
- * the file instead. Pure.
+ * on the transcripts the check leaves out (each page says which of its transcripts couldn't be
+ * read, under its own heading). It says in their place what a reader can check, and that the web
+ * page can check the transcripts it shows. It also leaves out the words the page says for a screen
+ * reader alone that its own headings say in view (a table's caption, a box's name), the summary
+ * lines of its folds, the page's links to its own sections, which follow one another in this copy,
+ * and the link that downloads a run's walkthrough file, which a Word document can't carry: it says
+ * how to get the file instead. Each section is built from a heading 1 of its own; the details set
+ * each one level down (./details.ts). Pure.
  */
 import { firstSentenceBold, lineOfMarkup, type Line } from "../line.js";
 import type { EvidenceRow, RunEvidence, ShareModel } from "../model.js";
@@ -331,10 +332,10 @@ export function wordStory(_model: ShareModel): Block[] {
 /**
  * The footer, under a heading 1 of its own: on the page the footer is a landmark, which a screen
  * reader announces, but a Word document has none, so without a heading its paragraphs would belong
- * to the last transcript's heading 3, in the navigation pane and for a screen reader. Then what
- * voicecap is, with its address linked; when the report was made, with its offset from UTC, and the
- * offsets the runs recorded their times in; and the file's own name, with its web page's. The
- * heading follows the last transcript with no page break.
+ * to the heading before it (a heading 3 of the details, the last of the story's), in the
+ * navigation pane and for a screen reader. Then what voicecap is, with its address linked; when the
+ * report was made, with its offset from UTC, and the offsets the runs recorded their times in; and
+ * the file's own name, with its web page's. The heading follows the details with no page break.
  */
 export function wordFooter(model: ShareModel): Block[] {
   const { fileName, wordName } = model.footer;

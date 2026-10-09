@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "tab",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/cohorts/",
+    "key": "https://v3--i2i.netlify.app/cohorts",
+    "slug": "cohorts-89f1cdab1d",
+    "finalUrl": "https://v3--i2i.netlify.app/cohorts/"
+  },
+  "capturedAt": "2026-10-06T11:56:47-05:00",
+  "durationMs": 35930,
+  "stepCount": 26,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1330,
+      "offsetMs": 1331,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main-content"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Skip to navigation, same page, link",
+      "durationMs": 1314,
+      "offsetMs": 2646,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to navigation",
+        "inMain": false,
+        "href": "#main-navigation"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, link",
+      "durationMs": 1307,
+      "offsetMs": 3953,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "i2i Logo INSTITUTE 2 INNOVATE",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, Overview, link",
+      "durationMs": 1327,
+      "offsetMs": 5280,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Overview",
+        "inMain": false,
+        "href": "/program-overview/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Resources, button, collapsed",
+      "durationMs": 1306,
+      "offsetMs": 6586,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Resources",
+        "inMain": false,
+        "href": null
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in new tab), link",
+      "durationMs": 1324,
+      "offsetMs": 7909,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in new tab)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1309,
+      "offsetMs": 9218,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Search, link",
+      "durationMs": 1311,
+      "offsetMs": 10529,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Search",
+        "inMain": false,
+        "href": "/search/"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "main landmark, Cohort I — Inaugural Cohort 9 organizations, button, expanded",
+      "durationMs": 1325,
+      "offsetMs": 11854,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Cohort I — Inaugural Cohort 9 organizations",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "list, with 9 items, CHM Bible Theatre Productions, Inc., link",
+      "durationMs": 1355,
+      "offsetMs": 13210,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "CHM Bible Theatre Productions, Inc.",
+        "inMain": true,
+        "href": "/spotlights/chm-bible-theatre-productions/"
+      }
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Equiticity, link",
+      "durationMs": 1339,
+      "offsetMs": 14549,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Equiticity",
+        "inMain": true,
+        "href": "/spotlights/equiticity/"
+      }
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "Metro East Organizing Coalition (MEOC), link",
+      "durationMs": 1344,
+      "offsetMs": 15894,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Metro East Organizing Coalition (MEOC)",
+        "inMain": true,
+        "href": "/spotlights/metro-east-organizing-coalition/"
+      }
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "Public Narrative, link",
+      "durationMs": 1328,
+      "offsetMs": 17222,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Public Narrative",
+        "inMain": true,
+        "href": "/spotlights/public-narrative/"
+      }
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "Reassemble Education and Training Inc (RETINC), link",
+      "durationMs": 1342,
+      "offsetMs": 18564,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Reassemble Education & Training Inc (RETINC)",
+        "inMain": true,
+        "href": "/spotlights/reassemble-education-and-training/"
+      }
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "True Believers, link",
+      "durationMs": 1342,
+      "offsetMs": 19906,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "True Believers",
+        "inMain": true,
+        "href": "/spotlights/true-believers-community-connections/"
+      }
+    },
+    {
+      "n": 16,
+      "command": "nextFocusable",
+      "spoken": "Urban Male Network, link",
+      "durationMs": 1344,
+      "offsetMs": 21250,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Urban Male Network",
+        "inMain": true,
+        "href": "/spotlights/urban-male-network/"
+      }
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "Vision of Restoration, link",
+      "durationMs": 1343,
+      "offsetMs": 22593,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Vision of Restoration",
+        "inMain": true,
+        "href": "/spotlights/vision-of-restoration/"
+      }
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "Cohort II 19 organizations, button, collapsed",
+      "durationMs": 1315,
+      "offsetMs": 23907,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Cohort II 19 organizations",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "Cohort III 21 organizations, button, collapsed",
+      "durationMs": 1322,
+      "offsetMs": 25229,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Cohort III 21 organizations",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 20,
+      "command": "nextFocusable",
+      "spoken": "Cohort IV — Coming Soon Not yet announced, button, collapsed",
+      "durationMs": 1316,
+      "offsetMs": 26545,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Cohort IV — Coming Soon Not yet announced",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 21,
+      "command": "nextFocusable",
+      "spoken": "content info landmark, Visit ICJIA website (opens in a new window), link",
+      "durationMs": 1328,
+      "offsetMs": 27873,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA website (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 22,
+      "command": "nextFocusable",
+      "spoken": "list, with 4 items, Illinois Criminal Justice Information Authority (opens in a new window), link",
+      "durationMs": 1321,
+      "offsetMs": 29194,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Illinois Criminal Justice Information Authority (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 23,
+      "command": "nextFocusable",
+      "spoken": "Privacy, link",
+      "durationMs": 1319,
+      "offsetMs": 30513,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Privacy",
+        "inMain": false,
+        "href": "/privacy/"
+      }
+    },
+    {
+      "n": 24,
+      "command": "nextFocusable",
+      "spoken": "Contact, link",
+      "durationMs": 1325,
+      "offsetMs": 31838,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 25,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in a new window), link",
+      "durationMs": 1328,
+      "offsetMs": 33166,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in a new window)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 26,
+      "command": "nextFocusable",
+      "spoken": "The i 2i Cohorts i 2i - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2764,
+      "offsetMs": 35930,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

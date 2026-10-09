@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { parseSitemapXml } from "../src/pages/sitemap.js";
 import { readShares } from "../src/share/shares.js";
 import { buildSite, type BuildSiteResult } from "../src/site/build.js";
+import { contentSecurityPolicy, inlineHashes } from "../src/site/headers.js";
 import type { SiteContent } from "../src/site/render.js";
 import { sha256 } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
@@ -197,6 +198,22 @@ describe("the site, served as Netlify serves it", () => {
     await page.locator("#theme-toggle").click();
     expect(await violationsOf(page), "the site's page").toEqual([]);
 
+    // The trust page, at both its addresses: under the policy of its own bytes, which the page's
+    // style block and script run under, and its theme button works.
+    const trust = await readFile(path.join(built.out, "trust.html"), "utf8");
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
+    for (const where of ["trust", "trust.html"]) {
+      expect(await visit(page, new URL(where, server.url).href), where).toMatch(A_HASHED_POLICY);
+      const response = await page.request.get(new URL(where, server.url).href);
+      expect(response.headers()["content-security-policy"], where).toBe(trustPolicy);
+      expect(await response.text(), where).toBe(trust);
+      const before = await theme(page);
+      expect(await page.locator("#theme-toggle").isVisible(), where).toBe(true);
+      await page.locator("#theme-toggle").click();
+      expect(await theme(page), where).not.toBe(before);
+      expect(await violationsOf(page), where).toEqual([]);
+    }
+
     // Each page of a report: the three shared, and the one written by hand.
     const pages = pagesOf(built.content);
     expect(pages.toSorted()).toEqual(
@@ -283,14 +300,17 @@ describe("the site, served as Netlify serves it", () => {
       "walkthrough",
     ]);
 
+    // The walkthrough files are in the fold of files, which a reader opens first.
+    for (const summary of await page.locator("summary").all()) await summary.click();
     for (const kind of ["word", "walkthrough"]) {
       const file = report?.files.find((each) => each.kind === kind);
       if (file === undefined) throw new Error(`The report has no ${kind} file.`);
       const address = new URL(file.href, server.url).href;
 
+      // The Word copy is linked twice: from the current report, and in the fold.
       const [download] = await Promise.all([
         page.waitForEvent("download"),
-        page.locator(`a[href="${file.href}"]`).click(),
+        page.locator(`a[href="${file.href}"]`).first().click(),
       ]);
 
       // A browser reports no response for a download, so the address is asked for again.
@@ -309,6 +329,57 @@ describe("the site, served as Netlify serves it", () => {
     }
   });
 
+  it("sends a reader of an older report's page, at either of its addresses, to the site's current report", async () => {
+    // The example site's report of 13 January, and three later ones: it's the fourth newest, so
+    // it's no longer on the site.
+    const home = await newHome();
+    const siteDir = path.join(home, EXAMPLE_FOLDER);
+    const { shares } = await readShares(siteDir);
+    const later = [14, 15, 16].map((day) => ({
+      name: `${EXAMPLE_FOLDER}_2027-01-${day}.html`,
+      bytes: Buffer.from(OLDER_PAGE.replace("An older page.", `The report of ${day} January.`)),
+      at: `2027-01-${day}T10:00:00-06:00`,
+    }));
+    for (const { name, bytes } of later) await writeFile(path.join(siteDir, "share", name), bytes);
+    await writeRecord(siteDir, [
+      ...shares,
+      ...later.map(({ name, bytes, at }, index) =>
+        sealedEntry(index + 2, at, [recordOf(name, bytes)]),
+      ),
+    ]);
+    const kept = await build(home);
+    const keptServer = await serveSite(kept.out);
+    servers.push(keptServer);
+    const current = `${EXAMPLE_FOLDER}/${EXAMPLE_FOLDER}_2027-01-16.html`;
+    const older = `${EXAMPLE_FOLDER}/${EXAMPLE_STEM}`;
+    expect(pagesOf(kept.content)).not.toContain(`${older}.html`);
+
+    // Asked for, each address of the older page answers with a 302 to the current report's page,
+    // which a browser doesn't keep, since the current report changes with each share.
+    for (const address of [`${older}.html`, older]) {
+      const response = await (
+        await newContext()
+      ).request.get(new URL(address, keptServer.url).href, {
+        maxRedirects: 0,
+      });
+      expect(response.status(), address).toBe(302);
+      expect(response.headers()["location"], address).toBe(`/${current}`);
+    }
+    // A reader who follows a link to it lands on the current report, under its own policy.
+    const page = await newPage();
+    const policy = await visit(page, new URL(`${older}.html`, keptServer.url).href);
+    expect(page.url()).toBe(new URL(current, keptServer.url).href);
+    expect(await page.locator("p").textContent()).toBe("The report of 16 January.");
+    expect(policy).toContain(`script-src ${sourceOf(OLDER_SCRIPT)};`);
+    expect(await violationsOf(page)).toEqual([]);
+    // The older report's Word copy isn't sent anywhere: it's simply not there.
+    const word = await page.request.get(
+      new URL(`${EXAMPLE_FOLDER}/${EXAMPLE_STEM}.docx`, keptServer.url).href,
+      { maxRedirects: 0 },
+    );
+    expect(word.status()).toBe(404);
+  });
+
   it("carries the theme from the site to a report", async () => {
     const page = await newPage();
     await page.goto(server.url);
@@ -325,6 +396,40 @@ describe("the site, served as Netlify serves it", () => {
     ]);
     expect(await theme(page)).toBe("light");
     expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
+  });
+
+  it("reaches the trust page from the site's bar", async () => {
+    const page = await newPage();
+    await page.goto(server.url);
+
+    await Promise.all([
+      page.waitForURL(new URL("trust.html", server.url).href),
+      page.getByRole("link", { name: "Can I trust this?" }).click(),
+    ]);
+
+    // It's the trust page, whose own bar says it's the page the reader is on.
+    expect(await page.title()).toBe("Can I trust this? · Screen reader test results");
+    expect(await page.locator("h1").textContent()).toBe("Built to be checked. See for yourself.");
+    expect(await page.locator('.bar nav a[aria-current="page"]').textContent()).toBe(
+      "Can I trust this?",
+    );
+    expect(await violationsOf(page)).toEqual([]);
+  });
+
+  it("reaches the site's page from the trust page's bar", async () => {
+    const page = await newPage();
+    await page.goto(server.url);
+    const siteTitle = await page.title();
+    await page.goto(new URL("trust.html", server.url).href);
+
+    // The bar's views are on the site's page, so its links lead there.
+    await Promise.all([
+      page.waitForURL(new URL("index.html#sites", server.url).href),
+      page.getByRole("link", { name: "The sites" }).click(),
+    ]);
+
+    expect(await page.title()).toBe(siteTitle);
+    expect(await violationsOf(page)).toEqual([]);
   });
 });
 

@@ -5,6 +5,7 @@ import type { VoicecapConfig } from "../config/schema.js";
 import { startDemoServer } from "../demo/server.js";
 import { runTour } from "../demo/tour.js";
 import { DEMO_OUT, INPUT_ENDED, NOT_A_TERMINAL } from "../demo/words.js";
+import { listProcesses } from "../drivers/guidepup/windows.js";
 import { createPrompter, deferPrompter, InputEndedError, type Prompter } from "../init/prompt.js";
 import { runWizard } from "../init/wizard.js";
 import { listUrls } from "../list-urls.js";
@@ -17,11 +18,16 @@ import type { PlatformReadiness } from "../readiness/model.js";
 import { runPreflight } from "../readiness/preflight.js";
 import { runPreflightCommand } from "../readiness/preflight-command.js";
 import { renderCheckingNotice, renderPreflight } from "../readiness/render.js";
+import { terminalKeys } from "../review-replay/keys.js";
+import { RATE } from "../review-replay/player.js";
+import { replayReview } from "../review-replay/session.js";
+import { REPLAY_TEXT } from "../review-replay/text.js";
+import { settlesWithin, startSystemVoice, type Voice } from "../review-replay/voice.js";
 import { addReview } from "../reviews/review.js";
 import { runAudit } from "../run/audit.js";
 import { regenerateLiveFiles } from "../run/live-report.js";
 import { resolveHome } from "../run/paths.js";
-import { handleInterrupts } from "../run/signals.js";
+import { handleInterrupts, stopOnClosedWindow } from "../run/signals.js";
 import { chooseSiteDir } from "../run/site-dir.js";
 import { shareReport } from "../share/share.js";
 import { writeWalkthrough } from "../share/write-walkthrough.js";
@@ -57,6 +63,17 @@ export interface CliContext {
    * process.platform.
    */
   platform: NodeJS.Platform;
+  /**
+   * Tests: replaces the computer's voice that review --replay reads the transcripts aloud with.
+   * Default: Windows' or macOS's own, for `platform` (startSystemVoice).
+   */
+  replayVoice?: () => Promise<Voice>;
+  /**
+   * Tests: replaces review --replay's check for a running NVDA, which only asks. Default:
+   * nvdaRunningOn(platform), which counts each nvda.exe in Windows' list of running programs
+   * (tasklist).
+   */
+  nvdaRunning?: () => Promise<boolean>;
 }
 
 interface RunOptions {
@@ -79,7 +96,28 @@ interface RunOptions {
   walkthrough?: string;
 }
 
+/** review's options. Without --replay, --page and --status are required (see the command). */
+interface ReviewOptions {
+  page?: string;
+  status?: ReviewStatus;
+  note?: string;
+  reviewer?: string;
+  run?: string;
+  site?: string;
+  out?: string;
+  replay?: boolean;
+  all?: boolean;
+  /** As typed: replayRate checks it. */
+  rate?: string;
+}
+
 const OUT_HELP = "transcripts home (default: VOICECAP_TRANSCRIPTS, else ./transcripts)";
+
+/**
+ * How long review --replay waits to hear whether NVDA is running, before it starts without the
+ * answer. The check is tasklist, which answers in a fraction of a second.
+ */
+const NVDA_CHECK_MS = 5_000;
 
 /** Run the voicecap CLI and return its exit code. */
 export async function main(argv: string[], context: Partial<CliContext> = {}): Promise<number> {
@@ -183,6 +221,7 @@ Examples:
   npx @icjia/voicecap --site https://dvfr.illinois.gov --sitemap sitemap.xml
   npx @icjia/voicecap --site https://dvfr.illinois.gov --page https://dvfr.illinois.gov/faq/
   voicecap review --page https://dvfr.illinois.gov/about/ --status reviewed --note "Reads well"
+  voicecap review --replay
   voicecap report --compare previous
 
 Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
@@ -352,12 +391,17 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
 
   program
     .command("review")
-    .description("add an entry to a page's review history")
-    .requiredOption("--page <url>", "the page: full URL or root-relative path")
+    .description("add an entry to a page's review history, or hear pages again with --replay")
+    // --page and --status are required unless --replay is given, which the action checks:
+    // commander can't say "unless".
+    .option(
+      "--page <url>",
+      "the page: full URL or root-relative path (required, unless --replay; with --replay, the one page to hear)",
+    )
     .addOption(
-      new Option("--status <status>", "the review outcome")
-        .choices(REVIEW_STATUSES)
-        .makeOptionMandatory(),
+      new Option("--status <status>", "the review outcome (required, unless --replay)").choices(
+        REVIEW_STATUSES,
+      ),
     )
     .option("--note <text>", "what you found")
     .option(
@@ -370,31 +414,43 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
       "the site's address, or its canonical address (default: the site of a full --page URL, else the home's only site)",
     )
     .option("--out <dir>", OUT_HELP)
-    .action(
-      async (options: {
-        page: string;
-        status: ReviewStatus;
-        note?: string;
-        reviewer?: string;
-        run?: string;
-        site?: string;
-        out?: string;
-      }) => {
-        await addReview({
-          page: options.page,
-          status: options.status,
-          note: options.note ?? null,
-          reviewer: options.reviewer ?? null,
-          run: options.run ?? null,
-          site: options.site ?? null,
-          out: options.out,
-          cwd: ctx.cwd,
-          env: ctx.env,
-          logger,
-        });
-        setExit(ExitCode.ok);
-      },
-    );
+    .option(
+      "--replay",
+      "hear each page's saved transcript read aloud at a normal speed, and decide as you go",
+    )
+    .option("--all", "with --replay: every page with transcripts")
+    .option(
+      "--rate <wpm>",
+      `with --replay: the voice's speed in words a minute, ${RATE.min} to ${RATE.max} (default ${RATE.start})`,
+    )
+    .action(async (options: ReviewOptions) => {
+      if (options.replay === true) {
+        setExit(await replayCommand(options, ctx, logger));
+        return;
+      }
+      if (options.page === undefined) {
+        throw new UsageError("--page is required, unless --replay is given.");
+      }
+      if (options.status === undefined) {
+        throw new UsageError("--status is required, unless --replay is given.");
+      }
+      if (options.all === true || options.rate !== undefined) {
+        throw new UsageError("--all and --rate go with --replay.");
+      }
+      await addReview({
+        page: options.page,
+        status: options.status,
+        note: options.note ?? null,
+        reviewer: options.reviewer ?? null,
+        run: options.run ?? null,
+        site: options.site ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+        logger,
+      });
+      setExit(ExitCode.ok);
+    });
 
   const manual = program.command("manual").description("manual NVDA sessions");
   manual
@@ -544,7 +600,7 @@ Exit codes: 0 completed, 1 invalid usage or config, 2 environment unusable,
   program
     .command("site")
     .description(
-      "build the website of every shared report, for Netlify: index.html, each report's files, robots.txt, and _headers",
+      "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, each report's files, robots.txt, _headers, and _redirects",
     )
     .option(
       "--home <dir>",
@@ -752,6 +808,109 @@ async function runCommand(options: RunOptions, ctx: CliContext, logger: Logger):
   } finally {
     unhook();
   }
+}
+
+/**
+ * `voicecap review --replay`: a review session at a terminal, in which the computer's voice reads
+ * each page's saved transcript aloud, and each decision the person makes is recorded
+ * (src/review-replay/session.ts). Its options are checked before anything starts.
+ *
+ * The keys are read in raw mode from the start, and a closed window ends them. Every way out
+ * closes them, which gives the terminal back as it was, and stops watching for a closed window:
+ * the last page, Ctrl+C, the keys ending, a closed window, and an error, before the voice starts
+ * or after.
+ *
+ * It exits with 130 when the person ended the session before its last page was decided, as an
+ * interrupted run does. A voice that doesn't start, or stops working, is an EnvironmentError (2).
+ */
+async function replayCommand(
+  options: ReviewOptions,
+  ctx: CliContext,
+  logger: Logger,
+): Promise<number> {
+  if (options.status !== undefined || options.note !== undefined || options.run !== undefined) {
+    throw new UsageError(
+      "--replay asks for each decision itself, so it doesn't take --status, --note, or --run.",
+    );
+  }
+  if (options.all === true && options.page !== undefined) {
+    throw new UsageError("--all and --page can't be used together.");
+  }
+  const rate = options.rate === undefined ? RATE.start : replayRate(options.rate);
+  // It takes each key as it's pressed, and shows each line as it's read.
+  if (!isTerminalStream(ctx.stdin) || !isTerminalStream(ctx.stdout)) {
+    throw new UsageError(REPLAY_TEXT.noTerminal);
+  }
+
+  const closed = new AbortController();
+  const keys = terminalKeys(ctx.stdin, closed.signal);
+  const unlisten = stopOnClosedWindow(closed);
+  try {
+    const { outcome } = await replayReview(
+      {
+        page: options.page ?? null,
+        all: options.all === true,
+        rate,
+        reviewer: options.reviewer ?? null,
+        site: options.site ?? null,
+        out: options.out,
+        cwd: ctx.cwd,
+        env: ctx.env,
+      },
+      {
+        out: ctx.stdout,
+        keys,
+        logger,
+        startVoice: ctx.replayVoice ?? (() => startSystemVoice(ctx.platform)),
+        nvdaRunning: ctx.nvdaRunning ?? nvdaRunningOn(ctx.platform),
+      },
+    );
+    return outcome === "quit" ? ExitCode.interrupted : ExitCode.ok;
+  } finally {
+    // Every way out gives the terminal back: raw mode ends as the keys close. Closing them doesn't
+    // fail, even with the terminal gone, so the session's own result or error stands; and should it
+    // ever fail, the closed window is no longer watched all the same.
+    try {
+      await keys.close();
+    } finally {
+      unlisten();
+    }
+  }
+}
+
+/** --rate, as the words a minute it gives: a whole number from RATE.min to RATE.max (D4). */
+function replayRate(value: string): number {
+  const wpm = Number(value.trim());
+  if (!/^\d+$/.test(value.trim()) || wpm < RATE.min || wpm > RATE.max) {
+    throw new UsageError(
+      `--rate is in words a minute, a whole number from ${RATE.min} to ${RATE.max} (got "${value}").`,
+    );
+  }
+  return wpm;
+}
+
+/**
+ * review --replay's check for the person's own NVDA: on Windows, whether any nvda.exe is running,
+ * as tasklist lists them (`processes`, the process ids listProcesses gives, unless a test gives
+ * another), which is the check a run makes before it starts NVDA; elsewhere, never. Any nvda.exe
+ * would read the session's lines over the voice. The list doctor reads, with each NVDA's path,
+ * compiles C# whenever an nvda.exe is running, so it's slowest just when the answer matters; this
+ * one compiles nothing. It only asks: nothing stops, starts, or changes NVDA.
+ *
+ * A check that hasn't answered within `ms` counts as not running, so the session starts, and never
+ * waits more than 5 seconds on it. One that fails rejects, and the session starts all the same.
+ */
+export function nvdaRunningOn(
+  platform: NodeJS.Platform,
+  processes: () => Promise<readonly number[]> = () => listProcesses("nvda.exe"),
+  ms: number = NVDA_CHECK_MS,
+): () => Promise<boolean> {
+  if (platform !== "win32") return () => Promise.resolve(false);
+  return async () => {
+    const running = processes().then((found) => found.length > 0);
+    if (!(await settlesWithin(running, ms))) return false;
+    return running;
+  };
 }
 
 /** URL-valued arguments can't be Windows paths; if one is, Git Bash rewrote it. */

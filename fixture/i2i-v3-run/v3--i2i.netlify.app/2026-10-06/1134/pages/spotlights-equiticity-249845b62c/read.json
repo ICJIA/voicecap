@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/equiticity/",
+    "key": "https://v3--i2i.netlify.app/spotlights/equiticity",
+    "slug": "spotlights-equiticity-249845b62c",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/equiticity/"
+  },
+  "capturedAt": "2026-10-06T12:18:22-05:00",
+  "durationMs": 61416,
+  "stepCount": 48,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1270,
+      "offsetMs": 1271
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1290,
+      "offsetMs": 2560
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1283,
+      "offsetMs": 3844
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1276,
+      "offsetMs": 5120
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1277,
+      "offsetMs": 6397
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1280,
+      "offsetMs": 7677
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1282,
+      "offsetMs": 8959
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1280,
+      "offsetMs": 10239
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1279,
+      "offsetMs": 11518
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1278,
+      "offsetMs": 12796
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, EQUITICITY",
+      "durationMs": 1284,
+      "offsetMs": 14080
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "Transforming Lives Through Racial Equity",
+      "durationMs": 1282,
+      "offsetMs": 15362
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Equiticity logo",
+      "durationMs": 1281,
+      "offsetMs": 16643
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of figure, heading, level 2, same page, link, Mission",
+      "durationMs": 1279,
+      "offsetMs": 17922
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "Born out of North Lawndale, a vibrant neighborhood located on Chicago’s West Side—Equiticity is a",
+      "durationMs": 1282,
+      "offsetMs": 19204
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "501 copyright (3) non-profit organization and racial equity movement, operationalizing racial equity by",
+      "durationMs": 1278,
+      "offsetMs": 20481
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "harnessing their collective power through research, advocacy, programs, Community Mobility Rituals,",
+      "durationMs": 1280,
+      "offsetMs": 21762
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "and social enterprises to improve the lives of Black, Brown, and Indigenous people in their society.",
+      "durationMs": 1274,
+      "offsetMs": 23036
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "Recent Developments since joining the i 2i program include:",
+      "durationMs": 1283,
+      "offsetMs": 24318
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, bullet",
+      "durationMs": 1278,
+      "offsetMs": 25597
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "Team Expansion and Leadership Development, : Equiticity strategically expanded its team, placing key",
+      "durationMs": 1280,
+      "offsetMs": 26876
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "players in pivotal roles, showcasing a commitment to diverse leadership, and amplified impact.",
+      "durationMs": 1283,
+      "offsetMs": 28159
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "bullet",
+      "durationMs": 1286,
+      "offsetMs": 29446
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "Community Transportation Hub, : The development of Equiticity’s transportation hub promises",
+      "durationMs": 1289,
+      "offsetMs": 30734
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "substantial positive change, offering vital resources and connectivity to the communities it serves.",
+      "durationMs": 1278,
+      "offsetMs": 32012
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "out of list, heading, level 2, Visit Equiticity, link, https: slash slash www dot equiticity dot org slash (opens in a new window)",
+      "durationMs": 1287,
+      "offsetMs": 33299
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Photo Gallery",
+      "durationMs": 1270,
+      "offsetMs": 34569
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "tab, selected, A girl in a pink fleece jacket smiling from the back of a bicycle decorated with red, yellow and",
+      "durationMs": 1281,
+      "offsetMs": 35850
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "tab, selected, green balloons during a community bike ride",
+      "durationMs": 1279,
+      "offsetMs": 37129
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "tab, A smiling young man in a red T-shirt leaning over his bicycle handlebars during a community ride,",
+      "durationMs": 1283,
+      "offsetMs": 38412
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "tab, with other riders behind him",
+      "durationMs": 1279,
+      "offsetMs": 39690
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "figure, graphic, A girl in a pink fleece jacket smiling from the back of a bicycle decorated with red, yellow and",
+      "durationMs": 1283,
+      "offsetMs": 40973
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "graphic, green balloons during a community bike ride (Photo Gallery, full size, photo 1 of 2)",
+      "durationMs": 1274,
+      "offsetMs": 42247
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "out of figure, button, Previous photo",
+      "durationMs": 1274,
+      "offsetMs": 43521
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "Photo 1 of 2",
+      "durationMs": 1276,
+      "offsetMs": 44797
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "button, Next photo",
+      "durationMs": 1275,
+      "offsetMs": 46072
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "Keyboard:, press",
+      "durationMs": 1276,
+      "offsetMs": 47348
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "graphic, Left arrow",
+      "durationMs": 1278,
+      "offsetMs": 48627
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "or",
+      "durationMs": 1281,
+      "offsetMs": 49908
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "graphic, Right arrow",
+      "durationMs": 1286,
+      "offsetMs": 51193
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "to change the photo.",
+      "durationMs": 1283,
+      "offsetMs": 52476
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 53751
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1281,
+      "offsetMs": 55032
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1275,
+      "offsetMs": 56307
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1277,
+      "offsetMs": 57584
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1275,
+      "offsetMs": 58859
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1280,
+      "offsetMs": 60139
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 61416
+    }
+  ]
+}

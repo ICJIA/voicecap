@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/biographies/brandon-hilton/",
+    "key": "https://v3--i2i.netlify.app/biographies/brandon-hilton",
+    "slug": "biographies-brandon-hilton-41262160a4",
+    "finalUrl": "https://v3--i2i.netlify.app/biographies/brandon-hilton/"
+  },
+  "capturedAt": "2026-10-06T11:43:30-05:00",
+  "durationMs": 40921,
+  "stepCount": 32,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 1278
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1281,
+      "offsetMs": 2558
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1280,
+      "offsetMs": 3838
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1279,
+      "offsetMs": 5117
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1281,
+      "offsetMs": 6398
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1284,
+      "offsetMs": 7683
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1285,
+      "offsetMs": 8967
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1280,
+      "offsetMs": 10247
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1277,
+      "offsetMs": 11524
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1285,
+      "offsetMs": 12809
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, figure, graphic, Headshot of Brandon Hilton",
+      "durationMs": 1285,
+      "offsetMs": 14094
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "out of figure, heading, level 1, Brandon Hilton",
+      "durationMs": 1278,
+      "offsetMs": 15372
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "i 2i Capacity Building Coach",
+      "durationMs": 1281,
+      "offsetMs": 16652
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "Bringing over 18 years of HR consulting experience, the professional excels in diverse sectors like",
+      "durationMs": 1275,
+      "offsetMs": 17927
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "Healthcare, Marketing, Sales, IT, Engineering, Education, Supply Chain, Operations, Accounting, and",
+      "durationMs": 1277,
+      "offsetMs": 19204
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "Finance. Brandon’s accomplishments include building diverse teams, forging strategic partnerships",
+      "durationMs": 1281,
+      "offsetMs": 20485
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "in recruitment and operations, and consulting with senior management. Proficient in various HR",
+      "durationMs": 1277,
+      "offsetMs": 21762
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "facets, he handles talent acquisition, retention, benefits, compensation, employee relations, and",
+      "durationMs": 1277,
+      "offsetMs": 23039
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "marketing strategies. With a keen eye on budgets and business development, they've contributed to",
+      "durationMs": 1279,
+      "offsetMs": 24318
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "the growth of new acquisitions. Committed to fostering compliance, the expert develops and trains",
+      "durationMs": 1281,
+      "offsetMs": 25599
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "employees to enhance retention and company culture. Ultimately, their goal is to propel companies",
+      "durationMs": 1280,
+      "offsetMs": 26879
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "beyond benchmark goals, optimize resources, and expand target markets swiftly through analytical",
+      "durationMs": 1275,
+      "offsetMs": 28154
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "research and innovative marketing, all while prioritizing excellent customer service.",
+      "durationMs": 1276,
+      "offsetMs": 29430
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "list, with 2 items, link, « Back to Home",
+      "durationMs": 1274,
+      "offsetMs": 30704
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "link, All i 2i team members »",
+      "durationMs": 1277,
+      "offsetMs": 31981
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "out of list, content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 33257
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 34534
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1280,
+      "offsetMs": 35814
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1281,
+      "offsetMs": 37094
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 38370
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1274,
+      "offsetMs": 39644
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 40921
+    }
+  ]
+}

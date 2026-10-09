@@ -41,10 +41,12 @@ import { shareReport } from "../src/share/share.js";
 import { readShares } from "../src/share/shares.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { buildSite, type BuildSiteOptions } from "../src/site/build.js";
+import { readVoicecapFacts, recordFactsOf } from "../src/site/facts.js";
 import {
   contentSecurityPolicy,
   HEADERS_FIRST_LINE,
   inlineHashes,
+  REDIRECTS_FIRST_LINE,
   ROBOTS_TXT,
 } from "../src/site/headers.js";
 import { netlifyToml, NVMRC } from "../src/site/netlify.js";
@@ -53,12 +55,14 @@ import type * as RecordsModule from "../src/site/records.js";
 import { renderSiteIndex } from "../src/site/render.js";
 import type * as RenderModule from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
+import { renderTrustPage } from "../src/site/trust.js";
+import type * as TrustModule from "../src/site/trust.js";
 import { UsageError } from "../src/util/errors.js";
 import { sha256 } from "../src/util/hash.js";
 import { createMemoryLogger, silentLogger, type MemoryLogger } from "../src/util/log.js";
 import { OS_LITTER } from "../src/util/os-litter.js";
 import { isoLocal } from "../src/util/time.js";
-import { voicecapVersion } from "../src/util/version.js";
+import { packageRoot, voicecapVersion } from "../src/util/version.js";
 import { linkToFolder } from "./helpers/links.js";
 import {
   DEMO_SHARED_ON,
@@ -79,9 +83,10 @@ import {
   writeRecord,
 } from "./helpers/site-home.js";
 import { filesOf } from "./helpers/site-content.js";
+import { FACTS } from "./helpers/trust-facts.js";
 
 // Every call goes through as it did, and is kept, so that a test can see what was read and what was
-// removed, and can make the page's render or the records' read fail or say something else once.
+// removed, and can make a page's render or the records' read fail or say something else once.
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>();
   return {
@@ -98,6 +103,10 @@ vi.mock("../src/site/records.js", async (importOriginal) => {
 vi.mock("../src/site/render.js", async (importOriginal) => {
   const actual = await importOriginal<typeof RenderModule>();
   return { ...actual, renderSiteIndex: vi.fn(actual.renderSiteIndex) };
+});
+vi.mock("../src/site/trust.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof TrustModule>();
+  return { ...actual, renderTrustPage: vi.fn(actual.renderTrustPage) };
 });
 
 /** The folders these tests made, which are taken away after each test. */
@@ -122,6 +131,7 @@ afterEach(async () => {
   vi.mocked(rm).mockReset();
   vi.mocked(readSiteRecords).mockReset();
   vi.mocked(renderSiteIndex).mockReset();
+  vi.mocked(renderTrustPage).mockReset();
   await Promise.all(
     roots.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})),
   );
@@ -374,6 +384,8 @@ interface SmallShare {
   /** Anything a record might hold: a root, or something no share would write. */
   site?: unknown;
   page?: string;
+  /** What the share says of the site (from 0.12.3), as a record might hold it. */
+  result?: unknown;
 }
 
 /**
@@ -389,12 +401,15 @@ async function homeWithSites(sites: Record<string, (string | SmallShare)[]>): Pr
     const shares: unknown[] = [];
     for (const [index, report] of reports.entries()) {
       const share: SmallShare = typeof report === "string" ? { at: report } : report;
-      const { at, site, page = `${folder}_${index + 1}.html` } = share;
+      const { at, site, page = `${folder}_${index + 1}.html`, result } = share;
       const bytes = Buffer.from(`<!doctype html><title>${folder} ${index + 1}</title>`);
       await mkdir(path.join(siteDir, "share"), { recursive: true });
       await writeFile(path.join(siteDir, "share", page), bytes);
       shares.push(
-        sealedEntry(index + 1, at, [recordOf(page, bytes)], site === undefined ? {} : { site }),
+        sealedEntry(index + 1, at, [recordOf(page, bytes)], {
+          ...(site === undefined ? {} : { site }),
+          ...(result === undefined ? {} : { result }),
+        }),
       );
     }
     await writeRecord(siteDir, shares);
@@ -443,12 +458,15 @@ describe("buildSite", () => {
       // Each file is read once, and it's the same bytes that are checked and written.
       expect(reads.filter((read) => read === from)).toHaveLength(1);
     }
-    // Only those, the site's own three files, and the demo's own pages in demo-site/.
+    // Only those, the site's own five files (its two pages, robots.txt, _redirects, and _headers),
+    // and the demo's own pages in demo-site/.
     expect(await filesUnder(out)).toEqual(
       [
         "_headers",
+        "_redirects",
         "index.html",
         "robots.txt",
+        "trust.html",
         ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ...published.map(({ to }) => path.relative(out, to).split(path.sep).join("/")),
       ].sort(),
@@ -589,6 +607,7 @@ describe("buildSite", () => {
     const home = await newHome();
 
     const { out, content } = await build(home);
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
 
     // The page is what renderSiteIndex makes of the content the result gives, drawn once.
     expect(vi.mocked(renderSiteIndex)).toHaveBeenCalledTimes(1);
@@ -608,13 +627,16 @@ describe("buildSite", () => {
       scripts: [sourceOf(SITE_SCRIPT)],
       styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
     });
-    // The index at both its addresses, the demo's own pages by a rule for each address each
-    // answers at, then each published file in the order the site lists them: a page at both its
-    // addresses, with the policy of its own bytes, and a Word copy or a walkthrough file as a
-    // download.
+    // The index at both its addresses, the trust page at both its own (each with the policy of its
+    // own bytes), the demo's own pages by a rule for each address each answers at, then each
+    // published file in the order the site lists them: a page at both its addresses, with the
+    // policy of its own bytes, and a Word copy or a walkthrough file as a download.
+    const trustPolicy = contentSecurityPolicy(inlineHashes(trust));
     const expected: [string, [string, string][]][] = [
       ["/", [[CSP, indexPolicy]]],
       ["/index.html", [[CSP, indexPolicy]]],
+      ["/trust.html", [[CSP, trustPolicy]]],
+      ["/trust", [[CSP, trustPolicy]]],
       ...DEMO_RULES,
     ];
     for (const file of filesOf(content)) {
@@ -630,9 +652,9 @@ describe("buildSite", () => {
       }
     }
     expect(rules).toEqual(expected);
-    // The index, the demo's twenty-three addresses, four pages at two addresses each, and ten
-    // downloads.
-    expect(rules).toHaveLength(2 + 23 + 4 * 2 + 4 + 6);
+    // The index and the trust page at two addresses each, the demo's twenty-three addresses, four
+    // pages at two addresses each, and ten downloads.
+    expect(rules).toHaveLength(2 + 2 + 23 + 4 * 2 + 4 + 6);
 
     // A page's policy is its own: the page written by hand has a script and a style no other has.
     const written = rules.find(
@@ -648,6 +670,140 @@ describe("buildSite", () => {
       ],
     ]);
     expect(rules.map(([rulePath]) => rulePath)).toContain(`/${EXAMPLE_FOLDER}/${EXAMPLE_STEM}`);
+  });
+
+  it("writes the trust page, with its policy at both its addresses", async () => {
+    const home = await newHome();
+
+    const { out, content } = await build(home, { voicecapFacts: FACTS });
+
+    // The page is what renderTrustPage makes of the facts it was given, the records' facts counted
+    // from the content the result gives, and that content.
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
+    const fontCss = await fontFaceCss();
+    expect(trust).toBe(
+      renderTrustPage({ voicecap: FACTS, records: recordFactsOf(content), content }, { fontCss }),
+    );
+    expect(trust).toContain(`voicecap ${FACTS.version}, released 9 October 2026`);
+
+    // Each of its two addresses has the policy of the page's own bytes: its one style block and its
+    // one script, by their hashes, and nothing else.
+    const policy = contentSecurityPolicy(inlineHashes(trust));
+    expect(policy).toBe(
+      contentSecurityPolicy({
+        scripts: [sourceOf(SITE_SCRIPT)],
+        styles: [sourceOf(`\n${fontCss}\n${SITE_CSS}`)],
+      }),
+    );
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(
+      rules.filter(([rulePath]) => rulePath === "/trust.html" || rulePath === "/trust"),
+    ).toEqual([
+      ["/trust.html", [[CSP, policy]]],
+      ["/trust", [[CSP, policy]]],
+    ]);
+    // They come after the index's two rules, and before the demo's.
+    expect(rules.slice(0, 4).map(([rulePath]) => rulePath)).toEqual([
+      "/",
+      "/index.html",
+      "/trust.html",
+      "/trust",
+    ]);
+
+    // The index's bar links to it, and its own bar says it's the page the reader is on.
+    expect(await readFile(path.join(out, "index.html"), "utf8")).toContain(
+      '<a href="trust.html">Can I trust this?</a>',
+    );
+    expect(trust).toContain('<a href="trust.html" aria-current="page">Can I trust this?</a>');
+  });
+
+  // Today the trust page and the index hold the same style block and the same script, so their
+  // policies are alike. Each is made from its own bytes all the same, and the page shows it: a trust
+  // page with code of its own is given the policy of that code, and the index keeps its own.
+  it("gives the trust page the policy of its own bytes, and the index the policy of its own", async () => {
+    const home = await newHome();
+    const script = 'document.documentElement.dataset.trust = "ran";';
+    const style = "body { margin: 4rem; }";
+    const page = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Trust</title><style>${style}</style></head>
+<body><p>A trust page with code of its own.</p><script>${script}</script></body></html>
+`;
+    vi.mocked(renderTrustPage).mockReturnValueOnce(page);
+
+    const { out } = await build(home, { voicecapFacts: FACTS });
+
+    expect(await readFile(path.join(out, "trust.html"), "utf8")).toBe(page);
+    const own = contentSecurityPolicy({ scripts: [sourceOf(script)], styles: [sourceOf(style)] });
+    const indexPolicy = contentSecurityPolicy({
+      scripts: [sourceOf(SITE_SCRIPT)],
+      styles: [sourceOf(`\n${await fontFaceCss()}\n${SITE_CSS}`)],
+    });
+    expect(own).not.toBe(indexPolicy);
+    const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+    expect(rules.slice(0, 4)).toEqual([
+      ["/", [[CSP, indexPolicy]]],
+      ["/index.html", [[CSP, indexPolicy]]],
+      ["/trust.html", [[CSP, own]]],
+      ["/trust", [[CSP, own]]],
+    ]);
+  });
+
+  it("writes the same trust page for the same records and facts, whatever the day", async () => {
+    const home = await newHome();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(2020, 0, 2, 3, 4));
+      const first = await build(home, { voicecapFacts: FACTS });
+      const written = await readFile(path.join(first.out, "trust.html"));
+      const headers = await readFile(path.join(first.out, "_headers"), "utf8");
+
+      vi.setSystemTime(new Date(2031, 11, 30, 23, 59));
+      const second = await build(home, { voicecapFacts: FACTS });
+
+      expect(await readFile(path.join(second.out, "trust.html"))).toEqual(written);
+      expect(await readFile(path.join(second.out, "_headers"), "utf8")).toBe(headers);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reads voicecap's own facts when none are given", async () => {
+    // The source tree holds no release facts: publish.sh writes them into dist/ once the tests have
+    // passed, so a test never reads a build's.
+    expect(existsSync(path.join(packageRoot(), "src", "release-facts.json"))).toBe(false);
+    const home = await newHome();
+
+    const { out, content } = await build(home);
+
+    const trust = await readFile(path.join(out, "trust.html"), "utf8");
+    // The version is the package's, from its package.json.
+    expect(trust).toContain(`voicecap ${voicecapVersion()}`);
+    // What a release records of itself isn't there, and the page says so in its place.
+    expect(trust).toContain("not recorded in this build of voicecap");
+    // It's the page of the facts voicecap reads of itself, and of the records it was built from.
+    expect(trust).toBe(
+      renderTrustPage(
+        { voicecap: await readVoicecapFacts(), records: recordFactsOf(content), content },
+        { fontCss: await fontFaceCss() },
+      ),
+    );
+  });
+
+  // The facts given are the facts: the package isn't read for them, so a build with fixed facts
+  // (the README's pictures) comes out the same on any computer.
+  it("never reads voicecap's own facts when it is given some", async () => {
+    const home = await newHome();
+    const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+    vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+      String(file).endsWith("CHANGELOG.md")
+        ? Promise.reject(Object.assign(new Error("EBUSY: it is held"), { code: "EBUSY" }))
+        : real.readFile(file, options)) as typeof readFile);
+
+    const { out } = await build(home, { voicecapFacts: FACTS });
+
+    expect(await readFile(path.join(out, "trust.html"), "utf8")).toContain(
+      `voicecap ${FACTS.version}`,
+    );
   });
 
   // Netlify's documentation doesn't say whether a rule for /demo-site/* matches /demo-site/ itself,
@@ -1186,7 +1342,7 @@ describe("buildSite", () => {
 
     it("leaves out a site folder named as one of the site's own files, or as the demo's own pages, and builds the rest", async () => {
       const home = await newHome();
-      for (const folder of ["index.html", "robots.txt", "_headers", DEMO_PAGES]) {
+      for (const folder of ["index.html", "robots.txt", "_headers", "_redirects", DEMO_PAGES]) {
         const siteDir = path.join(home, folder);
         const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
         await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
@@ -1201,7 +1357,7 @@ describe("buildSite", () => {
 
       expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
       expect(leftOut).toEqual(
-        ["_headers", DEMO_PAGES, "index.html", "robots.txt"].map(
+        ["_headers", "_redirects", DEMO_PAGES, "index.html", "robots.txt"].map(
           (folder) =>
             `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
         ),
@@ -1225,6 +1381,57 @@ describe("buildSite", () => {
       expect(
         (await readFile(path.join(out, "_headers"), "utf8")).startsWith(HEADERS_FIRST_LINE),
       ).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
+    });
+
+    // A folder named trust.html would take the page's place; one named trust would be served at the
+    // page's short address, where Netlify serves the page itself. Neither is published, and the
+    // page is the site's own.
+    it("leaves out a site folder named for the trust page", async () => {
+      const home = await newHome();
+      for (const folder of ["trust.html", "trust"]) {
+        const siteDir = path.join(home, folder);
+        const page = Buffer.from(`<!doctype html><title>${folder}</title>`);
+        await mkdir(path.join(siteDir, "2027-01-12"), { recursive: true });
+        await mkdir(path.join(siteDir, "share"), { recursive: true });
+        await writeFile(path.join(siteDir, "share", `${folder}_1.html`), page);
+        await writeRecord(siteDir, [
+          sealedEntry(1, EXAMPLE_AT, [recordOf(`${folder}_1.html`, page)]),
+        ]);
+      }
+
+      const { out, content, leftOut, logger } = await build(home, { voicecapFacts: FACTS });
+
+      expect(content.sites.map(({ name }) => name)).toEqual([EXAMPLE_FOLDER, FIXTURE_NAME]);
+      const lines = ["trust", "trust.html"].map(
+        (folder) =>
+          `${folder}: not published: a site folder named ${folder} would take the place of the site's own ${folder}`,
+      );
+      expect(leftOut).toEqual(lines);
+      expect(warned(logger)).toEqual(lines);
+      // Neither folder's report is published: there's no trust/ folder, and trust.html is the trust
+      // page, a file (a folder of that name would have taken its place), with the page's own rules.
+      expect(existsSync(path.join(out, "trust"))).toBe(false);
+      const trust = await readFile(path.join(out, "trust.html"), "utf8");
+      expect(trust).toBe(
+        renderTrustPage(
+          { voicecap: FACTS, records: recordFactsOf(content), content },
+          { fontCss: await fontFaceCss() },
+        ),
+      );
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules;
+      const policy = contentSecurityPolicy(inlineHashes(trust));
+      expect(rules.filter(([rulePath]) => rulePath.startsWith("/trust"))).toEqual([
+        ["/trust.html", [[CSP, policy]]],
+        ["/trust", [[CSP, policy]]],
+      ]);
+      // The rest of the site is built as ever.
+      expect(await readFile(path.join(out, "robots.txt"), "utf8")).toBe(ROBOTS_TXT);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
     });
 
     it("leaves out a voicecap-demo that is a file, names it, and builds the sites", async () => {
@@ -1269,6 +1476,7 @@ describe("buildSite", () => {
                 at: EXAMPLE_AT,
                 by: "Sam Rivera",
                 site: null,
+                result: null,
                 files: [recordOf(name, bytes)],
               },
             ],
@@ -2087,6 +2295,25 @@ describe("buildSite", () => {
 
       expect(await treeOf(first.out)).toEqual(before);
     });
+
+    // voicecap's own facts are read with the records, so a CHANGELOG that is there and can't be
+    // read (another program holds it) stops the build before its folder is touched.
+    it("keeps an earlier build when voicecap's own facts can't be read", async () => {
+      const home = await newHome();
+      const first = await build(home);
+      const before = await treeOf(first.out);
+      vi.mocked(rm).mockClear();
+      const real = await vi.importActual<typeof FsPromises>("node:fs/promises");
+      vi.mocked(readFile).mockImplementation((async (file: string, options?: never) =>
+        String(file).endsWith("CHANGELOG.md")
+          ? Promise.reject(Object.assign(new Error("EBUSY: it is held"), { code: "EBUSY" }))
+          : real.readFile(file, options)) as typeof readFile);
+
+      await expect(build(home)).rejects.toThrow("EBUSY: it is held");
+
+      expect(vi.mocked(rm)).not.toHaveBeenCalled();
+      expect(await treeOf(first.out)).toEqual(before);
+    });
   });
 
   describe("netlify.toml and .nvmrc", () => {
@@ -2383,12 +2610,15 @@ describe("buildSite", () => {
         "No reports have been shared yet.",
       );
       // Only the site's own files, and the demo's own pages, which are the site's whether or not
-      // any report is shared; and the page's policy at its two addresses, then each of theirs.
+      // any report is shared; and each page's policy at its two addresses (the site's, then the
+      // trust page's), then each of the demo's.
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
+          "_redirects",
           "index.html",
           "robots.txt",
+          "trust.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
@@ -2396,7 +2626,7 @@ describe("buildSite", () => {
         readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
           ([rulePath]) => rulePath,
         ),
-      ).toEqual(["/", "/index.html", ...DEMO_ADDRESSES]);
+      ).toEqual(["/", "/index.html", "/trust.html", "/trust", ...DEMO_ADDRESSES]);
       expect(logger.entries.at(-1)).toEqual({
         level: "info",
         message: `Built the site in ${out}: 0 reports from 0 sites.`,
@@ -2464,7 +2694,7 @@ describe("buildSite", () => {
       );
     });
 
-    it("orders the sites by name, and each site's reports newest first by the moment, the higher seq on a tie", async () => {
+    it("orders the sites by name, and each site's newest reports newest first by the moment, the higher seq on a tie", async () => {
       const home = await homeWithSites({
         "zeta.illinois.gov": [
           // seq 1 and seq 3 are the same moment, written two ways; seq 2 is later, seq 4 earlier.
@@ -2486,15 +2716,251 @@ describe("buildSite", () => {
         "alpha.illinois.gov",
         "zeta.illinois.gov",
       ]);
+      // The site keeps a site's newest three: seq 4, the earliest, isn't one of them.
       expect(content.sites.map(({ reports }) => reports.map(({ id }) => id))).toEqual([
         ["report-alpha.illinois.gov-2", "report-alpha.illinois.gov-1"],
-        [
-          "report-zeta.illinois.gov-2",
-          "report-zeta.illinois.gov-3",
-          "report-zeta.illinois.gov-1",
-          "report-zeta.illinois.gov-4",
-        ],
+        ["report-zeta.illinois.gov-2", "report-zeta.illinois.gov-3", "report-zeta.illinois.gov-1"],
       ]);
+    });
+  });
+
+  // Added in 0.12.2, at the owner's request: "the only report that matters is the current one". A
+  // site keeps its newest three reports on the site, the newest first. The records keep every share,
+  // and only what's published changes. The page of each older report sends its reader on to the
+  // site's current report, so that a link to it in an email still leads somewhere.
+  describe("what it keeps of a site", () => {
+    /** The times of five shares, a day apart, the earliest first: shares 1 to 5. */
+    const DAYS = [11, 12, 13, 14, 15].map((day) => `2027-01-${day}T10:00:00-06:00`);
+    const DVFR = "dvfr.illinois.gov";
+
+    it("publishes a site's newest three reports, and nothing of its older ones, and says so", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS, "example.illinois.gov": DAYS.slice(0, 2) });
+
+      const { out, content, leftOut, logger } = await build(home);
+
+      expect(content.sites.map(({ name, reports }) => [name, reports.map(({ id }) => id)])).toEqual(
+        [
+          [DVFR, [`report-${DVFR}-5`, `report-${DVFR}-4`, `report-${DVFR}-3`]],
+          [
+            "example.illinois.gov",
+            ["report-example.illinois.gov-2", "report-example.illinois.gov-1"],
+          ],
+        ],
+      );
+      // Only the newest three's files are published, and only they have rules in _headers.
+      expect((await filesUnder(out)).filter((file) => file.startsWith(`${DVFR}/`))).toEqual(
+        [3, 4, 5].map((seq) => `${DVFR}/${DVFR}_${seq}.html`),
+      );
+      const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
+        ([rulePath]) => rulePath,
+      );
+      expect(rules.filter((rulePath) => rulePath.startsWith(`/${DVFR}/`))).toEqual(
+        [5, 4, 3].flatMap((seq) => [`/${DVFR}/${DVFR}_${seq}.html`, `/${DVFR}/${DVFR}_${seq}`]),
+      );
+      // The page shows nothing of the older two, and the record still holds all five.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).not.toContain(`${DVFR}_1.html`);
+      expect(index).not.toContain(`${DVFR}_2.html`);
+      expect((await readShares(path.join(home, DVFR))).shares).toHaveLength(5);
+      // It says so, as what it did rather than as a warning, and counts the reports it published.
+      expect(leftOut).toEqual([]);
+      expect(warned(logger)).toEqual([]);
+      expect(
+        logger.entries.filter(({ level }) => level === "info").map(({ message }) => message),
+      ).toContain(`${DVFR}: 2 older reports aren't on the site, which shows each site's newest 3.`);
+      expect(logger.entries.at(-1)?.message).toBe(
+        `Built the site in ${out}: 5 reports from 2 sites.`,
+      );
+    });
+
+    it("says it of one older report in the singular", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS.slice(1) });
+
+      const { logger } = await build(home);
+
+      expect(
+        logger.entries.filter(({ level }) => level === "info").map(({ message }) => message),
+      ).toContain(`${DVFR}: 1 older report isn't on the site, which shows each site's newest 3.`);
+    });
+
+    it("never reads an older report's files, so says nothing of one that changed", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS });
+      const oldest = path.join(home, DVFR, "share", `${DVFR}_1.html`);
+      await changeAByte(oldest);
+      vi.mocked(readFile).mockClear();
+
+      const { leftOut, logger } = await build(home);
+
+      expect(pathsRead()).not.toContain(oldest);
+      expect(pathsRead()).toContain(path.join(home, DVFR, "share", `${DVFR}_3.html`));
+      expect(leftOut).toEqual([]);
+      expect(warned(logger)).toEqual([]);
+    });
+
+    it("keeps the newest three of all the reports of a site's folders together", async () => {
+      const root = `https://${DVFR}/`;
+      const home = await homeWithSites({
+        // A copy of the site on a tester's computer, whose shares name the site, and the site's own
+        // folder, from before shares did: their four reports take turns, a day apart.
+        "127.0.0.1_4848": [
+          { at: DAYS[0] ?? "", site: root },
+          { at: DAYS[2] ?? "", site: root },
+        ],
+        [DVFR]: [DAYS[1] ?? "", DAYS[3] ?? ""],
+      });
+
+      const { out, content } = await build(home);
+
+      expect(content.sites.map(({ name, folders }) => ({ name, folders }))).toEqual([
+        { name: DVFR, folders: ["127.0.0.1_4848", DVFR] },
+      ]);
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${DVFR}-2`,
+        "report-127.0.0.1_4848-2",
+        `report-${DVFR}-1`,
+      ]);
+      // The oldest of all, the copy's first, is the one that isn't published.
+      expect(existsSync(path.join(out, "127.0.0.1_4848", "127.0.0.1_4848_1.html"))).toBe(false);
+      expect(existsSync(path.join(out, "127.0.0.1_4848", "127.0.0.1_4848_2.html"))).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/127.0.0.1_4848/127.0.0.1_4848_1.html /${DVFR}/${DVFR}_2.html 302`,
+          `/127.0.0.1_4848/127.0.0.1_4848_1 /${DVFR}/${DVFR}_2.html 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends each older report's page, at both its addresses, to its site's current report, in _redirects", async () => {
+      const home = await homeWithSites({
+        [DVFR]: DAYS,
+        "example.illinois.gov": DAYS.slice(0, 4),
+      });
+
+      const { out } = await build(home);
+
+      // The sites in the page's order, and each site's older reports the newest first: each page
+      // at its own address, and at the same without ".html", which is how Netlify serves it.
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_2.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_2 /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1 /${DVFR}/${DVFR}_5.html 302`,
+          "/example.illinois.gov/example.illinois.gov_1.html /example.illinois.gov/example.illinois.gov_4.html 302",
+          "/example.illinois.gov/example.illinois.gov_1 /example.illinois.gov/example.illinois.gov_4.html 302",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends an older report's page to the site's front page when the current report's page isn't published", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS.slice(1) });
+      await changeAByte(path.join(home, DVFR, "share", `${DVFR}_4.html`));
+
+      const { out, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${DVFR}/share/${DVFR}_4.html: not published: it no longer matches its fingerprint`,
+      ]);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_1.html / 302`,
+          `/${DVFR}/${DVFR}_1 / 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("sends only an older report's page on: never its other files, and never an address a newer report publishes", async () => {
+      const home = await homeWithSites({
+        // The first and the fourth name a page of one name: the fourth's is the file there now.
+        [DVFR]: [
+          { at: DAYS[0] ?? "", page: `${DVFR}_same.html` },
+          DAYS[1] ?? "",
+          DAYS[2] ?? "",
+          { at: DAYS[3] ?? "", page: `${DVFR}_same.html` },
+          DAYS[4] ?? "",
+        ],
+      });
+      // The second has a Word copy and a walkthrough file too.
+      const siteDir = path.join(home, DVFR);
+      const word = Buffer.from("A Word copy's bytes.");
+      const walkthrough = Buffer.from("{}");
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2.docx`), word);
+      await writeFile(path.join(siteDir, "share", `${DVFR}_2_walkthrough.json`), walkthrough);
+      const { shares } = await readShares(siteDir);
+      const second = shares[1] as { files: SharedFile[] };
+      await writeRecord(siteDir, [
+        shares[0],
+        sealedEntry(2, DAYS[1] ?? "", [
+          ...second.files,
+          recordOf(`${DVFR}_2.docx`, word),
+          recordOf(`${DVFR}_2_walkthrough.json`, walkthrough),
+        ]),
+        ...shares.slice(2),
+      ]);
+
+      const { out, content } = await build(home);
+
+      expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
+        `report-${DVFR}-5`,
+        `report-${DVFR}-4`,
+        `report-${DVFR}-3`,
+      ]);
+      // The fourth publishes the page the first named, so that address is a page of the site's:
+      // only the second's page is sent on.
+      expect(existsSync(path.join(out, DVFR, `${DVFR}_same.html`))).toBe(true);
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_2.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_2 /${DVFR}/${DVFR}_5.html 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
+    // 0.12.3: the card of a site's current report says what its copies say of the site.
+    it("gives each report the result its entry records, for its card, and none to one that records none", async () => {
+      const nothing = { pages: 9, read: 9, problems: 0, problemPages: 0 };
+      const home = await homeWithSites({
+        [DVFR]: [
+          { at: DAYS[0] ?? "", result: { pages: 9, read: 9, problems: 1, problemPages: 1 } },
+          { at: DAYS[1] ?? "", result: nothing },
+        ],
+        // From before 0.12.3, and one whose result no share would write.
+        "example.illinois.gov": [DAYS[0] ?? "", { at: DAYS[1] ?? "", result: "all good" }],
+      });
+
+      const { out, content, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([]);
+      expect(content.sites[0]?.reports.map(({ id, result }) => [id, result])).toEqual([
+        [`report-${DVFR}-2`, nothing],
+        [`report-${DVFR}-1`, { pages: 9, read: 9, problems: 1, problemPages: 1 }],
+      ]);
+      for (const report of content.sites[1]?.reports ?? []) {
+        expect(report, report.id).not.toHaveProperty("result");
+      }
+      // The page says the current report's, on its card: the verdict's headline, then the pages read.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).toContain('<p class="verdict ok">Nothing needs attention</p>');
+      expect(index).toContain("<p>NVDA read all 9 pages.</p>");
+      expect(index).not.toContain("1 problem needs attention");
+    });
+
+    it("writes _redirects with its first line alone when each site's reports are all on the site", async () => {
+      const home = await newHome();
+
+      const { out } = await build(home);
+
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        `${REDIRECTS_FIRST_LINE}\n`,
+      );
     });
   });
 
@@ -2520,16 +2986,23 @@ describe("buildSite", () => {
       return { ...result, index: await readFile(path.join(result.out, "index.html"), "utf8") };
     }
 
-    /** The page's sites, in order: each section's id, then its heading. */
+    /** The page's sites, in order: each section's id, then its heading, after the site's picture. */
     function sitesOn(index: string): [id: string, heading: string][] {
-      return [...index.matchAll(/<section class="site" id="([^"]*)">\n<h3>([^<]*)<\/h3>/g)].map(
-        ([, id = "", heading = ""]): [string, string] => [id, heading],
-      );
+      return [
+        ...index.matchAll(
+          /<section class="site" id="([^"]*)">\n<div class="site-head"><div class="title"><svg\b[\s\S]*?<\/svg><h3>([^<]*)<\/h3>/g,
+        ),
+      ].map(([, id = "", heading = ""]): [string, string] => [id, heading]);
     }
 
-    /** The ids of the page's reports, in the order the page gives them. */
+    /**
+     * The ids of the page's reports, in the order the page gives them: each site's current report's,
+     * then each of its earlier ones'.
+     */
     function reportsOn(index: string): string[] {
-      return [...index.matchAll(/<article class="report" id="([^"]*)">/g)].map(([, id = ""]) => id);
+      return [...index.matchAll(/<(?:article class="report"|li) id="([^"]*)">/g)].map(
+        ([, id = ""]) => id,
+      );
     }
 
     /**
@@ -2573,12 +3046,67 @@ describe("buildSite", () => {
         `report-${COPY_FOLDER}-2`,
         `report-${COPY_FOLDER}-1`,
       ]);
-      // The page leads with the name: no heading, section, or line by date is named for the folder.
+      // The page leads with the name: no heading, section, or link's words are named for the folder.
       expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
-      expect(listedByDate(index).map(({ site }) => site)).toEqual([NAME, NAME]);
+      expect(index).toContain(`<span class="sr"> of ${NAME}, `);
       expect(index).not.toContain(`site-${COPY_FOLDER}`);
       expect(index).not.toContain(`<h3>${COPY_FOLDER}</h3>`);
-      expect(index).not.toContain(`, ${COPY_FOLDER}, prepared by`);
+      expect(index).not.toContain(` of ${COPY_FOLDER}, `);
+      // One site has no list by date, which would be its own list again.
+      expect(listedByDate(index)).toEqual([]);
+    });
+
+    // 0.13.1. A site's heading links to the site itself: the root that names it.
+    it("gives a site the root that names it, to link its heading to, and a site its folder heads none", async () => {
+      const home = await homeWithSites({
+        // Shared once before the site's address was known, and again after.
+        [COPY_FOLDER]: [
+          { at: JAN_15, site: READ },
+          { at: JAN_16, site: ROOT },
+        ],
+        // Its newest share is of a copy on this computer: an older share's root names nothing.
+        "a-local.example.gov": [
+          { at: JAN_15, site: "https://alpha.illinois.gov/" },
+          { at: JAN_16, site: "http://localhost:3000/" },
+        ],
+        // Shared before 0.10.0, which recorded no site.
+        "example.illinois.gov": [JAN_15],
+      });
+
+      const { content, index } = await built(home);
+
+      expect(content.sites.map(({ name, address }) => ({ name, address }))).toEqual([
+        { name: "a-local.example.gov", address: undefined },
+        { name: NAME, address: ROOT },
+        { name: "example.illinois.gov", address: undefined },
+      ]);
+      // A site with no address has none at all, rather than one that is undefined.
+      for (const at of [0, 2]) expect(content.sites[at]).not.toHaveProperty("address");
+      expect(index.match(/<a class="visit" href="([^"]*)"/g)).toEqual([
+        `<a class="visit" href="${ROOT}"`,
+      ]);
+      expect(index).not.toContain("alpha.illinois.gov");
+    });
+
+    it("gives a site of two folders the root its newest share records", async () => {
+      const home = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_16, site: ROOT }],
+        localhost_3000: [{ at: JAN_15, site: "https://dvfr.illinois.gov/old/" }],
+      });
+
+      const { content } = await built(home);
+
+      expect(
+        content.sites.map(({ name, folders, address }) => ({ name, folders, address })),
+      ).toEqual([{ name: NAME, folders: [COPY_FOLDER, "localhost_3000"], address: ROOT }]);
+      // And the other way round: the newer share is the second folder's.
+      const turned = await homeWithSites({
+        [COPY_FOLDER]: [{ at: JAN_15, site: ROOT }],
+        localhost_3000: [{ at: JAN_16, site: "https://dvfr.illinois.gov/old/" }],
+      });
+      expect((await built(turned)).content.sites.map(({ address }) => address)).toEqual([
+        "https://dvfr.illinois.gov/old/",
+      ]);
     });
 
     it("heads a site by its folder when its newest share names no site readers know it by, though an older share did", async () => {
@@ -2710,15 +3238,9 @@ describe("buildSite", () => {
         { id: `report-${NAME}-1`, folder: NAME, at: JAN_16 },
         { id: `report-${COPY_FOLDER}-1`, folder: COPY_FOLDER, at: JAN_15 },
       ]);
-      // One heading, with the three reports under it in that order, and counted together.
+      // One heading, with the three reports under it in that order: the newest is the current one.
       expect(sitesOn(index)).toEqual([[`site-${NAME}`, NAME]]);
       expect(reportsOn(index)).toEqual(site?.reports.map(({ id }) => id));
-      expect(index).toContain('<p class="count">3 reports</p>');
-      expect(listedByDate(index).map(({ at, site: named }) => [at, named])).toEqual([
-        [JAN_17, NAME],
-        [JAN_16, NAME],
-        [JAN_15, NAME],
-      ]);
       expect(repeatedIds(index)).toEqual([]);
       expect(logger.entries.at(-1)?.message).toBe(
         `Built the site in ${out}: 3 reports from 1 site.`,
@@ -2735,11 +3257,11 @@ describe("buildSite", () => {
 
       const { content } = await built(home);
 
+      // The newest three: the folder's seq 1, of the day before, isn't one of them.
       expect(content.sites[0]?.reports.map(({ id }) => id)).toEqual([
         `report-${COPY_FOLDER}-1`,
         `report-${NAME}-3`,
         `report-${NAME}-2`,
-        `report-${NAME}-1`,
       ]);
     });
 
@@ -2778,16 +3300,21 @@ describe("buildSite", () => {
       expect(await filesUnder(out)).toEqual(
         [
           "_headers",
+          "_redirects",
           `${COPY_FOLDER}/${page}`,
           `${NAME}/${page}`,
           "index.html",
           "robots.txt",
+          "trust.html",
           ...DEMO_FILES.map((file) => `${DEMO_PAGES}/${file}`),
         ].sort(),
       );
-      // The page links to each, twice (with its report, and by date), and each link leads to the
-      // file of the folder it names.
-      const links = [...index.matchAll(/<a href="([^"#]+\.html)"/g)].map(([, href = ""]) => href);
+      // The page links to each, twice (as the current report or an earlier one, and in the fold of
+      // files), and each link leads to the file of the folder it names. The bar's link to the trust
+      // page is a page of the website, not a report's file.
+      const links = [...index.matchAll(/<a (?:class="action" )?href="([^"#]+\.html)"/g)]
+        .map(([, href = ""]) => href)
+        .filter((href) => href !== "trust.html");
       expect(links.toSorted()).toEqual(
         [COPY_FOLDER, NAME].flatMap((folder) => [`${folder}/${page}`, `${folder}/${page}`]).sort(),
       );
@@ -2796,14 +3323,16 @@ describe("buildSite", () => {
         const shared = await readFile(path.join(home, folder, "share", ...rest));
         expect((await readFile(path.join(out, folder, ...rest))).equals(shared), href).toBe(true);
       }
-      // And each page has its own rules in _headers, at both its addresses, after the index's and
-      // the demo's own pages'.
+      // And each page has its own rules in _headers, at both its addresses, after the index's, the
+      // trust page's, and the demo's own pages'.
       const rules = readHeaders(await readFile(path.join(out, "_headers"), "utf8")).rules.map(
         ([rulePath]) => rulePath,
       );
       expect(rules).toEqual([
         "/",
         "/index.html",
+        "/trust.html",
+        "/trust",
         ...DEMO_ADDRESSES,
         `/${NAME}/${page}`,
         `/${NAME}/${page.replace(/\.html$/, "")}`,
@@ -2932,8 +3461,15 @@ describe("the package's entry", () => {
       Api.PublishedFile | null,
       // What `readShares` gives back, so a caller can name it.
       Api.SharesAsRead | null,
-    ] = [null, null, null, null, null, null];
+      // What the trust page says of voicecap (`BuildSiteOptions.voicecapFacts`), of each release
+      // the CHANGELOG records, of what a release recorded of itself, and what it says of the
+      // records.
+      Api.VoicecapFacts | null,
+      Api.VoicecapRelease | null,
+      Api.ReleaseFacts | null,
+      Api.RecordFacts | null,
+    ] = [null, null, null, null, null, null, null, null, null, null];
 
-    expect(types).toHaveLength(6);
+    expect(types).toHaveLength(10);
   });
 });

@@ -1,0 +1,515 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "read",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training/",
+    "key": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training",
+    "slug": "spotlights-reassemble-education-and-trai-fde23bdfd5",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/reassemble-education-and-training/"
+  },
+  "capturedAt": "2026-10-06T12:24:05-05:00",
+  "durationMs": 74119,
+  "stepCount": 58,
+  "stopReason": "end-reached",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "toBottom",
+      "spoken": "content info landmark, list, with 4 items, link, Newsletter (opens in a new window)",
+      "durationMs": 1284,
+      "offsetMs": 1284
+    },
+    {
+      "n": 2,
+      "command": "toTop",
+      "spoken": "out of list, Skip links, navigation landmark, same page, link, Skip to main content",
+      "durationMs": 1278,
+      "offsetMs": 2562
+    },
+    {
+      "n": 3,
+      "command": "nextLine",
+      "spoken": "same page, link, Skip to navigation",
+      "durationMs": 1276,
+      "offsetMs": 3838
+    },
+    {
+      "n": 4,
+      "command": "nextLine",
+      "spoken": "banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.",
+      "durationMs": 1282,
+      "offsetMs": 5121
+    },
+    {
+      "n": 5,
+      "command": "nextLine",
+      "spoken": "link, INSTITUTE 2 INNOVATE",
+      "durationMs": 1283,
+      "offsetMs": 6404
+    },
+    {
+      "n": 6,
+      "command": "nextLine",
+      "spoken": "Main, navigation landmark, link, Overview",
+      "durationMs": 1279,
+      "offsetMs": 7683
+    },
+    {
+      "n": 7,
+      "command": "nextLine",
+      "spoken": "button, collapsed, Resources",
+      "durationMs": 1273,
+      "offsetMs": 8957
+    },
+    {
+      "n": 8,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in new tab)",
+      "durationMs": 1278,
+      "offsetMs": 10235
+    },
+    {
+      "n": 9,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1274,
+      "offsetMs": 11509
+    },
+    {
+      "n": 10,
+      "command": "nextLine",
+      "spoken": "link, Search",
+      "durationMs": 1280,
+      "offsetMs": 12789
+    },
+    {
+      "n": 11,
+      "command": "nextLine",
+      "spoken": "main landmark, heading, level 1, REASSEMBLE, EDUCATION, and TRAINING INC (R dot E dot T)",
+      "durationMs": 1276,
+      "offsetMs": 14065
+    },
+    {
+      "n": 12,
+      "command": "nextLine",
+      "spoken": "Driving Racial Equity through Advocacy and Community Empowerment",
+      "durationMs": 1279,
+      "offsetMs": 15344
+    },
+    {
+      "n": 13,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Reassemble Education and Training Inc. (RET Inc) logo",
+      "durationMs": 1275,
+      "offsetMs": 16618
+    },
+    {
+      "n": 14,
+      "command": "nextLine",
+      "spoken": "out of figure, R dot E dot T. is an advocacy and education platform for individuals in the fight against addiction, as",
+      "durationMs": 1278,
+      "offsetMs": 17897
+    },
+    {
+      "n": 15,
+      "command": "nextLine",
+      "spoken": "well as their loved ones and community members. Through this platform, R dot E dot T. aims for the goal of",
+      "durationMs": 1277,
+      "offsetMs": 19174
+    },
+    {
+      "n": 16,
+      "command": "nextLine",
+      "spoken": "long-term recovery for all its members and a community that no longer fears or stigmatizes the",
+      "durationMs": 1284,
+      "offsetMs": 20458
+    },
+    {
+      "n": 17,
+      "command": "nextLine",
+      "spoken": "recovering or mentally challenged person but treats them with dignity and respect.",
+      "durationMs": 1280,
+      "offsetMs": 21738
+    },
+    {
+      "n": 18,
+      "command": "nextLine",
+      "spoken": "heading, level 2, same page, link, Mission",
+      "durationMs": 1279,
+      "offsetMs": 23017
+    },
+    {
+      "n": 19,
+      "command": "nextLine",
+      "spoken": "Their mission is dedicated to the total recovery and restoration of persons suffering from the",
+      "durationMs": 1279,
+      "offsetMs": 24296
+    },
+    {
+      "n": 20,
+      "command": "nextLine",
+      "spoken": "disease of addiction. They are committed to providing a haven and holistic service for minorities",
+      "durationMs": 1280,
+      "offsetMs": 25576
+    },
+    {
+      "n": 21,
+      "command": "nextLine",
+      "spoken": "within their community. Their programs will include Christian and Spiritual principles. They",
+      "durationMs": 1281,
+      "offsetMs": 26857
+    },
+    {
+      "n": 22,
+      "command": "nextLine",
+      "spoken": "believe the principles that bring them together are the foundation of success for continued",
+      "durationMs": 1279,
+      "offsetMs": 28136
+    },
+    {
+      "n": 23,
+      "command": "nextLine",
+      "spoken": "recovery and support of one another.",
+      "durationMs": 1280,
+      "offsetMs": 29416
+    },
+    {
+      "n": 24,
+      "command": "nextLine",
+      "spoken": "Recent Developments since joining the i 2i program include:",
+      "durationMs": 1278,
+      "offsetMs": 30695
+    },
+    {
+      "n": 25,
+      "command": "nextLine",
+      "spoken": "bullet Non-Profit Evolution: Since i 2i, RET has successfully transformed into a fully functioning",
+      "durationMs": 1275,
+      "offsetMs": 31970
+    },
+    {
+      "n": 26,
+      "command": "nextLine",
+      "spoken": "non-profit, solidifying its commitment to community service.",
+      "durationMs": 1280,
+      "offsetMs": 33249
+    },
+    {
+      "n": 27,
+      "command": "nextLine",
+      "spoken": "bullet Harm Reduction Mobile Unit: RET mobile unit actively engages the community, providing essential",
+      "durationMs": 1281,
+      "offsetMs": 34530
+    },
+    {
+      "n": 28,
+      "command": "nextLine",
+      "spoken": "harm reduction services and contributing to a safer environment for those facing addiction",
+      "durationMs": 1278,
+      "offsetMs": 35808
+    },
+    {
+      "n": 29,
+      "command": "nextLine",
+      "spoken": "challenges.",
+      "durationMs": 1275,
+      "offsetMs": 37084
+    },
+    {
+      "n": 30,
+      "command": "nextLine",
+      "spoken": "bullet Trauma Training and Curriculum: Regular trauma training for staff and community clients ensures a",
+      "durationMs": 1277,
+      "offsetMs": 38360
+    },
+    {
+      "n": 31,
+      "command": "nextLine",
+      "spoken": "holistic approach to recovery, emphasizing mental well-being.",
+      "durationMs": 1277,
+      "offsetMs": 39638
+    },
+    {
+      "n": 32,
+      "command": "nextLine",
+      "spoken": "bullet Securing Permanent Residence and Funding: RET is actively pursuing a permanent residence and",
+      "durationMs": 1278,
+      "offsetMs": 40916
+    },
+    {
+      "n": 33,
+      "command": "nextLine",
+      "spoken": "securing funding for future programming, positioning itself for sustained impact and growth.",
+      "durationMs": 1275,
+      "offsetMs": 42191
+    },
+    {
+      "n": 34,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Visit Reassemble, Education, and Training Inc (R dot E dot T), link, https: slash slash www dot retinc dot org slash (opens in a new window)",
+      "durationMs": 1281,
+      "offsetMs": 43472
+    },
+    {
+      "n": 35,
+      "command": "nextLine",
+      "spoken": "heading, level 2, Photo Gallery",
+      "durationMs": 1277,
+      "offsetMs": 44749
+    },
+    {
+      "n": 36,
+      "command": "nextLine",
+      "spoken": "tab, selected, Two men talking across a round table in a meeting room, with a Recovery Month Celebration poster on",
+      "durationMs": 1275,
+      "offsetMs": 46025
+    },
+    {
+      "n": 37,
+      "command": "nextLine",
+      "spoken": "tab, selected, the wall",
+      "durationMs": 1274,
+      "offsetMs": 47299
+    },
+    {
+      "n": 38,
+      "command": "nextLine",
+      "spoken": "tab, Adults in face masks seated at folding tables in a classroom, listening to an instructor in a white",
+      "durationMs": 1275,
+      "offsetMs": 48574
+    },
+    {
+      "n": 39,
+      "command": "nextLine",
+      "spoken": "tab, REST' T-shirt",
+      "durationMs": 1275,
+      "offsetMs": 49849
+    },
+    {
+      "n": 40,
+      "command": "nextLine",
+      "spoken": "tab, A man and a woman in matching white RET Inc T-shirts seated outdoors in front of a banner",
+      "durationMs": 1277,
+      "offsetMs": 51126
+    },
+    {
+      "n": 41,
+      "command": "nextLine",
+      "spoken": "tab, advertising free employment training",
+      "durationMs": 1278,
+      "offsetMs": 52405
+    },
+    {
+      "n": 42,
+      "command": "nextLine",
+      "spoken": "figure, graphic, Two men talking across a round table in a meeting room, with a Recovery Month Celebration poster on",
+      "durationMs": 1277,
+      "offsetMs": 53682
+    },
+    {
+      "n": 43,
+      "command": "nextLine",
+      "spoken": "graphic, the wall (Reassemble, Education, and Training Inc (R dot E dot T), full size, photo 1 of 3)",
+      "durationMs": 1276,
+      "offsetMs": 54957
+    },
+    {
+      "n": 44,
+      "command": "nextLine",
+      "spoken": "out of figure, button, Previous photo",
+      "durationMs": 1277,
+      "offsetMs": 56234
+    },
+    {
+      "n": 45,
+      "command": "nextLine",
+      "spoken": "Photo 1 of 3",
+      "durationMs": 1277,
+      "offsetMs": 57512
+    },
+    {
+      "n": 46,
+      "command": "nextLine",
+      "spoken": "button, Next photo",
+      "durationMs": 1276,
+      "offsetMs": 58788
+    },
+    {
+      "n": 47,
+      "command": "nextLine",
+      "spoken": "Keyboard:, press",
+      "durationMs": 1277,
+      "offsetMs": 60064
+    },
+    {
+      "n": 48,
+      "command": "nextLine",
+      "spoken": "graphic, Left arrow",
+      "durationMs": 1276,
+      "offsetMs": 61340
+    },
+    {
+      "n": 49,
+      "command": "nextLine",
+      "spoken": "or",
+      "durationMs": 1280,
+      "offsetMs": 62620
+    },
+    {
+      "n": 50,
+      "command": "nextLine",
+      "spoken": "graphic, Right arrow",
+      "durationMs": 1275,
+      "offsetMs": 63895
+    },
+    {
+      "n": 51,
+      "command": "nextLine",
+      "spoken": "to change the photo.",
+      "durationMs": 1280,
+      "offsetMs": 65175
+    },
+    {
+      "n": 52,
+      "command": "nextLine",
+      "spoken": "content info landmark, link, Visit ICJIA website (opens in a new window)",
+      "durationMs": 1277,
+      "offsetMs": 66452
+    },
+    {
+      "n": 53,
+      "command": "nextLine",
+      "spoken": "list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)",
+      "durationMs": 1281,
+      "offsetMs": 67733
+    },
+    {
+      "n": 54,
+      "command": "nextLine",
+      "spoken": "link, Privacy",
+      "durationMs": 1277,
+      "offsetMs": 69010
+    },
+    {
+      "n": 55,
+      "command": "nextLine",
+      "spoken": "link, Contact",
+      "durationMs": 1277,
+      "offsetMs": 70287
+    },
+    {
+      "n": 56,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1276,
+      "offsetMs": 71563
+    },
+    {
+      "n": 57,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 72841
+    },
+    {
+      "n": 58,
+      "command": "nextLine",
+      "spoken": "link, Newsletter (opens in a new window)",
+      "durationMs": 1278,
+      "offsetMs": 74119
+    }
+  ]
+}

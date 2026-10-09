@@ -39,11 +39,14 @@ export type {
   WalkthroughPage,
   WalkthroughSettings,
 } from "./share/walkthrough.js";
-// The website of every shared report, as `voicecap site` builds it from the home's records of what
-// was shared. The types describe what it published.
+// The website of each site's newest shared reports, as `voicecap site` builds it from the home's
+// records of what was shared. The types describe what it published.
 export { buildSite } from "./site/build.js";
 export type { BuildSiteOptions, BuildSiteResult } from "./site/build.js";
 export type { PublishedFile, PublishedReport, SiteContent } from "./site/render.js";
+// What the website's "Can I trust this?" page states (`BuildSiteOptions.voicecapFacts`): of
+// voicecap, of each release its CHANGELOG records, of what a release recorded, and of the records.
+export type { RecordFacts, ReleaseFacts, VoicecapFacts, VoicecapRelease } from "./site/facts.js";
 export { verifyHome } from "./verify.js";
 export type { VerifyHomeOptions, VerifyResult, VerifySiteResult } from "./verify.js";
 export { defineConfig, loadConfig, resolveConfig } from "./config/load.js";

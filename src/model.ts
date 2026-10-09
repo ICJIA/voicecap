@@ -607,10 +607,27 @@ export interface ShareEntry {
   site?: string;
   /** The ids of the runs the copies drew on, oldest first. */
   runs: string[];
+  /**
+   * What the copies say of the site (from 0.12.3), from the model they're made from, which the
+   * website's card shows. Sealed with the rest. Absent on entries recorded before 0.12.3.
+   */
+  result?: ShareResult;
   /** The page, then its Word copy, then each run's walkthrough file, oldest run first. */
   files: SharedFile[];
   /** sealOf this entry. */
   seal: string;
+}
+
+/**
+ * What a share's copies say of the site, in four counts: its pages in scope; how many have
+ * transcripts, which NVDA read; and the problems that need attention (a card for each, under "What
+ * needs attention") and how many different pages they're on.
+ */
+export interface ShareResult {
+  pages: number;
+  read: number;
+  problems: number;
+  problemPages: number;
 }
 
 export interface SharesFile {

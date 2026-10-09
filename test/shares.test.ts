@@ -251,6 +251,66 @@ describe("appendShare", () => {
     expect(third).toMatchObject({ seq: 3, prev: second.seal });
   });
 
+  // 0.12.3: what the copies say of the site, which the website's card shows, after the runs.
+  it("records the result it's given, sealed with the rest, and with its key after runs", async () => {
+    const result = { pages: 9, read: 9, problems: 0, problemPages: 0 };
+    const recorded = await appendShare(siteDir, {
+      ...entry,
+      site: "https://sfs.icjia.illinois.gov/",
+      result,
+    });
+    expect(recorded.result).toEqual(result);
+    expect(Object.keys(recorded)).toEqual([
+      "seq",
+      "prev",
+      "at",
+      "by",
+      "site",
+      "runs",
+      "result",
+      "files",
+      "seal",
+    ]);
+    // In the order the file reads them, whatever order it's handed them in.
+    expect(Object.keys(recorded.result ?? {})).toEqual([
+      "pages",
+      "read",
+      "problems",
+      "problemPages",
+    ]);
+    // The seal holds, and covers the result: an entry that said otherwise has another seal.
+    expect(recorded.seal).toBe(sealOf(recorded));
+    expect(sealOf({ ...recorded, result: { ...result, problems: 1, problemPages: 1 } })).not.toBe(
+      recorded.seal,
+    );
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as { shares: object[] };
+    expect(written.shares).toEqual([recorded]);
+  });
+
+  it("writes a result's numbers in one order, and nothing else it's handed in one", async () => {
+    const handed = { problemPages: 2, extra: "x", read: 30, problems: 3, pages: 32 };
+    const recorded = await appendShare(siteDir, {
+      ...entry,
+      result: handed,
+    });
+    expect(recorded.result).toEqual({ pages: 32, read: 30, problems: 3, problemPages: 2 });
+    expect(Object.keys(recorded.result ?? {})).toEqual([
+      "pages",
+      "read",
+      "problems",
+      "problemPages",
+    ]);
+  });
+
+  it("records no result for an entry that has none, as an entry from before 0.12.3 has none", async () => {
+    const recorded = await appendShare(siteDir, entry);
+    expect(recorded).not.toHaveProperty("result");
+    const written = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as {
+      shares: Record<string, unknown>[];
+    };
+    expect(Object.hasOwn(written.shares[0]!, "result")).toBe(false);
+  });
+
   it("chains the entry itself: a seq, prev, or seal it's handed, or any other field, isn't kept", async () => {
     const handed = { ...entry, seq: 99, prev: "z".repeat(64), seal: "y".repeat(64), extra: "x" };
     const recorded = await appendShare(siteDir, handed);

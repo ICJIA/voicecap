@@ -1,0 +1,122 @@
+# voicecap transcript: read pass
+# Page: https://v3--i2i.netlify.app/program-overview/
+# Final URL: https://v3--i2i.netlify.app/program-overview/
+# Label: -
+# Template: -
+# Notes: -
+# Run: 2026-10-06_1134 (started 2026-10-06T11:34:27-05:00)
+# Captured: 2026-10-06T12:07:33-05:00
+# Steps: 97 (stopped: end reached)
+# Duration: 2m 4s
+# Errors: none
+# Warnings: none
+# Page source: page list page-lists/v3--i2i.netlify.app.csv (sha256 5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1)
+# Driver: guidepup 0.34.0 (capture: complete)
+# Screen reader: NVDA 2026.2 (build 0.2.1-2026.2, language en-US)
+# Browser: Chrome 154.0.8037.95
+# OS: Windows 11 Pro 25H2 (10.0.26200)
+# voicecap: 0.11.0 (config sha256 1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb)
+# NVDA speech: oneCore.rate=100, oneCore.rateBoost=true, oneCore.voice="HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM", oneCore.volume=100, synth="oneCore"
+# NVDA documentFormatting: (empty)
+# NVDA virtualBuffers: autoSayAllOnPageLoad=false
+# NVDA keyboard: (empty)
+# NVDA general: askToExit=false, language="Windows", loggingLevel="OFF", playStartAndExitSounds=false, preventDisplayTurningOff=true, saveConfigurationOnExit=false, showWelcomeDialogAtStartup=false
+# NVDA recorded: "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)"
+
+[to bottom] content info landmark, list, with 4 items, link, Newsletter (opens in a new window)
+[to top] out of list, Skip links, navigation landmark, same page, link, Skip to main content
+same page, link, Skip to navigation
+banner landmark, link, Unlabeled graphic, i 2i Logo. To get missing image descriptions, open the context menu.
+link, INSTITUTE 2 INNOVATE
+Main, navigation landmark, same page, link, current page, Overview
+button, collapsed, Resources
+link, Newsletter (opens in new tab)
+link, Contact
+link, Search
+main landmark, heading, level 1, Behind the Founding of i 2i
+In the diverse landscape of the State of Illinois, thousands of organizations diligently engage
+with communities, striving to make a difference. However, the struggle with capacity remains a
+common challenge, exacerbated by historical disinvestment that has left many grassroots
+organizations vulnerable and at risk of dissolution.
+These organizations face fundamental challenges and organizational needs that demand urgent
+attention. i 2i emerged as a response to this pressing issue, aiming to be a transformative force.
+Its inception acknowledges the precarious position of grassroots organizations and their essential
+role in community well-being amid historical disinvestments.
+Historical disinvestment has cast a shadow over the resilience of grassroots organizations, and i 2i
+stands committed to addressing these challenges. Firm in the belief that with the right resources
+and assistance, these grassroots organizations can not only weather the storm but thrive.
+i 2i focuses on grassroots organizations dedicated to changing the circumstances of violence in
+their communities. By providing essential support, i 2i becomes a resource to ensure that their
+capacity is not merely sustained but elevated, guiding them on a path to sustainability.
+Together, we shape a future where capacity is not a barrier but a steppingstone to sustained impact.
+heading, level 2, i 2i Overview
+heading, level 3, Welcome to Institute to Innovate (i 2i)
+i 2i, an initiative launched by the Illinois Criminal Justice Information Authority (ICJIA), is an
+innovative, capacity-building hub, that empowers statewide community-based organizations by providing
+tailored support to, strengthen infrastructure, increase sustainability, and address critical
+capacity needs, dot
+heading, level 3, What exactly is capacity building?
+Capacity building is the intentional process of, developing and strengthening the skills, systems,
+processes, and resources, an organization needs to operate effectively and sustainably.
+i 2i is dedicated to providing support to grassroots organizations and community groups by
+strengthening their capacity.
+block quote, graphic, Delrice Adams
+Our commitment to public safety starts with an ongoing investment in you, ensuring lasting impact.
+– Delrice Adams, ICJIA Executive Director
+out of block quote, heading, level 3, Examples of Capacity Building
+list, with 4 items, bullet Leadership development
+bullet Financial Management
+bullet Technology Improvements
+bullet Strategic Planning
+out of list, heading, level 3, i 2i Capacity Building Services
+list, with 7 items, bullet Vision and Impact
+bullet Governance and leadership
+bullet Program delivery
+bullet Resource generation
+bullet Internal operations and management
+bullet Evaluation and learning
+bullet Strategic relationships
+out of list, heading, level 3, An Inclusive Cohort Approach
+i 2i welcomes cohort members, including, local organizations interested in funding from the state of
+Illinois and current grantees facing capacity constraints., Our commitment lies in fostering an
+inclusive environment, ensuring that organizations at various stages of development benefit from
+our expertise. Drawing from the wisdom of the National Council of Nonprofits,, we define nonprofit
+capacity building as more than a one-time effort; it's a continuous improvement strategy., This
+strategic approach serves as the key to bringing a nonprofit to the next level of operational,
+programmatic, financial, and organizational maturity, enabling more effective and efficient
+advancement of their mission into the future.
+heading, level 3, Program Structure
+heading, level 4, Phase One: Institute Program (6 months)
+list, with 2 items, bullet Biweekly 3-hour capacity building workshops
+bullet One-on-one coaching
+out of list, heading, level 4, Phase Two: Assisted Implementation (12 months)
+list, with 2 items, bullet Continued one-on-one coaching
+bullet Monthly workshops tailored to specific needs
+out of list, heading, level 3, How do I know if I qualify for i 2i support?
+If your organization...
+list, with 4 items, check
+Has an established presence as a grassroots organization (budget under $2 million)
+check
+Serves an average of 100 plus individuals in the last 3 years
+check
+Exhibits a dedication to serve the community and reduce violence
+check
+Demonstrates a commitment to participating in the 18-month program requirement
+out of list, ...you qualify for participation in the i 2i cohort training process.
+heading, level 3, Application Process
+list, with 5 items, 1. Complete a Request for Information (RFI) on the i 2i website.
+2. Attend the i 2i orientation to learn more about the program structure, requirements, timeline,
+and expectations.
+3. Meet with an i 2i coach to further assess capacity-building needs.
+4. i 2i matches each organization with coaches who can provide support aligned with its goals and
+needs.
+5. Once matched with a coach, the organization officially becomes part of the cohort and begins the
+training process.
+out of list, Next:, link, The PARLOR Process, — the evidence-informed approach behind all i 2i training.
+content info landmark, link, Visit ICJIA website (opens in a new window)
+list, with 4 items, copyright 2026, link, Illinois Criminal Justice Information Authority (opens in a new window)
+link, Privacy
+link, Contact
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)
+link, Newsletter (opens in a new window)

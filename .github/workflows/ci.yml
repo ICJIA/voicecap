@@ -22,7 +22,11 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [22, 24]
     steps:
+      # The whole history, not the newest commit alone: test/release-facts.test.ts records the
+      # release's facts from this checkout, and a shallow clone can't count the commits behind it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Reads the pnpm version from package.json's packageManager field.
       - uses: pnpm/action-setup@v4

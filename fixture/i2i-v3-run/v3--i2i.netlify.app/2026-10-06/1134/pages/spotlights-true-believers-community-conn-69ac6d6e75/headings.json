@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "headings",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/",
+    "key": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections",
+    "slug": "spotlights-true-believers-community-conn-69ac6d6e75",
+    "finalUrl": "https://v3--i2i.netlify.app/spotlights/true-believers-community-connections/"
+  },
+  "capturedAt": "2026-10-06T12:26:43-05:00",
+  "durationMs": 6396,
+  "stepCount": 5,
+  "stopReason": "no-next-heading",
+  "warnings": [],
+  "errors": [],
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextHeading",
+      "spoken": "main landmark, TRUE BELIEVERS COMMUNITY CONNECTIONS (TBCC), heading, level 1",
+      "durationMs": 1275,
+      "offsetMs": 1275
+    },
+    {
+      "n": 2,
+      "command": "nextHeading",
+      "spoken": "Mission, same page, link, heading, level 2",
+      "durationMs": 1281,
+      "offsetMs": 2556
+    },
+    {
+      "n": 3,
+      "command": "nextHeading",
+      "spoken": "Visit True Believers Community Connections (TBCC), heading, level 2",
+      "durationMs": 1285,
+      "offsetMs": 3841
+    },
+    {
+      "n": 4,
+      "command": "nextHeading",
+      "spoken": "Photo Gallery, heading, level 2",
+      "durationMs": 1281,
+      "offsetMs": 5122
+    },
+    {
+      "n": 5,
+      "command": "nextHeading",
+      "spoken": "no next heading",
+      "durationMs": 1274,
+      "offsetMs": 6396
+    }
+  ]
+}

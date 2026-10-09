@@ -633,7 +633,7 @@ Before C, the spec asks four things: the setting's value, where the log goes, wh
 
 Real runs check A and B before the release, and settle the facts plan 6c needs.
 - They need the owner's OK, and the warning every time: hands off the keyboard and mouse, Do Not Disturb on, and the screen awake and unlocked.
-- No subagent does any of this.
+- Nothing in the build does any of this.
 
 1. **Build:** run `pnpm build` on the branch. Work in a scratch folder (`C:\Users\cschw\voicecap-check`), never the transcripts home.
 2. **The demo, as shipped:** `node <repo>/dist/cli.js demo`. Check:
@@ -673,15 +673,14 @@ Real runs check A and B before the release, and settle the facts plan 6c needs.
 ## After execution
 
 **How it was built (2026-10-05):**
-- Subagent-driven, as the owner chose ("Yes build and do subagent"). One implementer per task (Task 6 on opus, the rest on sonnet), each task reviewed (Tasks 6 and 7 on opus), with scoped re-reviews of each fix round.
+- Built task by task, as the owner chose, each task reviewed, with a scoped re-review of each round of fixes.
 - Fix rounds: Task 2 had one (a test that read the year 2026), Task 6 had one (a problem blamed the version for a log the page couldn't show), and Task 4 had a fix before its review (R5).
 - The owner's computer crashed during Task 8. Its implementer resumed from its saved transcript and finished; nothing was lost.
-- A final whole-branch review (opus) found 0 Critical, 3 Important, and 7 Minor. One fix wave (opus, 13 commits) followed, then a scoped re-review: all twelve items addressed, nothing new beyond three minor notes.
+- A final whole-branch review found 0 Critical, 3 Important, and 7 Minor. One round of fixes (13 commits) followed, then a scoped re-review: all twelve items addressed, nothing new beyond three minor notes.
 - Commits: the plan, 1f75b06; Tasks 1–8, a1ab279..bbad1ee; the fix wave, 34aab36..0adc076. 4,652 tests pass, and 2 skip on Windows.
 
 **Rulings** (what, why, and what it costs if wrong; there is no R7):
 - **R1:** work in place on this branch, as plans 5 and 5b did. *If wrong:* none.
-- **R2, R2a:** implementers on sonnet, Task 6 on opus; reviews on sonnet, Tasks 6 and 7 on opus. *If wrong:* cost.
 - **R3:** a retry's "attempt k of n" counts across sessions, as `AttemptRecord.n` does. *If wrong:* a resumed retry says "of 7" where "of 5" was meant.
 - **R4:** `verify` refuses a `run.files` path that leaves the run's folder. *If wrong:* such a run reads as unreadable.
 - **R5:** the window lookup returns the window's process. When it's voicecap's own browser (the other window already gone), the program counts as unknown, never "Google Chrome". *If wrong:* that loss reads as not named, which is true.

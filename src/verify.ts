@@ -27,6 +27,7 @@ import {
   readShares,
   recordedFiles as recordedShareFiles,
   recordedNames,
+  shareResultOf,
 } from "./share/shares.js";
 import { UsageError } from "./util/errors.js";
 import { sealOf, sha256 } from "./util/hash.js";
@@ -585,6 +586,12 @@ async function checkShares(home: string, siteDir: string, site: VerifySiteResult
     if (!intact) continue;
     const problem = siteProblem(entry);
     if (problem !== null) problems.push(`${where}: ${problem}`);
+    // The result (from 0.12.3), which an entry from before has none of.
+    if (entry.result !== undefined && shareResultOf(entry.result) === null) {
+      problems.push(
+        `${where}: ${describeShare(entry)} lists its result in a form voicecap can't read`,
+      );
+    }
     problems.push(...(await copyProblems(home, dir, where, entry)));
   }
   problems.push(...(await unrecordedProblems(home, siteDir, entries)));

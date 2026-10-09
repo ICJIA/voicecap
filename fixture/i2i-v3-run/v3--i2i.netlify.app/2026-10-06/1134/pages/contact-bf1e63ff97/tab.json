@@ -1,0 +1,509 @@
+{
+  "schemaVersion": 1,
+  "voicecap": "0.11.0",
+  "replayed": false,
+  "run": "2026-10-06_1134",
+  "pass": "tab",
+  "page": {
+    "url": "https://v3--i2i.netlify.app/contact/",
+    "key": "https://v3--i2i.netlify.app/contact",
+    "slug": "contact-bf1e63ff97",
+    "finalUrl": "https://v3--i2i.netlify.app/contact/"
+  },
+  "capturedAt": "2026-10-06T11:58:45-05:00",
+  "durationMs": 37019,
+  "stepCount": 27,
+  "stopReason": "left-document",
+  "warnings": [],
+  "errors": [],
+  "initialFocus": null,
+  "environment": {
+    "driver": {
+      "name": "guidepup",
+      "version": "0.34.0"
+    },
+    "screenReader": {
+      "name": "NVDA",
+      "version": "2026.2",
+      "build": "0.2.1-2026.2",
+      "language": "en-US"
+    },
+    "capture": "complete",
+    "browser": {
+      "name": "Chrome",
+      "version": "154.0.8037.95"
+    },
+    "os": "Windows 11 Pro 25H2 (10.0.26200)",
+    "screenReaderSettings": {
+      "recorded": "only settings that differ from NVDA 2026.2's defaults (Guidepup's configuration plus voicecap's nvdaSettings)",
+      "speech": {
+        "synth": "oneCore",
+        "oneCore": {
+          "voice": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech_OneCore\\Voices\\Tokens\\MSTTS_V110_enGB_GeorgeM",
+          "volume": 100,
+          "rate": 100,
+          "rateBoost": true
+        }
+      },
+      "documentFormatting": {},
+      "virtualBuffers": {
+        "autoSayAllOnPageLoad": false
+      },
+      "keyboard": {},
+      "general": {
+        "showWelcomeDialogAtStartup": false,
+        "language": "Windows",
+        "saveConfigurationOnExit": false,
+        "askToExit": false,
+        "playStartAndExitSounds": false,
+        "loggingLevel": "OFF",
+        "preventDisplayTurningOff": true
+      }
+    },
+    "pageSource": {
+      "kind": "pages",
+      "file": "page-lists/v3--i2i.netlify.app.csv",
+      "sha256": "5ac8d05de4066c853cfd673a8eeb8eec57b0f53f11b87c217f1982855ab2b3a1"
+    },
+    "voicecap": {
+      "version": "0.11.0",
+      "configSha256": "1c9a00546562af9ea16f3010aa2162b17dcb643b6e55ccf62e47ca17485140bb"
+    },
+    "runId": "2026-10-06_1134",
+    "runStartedAt": "2026-10-06T11:34:27-05:00",
+    "machine": {
+      "os": {
+        "name": "Windows 11 Pro 25H2",
+        "build": "10.0.26200.9550",
+        "arch": "x64"
+      },
+      "cpu": {
+        "name": "Intel(R) Core(TM) Ultra 7 265F",
+        "baseMhz": 2400,
+        "physicalCores": 20,
+        "logicalProcessors": 20
+      },
+      "memoryBytes": 34043850752,
+      "display": {
+        "width": 3440,
+        "height": 1440,
+        "refreshHz": 59,
+        "scalePercent": 110
+      },
+      "browserWindow": {
+        "width": 1280,
+        "height": 960
+      },
+      "timeZone": "America/Chicago",
+      "utcOffset": "-05:00",
+      "language": "en-US",
+      "software": {
+        "node": "24.19.0",
+        "voicecap": "0.11.0",
+        "guidepup": "0.34.0",
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 1,
+      "command": "nextFocusable",
+      "spoken": "Skip to main content, same page, link",
+      "durationMs": 1328,
+      "offsetMs": 1329,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to main content",
+        "inMain": false,
+        "href": "#main-content"
+      }
+    },
+    {
+      "n": 2,
+      "command": "nextFocusable",
+      "spoken": "Skip to navigation, same page, link",
+      "durationMs": 1305,
+      "offsetMs": 2634,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Skip to navigation",
+        "inMain": false,
+        "href": "#main-navigation"
+      }
+    },
+    {
+      "n": 3,
+      "command": "nextFocusable",
+      "spoken": "banner landmark, i 2i Logo. To get missing image descriptions, open the context menu., Unlabeled graphic, INSTITUTE 2 INNOVATE, link",
+      "durationMs": 1307,
+      "offsetMs": 3942,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "i2i Logo INSTITUTE 2 INNOVATE",
+        "inMain": false,
+        "href": "/"
+      }
+    },
+    {
+      "n": 4,
+      "command": "nextFocusable",
+      "spoken": "Main, navigation landmark, Overview, link",
+      "durationMs": 1318,
+      "offsetMs": 5259,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Overview",
+        "inMain": false,
+        "href": "/program-overview/"
+      }
+    },
+    {
+      "n": 5,
+      "command": "nextFocusable",
+      "spoken": "Resources, button, collapsed",
+      "durationMs": 1308,
+      "offsetMs": 6567,
+      "inDocument": true,
+      "focused": {
+        "tag": "summary",
+        "role": "DisclosureTriangle",
+        "name": "Resources",
+        "inMain": false,
+        "href": null
+      }
+    },
+    {
+      "n": 6,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in new tab), link",
+      "durationMs": 1328,
+      "offsetMs": 7895,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in new tab)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 7,
+      "command": "nextFocusable",
+      "spoken": "Contact, same page, link",
+      "durationMs": 1309,
+      "offsetMs": 9204,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 8,
+      "command": "nextFocusable",
+      "spoken": "Search, link",
+      "durationMs": 1308,
+      "offsetMs": 10512,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Search",
+        "inMain": false,
+        "href": "/search/"
+      }
+    },
+    {
+      "n": 9,
+      "command": "nextFocusable",
+      "spoken": "main landmark, list, with 5 items, Visit ICJIA on Facebook (opens in new window), link",
+      "durationMs": 1338,
+      "offsetMs": 11850,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA on Facebook (opens in new window)",
+        "inMain": true,
+        "href": "https://www.facebook.com/ICJIA/"
+      }
+    },
+    {
+      "n": 10,
+      "command": "nextFocusable",
+      "spoken": "Visit ICJIA on Instagram (opens in new window), link",
+      "durationMs": 1322,
+      "offsetMs": 13172,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA on Instagram (opens in new window)",
+        "inMain": true,
+        "href": "https://www.instagram.com/icjia_illinois/"
+      }
+    },
+    {
+      "n": 11,
+      "command": "nextFocusable",
+      "spoken": "Visit ICJIA on Linked In (opens in new window), link",
+      "durationMs": 1328,
+      "offsetMs": 14500,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA on LinkedIn (opens in new window)",
+        "inMain": true,
+        "href": "https://www.linkedin.com/company/icjia/"
+      }
+    },
+    {
+      "n": 12,
+      "command": "nextFocusable",
+      "spoken": "Visit ICJIA on You Tube (opens in new window), link",
+      "durationMs": 1318,
+      "offsetMs": 15819,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA on YouTube (opens in new window)",
+        "inMain": true,
+        "href": "https://www.youtube.com/c/illinoiscriminaljusticeinformationauthority"
+      }
+    },
+    {
+      "n": 13,
+      "command": "nextFocusable",
+      "spoken": "Subscribe to the I 2I Newsletter (opens in new window), link",
+      "durationMs": 1322,
+      "offsetMs": 17141,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Subscribe to the I2I Newsletter (opens in new window)",
+        "inMain": true,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 14,
+      "command": "nextFocusable",
+      "spoken": "Send an email to ICJIA, link",
+      "durationMs": 1326,
+      "offsetMs": 18467,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Send an email to ICJIA",
+        "inMain": true,
+        "href": "mailto:cja.info@illinois.gov"
+      }
+    },
+    {
+      "n": 15,
+      "command": "nextFocusable",
+      "spoken": "form landmark. Subject, edit, required, blank",
+      "durationMs": 1332,
+      "offsetMs": 19798,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Subject",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 16,
+      "command": "nextFocusable",
+      "spoken": "First Name, edit, required, blank",
+      "durationMs": 1305,
+      "offsetMs": 21104,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "First Name",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 17,
+      "command": "nextFocusable",
+      "spoken": "Last Name, edit, required, blank",
+      "durationMs": 1310,
+      "offsetMs": 22413,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Last Name",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 18,
+      "command": "nextFocusable",
+      "spoken": "Email, edit, required, blank",
+      "durationMs": 1308,
+      "offsetMs": 23721,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Email",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 19,
+      "command": "nextFocusable",
+      "spoken": "Phone Number, edit, required, blank",
+      "durationMs": 1310,
+      "offsetMs": 25031,
+      "inDocument": true,
+      "focused": {
+        "tag": "input",
+        "role": "textbox",
+        "name": "Phone Number",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 20,
+      "command": "nextFocusable",
+      "spoken": "Message, edit, required, multi line, blank",
+      "durationMs": 1314,
+      "offsetMs": 26345,
+      "inDocument": true,
+      "focused": {
+        "tag": "textarea",
+        "role": "textbox",
+        "name": "Message",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 21,
+      "command": "nextFocusable",
+      "spoken": "Submit, button",
+      "durationMs": 1311,
+      "offsetMs": 27656,
+      "inDocument": true,
+      "focused": {
+        "tag": "button",
+        "role": "button",
+        "name": "Submit",
+        "inMain": true,
+        "href": null
+      }
+    },
+    {
+      "n": 22,
+      "command": "nextFocusable",
+      "spoken": "content info landmark, Visit ICJIA website (opens in a new window), link",
+      "durationMs": 1320,
+      "offsetMs": 28976,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Visit ICJIA website (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 23,
+      "command": "nextFocusable",
+      "spoken": "list, with 4 items, Illinois Criminal Justice Information Authority (opens in a new window), link",
+      "durationMs": 1325,
+      "offsetMs": 30301,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Illinois Criminal Justice Information Authority (opens in a new window)",
+        "inMain": false,
+        "href": "https://icjia.illinois.gov"
+      }
+    },
+    {
+      "n": 24,
+      "command": "nextFocusable",
+      "spoken": "Privacy, link",
+      "durationMs": 1320,
+      "offsetMs": 31621,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Privacy",
+        "inMain": false,
+        "href": "/privacy/"
+      }
+    },
+    {
+      "n": 25,
+      "command": "nextFocusable",
+      "spoken": "Contact, same page, link",
+      "durationMs": 1319,
+      "offsetMs": 32940,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Contact",
+        "inMain": false,
+        "href": "/contact/"
+      }
+    },
+    {
+      "n": 26,
+      "command": "nextFocusable",
+      "spoken": "Newsletter (opens in a new window), link",
+      "durationMs": 1323,
+      "offsetMs": 34263,
+      "inDocument": true,
+      "focused": {
+        "tag": "a",
+        "role": "link",
+        "name": "Newsletter (opens in a new window)",
+        "inMain": false,
+        "href": "https://lp.constantcontactpages.com/su/XY9X6Rb"
+      }
+    },
+    {
+      "n": 27,
+      "command": "nextFocusable",
+      "spoken": "Contact i 2i i 2i - Google Chrome, region. Tab search, button, collapsed",
+      "durationMs": 2756,
+      "offsetMs": 37019,
+      "inDocument": false,
+      "focused": null
+    }
+  ]
+}

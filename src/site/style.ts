@@ -9,18 +9,46 @@
  * Policy that hashes this block allows nothing else. Beyond those rules:
  * - the bar is `position: sticky` from 40em wide, which is 640 pixels at the browser's own text size
  *   of 16. An em in a media query is that size, so for a reader who has made it larger the bar
- *   sticks only from a wider window, where it still fits on one line. Narrower, it scrolls with the
- *   page, so it never covers half a phone's screen, or grows taller than the room kept clear for
- *   it. Where it sticks, `scroll-padding-top` keeps whatever has focus, or a link points to, below
- *   it;
+ *   sticks only from a wider window. Narrower, it scrolls with the page, so it never covers half a
+ *   phone's screen. Where it sticks, `scroll-padding-top` keeps whatever has focus, or a link
+ *   points to, below it. The bar's words stop where the main part's do, so with text more than
+ *   twice the default size the bar takes more than one line, and grows faster than the text. The
+ *   room kept clear grows faster still, `max(5rem, 9rem - 64px)`: 80 pixels at the default size and
+ *   368 at three times it. The bar is shorter than that room at every size up to four times the
+ *   default size, and the tests check it, and that nothing that has focus is under it, up to three
+ *   and a half times;
+ * - the link of the page the reader is on in the bar (`aria-current="page"`, which the trust page's
+ *   bar has on its own link) is bold and underlined more heavily than the other links, which the
+ *   browser underlines too, so it is told apart by more than its color. Its line is 0.15em thick,
+ *   in proportion to the text as theirs is, so it stays the heavier at a larger size;
  * - a name or a fingerprint is one word, longer than any box, so the text it can be in breaks it
  *   where it must (`overflow-wrap: anywhere`), rather than run out of its box or the window;
+ * - each view's heading, and each site's name, has a picture before it in the accent color, and a
+ *   count beside a heading is a chip; a site's link to the site itself ends its heading's line, or
+ *   goes under it where there's no room (from 0.13.1);
+ * - a site's current report is a panel, headed by its line under what it is, with its two links as
+ *   buttons, in the shareable page's colors for its button (`.fp-button`), which wrap onto a line of
+ *   their own where there's no room. Its verdict is a pill tinted with the verdict's color, and how
+ *   many pages NVDA read is a bar in the same color (the shareable page's `track`), with its words
+ *   beside it, or under it on a narrow window;
+ * - the fold of files has the shareable page's look for a fold: a marker, which a screen reader
+ *   doesn't read (`content: "▸" / ""`), turned when it's open;
  * - the files of a report are a grid whose columns are no wider than their own box
  *   (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window 320 pixels wide, where WCAG's
  *   reflow rule is measured;
  * - on a screen, a page shorter than the window ends at its bottom, so the footer sits there: the
  *   body is a column at least as tall as the window, and the main part grows, keeping its measure.
- *   In print the page is laid out as it was.
+ *   In print the page is laid out as it was;
+ * - the trust page (./trust.ts) has the website's banner for its heading, an h1, then a kicker,
+ *   which is small, in capitals, and spaced out, as the shareable page's eyebrow is; the stamp of
+ *   where its numbers come from; and four big numbers, each in a tile with its line and its link,
+ *   which ends the tile so the links of a row line up. The tiles are one a row on a phone, two from
+ *   36em, and four from 60em, in columns that shrink to nothing. Each part after it has a line
+ *   above it, and its kicker over a large heading; its points are panels, one under another; its
+ *   cards are three a row where each has 17rem, and one a row on a phone; and its releases run
+ *   down a line, the earlier ones in the website's fold. A big number that isn't recorded is a
+ *   dash, in the quieter color. A law's tag is an outline with nothing behind it, so its words are
+ *   on the card's own color.
  */
 import { THEME_CSS } from "../share/html/style.js";
 
@@ -40,15 +68,17 @@ p { margin: 0; }
 code { font-family: var(--mono); font-size: 0.86em; overflow-wrap: anywhere; }
 /* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. */
 main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflow-wrap: anywhere; }
-/* the bar: the three views, and the theme button */
+/* the bar: the views, the trust page, and the theme button */
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; padding-block: 0.5rem; background: var(--panel); border-bottom: 1px solid var(--line); }
 .bar nav { display: flex; flex-wrap: wrap; gap: 0 22px; }
 .bar nav a { display: inline-block; padding: 0.25rem 0.125rem; font-weight: 500; }
+/* the page the reader is on: bold, and underlined more heavily than the other links, which the browser underlines too, so it is told apart by more than its color; the line is in proportion to the text, as the browser's own is */
+.bar nav a[aria-current="page"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.15em; }
 .theme { border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: 500 0.82rem var(--body); cursor: pointer; }
-/* In view while the page scrolls, from 40em wide: 640 pixels at the default text size, and wider as the reader's text gets larger, so it is one line where it sticks. What has focus, or what a link points to, is kept below it. */
+/* In view while the page scrolls, from 40em wide: 640 pixels at the default text size, and wider as the reader's text gets larger. What has focus, or what a link points to, is kept below it, in a room that grows faster than the text: at a larger size the bar's words take more lines, so the bar grows faster than the text itself. */
 @media (min-width: 40em) {
   .bar { position: sticky; top: 0; z-index: 3; }
-  html { scroll-padding-top: 5rem; }
+  html { scroll-padding-top: max(5rem, 9rem - 64px); }
 }
 /* the page */
 main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 36px 16px 56px; }
@@ -58,15 +88,67 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .view { display: grid; gap: 14px; margin-bottom: 56px; }
 .view > * { min-width: 0; }
 .view > p { color: var(--muted); max-width: 68ch; }
-.site { display: grid; gap: 10px; margin-top: 14px; }
+/* a view's head, as a banner tinted in the accent color: its title row, a big picture in a circle (which only repeats the heading's words) and the heading, which stay on one line together; and, at the end of the line, or under them where there's no room, how many it holds, as a big number with its word after it */
+.view-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 20px 24px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-left: 6px solid var(--accent); border-radius: 18px; background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.view-head > .title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.view-head h2 { min-width: 0; font-size: clamp(1.9rem, 5vw, 2.75rem); font-weight: 700; line-height: 1.05; }
+.view-head > .title > .icon { flex: none; box-sizing: content-box; width: 2rem; height: 2rem; padding: 0.8rem; border-radius: 50%; background: color-mix(in srgb, var(--accent) 22%, var(--panel)); color: var(--accent); }
+.view-head > .count { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; border: 0; border-radius: 0; background: none; padding: 0; color: var(--muted); font: 600 1.05rem var(--body); }
+.view-head > .count b { color: var(--fg); font: 700 clamp(2.2rem, 6vw, 3rem)/1 var(--display); font-variant-numeric: tabular-nums; }
+/* how many there are beside a smaller heading: a chip */
+.count { display: inline-block; border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); border-radius: 999px; padding: 2px 10px; font: 600 0.82rem/1.4 var(--body); font-variant-numeric: tabular-nums; }
+.site { display: grid; gap: 12px; margin-top: 22px; }
 .site > * { min-width: 0; }
-.site > h3 { font-size: 1.35rem; }
-.count { color: var(--muted); font-size: 0.86rem; }
-/* a report: when it was shared, who prepared it, and its files */
+/* a line between one site and the next */
+.site + .site { border-top: 1px solid var(--line); padding-top: 26px; }
+/* a site's head: its title row, its picture in a circle and its name, big, which stay on one line together; and the link to the site itself, as a button, at the end of the line, or under them where there's no room */
+.site-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.site-head > .title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.site-head h3 { min-width: 0; font-size: clamp(1.45rem, 4vw, 1.9rem); font-weight: 700; line-height: 1.1; }
+.site-head > .title > .icon { flex: none; box-sizing: content-box; width: 1.4rem; height: 1.4rem; padding: 0.55rem; border-radius: 50%; background: color-mix(in srgb, var(--accent) 18%, var(--panel)); color: var(--accent); }
+.visit { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); color: var(--fg); border-radius: 999px; padding: 8px 18px; font-weight: 600; text-decoration: none; }
+.visit:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); }
+.visit > .icon { flex: none; width: 1.05rem; height: 1.05rem; color: var(--accent); }
+/* a site's current report: its line, under what it is; who prepared it; and the two links a reader came for */
 .report { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; display: grid; gap: 10px; align-content: start; }
 .report > * { min-width: 0; }
-.report > h3, .report > h4 { font-size: 1.05rem; }
-.report > h3 + p, .report > h4 + p { color: var(--muted); }
+.report > h3, .report > h4 { font-size: 1.3rem; }
+.label { display: block; color: var(--muted); font: 600 0.8rem var(--body); letter-spacing: 0.04em; margin-bottom: 2px; }
+.report > .by { color: var(--muted); }
+/* what its copies say of the site: the verdict's headline as a pill, in words, after a sign that only repeats them, in the theme's green, amber, or red, which a screen reader doesn't read */
+.verdict { display: flex; justify-self: start; gap: 8px; align-items: baseline; font-weight: 600; font-size: 1.02rem; padding: 4px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); }
+.verdict::before { flex: none; font-size: 1.1em; }
+.verdict.ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); background: color-mix(in srgb, var(--ok) 12%, var(--panel)); }
+.verdict.warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); background: color-mix(in srgb, var(--warn) 12%, var(--panel)); }
+.verdict.bad { border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); background: color-mix(in srgb, var(--bad) 12%, var(--panel)); }
+.verdict.ok::before { content: "✓"; content: "✓" / ""; color: var(--ok); }
+.verdict.warn::before { content: "⚠"; content: "⚠" / ""; color: var(--warn); }
+.verdict.bad::before { content: "⚠"; content: "⚠" / ""; color: var(--bad); }
+/* how many pages NVDA read: a bar in the verdict's color, which only repeats the words beside it, and which wraps above them where there's no room */
+.reading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.reading > .track { flex: none; width: min(16rem, 100%); height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.reading .c-ok { color: var(--ok); } .reading .c-warn { color: var(--warn); } .reading .c-bad { color: var(--bad); }
+.reading > p { min-width: 0; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.action { border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); color: var(--fg); border-radius: 10px; padding: 9px 16px; font-weight: 600; text-decoration: none; }
+.action:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); }
+/* a site's earlier reports, a line each, under their heading and how many they are */
+.sub-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; }
+.sub-head > h4 { min-width: 0; font-size: 0.95rem; color: var(--muted); }
+.earlier { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.earlier time { font-weight: 600; }
+.sep { color: var(--muted); margin-inline: 0.3em; }
+/* the fold of every report's files, for whoever checks a copy: a report's line, then its files */
+details.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+details.fold > summary { list-style: none; cursor: pointer; padding: 10px 16px; font-weight: 600; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: "▸"; content: "▸" / ""; display: inline-block; margin-right: 8px; color: var(--muted); transition: transform 0.15s; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > .inside { padding: 0 16px 16px; display: grid; gap: 18px; }
+.shared { display: grid; gap: 8px; }
+.shared > * { min-width: 0; }
+.when { color: var(--muted); }
+.when time { color: var(--fg); font-weight: 600; }
 .files { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 8px; }
 .files li { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; align-content: start; min-width: 0; }
 .files a { justify-self: start; font-weight: 500; }
@@ -81,6 +163,56 @@ main { box-sizing: border-box; max-width: 1120px; margin-inline: auto; padding: 
 .dates time { font-weight: 600; }
 /* how to check a file */
 .note { color: var(--muted); max-width: 72ch; margin-bottom: 12px; }
+/* the trust page: its banner holds the page's heading, an h1, beside its picture, and its kicker, its lead, the stamp of where its numbers come from, and its four big numbers follow it */
+.hero { display: grid; gap: 16px; }
+.hero > * { min-width: 0; }
+.view-head h1 { min-width: 0; margin: 0; font-size: clamp(1.9rem, 6vw, 3.2rem); line-height: 1.05; }
+.hero > .lead, .part > .lead { margin-bottom: 0; }
+/* a kicker: a few words that say what follows, small, in capitals, and spaced out, as the shareable page's eyebrow is, in lines of an even length where it wraps */
+.kicker { font: 500 0.78rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-wrap: balance; }
+.stamp { justify-self: start; padding: 10px 16px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; background: var(--panel); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* four big numbers: one a row on a phone, two from 36em, and four from 60em, in columns that shrink to nothing, so none runs past its box */
+.tiles { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 36em) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 60em) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* a big number's tile: the number, its line, and its link, which ends the tile, so that the links of a row of tiles line up */
+.tile { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 18px 18px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.tile > * { min-width: 0; }
+.tile > .n { font: 700 clamp(2.2rem, 5vw, 2.75rem)/1.1 var(--display); font-variant-numeric: tabular-nums; color: var(--accent); }
+.tile > .n > .of { font-size: 0.5em; font-weight: 600; color: var(--muted); }
+/* a number that isn't recorded is a dash, quieter than a number */
+.tile > .n.none { color: var(--muted); }
+.tile > .k { color: var(--muted); }
+.tile > a { justify-self: start; margin-top: 4px; font-weight: 600; }
+/* each part after the banner: a line above it, its kicker over a large heading, then what it says */
+.part { display: grid; gap: 16px; margin-top: 56px; padding-top: 48px; border-top: 1px solid var(--line); }
+.part > * { min-width: 0; }
+.part > .kicker { margin-bottom: -8px; }
+.part > h2 { font-size: clamp(1.8rem, 4.6vw, 2.6rem); font-weight: 700; line-height: 1.08; }
+/* a part's points, one under another: each a panel with a line down its side in the accent color, and the link to where it's shown after its words */
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 54rem; }
+.points > li { display: grid; gap: 8px; padding: 14px 18px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; }
+.points > li > * { min-width: 0; }
+.points > li > a { justify-self: start; font-weight: 600; }
+/* cards: three a row where each has 17rem, fewer where they don't, and one a row on a phone */
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 14px; }
+.card { display: grid; gap: 10px; align-content: start; padding: 18px 20px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.card > * { min-width: 0; }
+.card > h3 { font-size: 1.25rem; line-height: 1.2; }
+.card > p { color: var(--muted); }
+.card > a { justify-self: start; font-weight: 600; }
+/* what kind of rule a law's card is: its words in capitals, in the accent color, in an outline with nothing behind it */
+.tag { justify-self: start; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 999px; font: 600 0.72rem/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+/* the releases, the newest first: each one's version and day, then its headline, along a line down the side */
+.releases { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 54rem; }
+.releases > li { display: grid; gap: 2px; padding-left: 16px; border-left: 2px solid var(--line); }
+.releases > li > * { min-width: 0; }
+.releases .on { color: var(--muted); font-variant-numeric: tabular-nums; }
+.releases .version { color: var(--fg); font-family: var(--mono); font-weight: 600; }
+.part > details.fold { max-width: 54rem; }
+.more > a { font-weight: 600; }
+/* the line of links to voicecap, at the end of the page's main part */
+.links { margin-top: 56px; color: var(--muted); }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-block: 18px 40px; display: grid; gap: 6px; }
 /* A line of the footer is no longer to read than a note's: 80 characters of its smaller text are as wide as the notes' 72. */
 footer > * { min-width: 0; max-width: 80ch; }

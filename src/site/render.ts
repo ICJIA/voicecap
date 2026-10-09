@@ -6,21 +6,35 @@
  * outside it. The page sets no `style` attribute, since a Content Security Policy that hashes its
  * style block and its script allows nothing else.
  *
- * In order: the head; a skip link to the main content; the bar, whose links go to the views and
- * which holds the theme button; `main`, with the page's heading and lead, the three views (the
- * demo's, the sites', and every report by date), and what to know about a file's fingerprint and a
- * walkthrough file; the footer; and last, the script. What the model or a record supplies goes
- * through `esc`, and so does the fixed text (./text.ts), which is plain words.
+ * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
+ * which its other page, the trust page, has too; this module draws what is between the bar and the
+ * footer. In order: the head; a skip link to the main content; the bar, whose links go to the views
+ * and, last, to the trust page, and which holds the theme button; `main`, with the page's heading
+ * and lead, the views (the demo's, the sites', and, when two sites or more have reports, every
+ * report by date), and what to know about a file's fingerprint and a walkthrough file; the footer;
+ * and last, the script. What the model or a record supplies goes through `esc`, and so does the
+ * fixed text (./text.ts), which is plain words.
+ *
+ * A site leads with what a reader came for: its name, with a link to the site itself, then its
+ * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
+ * page and to download its Word copy. Its earlier reports are a line each under it, and every
+ * report's files, with their sizes and fingerprints, are in a fold, closed, for whoever checks a
+ * copy. Each view's heading and each site's name has a picture before it, and the views of the
+ * sites and of every report by date say beside their headings how many they hold (from 0.13.1).
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
  * focus, and complete without JavaScript.
  */
+import type { ShareResult } from "../model.js";
+import { canonicalName, recordedCanonical } from "../pages/canonical.js";
 import { esc } from "../report/html.js";
 import { folderSafe } from "../run/paths.js";
-import { sizeWords } from "../share/format.js";
-import { SITE_SCRIPT } from "./client.js";
-import { SITE_CSS } from "./style.js";
+import { count as countWords, sizeWords } from "../share/format.js";
+import { track } from "../share/html/parts.js";
+import { verdictOf } from "../share/verdict.js";
+import { listsByDate, siteBar, sitePage } from "./frame.js";
+import { SITE_ICONS } from "./icons.js";
 import { SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
@@ -49,6 +63,11 @@ export interface PublishedReport {
   files: PublishedFile[];
   /** Each file the record names that isn't published: changed since it was shared, or missing. */
   notPublished: { name: string; reason: "changed" | "missing" }[];
+  /**
+   * What its copies say of the site, as its share recorded it (from 0.12.3): the card of a site's
+   * current report says it. None for a share from before.
+   */
+  result?: ShareResult;
 }
 
 /** Everything the page shows. */
@@ -57,9 +76,10 @@ export interface SiteContent {
   /**
    * By name. A site's name is the canonical name its newest share records (see the build in
    * ./build.ts), or else its folder's name; the site folders that have one name are one site, with
-   * `folders` their names, and `reports` those of all of them, the newest first.
+   * `folders` their names, and `reports` those of all of them, the newest first. `address` is where
+   * people visit it (from 0.13.1): the root that gives it its name. None for a site its folder names.
    */
-  sites: { name: string; folders: string[]; reports: PublishedReport[] }[];
+  sites: { name: string; folders: string[]; reports: PublishedReport[]; address?: string }[];
 }
 
 /**
@@ -99,12 +119,26 @@ function sentenceHtml(sentence: Sentence): string {
 
 /**
  * One of the three views: a section named by its heading, an h2, which makes it a region, one of
- * the page's landmarks. `inside` is HTML, already escaped.
+ * the page's landmarks. Its head is a banner: a title row, the heading with its picture before it
+ * (`icon`, which a screen reader skips), which stay on one line together; and, beside them, how
+ * many the view holds (`count`), when it says, as a big number with its word after it ("2 sites").
+ * The count isn't in the heading, which keeps its own words: a screen reader reads it after.
+ * `inside` is HTML, already escaped.
  */
-function view(id: string, title: string, inside: string[]): string {
+function view(
+  id: string,
+  title: string,
+  icon: string,
+  inside: string[],
+  count?: { n: number; unit: string },
+): string {
+  const beside =
+    count === undefined
+      ? ""
+      : `<span class="count"><b>${esc(countWords(count.n))}</b> ${esc(count.unit)}</span>`;
   return [
     `<section class="view" id="${esc(id)}" aria-labelledby="${esc(headingId(id))}">`,
-    `<h2 id="${esc(headingId(id))}">${esc(title)}</h2>`,
+    `<div class="view-head"><div class="title">${icon}<h2 id="${esc(headingId(id))}">${esc(title)}</h2></div>${beside}</div>`,
     ...inside,
     "</section>",
   ].join("\n");
@@ -125,40 +159,165 @@ function fileItem(file: PublishedFile): string {
   ].join(" ");
 }
 
+/** Words that only a screen reader gets, as HTML: the page hides them from view (`.sr`). */
+function hidden(text: string): string {
+  return `<span class="sr">${esc(text)}</span>`;
+}
+
+/** What sets two links of a line apart: a dot that a reader sees, and a screen reader doesn't read. */
+const SEPARATOR = '<span class="sep" aria-hidden="true">·</span>';
+
+/** A report's line, as a `time` that holds the moment it names. */
+function timeOf(at: string): string {
+  return `<time datetime="${esc(at)}">${esc(SITE_TEXT.reportLine(at))}</time>`;
+}
+
 /**
- * A report: when it was shared, who prepared it, its files, what the record names that isn't
- * here, and, when it has no walkthrough file, that none was shared. A walkthrough file the record
- * names that isn't here is not "none shared": its own line says it isn't here. `level` is the
- * report's heading's.
+ * What a report's copies say of the site, as two lines of its card. The first is the verdict's
+ * headline, as a pill. Its kind is its class: `ok` when nothing needs attention, `warn` when
+ * something does, and `bad` when NVDA didn't read every page. The page's style draws a sign before
+ * it that only repeats the words (✓, ⚠, and ⚠ in red), as decoration a screen reader doesn't read
+ * (see ./style.ts). The second is how many pages NVDA read: a bar as long as their share of the
+ * pages, in the verdict's color, which a screen reader skips (the shareable page's `track`), with
+ * the words beside it. Nothing for a report that records no result (one shared before 0.12.3), or
+ * one of no page.
  */
-function report(shared: PublishedReport, level: 3 | 4): string {
-  const { files, notPublished } = shared;
-  const hadWalkthrough =
-    files.some(({ kind }) => kind === "walkthrough") ||
-    notPublished.some(({ name }) => fileKind(name) === "walkthrough");
+function verdict(result: ShareResult | undefined): string[] {
+  if (result === undefined || result.pages === 0) return [];
+  const { kind, headline } = verdictOf(result);
+  return [
+    `<p class="verdict ${kind}">${esc(headline)}</p>`,
+    `<div class="reading">${track(result.read, result.pages, kind)}<p>${esc(SITE_TEXT.reading(result))}</p></div>`,
+  ];
+}
+
+/** A report's page, or its Word copy, when it's published. */
+function fileOf(shared: PublishedReport, kind: "page" | "word"): PublishedFile | undefined {
+  return shared.files.find((file) => file.kind === kind);
+}
+
+/**
+ * A site's current report: a heading that says it's the current one, with its line; who prepared
+ * it; and the two links a reader wants, to open its page and to download its Word copy. A screen
+ * reader hears the site's name, `name`, and the report's line after each link's words, so that no
+ * two links on the page read alike. Of the two files, one that isn't published has its line in
+ * place of its link. What else the record names that isn't here is said in the fold (see
+ * filesFold). `level` is the heading's.
+ */
+function currentReport(shared: PublishedReport, level: 3 | 4, name: string): string {
+  const page = fileOf(shared, "page");
+  const word = fileOf(shared, "word");
+  const of = hidden(SITE_TEXT.of(name, shared.at));
+  const links = [
+    ...(page === undefined
+      ? []
+      : [`<a class="action" href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`]),
+    ...(word === undefined
+      ? []
+      : [
+          `<a class="action" href="${esc(word.href)}" download>${esc(SITE_TEXT.download)}${of}</a>`,
+        ]),
+  ];
+  const gone = shared.notPublished.filter(({ name: file }) => {
+    const kind = fileKind(file);
+    return kind === "page" || kind === "word";
+  });
   return [
     `<article class="report" id="${esc(shared.id)}">`,
-    `<h${level}>${esc(SITE_TEXT.reportLine(shared.at))}</h${level}>`,
-    `<p>${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
-    // No list with nothing in it: a screen reader would announce it.
-    ...(files.length === 0
-      ? []
-      : [`<ul class="files"${IS_A_LIST}>`, ...files.map(fileItem), "</ul>"]),
-    ...notPublished.map(
-      ({ name, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](name))}</p>`,
+    `<h${level}><span class="label">${esc(SITE_TEXT.current)}</span> ${timeOf(shared.at)}</h${level}>`,
+    // What a manager asks first: did it pass?
+    ...verdict(shared.result),
+    `<p class="by">${esc(SITE_TEXT.preparedBy(shared.by))}</p>`,
+    // No paragraph with no link in it.
+    ...(links.length === 0 ? [] : [`<p class="actions">${links.join(" ")}</p>`]),
+    ...gone.map(
+      ({ name: file, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](file))}</p>`,
     ),
-    ...(hadWalkthrough ? [] : [`<p class="quiet">${esc(SITE_TEXT.noWalkthrough)}</p>`]),
     "</article>",
   ].join("\n");
 }
 
 /**
- * The demo's view: its lead, which links to the demo's own pages in demo-site/ (see ./build.ts), and
- * its one report, whose heading is one level below the view's.
+ * A site's reports before its current one, under a heading of their own, a line each: when it was
+ * shared, who prepared it, and its links, to its page and to its Word copy, as the current report's
+ * are. A page that isn't published is said so in its link's place, and a Word copy that isn't is
+ * left out: the fold says why. Beside the heading is how many there are, for the eye alone: their
+ * list says it to a screen reader, and a bare number after the heading would say nothing more.
+ * Nothing, when there are none.
+ */
+function earlierReports(reports: readonly PublishedReport[], name: string): string[] {
+  if (reports.length === 0) return [];
+  const item = (shared: PublishedReport): string => {
+    const page = fileOf(shared, "page");
+    const word = fileOf(shared, "word");
+    const of = hidden(SITE_TEXT.of(name, shared.at));
+    const links = [
+      page === undefined
+        ? esc(SITE_TEXT.pageGone)
+        : `<a href="${esc(page.href)}">${esc(SITE_TEXT.open)}${of}</a>`,
+      ...(word === undefined
+        ? []
+        : [`<a href="${esc(word.href)}" download>${esc(SITE_TEXT.word)}${of}</a>`]),
+    ];
+    return `<li id="${esc(shared.id)}">${timeOf(shared.at)}, ${esc(SITE_TEXT.listedBy(shared.by))}: ${links.join(` ${SEPARATOR} `)}</li>`;
+  };
+  return [
+    `<div class="sub-head"><h4>${esc(SITE_TEXT.earlier)}</h4><span class="count" aria-hidden="true">${reports.length}</span></div>`,
+    `<ul class="earlier"${IS_A_LIST}>`,
+    ...reports.map(item),
+    "</ul>",
+  ];
+}
+
+/**
+ * The fold of every report's files, closed until a reader opens it: what a reviewer or an auditor
+ * checks a copy against. For each report, the newest first: when it was shared and who prepared it;
+ * its files, each with its label, its size, and its fingerprint; what the record names that isn't
+ * here; and, when it has no walkthrough file, that none was shared. A walkthrough file the record
+ * names that isn't here is not "none shared": its own line says it isn't here. The fold is
+ * complete without JavaScript, as `details` is.
+ */
+function filesFold(reports: readonly PublishedReport[]): string {
+  const block = ({ at, by, files, notPublished }: PublishedReport): string => {
+    const hadWalkthrough =
+      files.some(({ kind }) => kind === "walkthrough") ||
+      notPublished.some(({ name }) => fileKind(name) === "walkthrough");
+    return [
+      '<div class="shared">',
+      `<p class="when">${timeOf(at)}, ${esc(SITE_TEXT.listedBy(by))}</p>`,
+      // No list with nothing in it: a screen reader would announce it.
+      ...(files.length === 0
+        ? []
+        : [`<ul class="files"${IS_A_LIST}>`, ...files.map(fileItem), "</ul>"]),
+      ...notPublished.map(
+        ({ name, reason }) => `<p class="gone">${esc(SITE_TEXT.gone[reason](name))}</p>`,
+      ),
+      ...(hadWalkthrough ? [] : [`<p class="quiet">${esc(SITE_TEXT.noWalkthrough)}</p>`]),
+      "</div>",
+    ].join("\n");
+  };
+  return [
+    '<details class="fold">',
+    `<summary>${esc(SITE_TEXT.fold)}</summary>`,
+    '<div class="inside">',
+    ...reports.map(block),
+    "</div>",
+    "</details>",
+  ].join("\n");
+}
+
+/**
+ * The demo's view: its lead, which links to the demo's own pages in demo-site/ (see ./build.ts), its
+ * one report as the current one, whose heading is one level below the view's, and the fold of its
+ * files.
  */
 function demoView(demo: PublishedReport): string {
   const { title, lead } = SITE_TEXT.views.demo;
-  return view("demo", title, [`<p>${sentenceHtml(lead)}</p>`, report(demo, 3)]);
+  return view("demo", title, SITE_ICONS.demo, [
+    `<p>${sentenceHtml(lead)}</p>`,
+    currentReport(demo, 3, SITE_TEXT.demoName),
+    filesFold([demo]),
+  ]);
 }
 
 /**
@@ -173,17 +332,38 @@ function uniqueId(id: string, taken: Set<string>): string {
 }
 
 /**
- * One site: its name, how many reports it has, and its reports as they were given, which may be in
- * more than one folder. Its section has no name. A named section is a region, one more landmark, and
- * with many sites that is a long list of them; the site's heading, an h3, already leads to it. `id`
- * is the section's.
+ * The link to a site itself, beside its name: its words, then the site's name, which only a screen
+ * reader hears, and an arrow, which it doesn't. Only to the root of a site people visit, as a share
+ * records one (see recordedCanonical), at the host the heading names: never an address on
+ * someone's computer, one with a name and password in it, anything that isn't a web address, or
+ * another site than the one its heading names. It opens the site in a new tab, so a reader can go
+ * back and forth between the report and the site, and its hidden words say so. `noopener` gives
+ * the site no hold on this page, and `noreferrer`, as the site's Referrer-Policy does (see
+ * ./netlify.ts), keeps the page's own address from it. Nothing, for a site with no such address.
  */
-function site({ name, reports }: SiteContent["sites"][number], id: string): string {
+function visit(name: string, address: string | undefined): string {
+  if (address === undefined || recordedCanonical(address) !== address) return "";
+  if (canonicalName(address) !== name) return "";
+  return `<a class="visit" href="${esc(address)}" target="_blank" rel="noopener noreferrer">${esc(SITE_TEXT.visit)}${hidden(SITE_TEXT.visitAt(name))}${SITE_ICONS.visit}</a>`;
+}
+
+/**
+ * One site: its name, after its picture, with the link to the site itself beside it when there's an
+ * address people visit; the first of its reports as they were given, which is its current report;
+ * the others, its earlier reports, a line each; and the fold of every report's files. Its reports
+ * may be in more than one folder. The build gives a site's newest reports only, the newest first
+ * (see KEPT_PER_SITE in ./build.ts): here, every report given is shown. Its section has no name. A
+ * named section is a region, one more landmark, and with many sites that is a long list of them;
+ * the site's heading, an h3, already leads to it. `id` is the section's.
+ */
+function site({ name, reports, address }: SiteContent["sites"][number], id: string): string {
+  const [current, ...earlier] = reports;
   return [
     `<section class="site" id="${esc(id)}">`,
-    `<h3>${esc(name)}</h3>`,
-    `<p class="count">${esc(SITE_TEXT.reports(reports.length))}</p>`,
-    ...reports.map((each) => report(each, 4)),
+    `<div class="site-head"><div class="title">${SITE_ICONS.site}<h3>${esc(name)}</h3></div>${visit(name, address)}</div>`,
+    ...(current === undefined ? [] : [currentReport(current, 4, name)]),
+    ...earlierReports(earlier, name),
+    ...(reports.length === 0 ? [] : [filesFold(reports)]),
     "</section>",
   ].join("\n");
 }
@@ -197,20 +377,27 @@ function site({ name, reports }: SiteContent["sites"][number], id: string): stri
 function sitesView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.sites;
   const taken = new Set<string>();
-  const inside =
-    sites.length === 0
-      ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
-      : [
-          `<p>${esc(lead)}</p>`,
-          ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
-        ];
-  return view("sites", title, inside);
+  if (sites.length === 0) {
+    return view("sites", title, SITE_ICONS.sites, [`<p>${esc(SITE_TEXT.noReports)}</p>`]);
+  }
+  return view(
+    "sites",
+    title,
+    SITE_ICONS.sites,
+    [
+      `<p>${esc(lead)}</p>`,
+      ...sites.map((each) => site(each, uniqueId(`site-${folderSafe(each.name)}`, taken))),
+    ],
+    { n: sites.length, unit: SITE_TEXT.siteUnit(sites.length) },
+  );
 }
 
 /**
  * The view of every report, across the sites (the demo isn't a site's), newest first by the moment
  * each names. Reports of the same moment stay in the order they were given. Each item has its time,
- * its site's name, who prepared it, and a link to its page, or says the page isn't here.
+ * its site's name, who prepared it, and a link to its page, or says the page isn't here. It's on the
+ * page only when two sites or more have reports (see listsByDate in ./frame.ts, which the bar's link
+ * to it follows too).
  */
 function byDateView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.byDate;
@@ -224,74 +411,37 @@ function byDateView(sites: SiteContent["sites"]): string {
       page === undefined
         ? esc(SITE_TEXT.pageGone)
         : `<a href="${esc(page.href)}">${esc(page.name)}</a>`;
-    return `<li><time datetime="${esc(each.at)}">${esc(SITE_TEXT.reportLine(each.at))}</time>, ${esc(name)}, ${esc(SITE_TEXT.listedBy(each.by))}: ${where}</li>`;
+    return `<li>${timeOf(each.at)}, ${esc(name)}, ${esc(SITE_TEXT.listedBy(each.by))}: ${where}</li>`;
   };
-  const inside =
-    reports.length === 0
-      ? [`<p>${esc(SITE_TEXT.noReports)}</p>`]
-      : [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"];
-  return view("by-date", title, inside);
-}
-
-/** The bar: a link to each view that's there, and the theme button, hidden until the script shows it. */
-function bar(content: SiteContent): string {
-  const { views } = SITE_TEXT;
-  const links = [
-    ...(content.demo === null ? [] : [{ id: "demo", title: views.demo.title }]),
-    { id: "sites", title: views.sites.title },
-    { id: "by-date", title: views.byDate.title },
-  ];
-  return [
-    '<header class="bar">',
-    `<nav aria-label="${esc(SITE_TEXT.nav)}">`,
-    ...links.map(({ id, title }) => `<a href="#${esc(id)}">${esc(title)}</a>`),
-    "</nav>",
-    `<button class="theme" id="theme-toggle" type="button" hidden>${esc(SITE_TEXT.theme.light)}</button>`,
-    "</header>",
-  ].join("\n");
-}
-
-/** The footer: what voicecap is, and the link to it. */
-function footer(): string {
-  return [
-    "<footer>",
-    `<p>${esc(SITE_TEXT.about)}</p>`,
-    `<p>${esc(SITE_TEXT.madeWith)} <a href="${esc(SITE_TEXT.github)}">${esc(SITE_TEXT.madeWithLink)}</a></p>`,
-    "</footer>",
-  ].join("\n");
+  return view(
+    "by-date",
+    title,
+    SITE_ICONS.byDate,
+    [`<p>${esc(lead)}</p>`, `<ol class="dates"${IS_A_LIST}>`, ...reports.map(item), "</ol>"],
+    { n: reports.length, unit: SITE_TEXT.reportUnit(reports.length) },
+  );
 }
 
 /**
- * The page, from what's published. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
+ * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts)
+ * with the bar of its own page. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
  * ../share/fonts.ts), which the page's style block holds ahead of its own styles. Pure.
  */
 export function renderSiteIndex(content: SiteContent, assets: { fontCss: string }): string {
-  return [
-    "<!doctype html>",
-    '<html lang="en">',
-    "<head>",
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<meta name="robots" content="noindex, nofollow, noarchive">',
-    `<title>${esc(SITE_TEXT.title)}</title>`,
-    `<style>\n${assets.fontCss}\n${SITE_CSS}</style>`,
-    "</head>",
-    "<body>",
-    `<a class="skip" href="#main">${esc(SITE_TEXT.skip)}</a>`,
-    bar(content),
-    '<main id="main">',
-    `<h1>${esc(SITE_TEXT.title)}</h1>`,
-    `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
-    ...(content.demo === null ? [] : [demoView(content.demo)]),
-    sitesView(content.sites),
-    byDateView(content.sites),
-    `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
-    `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
-    "</main>",
-    footer(),
-    `<script>${SITE_SCRIPT}</script>`,
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
+  return sitePage(
+    {
+      title: SITE_TEXT.title,
+      bar: siteBar(content, "index"),
+      main: [
+        `<h1>${esc(SITE_TEXT.title)}</h1>`,
+        `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+        ...(content.demo === null ? [] : [demoView(content.demo)]),
+        sitesView(content.sites),
+        ...(listsByDate(content) ? [byDateView(content.sites)] : []),
+        `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
+        `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
+      ],
+    },
+    assets,
+  );
 }

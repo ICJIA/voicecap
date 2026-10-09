@@ -1,8 +1,15 @@
 import type { VoicecapConfig } from "../config/schema.js";
-import type { FlagResult, PassName, StepRecord, StopReason } from "../model.js";
+import {
+  PASS_NAMES,
+  type FlagResult,
+  type PassName,
+  type StepRecord,
+  type StopReason,
+} from "../model.js";
 import { lineMatches } from "../passes/read.js";
 import { normalizeSpeech } from "../passes/steps.js";
 import { hashJson } from "../util/hash.js";
+import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
 
@@ -89,8 +96,8 @@ export function evaluateFlags(passes: PagePasses, rules: FlagRules): FlagResult[
   return flags;
 }
 
-/** The most lines `flagQuotes` gives for a flag, and the most the shareable page quotes for a rule. */
-export const QUOTED = 3;
+/** The most lines `flagQuotes` gives for a flag. */
+const QUOTED = 3;
 
 /**
  * Up to 3 lines NVDA spoke that raised `flag`, each once, in the order spoken: the steps of its pass
@@ -141,15 +148,98 @@ export function flagQuotes(passes: PagePasses, rules: FlagRules, flag: FlagResul
   }
 }
 
-/** Steps' speech, each on one line and each line once, at most `QUOTED`; silence isn't a line. */
-function quoted(steps: StepRecord[]): string[] {
-  const lines: string[] = [];
-  for (const step of steps) {
-    const line = normalizeSpeech(step.spoken);
-    if (line !== "" && !lines.includes(line)) lines.push(line);
-    if (lines.length === QUOTED) break;
+/**
+ * Where the lines `flagQuotes` quotes for `flag` were said, by step number (`n`), for the rules
+ * whose quotes stand for a place on the page rather than for their words: each is the first step,
+ * among those the rule looked at, to say a line it quotes, in the order spoken, so at most 3.
+ * - headings: the first heading;
+ * - tab-before-main: the stops before the main content;
+ * - read-not-finished: the last line read.
+ *
+ * The same words said at another step are another place, which the flag doesn't mean: a footer
+ * link with a header link's words, or a line the read passed before it stopped on the same words.
+ * None for a pass not in `passes`. Null for every other rule: its quotes stand for their words,
+ * wherever they were said (a repeated phrase, a custom rule's matches, what an item rule found).
+ */
+export function flagQuotedSteps(passes: PagePasses, flag: FlagResult): number[] | null {
+  const { pass } = flag;
+  const data = pass === undefined ? undefined : passes[pass];
+  const steps = pass === undefined || data === undefined ? [] : contentSteps(pass, data);
+  const at = (looked: StepRecord[]): number[] => quotedSteps(looked).map((step) => step.n);
+  switch (flag.rule) {
+    case "headings":
+      return at(steps.slice(0, 1));
+    case "tab-before-main":
+      return at(stopsBeforeMain(steps).before);
+    case "read-not-finished":
+      return at(steps.slice(-1));
+    default:
+      return null;
+  }
+}
+
+/** A line on which a rule that finds items found one. */
+export interface ItemLine {
+  rule: "unlabeled" | "generic-link-text";
+  pass: PassName;
+  /**
+   * What the rule found, lowercased, as its flag's `found` lists it: "unlabeled graphic", "(no
+   * name)".
+   */
+  item: string;
+  /** What NVDA said, on one line (normalizeSpeech). */
+  spoken: string;
+}
+
+/**
+ * Every content step the unlabeled and generic-link-text rules match, in pass then step order: the
+ * item the rule's own matcher returns (lowercased, as found), and the step's speech on one line.
+ * Each rule looks only in its own passes (rules.unlabeled.passes, rules.genericLinkText.passes),
+ * and a rule that's off matches nothing, so the lines are the steps the rules count. A step both
+ * rules match gives a line for each, generic-link-text's first, as evaluateFlags raises them. The
+ * lines don't depend on a flag being raised: a rule with a minimum count may find too few for one.
+ */
+export function flagItemLines(passes: PagePasses, rules: FlagRules): ItemLine[] {
+  const context = speechContext(rules);
+  const { genericLinkText, unlabeled } = rules;
+  const linkOf = genericLinkText.enabled ? genericLinkMatcher(genericLinkText, context) : null;
+  const itemOf = unlabeled.enabled ? unlabeledMatcher(unlabeled, context) : null;
+  const lines: ItemLine[] = [];
+  for (const pass of PASS_NAMES) {
+    const data = passes[pass];
+    if (!data) continue;
+    const links = linkOf !== null && genericLinkText.passes.includes(pass) ? linkOf : null;
+    const items = itemOf !== null && unlabeled.passes.includes(pass) ? itemOf : null;
+    if (links === null && items === null) continue;
+    for (const step of contentSteps(pass, data)) {
+      const spoken = normalizeSpeech(step.spoken);
+      const link = links?.(step.spoken);
+      if (link) lines.push({ rule: "generic-link-text", pass, item: link, spoken });
+      const item = items?.(step.spoken, pass);
+      if (item) lines.push({ rule: "unlabeled", pass, item, spoken });
+    }
   }
   return lines;
+}
+
+/** Steps' speech, each on one line and each line once, at most `QUOTED`; silence isn't a line. */
+function quoted(steps: StepRecord[]): string[] {
+  return quotedSteps(steps).map((step) => normalizeSpeech(step.spoken));
+}
+
+/** The steps whose speech `quoted` gives: the first to say each line, at most `QUOTED`. */
+function quotedSteps(steps: StepRecord[]): StepRecord[] {
+  const lines: string[] = [];
+  const said: StepRecord[] = [];
+  for (const step of steps) {
+    const line = normalizeSpeech(step.spoken);
+    if (line !== "" && !lines.includes(line)) {
+      lines.push(line);
+      said.push(step);
+    }
+    if (lines.length === QUOTED) break;
+  }
+  return said;
 }
 
 /**
@@ -175,12 +265,12 @@ export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   return data.steps.filter((step) => step.inDocument !== false);
 }
 
-/** Speech split into items (", " within an utterance, ". " between utterances), lowercased. */
+/**
+ * Speech split into items (", " within an utterance, ". " between utterances), lowercased: as the
+ * cards of what needs attention split it (speechItems), so a rule's item is always one of theirs.
+ */
 function items(speech: string): string[] {
-  return normalizeSpeech(speech)
-    .split(/, |\. /)
-    .map((item) => lower(item).replace(/[.,]$/, ""))
-    .filter((item) => item !== "");
+  return speechItems(speech).map(lower);
 }
 
 /** What NVDA says around a control without naming it: context before it, and its states. */
