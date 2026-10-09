@@ -16,6 +16,11 @@ They approved this design in chat the same day ("Yes, write the spec"), with thr
 - Guidepup named in the Technical details page's toolchain table;
 - a What's New banner on the front page, with a link to every update.
 
+They approved this spec as written on 2026-10-08 ("Approve as is"), with these answers:
+- What's New may show the CHANGELOG's points that name Guidepup ("Allow it there");
+- the front page's kicker as written below;
+- plan 12 also fixes the two trust-page wordings the 0.13.2 final review raised ("Fix both"; see Can I trust this?).
+
 The reference is the audit tool as it was on 2026-10-08: its pages (/, /trust, /technical-details, /announcements), and its source, github.com/ICJIA/file-accessibility-audit (apps/web/app/assets/css/main.css, layouts/default.vue, pages/).
 
 ## What it is
@@ -191,6 +196,9 @@ The 0.13.2 page, in the new look, with its words unchanged except where noted:
 - **Each part** has a kicker over a heavy h2. Its cards have the card look, and the law's tags are pills.
 - **"How it got here"** shows the newest five releases, then "See all N releases" (a link to `whats-new.html`), where 0.13.2 folded away the rest.
 - **"Back to the test results"** opens the page (see Technical details).
+- **Two wordings, fixed (the owner's answer):**
+  - "every page of a website" becomes "each page of a website", true for a run with `--limit`, `--page`, or include and exclude;
+  - the files tile's link, "How to check a copy", goes to steps that say how to check a downloaded copy: `Get-FileHash` on Windows, or `shasum -a 256` on a Mac, against the fingerprint the page lists. The steps are added to the evidence part.
 
 ## Technical details
 
@@ -368,7 +376,7 @@ In order:
 - **What it skips:** `## [Unreleased]` and any heading that isn't a dated release.
 - **Every word is plain text, escaped.** Code spans are in the fixed-width font, a link is its words, and nothing else from the CHANGELOG becomes markup.
 - **A CHANGELOG with no release** says so: "No release is recorded in this build of voicecap."
-- **Guidepup, for the owner to confirm:**
+- **Guidepup, as the owner confirmed ("Allow it there"):**
   - The items are the CHANGELOG's own words, so a few of them name Guidepup, as the CHANGELOG does. Examples are 0.2.0's "The Guidepup NVDA driver" and 0.5.0's "After a closed terminal window, your NVDA starts once Guidepup's has quit."
   - Like Technical details, What's New is a record for those who want the detail.
   - The front page, the trust page, the shareable page, and the Word copy still never name it.
