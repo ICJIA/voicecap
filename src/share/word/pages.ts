@@ -8,21 +8,43 @@
  * Where the page has a card for each page, the Word copy has blocks for each, in this order: a
  * heading 2 with the page's number and name; its screenshot (its label, then its picture, or the
  * reason it has none); one paragraph of its title, its status, its flags, its review, and what each
- * pass captured; the lines NVDA said first; the run its transcripts are from; and its transcripts,
- * each a heading 3 under the page's, where the page folds them in its card. A page that wasn't read
- * has no lines and no transcripts. There is no appendix of transcripts: every page's are with it.
+ * pass captured; the lines NVDA said first; what axe found (a label, then its results, or the
+ * reason it has none); the run its transcripts are from; and its transcripts, each a heading 3
+ * under the page's, where the page folds them in its card. A page that wasn't read has no lines and
+ * no transcripts. There is no appendix of transcripts: every page's are with it.
+ *
+ * What axe found is the card's fold, unfolded, in the fold's order and words (../axe-view.ts and
+ * `AXE_TEXT` have them): what axe is, its version and rules, the counts, the issues most severe
+ * first, what needs review, and the file's fingerprint. Each issue is a paragraph, its name in bold
+ * and its impact and criteria under it, and its elements are a list. Everything axe supplies (a
+ * rule's words, an element's selector and HTML, its words on how to fix it) is a run of text, never
+ * markup, and never escaped: the library sets each in a run of its own. The only link is to axe's
+ * own page on a rule, as the page's is.
  *
  * It folds nothing: every page and every transcript is there in full. What it leaves out has no use
  * on paper: the strip of bars that draws a page's spoken lines (the spec's charts that become
- * tables don't include it). Nor does it say anything of the page's fingerprint check, which it has
- * none of. Pure.
+ * tables don't include it) and the chip that counts a page's issues (the counts are in the words).
+ * Nor does it say anything of the page's fingerprint check, which it has none of. Pure.
  */
 import { PASS_NAMES, type PassName } from "../../model.js";
+import {
+  axeCriteria,
+  axeFix,
+  axeImpacts,
+  axeRulePage,
+  axeRulesRun,
+  axeSelector,
+  axeSharedFix,
+  type AxeView,
+  type AxeViewRule,
+} from "../axe-view.js";
 import { jpegOfAddress } from "../cards.js";
+import { count } from "../format.js";
 import type { Inline, Line } from "../line.js";
 import type { AppendixFile, NoLongerListed, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE, WORD_TEXT } from "../text.js";
 import {
+  axeFingerprint,
   capturedOf,
   fileFingerprint,
   fromRun,
@@ -160,6 +182,131 @@ function heardFirstBlocks({ heardFirst }: PageCard): Block[] {
   return [para({ text: PAGES_TEXT.heardFirst, bold: true }), list(heardFirst.map(heardFirstLine))];
 }
 
+// What axe found.
+
+/**
+ * The counts of what axe found as one sentence, as a page's numbers are ("Read: 18 lines; …"), where
+ * the card's fold has a box for each: the issues, how many of them are of each impact, what needs
+ * review, and the rules passed. "Issues: 3; Critical: 1; Serious: 1; Moderate: 1; Minor: 0; Needs
+ * review: 1; Rules passed: 41."
+ */
+function axeCounts(view: AxeView): Line {
+  const { counts: label } = AXE_TEXT;
+  const impacts = axeImpacts(view);
+  const counts: [label: string, value: number][] = [
+    [label.issues, view.violations.length],
+    [label.critical, impacts.critical],
+    [label.serious, impacts.serious],
+    [label.moderate, impacts.moderate],
+    [label.minor, impacts.minor],
+    [label.incomplete, view.incomplete.length],
+    [label.passes, view.counts.passes],
+  ];
+  return [sentence(counts.map(([term, value]) => `${term}: ${count(value)}`).join("; "))];
+}
+
+/**
+ * axe's words on how to fix an element, or every element of a rule, as lines of text under their
+ * label ("How to fix it, in axe's words:"): each lead on a line, and each thing under it on a line
+ * of its own after a dash, as the fold sets them out. A list item holds one paragraph, and a list
+ * can't follow a list without running into it, so these are lines of the paragraph that holds them
+ * (a line break each), not a list of their own. None for words that are none.
+ */
+function axeFixLines(label: string, summary: string): string[] {
+  const parts = axeFix(summary);
+  if (parts.length === 0) return [];
+  return [
+    `${label}:`,
+    ...parts.flatMap(({ lead, items }) => [lead, ...items.map((item) => `– ${item}`)]),
+  ];
+}
+
+/**
+ * An element a rule found, as an item of its list: its selector and its HTML in the fixed-width
+ * font, each on a line under its label, and, when its rule doesn't say them once for every element
+ * (`saidOnce`), axe's words on how to fix it, when axe gives any. All of it is text.
+ */
+function axeElement(
+  { target, html, failureSummary }: AxeViewRule["nodes"][number],
+  saidOnce: boolean,
+): Line {
+  const fix = saidOnce ? [] : axeFixLines(AXE_TEXT.fix, failureSummary);
+  return [
+    `${AXE_TEXT.element}: `,
+    { text: axeSelector(target), mono: true },
+    `\n${AXE_TEXT.html}: `,
+    { text: html, mono: true },
+    ...(fix.length === 0 ? [] : [`\n${fix.join("\n")}`]),
+  ];
+}
+
+/**
+ * A rule axe found the page broke, or that needs review, as the fold has it, in its order: a
+ * paragraph of axe's words for it (its `help`, or its id when axe gave none) in bold, and under it
+ * its impact and the WCAG success criteria it tests, or that it's a best practice; axe's words on
+ * how to fix its elements, once, when every element listed shares them (`axeSharedFix`), under a
+ * label that claims no element not listed; the list of the elements its file keeps, each with its
+ * own words when they differ; how many more there were; and a link to axe's own page on the rule,
+ * named for the rule, which leaves the document. An address that isn't axe's page on a rule is no
+ * link.
+ */
+function axeRule(rule: AxeViewRule): Block[] {
+  const criteria = axeCriteria(rule.tags);
+  const about = [AXE_TEXT.impact(rule.impact), ...(criteria === "" ? [] : [criteria])].join(" · ");
+  const shared = axeSharedFix(rule);
+  const once = shared === null ? [] : axeFixLines(AXE_TEXT.fixShared(rule.nodes.length), shared);
+  const address = axeRulePage(rule.helpUrl);
+  return [
+    para({ text: rule.help || rule.id, bold: true }, `\n${about}`),
+    ...(once.length === 0 ? [] : [para(once.join("\n"))]),
+    ...(rule.nodes.length === 0
+      ? []
+      : [list(rule.nodes.map((node) => axeElement(node, shared !== null)))]),
+    ...(rule.moreNodes > 0 ? [para(AXE_TEXT.more(rule.moreNodes))] : []),
+    ...(address === null ? [] : [para({ text: AXE_TEXT.rulePage(rule.id), href: address })]),
+  ];
+}
+
+/**
+ * What axe found on a page, where the page folds it in its card after what NVDA said first: a bold
+ * label, as "Heard first" has; then, in the fold's order, what axe is, its version and the rules it
+ * ran, the counts, the issues under their label, most severe first (or that axe found none), what
+ * needs review under its own label and the line that says a person checks it, when there is any,
+ * and last the file's size and fingerprint, as its run recorded them. Without results, the card's
+ * reason under the label: a line that says nothing was recorded or shown never reads as a pass.
+ * None for a card that says nothing of axe, as the page has no fold for it.
+ */
+function axeBlocks({ axe }: PageCard): Block[] {
+  if (axe === undefined) return [];
+  const label = para({ text: AXE_TEXT.title, bold: true });
+  if ("notRecorded" in axe) return [label, para(notRecordedLine(axe.notRecorded))];
+  const { view } = axe;
+  const issues =
+    view.violations.length === 0
+      ? [para(AXE_TEXT.none)]
+      : [
+          para({ text: `${AXE_TEXT.issues.title}${AXE_TEXT.issues.after}`, bold: true }),
+          ...view.violations.flatMap(axeRule),
+        ];
+  const review =
+    view.incomplete.length === 0
+      ? []
+      : [
+          para({ text: AXE_TEXT.review, bold: true }),
+          para(AXE_TEXT.reviewLead),
+          ...view.incomplete.flatMap(axeRule),
+        ];
+  return [
+    label,
+    para(AXE_TEXT.what),
+    para(AXE_TEXT.version(view.axeVersion, axeRulesRun(view.tags))),
+    para(...axeCounts(view)),
+    ...issues,
+    ...review,
+    para(...axeFingerprint(axe)),
+  ];
+}
+
 // A page's transcripts.
 
 /**
@@ -224,8 +371,9 @@ function transcriptsBlocks(
 
 /**
  * A page: its heading, its screenshot (its label, then its picture when it has one), the paragraph
- * that says its title, status, flags, and review, what NVDA said first, and its transcripts. A page
- * with no transcripts (`transcripts` is undefined) has the first three alone.
+ * that says its title, status, flags, and review, what NVDA said first, what axe found, and its
+ * transcripts. A page with no transcripts (`transcripts` is undefined) has no lines NVDA said and
+ * no transcripts: it has its heading, its screenshot, its paragraph, and what axe found.
  */
 function pageBlocks(
   card: PageCard,
@@ -240,6 +388,7 @@ function pageBlocks(
     ...(picture === null ? [] : [image(picture)]),
     para(...statusLine(card)),
     ...heardFirstBlocks(card),
+    ...axeBlocks(card),
     ...(transcripts === undefined ? [] : transcriptsBlocks(card, transcripts, latest)),
   ];
 }
