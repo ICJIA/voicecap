@@ -327,7 +327,7 @@ describe("timelinesOf", () => {
       session([
         on("14:00:05.000", { type: "page-started", page: HOME, attempt: 1 }),
         on("14:00:09.000", { type: "foreground-lost", program: "SearchHost", title: "Search" }),
-        on("14:00:09.400", { type: "foreground-cleared", program: "SearchHost" }),
+        on("14:00:09.400", { type: "foreground-escape", program: "SearchHost" }),
         on("14:00:20.000", { type: "page-finished", page: HOME, attempt: 1, status: "done" }),
       ]),
     );
@@ -564,15 +564,15 @@ describe("eventText", () => {
       "Another window came to the front",
     ],
     [
-      { type: "foreground-cleared", program: "SearchHost" },
+      { type: "foreground-escape", program: "SearchHost" },
       "voicecap pressed Escape to close Windows Search, which had come in front of the browser",
     ],
     [
-      { type: "foreground-cleared", program: "Windows Start Experience Host" },
+      { type: "foreground-escape", program: "Windows Start Experience Host" },
       "voicecap pressed Escape to close the Start menu, which had come in front of the browser",
     ],
     [
-      { type: "foreground-cleared", program: "StartMenuExperienceHost" },
+      { type: "foreground-escape", program: "StartMenuExperienceHost" },
       "voicecap pressed Escape to close the Start menu, which had come in front of the browser",
     ],
   ])("says %j as the page words it", (event, text) => {
@@ -603,14 +603,14 @@ describe("eventText", () => {
   });
 
   it("says a closed program by what it is, and any other by its name, with the home folder replaced", () => {
-    expect(say({ type: "foreground-cleared", program: " SEARCHHOST " })).toBe(
+    expect(say({ type: "foreground-escape", program: " SEARCHHOST " })).toBe(
       "voicecap pressed Escape to close Windows Search, which had come in front of the browser",
     );
-    expect(say({ type: "foreground-cleared", program: "Notes" })).toBe(
+    expect(say({ type: "foreground-escape", program: "Notes" })).toBe(
       "voicecap pressed Escape to close Notes, which had come in front of the browser",
     );
     const program = path.join(home, "AppData", "Local", "Programs", "Tool", "tool.exe");
-    const said = say({ type: "foreground-cleared", program });
+    const said = say({ type: "foreground-escape", program });
 
     expect(said).not.toContain(home);
     expect(said).toContain(REPLACED);
@@ -618,9 +618,9 @@ describe("eventText", () => {
 
   it("says a closed program it can't read as its type", () => {
     for (const program of [undefined, null, "", "  ", 7]) {
-      const odd = { at: at("14:00:00.000"), type: "foreground-cleared", program } as RunEvent;
+      const odd = { at: at("14:00:00.000"), type: "foreground-escape", program } as RunEvent;
 
-      expect(eventText(odd, words), String(program)).toBe("foreground-cleared");
+      expect(eventText(odd, words), String(program)).toBe("foreground-escape");
     }
   });
 

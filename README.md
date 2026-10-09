@@ -1034,7 +1034,7 @@ Beyond its transcripts, each run's `run.json` records:
   - each attempt at a page starting, and finishing or failing;
   - the computer found locked;
   - another window taking the screen, with the program that did and the window's title;
-  - voicecap pressing Escape to close Windows Search or the Start menu, which had come in front of the browser (`foreground-cleared`): the program, by its name, never its window's title. It records the key sent: the next try at the page shows whether the program closed.
+  - voicecap pressing Escape to close Windows Search or the Start menu, which had come in front of the browser (`foreground-escape`): the program, by its name, never its window's title. It records the key sent: the next try at the page shows whether the program closed.
 
   A process's id is recorded when voicecap could find it. At the end of each session, the log's SHA-256 and size go into `run.json`'s `files`, so the run's seal covers it. **A window's title can hold private text,** such as an email's subject. It stays in `events.jsonl`: a failed attempt's record keeps only the program's name, and the shareable page and its Word copy show only that (see [The shareable page](#the-shareable-page)).
 - **Every failed attempt at a page**, in every session of the run, including those a later attempt made good. Each is written to `run.json` as it happens, before the screen reader and browser are started again, so Ctrl+C, a closed window, or a crash doesn't lose it, and a later session adds its own after it. Each attempt's record keeps:

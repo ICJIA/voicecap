@@ -523,7 +523,7 @@ export type NewRunEvent =
    * never the window's title. It's recorded once the key is sent, not once the program has closed:
    * the next try says whether it did.
    */
-  | { type: "foreground-cleared"; program: string };
+  | { type: "foreground-escape"; program: string };
 
 /**
  * A line of the event log: an event, and when it was recorded, as a local ISO time to the

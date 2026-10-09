@@ -2103,7 +2103,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
   const SEARCH = "SearchHost";
   const START_MENU = "Windows Start Experience Host";
   const LOST_SEARCH: NewRunEvent = { type: "foreground-lost", program: SEARCH, title: "Search" };
-  const CLEARED_SEARCH: NewRunEvent = { type: "foreground-cleared", program: SEARCH };
+  const ESCAPE_SEARCH: NewRunEvent = { type: "foreground-escape", program: SEARCH };
 
   /**
    * `program` has come in front of the browser, and keeps it from coming forward until it's closed,
@@ -2123,7 +2123,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
   }
 
   const foregroundEvents = (events: NewRunEvent[]) =>
-    only(events, "foreground-lost", "foreground-cleared");
+    only(events, "foreground-lost", "foreground-escape");
 
   /**
    * Runs `change` as the `nth` wait of the page's opening begins. Each try waits once after raising
@@ -2167,7 +2167,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     comesInFront(desktop, SEARCH, "Search");
     await driver.openPage(URL_HOME);
 
-    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, CLEARED_SEARCH]);
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, ESCAPE_SEARCH]);
   });
 
   it.each([
@@ -2184,7 +2184,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
     expect(foregroundEvents(recorder.events)).toEqual([
       { type: "foreground-lost", program, title },
-      { type: "foreground-cleared", program },
+      { type: "foreground-escape", program },
     ]);
   });
 
@@ -2194,9 +2194,9 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     comesInFront(desktop, SEARCH, "Search - salary review");
     await driver.openPage(URL_HOME);
 
-    const cleared = only(recorder.events, "foreground-cleared");
-    expect(cleared).toEqual([CLEARED_SEARCH]);
-    expect(JSON.stringify(cleared)).not.toContain("salary");
+    const escapes = only(recorder.events, "foreground-escape");
+    expect(escapes).toEqual([ESCAPE_SEARCH]);
+    expect(JSON.stringify(escapes)).not.toContain("salary");
   });
 
   it("asks nobody, and presses nothing, when the browser comes forward the first time", async () => {
@@ -2234,9 +2234,9 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(desktop.strayKeys).toEqual(["exitFocusMode", "exitFocusMode"]);
     expect(foregroundEvents(recorder.events)).toEqual([
       LOST_SEARCH,
-      CLEARED_SEARCH,
+      ESCAPE_SEARCH,
       LOST_SEARCH,
-      CLEARED_SEARCH,
+      ESCAPE_SEARCH,
       LOST_SEARCH,
     ]);
     expect(lookups(desktop)).toBe(3);
@@ -2256,7 +2256,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(info).toMatchObject({ finalUrl: URL_HOME, title: "Fake page" });
     expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
     // Outlook, which passed, isn't recorded: the page didn't fail for it.
-    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, CLEARED_SEARCH]);
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, ESCAPE_SEARCH]);
     expect(lookups(desktop)).toBe(2);
     expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
   });
@@ -2292,7 +2292,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
     expect(foregroundEvents(recorder.events)).toEqual([
       LOST_SEARCH,
-      CLEARED_SEARCH,
+      ESCAPE_SEARCH,
       { type: "foreground-lost", program: "Microsoft Outlook", title: "Inbox - Outlook" },
     ]);
     expect(lookups(desktop)).toBe(3);
@@ -2354,7 +2354,7 @@ describe("Windows Search or the Start menu in front of the browser", () => {
 
     await expect(open).rejects.toMatchObject({ failure: "foreground", program: null });
     expect(desktop.strayKeys).toEqual([]);
-    expect(only(recorder.events, "foreground-cleared")).toEqual([]);
+    expect(only(recorder.events, "foreground-escape")).toEqual([]);
   });
 
   it("presses no Escape for a step that loses the foreground, only as the browser is brought forward", async () => {
@@ -2409,9 +2409,9 @@ describe("Windows Search or the Start menu in front of the browser", () => {
     await driver.openPage(URL_HOME);
 
     expect(desktop.strayKeys).toEqual(["exitFocusMode", "exitFocusMode"]);
-    expect(only(recorder.events, "foreground-cleared")).toEqual([
-      CLEARED_SEARCH,
-      { type: "foreground-cleared", program: START_MENU },
+    expect(only(recorder.events, "foreground-escape")).toEqual([
+      ESCAPE_SEARCH,
+      { type: "foreground-escape", program: START_MENU },
     ]);
   });
 });

@@ -121,7 +121,7 @@ const KINDS: Record<NewRunEvent["type"], EventKind> = {
   "page-failed": "fail",
   "computer-locked": "fail",
   "foreground-lost": "fail",
-  "foreground-cleared": "browser",
+  "foreground-escape": "browser",
 };
 
 /** An event's kind; one of a type this version doesn't know is the run's. */
@@ -268,13 +268,13 @@ function wordsOf(event: Fields, said: EventWords): string | null {
       const program = words(event.program);
       return EVENT_TEXT.foreground(program === null ? null : said.redact(program));
     }
-    case "foreground-cleared": {
+    case "foreground-escape": {
       // A program voicecap presses Escape for is said by what it is; any other, which no voicecap
       // does, by its name, with the home folder replaced.
       const program = words(event.program);
       return program === null
         ? null
-        : EVENT_TEXT.foregroundCleared(closedProgram(program)?.words ?? said.redact(program));
+        : EVENT_TEXT.foregroundEscape(closedProgram(program)?.words ?? said.redact(program));
     }
     default:
       return null;

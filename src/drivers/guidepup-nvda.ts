@@ -42,7 +42,7 @@
  * - Windows Search and the Start menu sometimes come in front of the browser by themselves, and keep
  *   it from coming forward. Where it brings the browser forward, when it finds one of those two
  *   (closedProgram) in front, it presses Escape once to close it, through NVDA, to the window in
- *   front, records that it did (foreground-cleared: the key sent, not that the program closed), and
+ *   front, records that it did (foreground-escape: the key sent, not that the program closed), and
  *   tries again within its tries. It presses Escape only after finding one of those two in front,
  *   and a step that loses the foreground still fails.
  * - Each HTML page's screenshot is taken through the browser's DevTools connection once the page
@@ -887,7 +887,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.checkLive(page.generation);
     await this.command(() => page.nvda.press("exitFocusMode", { capture: false }));
     this.checkLive(page.generation);
-    this.events.record({ type: "foreground-cleared", program });
+    this.events.record({ type: "foreground-escape", program });
     await this.deps.sleep(CLOSE_SETTLE_MS);
     this.checkLive(page.generation);
   }

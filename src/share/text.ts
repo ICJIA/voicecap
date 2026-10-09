@@ -812,7 +812,7 @@ export const EVENT_TEXT = {
    * Escape for). It says the key was pressed, never that the program closed: the log records the key
    * sent, and the try after it shows whether the program went.
    */
-  foregroundCleared: (closed: string): string =>
+  foregroundEscape: (closed: string): string =>
     `voicecap pressed Escape to close ${closed}, which had come in front of the browser`,
 };
 
