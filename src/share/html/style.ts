@@ -407,3 +407,29 @@ table.tracks td.none { background: transparent; border: 1px dashed var(--line); 
 /* Paper doesn't scroll: in print, every box shows all it holds, and a chart narrows to the paper. After the rules that limit the boxes, so it wins. */
 @media print { .scroll, .tx .scroll, .events { max-height: none; overflow: visible; } .timeline { min-width: 0; } }
 `;
+
+/**
+ * The voice page's few rules, which follow SHARE_CSS in its one style block (the page sets no
+ * `style` attribute, as the shareable page doesn't). They are the voice page's alone, so the
+ * shareable page's style, which a Content Security Policy hashes, is as it was. Beyond the cards,
+ * the fold, and the check that it shares:
+ * - a page's player is as wide as its card (`.card audio`), and shows where the keyboard is, as a
+ *   button does; the browser draws its controls in the page's theme (the root's `color-scheme`);
+ * - its speed choice (`.speeds`) is a group of radio buttons under a small label, as a card's
+ *   numbers are, in a row that wraps, each a target of at least 24 pixels (WCAG 2.5.8) with its
+ *   words beside it. It starts hidden, as everything that needs the script does, and the script
+ *   shows it;
+ * - what is said of a recording (`.voice-facts`) is small and muted, as a card's fingerprints are,
+ *   and its SHA-256 breaks where it must rather than widen the page (`code` already does).
+ */
+export const VOICE_CSS = `/* the voice page: a page's player, its speed choice, and what is said of its file */
+.card audio { display: block; width: 100%; min-width: 0; }
+.card audio:focus-visible, .speeds input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.speeds { border: 0; margin: 0; padding: 0; min-width: 0; }
+.speeds legend { padding: 0; margin-bottom: 4px; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.speed-choices { display: flex; flex-wrap: wrap; gap: 2px 18px; }
+.speeds label { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; font: 500 0.95rem var(--body); font-variant-numeric: tabular-nums; }
+.speeds input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.voice-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); }
+.voice-facts code { color: var(--fg); }
+`;

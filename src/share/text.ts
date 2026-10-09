@@ -17,10 +17,10 @@
  * owner reads it before each release. voicecap is a person's review with a real screen reader,
  * sped up, so nothing here calls it "automated"; the word appears only for other tools.
  */
-import type { PassName, SessionRecord } from "../model.js";
+import { VOICE_FILE, type PassName, type SessionRecord } from "../model.js";
 import { plural } from "../report/html.js";
 import type { OnlyInOnePage } from "./changes.js";
-import { count } from "./format.js";
+import { count, seconds, sizeLine } from "./format.js";
 import type { Line } from "./line.js";
 import type { Problem } from "./problems.js";
 import type { VerdictKind } from "./verdict.js";
@@ -745,6 +745,121 @@ export const EVIDENCE_TEXT = {
     lead: "These runs aren't counted in any result on this page.",
     why: "A run counts only when it completed, was sealed, and wasn't a replay.",
   },
+};
+
+/**
+ * The voice page (./voice-page.ts): the companion of the shareable page that plays what NVDA said
+ * aloud on each page, from the recordings a run keeps (from voicecap 0.18.0, `KEEPS_VOICE_FROM`).
+ * Its title and lead, the note on what each pass begins with, the speed choice, what it says of each
+ * recording, what it says of a page that has none, and the words of its own check.
+ *
+ * The recording is evidence, and the person's review is made from the transcripts, by reading what
+ * NVDA said: the lead says so, and nothing here says a person listened to a run, calls voicecap
+ * automated, or names what it's built on. The page leads with the site's name and a date, never an
+ * address. A reason a page has no recording is the sentence the other parts of the report say of
+ * what a run didn't record ("Not recorded: …"), and the recorder's own words in it are the record's:
+ * on one line, with the home folder already replaced.
+ */
+export const VOICE_TEXT = {
+  /** The tab's title: the site's name, then when it was tested. */
+  title: (site: string, when: string): string => `NVDA's voice: ${site}, ${when}`,
+  /** The line above the site's name. */
+  eyebrow: "NVDA's voice",
+  /**
+   * Under the site's name: what the recordings are, that they are NVDA's alone, how to slow them
+   * down, and which words are the record of what was reviewed.
+   */
+  lead: "What NVDA said aloud on each page while voicecap read it, recorded from NVDA alone and sealed with the run. NVDA spoke fast; choose a slower speed, and the pitch stays the same. The transcripts on the shareable page are the record of what was reviewed.",
+  /** Said once, above the pages: why each pass's recording starts with a code. */
+  note: `Before each pass, voicecap has NVDA read the window's title, "voicecap check" and a code, to check NVDA is reading the right window.`,
+  /** What names a page's player for a screen reader, and the page it plays: "NVDA's voice on /about/". */
+  player: (path: string): string => `NVDA's voice on ${path}`,
+  /**
+   * A player's speed choice: the legend over its radio buttons, with the page it's for after it for
+   * a screen reader alone (`on`), and the speeds, in order, with 1× chosen. A speed is a
+   * `playbackRate`, and the page keeps the pitch at each.
+   */
+  speed: {
+    legend: "Speed",
+    on: (path: string): string => ` on ${path}`,
+    rates: [1, 0.75, 0.5, 0.25] as readonly number[],
+    label: (rate: number): string => `${rate}×`,
+  },
+  /**
+   * What is said of a recording, each on a line of its own: its length ("2 min 14 s", with the
+   * word that names it, and a space, for a screen reader alone before it), the sound the recorder lost by falling
+   * behind when it lost any ("250 ms of sound lost"), and its file: the size, as `voicecap share`
+   * says one, and the SHA-256, in the fixed-width font.
+   */
+  lengthLabel: "Length:",
+  length: (lengthSeconds: number): string => {
+    const whole = Math.round(
+      Number.isFinite(lengthSeconds) && lengthSeconds > 0 ? lengthSeconds : 0,
+    );
+    if (whole === 0) return lengthSeconds > 0 ? "under 1 s" : "0 s";
+    const hours = Math.floor(whole / 3_600);
+    const minutes = Math.floor((whole % 3_600) / 60);
+    const rest = whole % 60;
+    return [
+      hours > 0 ? `${hours} h` : "",
+      minutes > 0 ? `${minutes} min` : "",
+      rest > 0 ? `${rest} s` : "",
+    ]
+      .filter((part) => part !== "")
+      .join(" ");
+  },
+  lost: (ms: number): string => {
+    const whole = Math.round(ms);
+    return `${whole < 1_000 ? `${Math.max(1, whole)} ms` : seconds(ms)} of sound lost`;
+  },
+  file: (bytes: number, sha256: string): Line => [
+    `${sizeLine(bytes)}, SHA-256 `,
+    { text: sha256, mono: true },
+  ],
+  /** Under a page's name, when its recording is of a run before the latest, as its card says it. */
+  from: (run: string, date: string): string => `From run ${run}, on ${date}`,
+  /**
+   * What a page says in place of a player: the recorder couldn't record it, with the reason the run
+   * recorded (on one line, with no full stop: the sentence adds it), or none; the run's driver
+   * records no page; the page wasn't read; the file isn't as the run recorded it; or the run's
+   * record of it is of no kind voicecap writes. A run from before voicecap recorded says it as every
+   * part such a run didn't record (`notRecordedBy`).
+   */
+  failed: (reason: string): string =>
+    reason === "" ? "Not recorded: the recording couldn't be made." : `Not recorded: ${reason}.`,
+  noDriver: "Not recorded: this run's driver doesn't record NVDA's voice.",
+  notRead: "Not recorded: no recording was made, since the page wasn't read.",
+  changed: `Not shown: ${VOICE_FILE} isn't as the run recorded it; voicecap verify names it.`,
+  unreadable: "Not shown: the run's record of this page's recording couldn't be read.",
+  /**
+   * The page's own check: the heading of its section, and what the check proves, which is what it
+   * can show of a page that carries recordings and no transcript: each recording is the one its
+   * run's sealed record lists. It names the same two stronger checks the shareable page's does, so
+   * the line that says how to check without scripts (the shareable page's, shared) is true of both.
+   */
+  check: {
+    title: "The evidence behind these recordings",
+    proves: (verify: string): Line => [
+      { text: "What the check proves:", bold: true },
+      " this page is consistent with itself, so every recording on it is exactly the one its run's sealed record lists. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
+      { text: SHARE_COMMAND, mono: true },
+      " prints it, ready for the email that sends the file, and ",
+      { text: POWERSHELL_HASH, mono: true },
+      " in PowerShell, or ",
+      { text: MAC_HASH, mono: true },
+      " on a Mac, shows it for the file you received. Or run ",
+      { text: verify, mono: true },
+      " on the transcripts folder.",
+    ],
+  },
+  /** The footer's line on the shareable page and its Word copy, which this page belongs to. */
+  footer: (fileName: string, wordName: string): Line => [
+    "The shareable page: ",
+    { text: fileName, mono: true },
+    ". Its Word copy: ",
+    { text: wordName, mono: true },
+    ".",
+  ],
 };
 
 /**

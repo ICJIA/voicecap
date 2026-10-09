@@ -1,7 +1,8 @@
 /**
  * The shareable page's fingerprint check: what the page carries so a reader can check, offline and
  * in one click, that the transcripts, screenshots, and axe results it shows are the ones its sealed
- * records list.
+ * records list. The voice page (./voice-page.ts) carries the same check, and holds the recordings it
+ * plays to their records the same way.
  *
  * The page carries the data (`checkDataJson`) and a small script (`CHECK_SCRIPT`). The script
  * recomputes what voicecap recorded: each transcript file's SHA-256, each run record's seal (the
@@ -19,9 +20,11 @@
  * or with each element), and how many more elements there were, as voicecap draws them from the
  * file. It doesn't compare the rest of the fold: the version line, each rule's criteria (the rest
  * of its impact line), the links, and the line with the file's size and SHA-256, which is the run's
- * record's. The page carries each file once, in its data, and never shows it as it is. It uses the browser's own SHA-256 (Web Crypto) where there is
- * one, and a small one of its own where there isn't (a page opened from an address that isn't
- * secure).
+ * record's. The page carries each file once, in its data, and never shows it as it is. And it hashes
+ * the bytes of each recording the voice page plays (the WebM in each player's address, as it does a
+ * screenshot's JPEG), against the fingerprint its run's record has for it. It uses the browser's own
+ * SHA-256 (Web Crypto) where there is one, and a small one of its own where there isn't (a page
+ * opened from an address that isn't secure).
  *
  * Both scripts are plain browser JavaScript (ES2020, no imports), held as strings the way
  * src/report/client.ts holds the report's script. The check proves the page is consistent with
@@ -54,6 +57,15 @@ export interface CheckData {
    * is.
    */
   axe: { run: string; slug: string; name: string; text: string }[];
+  /**
+   * Each recording the page plays ("voice.webm"), by its run, its page's slug, and its file name:
+   * the fingerprint it's held to is in that run's record, which the seal covers. Each `audio` of one
+   * has `data-slug` and `data-file` that name it, and holds its bytes in its address, so the data
+   * has no copy of the sound, as it has none of a screenshot. Only the voice page has any (its data
+   * says so, and the shareable page's has no such field, so its page is as it was), and a page
+   * whose data has none says nothing of recordings.
+   */
+  recordings?: { run: string; slug: string; name: string }[];
   /** reviews.json's pages, or null when there's none. */
   reviews: ReviewsFile["pages"] | null;
 }
@@ -71,9 +83,9 @@ export function checkDataJson(data: CheckData): string {
  * The check's library, as plain browser JavaScript (ES2020, no imports, nothing but TextEncoder
  * from outside): `sha256Hex(bytes)` (FIPS 180-4, over a Uint8Array), `canonicalJson(value)` and
  * `sealOf(record)` (the same as src/util/hash.ts gives), and `checkAll(data, digest, shown,
- * pictures, axeShown)`.
+ * pictures, axeShown, sounds)`.
  *
- * `checkAll` resolves to `{ files, screenshots, axe, runs, reviewProblems, line }`:
+ * `checkAll` resolves to `{ files, screenshots, axe, recordings, runs, reviewProblems, line }`:
  * - `files` has each transcript's label ("Run 1402 · /about/ · read.txt") and whether it matches:
  *   the SHA-256 of its text is the one its run records for it, and the text the page shows for it
  *   is its body;
@@ -85,6 +97,10 @@ export function checkDataJson(data: CheckData): string {
  *   SHA-256 of its whole text is the one its run records for it (`page.axe`), and what the page
  *   shows of it is what voicecap draws of it. A file whose text doesn't match is named for that,
  *   once, and one whose card shows otherwise, once: ": what its card shows doesn't match its file";
+ * - `recordings` has each recording's label ("Run 1402 · /about/ · voice.webm") and whether it
+ *   matches, as `screenshots` does: the page plays at least one copy of it, and the SHA-256 of every
+ *   copy's bytes is the one its run records for it (`page.voice`). It's named for that, once, and is
+ *   empty without `sounds`;
  * - `runs` has each run's id and whether its record still matches its seal;
  * - `reviewProblems` lists, in words, each review entry that doesn't match its seal and each break
  *   in the chain (seq running from 1 with no gaps or repeats, entry 1's prev null, each prev the
@@ -92,8 +108,8 @@ export function checkDataJson(data: CheckData): string {
  * - `line` is the result in words, without its closing full stop: a sentence for each mismatch,
  *   naming what doesn't match, then the count ("21 of 21 transcripts match their fingerprints, and
  *   7 of 7 screenshots match their fingerprints, and 7 of 7 axe results match their fingerprints,
- *   and both runs' seals check out"; a page that shows no screenshot, or carries no axe results,
- *   says nothing of them).
+ *   and 3 of 3 recordings match their fingerprints, and both runs' seals check out"; a page that
+ *   shows no screenshot, carries no axe results, or plays no recording says nothing of them).
  *
  * `digest(bytes)` gives the SHA-256 of a Uint8Array as hex, now or as a promise: Web Crypto's where
  * the browser has it, else `sha256Hex`, which is also the default.
@@ -101,6 +117,10 @@ export function checkDataJson(data: CheckData): string {
  * `pictures(shot)` gives the bytes of each copy the page shows of one of the data's screenshots, as
  * the JPEG in its address (an empty list for a screenshot it shows none of). Without `pictures`,
  * screenshots are never checked.
+ *
+ * `sounds(recording)` gives the bytes of each copy the page plays of one of the data's recordings,
+ * as the WebM in its address, as `pictures` does of a screenshot. Without `sounds`, recordings are
+ * never checked.
  *
  * `shown(file)` gives the text the page shows for one of the data's files (a card's fold shows each
  * file's body: the file without its header block), "" for one it shows as having no lines, and
@@ -284,6 +304,13 @@ function axeRecord(runs, item) {
   return record && typeof record.sha256 === "string" ? record : undefined;
 }
 
+// What a run's record has for a recording the page plays, as for a screenshot.
+function voiceRecord(runs, item) {
+  var page = pageOf(runs, item);
+  var record = page && page.voice;
+  return record && typeof record.sha256 === "string" ? record : undefined;
+}
+
 // What voicecap draws of an axe file on its card (src/share/axe-view.ts), to hold its fold to.
 var AXE_IMPACTS = ["critical", "serious", "moderate", "minor"];
 
@@ -451,13 +478,34 @@ function axePhrase(total, ok) {
   return ok + " of " + total + which;
 }
 
-async function checkAll(data, digest, shown, pictures, axeShown) {
+function recordingsPhrase(total, ok) {
+  var which = total === 1 ? " recording matches its fingerprint" : " recordings match their fingerprints";
+  return ok + " of " + total + which;
+}
+
+async function checkAll(data, digest, shown, pictures, axeShown, sounds) {
   digest = digest || sha256Hex;
   var runs = data.runs || [];
   var files = [];
   var shots = [];
   var axe = [];
+  var recordings = [];
   var sentences = [];
+  // Each screenshot or recording the page shows must be there, and every copy of it must be the file
+  // its run recorded: one that isn't is named, once. Without a way to read the copies, none is.
+  async function copiesMatch(items, copiesOf, recordOf, into) {
+    for (var item of copiesOf ? items : []) {
+      var label = fileLabel(runs, item);
+      var kept = recordOf(runs, item);
+      var copies = copiesOf(item);
+      var ok = !!kept && copies.length > 0;
+      for (var copy of copies) {
+        if (ok && (await digest(copy)) !== kept.sha256) ok = false;
+      }
+      into.push({ label: label, ok: ok });
+      if (!ok) sentences.push(label + " doesn't match its fingerprint.");
+    }
+  }
   for (var file of data.files || []) {
     var label = fileLabel(runs, file);
     var recorded = fileRecord(runs, file);
@@ -470,20 +518,7 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
     if (!matches) sentences.push(label + " doesn't match its fingerprint.");
     if (!asShown) sentences.push(label + ": the text shown doesn't match its file.");
   }
-  // Each screenshot the page shows must be there, and every copy of it must be the file its run
-  // recorded: one that isn't named for that, once, as a transcript is. Without a way to read the
-  // pictures, none is checked.
-  for (var shot of pictures ? data.screenshots || [] : []) {
-    var shotLabel = fileLabel(runs, shot);
-    var kept = shotRecord(runs, shot);
-    var copies = pictures(shot);
-    var shotOk = !!kept && copies.length > 0;
-    for (var copy of copies) {
-      if (shotOk && (await digest(copy)) !== kept.sha256) shotOk = false;
-    }
-    shots.push({ label: shotLabel, ok: shotOk });
-    if (!shotOk) sentences.push(shotLabel + " doesn't match its fingerprint.");
-  }
+  await copiesMatch(data.screenshots || [], pictures, shotRecord, shots);
   // Each axe file, by its whole text (it has no header); then, if it matches, what its fold shows.
   for (var item of data.axe || []) {
     var axeLabel = fileLabel(runs, item);
@@ -494,6 +529,7 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
     if (!axeMatches) sentences.push(axeLabel + " doesn't match its fingerprint.");
     if (!axeAsShown) sentences.push(axeLabel + ": what its card shows doesn't match its file.");
   }
+  await copiesMatch(data.recordings || [], sounds, voiceRecord, recordings);
   var seals = [];
   for (var run of runs) {
     seals.push({ id: run.id, ok: (await digest(sealedBytes(run))) === run.seal });
@@ -516,6 +552,10 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
     var axeMatching = axe.filter(function (each) { return each.ok; }).length;
     clauses.push(axePhrase(axe.length, axeMatching));
   }
+  if (recordings.length > 0) {
+    var recordingsMatching = recordings.filter(function (each) { return each.ok; }).length;
+    clauses.push(recordingsPhrase(recordings.length, recordingsMatching));
+  }
   if (seals.length > 0) {
     var sealed = seals.filter(function (seal) { return seal.ok; }).length;
     clauses.push(sealsPhrase(seals.length, sealed));
@@ -533,6 +573,7 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
     files: files,
     screenshots: shots,
     axe: axe,
+    recordings: recordings,
     runs: seals,
     reviewProblems: reviews.problems,
     line: sentences.join(" ")
@@ -559,9 +600,12 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
  * and each rule (`.axe-rules > li`): its `h5`, its impact line (its own `.axe-impact`), its line of
  * more elements (its own `.axe-more`), the words said once for its elements (its own `.axe-fix`),
  * and each element (`.axe-node`): its two `code` texts, and its own words (`dd.axe-words`), each
- * words a lead's `p` and the items' `li`s. "Show a change being caught"
- * runs the same check on a copy with the first character of the first transcript changed, and of
- * the first axe file too when the page carries one, in memory only: the page's own data is never
+ * words a lead's `p` and the items' `li`s. Each recording the voice page plays is an `audio` that
+ * names its page and file (`data-slug` and `data-file`), with the WebM in its address in base64, as
+ * a screenshot's JPEG is: every copy the page has is decoded and hashed. "Show a change being
+ * caught" runs the same check on a copy with the first character of the first transcript changed,
+ * and of the first axe file too when the page carries one, and the first byte of the first
+ * recording as the check reads it, in memory only: the page's own data, and its audio, are never
  * changed.
  *
  * A page without that markup is left alone. Each script starts and ends on a new line, so it can
@@ -632,11 +676,9 @@ export const CHECK_SCRIPT =
     return null;
   }
 
-  // The JPEG an image's address holds, as bytes: the address must be a JPEG in base64, as voicecap
-  // writes one, and anything else (another kind of address, or base64 that isn't) is no bytes at all,
-  // which match no fingerprint.
-  function bytesOfAddress(address) {
-    var prefix = "data:image/jpeg;base64,";
+  // The file an address holds, as bytes: the address must be of this kind (a JPEG or a WebM in base64,
+  // as voicecap writes one), and anything else is no bytes at all, which match no fingerprint.
+  function bytesOfAddress(address, prefix) {
     var text = String(address || "");
     if (text.indexOf(prefix) !== 0) return new Uint8Array(0);
     try {
@@ -649,18 +691,25 @@ export const CHECK_SCRIPT =
     }
   }
 
-  // The bytes of each copy the page shows of a screenshot: every image that names its page and file.
-  function shownPictures(shot) {
-    var images = document.querySelectorAll("img[data-file]");
+  // The bytes of each copy the page shows of a file: every element that names its page and file.
+  function shownCopies(selector, prefix, item) {
+    var elements = document.querySelectorAll(selector);
     var found = [];
-    for (var i = 0; i < images.length; i++) {
-      var image = images[i];
+    for (var i = 0; i < elements.length; i++) {
+      var element = elements[i];
       var named =
-        image.getAttribute("data-slug") === shot.slug &&
-        image.getAttribute("data-file") === shot.name;
-      if (named) found.push(bytesOfAddress(image.getAttribute("src")));
+        element.getAttribute("data-slug") === item.slug &&
+        element.getAttribute("data-file") === item.name;
+      if (named) found.push(bytesOfAddress(element.getAttribute("src"), prefix));
     }
     return found;
+  }
+
+  function shownPictures(shot) {
+    return shownCopies("img[data-file]", "data:image/jpeg;base64,", shot);
+  }
+  function shownRecordings(recording) {
+    return shownCopies("audio[data-file]", "data:audio/webm;base64,", recording);
   }
 
   function textsOf(nodes) {
@@ -702,8 +751,9 @@ export const CHECK_SCRIPT =
     });
   }
 
-  // A copy with the first character changed of the first transcript and axe file, and what was.
-  function withFirstCharacterChanged(data) {
+  // A copy with the first character changed of the first transcript and axe file, and the first byte
+  // of the first recording as the check reads it, and what was.
+  function withFirstChanged(data) {
     var copy = JSON.parse(JSON.stringify(data));
     var changes = [];
     [(copy.files || [])[0], (copy.axe || [])[0]].forEach(function (file) {
@@ -714,28 +764,44 @@ export const CHECK_SCRIPT =
       file.text = to + file.text.slice(from.length);
       changes.push(fileLabel(copy.runs || [], file) + ", “" + from + "” to “" + to + "”");
     });
-    var what = changes.length === 1
+    var what = changes.length === 0 ? "" : changes.length === 1
       ? "one character changed (the first character of " + changes[0] + ")"
       : "one character changed in each of two files (the first character of " + changes[0] +
         ", and of " + changes[1] + ")";
-    return { data: copy, what: what };
+    var sounds = shownRecordings;
+    var first = (copy.recordings || [])[0];
+    if (first) {
+      what += (what === "" ? "" : ", and ") + "one byte changed (the first byte of " +
+        fileLabel(copy.runs || [], first) + ")";
+      sounds = function (recording) {
+        return shownRecordings(recording).map(function (bytes, at) {
+          if (recording !== first || at !== 0 || bytes.length === 0) return bytes;
+          var other = bytes.slice();
+          other[0] ^= 255;
+          return other;
+        });
+      };
+    }
+    return { data: copy, what: what, sounds: sounds };
   }
 
   async function check(demo) {
     try {
       var data = JSON.parse(source.textContent);
       var intro = "Checked just now, in this browser. ";
+      var sounds = shownRecordings;
       if (demo) {
-        if ((data.files || []).length === 0 && (data.axe || []).length === 0) {
+        if (!(data.files || []).length && !(data.axe || []).length && !(data.recordings || []).length) {
           throw new Error("this page has no transcripts or axe results to change a character in");
         }
-        var changed = withFirstCharacterChanged(data);
+        var changed = withFirstChanged(data);
         data = changed.data;
+        sounds = changed.sounds;
         intro = "Demonstration, on a copy with " + changed.what +
           "; the page itself is unchanged. ";
       }
       var runs = data.runs || [];
-      var checked = await checkAll(data, digest, shownText, shownPictures, shownAxe);
+      var checked = await checkAll(data, digest, shownText, shownPictures, shownAxe, sounds);
       var table = [];
       checked.files.forEach(function (file, index) {
         var recorded = fileRecord(runs, data.files[index]);
@@ -748,6 +814,10 @@ export const CHECK_SCRIPT =
       checked.axe.forEach(function (item, index) {
         var kept = axeRecord(runs, data.axe[index]);
         table.push([item.label, kept ? kept.sha256 : "none recorded", item.ok]);
+      });
+      checked.recordings.forEach(function (recording, index) {
+        var kept = voiceRecord(runs, data.recordings[index]);
+        table.push([recording.label, kept ? kept.sha256 : "none recorded", recording.ok]);
       });
       checked.runs.forEach(function (run, index) {
         table.push([runLabel(runs, run.id) + " · its record's seal", runs[index].seal, run.ok]);

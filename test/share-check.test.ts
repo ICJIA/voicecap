@@ -47,6 +47,7 @@ interface Checked {
   files: { label: string; ok: boolean }[];
   screenshots: { label: string; ok: boolean }[];
   axe: { label: string; ok: boolean }[];
+  recordings: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
   reviewProblems: string[];
   line: string;
@@ -59,6 +60,9 @@ type Shown = (file: CheckData["files"][number]) => string | null;
 
 /** The bytes of each copy of a screenshot the page shows, from its address: none for none shown. */
 type Pictures = (shot: CheckData["screenshots"][number]) => Uint8Array[];
+
+/** The bytes of each copy of a recording the page plays, from its address: none for none played. */
+type Sounds = (recording: NonNullable<CheckData["recordings"]>[number]) => Uint8Array[];
 
 /**
  * What a card's fold of what axe found shows, as the page's script reads it from the fold and its
@@ -93,6 +97,7 @@ interface Library {
     shown?: Shown,
     pictures?: Pictures,
     axeShown?: AxeShown,
+    sounds?: Sounds,
   ) => Promise<Checked>;
 }
 
@@ -124,8 +129,9 @@ async function check(
   shown?: Shown,
   pictures?: Pictures,
   axeShown?: AxeShown,
+  sounds?: Sounds,
 ): Promise<Checked> {
-  return plain(await library.checkAll(data, digest, shown, pictures, axeShown));
+  return plain(await library.checkAll(data, digest, shown, pictures, axeShown, sounds));
 }
 
 /**
@@ -264,6 +270,42 @@ function axeData(slugs: string[] = ["home", REPORT], data: CheckData = demoData(
   latest.seal = sealOf(latest);
   return data;
 }
+
+/**
+ * A recording, as far as the check is concerned: bytes, which it hashes. They're no sound: nothing
+ * here plays one, and the voice page's own tests (test/share-voice-page.test.ts, and the browser
+ * tests in test/share-browser.test.ts) have real files.
+ */
+const SOUND = Uint8Array.from({ length: 300 }, (_, at) => (at * 7 + 3) % 256);
+
+/** What a run's record keeps of SOUND as a page's voice. */
+const SOUND_RECORD = {
+  sha256: nodeHex(SOUND),
+  bytes: SOUND.length,
+  seconds: 2.5,
+  lostMs: 0,
+  recordedAt: "2026-09-29T14:03:12.481-05:00",
+};
+
+/**
+ * The demo's data with SOUND recorded for each of the pages of run 1402 named, and listed as the
+ * voice page lists a recording it plays: by its run, its page's slug, and its name.
+ */
+function soundData(slugs: string[] = ["home", REPORT]): CheckData {
+  const data = demoData();
+  const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+  data.recordings = [];
+  for (const slug of slugs) {
+    latest.pages.find((page) => page.slug === slug)!.voice = SOUND_RECORD;
+    data.recordings.push({ run: latest.id, slug, name: "voice.webm" });
+  }
+  // The record has a new field, so it's sealed again, as voicecap sealed it with the field there.
+  latest.seal = sealOf(latest);
+  return data;
+}
+
+/** Each recording of the page as the page plays it unchanged: once, as SOUND. */
+const asPlayed: Sounds = () => [SOUND];
 
 /** `text` with the character at `at` replaced by another one. */
 function changeOneCharacter(text: string, at: number): string {
@@ -674,6 +716,7 @@ describe("checkAll", () => {
       files: [],
       screenshots: [],
       axe: [],
+      recordings: [],
       runs: [],
       reviewProblems: [],
       line: "This page holds no transcripts or run records to check",
@@ -1065,6 +1108,200 @@ describe("checkAll, with the axe results a page carries", () => {
   });
 });
 
+describe("checkAll, with the recordings a page plays", () => {
+  const HOME_LABEL = "Run 1402 · / · voice.webm";
+  const REPORT_LABEL = "Run 1402 · /the-report/ · voice.webm";
+
+  /** SOUND with its last byte changed: a recording that isn't the one the run recorded. */
+  const changed = Uint8Array.from(SOUND, (byte, at) =>
+    at === SOUND.length - 1 ? ~byte & 0xff : byte,
+  );
+
+  it("finds each recording the page plays matching its run's record, and counts it in words of its own", async () => {
+    const result = await check(
+      soundData(),
+      library.sha256Hex,
+      asShown,
+      undefined,
+      undefined,
+      asPlayed,
+    );
+
+    expect(result.recordings).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.files).toHaveLength(21);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 recordings match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("names a recording changed by one byte, by its page, and says how many match", async () => {
+    const sounds: Sounds = (recording) => [recording.slug === REPORT ? changed : SOUND];
+
+    const result = await check(
+      soundData(),
+      library.sha256Hex,
+      asShown,
+      undefined,
+      undefined,
+      sounds,
+    );
+
+    expect(result.recordings).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: false },
+    ]);
+    expect(result.files.every((file) => file.ok)).toBe(true);
+    expect(result.line).toBe(
+      `${REPORT_LABEL} doesn't match its fingerprint. ` +
+        "21 of 21 transcripts match their fingerprints, and 1 of 2 recordings match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("checks every copy the page has of a recording, and names the recording once", async () => {
+    // One copy is as it was, and another the page has of it has been changed: a copy someone added,
+    // since the page itself plays each recording once, on its page's section.
+    const sounds: Sounds = (recording) => (recording.slug === "home" ? [SOUND, changed] : [SOUND]);
+
+    const result = await check(
+      soundData(),
+      library.sha256Hex,
+      asShown,
+      undefined,
+      undefined,
+      sounds,
+    );
+
+    expect(result.recordings).toEqual([
+      { label: HOME_LABEL, ok: false },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.line.match(/doesn't match its fingerprint/g)).toHaveLength(1);
+  });
+
+  it("names a recording the page doesn't play any copy of, since it can't match what isn't there", async () => {
+    const sounds: Sounds = (recording) => (recording.slug === "home" ? [] : [SOUND]);
+
+    const result = await check(
+      soundData(),
+      library.sha256Hex,
+      asShown,
+      undefined,
+      undefined,
+      sounds,
+    );
+
+    expect(result.recordings.filter(({ ok }) => !ok).map(({ label }) => label)).toEqual([
+      HOME_LABEL,
+    ]);
+    expect(result.line).toContain(`${HOME_LABEL} doesn't match its fingerprint.`);
+  });
+
+  it("names a recording its run's record doesn't list, or a run the page doesn't carry", async () => {
+    const data = soundData();
+    // The page /ask-a-question/ has a record of why it has no recording, which has no fingerprint.
+    data.runs[1]!.pages.find((page) => page.slug === ASK)!.voice = {
+      error: "the recording is silent",
+      recordedAt: "2026-09-29T14:03:00.000-05:00",
+    };
+    data.runs[1]!.seal = sealOf(data.runs[1]!);
+    data.recordings!.push({ run: "2026-09-29_1402", slug: ASK, name: "voice.webm" });
+    data.recordings!.push({ run: "2026-01-01_0000", slug: "home", name: "voice.webm" });
+
+    const result = await check(data, library.sha256Hex, asShown, undefined, undefined, asPlayed);
+
+    expect(result.recordings.slice(2)).toEqual([
+      { label: "Run 1402 · /ask-a-question/ · voice.webm", ok: false },
+      { label: "Run 0000 · home · voice.webm", ok: false },
+    ]);
+    expect(result.line).toContain("2 of 4 recordings match their fingerprints");
+  });
+
+  it("names a run whose record was changed to match a changed recording, by its seal", async () => {
+    const data = soundData();
+    const page = data.runs[1]!.pages.find((candidate) => candidate.slug === "home")!;
+    // Whoever changed the recording also puts its new fingerprint in the run's record: the recording
+    // now matches the record, so only the run's seal gives it away.
+    page.voice = { ...SOUND_RECORD, sha256: nodeHex(changed), bytes: changed.length };
+    const sounds: Sounds = (recording) => [recording.slug === "home" ? changed : SOUND];
+
+    const result = await check(data, library.sha256Hex, asShown, undefined, undefined, sounds);
+
+    expect(result.recordings).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.runs.map((run) => run.ok)).toEqual([true, false]);
+    expect(result.line).toContain("Run 1402's record doesn't match its seal.");
+  });
+
+  it("gives the same result with Web Crypto's digest, which is async", async () => {
+    const sounds: Sounds = (recording) => [recording.slug === REPORT ? changed : SOUND];
+
+    expect(await check(soundData(), webCryptoHex, asShown, undefined, undefined, sounds)).toEqual(
+      await check(soundData(), library.sha256Hex, asShown, undefined, undefined, sounds),
+    );
+  });
+
+  it("leaves the recordings out when it's given no way to read them, as it leaves out the pictures", async () => {
+    const result = await check(soundData());
+
+    expect(result.recordings).toEqual([]);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("counts the recordings after the axe results and before the seals", async () => {
+    // All three kinds on run 1402's pages, its record sealed again with all of them.
+    const data = soundData(["home", REPORT]);
+    axeData(["home", REPORT], data);
+
+    expect((await check(data, library.sha256Hex, asShown, undefined, asDrawn, asPlayed)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+        "and 2 of 2 recordings match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("words one recording in the singular, and none as nothing to say", async () => {
+    const one = soundData(["home"]);
+
+    expect(
+      (await check(one, library.sha256Hex, asShown, undefined, undefined, asPlayed)).line,
+    ).toBe(
+      "21 of 21 transcripts match their fingerprints, and 1 of 1 recording matches its fingerprint, " +
+        "and both runs' seals check out",
+    );
+    expect(
+      (await check(one, library.sha256Hex, asShown, undefined, undefined, () => [changed])).line,
+    ).toContain("0 of 1 recording matches its fingerprint");
+    // A page that plays none, and data from before it carried a list of them, say nothing of them.
+    for (const data of [demoData(), { ...demoData(), recordings: [] }]) {
+      const result = await check(data, library.sha256Hex, asShown, undefined, undefined, asPlayed);
+      expect(result.recordings).toEqual([]);
+      expect(result.line).toBe(
+        "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+      );
+    }
+  });
+
+  it("holds a page that has only recordings to them and its run's seal", async () => {
+    // The voice page carries no transcript: its check is of what it plays, and of its runs' seals.
+    const data: CheckData = { ...soundData(), files: [] };
+
+    const result = await check(data, library.sha256Hex, undefined, undefined, undefined, asPlayed);
+
+    expect(result.files).toEqual([]);
+    expect(result.line).toBe(
+      "2 of 2 recordings match their fingerprints, and both runs' seals check out",
+    );
+  });
+});
+
 describe("checkAll, with what each card's fold of axe's results shows", () => {
   const HOME_LABEL = "Run 1402 · / · axe.json";
   const REPORT_LABEL = "Run 1402 · /the-report/ · axe.json";
@@ -1438,6 +1675,23 @@ function picturesIn(data: CheckData): string {
 }
 
 /**
+ * Each recording the data lists as the voice page plays it: in the section of its page, and again as
+ * a second copy, such as someone could add (the check holds every copy there is to the fingerprint).
+ * Each is an audio element that names its page and file, whose address holds its bytes in base64.
+ * It's never played: `preload="none"` loads nothing, and nothing here calls `play()`.
+ */
+function soundsIn(data: CheckData): string {
+  return (data.recordings ?? [])
+    .flatMap((recording) =>
+      ["card", "copy"].map(
+        (place) =>
+          `<audio class="${place}" controls preload="none" src="data:audio/webm;base64,${Buffer.from(SOUND).toString("base64")}" data-slug="${esc(recording.slug)}" data-file="${esc(recording.name)}"></audio>`,
+      ),
+    )
+    .join("\n");
+}
+
+/**
  * The cards of the pages whose axe results the data carries, as voicecap draws them from the same
  * records and files: each with its chip and its fold of what axe found (a page's transcripts can't
  * be read here, so its fold of them names no file).
@@ -1450,8 +1704,8 @@ function axeCardsIn(data: CheckData): string {
 
 /**
  * A stand-in for the page's evidence section and its cards: the elements the check's wiring names,
- * its data, each transcript as a card's fold shows it, each screenshot as the page shows it, and the
- * cards of the pages whose axe results it carries.
+ * its data, each transcript as a card's fold shows it, each screenshot as the page shows it, each
+ * recording as the voice page plays it, and the cards of the pages whose axe results it carries.
  */
 function checkPage(data: CheckData): string {
   return `<!doctype html>
@@ -1465,6 +1719,7 @@ function checkPage(data: CheckData): string {
 <script type="application/json" id="fp-data">${checkDataJson(data)}</script>
 ${transcriptsIn(data)}
 ${picturesIn(data)}
+${soundsIn(data)}
 ${axeCardsIn(data)}
 <script>${CHECK_SCRIPT}</script>
 </body></html>
@@ -1520,12 +1775,13 @@ describe("the check in a browser", () => {
   let generatedHomes: string[];
   /**
    * The page with the demo runs' transcripts, and the same with a review history besides, with
-   * two screenshots, and with two axe results; and a page as voicecap generates it, with three
-   * screenshots, and the same with three axe results besides.
+   * two screenshots, with two axe results, and with two recordings; and a page as voicecap
+   * generates it, with three screenshots, and the same with three axe results besides.
    */
   let pageUrl: string;
   let reviewsUrl: string;
   let shotsUrl: string;
+  let soundsUrl: string;
   let axeUrl: string;
   let generatedUrl: string;
   let generatedAxeUrl: string;
@@ -1537,10 +1793,12 @@ describe("the check in a browser", () => {
     const plain = path.join(folder, "check.html");
     const reviewed = path.join(folder, "check-reviews.html");
     const shots = path.join(folder, "check-shots.html");
+    const sounds = path.join(folder, "check-sounds.html");
     const axe = path.join(folder, "check-axe.html");
     await writeFile(plain, checkPage(demoData()));
     await writeFile(reviewed, checkPage({ ...demoData(), reviews: history() }));
     await writeFile(shots, checkPage(shotData()));
+    await writeFile(sounds, checkPage(soundData()));
     await writeFile(axe, checkPage(axeData()));
     const generated = await generatedPage(folder);
     const generatedAxe = await generatedPage(folder, true);
@@ -1548,6 +1806,7 @@ describe("the check in a browser", () => {
     pageUrl = pathToFileURL(plain).href;
     reviewsUrl = pathToFileURL(reviewed).href;
     shotsUrl = pathToFileURL(shots).href;
+    soundsUrl = pathToFileURL(sounds).href;
     axeUrl = pathToFileURL(axe).href;
     generatedUrl = pathToFileURL(generated.file).href;
     generatedAxeUrl = pathToFileURL(generatedAxe.file).href;
@@ -1564,8 +1823,9 @@ describe("the check in a browser", () => {
   });
 
   /**
-   * The page, open: the demo's, or with `reviews`, `shots`, `axe`, `generated`, or `generatedAxe`,
-   * the one of those. `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
+   * The page, open: the demo's, or with `reviews`, `shots`, `sounds`, `axe`, `generated`, or
+   * `generatedAxe`, the one of those. `webCrypto: false` takes crypto.subtle away, as an insecure
+   * origin has it.
    */
   async function open(
     options: {
@@ -1573,6 +1833,7 @@ describe("the check in a browser", () => {
       scripts?: boolean;
       reviews?: boolean;
       shots?: boolean;
+      sounds?: boolean;
       axe?: boolean;
       generated?: boolean;
       generatedAxe?: boolean;
@@ -1597,13 +1858,15 @@ describe("the check in a browser", () => {
       ? reviewsUrl
       : options.shots
         ? shotsUrl
-        : options.axe
-          ? axeUrl
-          : options.generated
-            ? generatedUrl
-            : options.generatedAxe
-              ? generatedAxeUrl
-              : pageUrl;
+        : options.sounds
+          ? soundsUrl
+          : options.axe
+            ? axeUrl
+            : options.generated
+              ? generatedUrl
+              : options.generatedAxe
+                ? generatedAxeUrl
+                : pageUrl;
     await page.goto(url);
     return page;
   }
@@ -1901,6 +2164,175 @@ describe("the check in a browser", () => {
             "20 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
             "and both runs' seals check out.",
         );
+    });
+  });
+
+  describe("with the recordings a page plays", () => {
+    const SOUNDS_MATCHING =
+      "Checked just now, in this browser. " +
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 recordings match their fingerprints, " +
+      "and both runs' seals check out.";
+
+    it.each([true, false])(
+      "checks each recording's bytes against its run's record, and lists each, with Web Crypto: %s",
+      async (webCrypto) => {
+        const page = await open({ sounds: true, webCrypto });
+        await page.locator("#fp-run").click();
+
+        await expect.poll(() => result(page), { timeout: 10_000 }).toBe(SOUNDS_MATCHING);
+
+        expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+        expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 0 not matching");
+        const rows = page.locator("#fp-rows tr");
+        // After the transcripts and before the seals, each with the fingerprint its run recorded.
+        expect(await rows.nth(21).locator("td").allTextContents()).toEqual([
+          "Run 1402 · / · voice.webm",
+          `${SOUND_RECORD.sha256.slice(0, 12)}…${SOUND_RECORD.sha256.slice(-6)}`,
+          "matches",
+        ]);
+        expect((await rows.nth(22).locator("td").allTextContents())[0]).toBe(
+          "Run 1402 · /the-report/ · voice.webm",
+        );
+        expect((await rows.nth(23).locator("td").allTextContents())[0]).toBe(
+          "Run 1315 · its record's seal",
+        );
+        if (webCrypto) {
+          // 21 transcripts, 4 copies of 2 recordings, and 2 seals.
+          expect(
+            await page.evaluate(() => (window as unknown as { digests: number }).digests),
+          ).toBe(21 + 4 + 2);
+        }
+      },
+    );
+
+    it("names a recording changed by one character of its base64, whichever copy it's in", async () => {
+      for (const place of ["card", "copy"]) {
+        const page = await open({ sounds: true });
+        await page.evaluate((copy) => {
+          const sound = document.querySelector(`audio.${copy}[data-slug="home"]`);
+          if (sound === null) throw new Error(`The page has no ${copy} copy of the recording.`);
+          const address = sound.getAttribute("src") ?? "";
+          const at = "data:audio/webm;base64,".length + 40;
+          sound.setAttribute(
+            "src",
+            `${address.slice(0, at)}${address[at] === "A" ? "B" : "A"}${address.slice(at + 1)}`,
+          );
+        }, place);
+        await page.locator("#fp-run").click();
+
+        await expect
+          .poll(() => result(page), { timeout: 10_000 })
+          .toBe(
+            "Checked just now, in this browser. " +
+              "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+              "21 of 21 transcripts match their fingerprints, and 1 of 2 recordings match their fingerprints, " +
+              "and both runs' seals check out.",
+          );
+        expect(await page.locator("#fp-result").getAttribute("class"), place).toBe("fp-result bad");
+        const rows = await page.locator("#fp-rows tr").allTextContents();
+        expect(rows.filter((row) => row.includes("doesn’t match"))).toEqual([
+          expect.stringContaining("Run 1402 · / · voice.webm"),
+        ]);
+      }
+    });
+
+    it("names a recording whose address is of another type, though its bytes are the recorded ones", async () => {
+      const page = await open({ sounds: true });
+      await page.evaluate(() => {
+        // The right bytes under another type of the same length, so that only the type tells,
+        // in one copy of one recording: this check won't take them for the recorded file.
+        const copy = document.querySelector(`audio.copy[data-slug="home"]`);
+        copy?.setAttribute(
+          "src",
+          copy.getAttribute("src")?.replace("audio/webm", "audio/wxbm") ?? "",
+        );
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+            "21 of 21 transcripts match their fingerprints, and 1 of 2 recordings match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+    });
+
+    it("names a recording whose address isn't base64, and one with no copy on the page", async () => {
+      const page = await open({ sounds: true });
+      await page.evaluate(() => {
+        document
+          .querySelector(`audio.card[data-slug="home"]`)
+          ?.setAttribute("src", "data:audio/webm;base64,not*base64");
+        document.querySelectorAll(`audio[data-slug="the-report-03940c2f88"]`).forEach((sound) => {
+          sound.remove();
+        });
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+            "Run 1402 · /the-report/ · voice.webm doesn't match its fingerprint. " +
+            "21 of 21 transcripts match their fingerprints, and 0 of 2 recordings match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+    });
+
+    it("shows a change being caught in a recording too, with its byte named, and leaves the page as it was", async () => {
+      const page = await open({ sounds: true });
+      const before = await page.locator("#fp-data").textContent();
+      const addresses = () =>
+        page
+          .locator("audio")
+          .evaluateAll((sounds) => sounds.map((sound) => sound.getAttribute("src")));
+      const sounds = await addresses();
+      await page.locator("#fp-demo").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Demonstration, on a copy with one character changed " +
+            "(the first character of Run 1402 · / · read.txt, “#” to “$”), " +
+            "and one byte changed (the first byte of Run 1402 · / · voice.webm); " +
+            "the page itself is unchanged. " +
+            "Run 1402 · / · read.txt doesn't match its fingerprint. " +
+            "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+            "20 of 21 transcripts match their fingerprints, and 1 of 2 recordings match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 2 not matching");
+      // In memory only: the page's data and what it plays are as they were.
+      expect(await page.locator("#fp-data").textContent()).toBe(before);
+      expect(await addresses()).toEqual(sounds);
+
+      await page.locator("#fp-run").click();
+      await expect.poll(() => result(page), { timeout: 10_000 }).toBe(SOUNDS_MATCHING);
+    });
+
+    it("shows a change being caught on a page that has recordings and nothing else to change", async () => {
+      const page = await open({ sounds: true });
+      await page.evaluate(() => {
+        const element = document.getElementById("fp-data")!;
+        const data = JSON.parse(element.textContent ?? "") as { files: unknown[] };
+        data.files = [];
+        element.textContent = JSON.stringify(data);
+      });
+      await page.locator("#fp-demo").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Demonstration, on a copy with one byte changed (the first byte of Run 1402 · / · voice.webm); " +
+            "the page itself is unchanged. " +
+            "Run 1402 · / · voice.webm doesn't match its fingerprint. " +
+            "1 of 2 recordings match their fingerprints, and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("4 checked, 1 not matching");
     });
   });
 

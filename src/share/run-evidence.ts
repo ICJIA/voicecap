@@ -143,6 +143,36 @@ export function keepsAxe(version: string | null): boolean {
   return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 16);
 }
 
+/**
+ * The first version of voicecap whose runs record what NVDA says on each page (plan 11): the one
+ * constant the reasons a page has no recording go by. It is 0.18.0, not 0.17.0, since plan 6c ships
+ * first, as 0.17.0. Change it here, and nowhere else, if the release order changes.
+ */
+export const KEEPS_VOICE_FROM = "0.18.0";
+
+/** A version's three numbers: "0.18.1" is [0, 18, 1], and a pre-release's suffix is left off. */
+function numbersOf(version: string): [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+/**
+ * Whether a run's voicecap records what NVDA says on each page, when its driver can: KEEPS_VOICE_FROM
+ * and later. A page of such a run with no recording says why (VOICE_TEXT), and a page of an earlier
+ * run says that run's voicecap didn't (`notRecordedBy`). An unknown version counts as an earlier
+ * one.
+ */
+export function keepsVoice(version: string | null): boolean {
+  const have = version === null ? null : numbersOf(version);
+  const need = numbersOf(KEEPS_VOICE_FROM);
+  if (have === null || need === null) return false;
+  for (const [index, wanted] of need.entries()) {
+    const found = have[index] ?? 0;
+    if (found !== wanted) return found > wanted;
+  }
+  return true;
+}
+
 /** The voicecap version a session recorded, or null when it recorded no environment. */
 function versionOfSession(session: SessionRecord | undefined): string | null {
   return session?.environment?.voicecap.version ?? null;

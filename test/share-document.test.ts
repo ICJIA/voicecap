@@ -844,8 +844,12 @@ describe("renderSharePage", () => {
     // the check holds each card's fold of what axe found to its file: its counts, its chip, and each
     // rule's heading, impact, number of elements not listed, elements, and words on how to fix
     // them. That took it to about 30,400 characters, so its budget went from 30,000 to 32,000: room
-    // for a fix, and a script that grows past it is a choice to make here, on purpose.
-    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(32_000);
+    // for a fix, and a script that grows past it is a choice to make here, on purpose. From 0.18.0
+    // the voice page's check holds each recording to its record in the same script (the page's
+    // players are `audio` elements as a screenshot's are `img`s, and a change caught can be one
+    // byte of a recording): about 2,000 characters more, 32,500 in all, so its budget is 34,000,
+    // the same room as before.
+    expect((SHARE_SCRIPT + CHECK_SCRIPT).length).toBeLessThan(34_000);
   });
 
   it("has a head with its language, its character set, the viewport, and the site's name", async () => {
