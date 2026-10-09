@@ -469,6 +469,7 @@ describe("the site's page", () => {
             content: before.content,
             color: before.color,
             words: getComputedStyle(line).color,
+            caps: getComputedStyle(line).fontVariantCaps,
           };
         }),
       );
@@ -494,11 +495,15 @@ describe("the site's page", () => {
         seen.map(({ words }) => words),
         theme,
       ).toEqual(colors[theme]);
+      // A verdict is a sentence, drawn in ordinary case: no capitals, small or not.
+      expect(
+        seen.map(({ caps }) => caps),
+        theme,
+      ).toEqual(["normal", "normal", "normal"]);
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
     // What Chromium's accessibility tree gives a screen reader for each line: its words alone, with no
-    // sign, and as they're written. A verdict is a pill, in small capitals, which are only how its
-    // letters are drawn.
+    // sign, and as they're written.
     const texts = (await spokenTexts(page)).filter((name) => /needs? attention/i.test(name));
     expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
     expect(texts).toEqual([
@@ -1099,6 +1104,88 @@ describe("the trust page", () => {
       expect(texts, words).toContain(words);
       expect(texts, words).not.toContain(words.toUpperCase());
     }
+  });
+
+  it("draws its short labels, a kicker, a law's tag, and a table's header, in small capitals at 1.4 times the spec's size, with the spec's spacing, on the spec's line, and wraps a kicker at 320 pixels", async () => {
+    const page = await open(files.trust);
+    const closeTo = (value: number): unknown => expect.closeTo(value, 2);
+
+    const looks = await page.evaluate(() => {
+      // The page has no table: one is put in it, so that the style draws a table's header.
+      const table = document.createElement("table");
+      table.innerHTML = "<thead><tr><th>A header</th></tr></thead>";
+      document.querySelector("main")?.append(table);
+      const look = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`The page has no ${selector}.`);
+        const style = getComputedStyle(element);
+        return {
+          size: parseFloat(style.fontSize),
+          spacing: parseFloat(style.letterSpacing),
+          line: parseFloat(style.lineHeight),
+          caps: style.fontVariantCaps,
+        };
+      };
+      return { kicker: look(".hero > .kicker"), tag: look(".card > .tag"), header: look("th") };
+    });
+
+    // A small capital is about as tall as a lowercase letter, so each is drawn at 1.4 times the
+    // spec's size, to stand as tall as the spec's capitals. A kicker and a tag: 0.8125rem, 13
+    // pixels at the browser's own size, times 1.4, spaced as 0.14em and 0.06em of 13 pixels were,
+    // on a line as tall as 1.4 of 13 pixels was.
+    expect(looks.kicker).toEqual({
+      size: closeTo(18.2),
+      spacing: closeTo(1.82),
+      line: closeTo(18.2),
+      caps: "all-small-caps",
+    });
+    expect(looks.tag).toEqual({
+      size: closeTo(18.2),
+      spacing: closeTo(0.78),
+      line: closeTo(18.2),
+      caps: "all-small-caps",
+    });
+    // A table's header: 0.75rem, 12 pixels, times 1.4, spaced as 0.08em of 12 pixels was, on the
+    // body's line of 1.55 of 12 pixels.
+    expect(looks.header).toEqual({
+      size: closeTo(16.8),
+      spacing: closeTo(0.96),
+      line: closeTo(18.6),
+      caps: "all-small-caps",
+    });
+
+    // A tag has a color of its own behind it, so its text's box, which is taller than its line,
+    // stays inside the tag, where axe can tell what each letter is drawn on.
+    const outside = await page.locator(".tag").evaluateAll((tags) =>
+      tags.flatMap((tag) => {
+        const box = tag.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(tag);
+        return [...range.getClientRects()].flatMap((text) =>
+          text.top < box.top ||
+          text.bottom > box.bottom ||
+          text.left < box.left ||
+          text.right > box.right
+            ? [
+                `${tag.textContent ?? ""}: its text runs from ${text.top} to ${text.bottom}, the tag from ${box.top} to ${box.bottom}`,
+              ]
+            : [],
+        );
+      }),
+    );
+    expect(outside).toEqual([]);
+
+    // In a window 320 pixels wide, the banner's kicker takes two lines or more, inside the window.
+    await page.setViewportSize({ width: 320, height: 800 });
+    const kicker = await page.locator(".hero > .kicker").evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        lines: box.height / parseFloat(getComputedStyle(element).lineHeight),
+        right: box.right,
+      };
+    });
+    expect(Math.round(kicker.lines)).toBeGreaterThanOrEqual(2);
+    expect(kicker.right).toBeLessThanOrEqual(320);
   });
 
   it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, and a card's heading, its link, and a big number in --good", async () => {

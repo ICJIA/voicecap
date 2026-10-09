@@ -1666,11 +1666,15 @@ describe("SITE_CSS", () => {
     );
     // A kicker is written in ordinary case, so a screen reader reads words, not letters: the
     // capitals are the style's, drawn as small capitals, which leave the words as they're written.
+    // A small capital is about as tall as a lowercase letter, so it's drawn at the caps scale, 1.4
+    // times the spec's 0.8125rem, to stand as tall as the spec's capitals; its spacing and its line
+    // are divided by the scale, so they stay the spec's.
     expect(declarationsFor(SITE_CSS, ".kicker")).toEqual(
       expect.arrayContaining([
-        "font-size: 0.8125rem",
+        "font-size: calc(0.8125rem * var(--caps-scale))",
         "font-weight: 700",
-        "letter-spacing: 0.14em",
+        "letter-spacing: calc(0.14em / var(--caps-scale))",
+        "line-height: calc(1.4 / var(--caps-scale))",
         "font-variant-caps: all-small-caps",
         "color: var(--muted)",
       ]),
@@ -1680,14 +1684,45 @@ describe("SITE_CSS", () => {
   it("draws every capital it sets as a small capital, and never changes the words themselves", () => {
     // Chromium gives a screen reader the words as `text-transform` makes them, in capitals, letter
     // for letter. A small capital is only how a letter is drawn: the words reach a screen reader as
-    // they're written. A kicker, a pill (a verdict and a law's tag are pills), and a table's
-    // header row are the parts in capitals.
+    // they're written. A kicker, a pill, a law's tag, and a table's header row are the parts in
+    // capitals; a verdict is a pill, but a sentence, in ordinary case.
     expect(SITE_CSS).not.toMatch(/text-transform:\s*uppercase/);
-    for (const selector of [".kicker", ".pill", ".verdict", ".tag", "th"]) {
+    for (const selector of [".kicker", ".pill", ".tag", "th"]) {
       expect(declarationsFor(SITE_CSS, selector), selector).toContain(
         "font-variant-caps: all-small-caps",
       );
     }
+    expect(declarationsFor(SITE_CSS, ".verdict").join("; ")).not.toContain("font-variant-caps");
+  });
+
+  it("draws its short labels, a kicker, a law's tag, and a table's header, at the caps scale, 1.4 times the spec's size, with the spec's spacing and line", () => {
+    // One scale for all three, on the root.
+    expect(declarationsOf(SITE_CSS, ":root")).toContain("--caps-scale: 1.4");
+    // A law's tag: the spec's 0.8125rem and 0.06em, a line of 1.4, and a pixel more inside above
+    // and below than a pill, so its text's box, taller than its line, stays on its own color.
+    expect(declarationsFor(SITE_CSS, ".tag")).toEqual(
+      expect.arrayContaining([
+        "font-size: calc(0.8125rem * var(--caps-scale))",
+        "letter-spacing: calc(0.06em / var(--caps-scale))",
+        "line-height: calc(1.4 / var(--caps-scale))",
+        "font-variant-caps: all-small-caps",
+        "padding-block: 4px",
+      ]),
+    );
+    // A table's header: the spec's 0.75rem and 0.08em, and the body's line of 1.55, which it
+    // would otherwise take on.
+    expect(declarationsFor(SITE_CSS, "th")).toEqual(
+      expect.arrayContaining([
+        "font-size: calc(0.75rem * var(--caps-scale))",
+        "letter-spacing: calc(0.08em / var(--caps-scale))",
+        "line-height: calc(1.55 / var(--caps-scale))",
+        "font-variant-caps: all-small-caps",
+      ]),
+    );
+    // A pill's own size is the spec's: a version is digits, which small capitals leave as they are.
+    expect(declarationsFor(SITE_CSS, ".pill")).toEqual(
+      expect.arrayContaining(["font-size: 0.8125rem", "letter-spacing: 0.06em"]),
+    );
   });
 
   it("sets the words at the audit tool's sizes, in the system's fonts", () => {

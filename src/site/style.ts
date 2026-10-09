@@ -28,8 +28,15 @@
  *   (`font-variant-caps: all-small-caps`), which are only how the letters are drawn, so a screen
  *   reader gets the words as they're written. `text-transform: uppercase` would change the words
  *   themselves: Chromium hands a screen reader the text it makes, so a verdict would reach it as
- *   "1 PROBLEM NEEDS ATTENTION, ON 32 PAGES". The parts in capitals are the audit tool's: a kicker,
- *   a pill, and a table's header row. A label that's part of a heading is in ordinary case;
+ *   "1 PROBLEM NEEDS ATTENTION, ON 32 PAGES". The parts in capitals are the audit tool's short
+ *   labels, none of which holds a digit: a kicker, a law's tag, and a table's header row. A small
+ *   capital is about as tall as a lowercase letter (Windows draws it from a capital, at 70% of
+ *   its size, and a Mac's fonts have real ones about as tall), so each of the three is drawn at
+ *   the caps scale (`--caps-scale`, 1.4) times its spec's size, which makes its letters as tall
+ *   as the spec's capitals, and its letter-spacing and its line height are divided by the scale,
+ *   so its spacing and its box stay the spec's. A version's pill is digits, which small capitals
+ *   leave as they are, at the spec's size. A verdict is a sentence, in ordinary case, and so is a
+ *   label that's part of a heading;
  * - the bars run the window's width, with what's in them in a column of 72rem, and the main part is
  *   a column of 56rem (the audit tool's `max-w-6xl` and `max-w-4xl`). The gutter is 16 pixels on a
  *   phone and 24 from 40em, which is 640 pixels at the browser's own text size: an em in a media
@@ -51,16 +58,18 @@
  *     header, is on `--panel-2`;
  *   - a part of a page (`.part`) has 44 pixels above and below it, and a line between it and the
  *     part before;
- *   - a pill is small, in small capitals, at weight 700, in its color on its color's tint, with
- *     corners of 6 pixels;
+ *   - a pill is small, at weight 700, in its color on its color's tint, with corners of 6 pixels:
+ *     a version's in small capitals, a law's tag in small capitals at the caps scale, and a
+ *     verdict in ordinary case;
  *   - a big number (`.n`) is at weight 900, in the fixed-width font with figures of one width, in a
  *     color of its own (`--good` unless it says), and sized to its card, not the window
  *     (`clamp(1.5rem, 17cqi, 2.375rem)` in a card that's a container, with
  *     `container-type: inline-size`), so a long number never runs out of its card;
- *   - a table's header row is small, in small capitals, in the quieter color, on `--panel-2`, and
- *     lines divide its rows. A table is in a box of its own (`.scroll`), which scrolls when the
- *     table is wider than the window, so the page itself is never wider than 320 pixels; the page
- *     gives the box its focus and its name, and the style shows its focus as a link's;
+ *   - a table's header row is small, in small capitals at the caps scale, in the quieter color, on
+ *     `--panel-2`, and lines divide its rows. A table is in a box of its own (`.scroll`), which
+ *     scrolls when the table is wider than the window, so the page itself is never wider than 320
+ *     pixels; the page gives the box its focus and its name, and the style shows its focus as a
+ *     link's;
  *   - a button, such as a report's "Open the report" or a site's "Visit the site", is an outline in
  *     the line's color, with words in the headline's on the panel;
  * - the front page: each view's heading is a card, with its picture in a circle (which only repeats
@@ -70,10 +79,10 @@
  *   link to the site itself, a button, ends the line, or goes under it where there's no room;
  * - a site's current report is a card, headed by its line under what it is (a small, quieter
  *   label), with its two links as buttons, which wrap onto a line of their own where there's no
- *   room. Its verdict is a pill in the verdict's color, green as `--good`, amber as
- *   `--warn`, and red as `--bad`, after a sign which a screen reader doesn't read (`content: "✓" /
- *   ""`), since the words say it; how many pages NVDA read is a bar in the same color (the
- *   shareable page's `track`), with its words beside it, or under it on a narrow window;
+ *   room. Its verdict is a pill in the verdict's color, green as `--good`, amber as `--warn`, and
+ *   red as `--bad`, in ordinary case, after a sign which a screen reader doesn't read
+ *   (`content: "✓" / ""`), since the words say it; how many pages NVDA read is a bar in the same
+ *   color (the shareable page's `track`), with its words beside it, or under it on a narrow window;
  * - the fold of files is a card whose line has a marker, which a screen reader doesn't read either,
  *   turned when it's open. The files of a report are a grid of cards in the card, whose columns are
  *   no wider than their own box (`minmax(min(300px, 100%), 1fr)`), so nothing runs past a window
@@ -104,6 +113,8 @@ export const SITE_CSS = `:root {
   --bad-tint: color-mix(in srgb, var(--bad) 12%, transparent); --act-tint: color-mix(in srgb, var(--act) 12%, transparent);
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  /* A small capital is about as tall as a lowercase letter, Windows' drawn ones and a Mac's real ones alike: a short label in small capitals is drawn this many times its size, to stand as tall as a capital at that size, with its spacing and its line divided by it. */
+  --caps-scale: 1.4;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -131,8 +142,8 @@ p { margin: 0; }
 code { font-family: var(--mono); font-size: 0.88em; overflow-wrap: anywhere; }
 /* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. */
 main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflow-wrap: anywhere; }
-/* a kicker: a few words that say what follows, small, bold, spaced out, and in small capitals, which leave its words as they're written for a screen reader, in lines of an even length where it wraps; the words that matter in it are in --act */
-.kicker { font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.14em; font-variant-caps: all-small-caps; color: var(--muted); text-wrap: balance; }
+/* a kicker: a few words that say what follows, small, bold, spaced out, and in small capitals, which leave its words as they're written for a screen reader, in lines of an even length where it wraps; the words that matter in it are in --act. Its capitals are as tall as the spec's 0.8125rem capitals, at the caps scale, with the spec's spacing of 0.14em and line of 1.4 kept. */
+.kicker { font-size: calc(0.8125rem * var(--caps-scale)); font-weight: 700; line-height: calc(1.4 / var(--caps-scale)); letter-spacing: calc(0.14em / var(--caps-scale)); font-variant-caps: all-small-caps; color: var(--muted); text-wrap: balance; }
 .kicker .act { color: var(--act); }
 /* a lead: quieter than the words, and no more than 64 characters a line */
 .lead { font-size: clamp(1rem, 2vw, 1.1875rem); color: var(--muted); max-width: 64ch; }
@@ -156,8 +167,13 @@ main > .lead { margin-bottom: 8px; }
 /* a card: the panel behind it, a thin line around it, round corners, and 22 by 20 pixels inside; its words in --text-2 */
 .card { display: grid; gap: 10px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .card > * { min-width: 0; }
-/* a pill: small, bold, in small capitals, in its color on its color's tint; a law's tag is one, in --act, and so is a verdict (below) */
-.pill, .verdict, .tag { display: inline-flex; justify-self: start; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 6px; font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.06em; font-variant-caps: all-small-caps; }
+/* a pill: small, bold, in its color on its color's tint, with corners of 6 pixels: a version, a law's tag, and a verdict (below) */
+.pill, .verdict, .tag { display: inline-flex; justify-self: start; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 6px; font-weight: 700; }
+/* A version's pill is digits, which small capitals leave as they are, at the spec's size. A verdict is a sentence, in ordinary case: in capitals it reads worse, and its digits would stand above small-cap letters. */
+.pill, .verdict { font-size: 0.8125rem; line-height: 1.4; letter-spacing: 0.06em; }
+.pill { font-variant-caps: all-small-caps; }
+/* a law's tag, a short label: in small capitals as tall as the spec's 0.8125rem capitals, at the caps scale, with the spec's spacing of 0.06em and line of 1.4 kept. Its text's box is taller than that line (Segoe UI's is 1.33 times its size, 25 pixels here), and the tag has a color of its own behind it, so it's 4 pixels inside above and below, a pixel more than a pill: the text's box stays on the tag's color, where axe can tell what each letter is drawn on. */
+.tag { font-size: calc(0.8125rem * var(--caps-scale)); line-height: calc(1.4 / var(--caps-scale)); letter-spacing: calc(0.06em / var(--caps-scale)); font-variant-caps: all-small-caps; padding-block: 4px; }
 .pill.good, .verdict.ok { color: var(--good); background: var(--good-tint); }
 .pill.warn, .verdict.warn { color: var(--warn); background: var(--warn-tint); }
 .pill.bad, .verdict.bad { color: var(--bad); background: var(--bad-tint); }
@@ -165,12 +181,12 @@ main > .lead { margin-bottom: 8px; }
 /* a big number: heavy, in the fixed-width font with figures of one width, in a color of its own, and sized to its card (a container), so a long number never runs out of it */
 .n { margin: 0; font-family: var(--mono); font-weight: 900; font-size: clamp(1.5rem, 17cqi, 2.375rem); line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--good); }
 .n.good { color: var(--good); } .n.warn { color: var(--warn); } .n.bad { color: var(--bad); } .n.act { color: var(--act); }
-/* a table, in a box of its own that scrolls when the table is wider than the window: the page gives the box its focus and its name. Its header row is small, in small capitals, and quieter, on the second panel, and lines divide its rows. */
+/* a table, in a box of its own that scrolls when the table is wider than the window: the page gives the box its focus and its name. Its header row is small, in small capitals as tall as the spec's 0.75rem capitals, at the caps scale, with the spec's spacing of 0.08em and the body's line of 1.55 kept, and quieter, on the second panel, and lines divide its rows. */
 .scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .scroll:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
 th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-th { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; font-variant-caps: all-small-caps; color: var(--muted); background: var(--panel-2); }
+th { font-size: calc(0.75rem * var(--caps-scale)); font-weight: 700; line-height: calc(1.55 / var(--caps-scale)); letter-spacing: calc(0.08em / var(--caps-scale)); font-variant-caps: all-small-caps; color: var(--muted); background: var(--panel-2); }
 td { color: var(--text-2); }
 tbody tr:last-child > * { border-bottom: 0; }
 /* a button: an outline in the line's color, with words in the headline's on the panel */
@@ -209,7 +225,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 /* what a report's heading says it is: small, bold, and quieter, in ordinary case, as the rest of its heading is */
 .label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 0.875rem; font-weight: 700; }
 .report > .by { color: var(--muted); }
-/* the verdict, a pill in its color (above), after a sign that only repeats its words, which a screen reader doesn't read */
+/* the verdict, a pill in its color (above), in ordinary case, after a sign that only repeats its words, which a screen reader doesn't read */
 .verdict::before { flex: none; }
 .verdict.ok::before { content: "✓"; content: "✓" / ""; }
 .verdict.warn::before { content: "⚠"; content: "⚠" / ""; }
