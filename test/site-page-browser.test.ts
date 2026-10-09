@@ -365,6 +365,23 @@ async function open(file: string, options: OpenOptions = {}): Promise<Page> {
 
 const theme = (page: Page): Promise<string | null> => page.getAttribute("html", "data-theme");
 
+/**
+ * Reload until the page opens in the theme the reader chose. The choice is kept in the browser's
+ * storage, which Chromium can finish writing a moment after the click: a reload straight after it
+ * once opened the page as it was, on a slow computer (CI's macOS). A reader can't reload that fast,
+ * and a choice that's never kept still fails, after 5 seconds.
+ */
+const reloadUntilTheme = (page: Page, choice: "light" | "dark"): Promise<void> =>
+  expect
+    .poll(
+      async () => {
+        await page.reload();
+        return theme(page);
+      },
+      { timeout: 5_000 },
+    )
+    .toBe(choice);
+
 const background = (page: Page): Promise<string> =>
   page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
@@ -1247,8 +1264,7 @@ describe("the site's page", () => {
     expect(await stored(page)).toBe("light");
 
     // Kept: the page opens as it was left.
-    await page.reload();
-    expect(await theme(page)).toBe("light");
+    await reloadUntilTheme(page, "light");
     expect(await background(page)).toBe(LIGHT);
     expect(await toggle.getAttribute("aria-label")).toBe("Switch to the dark theme");
     expect(await toggle.locator("svg.moon").isVisible()).toBe(true);
@@ -1256,7 +1272,7 @@ describe("the site's page", () => {
     await toggle.click();
     expect(await theme(page)).toBe("dark");
     expect(await stored(page)).toBe("dark");
-    await page.reload();
+    await reloadUntilTheme(page, "dark");
     expect(await background(page)).toBe(DARK);
     expect(await toggle.getAttribute("aria-label")).toBe("Switch to the light theme");
     expect(await toggle.locator("svg.sun").isVisible()).toBe(true);
@@ -2063,8 +2079,7 @@ describe("What's New", () => {
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
     expect(await stored(page)).toBe("light");
-    await page.reload();
-    expect(await theme(page)).toBe("light");
+    await reloadUntilTheme(page, "light");
   });
 
   it("is light in print, without the theme button", async () => {
@@ -2366,8 +2381,7 @@ describe("Technical details", () => {
     expect(await theme(page)).toBe("light");
     expect(await background(page)).toBe(LIGHT);
     expect(await stored(page)).toBe("light");
-    await page.reload();
-    expect(await theme(page)).toBe("light");
+    await reloadUntilTheme(page, "light");
 
     const printed = await open(files.technical);
     expect(await background(printed)).toBe(DARK);

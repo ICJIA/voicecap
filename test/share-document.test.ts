@@ -1233,6 +1233,23 @@ describe("the page's script, in Chromium", () => {
   const background = (page: Page): Promise<string> =>
     page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
+  /**
+   * Reload until the page opens in the colors of the theme the reader chose. The choice is kept in
+   * the browser's storage, which Chromium can finish writing a moment after the click, so a reload
+   * straight after it can open the page as it was on a slow computer, as CI's macOS once showed for
+   * the website's pages. A reader can't reload that fast; a choice never kept fails after 5 seconds.
+   */
+  const reloadUntilBackground = (page: Page, color: string): Promise<void> =>
+    expect
+      .poll(
+        async () => {
+          await page.reload();
+          return background(page);
+        },
+        { timeout: 5_000 },
+      )
+      .toBe(color);
+
   /** How many of the page's folds are closed. */
   const closedFolds = (page: Page): Promise<number> =>
     page.evaluate(
@@ -1262,13 +1279,11 @@ describe("the page's script, in Chromium", () => {
     await toggle.click();
     expect(await background(page)).toBe(LIGHT);
     expect(await toggle.textContent()).toBe("Dark version");
-    await page.reload();
-    expect(await background(page)).toBe(LIGHT);
+    await reloadUntilBackground(page, LIGHT);
     expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
 
     await page.locator("#theme-toggle").click();
-    await page.reload();
-    expect(await background(page)).toBe(DARK);
+    await reloadUntilBackground(page, DARK);
     expect(problems.get(page)).toEqual([]);
   });
 
