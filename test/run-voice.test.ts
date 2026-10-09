@@ -6,6 +6,7 @@
  */
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
@@ -27,6 +28,7 @@ import { encodeVoice } from "../src/voice/encode.js";
 import { config, ISO_MS, options, outDir, setup, sitePages } from "./helpers/run-site.js";
 import {
   ScriptedDriver,
+  type ScriptedOptions,
   type ScriptedPage,
   type ScriptedVoice,
 } from "./helpers/scripted-driver.js";
@@ -62,6 +64,31 @@ async function problemsIn(dir: string): Promise<number> {
 
 /** Whether any PCM file a scripted driver made is still there. */
 const pcmLeft = (driver: ScriptedDriver) => driver.pcmFiles.filter((file) => existsSync(file));
+
+/**
+ * A scripted driver that keeps a timeline of what happens in a run: each call to the driver, as it's
+ * made ("recordVoice"), and each event of the run's log, as it's recorded ("event page-started"; the
+ * run and the driver share the log). `fail` makes a call fail, as the driver's own option does.
+ */
+function watched(pages: ScriptedPage[], fail: NonNullable<ScriptedOptions["fail"]> = () => null) {
+  const timeline: string[] = [];
+  const driver = new ScriptedDriver(pages, {
+    fail: (command, url, call) => {
+      timeline.push(command);
+      return fail(command, url, call);
+    },
+  });
+  const given = driver.setEventRecorder.bind(driver);
+  driver.setEventRecorder = (recorder) => {
+    const record = recorder.record.bind(recorder);
+    recorder.record = (event, at) => {
+      timeline.push(`event ${event.type}`);
+      record(event, at);
+    };
+    given(recorder);
+  };
+  return { driver, timeline };
+}
 
 /**
  * A run of the scripted site's home page alone, whose recording gives `voice` (none, for a driver
@@ -101,27 +128,9 @@ describe("a page's recording of NVDA's voice, in a run", () => {
   it("records each attempt from its start to its end", async () => {
     const dir = await setup();
     const voice = { samples: SPEECH };
-    const timeline: string[] = [];
-    const driver = new ScriptedDriver(
+    const { driver, timeline } = watched(
       sitePages({ home: { voice }, about: { voice }, resources: { voice } }),
-      {
-        // Every call to the driver, as it's made.
-        fail: (command) => {
-          timeline.push(command);
-          return null;
-        },
-      },
     );
-    // And every event of the run's log, as it's recorded: the run and the driver share the log.
-    const given = driver.setEventRecorder.bind(driver);
-    driver.setEventRecorder = (recorder) => {
-      const record = recorder.record.bind(recorder);
-      recorder.record = (event, at) => {
-        timeline.push(`event ${event.type}`);
-        record(event, at);
-      };
-      given(recorder);
-    };
     const run = await runAudit(options(dir, driver));
     expect(run.outcome).toBe("completed");
 
@@ -196,6 +205,75 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     const long = await runHome({ error: "x".repeat(400) });
     expect(long.page.voice).toMatchObject({ error: "x".repeat(300) });
     expect(long.page.status).toBe("done");
+  });
+
+  // The recorder's words are kept as it said them, and some name a path: a program a refused target
+  // runs, the file .NET couldn't make, the script Add-Type compiled. The record and the page that
+  // shows it must not name the account, so the home folder is replaced, as it is in a failure's stack.
+  describe("a reason that names the account's home folder", () => {
+    const home = os.homedir();
+    /** What replaces the home folder: Windows' name for it there, and ~ elsewhere. */
+    const token = process.platform === "win32" ? "%USERPROFILE%" : "~";
+    const rest = path.join("AppData", "Local", "guidepup", "nvda.exe");
+    /** What the recorder might say, and what the record keeps of it. */
+    const said = `process 4242 runs ${path.join(home, rest)}, not elsewhere`;
+    const kept = `process 4242 runs ${token}${path.sep}${rest}, not elsewhere`;
+    const keptAs = (error: string): unknown => ({
+      error,
+      recordedAt: expect.stringMatching(ISO_MS) as unknown,
+    });
+
+    it("has it replaced in what the driver gives as the reason", async () => {
+      const { page } = await runHome({ error: said });
+      expect(page.status).toBe("done");
+      expect(page.voice).toEqual(keptAs(kept));
+      expect(JSON.stringify(page.voice)).not.toContain(JSON.stringify(home).slice(1, -1));
+    });
+
+    it("has it replaced wherever a reason comes from: a recording that can't begin, a stop that throws, and the encoder", async () => {
+      // A recordVoice that throws gives the page its reason through a stand-in recording.
+      const began = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
+        fail: (command) => (command === "recordVoice" ? new EnvironmentError(said) : null),
+      });
+      const beganRun = await runAudit(options(await setup(["/"]), began));
+      expect(beganRun.run.pages[0]?.voice).toEqual(keptAs(kept));
+
+      // A stop that throws, which the run catches.
+      const stopped = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
+        fail: (command) => (command === "stopVoice" ? new Error(said) : null),
+      });
+      const stoppedRun = await runAudit(options(await setup(["/"]), stopped));
+      expect(stoppedRun.run.pages[0]?.voice).toEqual(keptAs(kept));
+
+      // The encoder's message, which the run puts after its own words.
+      vi.mocked(encodeVoice).mockRejectedValueOnce(new Error(said));
+      const { page } = await runHome({ samples: SPEECH });
+      expect(page.voice).toEqual(keptAs(`the recording couldn't be encoded: ${kept}`));
+    });
+
+    it("has it replaced before the reason is cut, so a path across the limit leaves none of it", async () => {
+      // The home folder begins before the 300th character and ends after it: cut first, a path
+      // that's all there but its last letter would be kept, and name the account.
+      const lead = "x".repeat(300 - (home.length - 1));
+      const { page } = await runHome({ error: `${lead}${home}${path.sep}more` });
+      const { error } = page.voice as { error: string };
+      expect(error.startsWith(lead)).toBe(true);
+      expect(error.length).toBeLessThanOrEqual(300);
+      expect(error).not.toContain(home.slice(0, -1));
+    });
+
+    it("keeps a reason as it is where Node can't find a home folder", async () => {
+      const homedir = vi.spyOn(os, "homedir").mockImplementation(() => {
+        throw new Error("A system error occurred: uv_os_homedir returned ENOENT");
+      });
+      try {
+        const { page } = await runHome({ error: said });
+        expect(page.status).toBe("done");
+        expect(page.voice).toEqual(keptAs(said));
+      } finally {
+        homedir.mockRestore();
+      }
+    });
   });
 
   describe("a recording that makes no file", () => {
@@ -331,7 +409,7 @@ describe("a page's recording of NVDA's voice, in a run", () => {
       expect(await problemsIn(dir)).toBe(0);
     });
 
-    it("gives the page the reason when a stop throws, and deletes the sound", async () => {
+    it("gives the page the reason when a stop throws, and reads the page as usual", async () => {
       const dir = await setup(["/"]);
       const driver = new ScriptedDriver(sitePages({ home: { voice: { samples: SPEECH } } }), {
         fail: (command) =>
@@ -397,7 +475,11 @@ describe("a page's recording of NVDA's voice, in a run", () => {
         hang: (command) => command === "recordVoice",
       });
       setTimeout(() => controller.abort(), 50);
-      const run = await runAudit(options(dir, driver, { signal: controller.signal }));
+      // A page has two minutes: only Ctrl+C can end the wait, which a short page time would too.
+      const timeouts = { stepMs: 300, pageMs: 120_000, driverStartMs: 2000 };
+      const run = await runAudit(
+        options(dir, driver, { signal: controller.signal, config: config({ timeouts }) }),
+      );
       expect(run.outcome).toBe("interrupted");
       // The attempt never began.
       expect(driver.calls).not.toContain("openPage");
@@ -420,13 +502,33 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     it("moves its voice.webm to attempts/ with its folder, and seals the last attempt's", async () => {
       const dir = await setup(["/"]);
       const first = busySound(1, 3);
-      const driver = new ScriptedDriver(
+      const { driver, timeline } = watched(
         sitePages({ home: { voice: [{ samples: first }, { samples: SPEECH }] } }),
-        { fail: losesForeground(1) },
+        losesForeground(1),
       );
       const run = await runAudit(options(dir, driver));
       const page = run.run.pages[0]!;
       expect(page).toMatchObject({ status: "done", attempts: 2 });
+
+      // Each attempt is recorded before it begins, and stopped before its end is recorded: the
+      // failed one's too, ahead of the failure.
+      const marks = [
+        "recordVoice",
+        "event page-started",
+        "stopVoice",
+        "event page-failed",
+        "event page-finished",
+      ];
+      expect(timeline.filter((mark) => marks.includes(mark))).toEqual([
+        "recordVoice",
+        "event page-started",
+        "stopVoice",
+        "event page-failed",
+        "recordVoice",
+        "event page-started",
+        "stopVoice",
+        "event page-finished",
+      ]);
 
       // Each attempt had a recording of its own, stopped as it ended.
       expect(driver.calls.filter((call) => call === "recordVoice")).toHaveLength(2);
@@ -552,6 +654,8 @@ describe("a page's recording of NVDA's voice, in a run", () => {
     expect(page.voice).toHaveProperty("sha256");
     expect(driver.pcmFiles).toHaveLength(1);
     expect(pcmLeft(driver)).toEqual([]);
+    // The scripted driver's own folder for them went when the run stopped it.
+    expect(existsSync(path.dirname(driver.pcmFiles[0]!))).toBe(false);
 
     // After a discard: the page was never read.
     const skipped = await runHome({ samples: SPEECH }, {}, { contentType: "application/pdf" });

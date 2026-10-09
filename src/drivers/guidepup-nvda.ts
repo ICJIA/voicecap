@@ -59,7 +59,8 @@
  *   when it's stopped, and never fails the page. The sound goes to a file in a folder of the temp
  *   folder (voiceFolder), which the core deletes after it has read it, and the driver deletes
  *   when it ends a recording itself and with the folder when the helper is closed. The helper ends
- *   with the process too: it ends when its input does.
+ *   with the process too: it ends when its input does. A folder that a crash, or a second Ctrl+C
+ *   while the helper held its file, leaves behind is deleted by the next run's cleanupStale.
  */
 import { randomInt } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
@@ -1221,10 +1222,26 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
         take.recorder = recorder;
       });
     } catch (error) {
-      take.failure = errorMessage(error);
+      take.failure = this.reasonOf(error);
       // A start that failed may have made the file.
       await removeFile(take.pcm);
     }
+  }
+
+  /**
+   * An error from the recorder as the page's reason: the temp folder the sound is kept in is named
+   * by its variable (%TEMP%), wherever and however the recorder spells it. Its .NET messages name the
+   * file they couldn't make, and Windows may spell the account's folder in its short form
+   * (C:\Users\CHRIST~1), which isn't the spelling of the home folder that the run replaces.
+   */
+  private reasonOf(error: unknown): string {
+    const message = errorMessage(error);
+    const temp = path.dirname(this.deps.voiceDir);
+    // A folder to name: not the working folder ("."), which would match every dot.
+    if (!path.isAbsolute(temp)) return message;
+    // Its parts, in any case and with either slash between them, as redactHome matches a folder.
+    const parts = temp.split(/[\\/]+/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return message.replace(new RegExp(parts.join(String.raw`[\\/]+`), "gi"), "%TEMP%");
   }
 
   /** The process NVDA runs in, and which start of NVDA it is; throws when there's none to record. */
@@ -1278,7 +1295,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
       try {
         return { stopped: await take.recorder.stop() };
       } catch (error) {
-        return { reason: errorMessage(error) };
+        return { reason: this.reasonOf(error) };
       }
     })();
     return take.ended;
@@ -1355,7 +1372,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
    * The process is exiting: tell the helper to quit, without waiting, and take the folder of the
    * sound away. Closing sends the helper its quit and ends its input as it's called, and the helper
    * ends when its input does, even if the process ends first. A file it still holds keeps its
-   * folder, which a later run may take away.
+   * folder, which the next run's cleanup takes away (see cleanupOrphans).
    */
   private abandonVoice(): void {
     const recorder = this.recorder;

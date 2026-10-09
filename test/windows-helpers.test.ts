@@ -1,5 +1,13 @@
 import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -7,7 +15,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { unsafePathMessage, unsafePathProblem } from "../src/drivers/guidepup/paths.js";
+import {
+  unsafePathMessage,
+  unsafePathProblem,
+  voiceFolder,
+} from "../src/drivers/guidepup/paths.js";
 import {
   cleanupOrphans,
   foregroundWindow,
@@ -292,6 +304,55 @@ describe.skipIf(process.platform !== "win32")("Windows helpers (real Windows)", 
       `Shut down Guidepup's NVDA, which an earlier run left running (process ${leftover.pid}).`,
     );
     expect(alive(leftover.pid ?? -1)).toBe(false);
+  }, 30_000);
+
+  // A run that crashed, or was ended by a second Ctrl+C, leaves the sound it was recording in a
+  // folder named for its process (about 1.9 MB a minute), and no one else deletes it.
+  it("delete the recorded sound a run that's gone left in its folder, and no other folder", async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
+    temps.push(tmp);
+    // Process ids no process has: far past any Windows hands out, so none can be reused meanwhile.
+    const gone = [2_000_000_000, 2_000_000_001];
+    for (const pid of gone) expect(alive(pid)).toBe(false);
+    const sound = Buffer.alloc(64_000);
+    const goneDir = voiceFolder(tmp, gone[0]!);
+    mkdirSync(goneDir);
+    writeFileSync(path.join(goneDir, "1.pcm"), sound);
+    writeFileSync(path.join(goneDir, "2.pcm"), sound);
+    // This process is running, as a voicecap that's recording is: its folder is in use.
+    const liveDir = voiceFolder(tmp, process.pid);
+    mkdirSync(liveDir);
+    writeFileSync(path.join(liveDir, "1.pcm"), sound);
+    // Folders that aren't a voice folder's name, and a file that has one.
+    const others = [path.join(tmp, "voicecap-voice-backup"), path.join(tmp, "voicecap-voice-12x")];
+    for (const other of others) mkdirSync(other);
+    const aFile = voiceFolder(tmp, gone[1]!);
+    writeFileSync(aFile, "not a folder");
+
+    const notes = await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"));
+
+    expect(notes).toEqual(["Deleted 1 folder of recorded sound left by an earlier run."]);
+    expect(existsSync(goneDir)).toBe(false);
+    expect(existsSync(liveDir)).toBe(true);
+    expect(existsSync(path.join(liveDir, "1.pcm"))).toBe(true);
+    for (const other of others) expect(existsSync(other)).toBe(true);
+    expect(existsSync(aFile)).toBe(true);
+
+    // Said once: nothing is left to delete the next time.
+    expect(await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"))).toEqual([]);
+  }, 30_000);
+
+  it("delete the recorded sound of several runs that are gone, and say how many folders", async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), "voicecap-orphan-test-"));
+    temps.push(tmp);
+    const dirs = [2_000_000_002, 2_000_000_003, 2_000_000_004].map((pid) => voiceFolder(tmp, pid));
+    for (const dir of dirs) {
+      mkdirSync(dir);
+      writeFileSync(path.join(dir, "1.pcm"), "sound");
+    }
+    const notes = await cleanupOrphans(tmp, path.join(tmp, "no-nvda", "nvda.exe"));
+    expect(notes).toEqual(["Deleted 3 folders of recorded sound left by an earlier run."]);
+    for (const dir of dirs) expect(existsSync(dir)).toBe(false);
   }, 30_000);
 
   it("leave everything alone when nothing was left behind", async () => {

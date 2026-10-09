@@ -9,7 +9,7 @@ import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import { GuidepupNvdaDriver, type GuidepupDriverDeps } from "../src/drivers/guidepup-nvda.js";
-import { voiceFolder } from "../src/drivers/guidepup/paths.js";
+import { voiceFolder, voiceFolderPid } from "../src/drivers/guidepup/paths.js";
 import type { Recorder, RecorderStop } from "../src/drivers/guidepup/voice-recorder.js";
 import { ForegroundError, type EventRecorder } from "../src/drivers/types.js";
 import type { NewRunEvent } from "../src/model.js";
@@ -2235,6 +2235,52 @@ describe("recording NVDA's voice", () => {
     expect(voiceFolder("C:\\Users\\pat\\AppData\\Local\\Temp", 4242)).toBe(
       path.join("C:\\Users\\pat\\AppData\\Local\\Temp", "voicecap-voice-4242"),
     );
+  });
+
+  it("knows a voice folder's process by its name, and no other folder", () => {
+    expect(voiceFolderPid(path.basename(voiceFolder("C:\\Temp", 4242)))).toBe(4242);
+    expect(voiceFolderPid("voicecap-voice-1")).toBe(1);
+    expect(voiceFolderPid("voicecap-voice-2147483647")).toBe(2_147_483_647);
+    for (const other of [
+      "voicecap-voice-",
+      "voicecap-voice-0",
+      "voicecap-voice-2147483648",
+      `voicecap-voice-${"9".repeat(400)}`,
+      "voicecap-voice-007",
+      "voicecap-voice-42a",
+      "voicecap-voice-4242-old",
+      "voicecap-voice-4242\\1.pcm",
+      "xvoicecap-voice-4242",
+      "voicecap-chrome-4242",
+    ]) {
+      expect(voiceFolderPid(other), other).toBeNull();
+    }
+  });
+
+  // The recorder says what went wrong in .NET's words, which name the file it couldn't make, and
+  // Windows may spell the account's folder in its short form (CHRIST~1), which isn't what the run
+  // replaces as the home folder. So the driver names the temp folder by its variable.
+  it("names the temp folder by its variable in a reason, in whatever case the recorder spells it", async () => {
+    const { driver, voiceRecorder, voiceDir } = setup();
+    const temp = path.dirname(voiceDir);
+    const pcm = path.join(voiceDir, "1.pcm");
+    const spelled = pcm.replace(temp, temp.toUpperCase());
+    const kept = `%TEMP%${pcm.slice(temp.length)}`;
+    await driver.start();
+
+    // A start that couldn't make the file.
+    voiceRecorder.startRefusal = `the recording couldn't start: the PCM file couldn't be created (Could not find a part of the path '${spelled}'.)`;
+    const refused = await (await driver.recordVoice()).stop();
+    expect(refused).toEqual({
+      error: `the recording couldn't start: the PCM file couldn't be created (Could not find a part of the path '${kept}'.)`,
+    });
+
+    // A stop that couldn't write it, for the recording after.
+    const recording = await driver.recordVoice();
+    voiceRecorder.stopFailure = `the recording failed: the PCM file couldn't be written (The process cannot access the file '${path.join(voiceDir, "2.pcm").replace(temp, temp.toUpperCase())}' because it is being used by another process.)`;
+    expect(await recording.stop()).toEqual({
+      error: `the recording failed: the PCM file couldn't be written (The process cannot access the file '%TEMP%${path.join(voiceDir, "2.pcm").slice(temp.length)}' because it is being used by another process.)`,
+    });
   });
 
   it("starts the helper once, at the first recording, and not before", async () => {

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -169,6 +169,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
   stop(options?: { restarting?: boolean }): Promise<void> {
     this.stops++;
     this.stopOptions.push(options);
+    this.removeVoiceFolder();
     return Promise.resolve();
   }
 
@@ -282,15 +283,37 @@ export class ScriptedDriver implements ScreenReaderDriver {
     return this.page?.lines ?? [];
   }
 
+  /**
+   * The folder this driver made for its recordings' files goes when the driver stops, if it's empty
+   * (the next recording makes another). A file a recording left behind keeps its folder, and is
+   * there for a test to find: whoever ended the recording should have deleted it.
+   */
+  private removeVoiceFolder(): void {
+    if (this.voiceDir === null) return;
+    try {
+      rmdirSync(this.voiceDir);
+      this.voiceDir = null;
+    } catch {
+      // Not empty, or not there: left as it is.
+    }
+  }
+
   /** A recording begins: its PCM file is made, empty, as the recorder's helper makes it. */
   private beginRecording(): VoiceRecording {
     this.voiceDir ??= mkdtempSync(path.join(os.tmpdir(), "voicecap-scripted-voice-"));
     const pcm = path.join(this.voiceDir, `${this.pcmFiles.length + 1}.pcm`);
     this.pcmFiles.push(pcm);
     writeFileSync(pcm, new Uint8Array(0));
+    // An end that fails leaves no sound behind, as the Guidepup driver's leaves none: it deletes the
+    // file of a recording it gives no capture of, and of one it discards.
+    const ending = <T>(command: Command, action: () => T): Promise<T> =>
+      this.call(command, action).catch((error: unknown) => {
+        rmSync(pcm, { force: true });
+        throw error;
+      });
     return {
-      stop: () => this.call("stopVoice", () => this.endRecording(pcm)),
-      discard: () => this.call("discardVoice", () => rmSync(pcm, { force: true })),
+      stop: () => ending("stopVoice", () => this.endRecording(pcm)),
+      discard: () => ending("discardVoice", () => rmSync(pcm, { force: true })),
     };
   }
 

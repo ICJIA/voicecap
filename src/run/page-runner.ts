@@ -579,7 +579,9 @@ const SILENT_PEAK = 2;
  * can't be read, is empty, is silent, or couldn't be encoded. Silent means it peaks at 2 or less
  * while the attempt's transcripts have words (see hasWords): NVDA spoke, and the recording doesn't
  * have it. A quiet recording of a page with no words is a recording of a quiet page, and is kept. A
- * reason is its first line, cut at 300 characters, as an axe check's is.
+ * reason is its first line, cut at 300 characters, as an axe check's is, once the account's home
+ * folder in it is replaced (see redactHome): the record, and the page that shows it, never name the
+ * account.
  *
  * The sound is deleted whatever comes of it, as the driver leaves its file to this. Encoding holds
  * the process up for about a hundredth of the recording's length, and it comes now, between attempts,
@@ -593,7 +595,14 @@ async function keepVoice(
   attempt: Attempt,
 ): Promise<VoiceRecord> {
   const recordedAt = isoLocalMs(ctx.now());
-  const without = (reason: string): VoiceRecord => ({ error: axeErrorReason(reason), recordedAt });
+  // A reason keeps the recorder's words as it said them, and some name a path (a program, the file
+  // .NET couldn't make, the script Add-Type compiled): the home folder is replaced before the cut,
+  // so that the record never names the account, and a path across the limit leaves no part of it.
+  const home = homeFolder();
+  const without = (reason: string): VoiceRecord => ({
+    error: axeErrorReason(home === null ? reason : redactHome(reason, home, process.platform)),
+    recordedAt,
+  });
   if ("error" in capture) return without(capture.error);
   try {
     let bytes: Buffer;

@@ -245,9 +245,10 @@ export const VOICE_FILE = "voice.webm";
  * axe's. A recording that was kept has the file's SHA-256 and size, its length in seconds (to the
  * sample, so a fraction), and the sound the recorder lost by falling behind, in milliseconds, which
  * is normally 0. One that couldn't be kept has the first line of the reason, at most 300 characters,
- * and no file: the recorder couldn't run, NVDA's process wasn't found or ended during the recording,
- * the recording is empty or silent, or it couldn't be encoded. Both have when the run recorded it (a
- * local ISO time to the millisecond), a moment after the driver stopped the recording.
+ * with the account's home folder in it replaced, and no file: the recorder couldn't run, NVDA's
+ * process wasn't found or ended during the recording, the recording is empty or silent, or it
+ * couldn't be encoded. Both have when the run recorded it (a local ISO time to the millisecond), a
+ * moment after the driver stopped the recording.
  */
 export type VoiceRecord =
   | (FileHash & { seconds: number; lostMs: number; recordedAt: string })
