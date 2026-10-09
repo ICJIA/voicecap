@@ -356,7 +356,9 @@ const BUILD_LOOKUP = String.raw`[int](Get-ItemProperty -LiteralPath 'HKLM:\SOFTW
  * applies to a script given with -Command. Its lines are joined with line breaks, which the C#'s
  * here-string needs.
  *
- * **Setup.** It checks the Windows build first: process loopback needs 20348 or later. Then it
+ * **Setup.** It checks the Windows build first: process loopback needs 20348 or later. That's
+ * Windows 11 or Windows Server 2022, and the failure says so in those words: no desktop Windows 10
+ * reaches that build (they end at 19045), so "Windows 10 build 20348" would be misread. Then it
  * compiles its C# with Add-Type. Either failure is one line, {"failed":…}, and exit code 1. Until
  * Add-Type has worked, it writes only with the cmdlets and the few methods Constrained Language Mode
  * allows (where Add-Type fails), so that line still reaches voicecap, and in ASCII. Once it's ready,
@@ -385,7 +387,7 @@ export const RECORDER_SCRIPT = [
   "}",
   "$build = 0",
   `try { $build = ${BUILD_LOOKUP} } catch {}`,
-  `if ($build -lt 20348) { Send-Failure "recording one program's sound needs Windows 10 build 20348 or later; this is build $build" }`,
+  `if ($build -lt 20348) { Send-Failure "recording one program's sound needs Windows 11 or Windows Server 2022 (Windows build 20348 or later); this is build $build" }`,
   "$source = @'",
   RECORDER_CSHARP,
   "'@",

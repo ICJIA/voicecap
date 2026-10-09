@@ -127,9 +127,9 @@ const VOICE_SPEEDS = names(VOICE_TEXT.speed.rates.map((rate) => VOICE_TEXT.speed
 
 /**
  * The Windows build that recording one program's sound needs, which Windows' process loopback came
- * with. The recorder checks for it before anything else, and gives it in its own words (RECORDER_SCRIPT
- * in src/drivers/guidepup/voice-recorder.ts, which the website's code never imports): typed here, and
- * held to that check by the test of the page.
+ * with: Windows 11 or Windows Server 2022. The recorder checks for it before anything else, and gives
+ * it in its own words (RECORDER_SCRIPT in src/drivers/guidepup/voice-recorder.ts, which the website's
+ * code never imports): typed here, and held to that check by the test of the page.
  */
 const WINDOWS_BUILD = 20348;
 
@@ -481,7 +481,7 @@ export const TECHNICAL_TEXT = {
           "Only NVDA's sound is recorded, never the whole computer's and never a microphone's. voicecap uses Windows' process loopback, which takes the sound of one program and of the programs it starts: here the NVDA voicecap started, whose program it checks before it records.",
         ],
         [
-          `Recording needs Windows 10 build ${WINDOWS_BUILD} or later. A page that can't be recorded keeps the reason in its record, and is read as usual.`,
+          `Recording needs Windows 11 or Windows Server 2022 (Windows build ${WINDOWS_BUILD} or later). A page that can't be recorded keeps the reason in its record, and is read as usual.`,
         ],
         [
           "Each recording is kept as ",

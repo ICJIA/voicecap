@@ -799,8 +799,16 @@ describe("renderTechnical", () => {
     // Recording needs the Windows build the recorder checks for first, and says so in its own words.
     const build = /\$build -lt (\d+)/.exec(RECORDER_SCRIPT)?.[1] ?? "";
     expect(build).toMatch(/^\d+$/);
-    expect(RECORDER_SCRIPT).toContain(`needs Windows 10 build ${build} or later`);
-    expect(record).toContain(`Recording needs Windows 10 build ${build} or later.`);
+    // In the words of the system that has it: Windows 11 or Windows Server 2022. No desktop Windows 10
+    // reaches the build (its builds end at 19045), so "Windows 10 build 20348" would be misread.
+    expect(RECORDER_SCRIPT).toContain(
+      `needs Windows 11 or Windows Server 2022 (Windows build ${build} or later)`,
+    );
+    expect(record).toContain(
+      `Recording needs Windows 11 or Windows Server 2022 (Windows build ${build} or later).`,
+    );
+    expect(RECORDER_SCRIPT).not.toContain("Windows 10");
+    expect(record).not.toContain("Windows 10");
     // A page it can't record keeps the reason in its record (PageRecord.voice's `error`), and is read.
     expect(record).toContain(
       "A page that can't be recorded keeps the reason in its record, and is read as usual.",

@@ -154,7 +154,7 @@ describe("the recorder", () => {
   it("rejects with the helper's reason when it can't start", async () => {
     const helper = fake({
       failed:
-        "recording one program's sound needs Windows 10 build 20348 or later; this is build 19045.",
+        "recording one program's sound needs Windows 11 or Windows Server 2022 (Windows build 20348 or later); this is build 19045.",
       stderr: [
         'Exception setting "OutputEncoding": "The handle is invalid."',
         "",
@@ -166,7 +166,7 @@ describe("the recorder", () => {
     });
     await rejectsWith(
       startRecorder({ spawnRecorder: helper.spawnRecorder }),
-      "the recorder didn't start: recording one program's sound needs Windows 10 build 20348 or later; this is build 19045 " +
+      "the recorder didn't start: recording one program's sound needs Windows 11 or Windows Server 2022 (Windows build 20348 or later); this is build 19045 " +
         '(Exception setting "OutputEncoding": "The handle is invalid." At line:1 char:7 + try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } ...)',
     );
     // It ended by itself, having said why.

@@ -77,7 +77,8 @@ describe("the WebM muxer", () => {
     expect(valueOf(file.info, "MuxingApp")).toBe("voicecap");
     expect(valueOf(file.info, "WritingApp")).toBe("voicecap");
 
-    // One track: audio, Opus, one channel, at 48 kHz, which is what Matroska says for Opus.
+    // One track: audio, Opus, one channel, at 48 kHz on purpose (the rate Opus decodes at, as FFmpeg's
+    // muxer writes it: see src/voice/webm.ts). The 16 kHz the encoder was given is in the OpusHead.
     const track = childOf(file.tracks, "TrackEntry");
     expect(childrenOf(file.tracks, "TrackEntry")).toHaveLength(1);
     expect(valueOf(track, "TrackNumber")).toBe(1);

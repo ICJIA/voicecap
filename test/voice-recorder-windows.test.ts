@@ -123,7 +123,7 @@ describe.runIf(process.platform === "win32" && process.env.VOICECAP_SOUND_TEST =
       const older = RECORDER_SCRIPT.replace(lookup, "19045");
       expect(older).not.toBe(RECORDER_SCRIPT);
       await expect(startRecorder({ script: older })).rejects.toThrow(
-        "the recorder didn't start: recording one program's sound needs Windows 10 build 20348 or later; this is build 19045",
+        "the recorder didn't start: recording one program's sound needs Windows 11 or Windows Server 2022 (Windows build 20348 or later); this is build 19045",
       );
 
       // Constrained Language Mode, as AppLocker or WDAC can set, blocks Add-Type.

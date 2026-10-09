@@ -10,10 +10,14 @@
  * - **Info** counts in milliseconds, and gives the sound's length to a sixteenth of one, which is a
  *   sample of the 16 kHz sound. It names voicecap as the muxing and the writing app, as Matroska
  *   asks.
- * - **Tracks** hold the one track. Opus is always 48 kHz in Matroska, whatever rate the sound had;
- *   the rate the encoder was given is in the OpusHead (RFC 7845), beside the pre-skip. The track
- *   also says the encoder's delay (CodecDelay) and how far before a seek a decoder must start
- *   (SeekPreRoll, 80 ms for Opus).
+ * - **Tracks** hold the one track. Its SamplingFrequency says 48,000 Hz, on purpose, though the sound
+ *   has 16,000: that's the rate Opus decodes at, and the one FFmpeg's muxer writes, converting
+ *   CodecDelay and DiscardPadding at it. Chromium trims the sound to the sample with it, and with
+ *   16,000 it left 2,567 samples where 2,565 were wanted. The current Matroska mapping for Opus
+ *   (CELLAR) says to write the rate the encoder was given, so a strict reader that follows it to
+ *   the letter reports 48 kHz. The rate the encoder was given is in the OpusHead (RFC 7845), beside
+ *   the pre-skip. The track also says the encoder's delay (CodecDelay) and how far before a seek a
+ *   decoder must start (SeekPreRoll, 80 ms for Opus).
  * - **Cues** come before the Clusters, so a player has them as soon as it has read the header, and
  *   name each Cluster by its time and its place: one Cue for each Cluster.
  * - **Clusters** hold up to 5 s of packets: 83 packets of 60 ms, which are 4.98 s.
