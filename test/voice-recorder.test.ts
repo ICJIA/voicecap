@@ -30,6 +30,7 @@ interface FakeScript {
   ignore?: ("target" | "start" | "stop" | "quit")[];
   exitOn?: "target" | "start" | "stop";
   stay?: true;
+  refuse?: number[];
 }
 
 /** Every fake started, so none outlives its test. */
@@ -243,6 +244,21 @@ describe("the recorder", () => {
     await recorder.target(5353, NVDA);
     await recorder.start(ABOUT);
     await expect(recorder.stop()).resolves.toEqual(STOPPED);
+    await recorder.close();
+  });
+
+  // Review Focus 1: after NVDA restarts, a recording is of the new NVDA or of nothing, never the old.
+  it("records nothing after a target it refuses, never the program before it", async () => {
+    const helper = fake({ refuse: [5353] });
+    const recorder = await startRecorder({ spawnRecorder: helper.spawnRecorder });
+    await recorder.target(4242, NVDA);
+    await recorder.start(HOME);
+    await recorder.stop();
+    await rejectsWith(
+      recorder.target(5353, NVDA),
+      String.raw`process 5353 runs C:\Windows\System32\notepad.exe, not ${NVDA}`,
+    );
+    await rejectsWith(recorder.start(ABOUT), "the recorder has no program to record");
     await recorder.close();
   });
 

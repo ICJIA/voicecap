@@ -49,6 +49,8 @@ export interface Recorder {
   /**
    * Points the recorder at process `pid`, once Windows says its program is `image` (letter case
    * aside). Not while it records. Its exit, whenever it comes, is kept for the stops that follow.
+   * The recorder forgets its previous target first: after a target it refuses, it records nothing
+   * until it takes another.
    */
   target(pid: number, image: string): Promise<void>;
   /** Records the target into `pcmPath`, as 16 kHz mono 16-bit PCM, from now until stop(). */
@@ -103,6 +105,12 @@ export type SpawnRecorder = (
  * - **The thread.** One MTA thread at AboveNormal priority, started with the first recording and
  *   kept, makes, uses, and releases every COM object, one recording after another. PowerShell's own
  *   thread only hands it each recording, and waits for it to start or end.
+ * - **The release.** However a recording ends, a stream that started is stopped (a second Stop()
+ *   does nothing), and every COM object is released. The activation's operation reaches managed
+ *   code twice, as ActivateAudioInterfaceAsync's out parameter and as the handler's argument, so its
+ *   wrapper counts 2 and is released with FinalReleaseComObject: ReleaseComObject left it, and the
+ *   IAudioClient it holds, to a garbage collection, a recording at a time. A handler called after
+ *   the 3 seconds gets a new wrapper.
  * - **The timeline.** Frame 0 is the moment of IAudioClient.Start(). Each packet is placed at its QPC
  *   timestamp, in 100 ns units, 625 to a frame: the device position is always 0, so QPC is the only
  *   clock. Packets come every 10 ms, silence included, and a gap of 2 ms (32 frames) or more before
@@ -121,8 +129,10 @@ export type SpawnRecorder = (
  *   it has a packet that ends at or after that moment, or 30 ms have passed, and the file is then cut
  *   or filled to end there exactly.
  * - **The target.** QueryFullProcessImageName checks the process's program against the one named.
- *   The helper keeps the process's handle until the next target, so its id can't be given to another
- *   process meanwhile: a recording of a process that has exited is silent, never another program's.
+ *   A target command forgets the previous target first, so after one it refuses there's nothing to
+ *   record: never the NVDA that was there before (Review Focus 1). The helper keeps the process's
+ *   handle until the next target, so its id can't be given to another process meanwhile: a
+ *   recording of a process that has exited is silent, never another program's.
  *   The handle shows the exit: PowerShell's loop asks every 20 ms, and says so once (target-exited).
  *   A stop says so (targetExited) from then on, until the next target.
  */
@@ -228,10 +238,11 @@ file.Flush();
 } catch (Exception e) {
 Error = e is Failure ? e.Message : e is IOException ? "the PCM file couldn't be written (" + e.Message + ")" : e.Message;
 } finally {
+if (Running) client.Stop();
 if (file != null) { try { file.Dispose(); } catch (Exception) { } if (!Running) try { File.Delete(Pcm); } catch (Exception) { } }
 if (capture != null) Marshal.ReleaseComObject(capture);
 if (client != null) Marshal.ReleaseComObject(client);
-if (operation != null) Marshal.ReleaseComObject(operation);
+if (operation != null) Marshal.FinalReleaseComObject(operation);
 if (ready != null) ready.Dispose();
 if (operation == null || activation.Done.WaitOne(0)) { Marshal.FreeHGlobal(parameters); Marshal.FreeHGlobal(variant); }
 Marshal.FreeHGlobal(format);
@@ -277,6 +288,8 @@ public static string Ready(int build) { return "{\"ready\":{\"build\":" + build 
 public static string Error(string why) { return "{\"error\":" + Text(why) + "}"; }
 public static string Target(int pid, string image) {
 if (current != null) return Error("the recorder can't change programs while it records");
+if (target != IntPtr.Zero) Native.CloseHandle(target);
+target = IntPtr.Zero; targetPid = 0; exitSaid = false;
 IntPtr process = Native.OpenProcess(0x101000, false, pid);
 if (process == IntPtr.Zero) { int code = Marshal.GetLastWin32Error(); return Error(code == 87 ? "process " + pid + " isn't running" : "process " + pid + " can't be opened (Windows error " + code + ")"); }
 var name = new StringBuilder(32768); int size = name.Capacity;
@@ -286,8 +299,7 @@ if (!read || !string.Equals(Full(program), Full(image), StringComparison.Ordinal
 Native.CloseHandle(process);
 return Error(read ? "process " + pid + " runs " + program + ", not " + image : "process " + pid + "'s program can't be read (Windows error " + error + ")");
 }
-if (target != IntPtr.Zero) Native.CloseHandle(target);
-target = process; targetPid = pid; exitSaid = false;
+target = process; targetPid = pid;
 return "{\"targeted\":{\"pid\":" + pid + "}}";
 }
 public static string Start(string pcm) {
@@ -354,7 +366,8 @@ const BUILD_LOOKUP = String.raw`[int](Get-ItemProperty -LiteralPath 'HKLM:\SOFTW
  * at a time, and between waits writes {"target-exited":{"pid":N}} when the target has exited. It
  * reads each line as data (ConvertFrom-Json) and answers it with one line:
  * - {"target":{"pid":N,"image":"…"}}: {"targeted":{"pid":N}}, or {"error":…} when the process isn't
- *   running, its program isn't `image`, or a recording is running;
+ *   running, its program isn't `image`, or a recording is running. Unless a recording is running,
+ *   the previous target is forgotten either way;
  * - {"start":{"pcm":"…"}}: {"started":{"at":"…"}}, the UTC time of frame 0, or {"error":…};
  * - {"stop":true}: {"stopped":{…RecorderStop}}, or {"error":…} when the recording failed, as it does
  *   when the sound device goes away; the next start records afresh;
@@ -589,10 +602,15 @@ export async function startRecorder(
   let closing: Promise<void> | null = null;
   return {
     target(pid, image) {
-      return send({ target: { pid, image } }, "targeted", () => {
+      const targeting = send({ target: { pid, image } }, "targeted", () => {
         target = pid;
         targetExited = false;
       });
+      // Sent: the helper forgets its target before it looks at this one, whether or not it takes
+      // it, and so does this.
+      target = null;
+      targetExited = false;
+      return targeting;
     },
     start(pcmPath) {
       return send({ start: { pcm: pcmPath } }, "started", () => undefined);

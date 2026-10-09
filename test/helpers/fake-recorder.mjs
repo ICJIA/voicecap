@@ -12,7 +12,11 @@
  *   - exitedAfterStart: true, to say its target exited as soon as it has answered a start, once;
  *   - ignore: the commands it never answers, by name ("target", "start", "stop", or "quit");
  *   - exitOn: a command it ends on, by name, with exit code 3, after saying so on its error output;
- *   - stay: true, to never end on its own: not on a quit, and not when its input ends.
+ *   - stay: true, to never end on its own: not on a quit, and not when its input ends;
+ *   - refuse: process ids whose targets it refuses, saying their program is Notepad.
+ *
+ * As the real helper does, it forgets its target as soon as it's sent another, whether or not it
+ * takes it, and refuses a start when it has no target.
  *
  * Before anything else, it echoes each line it reads: {"read":<the command>,"line":<the line as it
  * came>}. The client doesn't know that line and skips it, and a test that watches the fake's output
@@ -81,8 +85,16 @@ function serve() {
     }
     if (ignore.has(name)) return;
     if (name === "target") {
-      target = command.target.pid;
-      send({ targeted: { pid: target } });
+      const { pid, image } = command.target;
+      target = null;
+      if ((script.refuse ?? []).includes(pid)) {
+        send({ error: `process ${pid} runs C:\\Windows\\System32\\notepad.exe, not ${image}` });
+      } else {
+        target = pid;
+        send({ targeted: { pid } });
+      }
+    } else if (name === "start" && target === null) {
+      send({ error: "the recorder has no program to record" });
     } else if (name === "start") {
       send({ started: { at: STOPPED.firstSampleAt } });
       if (script.exitedAfterStart === true && !exitSaid) {

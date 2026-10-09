@@ -101,6 +101,8 @@ describe.runIf(process.platform === "win32" && process.env.VOICECAP_SOUND_TEST =
       const target = sleeper(ctx, 3);
       const recorder = await startRecorder();
       ctx.onTestFinished(() => recorder.close());
+      // Taken first, as the NVDA a run started is, then refused, as a new one could be.
+      await recorder.target(target.pid, POWERSHELL);
       const nvda = String.raw`C:\Program Files (x86)\NVDA\nvda.exe`;
       const error = await recorder.target(target.pid, nvda).then(
         () => null,
@@ -110,7 +112,7 @@ describe.runIf(process.platform === "win32" && process.env.VOICECAP_SOUND_TEST =
       expect(errorMessage(error).toLowerCase()).toBe(
         `process ${target.pid} runs ${POWERSHELL}, not ${nvda}`.toLowerCase(),
       );
-      // With no program to record, it records nothing.
+      // The program it had before is forgotten: it records nothing, never that one.
       await expect(recorder.start(path.join(await folder(ctx), "none.pcm"))).rejects.toThrow(
         "the recorder has no program to record",
       );
