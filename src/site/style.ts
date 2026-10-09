@@ -134,7 +134,8 @@
  *   small capitals. A command or a name in a table keeps to one line, and each table has a width
  *   its columns can be read at, so on a phone it scrolls in its box. Related documents is a card of
  *   four cards, two a row where each has 19rem, each on the second panel, with a small label, its
- *   title, a link in the headline's color, and a line in the quieter one;
+ *   title, a link, in --link and underlined, as every card's title that's a link is, and a line in
+ *   the quieter one;
  * - the bottom bar has a line above it, then one row of six items, centered in the bars' column,
  *   small (0.875rem), in the quieter color, each link its icon and its words, as the audit tool's
  *   is. On a phone the row wraps, each of its rows centered. Its dividers are a thin line before
@@ -417,12 +418,11 @@ tbody th { font-size: inherit; font-weight: 700; line-height: inherit; letter-sp
 table.commands, table.defaults, table.rules { min-width: 32rem; }
 table.passes { min-width: 40rem; }
 table.toolchain { min-width: 48rem; }
-/* related documents: a card of four cards, two a row where each has 19rem, each on the second panel, with its small label, its title, a link in the headline's color, and a line in the quieter one */
+/* related documents: a card of four cards, two a row where each has 19rem, each on the second panel, with its small label, its title, a link, in --link and underlined, as every card's title that's a link is, and a line in the quieter one */
 .related-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); gap: 12px; }
 .related-cards > .card { gap: 4px; padding: 16px 18px; border-radius: 10px; background: var(--panel-2); }
 .related-cards > .card > .kicker { font-size: calc(0.75rem * var(--caps-scale)); }
 .related-cards > .card > h3 { color: var(--heading); font-size: 1.0625rem; font-weight: 700; }
-.related-cards > .card > h3 a { color: inherit; }
 .related-cards > .card > p:not(.kicker) { color: var(--muted); font-size: 0.9375rem; }
 /* the bottom bar, as the audit tool's: a line above it, then one row of six items, small, quieter, and centered, which wraps on a phone, each row centered. A thin line comes before each item but the first, drawn by the style alone, so a screen reader hears a list of six. A link is its icon and its words, which go under the icon where there's no room for both, and the version is plain text. */
 footer { border-top: 1px solid var(--line); padding-block: 22px 32px; color: var(--muted); font-size: 0.875rem; }

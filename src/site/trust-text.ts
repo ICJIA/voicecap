@@ -79,9 +79,12 @@ export const TRUST_TEXT = {
      * between its two sides. Its label, at the left, says where the counts come from: the version
      * and the day it was released, and the records. The law's numbers are no count, and nor is the
      * version whose reports began to keep screenshots, so it says "the counts", not every number.
-     * The records' date, big, at the right, is when the newest report was shared: "As of 3 October
-     * 2026, 14:05", which the label reads into, or, with no report, that none has been shared, which
-     * reads as well after it.
+     * The records' date, big, at the right, is when the newest report was shared, in 0.13.2's
+     * words: "Records as of 3 October 2026, 14:05". It dates the records alone. The counts of
+     * voicecap's own (its tests, its releases) are its release's, of the day the label gives, which
+     * is often after the newest report; a big date with no more than "As of" would date every count
+     * below, falsely. With no report, the date's side says none has been shared, which reads as well
+     * after the label.
      */
     stamp: {
       label: (version: string, released: string | null): string => {
@@ -92,7 +95,7 @@ export const TRUST_TEXT = {
         return `The counts below come from voicecap ${version}, ${when}, and from this website's records`;
       },
       date: (newest: string | null): string =>
-        newest === null ? NO_REPORT : `As of ${dateAndTime(newest)}`,
+        newest === null ? NO_REPORT : `Records as of ${dateAndTime(newest)}`,
     },
   },
   /**

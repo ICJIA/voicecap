@@ -365,10 +365,13 @@ describe("renderTrustPage", () => {
     expect(html).toMatch(
       /\n<div class="stamp"><p class="source">[^<]*<\/p><p class="date">[^<]*<\/p><\/div>\n/,
     );
+    // The date dates the records alone, as 0.13.2's stamp said it: the counts of voicecap's own
+    // (its tests, its releases) are its release's, of the day the label gives, which is often after
+    // the newest report. One big date that read "As of" would date every count below, falsely.
     expect(stampOf(html)).toEqual({
       label:
         "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
-      date: "As of 3 October 2026, 14:05",
+      date: "Records as of 3 October 2026, 14:05",
     });
     // With no report, the date's side says so, and the label reads as well before it.
     expect(stampOf(pageWith({ records: NO_REPORTS }))).toEqual({
@@ -386,7 +389,7 @@ describe("renderTrustPage", () => {
     expect(other).toEqual({
       label:
         "The counts below come from voicecap 9.8.7, released 3 March 2025, and from this website's records",
-      date: "As of 4 March 2025, 08:09",
+      date: "Records as of 4 March 2025, 08:09",
     });
   });
 
@@ -501,7 +504,7 @@ describe("renderTrustPage", () => {
     expect(stampOf(html)).toEqual({
       label:
         "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
-      date: "As of 3 October 2026, 14:05",
+      date: "Records as of 3 October 2026, 14:05",
     });
     // The newest share of every report shown, the demo's too.
     expect(RECORDS.newest).toBe(DVFR_NEWEST.at);
@@ -543,7 +546,7 @@ describe("renderTrustPage", () => {
     expect(stampOf(pageWith({ voicecap: { ...FACTS, released: null } }))).toEqual({
       label:
         "The counts below come from voicecap 0.13.2, whose release date isn't recorded in this build, and from this website's records",
-      date: "As of 3 October 2026, 14:05",
+      date: "Records as of 3 October 2026, 14:05",
     });
 
     // No report at all, not even the demo's. With no file, there is nothing to say "each" of.
@@ -583,7 +586,7 @@ describe("renderTrustPage", () => {
 
     const page = pageWith({ records });
 
-    expect(stampOf(page).date).toBe("As of 29 September 2026, 15:40");
+    expect(stampOf(page).date).toBe("Records as of 29 September 2026, 15:40");
     expect(tileOf(page, 1)).toEqual({
       looks: "—",
       heard: "not recorded",
@@ -1095,8 +1098,9 @@ describe("renderTrustPage", () => {
       expect(hrefs.filter((href) => !allowed.has(href))).toEqual([]);
       // And it links to each of them: the website's pages, from its bars and its way back, and
       // What's New from its releases too, when it has more than five; the reports on the front
-      // page; its own parts, the README's, the law's sources, GitHub, and the CHANGELOG. npm is
-      // Technical details' to link.
+      // page; its own parts, the README's, the law's sources, GitHub, and the CHANGELOG. voicecap's
+      // page on npm isn't among them: its line of links went with 0.15.0, and Technical details'
+      // toolchain table links it, in voicecap's own row.
       expect(new Set(hrefs)).toEqual(allowed);
       expect(hrefs).not.toContain(NPM);
       // Each of its own anchors lands on something in the page.

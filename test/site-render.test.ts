@@ -2199,13 +2199,21 @@ describe("SITE_CSS", () => {
     expect(declarationsFor(SITE_CSS, "h1 .good")).toEqual(["color: var(--good)", "display: block"]);
   });
 
-  it("draws a link in a trust card's heading as a link, and a release's version as What's New's pill", () => {
-    // A link is in --link, and underlined, as the spec's colors have every link: a card's heading,
-    // in --good, leaves a link in it alone. Technical details' related documents keep their titles'
-    // links in the headline's color, as the audit tool's are.
+  it("draws a card's title that's a link as a link on every page, and a release's version as What's New's pill", () => {
+    // A link is in --link, and underlined, as the spec's colors have every link: a card's heading
+    // leaves a link in it alone, the trust page's cards' in --good and Technical details' related
+    // documents' in the headline's color alike. No rule anywhere gives a heading's link its own
+    // color.
     expect(declarationsFor(SITE_CSS, ".card > h3")).toContain("color: var(--good)");
-    expect(cssRules(SITE_CSS).map(({ prelude }) => prelude)).not.toContain(".card > h3 a");
-    expect(declarationsFor(SITE_CSS, ".related-cards > .card > h3 a")).toEqual(["color: inherit"]);
+    expect(declarationsFor(SITE_CSS, ".related-cards > .card > h3")).toContain(
+      "color: var(--heading)",
+    );
+    expect(
+      cssRules(SITE_CSS)
+        .flatMap(({ prelude }) => prelude.split(","))
+        .map((selector) => selector.trim())
+        .filter((selector) => /\bh[1-6]\b[^,]*\ba\b/.test(selector)),
+    ).toEqual([]);
     // A release's line on the trust page is What's New's: its version a pill, and its day quieter.
     expect(declarationsFor(SITE_CSS, ".releases .on")).toEqual(
       declarationsFor(SITE_CSS, ".update-line"),

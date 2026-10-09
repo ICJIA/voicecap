@@ -2249,6 +2249,33 @@ describe("Technical details", () => {
     expect(await stopsUnderTheBar(page)).toEqual([]);
   });
 
+  it("draws each related document's title, a link, in --link and underlined, as the trust page draws its cards' titles, in both themes", async () => {
+    const [technical, trust] = [await open(files.technical), await open(files.trust)];
+    /** Each card title that's a link, on a page: its color, and its line. */
+    const titles = (page: Page) =>
+      page.evaluate(() =>
+        [...document.querySelectorAll(".card > h3 > a")].map((link) => {
+          const style = getComputedStyle(link);
+          return [style.color, style.textDecorationLine];
+        }),
+      );
+    // #60a5fa dark, #2563eb light: the link color, the same on both pages.
+    const link = { dark: "rgb(96, 165, 250)", light: "rgb(37, 99, 235)" };
+
+    for (const theme of ["dark", "light"] as const) {
+      const related = await titles(technical);
+      expect(related, theme).toEqual(TECHNICAL_TEXT.related.map(() => [link[theme], "underline"]));
+      // The trust page's three law cards, whose titles link to their sources.
+      expect(await titles(trust), theme).toEqual(
+        Array.from({ length: 3 }, () => [link[theme], "underline"]),
+      );
+      if (theme === "dark") {
+        await technical.locator("#theme-toggle").click();
+        await trust.locator("#theme-toggle").click();
+      }
+    }
+  });
+
   it("marks its own link in both bars as the page the reader is on, and takes the way back to the front page", async () => {
     const page = await open(files.technical);
 

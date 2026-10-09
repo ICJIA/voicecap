@@ -397,7 +397,15 @@ describe("renderTechnical", () => {
   });
 
   it("gives each npm tool the license of the package voicecap installs", () => {
-    const rows = TECHNICAL_TEXT.toolchain.filter(({ npm }) => npm !== undefined);
+    // voicecap's own package isn't one it installs: its row is held to its own package.json.
+    const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
+      name: string;
+      license: string;
+      dependencies: Record<string, string>;
+    };
+    const rows = TECHNICAL_TEXT.toolchain.filter(
+      ({ npm }) => npm !== undefined && npm !== own.name,
+    );
     const shown = bodyOf(tableOf(html, "toolchain"));
 
     expect(rows.length).toBeGreaterThan(10);
@@ -409,15 +417,35 @@ describe("renderTechnical", () => {
       expect(shown.find(([name]) => name === tool)?.[2], npm).toBe(license);
     }
     // Every package voicecap installs to run has its row, and voicecap's own license is its own.
-    const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
-      license: string;
-      dependencies: Record<string, string>;
-    };
     expect(
       Object.keys(own.dependencies).filter((name) => !rows.some((row) => row.npm === name)),
     ).toEqual([]);
     expect(TECHNICAL_TEXT.toolchain.find(({ tool }) => tool === "voicecap")?.license).toBe(
       own.license,
+    );
+  });
+
+  it("links voicecap's own row to its page on npm, as each package's row links its own", () => {
+    const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
+      name: string;
+    };
+    const voicecap = TECHNICAL_TEXT.toolchain.find(({ tool }) => tool === "voicecap");
+
+    // Its package, the package.json's own name, and its name in the table the link to its page.
+    expect(voicecap?.npm).toBe(own.name);
+    expect(own.name).toBe("@icjia/voicecap");
+    expect(tableOf(html, "toolchain")).toContain(
+      '<a href="https://www.npmjs.com/package/@icjia/voicecap">voicecap</a>',
+    );
+    // The page links it once, and the website nowhere else: the trust page's line of links went with
+    // 0.15.0. GitHub, its source, is still linked here, by "Source on GitHub" and the bottom bar.
+    const hrefs = linksOf(html).map(({ href }) => href);
+    expect(hrefs.filter((href) => href === `${NPM}@icjia/voicecap`)).toHaveLength(1);
+    expect(hrefs).toContain(GITHUB);
+    // The words under the table say whose license each npm row gives: voicecap installs every
+    // package but its own.
+    expect(textOf(partOf(html, "the-toolchain"))).toContain(
+      "Each npm package's license is that of the package voicecap installs, or, for voicecap itself, of its own package, and voicecap's tests check each. NVDA, Chromium, and Node.js link to their source.",
     );
   });
 

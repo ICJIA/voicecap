@@ -141,9 +141,12 @@ export interface Tool {
   license: string;
   /** Where in voicecap it's used. */
   where: string;
-  /** The npm package voicecap installs, whose own `license` the row's is held to by a test. */
+  /**
+   * Its package on npm: one voicecap installs, whose own `license` the row's is held to by a test,
+   * or voicecap's own, held to voicecap's package.json.
+   */
   npm?: string;
-  /** Where its source is, for a tool whose package voicecap doesn't install: voicecap's own too. */
+  /** Where its source is, for a tool with no package on npm: NVDA, Chromium, and Node.js. */
   source?: string;
 }
 
@@ -557,7 +560,7 @@ export const TECHNICAL_TEXT = {
       lead: "Each tool voicecap uses, what it does, its license, and where it's used.",
       columns: ["Tool", "Its job", "License", "Where it's used"],
       after:
-        "Each npm package's license is that of the package voicecap installs, which voicecap's tests check. NVDA, Chromium, and Node.js link to their source.",
+        "Each npm package's license is that of the package voicecap installs, or, for voicecap itself, of its own package, and voicecap's tests check each. NVDA, Chromium, and Node.js link to their source.",
     },
     privacy: {
       id: "privacy-and-security",
@@ -907,7 +910,7 @@ export const TECHNICAL_TEXT = {
       job: "Takes NVDA page by page, saves every word, and makes the reports and this website",
       license: "MIT",
       where: "The computer that runs it, and this website's build",
-      source: GITHUB,
+      npm: "@icjia/voicecap",
     },
   ] satisfies Tool[],
   /** The code that built this website, linked at its version's tag: what each part is, and where. */
