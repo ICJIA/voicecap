@@ -81,15 +81,15 @@ function withPages(
 }
 
 describe("the version that first keeps NVDA's log", () => {
-  it("is 0.18.0, and a run of it, its release candidates, and every later version keeps it", () => {
-    expect(KEEPS_NVDA_LOG_FROM).toBe("0.18.0");
-    for (const version of ["0.18.0", "0.18.0-rc.0", "0.18.1", "0.19.0", "0.100.0", "1.0.0"]) {
+  it("is 0.17.0, and a run of it, its release candidates, and every later version keeps it", () => {
+    expect(KEEPS_NVDA_LOG_FROM).toBe("0.17.0");
+    for (const version of ["0.17.0", "0.17.0-rc.0", "0.17.1", "0.18.0", "0.100.0", "1.0.0"]) {
       expect(keepsNvdaLog(version), version).toBe(true);
     }
   });
 
   it("is not a run of an earlier version, nor one that doesn't say which", () => {
-    for (const version of ["0.17.9", "0.14.0", "0.12.0", "0.11.0-rc.0", "0.4.1", "0.9.0"]) {
+    for (const version of ["0.16.9", "0.14.0", "0.12.0", "0.11.0-rc.0", "0.4.1", "0.9.0"]) {
       expect(keepsNvdaLog(version), version).toBe(false);
     }
     expect(keepsNvdaLog(null)).toBe(false);

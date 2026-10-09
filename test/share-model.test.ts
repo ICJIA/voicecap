@@ -2302,7 +2302,7 @@ describe("a run's NVDA log, checked against its transcripts", () => {
     notChecked: [],
   };
 
-  /** The model of a site folder voicecap 0.18.0 could have made of the real run, as `share` reads it. */
+  /** The model of a site folder voicecap 0.17.0 could have made of the real run, as `share` reads it. */
   async function fixtureModel(
     options: Parameters<typeof nvdaFixtureSite>[0] = {},
     keys: typeof gestureOf | null = gestureOf,
@@ -2477,8 +2477,8 @@ describe("a run's NVDA log, checked against its transcripts", () => {
       expect(logOf(await fixtureModel({ version: "0.11.0-rc.0" }))).toEqual({
         notRecorded: "Not recorded: this run used voicecap 0.11.0-rc.0.",
       });
-      expect(logOf(await fixtureModel({ version: "0.17.9" }))).toEqual({
-        notRecorded: "Not recorded: this run used voicecap 0.17.9.",
+      expect(logOf(await fixtureModel({ version: "0.16.9" }))).toEqual({
+        notRecorded: "Not recorded: this run used voicecap 0.16.9.",
       });
       // A run whose sessions recorded no environment doesn't say which.
       const run = keptLogsRun().run;

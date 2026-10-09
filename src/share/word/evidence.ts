@@ -218,7 +218,7 @@ function nvdaLogBlocks({ nvdaLog }: RunEvidence): Block[] {
 /**
  * A run: its title as a heading 2, when it ran and that it completed and was sealed, its facts, and
  * its five parts. The event log, minute by minute, is each session's summary and its table of
- * events (from voicecap 0.11.0); NVDA's own log, checked against the transcripts (from 0.18.0), is
+ * events (from voicecap 0.11.0); NVDA's own log, checked against the transcripts (from 0.17.0), is
  * the counts and the lines that differ, or says why not, as the model words it. The test
  * environment is a table. The fingerprints are a table, and after it how to check them against the
  * recorded files, with the command as a fixed-width block. The walkthrough file is last.

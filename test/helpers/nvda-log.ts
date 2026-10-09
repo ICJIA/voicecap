@@ -1,7 +1,7 @@
 /**
  * What the tests of NVDA's own log on the page are made from: cleaned copies of NVDA's log written
  * as NVDA writes one (`copyOf`, `pageEntries`), a run of three NVDA sessions that keeps them as
- * voicecap 0.18.0 does (`keptLogsRun`), its model with warnings and errors in a copy
+ * voicecap 0.17.0 does (`keptLogsRun`), its model with warnings and errors in a copy
  * (`keptLogsModel`, `problemEntry`), and the real run of 6 October 2026 in fixture/nvda-io-run
  * laid out as a site folder (`nvdaFixtureSite`).
  */
@@ -111,7 +111,7 @@ export interface KeptLogs {
 }
 
 /**
- * The logged run (share-model.ts's `loggedRun`) as voicecap 0.18.0 keeps NVDA's log. It has three
+ * The logged run (share-model.ts's `loggedRun`) as voicecap 0.17.0 keeps NVDA's log. It has three
  * NVDA sessions, as its event log tells: the first (26 September, 14:02:56 to 14:04:43) reads Home
  * in full and loses Apply to another window; the second (14:04:45 to 14:06:28) reads Apply again;
  * the third, 28 September, in the run's second session, reads Contact. Each stop is followed by a
@@ -163,7 +163,7 @@ export function keptLogsRun(): KeptLogs {
     ...Object.fromEntries([...copies].map(([name, text]) => [name, fileHash(text)])),
   };
   return {
-    run: usingVersion(withOwnFiles(logged, files), "0.18.0"),
+    run: usingVersion(withOwnFiles(logged, files), "0.17.0"),
     log: { events, unreadable: 0 },
     copies,
     transcripts: storeOf(),
@@ -242,13 +242,13 @@ export interface FixtureSiteParts {
 }
 
 /**
- * The real run of 6 October 2026 (fixture/nvda-io-run) as a site folder voicecap 0.18.0 could have
+ * The real run of 6 October 2026 (fixture/nvda-io-run) as a site folder voicecap 0.17.0 could have
  * made: the run in its folder, NVDA's cleaned log of its one session as nvda-log/1-1.txt, a
  * `screen-reader-log` event after NVDA's stop that names it, and the run's record, which lists the
  * event log and the copy and is sealed again. `change` edits any of them first.
  *
  * The fixture's own run is from voicecap 0.11.0-rc.0, so its record lists no copy and its log has
- * no such event; the run says it used `version` (by default 0.18.0). With `unlisted`, the copy is
+ * no such event; the run says it used `version` (by default 0.17.0). With `unlisted`, the copy is
  * written but the record doesn't list it. With `inHome`, the site's folder is in a transcripts home
  * of its own, named for the address voicecap read (127.0.0.1_4848), as the commands find a site;
  * `home` is that home. The site's latest.txt names the run.
@@ -289,7 +289,7 @@ export async function nvdaFixtureSite(
     ...(options.unlisted === true ? {} : { "nvda-log/1-1.txt": fileHash(parts.copy) }),
   };
   const { seal: _seal, ...unsealed } = parts.run;
-  const run = usingVersion({ ...unsealed, files }, options.version ?? "0.18.0");
+  const run = usingVersion({ ...unsealed, files }, options.version ?? "0.17.0");
   const sealed: RunJson = { ...run, seal: sealOf(run) };
   await writeFile(path.join(runFolder, "run.json"), `${JSON.stringify(sealed, null, 2)}\n`);
   await writeFile(path.join(siteDir, "latest.txt"), `${NVDA_FIXTURE.runId}\n`);

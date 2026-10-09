@@ -85,10 +85,10 @@ export function keepsEventLog(version: string | null): boolean {
 /**
  * The first version of voicecap that keeps a cleaned copy of NVDA's own log with each run. It is
  * one constant, which the places that say a run's voicecap kept no copy all go by, and it is set
- * again when the release is prepared, if the release that ships the copies changes. 0.12.0 to
- * 0.17.x shipped before the copies were kept.
+ * again when the release is prepared, if the release that ships the copies changes. 0.11.0 to
+ * 0.16.x kept the event log, and shipped before the copies were kept.
  */
-export const KEEPS_NVDA_LOG_FROM = "0.18.0";
+export const KEEPS_NVDA_LOG_FROM = "0.17.0";
 
 /** A version's major, minor, and patch numbers (a release candidate's suffix is dropped), or null. */
 function versionNumbers(version: string): [number, number, number] | null {

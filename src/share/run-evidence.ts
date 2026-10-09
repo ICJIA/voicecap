@@ -105,7 +105,7 @@ export interface RunEvidence {
   /** The run's screen reader, as its environment records it, which the timeline's chart names. */
   screenReader: string;
   /**
-   * Evidence C, NVDA's own log checked against the transcripts (from voicecap 0.18.0): the check,
+   * Evidence C, NVDA's own log checked against the transcripts (from voicecap 0.17.0): the check,
    * or what the page says in its place: that the run's voicecap kept no copy (`notRecordedBy`, for
    * an earlier one), or its screen reader isn't NVDA, or the check can't be shown or made, as
    * NVDA_LOG_TEXT words it. It is the evidence's alone: nothing the verdict, the ring, or What needs

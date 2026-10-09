@@ -19,7 +19,7 @@
  *
  * The mockup showed the evidence with two sample runs and a timeline drawn from a watcher's log. A
  * run records its own event log from voicecap 0.11.0, and the page draws each session's timeline
- * from it (./timeline.ts). A run records a cleaned copy of NVDA's own log from 0.18.0, and the page
+ * from it (./timeline.ts). A run records a cleaned copy of NVDA's own log from 0.17.0, and the page
  * shows it checked against the transcripts: three tiles (the mockup's `.cross`), the lines that
  * differ, and what the check left out. Where a run didn't record something, the model says "Not
  * recorded: this run used voicecap <version>", and so does the page. The walkthrough file the
@@ -271,7 +271,7 @@ function nvdaLogPart({ nvdaLog }: RunEvidence): string {
 /**
  * A run's fold, behind its id, when it ran, and chips that say it completed and was sealed. Inside:
  * its facts, then five parts: the event log, minute by minute (from voicecap 0.11.0), and NVDA's own
- * log, checked against the transcripts (from 0.18.0; each says what the run didn't record, as the
+ * log, checked against the transcripts (from 0.17.0; each says what the run didn't record, as the
  * model words it), the test environment, the fingerprints, and the walkthrough file that repeats
  * the run.
  */

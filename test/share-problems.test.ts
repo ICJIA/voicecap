@@ -2749,7 +2749,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     }
   });
 
-  it.each(["0.11.0", "0.14.0", "0.17.0"])(
+  it.each(["0.11.0", "0.14.0", "0.16.9"])(
     "still says NVDA's own log isn't recorded for a run of voicecap %s, and shows none of it",
     (version) => {
       const run = usingVersion(keptLogsRun().run, version);
@@ -2961,8 +2961,8 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
   });
 
   it("takes each attempt's entries from the copy of its own session, and gates each session by its voicecap", () => {
-    // Apply's attempt was in session 1 (voicecap 0.17.0, which kept no copy); Contact's, in session
-    // 2 (0.18.0), which did.
+    // Apply's attempt was in session 1 (voicecap 0.16.1, which kept no copy); Contact's, in session
+    // 2 (0.17.0), which did.
     const kept = keptLogsRun();
     const [home, apply, contact] = kept.run.pages;
     const failedContact = {
@@ -2979,7 +2979,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     };
     const { seal: _seal, ...unsealed } = kept.run;
     const run = usedVersions({ ...unsealed, pages: [home!, apply!, failedContact] }, [
-      "0.17.0",
+      "0.16.1",
       KEEPS_NVDA_LOG_FROM,
     ]);
     const copies = new Map(kept.copies)
@@ -2989,7 +2989,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
 
     expect(first?.page.slug).toContain("apply");
     expect(first?.notRecorded).toEqual([
-      "NVDA's own log: not recorded: this run used voicecap 0.17.0.",
+      "NVDA's own log: not recorded: this run used voicecap 0.16.1.",
     ]);
     expect(fromNvda(first)).toEqual([]);
     expect(second?.page.slug).toContain("contact");

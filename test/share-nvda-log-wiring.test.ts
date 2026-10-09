@@ -3,7 +3,7 @@
  * goes by and the page never imports from a driver: a run that completes, `voicecap report`,
  * `voicecap share`, and the functions under them. The real run of 6 October 2026 stands in for a
  * run of the voicecap that keeps NVDA's log (fixture/nvda-io-run, with its copy and its record laid
- * out as 0.18.0 would), and a scripted run does, with the version said to be 0.18.0.
+ * out as 0.17.0 would), and a scripted run does, with the version said to be 0.17.0.
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -24,10 +24,10 @@ import { copyOf, keyAt, nvdaFixtureSite, saidAt } from "./helpers/nvda-log.js";
 import { options, setup, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 
-// A run made now says it used voicecap 0.18.0, the first version to keep NVDA's log.
+// A run made now says it used voicecap 0.17.0, the first version to keep NVDA's log.
 vi.mock("../src/util/version.js", async (importOriginal) => {
   const actual = await importOriginal<typeof VersionModule>();
-  return { ...actual, voicecapVersion: () => "0.18.0" };
+  return { ...actual, voicecapVersion: () => "0.17.0" };
 });
 
 /** What the part says in place of the check, for a page made without NVDA's keys. */
@@ -156,6 +156,44 @@ describe("voicecap share", () => {
     );
     expect(await read(keyed)).toContain("<b>Every line agrees.</b>");
     expect(await read(bare)).toContain(esc(WITHOUT_KEYS));
+  });
+});
+
+describe("the package's entry", () => {
+  it("exports NVDA's keys, as the driver gives them", async () => {
+    const api = await import("../src/index.js");
+
+    expect(api.nvdaGestureOf).toBe(gestureOf);
+    // The key each command of a pass's steps presses, as NVDA's log has it.
+    const commands = ["toTop", "toBottom", "nextLine", "nextHeading", "nextFocusable"] as const;
+    expect(commands.map((command) => api.nvdaGestureOf(command))).toEqual([
+      "control+home",
+      "control+end",
+      "downArrow",
+      "h",
+      "tab",
+    ]);
+  });
+
+  it("gives a library caller of shareReport the check when it passes them as gestureOf", async () => {
+    const api = await import("../src/index.js");
+    const { home } = await nvdaFixtureSite({ inHome: true });
+
+    const shared = await api.shareReport({
+      site: SITE,
+      out: home,
+      reviewer: "Pat Lee",
+      cwd: home,
+      env: {},
+      logger: createMemoryLogger(),
+      now: new Date(2027, 0, 15, 10, 0),
+      gestureOf: api.nvdaGestureOf,
+    });
+
+    const page = await readFile(shared.files[0]?.path ?? "", "utf8");
+    expect(page).toContain(TILE);
+    expect(page).toContain("<b>Every line agrees.</b>");
+    expect(page).not.toContain("made without the keys");
   });
 });
 

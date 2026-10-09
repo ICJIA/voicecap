@@ -1190,7 +1190,7 @@ export const TIMELINE: TimelineRow[] = [
   {
     date: null,
     release: null,
-    pc: "NVDA's own log, checked against the transcripts, recorded at the PC.",
+    pc: "A security review of everything voicecap does on a PC.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },

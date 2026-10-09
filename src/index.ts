@@ -19,6 +19,10 @@ export { resolveHome, siteDirFor, siteFolder } from "./run/paths.js";
 export { chooseSiteDir } from "./run/site-dir.js";
 export { shareReport } from "./share/share.js";
 export type { ShareReportOptions, ShareReportResult } from "./share/share.js";
+// NVDA's keys, as NVDA's own log names them, which the page's check of that log goes by. shareReport
+// makes copies that say they were made without them unless it's given them as `gestureOf`; runAudit,
+// generateReport, addReview, and addManualSession pass them themselves.
+export { nvdaGestureOf } from "./drivers/index.js";
 // What `voicecap share` recorded in a site's share/shares.json, and the type readShares gives it
 // back as: each entry an object whose fields are unknown, since only that is checked.
 export { readShares } from "./share/shares.js";

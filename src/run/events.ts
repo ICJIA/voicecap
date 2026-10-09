@@ -29,7 +29,7 @@ export const EVENT_LOG = "events.jsonl";
 
 /**
  * The folder in a run's folder that holds the cleaned copies of the screen reader's own log, one
- * for each time voicecap's screen reader quit (from voicecap 0.18.0): "nvda-log/<session>-<n>.txt",
+ * for each time voicecap's screen reader quit (from voicecap 0.17.0): "nvda-log/<session>-<n>.txt",
  * the session's number in the run, then the copy's number in the session, each counting from 1.
  * The run lists each in its record (RunJson.files), as it lists the event log.
  */
