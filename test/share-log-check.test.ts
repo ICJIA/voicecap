@@ -9,8 +9,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
-import type { DriverCommand, PassName, RunJson, StepRecord, TranscriptJson } from "../src/model.js";
-import { checkAgainstLog, spokenAsLogged } from "../src/share/log-check.js";
+import type {
+  DriverCommand,
+  PassName,
+  RunEvent,
+  RunJson,
+  StepRecord,
+  TranscriptJson,
+} from "../src/model.js";
+import { type PassSteps, checkAgainstLog, spokenAsLogged } from "../src/share/log-check.js";
 
 const DAY = 86_400_000;
 const T0 = 8 * 3_600_000; // 08:00:00.000
@@ -58,6 +65,8 @@ function copyOf(...entries: string[][]): string {
 const STEP_MS = 1280;
 const KEY_MS = 270;
 const SPEECH_MS = 40;
+/** As in the real run: an attempt began 2 s or more before its page opened (NVDA+T). */
+const BEFORE_MS = 2000;
 
 interface Line {
   command: DriverCommand;
@@ -70,18 +79,23 @@ interface Line {
   logged?: string[][];
   /** false: NVDA logged no key for the step, as for the first Tab, which goes to the browser. */
   key?: boolean;
+  /** How long the step took, if not STEP_MS. */
+  ms?: number;
 }
 
 interface Pass {
   entries: string[][];
-  record: { page: string; pass: PassName; steps: StepRecord[] };
-  /** When the pass's last step ended. */
+  record: PassSteps;
+  /** When the page opened for the pass (its NVDA+T), and when the pass's last step ended. */
+  start: number;
   end: number;
 }
 
 /**
  * One pass, as a run reads it from `start`: voicecap opens the page (NVDA+T, with what NVDA says
- * of the window; Escape; Ctrl+Home, with the page's first line), then presses each step's key.
+ * of the window; Escape; Ctrl+Home, with the page's first line), then presses each step's key. It's
+ * read in a kept attempt of its own, from 2 s before the page opened to just after its last step;
+ * `attempt` puts a page's passes in one.
  */
 function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pass {
   const entries: string[][] = [
@@ -92,20 +106,31 @@ function passAt(start: number, page: string, pass: PassName, lines: Line[]): Pas
     said(start + 1263, "Top of the page"),
   ];
   const begin = start + 2300;
+  let elapsed = 0;
   const steps = lines.map((line, index): StepRecord => {
-    const pressed = begin + index * STEP_MS + KEY_MS;
+    const durationMs = line.ms ?? STEP_MS;
+    const pressed = begin + elapsed + KEY_MS;
     if (line.key !== false) entries.push(key(pressed, gestureOf(line.command)!));
     const logged = line.logged ?? [line.spoken.split(", ")];
     logged.forEach((items, k) => entries.push(said(pressed + SPEECH_MS + 9 * k, ...items)));
+    elapsed += durationMs;
     return {
       n: index + 1,
       command: line.command,
       spoken: line.spoken,
-      durationMs: STEP_MS,
-      offsetMs: (index + 1) * STEP_MS,
+      durationMs,
+      offsetMs: elapsed,
     };
   });
-  return { entries, record: { page, pass, steps }, end: begin + lines.length * STEP_MS };
+  const end = begin + elapsed;
+  const within = { from: iso(start - BEFORE_MS), to: iso(end + 50) };
+  return { entries, record: { page, pass, steps, within }, start, end };
+}
+
+/** A page's passes, read in one kept attempt: from 2 s before the first opened, to `to` (ms). */
+function attempt(passes: Pass[], to = passes.at(-1)!.end + 50): Pass[] {
+  const within = { from: iso(passes[0]!.start - BEFORE_MS), to: iso(to) };
+  return passes.map((pass) => ({ ...pass, record: { ...pass.record, within } }));
 }
 
 const READ: Line[] = [
@@ -113,6 +138,12 @@ const READ: Line[] = [
   { command: "toTop", spoken: "Skip to content, link" },
   { command: "nextLine", spoken: "heading, level 1, Welcome" },
   { command: "nextLine", spoken: "Read the guide." },
+];
+
+const ABOUT_READ: Line[] = [
+  ...READ.slice(0, 2),
+  { command: "nextLine", spoken: "heading, level 1, About us" },
+  { command: "nextLine", spoken: "We make examples." },
 ];
 
 function check(logs: string[], passes: Pass[], thrownOut: { from: string; to: string }[] = []) {
@@ -125,33 +156,52 @@ describe("checkAgainstLog on the real run of 6 October 2026 (fixture/nvda-io-run
   const FIXTURE = fileURLToPath(new URL("../fixture/nvda-io-run/", import.meta.url));
   const read = (...parts: string[]) => readFileSync(path.join(FIXTURE, ...parts), "utf8");
   const run = JSON.parse(read("run", "run.json")) as RunJson;
+  const events = read("run", "events.jsonl")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as RunEvent);
+  // Each page was read in one attempt, which the event log says began and ended when.
+  const moment = (type: "page-started" | "page-finished", page: string) =>
+    events.find((event) => event.type === type && event.page === page)!.at;
   const transcript = (slug: string, pass: PassName) =>
     JSON.parse(read("run", "pages", slug, `${pass}.json`)) as TranscriptJson;
-  // The seven pages' three passes, in the order the run read them.
-  const steps = run.pages.flatMap((page) =>
-    run.settings.passes.map((pass) => ({
-      page: page.url,
-      pass,
-      steps: transcript(page.slug, pass).steps,
-    })),
-  );
+  // The pages' three passes each, in the pages' order.
+  const stepsOf = (pages: RunJson["pages"]) =>
+    pages.flatMap((page) =>
+      run.settings.passes.map((pass) => ({
+        page: page.url,
+        pass,
+        steps: transcript(page.slug, pass).steps,
+        within: { from: moment("page-started", page.url), to: moment("page-finished", page.url) },
+      })),
+    );
+  // In the order the run read them.
+  const steps = stepsOf(run.pages);
   const log = read("nvda-log", "1-1.txt");
+  const everyStep = {
+    transcriptLines: 204,
+    logLines: 204,
+    agree: 204,
+    onlyInLog: [],
+    onlyInTranscripts: [],
+    // Of NVDA's 392 Speaking entries, 215 are the steps' (ten steps' speech spans two or three
+    // entries). The 177 outside are: 7 before voicecap's first key (the window that was in front,
+    // and the browser coming forward); 28 title checks (NVDA+T, as each of the 21 passes opened
+    // its page, and once at the end of each tab pass); 21 lines at the top of each page as it
+    // opened (Ctrl+Home, before each pass); and 121 between passes, as one browser closed and
+    // the next opened (another window, the new browser window, and its first focus).
+    outside: 177,
+  };
 
   it("agrees on every one of the run's 204 steps", () => {
-    expect(checkAgainstLog({ logs: [log], steps, thrownOut: [], gestureOf })).toEqual({
-      transcriptLines: 204,
-      logLines: 204,
-      agree: 204,
-      onlyInLog: [],
-      onlyInTranscripts: [],
-      // Of NVDA's 392 Speaking entries, 215 are the steps' (seven steps' speech spans two or three
-      // entries). The 177 outside are: 7 before voicecap's first key (the window that was in front,
-      // and the browser coming forward); 28 title checks (NVDA+T, as each of the 21 passes opened
-      // its page, and once at the end of each tab pass); 21 lines at the top of each page as it
-      // opened (Ctrl+Home, before each pass); and 121 between passes, as one browser closed and
-      // the next opened (another window, the new browser window, and its first focus).
-      outside: 177,
-    });
+    expect(checkAgainstLog({ logs: [log], steps, thrownOut: [], gestureOf })).toEqual(everyStep);
+  });
+
+  it("pairs each page in its own attempt's time, whatever order the pages come in", () => {
+    const reordered = stepsOf(run.pages.toReversed());
+    expect(checkAgainstLog({ logs: [log], steps: reordered, thrownOut: [], gestureOf })).toEqual(
+      everyStep,
+    );
   });
 
   it("holds what the check has to allow for: NVDA logs text before it speaks symbols", () => {
@@ -238,29 +288,37 @@ describe("checkAgainstLog on made-up logs", () => {
     ]);
     const kept = passAt(failed.end + 6000, HOME, "read", READ.slice(0, 3));
     const window = { from: iso(T0 - 400), to: iso(failed.end + 2000) };
-    const result = check([copyOf(...failed.entries, ...kept.entries)], [kept], [window]);
+    // The kept pass's window may be the page's whole time in the session, both attempts in it (as
+    // its record's startedAt and durationMs give it): the thrown-out window still sets the first
+    // attempt aside.
+    const wide = {
+      ...kept,
+      record: { ...kept.record, within: attempt([failed, kept])[0]!.record.within },
+    };
+    const result = check([copyOf(...failed.entries, ...kept.entries)], [wide], [window]);
     // Outside: the failed attempt's 5 Speaking entries, and the kept one's 2 as it opened.
     expect(result).toEqual({ transcriptLines: 3, logLines: 3, agree: 3, ...AGREED, outside: 7 });
   });
 
-  it("walks two logs (a restart) in order", () => {
+  it("walks two logs (a restart), in either order, pairing each pass in its attempt's time", () => {
     const home = passAt(T0, HOME, "read", READ);
-    const about = passAt(home.end + 30_000, ABOUT, "read", [
-      { command: "toBottom", spoken: "content info landmark, Example footer" },
-      { command: "toTop", spoken: "Skip to content, link" },
-      { command: "nextLine", spoken: "heading, level 1, About us" },
-      { command: "nextLine", spoken: "We make examples." },
-    ]);
+    const about = passAt(home.end + 30_000, ABOUT, "read", ABOUT_READ);
     const logs = [copyOf(...home.entries), copyOf(...about.entries)];
-    expect(check(logs, [home, about])).toEqual({
+    const expected = { transcriptLines: 8, logLines: 8, agree: 8, ...AGREED, outside: 4 };
+    expect(check(logs, [home, about])).toEqual(expected);
+    expect(check(logs.toReversed(), [home, about])).toEqual(expected);
+  });
+
+  it("pairs pages given out of time order (a resumed run reads its retried pages last)", () => {
+    const about = passAt(T0, ABOUT, "read", ABOUT_READ);
+    const home = passAt(about.end + 30_000, HOME, "read", READ);
+    expect(check([copyOf(...about.entries, ...home.entries)], [home, about])).toEqual({
       transcriptLines: 8,
       logLines: 8,
       agree: 8,
       ...AGREED,
       outside: 4,
     });
-    // In the other order, each page's steps would meet the other page's speech.
-    expect(check(logs.toReversed(), [home, about]).agree).toBeLessThan(8);
   });
 
   it("agrees on a step whose speech spans two Speaking entries, joined by '. '", () => {
@@ -314,22 +372,47 @@ describe("checkAgainstLog on made-up logs", () => {
     });
   });
 
-  it("leaves out what NVDA said after a pass's last step, as the next page opened", () => {
+  it("finds a long first Tab's speech, and never reaches back before its pass began", () => {
+    const tab = (ms: number): Line[] => [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false, ms },
+      { command: "nextFocusable", spoken: "Home, link" },
+      { command: "nextFocusable", spoken: "About, link" },
+    ];
+    // Half of 2.7 s reaches back past the Ctrl+Home voicecap pressed as the page opened.
+    const long = passAt(T0, HOME, "tab", tab(2700));
+    expect(check([copyOf(...long.entries)], [long])).toEqual({
+      transcriptLines: 3,
+      logLines: 3,
+      agree: 3,
+      ...AGREED,
+      outside: 2,
+    });
+    // Half of 7 s reaches back to before the page opened, where another window spoke.
+    const longer = passAt(T0, HOME, "tab", tab(7000));
+    const before = said(T0 - 600, "Inbox - Mail");
+    const result = check([copyOf(before, ...longer.entries)], [longer]);
+    expect(result).toEqual({ transcriptLines: 3, logLines: 3, agree: 3, ...AGREED, outside: 3 });
+  });
+
+  it("leaves out what NVDA said after a pause as long as half the step, inside the attempt", () => {
     const first: Line[] = [
       { command: "nextHeading", spoken: "Welcome, heading, level 1" },
       { command: "nextHeading", spoken: "no next heading" },
     ];
     const one = passAt(T0, HOME, "headings", first);
-    // Another window comes forward for a moment, inside the last step's time but after its words.
+    // Another window comes forward for a moment, inside the last step's time but after its words,
+    // and before the attempt has ended.
     const between = [
       said(one.end + 200, "Inbox - Mail"),
       said(one.end + 220, "Inbox - Mail", "window"),
     ];
+    const kept = attempt([one], one.end + 1000);
     const two = passAt(one.end + 4000, ABOUT, "headings", [
       { command: "nextHeading", spoken: "About us, heading, level 1" },
       { command: "nextHeading", spoken: "no next heading" },
     ]);
-    expect(check([copyOf(...one.entries, ...between, ...two.entries)], [one, two])).toEqual({
+    const log = copyOf(...one.entries, ...between, ...two.entries);
+    expect(check([log], [...kept, two])).toEqual({
       transcriptLines: 4,
       logLines: 4,
       agree: 4,
@@ -337,11 +420,14 @@ describe("checkAgainstLog on made-up logs", () => {
       outside: 6,
     });
     // A last step that differs lists only its own words.
-    const changed = passAt(T0, HOME, "headings", [
-      first[0]!,
-      { ...first[1]!, logged: [["No next heading"]] },
-    ]);
-    const result = check([copyOf(...changed.entries, ...between, ...two.entries)], [changed, two]);
+    const changed = attempt(
+      [passAt(T0, HOME, "headings", [first[0]!, { ...first[1]!, logged: [["No next heading"]] }])],
+      one.end + 1000,
+    );
+    const result = check(
+      [copyOf(...changed[0]!.entries, ...between, ...two.entries)],
+      [...changed, two],
+    );
     expect(result.onlyInLog).toEqual([
       { page: HOME, pass: "headings", step: 2, text: "No next heading" },
     ]);
@@ -364,7 +450,8 @@ describe("checkAgainstLog on made-up logs", () => {
       said(pressed + 1150, "Saving draft"),
       said(pressed + 1700, "Draft saved"),
     ];
-    const result = check([copyOf(...pass.entries, ...more)], [pass]);
+    const kept = attempt([pass], pass.end + 2000);
+    const result = check([copyOf(...pass.entries, ...more)], kept);
     expect(result).toEqual({ transcriptLines: 2, logLines: 2, agree: 2, ...AGREED, outside: 3 });
   });
 
@@ -469,6 +556,159 @@ describe("checkAgainstLog on made-up logs", () => {
     });
   });
 
+  it("within a page, gives a stretch two passes fit to the one that pairs more of its keys", () => {
+    // Two passes of one page that press the same key (the check is general): the first's only
+    // step has no key, so the stretch it fits is the second's.
+    const one = passAt(T0, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Address and search bar, edit", key: false },
+    ]);
+    const two = passAt(one.end + 5000, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Home, link" },
+      { command: "nextFocusable", spoken: "About, link" },
+    ]);
+    const log = copyOf(...one.entries, ...two.entries);
+    expect(check([log], attempt([one, two]))).toEqual({
+      transcriptLines: 4,
+      logLines: 3,
+      agree: 3,
+      onlyInLog: [],
+      onlyInTranscripts: [
+        { page: HOME, pass: "tab", step: 1, text: "Address and search bar, edit" },
+      ],
+      outside: 5,
+    });
+  });
+
+  it("lists a page's differences under that page, in a run of only tab passes", () => {
+    // Page 1's only Tab left the page (no key); page 2's log differs from its transcripts on both
+    // steps; page 3 says what page 2's transcripts say. Nothing moves to another page.
+    const one = passAt(T0, "P1", "tab", [
+      { command: "nextFocusable", spoken: "Address and search bar, edit", key: false },
+    ]);
+    const two = passAt(one.end + 5000, "P2", "tab", [
+      {
+        command: "nextFocusable",
+        spoken: "Skip to content, link",
+        key: false,
+        logged: [["Skip to MAIN content", "link"]],
+      },
+      {
+        command: "nextFocusable",
+        spoken: "Address and search bar, edit",
+        logged: [["Something else entirely"]],
+      },
+    ]);
+    const three = passAt(two.end + 5000, "P3", "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Address and search bar, edit" },
+    ]);
+    const log = copyOf(...one.entries, ...two.entries, ...three.entries);
+    expect(check([log], [one, two, three])).toEqual({
+      transcriptLines: 5,
+      logLines: 4,
+      agree: 2,
+      onlyInLog: [
+        { page: "P2", pass: "tab", step: 1, text: "Skip to MAIN content, link" },
+        { page: "P2", pass: "tab", step: 2, text: "Something else entirely" },
+      ],
+      onlyInTranscripts: [
+        { page: "P1", pass: "tab", step: 1, text: "Address and search bar, edit" },
+        { page: "P2", pass: "tab", step: 1, text: "Skip to content, link" },
+        { page: "P2", pass: "tab", step: 2, text: "Address and search bar, edit" },
+      ],
+      // The three pages' lines as they opened, and page 1's Tab, which has no key to pair.
+      outside: 7,
+    });
+  });
+
+  it("never pairs or lists an attempt Ctrl+C stopped, which leaves no record", () => {
+    // Page A's last pass is a tab pass whose only Tab left the page; then Ctrl+C stopped the
+    // next page's attempt in its tab pass.
+    const a = attempt([
+      passAt(T0, HOME, "read", READ),
+      passAt(T0 + 15_000, HOME, "headings", [
+        { command: "nextHeading", spoken: "no next heading" },
+      ]),
+      passAt(T0 + 25_000, HOME, "tab", [
+        { command: "nextFocusable", spoken: "Home - Browser, region", key: false },
+      ]),
+    ]);
+    const stopped = [
+      passAt(T0 + 35_000, ABOUT, "read", ABOUT_READ),
+      passAt(T0 + 50_000, ABOUT, "headings", [
+        { command: "nextHeading", spoken: "no next heading" },
+      ]),
+      passAt(T0 + 60_000, ABOUT, "tab", [
+        { command: "nextFocusable", spoken: "About secret link one", key: false },
+        { command: "nextFocusable", spoken: "About secret link two" },
+      ]),
+    ];
+    const log = copyOf(...[...a, ...stopped].flatMap((pass) => pass.entries));
+    const result = check([log], a);
+    expect(result).toEqual({
+      transcriptLines: 6,
+      logLines: 5,
+      agree: 5,
+      onlyInLog: [],
+      onlyInTranscripts: [{ page: HOME, pass: "tab", step: 1, text: "Home - Browser, region" }],
+      // A's three openings and its Tab's speech; the stopped attempt's three openings and steps.
+      outside: 6 + 1 + 6 + 7,
+    });
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+
+  it("takes only speech inside the pass's attempt, even within a step's time", () => {
+    const pass = passAt(T0, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      {
+        command: "nextHeading",
+        spoken: "no next heading. Saving draft",
+        logged: [["no next heading"], ["Saving draft"]],
+      },
+    ]);
+    // The attempt's record ends between the step's two entries.
+    const pressed = T0 + 2300 + STEP_MS + KEY_MS;
+    const cut = attempt([pass], pressed + SPEECH_MS + 4 - 250);
+    expect(check([copyOf(...pass.entries)], cut)).toEqual({
+      transcriptLines: 2,
+      logLines: 2,
+      agree: 1,
+      onlyInLog: [{ page: HOME, pass: "headings", step: 2, text: "no next heading" }],
+      onlyInTranscripts: [
+        { page: HOME, pass: "headings", step: 2, text: "no next heading. Saving draft" },
+      ],
+      outside: 3,
+    });
+  });
+
+  it("doesn't give a read pass a person's Down Arrow, pressed as the page loaded", () => {
+    const read = passAt(T0, HOME, "read", READ);
+    // Inside the attempt, before the page opened: one key of the pass's, at a step's moment.
+    const stray = [key(T0 - 1000, "downArrow"), said(T0 - 960, "Inbox - Mail, 3 unread")];
+    const result = check([copyOf(...stray, ...read.entries)], [read]);
+    expect(result).toEqual({ transcriptLines: 4, logLines: 4, agree: 4, ...AGREED, outside: 3 });
+    expect(JSON.stringify(result)).not.toContain("Inbox");
+  });
+
+  it("keeps a page's passes in order: a person's Tab as the page loaded isn't the tab pass's", () => {
+    const read = passAt(T0, HOME, "read", READ);
+    const headings = passAt(read.end + 5000, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "no next heading" },
+    ]);
+    const tab = passAt(headings.end + 5000, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Home, link" },
+    ]);
+    // Inside the attempt, before the page opened for its first pass.
+    const stray = [key(T0 - 1000, "tab"), said(T0 - 960, "Inbox - Mail, 3 unread")];
+    const log = copyOf(stray[0]!, stray[1]!, ...read.entries, ...headings.entries, ...tab.entries);
+    const result = check([log], attempt([read, headings, tab]));
+    expect(result).toEqual({ transcriptLines: 8, logLines: 8, agree: 8, ...AGREED, outside: 7 });
+    expect(JSON.stringify(result)).not.toContain("Inbox");
+  });
+
   it("follows a log across midnight, with a thrown-out attempt that spans it", () => {
     const late = DAY - 5000; // 23:59:55
     const failed = passAt(late, HOME, "read", READ);
@@ -479,7 +719,9 @@ describe("checkAgainstLog on made-up logs", () => {
     ]);
     const window = { from: iso(late - 100), to: iso(failed.end + 1000) };
     expect(window.to).toMatch(/^2026-10-10T00:00:/);
-    expect(check([copyOf(...failed.entries, ...kept.entries)], [kept], [window])).toEqual({
+    // The kept pass's window is the page's whole time, from before midnight.
+    const [, wide] = attempt([failed, kept]);
+    expect(check([copyOf(...failed.entries, ...kept.entries)], [wide!], [window])).toEqual({
       transcriptLines: 4,
       logLines: 4,
       agree: 4,
@@ -489,13 +731,30 @@ describe("checkAgainstLog on made-up logs", () => {
     });
   });
 
-  it("ignores a thrown-out window whose times can't be read", () => {
+  it("can't check a log against a thrown-out window whose times can't be read", () => {
     const pass = passAt(T0, HOME, "read", READ);
     const window = { from: "yesterday", to: "today" };
-    expect(check([copyOf(...pass.entries)], [pass], [window])).toMatchObject({
-      agree: 4,
-      ...AGREED,
-    });
+    expect(() => check([copyOf(...pass.entries)], [pass], [window])).toThrow(
+      'the window of a thrown-out attempt ("yesterday" to "today")',
+    );
+  });
+
+  it("can't check a pass whose attempt's times can't be read, or end before they begin", () => {
+    const pass = passAt(T0, HOME, "read", READ);
+    const unreadable = {
+      ...pass,
+      record: { ...pass.record, within: { from: "soon", to: "later" } },
+    };
+    expect(() => check([copyOf(...pass.entries)], [unreadable])).toThrow(
+      `the window of the read pass at ${HOME} ("soon" to "later")`,
+    );
+    const backwards = {
+      ...pass,
+      record: { ...pass.record, within: { from: iso(pass.end), to: iso(T0) } },
+    };
+    expect(() => check([copyOf(...pass.entries)], [backwards])).toThrow(
+      "the window of the read pass at",
+    );
   });
 
   it("with no copy of the log, has no step in it", () => {
@@ -514,29 +773,46 @@ describe("checkAgainstLog on made-up logs", () => {
   });
 });
 
-describe("spokenAsLogged: what NVDA logged, against what the transcript says it said", () => {
-  it.each([
-    ["Welcome | demo - Browser, region", "Welcome demo - Browser, region", "'|' left out"],
-    ["with read.txt in it.", "with read dot txt in it.", "'.' said by name"],
-    ['says only "edit".', "says only edit .", "quotation marks left out, the period kept"],
-    ["click here, .", "click here, dot", "a '.' on its own, said by name"],
-    ["for the permissions macOS asks for.", "for the permissions mac OS asks for.", "a word split"],
-    ["Done!", "Done bang!", "a symbol said by name, and kept"],
-    ["Up 5%", "Up 5 percent", "a symbol after a digit, said by name"],
-    ["  Two   spaces ", "Two spaces", "spaces"],
+describe("spokenAsLogged: what NVDA logged (its entries' items), against the transcript's line", () => {
+  it.each<[string[][], string, string]>([
+    [[["Welcome | demo - Browser", "region"]], "Welcome demo - Browser, region", "'|' left out"],
+    [[["with read.txt in it."]], "with read dot txt in it.", "'.' said by name"],
+    [[['says only "edit".']], "says only edit .", "quotation marks left out, the period kept"],
+    [[["click here", "."]], "click here, dot", "an item that's only a '.', said by name"],
+    [[["the permissions macOS asks for."]], "the permissions mac OS asks for.", "a word split"],
+    [[["Done!"]], "Done bang!", "a symbol said by name, and kept"],
+    [[["Up 5%"]], "Up 5 percent", "a symbol after a digit, said by name"],
+    [[["Next"], ["•"]], "Next. bullet", "an entry that's only a symbol, said by name"],
+    [[["Two   spaces"]], "Two spaces", "spaces"],
+    [[["A"], []], "A.", "an entry with no text, come through"],
+    [[["A"], []], "A", "an entry with no text, not come through"],
+    [[["A"], [], ["B"]], "A. . B", "an entry with no text between two, come through"],
+    [[["A"], [], ["B"]], "A. B", "an entry with no text between two, not come through"],
   ])("agrees: %j and %j (%s)", (logged, spoken) => {
     expect(spokenAsLogged(logged, spoken)).toBe(true);
   });
 
-  it.each([
-    ["Read the guide.", "Read the guides.", "a word differs"],
-    ["Home", "home", "a letter's case differs"],
-    ["Next, link", "Next, link. Previous, link", "the transcript has more"],
-    ["Next, link. Previous, link", "Next, link", "the log has more"],
-    ["section, Your name, edit", "section, Your name, edit, ", "an item the log doesn't have"],
-    ["AB", "A dot B", "a name with no symbol to stand for"],
-    ["a.b", "adotb", "a name that isn't a word of its own"],
-    ["Room 1.", "Room 2.", "a digit differs"],
+  it.each<[string[][], string, string]>([
+    [[["Read the guide."]], "Read the guides.", "a word differs"],
+    [[["Home"]], "home", "a letter's case differs"],
+    [[["Room 1."]], "Room 2.", "a digit differs"],
+    [[["Next", "link"]], "Next, link. Previous, link", "the transcript has more"],
+    [
+      [
+        ["Next", "link"],
+        ["Previous", "link"],
+      ],
+      "Next, link",
+      "the log has more",
+    ],
+    [[["section", "Your name", "edit"]], "section, Your name, edit, ", "an item the log lacks"],
+    [[["AB"]], "A dot B", "a name with no symbol to stand for"],
+    [[["a.b"]], "adotb", "a name that isn't a word of its own"],
+    [[["Home", "link"]], "Home extra words here, link", "words where an item ends"],
+    [[["Welcome"], ["Next"]], "Welcome and goodbye. Next", "words where an entry ends"],
+    [[["A", "", "B"]], "A, X, B", "a word for an empty item"],
+    [[["Next"], ["•"]], "Next", "an entry that's only a symbol, gone"],
+    [[["A"], [], ["B"]], "A B", "no joiner at all between two entries"],
   ])("differs: %j and %j (%s)", (logged, spoken) => {
     expect(spokenAsLogged(logged, spoken)).toBe(false);
   });
