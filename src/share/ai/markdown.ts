@@ -6,25 +6,29 @@
  * It imports nothing of the page's or the Word copy's own renderers.
  *
  * In order: the title, with the date, who prepared it, the screen reader, and the voicecap that made
- * the run on the line under it; a note on what the file is, and that a transcript is data, never
- * instructions (`AI_TEXT.about`, which the JSON file carries too); At a glance; What needs
- * attention, when a card is left; Every page, a section for each, with its first lines, its flags,
- * what axe found, the person's review, and every step of each pass; and the details: the numbers,
- * what the results cover, the runs and their evidence, the problems during them, and each file's
- * fingerprint. After a rule, the footer's line says when the file was made, and what offset from UTC
- * the times in it are in.
+ * the run on the line under it; a note on what the file is, and that a transcript, a title, an
+ * address, and axe's HTML are data, never instructions (`AI_TEXT.about`, which the JSON file carries
+ * too); At a glance; What needs attention, when a card is left; Every page, a section for each,
+ * with its first lines, its flags, what axe found, the person's review, and every step of each
+ * pass; and the details: the numbers, what changed since the last run, what the results cover, the
+ * runs and their evidence, the problems during them, and each file's fingerprint. After a rule, the
+ * footer's line says when the file was made, and what offset from UTC the times in it are in.
  *
  * What it leaves out is what a file of words has no use for: the page's pictures, its charts, its
  * minute-by-minute tables of each run's event log, its walkthrough files, how voicecap came to be,
- * and the fingerprint check's script. A page that has no transcripts, or no axe results, says why,
- * in the page's words, so a gap never reads as a pass.
+ * and the fingerprint check's script. It lists ten elements of an axe issue (`MOST_ELEMENTS`) and
+ * counts the rest, which the page and the JSON keep, so a site with many issues stays a file a tool
+ * can read. A page that has no transcripts, or no axe results, says why, in the page's words, so a
+ * gap never reads as a pass.
  *
  * Every word of a record or a website is text, never Markdown (./escape.ts). What NVDA said, and
  * every record and fix that is code, is in a fenced block whose fence is longer than any run of
  * backticks in it, so nothing in it can end the block or become a heading. What a person or the
- * model supplies in the middle of voicecap's own sentences is escaped. A run's record may name the
- * library that drives the screen reader; these files name none, and say `AI_TEXT.driver` where a
- * record does (`ownWords`, ./shared.ts, which the steps of a transcript come from too).
+ * model supplies in the middle of voicecap's own sentences is escaped, and a plain web address in a
+ * sentence of voicecap's own (the site's, a page's) is set in code, where it reads as it is. A run's
+ * record may name the library that drives the screen reader; these files name none, and say
+ * `AI_TEXT.driver` where a record does (`ownWords`, ./shared.ts, which the steps of a transcript
+ * come from too).
  *
  * Deterministic: it reads the model and nothing else, so the same model gives the same bytes. The
  * file ends with one newline. Pure.
@@ -43,7 +47,8 @@ import {
   type AxeView,
   type AxeViewRule,
 } from "../axe-view.js";
-import { count } from "../format.js";
+import type { DiffLine, OnlyInOnePage, PageChange } from "../changes.js";
+import { count, pagePath, pageTitle } from "../format.js";
 import { firstSentenceBold, type Inline, type Line } from "../line.js";
 import type {
   AppendixFile,
@@ -61,6 +66,7 @@ import {
   APPENDIX_TEXT,
   ATTENTION_TEXT,
   AXE_TEXT,
+  CHANGES_TEXT,
   COVERAGE_TEXT,
   DETAILS_TEXT,
   EVIDENCE_TEXT,
@@ -79,9 +85,13 @@ import {
   axeFingerprint,
   byteCount,
   capturedOf,
+  changedRules,
+  changesGist,
+  countsOf,
   decidedFrom,
   evidenceGist,
   fileFingerprint,
+  flagsLine,
   fromRun,
   generatedLine,
   glanceNumbersOf,
@@ -91,14 +101,19 @@ import {
   lineCount,
   manualLine,
   notRecordedLine,
+  onlyInOneLead,
+  onPage,
   originOf,
   pagesGist,
+  passHeading,
   problemTime,
   problemTitle,
   readCopyNote,
   recordTime,
   runTitle,
+  sameLines,
   sentence,
+  sizesOf,
   spokenDuration,
   testedLine,
   titleOf,
@@ -109,9 +124,11 @@ import {
 import {
   escapeInline,
   escapeLeading,
+  escapeSentence,
   fenced,
   inlineCode,
   markdownInline,
+  markdownSentence,
   markdownText,
 } from "./escape.js";
 import { ownWords, stepsOf } from "./shared.js";
@@ -141,8 +158,18 @@ const labelled = (words: string, said: string): Block =>
 /** An item of a list, its words escaped. */
 const item = (words: string, depth = 0): string => `${"  ".repeat(depth)}- ${markdownText(words)}`;
 
+/** An item of a list whose words are already Markdown: the words escaped, a name or address in code. */
+const markupItem = (markup: string, depth = 0): string => `${"  ".repeat(depth)}- ${markup}`;
+
 /** A list, an item for each of the words. */
 const bullets = (list: readonly string[]): Block => list.map((words) => item(words)).join("\n");
+
+/**
+ * A list of sentences of voicecap's own, an item for each: they may hold the addresses of the site's
+ * pages, which are set in code (`markdownSentence`).
+ */
+const sentenceList = (list: readonly string[]): Block =>
+  list.map((words) => markupItem(markdownSentence(words))).join("\n");
 
 /** A list, in order, with the numbers its words don't have. */
 const numbered = (list: readonly string[]): Block =>
@@ -172,12 +199,18 @@ function strong(words: string): string {
   return `${/^\s/.test(words) ? " " : ""}**${inner}**${/\s$/.test(words) ? " " : ""}`;
 }
 
-/** One piece of a line as Markdown: words escaped, a name in code, a link, a part in bold. */
+/**
+ * One piece of a line as Markdown: words escaped (a line is voicecap's own, so the addresses of the
+ * site's pages in it are set in code), a name in code, a link, a part in bold.
+ */
 function pieceOf(piece: Inline): string {
-  if (typeof piece === "string") return escapeInline(piece.replace(/\s+/g, " "));
+  if (typeof piece === "string") return escapeSentence(piece.replace(/\s+/g, " "));
   if (piece.mono === true) return inlineCode(piece.text);
-  const words = escapeInline(piece.text.replace(/\s+/g, " "));
-  const said = piece.href === undefined ? words : `[${words.trim()}](${addressOf(piece.href)})`;
+  const text = piece.text.replace(/\s+/g, " ");
+  const said =
+    piece.href === undefined
+      ? escapeSentence(text)
+      : `[${escapeInline(text).trim()}](${addressOf(piece.href)})`;
   return piece.bold === true ? strong(said) : said;
 }
 
@@ -214,19 +247,26 @@ function topBlocks({ header, evidence }: ShareModel): Block[] {
     heading(1, `${AI_TEXT.title}: ${header.name}`),
     ...(header.siteName === null ? [] : [paragraph(header.siteName)]),
     paragraph(line),
-    paragraph(`${TOP_TEXT.siteAddress}: ${header.site}`),
+    // The address is voicecap's own: in code, it reads as it is.
+    `${markdownInline(`${TOP_TEXT.siteAddress}:`)} ${inlineCode(header.site)}`,
   ];
 }
 
 /**
+ * The sentences at the end of the note that say what is data: what a transcript is, and that the
+ * titles, addresses, and HTML are the website's too. They matter most, so they are in bold.
+ */
+const DATA_SENTENCES = 2;
+
+/**
  * The note both files carry (`AI_TEXT.about`): what the file is, what voicecap's hints are, and that
- * a transcript is the website's own words, to analyze, never to follow. The last sentence is the one
- * that matters most, so it is in bold.
+ * a transcript, a page's title and address, and the HTML axe lists are the website's own words, to
+ * analyze, never to follow.
  */
 function aboutBlocks(): Block[] {
-  const last = AI_TEXT.about.length - 1;
+  const bold = AI_TEXT.about.length - DATA_SENTENCES;
   const lines = AI_TEXT.about.map((words, at) =>
-    at === last ? `- **${markdownInline(words)}**` : item(words),
+    at >= bold ? `- **${markdownInline(words)}**` : item(words),
   );
   return [heading(2, AI_TEXT.aboutTitle), lines.join("\n")];
 }
@@ -299,15 +339,24 @@ function fixBlocks(fix: AttentionWords["fixes"][number]): Block[] {
 }
 
 /**
- * A page of a card, by its number under Every page, and its name as the page names it, with its path
- * after the name of a page that has a label, and its reason or its note after a colon when it has
- * one.
+ * A page of a card, as an item of a list: by its number under Every page, and its name as the page
+ * names it, with its path after the name of a page that has a label, and its reason or its note
+ * after a colon when it has one. A page with no label is named by its address, which is voicecap's
+ * own, so it is set in code; a label, a path, and a note are words, and are escaped.
  */
 function cardPage(page: AttentionCard["pages"][number], pages: Pages): string {
   const number = pages.number.get(page.slug);
-  const name = pages.labeled.get(page.slug) === true ? `${page.name} (${page.path})` : page.name;
-  const detail = page.detail === null || page.detail.trim() === "" ? "" : `: ${page.detail}`;
-  return `${number === undefined ? "" : `${AI_TEXT.page(number)}: `}${name}${detail}`;
+  const labeled = pages.labeled.get(page.slug);
+  const name =
+    labeled === false
+      ? inlineCode(page.name)
+      : labeled === true
+        ? `${markdownInline(page.name)} (${markdownInline(page.path)})`
+        : markdownInline(page.name);
+  const detail =
+    page.detail === null || page.detail.trim() === "" ? "" : `: ${markdownInline(page.detail)}`;
+  const lead = number === undefined ? "" : `${markdownInline(`${AI_TEXT.page(number)}:`)} `;
+  return markupItem(`${lead}${name}${detail}`);
 }
 
 /** A card: its title and count, where NVDA said it, its cause, why it matters, its fixes, its path, and its pages. */
@@ -326,7 +375,7 @@ function cardBlocks(card: AttentionCard, number: number, pages: Pages): Block[] 
     label(`${labels.path}:`),
     numbered(words.path),
     label(`${card.pages.length === 1 ? labels.page : labels.pages}:`),
-    bullets(card.pages.map((page) => cardPage(page, pages))),
+    card.pages.map((page) => cardPage(page, pages)).join("\n"),
   ];
 }
 
@@ -482,29 +531,40 @@ function fixLines(words: string, summary: string): string[] {
 function elementLines(node: AxeViewRule["nodes"][number], saidOnce: boolean): string[] {
   return [
     `${AXE_TEXT.element}: ${axeSelector(node.target)}`,
-    `${AXE_TEXT.html}: ${node.html.replace(/\s*[\r\n]+\s*/g, " ")}`,
+    // One line: a run of spaces that holds a line break is one space.
+    `${AXE_TEXT.html}: ${node.html.replace(/\s+/g, (run) => (/[\r\n]/.test(run) ? " " : run))}`,
     ...(saidOnce ? [] : fixLines(AXE_TEXT.fix, node.failureSummary)),
   ];
 }
 
 /**
+ * The most elements of one axe issue the file lists. axe's file keeps up to 50 for a rule, each with
+ * up to 300 characters of HTML, so a site with many issues would make them most of the file; the
+ * page and the JSON keep them all. The rest are counted ("and 40 more elements").
+ */
+export const MOST_ELEMENTS = 10;
+
+/**
  * A rule axe found the page broke, or that needs review, as the card's fold has it: axe's words for
  * it as its heading, with its id in code; its impact and the WCAG success criteria it tests (or that
  * it's a best practice), as the fold's line says them; and, in a fence, axe's words on how to fix
- * its elements, once, when every element listed shares them, then the elements its file keeps, each
- * with its selector and HTML (and its own words when they differ), and how many more there were.
- * Last, axe's own page on the rule, when it is one.
+ * its elements, once, when every element its file keeps shares them, then the first `MOST_ELEMENTS`
+ * of the elements, each with its selector and HTML (and its own words when they differ), and how
+ * many more there were, those its file keeps and those it only counts. Last, axe's own page on the
+ * rule, when it is one.
  */
 function ruleBlocks(rule: AxeViewRule): Block[] {
   const criteria = axeCriteria(rule.tags);
   const about = [AXE_TEXT.impact(rule.impact), ...(criteria === "" ? [] : [criteria])].join(" · ");
   const shared = axeSharedFix(rule);
   const once = shared === null ? [] : fixLines(AXE_TEXT.fixShared(rule.nodes.length), shared);
-  const elements = rule.nodes.flatMap((node, at) => [
+  const listed = rule.nodes.slice(0, MOST_ELEMENTS);
+  const elements = listed.flatMap((node, at) => [
     ...(at === 0 ? [] : [""]),
     ...elementLines(node, shared !== null),
   ]);
-  const more = rule.moreNodes > 0 ? [AXE_TEXT.more(rule.moreNodes)] : [];
+  const unlisted = rule.nodes.length - listed.length + rule.moreNodes;
+  const more = unlisted > 0 ? [AXE_TEXT.more(unlisted)] : [];
   const evidence = [
     ...once,
     ...(once.length > 0 && elements.length > 0 ? [""] : []),
@@ -606,15 +666,19 @@ function pageBlocks(
 function noLongerListedBlocks(gone: NoLongerListed[]): Block[] {
   if (gone.length === 0) return [];
   const [, last = "", recorded = ""] = PAGES_TEXT.noLongerListedHead;
+  // A page with no label is named by its address, which is voicecap's own: in code. A label is words.
+  const named = ({ name, url }: NoLongerListed): string =>
+    name === url ? inlineCode(url) : `${markdownInline(name)} (${inlineCode(url)})`;
   return [
     heading(3, PAGES_TEXT.noLongerListed),
     paragraph(PAGES_TEXT.noLongerListedLead),
-    bullets(
-      gone.map(
-        ({ name, url, lastRun, lastStatus }) =>
-          `${name === url ? name : `${name} (${url})`}. ${last}: ${lastRun}. ${recorded}: ${lastStatus}.`,
-      ),
-    ),
+    gone
+      .map((page) =>
+        markupItem(
+          `${named(page)}. ${markdownInline(`${last}: ${page.lastRun}.`)} ${markdownInline(`${recorded}: ${page.lastStatus}.`)}`,
+        ),
+      )
+      .join("\n"),
   ];
 }
 
@@ -638,9 +702,104 @@ function pagesBlocks(model: ShareModel): Block[] {
 
 // The details.
 
-/** A part of the details, under its heading, with a list of lines: nothing when it has none. */
+/**
+ * A part of the details, under its heading, with a list of sentences of voicecap's own, which may
+ * hold the addresses of the site's pages: nothing when it has none.
+ */
 function listPart(title: string, lines: readonly string[]): Block[] {
-  return lines.length === 0 ? [] : [heading(3, title), bullets(lines)];
+  return lines.length === 0 ? [] : [heading(3, title), sentenceList(lines)];
+}
+
+// What changed since the last run.
+
+/**
+ * A pass's changes as the lines of a fence: each line's fate in the page's words ("Same", "Removed",
+ * "Added"), then the line as NVDA said it; a run of lines the same is counted ("… 12 lines the
+ * same"). The page marks the words that differ in a changed line; a fence can't, and shows the line.
+ */
+function changeLines(lines: DiffLine[]): string[] {
+  const { rows } = CHANGES_TEXT;
+  const width = Math.max(rows.same.length, rows.removed.length, rows.added.length) + ": ".length;
+  const said = (fate: string, text: string): string => `${fate}: `.padEnd(width) + text;
+  return lines.map((line) => {
+    switch (line.kind) {
+      case "collapsed":
+        return `${rows.collapsed} ${sameLines(line.count)}`;
+      case "same":
+        return said(rows.same, line.text);
+      case "removed":
+        return said(rows.removed, line.text);
+      case "added":
+        return said(rows.added, line.text);
+    }
+  });
+}
+
+/**
+ * A page that sounds different: its name and how many lines changed in each pass, as a heading; the
+ * rules whose flag went or came; each pass's changes, under a heading of its own with the page's
+ * address and how many lines; each pass that sounds different but whose transcript can't be read; and
+ * each flag.
+ */
+function changedPageBlocks(page: PageChange): Block[] {
+  const { resolved, fresh } = changedRules(page.flags);
+  const rules = [
+    ...resolved.map((rule) => `${inlineCode(rule)} ${markdownInline(CHANGES_TEXT.rules.resolved)}`),
+    ...fresh.map((rule) => `${inlineCode(rule)} ${markdownInline(CHANGES_TEXT.rules.fresh)}`),
+  ];
+  const flags = flagsLine(page.flags);
+  const address = pagePath(page.url);
+  return [
+    heading(4, `${pageTitle(page)}: ${countsOf(page)}`),
+    ...(rules.length === 0 ? [] : [rules.join("; ")]),
+    ...page.passes.flatMap((change) => [
+      heading(
+        5,
+        `${passHeading(change.pass)} ${onPage(address)}: ${sizesOf(change.removed, change.added)}`,
+      ),
+      ...(change.lines.length === 0 ? [] : [fenced(changeLines(change.lines))]),
+    ]),
+    ...page.unreadable.map((pass) => paragraph(CHANGES_TEXT.unreadable(pass))),
+    ...(flags === null ? [] : [lineOf(flags)]),
+  ];
+}
+
+/** The pages read in full in only one of the two runs, which can't be compared, each with its reason. */
+function onlyInOneBlocks(pages: OnlyInOnePage[]): Block[] {
+  if (pages.length === 0) return [];
+  return [
+    lineOf(onlyInOneLead(pages)),
+    pages
+      .map((page) =>
+        markupItem(
+          `**${markdownInline(pageTitle(page))}**: ${markdownInline(`${CHANGES_TEXT.reasons[page.reason]}.`)}`,
+        ),
+      )
+      .join("\n"),
+  ];
+}
+
+/**
+ * What changed since the last run, as the page has it: the tools or passes that differ between the
+ * two runs, the section's line, the two runs compared, the pages read in only one of them, and each
+ * page that sounds different, with what changed in each pass, line by line. With no run before to
+ * compare with, it says so, as the page does, under its heading.
+ */
+function changesBlocks({ changes }: ShareModel): Block[] {
+  const title = heading(3, CHANGES_TEXT.title);
+  if (changes === null) return [title, `**${markdownInline(CHANGES_TEXT.none)}**`];
+  const gist = changesGist(changes);
+  return [
+    title,
+    ...(changes.tools.length === 0
+      ? []
+      : [lineOf(CHANGES_TEXT.tools()), sentenceList(changes.tools.map(ownWords))]),
+    ...(changes.passesNote === null ? [] : [markdownSentence(changes.passesNote)]),
+    lineOf(firstSentenceBold(changes.line)),
+    ...(gist === null ? [] : [lineOf(gist)]),
+    ...onlyInOneBlocks(changes.onlyInOne),
+    ...changes.changed.flatMap(changedPageBlocks),
+  ];
 }
 
 /** What a bar's title says beside it, as a sentence of its own: with a capital and a full stop. */
@@ -674,7 +833,7 @@ function reviewBlocks({ bars }: Summary): Block[] {
 /** What these results cover, and the technical limits, as the model words them. */
 function coverageBlocks({ coverage }: ShareModel): Block[] {
   const panel = (title: string, lines: string[]): Block[] =>
-    lines.length === 0 ? [] : [label(title), bullets(lines.map(ownWords))];
+    lines.length === 0 ? [] : [label(title), sentenceList(lines.map(ownWords))];
   return [
     heading(3, COVERAGE_TEXT.title),
     ...panel(COVERAGE_TEXT.covered, coverage.covered),
@@ -836,9 +995,10 @@ function fingerprintBlocks({ evidence }: ShareModel): Block[] {
 
 /**
  * The details, for reviewers and auditors: their heading and line, then each part: what is still to
- * do, how complete the test was, and when and how; what the results cover; the two bars; the
- * evidence, a run each; the problems during the runs; and the fingerprints. Where no run counts there
- * is nothing to count, so the parts that are counts are left out, as the page leaves them out.
+ * do, how complete the test was, and when and how; what changed since the last run; what the
+ * results cover; the two bars; the evidence, a run each; the problems during the runs; and the
+ * fingerprints. Where no run counts there is nothing to count, so the parts that are counts are left
+ * out, as the page leaves them out.
  */
 function detailsBlocks(model: ShareModel): Block[] {
   const { summary } = model;
@@ -861,6 +1021,7 @@ function detailsBlocks(model: ShareModel): Block[] {
           ),
         ]
       : []),
+    ...changesBlocks(model),
     ...coverageBlocks(model),
     ...(counted ? [...rulesBlocks(summary), ...reviewBlocks(summary)] : []),
     ...evidenceBlocks(model),
