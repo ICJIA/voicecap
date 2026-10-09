@@ -5,7 +5,7 @@
 **Goal:** during a run, voicecap checks each page with axe-core on the first page load, before NVDA reads it. It keeps the results with the page, fingerprinted and sealed, and shows them on the page's card, in the shareable page and its Word copy.
 
 **Architecture:**
-- **The capture:** a pure module, `src/axe/results.ts`, holds axe's settings and turns axe's raw results into the kept JSON. The Guidepup driver runs axe-core's own script in the page it holds, through an optional driver method.
+- **The capture:** a pure module, `src/axe/results.ts`, holds axe's settings and turns axe's raw results into the kept JSON. The Guidepup driver runs axe-core's own script on the page it holds, in an isolated world of its own on the page's main frame, through the browser's DevTools connection and an optional driver method.
 - **The record:** the runner records the result beside the screenshot's, and verify checks it.
 - **The display:** the shareable page and the Word copy read the file back, check it, and draw it.
 
@@ -24,7 +24,7 @@
 - **Apart from the verdict:** the verdict, the ring, the four numbers, and "What needs attention" are exactly as they are without axe.
 - **NVDA is untouched:** axe runs once a page, on the first load, after `openPage`, before the first pass's first key. It never moves focus, scrolls, or adds an element to the page.
 - **Never a failure:** axe has its own 20-second limit. Any error or timeout becomes `{ error }`, and the page is read as usual. Only a browser that's gone stays an environment error.
-- **The kept file:** `pages/<slug>/axe.json` holds `schemaVersion: 1`, at most 50 elements a rule, and 300 characters of each element's HTML. Its keys are sorted, with a 2-space indent and a final newline, so the same results give the same bytes.
+- **The kept file:** `pages/<slug>/axe.json` holds `schemaVersion: 1`, at most 50 elements a rule, and at most 300 UTF-16 code units of each element's HTML (never splitting a character written with two). Its keys are sorted, with a 2-space indent and a final newline, so the same results give the same bytes.
 - **Sealed and verified like the screenshot:** a page record's `axe?` sits apart from `files`; `voicecap verify` checks the file; a run from before 0.16.0 passes.
 - **No `schemaVersion` bump,** no new run setting, and no change to walkthrough files.
 - **The shareable page's rules hold:** one style block, one runnable script, one data block, no `style` attribute, axe-clean in both themes at 1280, 390, and 320 pixels, and nothing wider than 320.
@@ -35,7 +35,7 @@
 
 ## Review Focus
 
-1. **A page whose own scripts break axe:** a page that redefines `Array.prototype` methods, or holds a global named `axe`, gives `{ error }` or a clean result, never a hung page or a failed one. *Test: Task 1.*
+1. **A page whose own scripts break axe:** a page that redefines `Array.prototype` methods, or holds a global named `axe`, gives a clean result, since axe runs in a world of its own that the page's scripts don't reach, and never a hung page or a failed one. *Test: Task 1.*
 2. **A huge page,** with hundreds of failing elements for one rule, keeps 50 and counts the rest. The file and the shareable page stay small. *Tests: Tasks 1, 3.*
 3. **axe's HTML snippets hold markup** (`<script>`, `&`, quotes), which comes out as text on the page and in the Word copy. *Tests: Tasks 3, 4.*
 4. **A retried or resumed page:** its `axe.json` moves to `attempts/` with the folder, the new attempt records its own, and verify agrees. *Test: Task 2.*
@@ -44,7 +44,7 @@
 ## Decisions this plan makes
 
 - **D1, one module for axe's settings and the kept JSON:** `src/axe/results.ts` imports nothing from Playwright. Its tests run without a browser.
-- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text, so a passing check vouches for what's shown.
+- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text, and the check holds what the fold shows to it, so a passing check vouches for those parts of what's shown: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them (said once for a rule when every element listed shares them). It doesn't vouch for the rest, which is drawn from the same text but isn't compared: the version line, each rule's impact and criteria lines, and the links.
 - **D3, a strict Content Security Policy in the browser test** comes from a `<meta http-equiv="Content-Security-Policy">` in a page the test writes, so the fixture server needs no change.
 - **D4, the README's card picture is shot again** (`report-pages.png`), since every card now has the fold.
 
@@ -81,7 +81,7 @@
 - [ ] **Step 1: Write the failing tests:**
   - **`axe-results`,** with a raw result built in the test:
     - "keeps at most 50 elements a rule, and counts the rest": 120 nodes give 50 kept and `moreNodes: 70`;
-    - "cuts an element's HTML to 300 characters";
+    - "cuts an element's HTML to 300 UTF-16 code units, never splitting a character": 299 `x`s and an emoji keep 299 units, and 298 and an emoji keep 300;
     - "counts violations, needs review, passes, and rules that didn't apply, and violations by impact";
     - "writes the same bytes for the same results": the keys are sorted at every level, with a 2-space indent and a final newline, and two calls with keys in a different order give equal strings;
     - "refuses something that isn't axe's results": `keptAxeResults({}, url)` throws;
@@ -90,19 +90,22 @@
     - "finds the demo site's known violations": on `/common-mistakes/`, the violations' ids are exactly `button-name`, `label`, and `page-has-heading-one`;
     - "runs on a page whose policy allows no script": the page's `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">` (D3) still gives results;
     - "moves no focus and scrolls nothing": `document.activeElement` and `scrollY` are the same before and after;
-    - "survives a page that breaks arrays, or names its own axe": `Array.prototype.map` replaced, or `window.axe = 1`, gives results or `{ error }` within the limit (Review Focus 1).
+    - "survives a page that breaks arrays, or names its own axe": `Array.prototype.map` replaced, `window.axe = 1`, or a non-writable `axe`, gives results within the limit, and leaves the page's own world as its scripts left it (Review Focus 1);
+    - "runs on a page that requires Trusted Types", and "adds nothing to the page": its HTML, `document.activeElement`, and the scroll positions are the same before and after.
   - **`guidepup-driver`:**
     - "gives an error, and keeps the page, when axe fails or takes too long": a session whose `runAxe` rejects, or never settles (fake timers past `AXE_LIMIT_MS`), gives `{ error }`;
     - "says the browser is gone as an environment error".
 - [ ] **Step 2:** Run `pnpm exec vitest run test/axe-results.test.ts test/chrome-session.test.ts test/guidepup-driver.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement `src/axe/results.ts`.** `KeptRule.impact` is axe's `impact`, or `null`. The canonical JSON comes from a recursive key sort, then `JSON.stringify(value, null, 2) + "\n"`.
 - [ ] **Step 4: Implement the browser's side.**
-  - `ChromeSession.runAxe(script: string): Promise<unknown>`, through `onPage`, so a gone browser is an `EnvironmentError`:
-    - `page.evaluate(script)`;
-    - then `page.evaluate` of `axe.run(document, { runOnly: { type: "tag", values: AXE_TAGS }, resultTypes: ["violations", "incomplete"] })`, returning its results.
+  - `ChromeSession.runAxe(script: string): Promise<unknown>`, through `onPage`, so a gone browser is an `EnvironmentError`. It goes through the DevTools session the browser holds, in an isolated world of axe's own on the page's main frame, not through `page.evaluate` in the page's own world:
+    - `Page.getFrameTree` gives the main frame, and `Page.createIsolatedWorld` makes the world;
+    - `Runtime.evaluate` runs axe-core's script as the expression, in that world;
+    - then `Runtime.callFunctionOn` runs `axe.run(document, { runOnly: { type: "tag", values: AXE_TAGS }, resultTypes: ["violations", "incomplete"] })` there, with `awaitPromise` and `returnByValue`, and gives the results as one JSON string, which Node parses;
+    - a script that throws, or a promise that is rejected, is the error DevTools describes (`exceptionDetails`).
   - `GuidepupNvdaDriver.checkWithAxe()`:
     - `withinLimit(session.runAxe(await axeScript()), AXE_LIMIT_MS, …)`, then `keptAxeResults(raw, finalUrl)`;
-    - any error but the browser's gives `{ error: errorMessage(error) }`.
+    - any error but the browser's gives `{ error }` with the first line of what went wrong (`axeErrorReason`), cut to 300 UTF-16 code units.
   - Move `axe-core` to `dependencies` at `"4.13.0"`, and run `pnpm install` to update the lock.
 - [ ] **Step 5:** Run the focused tests, then `pnpm lint && pnpm typecheck && pnpm test`. Expected: PASS.
 - [ ] **Step 6:** Commit: `Check a page with axe-core through the Guidepup driver, in the page it holds, within 20 seconds, keeping what each rule found`.
@@ -194,7 +197,7 @@
   - **The card's `axe`:** the view comes from `axeViewOf(text)`. The reasons follow `screenshotOf`'s cases, with the version rule `keepsAxe(version)` (voicecap ≥ 0.16.0).
   - **The words** go in `AXE_TEXT`.
   - **The fold** reuses `fold(...)`, with `id: "axe-<slug>"`.
-  - **The check script** checks `axe` like `files`. It doesn't apply `bodyOf`, since an axe file has no transcript header.
+  - **The check script** checks `axe` like `files`. It doesn't apply `bodyOf`, since an axe file has no transcript header. It also holds what each fold shows to the file, as D2 says: the fold names its file (`data-run`, `data-slug`, and `data-file`), and the script compares the counts, the chip's number, each rule's heading, each element's selector and HTML, and axe's words on how to fix them.
   - **The fingerprints rows** follow the screenshot's.
 - [ ] **Step 4:** Run `pnpm lint && pnpm typecheck && pnpm test`. Expected: PASS.
 - [ ] **Step 5:** Commit: `Show what axe found on each page's card, in a fold beside what NVDA said, checked with the page's other fingerprints`.

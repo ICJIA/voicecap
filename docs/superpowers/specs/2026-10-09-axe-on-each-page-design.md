@@ -34,11 +34,12 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
 - **The driver gets an optional method,** `checkWithAxe?(): Promise<AxeCapture>`. A driver that can't check a page leaves it out, and the run records no axe result for its pages: the replay driver, and the AT Driver stub. `AxeCapture` is `{ json: string; summary: AxeSummary } | { error: string }`.
 - **The runner calls it on the first load of each page, and only there.** That's right after `openPage` and the first load's checks (an HTML page that answered 2xx), and before the first pass's first key. It never calls it on a later load, on a page it skips, or on one that answered 4xx or 5xx.
 - **In the Guidepup driver, through the browser it already holds:**
-  - It runs axe-core's own script, `axe.min.js` from the installed `axe-core` package, unchanged, with its license notice. The script is evaluated in the page through Playwright, so it isn't a `<script>` added to the page, and a page's Content Security Policy doesn't block it.
-  - Then it runs `axe.run(document, { runOnly: { type: "tag", values: TAGS }, resultTypes: ["violations", "incomplete"] })`.
+  - It runs axe-core's own script, `axe.min.js` from the installed `axe-core` package, unchanged, with its license notice. The script runs through the browser's DevTools connection, in an isolated world of its own on the page's main frame: a world that shares the page's document, but none of its scripts' globals. So nothing is added to the page's own world, and a page's own scripts can't reach axe (a page that replaces `Array.prototype.map`, or names a global `axe`, is still checked). It isn't a `<script>` added to the page, and it isn't evaluated by a string in the page, so a page's Content Security Policy, or its Trusted Types, doesn't block it.
+  - Then, in that world, it runs `axe.run(document, { runOnly: { type: "tag", values: TAGS }, resultTypes: ["violations", "incomplete"] })`, and takes the results back as one JSON string.
   - The tags are the ones voicecap's own tests use: `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`, `best-practice`.
+  - axe checks the page's main frame. It doesn't look inside a page's iframes: each shows as an item that needs review (`frame-tested`).
 - **Bounded, and never a failure:**
-  - It has its own limit of 20 seconds. Past the limit, or on any error, it gives `{ error }`, as the screenshot does.
+  - It has its own limit of 20 seconds. Past the limit, or on any error, it gives `{ error }`, as the screenshot does: the first line of what went wrong, cut to 300 UTF-16 code units, so the reason holds no stack.
   - The page is read as usual, and its record says why axe has no result.
   - A browser that's gone is still the environment error it is today.
 - **What's kept of axe's results,** in `pages/<slug>/axe.json`. axe's full output repeats every element that passed, so only this is kept:
@@ -47,7 +48,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
   - for each violation and each needs-review rule:
     - its id, impact, `help`, `helpUrl`, and tags;
     - for each element, its `target` (selectors) and its `failureSummary`;
-    - its `html`, cut to 300 characters;
+    - its `html`, cut to 300 UTF-16 code units (a string's length), never splitting a character written with two of them;
     - at most 50 elements a rule, with how many more there were.
 
   The JSON is written with sorted keys and one indent, so the same results give the same bytes.
@@ -79,7 +80,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
       - its `help`, as the item's heading;
       - its impact;
       - the WCAG success criteria its tags name ("WCAG 2.1 AA 1.4.3"), or "best practice";
-      - its elements, each with its selector and its HTML in the fixed-width font, and axe's "how to fix" (`failureSummary`);
+      - its elements, each with its selector and its HTML in the fixed-width font, and axe's "how to fix" (`failureSummary`), said once for the rule when every element listed has the same words, and with each element when they differ;
       - a link to axe's page for the rule (`helpUrl`), which leaves the page.
     - **Needs review:** what axe couldn't decide, listed the same way, under its own heading. It says these need a person to check.
     - **With nothing found:** "axe found no issues on this page." with the counts.
@@ -88,7 +89,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
     - "Not recorded: this run used voicecap 0.15.0.";
     - "axe couldn't check this page: <reason>.";
     - "Not checked: this run's driver doesn't check pages with axe."
-- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold's words are drawn from the same text. The result line adds "and N of M axe results match their fingerprints".
+- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold is drawn from the same text, and the check holds what the fold shows to it: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them. So a passing check vouches for those parts of the fold, and not for the rest: the version line, each rule's impact and criteria lines, and the links are drawn from the same text but aren't compared. The result line adds "and N of M axe results match their fingerprints".
 - **The fingerprints table** gains a row for each `axe.json`.
 - **The details, for reviewers and auditors:** one line in "How voicecap works" says each page is checked with axe before NVDA reads it, and that axe's results are evidence beside the person's review, never its verdict.
 - **The page's size:** each `axe.json` is carried once, in the data block, and its words once, in the fold. The share's 20 MB warning stays as it is.
@@ -118,8 +119,9 @@ The files and fingerprints table gains the `axe.json` rows.
 
 - **The Guidepup driver,** with real headless Chromium on the fixture site (`test/chrome-session.test.ts`'s pattern, skipped without Chromium):
   - axe finds the known violations on the demo site's /common-mistakes/: `button-name`, `label`, and `page-has-heading-one`;
-  - it runs on a page with a strict Content Security Policy;
-  - `document.activeElement` and the scroll position are unchanged after it;
+  - it runs on a page with a strict Content Security Policy, and on one that requires Trusted Types;
+  - it checks a page that replaces `Array.prototype.map` or names its own `axe` as it checks any other, and leaves what the page's own world holds as it was;
+  - `document.activeElement` and the scroll position are unchanged after it, and so is the page's HTML;
   - its result is under the 20-second limit, and a stuck run gives `{ error }` at the limit.
 - **The runner,** with the scripted driver:
   - axe runs once a page, on the first load, after `openPage` and before the first key;
@@ -136,7 +138,7 @@ The files and fingerprints table gains the `axe.json` rows.
   - the fold's parts and order;
   - the reason lines for each kind of missing result;
   - escaping of everything axe supplies (an element's HTML holding `<script>` comes out as text);
-  - "Check the fingerprints" checks the axe files, and catches a changed one ("Show a change being caught");
+  - "Check the fingerprints" checks the axe files, and what each card's fold shows of them (the counts, the chip's number, each rule's heading, each element, and axe's words on how to fix them), and catches a changed file, or a fold that shows otherwise ("Show a change being caught" changes an axe file);
   - the verdict, the ring, and "What needs attention" are the same with and without axe results;
   - axe has no violations on the page itself, in both themes, at 1280, 390, and 320 pixels, with the folds open.
 - **The Word copy:** the axe part, and the fingerprints rows.
@@ -159,7 +161,7 @@ Made overnight from the recommendations, each easy to change:
 2. The tags are voicecap's own tests': WCAG 2.0, 2.1, and 2.2 at A and AA, plus best practices. Each issue names its WCAG criterion, or "best practice".
 3. Needs review (axe's "incomplete") is shown, under its own heading.
 4. No option to turn axe off: it adds seconds to a page that takes about 90.
-5. At most 50 elements a rule, and 300 characters of each element's HTML, to keep the page's size in hand.
+5. At most 50 elements a rule, and 300 characters (UTF-16 code units) of each element's HTML, to keep the page's size in hand.
 6. The chip counts issues (violations); needs-review isn't in the chip.
 7. A replayed run has no axe results; the replay driver doesn't carry them.
 
