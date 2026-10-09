@@ -774,6 +774,72 @@ describe("checkAgainstLog on made-up logs", () => {
     expect(JSON.stringify(result)).not.toContain("Inbox");
   });
 
+  it("pairs a read pass's second Ctrl+End, a step of its own at the repeat limit, with its key and the page's last line", () => {
+    // A "Scroll to top" button at the page's very end shows once the page has scrolled: the first
+    // Ctrl+End said the line before it, NVDA repeated the button's line up to the repeat limit (10),
+    // and the pass pressed Ctrl+End once more, which said the button's line: the end had moved.
+    const button: Line = { command: "nextLine", spoken: "button, Scroll to top" };
+    const lines: Line[] = [
+      { command: "toBottom", spoken: "link, Contact" },
+      { command: "toTop", spoken: "Skip to content, link" },
+      { command: "nextLine", spoken: "heading, level 1, Welcome" },
+      { command: "nextLine", spoken: "link, Contact" },
+      ...Array.from({ length: 10 }, () => button),
+      { command: "toBottom", spoken: "button, Scroll to top" },
+    ];
+    const pass = passAt(T0, HOME, "read", lines);
+    const log = copyOf(...pass.entries);
+    expect(log.match(/^Input: kb\(desktop\):control\+end$/gm)).toHaveLength(2);
+    expect(check([log], [pass])).toEqual({
+      transcriptLines: 15,
+      logLines: 15,
+      agree: 15,
+      ...AGREED,
+      outside: 2,
+    });
+    // Had NVDA said another line after that Ctrl+End, the line that differs is that step's: the
+    // pass's 15th and last, never the first Ctrl+End's.
+    const differs = passAt(T0, HOME, "read", [
+      ...lines.slice(0, -1),
+      { command: "toBottom", spoken: "button, Scroll to top", logged: [["link, Contact"]] },
+    ]);
+    expect(check([copyOf(...differs.entries)], [differs])).toEqual({
+      transcriptLines: 15,
+      logLines: 15,
+      agree: 14,
+      onlyInLog: [{ page: HOME, pass: "read", step: 15, text: "link, Contact" }],
+      onlyInTranscripts: [{ page: HOME, pass: "read", step: 15, text: "button, Scroll to top" }],
+      outside: 2,
+    });
+  });
+
+  it("pairs a page as before when axe checked it between its opening and its first pass's first key", () => {
+    // axe checks a page once, on its first load: after voicecap has opened it (NVDA+T, Escape,
+    // Ctrl+Home) and before the first pass's first key, pressing no key, for up to 20 s. A check
+    // that runs out of time has voicecap open the page again for the pass.
+    const AXE_MS = 20_000;
+    const opened = passAt(T0, HOME, "read", []).entries;
+    const read = passAt(T0 + AXE_MS, HOME, "read", READ);
+    const headings = passAt(read.end + 5000, HOME, "headings", [
+      { command: "nextHeading", spoken: "Welcome, heading, level 1" },
+      { command: "nextHeading", spoken: "no next heading" },
+    ]);
+    const tab = passAt(headings.end + 5000, HOME, "tab", [
+      { command: "nextFocusable", spoken: "Skip to content, link", key: false },
+      { command: "nextFocusable", spoken: "Home, link" },
+    ]);
+    // The page's attempt began 2 s before its first load.
+    const page = attempt([{ ...read, start: T0 }, headings, tab]);
+    const after = [...headings.entries, ...tab.entries];
+    const every = { transcriptLines: 8, logLines: 8, agree: 8, ...AGREED };
+    // In time: the read pass reads the load axe checked, 20 s after it opened.
+    const inTime = copyOf(...opened, ...read.entries.slice(opened.length), ...after);
+    expect(check([inTime], page)).toEqual({ ...every, outside: 6 });
+    // Out of time: voicecap opened the page again for the read pass, so it opened twice.
+    const again = copyOf(...opened, ...read.entries, ...after);
+    expect(check([again], page)).toEqual({ ...every, outside: 8 });
+  });
+
   it("follows a log across midnight, with a thrown-out attempt that spans it", () => {
     const late = DAY - 5000; // 23:59:55
     const failed = passAt(late, HOME, "read", READ);
