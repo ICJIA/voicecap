@@ -360,10 +360,11 @@ describe("a page's axe results, in a run", () => {
       results(`${SITE}/`, [rawRule("image-alt")]),
       results(`${SITE}/`, [rawRule("link-name"), rawRule("button-name")]),
     ];
-    // The first attempt loses the foreground at its first key, after its page was checked, so the
-    // run tries the page again. The call is made to fail at once, as run-events.test.ts does, and
-    // not to hang until a timer ends the step. And the run has the limits of time it has by default,
-    // which a pause of the computer won't pass: no timer decides how many attempts the page gets.
+    // The first attempt loses the foreground at its first Down Arrow, which comes after the page
+    // was checked and after the read pass's Ctrl+End and Ctrl+Home, so the run tries the page
+    // again. The call is made to fail at once, as run-events.test.ts does, and not to hang until a
+    // timer ends the step. And the run has the limits of time it has by default, which a pause of
+    // the computer won't pass: no timer decides how many attempts the page gets.
     let lines = 0;
     const lost = new ForegroundError("The browser lost the foreground to another window");
     const driver = new ScriptedDriver(sitePages({ home: { axe: captures[0]! } }), {
@@ -381,7 +382,7 @@ describe("a page's axe results, in a run", () => {
       options(dir, driver, { config: config({ timeouts: DEFAULT_CONFIG.timeouts }) }),
     );
     expect(run.run.pages[0]).toMatchObject({ status: "done", attempts: 2 });
-    // The lost foreground at the first key failed the first attempt, and nothing else did.
+    // The lost foreground at the first Down Arrow failed the first attempt, and nothing else did.
     expect(run.run.pages[0]?.failedAttempts).toEqual([
       expect.objectContaining({ n: 1, pass: "read", command: "nextLine", cause: "foreground" }),
     ]);
