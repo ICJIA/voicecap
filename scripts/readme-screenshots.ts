@@ -25,7 +25,7 @@
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
  *   website-dark.png         the website's front page, from its bar through the site under "The
- *                            sites": the kicker, the heading, the What's New banner, "On this page",
+ *                            sites": the What's New banner, the kicker, the heading, "On this page",
  *                            then the site's current report, its two earlier ones, and its fold of
  *                            files, closed, dark
  *   website-light.png        the same, light

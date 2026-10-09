@@ -9,14 +9,15 @@
  * The head, the skip link, the two bars, and the script are the website's frame (./frame.ts), which
  * its other pages, the trust page, What's New, and Technical details, have too; this module draws
  * what is between the bars. In order: the head; a skip link to the main content; the top bar, whose
- * name is this page; `main`, with the kicker, as the audit tool's trust page heads itself ("ICJIA ·
- * Built for Title II of the ADA · WCAG · Illinois IITAA", the law's three names marked), the page's
- * heading and lead, the banner of the newest release ("What's new", when the CHANGELOG records
- * one), "On this page", a row of links to the views that are there, the views (the demo's, the
- * sites', and, when two sites or more have reports, every report by date), and what to know about
- * a file's fingerprint and a walkthrough file; the bottom bar, which says the version of voicecap
- * that built the page; and last, the script. What the model, a record, or the CHANGELOG supplies
- * goes through `esc`, and so does the fixed text (./text.ts), which is plain words.
+ * name is this page; `main`, which opens with the banner of the newest release ("What's new", when
+ * the CHANGELOG records one), as the audit tool's front page opens with its own, above the page's
+ * heading; then the kicker, as the audit tool's trust page heads itself ("ICJIA · Built for Title II
+ * of the ADA · WCAG · Illinois IITAA", the law's three names marked), the page's heading and lead,
+ * "On this page", a row of links to the views that are there, the views (the demo's, the sites',
+ * and, when two sites or more have reports, every report by date), and what to know about a file's
+ * fingerprint and a walkthrough file; the bottom bar, which says the version of voicecap that built
+ * the page; and last, the script. What the model, a record, or the CHANGELOG supplies goes through
+ * `esc`, and so does the fixed text (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
@@ -27,7 +28,8 @@
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
- * focus, and complete without JavaScript.
+ * focus, and complete without JavaScript. The banner above the heading has no heading of its own
+ * and is no landmark, so the page's outline is as it is without it: its first heading is the h1.
  */
 import type { ShareResult } from "../model.js";
 import { canonicalName, recordedCanonical } from "../pages/canonical.js";
@@ -461,12 +463,13 @@ function kicker(parts: readonly KickerPart[]): string {
 }
 
 /**
- * The banner of the newest release, the first the facts give, under the lead: a card that's no
- * landmark, holding "What's new", as a kicker; the release's version, as a pill; its headline,
- * when its entry has one; and the day it was released, in a `time` that holds the day it names,
- * with the link to What's New, which has every release. Its words are the CHANGELOG's, escaped, so
- * a line with markup in it is plain text here. Nothing, when the CHANGELOG is missing or records
- * no release.
+ * The banner of the newest release, the first the facts give, which opens the page's main part,
+ * above its kicker and its heading, as the audit tool's front page opens with its own: a card
+ * that's no landmark and has no heading, holding "What's new", as a kicker; the release's version,
+ * as a pill; its headline, when its entry has one; and the day it was released, in a `time` that
+ * holds the day it names, with the link to What's New, which has every release. Its words are the
+ * CHANGELOG's, escaped, so a line with markup in it is plain text here. Nothing, when the CHANGELOG
+ * is missing or records no release.
  */
 function news(releases: readonly VoicecapRelease[]): string[] {
   const [newest] = releases;
@@ -515,8 +518,8 @@ function onThisPage(content: SiteContent): string {
 /**
  * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts),
  * whose top bar says the page is the website's own, and whose bottom bar says the version of
- * `voicecap`, the voicecap that built it; the banner under the lead is the newest of its releases.
- * Pure.
+ * `voicecap`, the voicecap that built it; the banner that opens the main part, above its kicker, is
+ * the newest of its releases. Pure.
  */
 export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): string {
   return sitePage({
@@ -524,10 +527,10 @@ export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): 
     current: "index",
     version: voicecap.version,
     main: [
+      ...news(voicecap.releases),
       kicker(SITE_TEXT.kicker),
       `<h1>${esc(SITE_TEXT.title)}</h1>`,
       `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
-      ...news(voicecap.releases),
       onThisPage(content),
       ...(content.demo === null ? [] : [demoView(content.demo)]),
       sitesView(content.sites),

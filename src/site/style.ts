@@ -145,12 +145,15 @@
  *   details, is an arrow and its words, in the quieter color, as the audit tool's "Back" is;
  * - the front page's "On this page" is a row: its name, a kicker, then a link to each view, which
  *   wraps;
- * - the front page opens with its kicker over its heading, 18 pixels above it, as the website's
- *   other pages keep theirs, its names in `--act`. Under the lead, its What's New banner is a card,
- *   as the audit tool's: the newest release's version, a pill in `--good`, at its left, in a column
- *   no wider than 40% of the card, so a long version breaks in it; and beside it the kicker, the
- *   release's headline, in the card's words' color, and the day it was released with the link to
- *   every update, quieter and smaller.
+ * - the front page opens with its What's New banner, a card, as the audit tool's front page opens
+ *   with its own, above the heading: the newest release's version, a pill in `--good`, at its left,
+ *   in a column no wider than 40% of the card, so a long version breaks in it; and beside it the
+ *   kicker, the release's headline, in the card's words' color, and the day it was released with
+ *   the link to every update, quieter and smaller. It's the first thing in the main part, under
+ *   the top bar as far as any page's first part is (the main part's own 48 pixels of padding), with
+ *   28 pixels under it, before the page's own kicker: the kicker is over the heading, 18 pixels
+ *   above it, as the website's other pages keep theirs, its names in `--act`. With no release
+ *   there's no banner, and the page opens with the kicker, as it did.
  */
 export const SITE_CSS = `:root {
   --bg: #0a0a0a; --panel: #111111; --panel-2: #141414; --line: #222222;
@@ -439,8 +442,8 @@ footer .icon { flex: none; width: 1.125em; height: 1.125em; }
 .jump > ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; }
 /* the front page's kicker, over its heading, as far from it as the website's other pages keep theirs */
 main > .kicker { margin-bottom: 18px; }
-/* the front page's What's New banner, a card, as the audit tool's: the newest release's version, a pill in --good, at its left, and beside it the kicker, the release's headline, and the day it was released with the link to every update, quieter and smaller. The pill's column is no wider than 40% of the card, so a long version breaks in it, and the words' column shrinks to nothing, so nothing runs out of the window. */
-.news { grid-template-columns: fit-content(40%) minmax(0, 1fr); grid-template-areas: "pill kicker" "pill headline" "pill released"; gap: 4px 16px; margin-top: 28px; }
+/* the front page's What's New banner, a card, as the audit tool's, which opens the main part, above the page's kicker: the newest release's version, a pill in --good, at its left, and beside it the kicker, the release's headline, and the day it was released with the link to every update, quieter and smaller. The pill's column is no wider than 40% of the card, so a long version breaks in it, and the words' column shrinks to nothing, so nothing runs out of the window. Nothing is above it, since the main part's own padding keeps it clear of the top bar, and 28 pixels are under it, before the kicker. */
+.news { grid-template-columns: fit-content(40%) minmax(0, 1fr); grid-template-areas: "pill kicker" "pill headline" "pill released"; gap: 4px 16px; margin-bottom: 28px; }
 .news > .pill { grid-area: pill; align-self: start; }
 .news > .kicker { grid-area: kicker; }
 .news > .headline { grid-area: headline; color: var(--text-2); }

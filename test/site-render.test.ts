@@ -1298,10 +1298,17 @@ describe("renderSiteIndex", () => {
   });
 
   it("puts the kicker over the front page's heading", () => {
-    const main = /<main id="main">\n([\s\S]*?)\n<\/main>/.exec(html)?.[1] ?? "";
+    // The banner of the newest release opens the main part, above the kicker, which is left out
+    // here: the kicker is the first thing after it.
+    const banner = newsOf(html);
+    expect(banner).not.toBe("");
+    const main = (/<main id="main">\n([\s\S]*?)\n<\/main>/.exec(html)?.[1] ?? "").replace(
+      `${banner}\n`,
+      "",
+    );
     const kicker = /^<p class="kicker">([\s\S]*?)<\/p>\n<h1>/.exec(main)?.[1] ?? "";
 
-    // It opens the main part, right over the heading: the audit tool's trust page heads itself so.
+    // It's right over the heading, as the audit tool's trust page heads itself.
     expect(kicker).not.toBe("");
     // A reader sees its parts set apart by dots; a screen reader hears commas for them, and no dot.
     expect(textOf(withoutHidden(kicker), "")).toBe(
@@ -1326,12 +1333,12 @@ describe("renderSiteIndex", () => {
       [{ name: "WCAG" }],
       [{ name: "Illinois IITAA" }],
     ]);
-    // The same on a page with no demo, no site, and no release.
+    // The same on a page with no demo, no site, and no release, where the kicker opens the main part.
     const bare = renderSiteIndex({ demo: null, sites: [] }, { ...FACTS, releases: [] });
     expect(bare).toContain(`<main id="main">\n<p class="kicker">${kicker}</p>\n<h1>`);
   });
 
-  it("shows the newest release between the lead and 'On this page'", () => {
+  it("opens the main part with the newest release, above the kicker and the heading, and before 'On this page'", () => {
     const banner = newsOf(html);
     const [newest] = FACTS.releases;
     if (newest === undefined) throw new Error("The facts have a release.");
@@ -1356,13 +1363,10 @@ describe("renderSiteIndex", () => {
     expect(banner).not.toMatch(
       /<(?:section|nav|aside|header|footer|h[1-6])\b|\srole=|\saria-label/,
     );
-    // After the heading and its lead, and before "On this page".
-    const places = ["<h1>", '<p class="lead">', '<div class="news">', rowOf(html)].map((part) =>
-      html.indexOf(part),
-    );
-    expect(places.every((place) => place > 0)).toBe(true);
-    expect(places).toEqual([...places].sort((a, b) => a - b));
-    expect(html).toContain(`</p>\n${banner}\n<nav class="jump"`);
+    // The main part opens with it, as the audit tool's front page opens with its own, and the
+    // kicker comes next; "On this page" follows the lead, with nothing between them.
+    expect(html).toContain(`<main id="main">\n${banner}\n<p class="kicker">`);
+    expect(html).toMatch(/<p class="lead">[^<]*<\/p>\n<nav class="jump"/);
     expect(html.match(/<div class="news">/g)).toHaveLength(1);
 
     // It's the newest release the facts give, the CHANGELOG's first: here, one of 8 October.
@@ -1375,12 +1379,57 @@ describe("renderSiteIndex", () => {
     ]);
   });
 
+  it("puts the banner before the kicker and the heading, and the page's first heading is still its h1", () => {
+    // The page's headings, each as its level and its words, in order.
+    const outlineOf = (page: string): [number, string][] =>
+      [...page.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map(
+        ([, level = "", inner = ""]): [number, string] => [Number(level), textOf(inner, "")],
+      );
+    const banner = newsOf(html);
+    const heading = html.indexOf("<h1>");
+    // The banner has a kicker of its own, so the page's is the last before its heading.
+    const kicker = html.lastIndexOf('<p class="kicker">', heading);
+
+    // The banner comes first in the main part, then the kicker, the h1, its lead, and "On this
+    // page", each after the one before.
+    expect(banner).not.toBe("");
+    const places = [
+      html.indexOf('<main id="main">'),
+      html.indexOf(banner),
+      kicker,
+      heading,
+      html.indexOf('<p class="lead">'),
+      html.indexOf(rowOf(html)),
+    ];
+    expect(places.every((place) => place > 0)).toBe(true);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
+    expect(new Set(places).size).toBe(places.length);
+    // The page's kicker starts after the banner ends: it isn't the banner's own.
+    expect(kicker).toBeGreaterThanOrEqual(html.indexOf(banner) + banner.length);
+    // The banner is no heading, so what it opens above doesn't change the page's outline: its first
+    // heading is the h1, the page's one, and the outline is what it is with no banner.
+    expect(banner).not.toMatch(/<h[1-6]\b/);
+    const bare = renderSiteIndex(CONTENT, { ...FACTS, releases: [] });
+    expect(newsOf(bare)).toBe("");
+    expect(outlineOf(html)[0]).toEqual([1, "Screen reader test results"]);
+    expect(outlineOf(html).filter(([level]) => level === 1)).toHaveLength(1);
+    expect(outlineOf(html)).toEqual(outlineOf(bare));
+    // Nor is the banner a landmark: the page's landmarks are the same with it and without it.
+    const landmarks = (page: string): string[] =>
+      [...page.matchAll(/<(header|nav|main|footer|section|aside)\b[^>]*>/g)].map(
+        ([tag = ""]) => tag,
+      );
+    expect(landmarks(html)).toEqual(landmarks(bare));
+  });
+
   it("shows no banner when no release is recorded", () => {
     const page = renderSiteIndex(CONTENT, { ...FACTS, releases: [] });
 
     expect(page).not.toContain('class="news"');
     expect(page).not.toContain("What&#39;s new");
     expect(page).not.toContain("See all updates");
+    // The kicker opens the main part, as it did before there was a banner.
+    expect(page).toMatch(/<main id="main">\n<p class="kicker">[\s\S]*?<\/p>\n<h1>/);
     // The lead is followed by "On this page", with nothing between them.
     expect(page).toMatch(/<p class="lead">[^<]*<\/p>\n<nav class="jump"/);
     // A release with no headline has a banner with none, and no empty paragraph.
@@ -1604,17 +1653,18 @@ describe("renderSiteIndex", () => {
     );
   });
 
-  it("puts the skip link and the top bar first, then the main part with its kicker, heading, banner, row, and views, then the bottom bar and the script", () => {
+  it("puts the skip link and the top bar first, then the main part with its banner, kicker, heading, row, and views, then the bottom bar and the script", () => {
     const places = [
       '<a class="skip" href="#main">Skip to main content</a>',
       '<header class="bar">',
       '<a class="name"',
       '<nav aria-label="This website">',
       '<main id="main">',
-      '<p class="kicker">',
+      '<div class="news">',
+      // The page's own kicker: the banner's, inside its card, is the first `<p class="kicker">`.
+      '<p class="kicker">ICJIA',
       "<h1>",
       '<p class="lead">',
-      '<div class="news">',
       'aria-label="On this page"',
       'id="demo"',
       'id="sites"',
@@ -2180,6 +2230,14 @@ describe("SITE_CSS", () => {
     expect(declarationsFor(SITE_CSS, ".news > .released")).toEqual(
       expect.arrayContaining(["color: var(--muted)", "font-size: 0.875rem"]),
     );
+    // It opens the main part, under the top bar, which the main part's own padding keeps it clear
+    // of: it has no room above it, and 28 pixels under it, a clear gap before the page's kicker.
+    expect(declarationsFor(SITE_CSS, ".news")).toContain("margin-bottom: 28px");
+    expect(
+      declarationsFor(SITE_CSS, ".news").filter((declaration) =>
+        /^margin(?:-top)?:/.test(declaration),
+      ),
+    ).toEqual([]);
   });
 
   it("draws the trust page's stamp as the audit tool's amber box, and a headline's second line in --good, on a line of its own", () => {
