@@ -8,10 +8,11 @@
  * to the record, then holds what the fold shows to the text, as the fold draws it with these rules:
  * the counts, the card's chip, and each rule's heading, most severe first, its elements' selectors
  * and HTML, and axe's words on how to fix them, said once when every element shares them
- * (`axeSharedFix`). So a check that passes vouches for those; the rest of the fold (the version, a
- * rule's impact and criteria, its link) is drawn from the same text, and not compared. A file is
- * data, as a record is: one that isn't axe's results as voicecap keeps them (src/axe/results.ts) is
- * read as none, and the card says so rather than stop. Pure.
+ * (`axeSharedFix`). So a check that passes vouches for those. The rest of the fold is drawn from the
+ * same text, and not compared: among it the version, a rule's impact and criteria, the "and N more
+ * elements" line, the line with the file's size and SHA-256, and the links. A file is data, as a
+ * record is: one that isn't axe's results as voicecap keeps them (src/axe/results.ts) is read as
+ * none, and the card says so rather than stop. Pure.
  */
 import { z } from "zod";
 

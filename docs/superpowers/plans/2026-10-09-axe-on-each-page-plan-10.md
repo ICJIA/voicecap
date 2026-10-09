@@ -44,7 +44,7 @@
 ## Decisions this plan makes
 
 - **D1, one module for axe's settings and the kept JSON:** `src/axe/results.ts` imports nothing from Playwright. Its tests run without a browser.
-- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text, and the check holds what the fold shows to it, so a passing check vouches for those parts of what's shown: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them (said once for a rule when every element listed shares them). It doesn't vouch for the rest, which is drawn from the same text but isn't compared: the version line, each rule's impact and criteria lines, and the links.
+- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text, and the check holds what the fold shows to it, so a passing check vouches for those parts of what's shown: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them (said once for a rule when every element listed shares them). It doesn't vouch for the rest, which is drawn from the same text but isn't compared: among it the version line, each rule's impact and criteria lines, the "and N more elements" line, the line with the file's size and SHA-256, and the links.
 - **D3, a strict Content Security Policy in the browser test** comes from a `<meta http-equiv="Content-Security-Policy">` in a page the test writes, so the fixture server needs no change.
 - **D4, the README's card picture is shot again** (`report-pages.png`), since every card now has the fold.
 
@@ -224,7 +224,7 @@
 
 - [ ] **Step 1:** Run `pnpm readme:screenshots`. Commit `report-pages.png` only (D4); restore the other report pictures it rewrites. Its alt text says what the card now shows: the i2i run is 0.11.0's, so the fold says axe's result isn't recorded.
 - [ ] **Step 2: The README:**
-  - "What voicecap does on each page": axe's check on the first load, before NVDA's first key, the 20-second limit, and what's kept;
+  - "What voicecap does on each page": axe's check on the first load, before the first key of the first pass, the 20-second limit, and what's kept;
   - "The audit record": `axe.json` and the page's `axe` record, sealed, and checked by verify;
   - "The shareable page" and "The Word copy": the chip and the fold, apart from the verdict;
   - "Checking the record": axe.json, from 0.16.0;

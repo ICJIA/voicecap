@@ -24,7 +24,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
 - **Where they show:** each page's card on the shareable page gets a chip and a closed fold, "What axe found". The Word copy has the same, unfolded.
 
 **What doesn't change:**
-- **What NVDA says, and how it's driven.** axe runs once NVDA is at the top of the page and before its first key, and it doesn't touch the page: it moves no focus, scrolls nothing, and adds nothing to the page.
+- **What NVDA says, and how it's driven.** axe runs once NVDA is at the top of the page and before the first pass's first key, and it doesn't touch the page: it moves no focus, scrolls nothing, and adds nothing to the page.
 - **voicecap's verdict, the ring, the numbers, and "What needs attention".** They stay about what NVDA said and the person's review. axe's results are evidence beside them, never a score and never a verdict ("axe isn't the answer key", as the shareable report's design said in 2026-09-30).
 - **The website.** It still publishes only what each share recorded. axe's results reach it inside the shareable page and the Word copy, as the screenshots do.
 - **A run's settings.** axe has none, so a walkthrough file and a run's resume are as they are.
@@ -89,7 +89,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
     - "Not recorded: this run used voicecap 0.15.0.";
     - "axe couldn't check this page: <reason>.";
     - "Not checked: this run's driver doesn't check pages with axe."
-- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold is drawn from the same text, and the check holds what the fold shows to it: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them. So a passing check vouches for those parts of the fold, and not for the rest: the version line, each rule's impact and criteria lines, and the links are drawn from the same text but aren't compared. The result line adds "and N of M axe results match their fingerprints".
+- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold is drawn from the same text, and the check holds what the fold shows to it: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them. So a passing check vouches for those parts of the fold, and not for the rest, which is drawn from the same text but isn't compared: among it the version line, each rule's impact and criteria lines, the "and N more elements" line, the line with the file's size and SHA-256, and the links. The result line adds "and N of M axe results match their fingerprints".
 - **The fingerprints table** gains a row for each `axe.json`.
 - **The details, for reviewers and auditors:** one line in "How voicecap works" says each page is checked with axe before NVDA reads it, and that axe's results are evidence beside the person's review, never its verdict.
 - **The page's size:** each `axe.json` is carried once, in the data block, and its words once, in the fold. The share's 20 MB warning stays as it is.
@@ -124,7 +124,7 @@ The files and fingerprints table gains the `axe.json` rows.
   - `document.activeElement` and the scroll position are unchanged after it, and so is the page's HTML;
   - its result is under the 20-second limit, and a stuck run gives `{ error }` at the limit.
 - **The runner,** with the scripted driver:
-  - axe runs once a page, on the first load, after `openPage` and before the first key;
+  - axe runs once a page, on the first load, after `openPage` and before the first pass's first key;
   - `axe.json` is written and recorded;
   - an `{ error }` is recorded and the page is read as usual;
   - no axe on a skipped page, a 4xx, or a 5xx;
@@ -157,7 +157,7 @@ The files and fingerprints table gains the `axe.json` rows.
 ## Choices for the owner to confirm
 
 Made overnight from the recommendations, each easy to change:
-1. axe runs before NVDA's first key on the first load, not after the passes. The page is as it loaded, and no Tab has moved focus.
+1. axe runs before the first pass's first key on the first load (once `openPage` has put NVDA at the top), not after the passes. The page is as it loaded, and no Tab has moved focus.
 2. The tags are voicecap's own tests': WCAG 2.0, 2.1, and 2.2 at A and AA, plus best practices. Each issue names its WCAG criterion, or "best practice".
 3. Needs review (axe's "incomplete") is shown, under its own heading.
 4. No option to turn axe off: it adds seconds to a page that takes about 90.
