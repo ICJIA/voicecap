@@ -215,7 +215,7 @@ describe("appendShare", () => {
 
   // 0.10.0: the root of the site the copies are named for, after who made them.
   it("records the site it's given, sealed with the rest, and with its key after by", async () => {
-    const site = "https://voicecap.netlify.app/demo-site/";
+    const site = "https://voicecap.icjia.app/demo-site/";
     const recorded = await appendShare(siteDir, { ...entry, site });
     expect(recorded.site).toBe(site);
     expect(Object.keys(recorded)).toEqual([

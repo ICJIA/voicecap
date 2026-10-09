@@ -48,9 +48,16 @@ export type {
 export { buildSite } from "./site/build.js";
 export type { BuildSiteOptions, BuildSiteResult } from "./site/build.js";
 export type { PublishedFile, PublishedReport, SiteContent } from "./site/render.js";
-// What the website's "Can I trust this?" page states (`BuildSiteOptions.voicecapFacts`): of
-// voicecap, of each release its CHANGELOG records, of what a release recorded, and of the records.
-export type { RecordFacts, ReleaseFacts, VoicecapFacts, VoicecapRelease } from "./site/facts.js";
+// What the website's "Can I trust this?" and What's New pages state
+// (`BuildSiteOptions.voicecapFacts`): of voicecap, of each release its CHANGELOG records and the
+// points of its entry, of what a release recorded, and of the records.
+export type {
+  RecordFacts,
+  ReleaseFacts,
+  ReleaseItem,
+  VoicecapFacts,
+  VoicecapRelease,
+} from "./site/facts.js";
 export { verifyHome } from "./verify.js";
 export type { VerifyHomeOptions, VerifyResult, VerifySiteResult } from "./verify.js";
 export { defineConfig, loadConfig, resolveConfig } from "./config/load.js";
@@ -60,6 +67,7 @@ export { DEFAULT_CONFIG } from "./config/defaults.js";
 export { evaluateFlags } from "./flags/evaluate.js";
 export { ReplayDriver } from "./drivers/replay.js";
 export type {
+  AxeCapture,
   CaptureMode,
   EnvironmentInfo,
   EventRecorder,
@@ -69,6 +77,9 @@ export type {
   ScreenReaderDriver,
   Speech,
 } from "./drivers/types.js";
+// What a page's record keeps of axe's check of it (`PageRecord.axe`), and what a driver's check
+// gives beside the file's text (`AxeCapture`).
+export type { AxeSummary } from "./axe/results.js";
 export { ForegroundError } from "./drivers/types.js";
 export * from "./model.js";
 export {

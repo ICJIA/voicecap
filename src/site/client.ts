@@ -5,7 +5,11 @@
  *   keep it under (`voicecap-theme`), so a choice made here carries to a report, and from one to
  *   here;
  * - the button that switches it, which starts hidden, since it does nothing without this script,
- *   and which this script shows.
+ *   and which this script shows. The button is an icon, a sun in the dark theme and a moon in the
+ *   light one, which the page's style shows by the theme (see ./style.ts), so its words are its
+ *   label, for a screen reader: what it switches to, which this script keeps in step with the
+ *   theme. The shareable page's script sets its button's text there instead; the rest of the theme
+ *   is the same as that page's.
  *
  * Without it the page is complete, and dark. Storage can be missing or refused (a private window,
  * or a browser set to keep nothing), so every use of it is in try/catch, and with nothing stored the
@@ -37,7 +41,7 @@ export const SITE_SCRIPT = String.raw`
     }
     function show(choice) {
       root.setAttribute("data-theme", choice);
-      if (button) button.textContent = choice === "light" ? "Dark version" : "Light version";
+      if (button) button.setAttribute("aria-label", choice === "light" ? "Switch to the dark theme" : "Switch to the light theme");
     }
     show(saved() === "light" ? "light" : "dark");
     if (!button) return;

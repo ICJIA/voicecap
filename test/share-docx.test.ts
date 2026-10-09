@@ -16,6 +16,7 @@ import {
   demoted,
   heading,
   image,
+  leadIn,
   list,
   mono,
   monoCell,
@@ -610,6 +611,31 @@ describe("docxOf", () => {
 
     // A paragraph that leads into a list: the one before the list, and no other paragraph.
     expect(keptWithNext(document)).toEqual(["Heard first", "more"]);
+  });
+
+  it("keeps a lead-in with whatever follows it, so a label never ends a page alone", async () => {
+    const { document } = await opened([
+      leadIn({ text: "What axe found", bold: true }),
+      para("axe is an automated checker."),
+      leadIn({ text: "Needs review", bold: true }),
+      leadIn("axe couldn't decide these."),
+      table(["A"], [["a"]]),
+      para("after"),
+      leadIn("the last"),
+    ]);
+
+    // Each lead-in, whatever follows it, a table or nothing included; no other paragraph.
+    expect(keptWithNext(document)).toEqual([
+      "What axe found",
+      "Needs review",
+      "axe couldn't decide these.",
+      "the last",
+    ]);
+    // It's a paragraph like any other, its words in bold where they are.
+    expect(paragraphsOf(document).slice(0, 2)).toEqual([
+      { style: "", text: "What axe found" },
+      { style: "", text: "axe is an automated checker." },
+    ]);
   });
 
   it("writes a list as bulleted paragraphs, one for each item", async () => {

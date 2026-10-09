@@ -30,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import { addManualSession } from "../src/manual-add.js";
@@ -48,6 +49,7 @@ import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows, footerPlacement } from "./helpers/footer.js";
 import { TINY_JPEG } from "./helpers/jpeg.js";
 import { keptLogsModel, nvdaFixtureSite, problemEntry } from "./helpers/nvda-log.js";
+import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
 import { config, options, outDir, setup, SITE, sitePages } from "./helpers/run-site.js";
 import { element, ScriptedDriver } from "./helpers/scripted-driver.js";
 import { i2iModel, linkModel } from "./helpers/share-attention.js";
@@ -349,6 +351,76 @@ async function nvdaLogModel(differing: boolean): Promise<ShareModel> {
   return { ...model, evidence: [{ ...first, nvdaLog: { ...first.nvdaLog, notChecked } }, ...rest] };
 }
 
+/** A word as long as an element's HTML can be in an axe.json (300 code units), less its markup. */
+const LONG_WORD = "x".repeat(280);
+
+/**
+ * One run whose driver checked each page with axe, written as voicecap writes the page. The home
+ * page's results are what a card's fold holds at its most: an issue of each impact, the most
+ * severe given last; a rule that found 60 elements, of which the file keeps 50; an element whose
+ * selector and HTML are each one long word; axe's words and an element's HTML holding markup and a
+ * closing script tag; and what needs review. /about's results have nothing, and axe couldn't check
+ * /resources. Each fold is on its page's card, and each file's text is in the page's data.
+ */
+async function axePage(): Promise<string> {
+  const dir = await setup();
+  folders.push(dir);
+  const home = rawAxe({
+    violations: [
+      rawRule("link-name", {
+        impact: "minor",
+        help: "Links must have discernible text",
+        nodes: [
+          rawNode("a.more", {
+            html: '<a class="more" href="/x"></script><script>window.__pwned = true</script> & </a>',
+            failureSummary: "Fix all of the following:\n  <b>bold</b> & “quoted” words",
+          }),
+        ],
+      }),
+      rawRule("region", {
+        impact: "moderate",
+        tags: ["cat.keyboard", "best-practice"],
+        help: "All page content should be contained by landmarks",
+        nodes: [
+          rawNode("#promo", { html: `<div id="promo" data-note="${LONG_WORD}">Grants</div>` }),
+        ],
+      }),
+      rawRule("color-contrast", {
+        tags: ["cat.color", "wcag2aa", "wcag143"],
+        help: "Elements must meet minimum color contrast ratio thresholds",
+        nodes: [
+          rawNode(".pale", {
+            target: [`html > body > main > div.${LONG_WORD} > p`],
+            html: `<p class="${LONG_WORD}">Apply by 1 May</p>`,
+          }),
+        ],
+      }),
+      rawRule("button-name", {
+        impact: "critical",
+        help: "Buttons must have discernible text",
+        nodes: Array.from({ length: 60 }, (_, index) => rawNode(`#button-${index}`)),
+      }),
+    ],
+    incomplete: [
+      rawRule("color-contrast", {
+        tags: ["cat.color", "wcag2aa", "wcag143"],
+        help: "Elements must meet minimum color contrast ratio thresholds",
+        nodes: [rawNode(".hero h2", { html: "<h2>Welcome</h2>" })],
+      }),
+    ],
+    passes: 41,
+    inapplicable: 50,
+  });
+  const pagesChecked = sitePages({
+    home: { title: "Example Agency", axe: keptAxeResults(home, `${SITE}/`) },
+    about: { axe: keptAxeResults(rawAxe({ passes: 30, inapplicable: 60 }), `${SITE}/about`) },
+    resources: { axe: { error: "timed out after 20s" } },
+  });
+  const result = await runAudit(options(dir, new ScriptedDriver(pagesChecked)));
+  expect(result.outcome).toBe("completed");
+  return sharePath(result.siteDir);
+}
+
 /** One run, a replay of the fixture's recorded run: it never counts, so nothing counts yet. */
 async function replayPage(): Promise<{ file: string; runId: string }> {
   const dir = await setup();
@@ -387,6 +459,8 @@ let pages: {
   skipped: string;
   /** 13 pages read in full, 2 with flags: the other 11 are folded, each card holding its transcripts. */
   many: string;
+  /** A run whose driver checked each page with axe: each card holds what axe found, in a fold. */
+  axe: string;
 };
 /** Where the site with markup in its transcripts kept its run, and the id of the replayed run. */
 let hostileRun: { siteDir: string; runId: string };
@@ -434,6 +508,7 @@ beforeAll(async () => {
   // More pages than a page shows in the open (12): the cards with nothing to note are folded, and
   // each holds a fold of its own transcript.
   const many = await modelPage(manyPages(13, 2), "many");
+  const axe = await axePage();
   pages = {
     demo,
     rich,
@@ -451,6 +526,7 @@ beforeAll(async () => {
     none,
     skipped,
     many,
+    axe,
   };
   hostileRun = hostile;
   replayRunId = replay.runId;
@@ -1032,6 +1108,31 @@ describe("axe, in Chromium", () => {
   );
 
   it.each([1280, 390, 320])(
+    "has no axe violations at %i px on the cards' folds of what axe found, every fold closed and every fold open, dark and light",
+    async (width) => {
+      const page = await open(pages.axe);
+
+      // Each card has its fold: results with issues, results with none, and why there's none.
+      expect(await page.locator("#pages details.axe-page").count()).toBe(3);
+      expect(await axeFindings(page, width), "dark, every fold closed").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(Object.values(await foldStates(page)).every(Boolean)).toBe(true);
+      // Open, every element the files keep is there: 50 of the 60 buttons, and one of each other.
+      expect(await page.locator("#pages dl.axe-node").count()).toBe(50 + 3 + 1);
+      expect(await page.locator("#pages .axe-rules h5").count()).toBe(5);
+      expect(await page.evaluate(() => "__pwned" in window)).toBe(false);
+      expect(await axeFindings(page, width), "dark, every fold open").toEqual([]);
+      // The links to axe's pages on its rules read apart: one name for each rule.
+      expect(await identicalLinks(page), "links that read alike").toEqual([]);
+      await page.locator("#theme-toggle").click();
+      expect(await axeFindings(page, width), "light, every fold open").toEqual([]);
+      await page.locator("#open-all").click();
+      expect(await axeFindings(page, width), "light, folds as written").toEqual([]);
+    },
+    AXE_TIMEOUT,
+  );
+
+  it.each([1280, 390, 320])(
     "has no axe violations at %i px on the details' parts when no flag was raised and nothing needs attention, or a page was skipped, dark and light, folds closed and open",
     async (width) => {
       // With flags and problems, the parts are checked above, on the demo's page and the pages of
@@ -1103,6 +1204,7 @@ describe("a page in a narrow window", () => {
         "six",
         "i2i",
         "many",
+        "axe",
       ] as const) {
         const page = await open(pages[which]);
         await page.setViewportSize({ width, height: 900 });
@@ -2131,10 +2233,11 @@ describe("a link into a fold", () => {
     expect(openCount(afterSecond)).toBe(openCount(written) + 3);
     await expect.poll(() => inView(page, `#${second} > summary`), { timeout: 10_000 }).toBe(true);
 
-    // Open every section opens every fold: the quiet one, and all 13 transcripts.
+    // Open every section opens every fold: the quiet one, all 13 transcripts, and the 13 folds of
+    // what axe found.
     await page.locator("#open-all").click();
     expect(await page.locator("details:not([open])").count()).toBe(0);
-    expect(await page.locator("#pages details[open]").count()).toBe(1 + 13);
+    expect(await page.locator("#pages details[open]").count()).toBe(1 + 13 + 13);
   });
 
   it("opens every fold around what a link points to, however deep", async () => {
@@ -2166,6 +2269,16 @@ describe("a link into a fold", () => {
 
     expect(await foldStates(page)).toEqual({ ...asWritten, [fold]: true });
     await expect.poll(() => inView(page, `#${fold} > summary`), { timeout: 10_000 }).toBe(true);
+  });
+
+  it("opens a card's fold of what axe found that a page's address points to, and no other", async () => {
+    const asWritten = await foldStates(await open(pages.axe));
+    expect(asWritten["axe-home"]).toBe(false);
+
+    const page = await open(pages.axe, "#axe-home");
+
+    expect(await foldStates(page)).toEqual({ ...asWritten, "axe-home": true });
+    await expect.poll(() => inView(page, "#axe-home > summary"), { timeout: 10_000 }).toBe(true);
   });
 
   it("leaves the folds alone for an address that points to nothing, or to what's in view", async () => {
@@ -2537,6 +2650,28 @@ describe("the fingerprint check, on the page's own data", () => {
     const rows = await page.locator("#fp-rows tr").allTextContents();
     expect(rows.filter((row) => row.includes("screenshot.jpg"))).toHaveLength(3);
     expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
+  });
+
+  it("checks each page's axe results with its transcripts and its seal, and catches a change in one", async () => {
+    const page = await open(pages.axe);
+    await page.locator("#fp-run").click();
+
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toMatch(
+        /^Checked just now, in this browser\. 9 of 9 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, and the run's seal checks out\.$/,
+      );
+    const rows = await page.locator("#fp-rows tr").allTextContents();
+    expect(rows.filter((row) => row.includes("axe.json"))).toHaveLength(2);
+    expect(await page.locator("#fp-rows .c-bad").count()).toBe(0);
+
+    // A change caught: one character of a transcript, and one of an axe file.
+    await page.locator("#fp-demo").click();
+    await expect
+      .poll(() => result(page), { timeout: 10_000 })
+      .toMatch(/ · \/ · axe\.json doesn't match its fingerprint\. /);
+    expect(await result(page)).toContain("1 of 2 axe results match their fingerprints");
+    expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
   });
 
   it("names the one file changed in the copy, and leaves the page as it was", async () => {

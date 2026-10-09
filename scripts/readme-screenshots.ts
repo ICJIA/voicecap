@@ -10,7 +10,7 @@
  *   pnpm readme:screenshots [folder]     # writes the screenshots into [folder], by default
  *                                        # assets/screenshots, and prints each file's path
  *
- * It writes nine files, drawn in a 1200 × 900 window at twice its size:
+ * It writes eleven files, drawn in a 1200 × 900 window at twice its size:
  *
  *   report-top.png           the page's masthead, and At a glance down to its links: the verdict, the
  *                            ring of the pages, and the four big numbers
@@ -24,13 +24,21 @@
  *                            photo and name, and a /contact/ page's test-mode notice
  *   report-timeline.png      the run's evidence, with its minute-by-minute timeline open
  *   report-fingerprints.png  the fingerprint check, after it has run
- *   website-dark.png         the website's bar, through the site under "The sites": its current
- *                            report, its two earlier ones, and its fold of files, closed, dark
+ *   website-dark.png         the website's front page, from its bar through the site under "The
+ *                            sites": the What's New banner, the kicker, the heading, "On this page",
+ *                            then the site's current report, its two earlier ones, and its fold of
+ *                            files, closed, dark
  *   website-light.png        the same, light
- *   website-trust.png        the website's other page, "Can I trust this?", from its bar down through
- *                            its four big numbers, dark. What it says of voicecap (the version, the
+ *   website-trust.png        the website's page "Can I trust this?", from its bar down through its
+ *                            four big numbers, dark. What it says of voicecap (the version, the
  *                            releases, the tests) is the script's own example (see EXAMPLE_FACTS), and
  *                            what it says of the records is counted from the website built here
+ *   website-technical.png    the website's page "Technical details", from its bar through its "On
+ *                            this page" card of links to its parts, dark. The version it says it's
+ *                            from is the example's (see EXAMPLE_FACTS)
+ *   website-whats-new.png    the website's page "What's New", from its bar through its first two
+ *                            cards, dark: the example release (see EXAMPLE_RELEASE), marked as the
+ *                            current version, and the CHANGELOG's own 0.13.1
  *
  * No shot may show an IP address or `localhost`: before each one is taken, the text inside the part
  * of the page it will draw is read, and a shot that would show one stops the script. Nothing is
@@ -40,9 +48,11 @@
  *
  * It draws with Playwright's Chromium (`pnpm exec playwright install chromium`, once). Run it again
  * when the page's or the site's design changes, and commit what it writes. The README links to each
- * file on GitHub, so npm's copy of the README shows them too. All nine come out the same every
- * time. Each run makes the Word copies again, whose bytes differ (each records when it was made),
- * but the website shows their fingerprints only in its fold of files, which is closed in its shots.
+ * file on GitHub, so npm's copy of the README shows them too. All eleven come out the same every
+ * time on one computer. The report embeds its fonts, but the website's pages embed none and draw in
+ * the computer's own, so the website's five are drawn in the fonts of the computer that makes them.
+ * Each run makes the Word copies again, whose bytes differ (each records when it was made), but the
+ * website shows their fingerprints only in its fold of files, which is closed in its shots.
  */
 import { readFileSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -55,7 +65,8 @@ import { chromium, type Browser, type Page } from "playwright";
 import { resolveConfig, type LoadedConfig } from "../src/config/load.js";
 import { shareReport } from "../src/share/share.js";
 import { buildSite } from "../src/site/build.js";
-import { parseChangelog, type VoicecapFacts, type VoicecapRelease } from "../src/site/facts.js";
+import { parseChangelog } from "../src/site/changelog.js";
+import type { VoicecapFacts, VoicecapRelease } from "../src/site/facts.js";
 import { hashJson } from "../src/util/hash.js";
 import { silentLogger } from "../src/util/log.js";
 import { ciOf } from "./release-facts.mjs";
@@ -87,14 +98,23 @@ const SHARED_BEFORE = [new Date(2026, 9, 6, 13, 0), new Date(2026, 9, 6, 14, 0)]
 const SHARED_BY = "Christopher Schweda";
 
 /**
- * The release the trust page's picture is of: an example, not a release anyone made. It's 0.13.2,
- * the release that adds the page, dated on a fixed day, as the times of the shares are (see
- * SHARED_ON).
+ * The release the trust page's picture is of, and the banner's, and the first card of What's New's:
+ * an example, not a release anyone made. It's 0.13.2, the release that adds the trust page, dated on
+ * a fixed day, as the times of the shares are (see SHARED_ON). Its headline and its three items are
+ * the script's own, written as the CHANGELOG's points come out of `parseChangelog` (the bold words
+ * that begin a bullet, with a code span in pieces): no CHANGELOG entry is read for them, so the
+ * card of What's New's picture, which lists them, comes out the same at every release, and 0.13.2's
+ * own entry, once the CHANGELOG has one, changes nothing in it.
  */
 const EXAMPLE_RELEASE: VoicecapRelease = {
   version: "0.13.2",
   date: "2026-10-09",
   headline: 'The website\'s "Can I trust this?" page',
+  items: [
+    ['A link to it, "Can I trust this?", ends the bar of every page of the website'],
+    ["Every number and date about voicecap on it is generated"],
+    [{ code: "buildSite" }, " takes ", { code: "voicecapFacts" }],
+  ],
 };
 /**
  * The newest release of the CHANGELOG that the picture takes as it is, for the releases it counts
@@ -114,7 +134,7 @@ export function exampleFacts(changelog: string, workflow: string): VoicecapFacts
   const from = real.findIndex((release) => release.version === NEWEST_REAL_RELEASE);
   if (from < 0) {
     throw new Error(
-      `The CHANGELOG has no entry for ${NEWEST_REAL_RELEASE}, so the trust page's picture has no real releases to count.`,
+      `The CHANGELOG has no entry for ${NEWEST_REAL_RELEASE}, so the website's pictures have no real releases to take.`,
     );
   }
   return {
@@ -130,9 +150,10 @@ export function exampleFacts(changelog: string, workflow: string): VoicecapFacts
 }
 
 /**
- * What the trust page's picture says of voicecap. These numbers are the script's own, as the times
- * the report is shared at are: they are no release's, and the package's own facts (see
- * ../src/site/facts.ts) are never read for the picture, so it comes out the same each time. A real
+ * What the pictures of the website say of voicecap: the trust page's, the front page's banner of the
+ * newest release, Technical details', and What's New's. These numbers are the script's own, as the
+ * times the report is shared at are: they are no release's, and the package's own facts (see
+ * ../src/site/facts.ts) are never read for the pictures, so they come out the same each time. A real
  * page's numbers are always generated.
  *
  *   - the version and the day: an example release's, 0.13.2, released 9 October 2026;
@@ -171,7 +192,7 @@ const PANEL_MARGIN = 8;
  */
 export const AVOIDED = ["/biographies/", "/contact/"] as const;
 
-/** The nine files this writes, in the order it takes them. */
+/** The eleven files this writes, in the order it takes them. */
 export const SCREENSHOTS = [
   "report-top.png",
   "report-heard.png",
@@ -182,6 +203,8 @@ export const SCREENSHOTS = [
   "website-dark.png",
   "website-light.png",
   "website-trust.png",
+  "website-technical.png",
+  "website-whats-new.png",
 ] as const;
 
 /**
@@ -506,9 +529,11 @@ async function shootReport(browser: Browser, file: string, shoot: Shoot): Promis
 }
 
 /**
- * The website's three shots, from its pages in `folder`: its bar through the site's report, twice
- * (its index), then the top of the trust page, through its four big numbers. Each page is opened in
- * a window of its own, so the light theme the first is left in never reaches the second.
+ * The website's five shots, from its pages in `folder`: the front page (its index) from its bar
+ * through the site's report, twice, then the top of the trust page, through its four big numbers;
+ * the top of Technical details, through "On this page"; and the top of What's New, through its first
+ * two cards. Each page is opened in a window of its own, so the light theme the first is left in
+ * never reaches the others.
  */
 async function shootWebsite(browser: Browser, folder: string, shoot: Shoot): Promise<void> {
   const index = await open(browser, path.join(folder, "index.html"));
@@ -533,16 +558,43 @@ async function shootWebsite(browser: Browser, folder: string, shoot: Shoot): Pro
   } finally {
     await trust.context().close();
   }
+
+  const technical = await open(browser, path.join(folder, "technical-details.html"));
+  try {
+    // Dark, as the page opens: its bar, the way back, its heading and lead, the version it says it's
+    // from (EXAMPLE_FACTS'), and "On this page", the card of links to its parts, which ends its top.
+    await shoot(
+      technical,
+      "website-technical.png",
+      await fromTop(technical, "nav.toc", SLICE_MARGIN),
+    );
+  } finally {
+    await technical.context().close();
+  }
+
+  const whatsNew = await open(browser, path.join(folder, "whats-new.html"));
+  try {
+    // Dark, as the page opens: its bar, the way back, its heading and lead, and its first two cards,
+    // the newest releases of EXAMPLE_FACTS: the example, which is the version that built the
+    // website, and the CHANGELOG's real 0.13.1.
+    await shoot(
+      whatsNew,
+      "website-whats-new.png",
+      await fromTop(whatsNew, "ol.updates > li:nth-child(2)", SLICE_MARGIN),
+    );
+  } finally {
+    await whatsNew.context().close();
+  }
 }
 
 /**
- * Make the nine screenshots in `out` (made when it isn't there), and give each one's path. They
- * are taken in a temporary folder first and copied to `out` once all nine are, so a shot that is
+ * Make the eleven screenshots in `out` (made when it isn't there), and give each one's path. They
+ * are taken in a temporary folder first and copied to `out` once all eleven are, so a shot that is
  * refused leaves `out` as it was. `source` is the transcripts home the report is shared from (see
  * sharedHome): a test gives one whose run has no canonical address, which voicecap refuses to share,
  * so that nothing is written. The website is built with EXAMPLE_FACTS, so the package's own facts
- * (its version, its releases, what its release recorded) are never what the trust page's picture
- * shows.
+ * (its version, its releases, what its release recorded) are never what the website's pictures
+ * show.
  */
 export async function makeScreenshots(
   out: string,

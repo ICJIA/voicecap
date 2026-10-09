@@ -17,6 +17,14 @@ export interface ReadPassOptions {
  * line is spoken and the next step repeats it; then confirm with `endConfirmations` more steps,
  * so a mid-page pair of identical lines that happens to equal the last line can't end the pass.
  * Two identical lines mid-page (back-to-back "Read more" links) never stop it on their own.
+ *
+ * A page's last line can change as it's read: a script that shows a "Scroll to top" button once the
+ * page is scrolled down adds one at the very end, and NVDA ends on it, repeating a line the first
+ * Ctrl+End didn't say. So when the same speech has repeated `repeatLimit` times and the pass is about
+ * to stop, it presses Ctrl+End once more, as a step of its own: if that says the repeated line,
+ * the end has moved, and the read has reached it. It looks at no other time, and only once, since
+ * the pass ends either way: a jump to the end while lines repeat mid-page would skip the rest.
+ * The step cap comes first: a pass with no step left stops at the cap without looking.
  */
 export async function readPass(
   driver: ScreenReaderDriver,
@@ -49,7 +57,11 @@ export async function readPass(
       continue;
     }
 
-    if (run >= options.repeatLimit) return "repeat-limit";
+    if (run >= options.repeatLimit) {
+      if (recorder.count >= options.cap) return "step-cap";
+      const fresh = (await recorder.step("toBottom", () => driver.toBottom())).spoken;
+      return lineMatches(fresh, current) ? "end-reached" : "repeat-limit";
+    }
     prev = current;
   }
 }

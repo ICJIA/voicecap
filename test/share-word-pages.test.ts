@@ -1,27 +1,59 @@
 /**
  * The Word copy's "Every page", as blocks: each page with its picture, its status, the lines NVDA
- * said first, and its three transcripts, in the page's order. The demo runs of 29 September 2026
- * (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in memory cover the rest.
- * The blocks are plain data, so nothing here opens a .docx.
+ * said first, what axe found, and its three transcripts, in the page's order. The demo runs of 29
+ * September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case; runs built in memory
+ * cover the rest. The blocks are plain data, so nothing here opens a .docx but the test of axe's
+ * words as the file holds them.
  */
+import { XMLValidator } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 
-import type { FlagResult, RunJson } from "../src/model.js";
+import { MAX_NODES } from "../src/axe/results.js";
+import type { AxeRecord, FlagResult, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
+import {
+  axeCriteria,
+  axeFix,
+  axeRulePage,
+  axeRulesRun,
+  axeSelector,
+  axeSharedFix,
+  axeViewOf,
+  type AxeView,
+  type AxeViewRule,
+} from "../src/share/axe-view.js";
+import { renderWordCopy } from "../src/share/docx.js";
 import { renderPages } from "../src/share/html/pages.js";
 import { lineText, type Line } from "../src/share/line.js";
 import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
-import { APPENDIX_TEXT, PAGES_TEXT, WORD_TEXT } from "../src/share/text.js";
-import { fileFingerprint, pagesGist } from "../src/share/words.js";
-import { heading, image, list, mono, para, wordsOf, type Block } from "../src/share/word/blocks.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, STORY, WORD_TEXT } from "../src/share/text.js";
+import { axeFingerprint, byteCount, fileFingerprint, pagesGist } from "../src/share/words.js";
+import {
+  heading,
+  image,
+  leadIn,
+  list,
+  mono,
+  para,
+  wordsOf,
+  type Block,
+} from "../src/share/word/blocks.js";
+import { wordOutline } from "../src/share/word/outline.js";
 import { wordPages } from "../src/share/word/pages.js";
 import { NO_SPEECH } from "../src/transcripts/format.js";
+import { fileHash } from "../src/transcripts/write.js";
+import { keptWithNext, linksOf, paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
+import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
+import { textOf } from "./helpers/share-html.js";
 import {
+  AXE_RAN_AT,
+  axeFilesOf,
   demoModel,
   inputOf as inputWithoutTranscripts,
+  keptAxe,
   LINES,
   picturesOf,
   storeOf,
@@ -184,6 +216,178 @@ function everyStateModel(): ShareModel {
   return buildShareModel(inputOf([earlier, latest]));
 }
 
+// What axe found.
+
+/** WCAG 2.0 A 4.1.2: what button-name tests. */
+const NAME_ROLE = ["cat.name-role-value", "wcag2a", "wcag412", "section508", "ACT"];
+/** WCAG 2.0 AA 1.4.3: color-contrast. */
+const CONTRAST = ["cat.color", "wcag2aa", "wcag143", "EN-301-549"];
+/** A best practice, which names no WCAG criterion. */
+const BEST = ["cat.keyboard", "best-practice"];
+
+/** axe's words on how to fix an element that has no text, as rawNode gives them. */
+const NO_TEXT = "Element does not have text that is visible to screen readers";
+
+/**
+ * What axe found on /about/: three issues and one to review, given in axe's order, which isn't the
+ * order of how much each matters. button-name found two elements, whose words on how to fix them
+ * differ; each of the others found one.
+ */
+const aboutAxe = () =>
+  keptAxe({
+    violations: [
+      rawRule("region", {
+        impact: "moderate",
+        tags: BEST,
+        help: "All page content should be contained by landmarks",
+        nodes: [rawNode("#promo", { html: '<div id="promo">Grants</div>' })],
+      }),
+      rawRule("button-name", {
+        impact: "critical",
+        tags: NAME_ROLE,
+        help: "Buttons must have discernible text",
+        nodes: [
+          rawNode("#menu", {
+            html: '<button id="menu"></button>',
+            failureSummary:
+              "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n\nFix all of the following:\n  Element is in tab order and does not have accessible text",
+          }),
+          rawNode("#search", { html: '<button id="search"><svg></svg></button>' }),
+        ],
+      }),
+      rawRule("color-contrast", {
+        impact: "serious",
+        tags: CONTRAST,
+        help: "Elements must meet minimum color contrast ratio thresholds",
+        nodes: [rawNode(".pale", { html: '<p class="pale">Apply by 1 May</p>' })],
+      }),
+    ],
+    incomplete: [
+      rawRule("color-contrast", {
+        impact: "serious",
+        tags: CONTRAST,
+        help: "Elements must meet minimum color contrast ratio thresholds",
+        nodes: [
+          rawNode(".hero h2", {
+            html: "<h2>Welcome</h2>",
+            failureSummary:
+              "Fix any of the following:\n  Element's background color could not be determined due to a background image",
+          }),
+        ],
+      }),
+    ],
+    passes: 41,
+    inapplicable: 50,
+  });
+
+/** A run of voicecap 0.16.0, the first to check pages with axe, of these pages. */
+function axeRunOf(pages: SharePageSpec[], voicecapVersion = "0.16.0"): RunJson {
+  return shareRun({ id: "r1", voicecapVersion, pages });
+}
+
+/** The model of a run, with its transcripts and the axe files keptAxe made of its records. */
+function axeModelOf(run: RunJson): ShareModel {
+  return buildShareModel(inputOf([run], { axeFiles: axeFilesOf([run]) }));
+}
+
+/**
+ * Pages in each state their axe results can be in: checked, with issues and things to review;
+ * checked, with none; and one axe couldn't check.
+ */
+function axeResultsModel(): ShareModel {
+  return axeModelOf(
+    axeRunOf([
+      done("/about/", { axe: aboutAxe().record }),
+      done("/clean", { axe: keptAxe({ passes: 30, inapplicable: 60 }).record }),
+      done("/error", { axe: { error: "timed out after 20s", ranAt: AXE_RAN_AT } }),
+    ]),
+  );
+}
+
+/** Every character XML 1.0 forbids: a Word file with one in it is no XML, and opens in nothing. */
+const FORBIDDEN = /[^\t\n\r\u{20}-\u{D7FF}\u{E000}-\u{FFFD}\u{10000}-\u{10FFFF}]/u;
+
+/** The addresses the report links to outside itself, whatever a run's pages hold. */
+const REPORT_LINKS = new Set([
+  "https://github.com/ICJIA/voicecap",
+  "https://github.com/ICJIA/voicecap/issues",
+  "https://www.nvaccess.org/",
+  STORY.deque.url,
+]);
+
+/**
+ * The words of a card's axe results that its fold and the Word copy both say, in the order both say
+ * them: what axe is, its version, the counts' labels, the issues' heading, then each issue's name,
+ * impact, criteria, axe's words on how to fix its elements (once for the rule, or with each
+ * element), each element's labels and its selector and HTML, how many more there were, and the words
+ * of its link; what needs review, the same; and the file's fingerprint.
+ */
+function anchorsOf({ view, bytes, sha256 }: Extract<PageCard["axe"], { view: AxeView }>): string[] {
+  const fix = (summary: string): string[] =>
+    axeFix(summary).flatMap(({ lead, items }) => [lead, ...items]);
+  const rule = (each: AxeViewRule): string[] => {
+    const shared = axeSharedFix(each);
+    const criteria = axeCriteria(each.tags);
+    return [
+      each.help || each.id,
+      AXE_TEXT.impact(each.impact),
+      ...(criteria === "" ? [] : [criteria]),
+      ...(shared === null ? [] : [AXE_TEXT.fixShared(each.nodes.length), ...fix(shared)]),
+      ...each.nodes.flatMap(({ target, html, failureSummary }) => [
+        AXE_TEXT.element,
+        axeSelector(target),
+        AXE_TEXT.html,
+        html,
+        ...(shared !== null || fix(failureSummary).length === 0
+          ? []
+          : [AXE_TEXT.fix, ...fix(failureSummary)]),
+      ]),
+      ...(each.moreNodes > 0 ? [AXE_TEXT.more(each.moreNodes)] : []),
+      ...(axeRulePage(each.helpUrl) === null ? [] : [AXE_TEXT.rulePage(each.id)]),
+    ];
+  };
+  return [
+    AXE_TEXT.what,
+    AXE_TEXT.version(view.axeVersion, axeRulesRun(view.tags)),
+    ...Object.values(AXE_TEXT.counts),
+    AXE_TEXT.issues.title,
+    AXE_TEXT.issues.after,
+    ...view.violations.flatMap(rule),
+    AXE_TEXT.review,
+    AXE_TEXT.reviewLead,
+    ...view.incomplete.flatMap(rule),
+    `axe.json: ${byteCount(bytes)}, SHA-256 ${sha256}`,
+  ];
+}
+
+/** What a card says in place of axe's results, which it has none of. */
+function reasonOf(card: PageCard | undefined): string {
+  const axe = card?.axe;
+  if (axe === undefined || !("notRecorded" in axe)) {
+    throw new Error("The card shows axe's results, or says nothing of axe.");
+  }
+  return axe.notRecorded;
+}
+
+/**
+ * What a page's blocks say of axe: from the bold label that heads it up to the run its transcripts
+ * are from (or the first transcript's heading, or the end of the page), which it comes before. None
+ * for a page that says nothing of axe.
+ */
+function axePartOf(part: Block[]): Block[] {
+  const start = part.findIndex(
+    (block) => block.kind === "para" && lineText(block.line) === AXE_TEXT.title,
+  );
+  if (start === -1) return [];
+  const end = part.findIndex(
+    (block, at) =>
+      at > start &&
+      (block.kind === "heading" ||
+        (block.kind === "para" && lineText(block.line).startsWith("From run"))),
+  );
+  return part.slice(start, end === -1 ? part.length : end);
+}
+
 describe("wordPages", () => {
   it("opens with its heading and the line on how many pages were read in full, then a heading 2 for each page", async () => {
     const model = await demoModel();
@@ -224,6 +428,9 @@ describe("wordPages", () => {
       "para",
       "para",
       "list",
+      // What axe found: its label, and why there's nothing (this run is from before 0.16.0).
+      "para",
+      "para",
       "para",
       ...["heading", "para", "mono"],
       ...["heading", "para", "mono"],
@@ -244,9 +451,13 @@ describe("wordPages", () => {
     expect(model.pages[0]?.heardFirst).toHaveLength(3);
     expect(home?.[4]).toEqual(para({ text: "Heard first", bold: true }));
     expect(home?.[5]).toEqual(list((model.pages[0]?.heardFirst ?? []).map((line) => `“${line}”`)));
+    // Then what axe found, after them: a bold label, and, for a run from before voicecap checked
+    // pages with axe, why there's nothing.
+    expect(home?.[6]).toEqual(leadIn({ text: "What axe found", bold: true }));
+    expect(home?.[7]).toEqual(para("Not recorded: this run used voicecap 0.11.0."));
     // Then the run its transcripts are from, and the three transcripts: the read pass first, each a
     // heading 3, the file's fingerprint, and its lines as one fixed-width block.
-    expect(home?.[6]).toEqual(para("From run ", { text: "r1", mono: true }));
+    expect(home?.[8]).toEqual(para("From run ", { text: "r1", mono: true }));
     expect(outlineOf(home ?? [])).toEqual([
       "2 1 /",
       "3 Read transcript of /, 4 lines",
@@ -255,7 +466,7 @@ describe("wordPages", () => {
     ]);
     expect(files.map(({ pass }) => pass)).toEqual(["read", "headings", "tab"]);
     for (const [index, file] of files.entries()) {
-      const at = 7 + index * 3;
+      const at = 9 + index * 3;
       expect(home?.[at + 1]).toEqual(para(...fileFingerprint(file)));
       expect(home?.[at + 2]).toEqual(mono(file.text.split("\n")));
     }
@@ -320,11 +531,18 @@ describe("wordPages", () => {
     expect(model.ring.notRead).toBe(2);
     expect(model.pages.map((card) => card.heardFirst.length)).toEqual([3, 0, 0]);
     expect(unread).toHaveLength(2);
-    for (const part of unread) {
-      expect(part.map(({ kind }) => kind)).toEqual(["heading", "para", "para"]);
+    for (const [index, part] of unread.entries()) {
+      // Its heading, its screenshot, its status, and what axe found: its label and why there's
+      // nothing (the page wasn't read, so axe didn't check it).
+      expect(part.map(({ kind }) => kind)).toEqual(["heading", "para", "para", "para", "para"]);
       expect(outlineOf(part)).toHaveLength(1);
       expect(wordsOf(part).join("\n")).not.toContain("Heard first");
       expect(part.some((block) => block.kind === "mono" || block.kind === "list")).toBe(false);
+      expect(wordsOf(part.slice(3))).toEqual([
+        "What axe found",
+        "Not recorded: this run used voicecap 0.1.0.",
+      ]);
+      expect(reasonOf(model.pages[index + 1])).toBe("Not recorded: this run used voicecap 0.1.0.");
     }
     expect(outlineOf(unread[0] ?? [])).toEqual(["2 2 /failed"]);
     expect(outlineOf(unread[1] ?? [])).toEqual(["2 3 /skipped"]);
@@ -873,9 +1091,9 @@ describe("a page's transcripts", () => {
     expect(blocks).toHaveLength(90);
     expect(blocks.every((block) => block.kind === "mono" && block.lines.length === 150)).toBe(true);
     // The heading and the line under it; then for each page its heading, screenshot, status, Heard
-    // first and its lines, the run its transcripts are from, and a heading, fingerprint, and block
-    // for each pass.
-    expect(pages.length).toBe(2 + 30 * (1 + 1 + 1 + 2 + 1 + 3 * 3));
+    // first and its lines, what axe found (its label, and why there's nothing), the run its
+    // transcripts are from, and a heading, fingerprint, and block for each pass.
+    expect(pages.length).toBe(2 + 30 * (1 + 1 + 1 + 2 + 2 + 1 + 3 * 3));
     expect(wordsOf(pages)).toContain("Read transcript of /page-30, 150 lines");
   });
 
@@ -994,6 +1212,8 @@ describe("a page's transcripts", () => {
     expect(wordsOf(pages.slice(3))).toEqual([
       `Screenshot: ${unrecorded}`,
       expect.stringMatching(/^Title: Page \/a\. Transcribed\./),
+      "What axe found",
+      reasonOf(card),
       "From run r1",
       "This run's record lists no transcript files for the page.",
     ]);
@@ -1094,7 +1314,16 @@ describe("a page's screenshot", () => {
     const never = pageAt(model, 1);
     const alt = "The page https://example.illinois.gov/never as it loaded, before NVDA read it";
 
-    expect(never.map(({ kind }) => kind)).toEqual(["heading", "para", "image", "para"]);
+    // Its heading, its screenshot and its picture, its status, and what axe found: a label, and why
+    // there's nothing.
+    expect(never.map(({ kind }) => kind)).toEqual([
+      "heading",
+      "para",
+      "image",
+      "para",
+      "para",
+      "para",
+    ]);
     expect(never[2]).toEqual(image({ jpeg: TINY_JPEG, width: 632, height: 419, alt }));
     expect(wordsOf(never)).toContain(alt);
   });
@@ -1133,6 +1362,698 @@ describe("a page's screenshot", () => {
   });
 });
 
+describe("a page's axe results", () => {
+  /** The words of a page's axe part, each paragraph and each list item one string. */
+  const wordsAt = (model: ShareModel, at = 0): string[] => wordsOf(axePartOf(pageAt(model, at)));
+
+  /** The kind of each block. */
+  const kindsOf = (blocks: Block[]): string[] => blocks.map(({ kind }) => kind);
+
+  /** The pieces of every paragraph that are in bold, as their words. */
+  const boldOf = (blocks: Block[]): string[] =>
+    blocks.flatMap((block) => (block.kind === "para" ? boldIn(block.line) : []));
+
+  /** The pieces of every list item that are in the fixed-width font, as their words. */
+  const monoOf = (blocks: Block[]): string[] =>
+    blocks.flatMap((block) => (block.kind === "list" ? block.items.flatMap(monoIn) : []));
+
+  const AXE_RULES = "https://dequeuniversity.com/rules/axe/4.13";
+
+  it("writes what axe found after Heard first and before the run its transcripts are from: a bold label, what axe is, its version, the counts, the issues most severe first, what needs review, and the file's fingerprint", () => {
+    const kept = aboutAxe();
+    const model = axeModelOf(axeRunOf([done("/about/", { axe: kept.record })]));
+    const part = pageAt(model, 0);
+    const axe = axePartOf(part);
+    const at = part.indexOf(axe[0] ?? mono([]));
+
+    // Right after the lines NVDA said first, and right before the run its transcripts are from.
+    expect(at).toBe(5);
+    expect(part[at - 2]).toEqual(para({ text: "Heard first", bold: true }));
+    expect(part[at - 1]?.kind).toBe("list");
+    expect(wordsOf(part.slice(at + axe.length, at + axe.length + 1))).toEqual(["From run r1"]);
+    expect(wordsOf(axe)).toEqual([
+      "What axe found",
+      "axe is an automated checker: it tests a page's code against rules, and finds what code can find. A person's review finds the rest.",
+      "axe-core 4.13.0, with its rules for WCAG 2.0 and 2.1 at levels A and AA, WCAG 2.2 at level AA, and best practices.",
+      "Issues: 3; Critical: 1; Serious: 1; Moderate: 1; Minor: 0; Needs review: 1; Rules passed: 41.",
+      "Issues, most severe first",
+      // button-name, the most severe: its two elements' words on how to fix them differ, so each has
+      // its own.
+      "Buttons must have discernible text\nImpact: critical · WCAG 2.0 A 4.1.2",
+      `Element: #menu\nIts HTML: <button id="menu"></button>\nHow to fix it, in axe's words:\nFix any of the following:\n– Element does not have inner text that is visible to screen readers\n– aria-label attribute does not exist or is empty\nFix all of the following:\n– Element is in tab order and does not have accessible text`,
+      `Element: #search\nIts HTML: <button id="search"><svg></svg></button>\nHow to fix it, in axe's words:\nFix any of the following:\n– ${NO_TEXT}`,
+      "axe's page on button-name",
+      // color-contrast, then region, which names no WCAG criterion: each found one element, so its
+      // words on how to fix it come once, before it.
+      "Elements must meet minimum color contrast ratio thresholds\nImpact: serious · WCAG 2.0 AA 1.4.3",
+      `How to fix the element listed, in axe's words:\nFix any of the following:\n– ${NO_TEXT}`,
+      `Element: .pale\nIts HTML: <p class="pale">Apply by 1 May</p>`,
+      "axe's page on color-contrast",
+      "All page content should be contained by landmarks\nImpact: moderate · best practice",
+      `How to fix the element listed, in axe's words:\nFix any of the following:\n– ${NO_TEXT}`,
+      `Element: #promo\nIts HTML: <div id="promo">Grants</div>`,
+      "axe's page on region",
+      "Needs review",
+      "axe couldn't decide these, so each needs a person to check it.",
+      "Elements must meet minimum color contrast ratio thresholds\nImpact: serious · WCAG 2.0 AA 1.4.3",
+      "How to fix the element listed, in axe's words:\nFix any of the following:\n– Element's background color could not be determined due to a background image",
+      "Element: .hero h2\nIts HTML: <h2>Welcome</h2>",
+      "axe's page on color-contrast",
+      `axe.json: ${byteCount(kept.record.bytes)}, SHA-256 ${kept.record.sha256}`,
+    ]);
+    // Each issue is a paragraph, and its elements a list.
+    expect(kindsOf(axe)).toEqual([
+      ...["para", "para", "para", "para", "para"],
+      ...["para", "list", "para"],
+      ...["para", "para", "list", "para"],
+      ...["para", "para", "list", "para"],
+      ...["para", "para"],
+      ...["para", "para", "list", "para"],
+      "para",
+    ]);
+  });
+
+  it("sets the labels and each issue's name in bold, an element's selector and HTML in the fixed-width font, and the file's fingerprint in it, as a transcript's is", () => {
+    const kept = aboutAxe();
+    const model = axeModelOf(axeRunOf([done("/about/", { axe: kept.record })]));
+    const axe = axePartOf(pageAt(model, 0));
+
+    expect(boldOf(axe)).toEqual([
+      "What axe found",
+      "Issues, most severe first",
+      "Buttons must have discernible text",
+      "Elements must meet minimum color contrast ratio thresholds",
+      "All page content should be contained by landmarks",
+      "Needs review",
+      "Elements must meet minimum color contrast ratio thresholds",
+    ]);
+    expect(monoOf(axe)).toEqual([
+      ...["#menu", '<button id="menu"></button>'],
+      ...["#search", '<button id="search"><svg></svg></button>'],
+      ...[".pale", '<p class="pale">Apply by 1 May</p>'],
+      ...["#promo", '<div id="promo">Grants</div>'],
+      ...[".hero h2", "<h2>Welcome</h2>"],
+    ]);
+    const last = axe.at(-1);
+    expect(last).toEqual(para(...axeFingerprint(kept.record)));
+    expect(last?.kind === "para" ? monoIn(last.line) : []).toEqual([kept.record.sha256]);
+  });
+
+  it("keeps each bold label, each issue's bold line, and the line that leads into what needs review with what follows it in the file, so none ends a printed page alone", async () => {
+    const kept = aboutAxe();
+    const model = axeModelOf(axeRunOf([done("/about/", { axe: kept.record })]));
+    const { document } = await unzipDocx(await renderWordCopy(model));
+    const together = keptWithNext(document);
+    const CONTRAST_LINE =
+      "Elements must meet minimum color contrast ratio thresholds\nImpact: serious · WCAG 2.0 AA 1.4.3";
+
+    for (const label of ["What axe found", "Issues, most severe first", "Needs review"]) {
+      expect(
+        together.filter((text) => text === label),
+        label,
+      ).toHaveLength(1);
+    }
+    expect(together).toContain(
+      "Buttons must have discernible text\nImpact: critical · WCAG 2.0 A 4.1.2",
+    );
+    expect(together).toContain(
+      "All page content should be contained by landmarks\nImpact: moderate · best practice",
+    );
+    // color-contrast is an issue, and something to review too.
+    expect(together.filter((text) => text === CONTRAST_LINE)).toHaveLength(2);
+    expect(together).toContain(AXE_TEXT.reviewLead);
+    // What leads into nothing stays as it was: what axe is, its counts, a link, the fingerprint.
+    for (const line of [
+      AXE_TEXT.what,
+      "Issues: 3; Critical: 1; Serious: 1; Moderate: 1; Minor: 0; Needs review: 1; Rules passed: 41.",
+      "axe's page on button-name",
+      `axe.json: ${byteCount(kept.record.bytes)}, SHA-256 ${kept.record.sha256}`,
+    ]) {
+      expect(together, line).not.toContain(line);
+    }
+  });
+
+  it("links to axe's own page on each rule, by the rule's name, as the fold does, and to no other address", () => {
+    const model = axeModelOf(
+      axeRunOf([
+        done("/", {
+          axe: keptAxe({
+            violations: [
+              rawRule("button-name"),
+              rawRule("label", { helpUrl: "https://example.com/rules/label" }),
+              rawRule("link-name", { helpUrl: "javascript:alert(1)" }),
+              rawRule("region", {
+                helpUrl: "https://dequeuniversity.com.example/rules/axe/4.13/x",
+              }),
+              rawRule("heading-order", { helpUrl: "" }),
+            ],
+            incomplete: [rawRule("color-contrast")],
+          }).record,
+        }),
+      ]),
+    );
+    const axe = axePartOf(pageAt(model, 0));
+
+    expect(hrefsOf(axe)).toEqual([
+      `${AXE_RULES}/button-name?application=axeAPI`,
+      `${AXE_RULES}/color-contrast?application=axeAPI`,
+    ]);
+    // The link's words name the rule; a rule whose address isn't axe's own page has no link at all.
+    const links = linesIn(axe).flatMap((line) =>
+      line.filter((piece) => typeof piece !== "string" && piece.href !== undefined),
+    );
+    expect(links).toEqual([
+      { text: "axe's page on button-name", href: `${AXE_RULES}/button-name?application=axeAPI` },
+      {
+        text: "axe's page on color-contrast",
+        href: `${AXE_RULES}/color-contrast?application=axeAPI`,
+      },
+    ]);
+    expect(wordsOf(axe).filter((words) => words.startsWith("axe's page on "))).toHaveLength(2);
+  });
+
+  it("says the counts with their labels as the fold has them, in thousands as the page writes them", () => {
+    const rules = Array.from({ length: 3 }, (_, index) => rawRule(`rule-${index}`));
+    const model = axeModelOf(
+      axeRunOf([
+        done("/", { axe: keptAxe({ violations: rules, passes: 1_204 }).record }),
+        done("/none", { axe: keptAxe({}).record }),
+      ]),
+    );
+
+    expect(wordsAt(model, 0)[3]).toBe(
+      "Issues: 3; Critical: 0; Serious: 3; Moderate: 0; Minor: 0; Needs review: 0; Rules passed: 1,204.",
+    );
+    expect(wordsAt(model, 1)[3]).toBe(
+      "Issues: 0; Critical: 0; Serious: 0; Moderate: 0; Minor: 0; Needs review: 0; Rules passed: 0.",
+    );
+    // A rule axe rated no impact is an issue, and in no impact's count.
+    const unrated = axeModelOf(
+      axeRunOf([
+        done("/", { axe: keptAxe({ violations: [rawRule("x", { impact: null })] }).record }),
+      ]),
+    );
+    expect(wordsAt(unrated)[3]).toBe(
+      "Issues: 1; Critical: 0; Serious: 0; Moderate: 0; Minor: 0; Needs review: 0; Rules passed: 0.",
+    );
+    expect(wordsAt(unrated)).toContain("The x rule's help\nImpact: not given · WCAG 2.0 A 4.1.2");
+  });
+
+  it("says axe found no issues, with the counts, and lists what needs review under it", () => {
+    const quiet = keptAxe({ passes: 30, inapplicable: 60 });
+    const toReview = keptAxe({
+      incomplete: [rawRule("color-contrast", { tags: CONTRAST })],
+      passes: 30,
+    });
+    const model = axeModelOf(
+      axeRunOf([done("/", { axe: quiet.record }), done("/a", { axe: toReview.record })]),
+    );
+    const [first = [], second = []] = [0, 1].map((at) => wordsAt(model, at));
+
+    expect(first).toEqual([
+      "What axe found",
+      AXE_TEXT.what,
+      "axe-core 4.13.0, with its rules for WCAG 2.0 and 2.1 at levels A and AA, WCAG 2.2 at level AA, and best practices.",
+      "Issues: 0; Critical: 0; Serious: 0; Moderate: 0; Minor: 0; Needs review: 0; Rules passed: 30.",
+      "axe found no issues on this page.",
+      `axe.json: ${byteCount(quiet.record.bytes)}, SHA-256 ${quiet.record.sha256}`,
+    ]);
+    // With nothing to review it has no heading for it, and with no issues no heading for them.
+    expect(first).not.toContain("Needs review");
+    expect(first).not.toContain("Issues, most severe first");
+    expect(second.slice(3, 8)).toEqual([
+      "Issues: 0; Critical: 0; Serious: 0; Moderate: 0; Minor: 0; Needs review: 1; Rules passed: 30.",
+      "axe found no issues on this page.",
+      "Needs review",
+      "axe couldn't decide these, so each needs a person to check it.",
+      "The color-contrast rule's help\nImpact: serious · WCAG 2.0 AA 1.4.3",
+    ]);
+    expect(second).not.toContain("Issues, most severe first");
+  });
+
+  it("names a rule by its id when axe gave no words for it, and says an impact it didn't give", () => {
+    const model = axeModelOf(
+      axeRunOf([
+        done("/", {
+          axe: keptAxe({ violations: [rawRule("label", { help: "", impact: null, tags: BEST })] })
+            .record,
+        }),
+      ]),
+    );
+    const axe = axePartOf(pageAt(model, 0));
+
+    expect(wordsOf(axe)).toContain("label\nImpact: not given · best practice");
+    expect(boldOf(axe)).toContain("label");
+  });
+
+  it("writes an issue that has no elements kept as its paragraph and its link, with no list", () => {
+    const model = axeModelOf(
+      axeRunOf([
+        done("/", {
+          axe: keptAxe({ violations: [rawRule("image-alt", { help: "Images", nodes: [] })] })
+            .record,
+        }),
+      ]),
+    );
+    const blocks = axePartOf(pageAt(model, 0)).slice(5, -1);
+
+    expect(kindsOf(blocks)).toEqual(["para", "para"]);
+    expect(wordsOf(blocks)).toEqual([
+      "Images\nImpact: serious · WCAG 2.0 A 4.1.2",
+      "axe's page on image-alt",
+    ]);
+  });
+
+  describe("axe's words on how to fix a rule's elements", () => {
+    /** axe's words on how to fix an image with no text, as every element of a rule can share them. */
+    const SHARED =
+      "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty";
+    /** The same, as the Word copy sets them out: each lead on a line, and each thing under it after a dash. */
+    const SHARED_LINES =
+      "Fix any of the following:\n– Element does not have an alt attribute\n– aria-label attribute does not exist or is empty";
+    const ISSUE = "Images must have alt\nImpact: critical · WCAG 2.0 A 4.1.2";
+    const LINK = "axe's page on image-alt";
+    /** An element as the copy lists it when its rule says the words on how to fix it once. */
+    const plain = (at: number): string => `Element: #img-${at}\nIts HTML: <img src="/${at}.jpg">`;
+
+    /** The blocks of the one rule a page's axe results hold, whose elements have these words each. */
+    const ruleWith = (summaries: string[]): Block[] => {
+      const nodes = summaries.map((failureSummary, at) =>
+        rawNode(`#img-${at}`, { html: `<img src="/${at}.jpg">`, failureSummary }),
+      );
+      const rule = rawRule("image-alt", {
+        impact: "critical",
+        help: "Images must have alt",
+        nodes,
+      });
+      const model = axeModelOf(
+        axeRunOf([done("/", { axe: keptAxe({ violations: [rule] }).record })]),
+      );
+      // After the label, what axe is, its version, the counts, and the issues' label, and before
+      // the file's fingerprint.
+      return axePartOf(pageAt(model, 0)).slice(5, -1);
+    };
+
+    it("says them once, between the rule and its elements, when every element shares them", () => {
+      const blocks = ruleWith([SHARED, SHARED, SHARED]);
+
+      expect(kindsOf(blocks)).toEqual(["para", "para", "list", "para"]);
+      expect(wordsOf(blocks)).toEqual([
+        ISSUE,
+        `How to fix each element listed, in axe's words:\n${SHARED_LINES}`,
+        plain(0),
+        plain(1),
+        plain(2),
+        LINK,
+      ]);
+      expect(
+        wordsOf(blocks)
+          .join("\n")
+          .match(/How to fix/g),
+      ).toHaveLength(1);
+    });
+
+    it("says one element's words once too, as the words for the element listed", () => {
+      const blocks = ruleWith([SHARED]);
+
+      expect(wordsOf(blocks)).toEqual([
+        ISSUE,
+        `How to fix the element listed, in axe's words:\n${SHARED_LINES}`,
+        plain(0),
+        LINK,
+      ]);
+    });
+
+    it("keeps each element's words with it when they differ", () => {
+      const other = "Fix all of the following:\n  Element is in tab order and has no text";
+      const blocks = ruleWith([SHARED, other, SHARED]);
+      const fix = (lines: string) => `\nHow to fix it, in axe's words:\n${lines}`;
+
+      expect(kindsOf(blocks)).toEqual(["para", "list", "para"]);
+      expect(wordsOf(blocks)).toEqual([
+        ISSUE,
+        `${plain(0)}${fix(SHARED_LINES)}`,
+        `${plain(1)}${fix("Fix all of the following:\n– Element is in tab order and has no text")}`,
+        `${plain(2)}${fix(SHARED_LINES)}`,
+        LINK,
+      ]);
+    });
+
+    it("says nothing on how to fix an element whose words are none, among others', or when every element's are", () => {
+      expect(wordsOf(ruleWith([SHARED, ""]))).toEqual([
+        ISSUE,
+        `${plain(0)}\nHow to fix it, in axe's words:\n${SHARED_LINES}`,
+        plain(1),
+        LINK,
+      ]);
+      const none = ruleWith(["", "", ""]);
+
+      expect(kindsOf(none)).toEqual(["para", "list", "para"]);
+      expect(wordsOf(none)).toEqual([ISSUE, plain(0), plain(1), plain(2), LINK]);
+      expect(wordsOf(none).join("\n")).not.toContain("How to fix");
+    });
+
+    it("says them once for 50 kept of 400 elements that share them, and doesn't claim the 350 not kept", () => {
+      const blocks = ruleWith(Array.from({ length: 400 }, () => SHARED));
+
+      expect(kindsOf(blocks)).toEqual(["para", "para", "list", "para", "para"]);
+      expect(wordsOf(blocks.slice(0, 2))).toEqual([
+        ISSUE,
+        `How to fix each element listed, in axe's words:\n${SHARED_LINES}`,
+      ]);
+      const items = blocks[2];
+      expect(items?.kind === "list" ? items.items : []).toHaveLength(MAX_NODES);
+      expect(wordsOf(blocks.slice(3))).toEqual(["and 350 more elements", LINK]);
+      expect(
+        wordsOf(blocks)
+          .join("\n")
+          .match(/How to fix/g),
+      ).toHaveLength(1);
+      // One more is said in the singular.
+      expect(wordsOf(ruleWith(Array.from({ length: 51 }, () => SHARED))).at(-2)).toBe(
+        "and 1 more element",
+      );
+    });
+  });
+
+  it("writes what axe found on a page that was never read, which axe checked before it failed, after its status and as the end of its page", () => {
+    const run = axeRunOf([
+      done("/read", { axe: keptAxe({ passes: 5 }).record }),
+      {
+        path: "/never",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        axe: aboutAxe().record,
+      },
+    ]);
+    const never = pageAt(axeModelOf(run), 1);
+
+    // No lines NVDA said, and no transcripts: what axe found follows the page's status paragraph,
+    // and is the end of the page.
+    expect(never.map(({ kind }) => kind).slice(0, 4)).toEqual(["heading", "para", "para", "para"]);
+    expect(wordsOf(never)[3]).toBe("What axe found");
+    expect(axePartOf(never)).toEqual(never.slice(3));
+    expect(wordsOf(never).at(-1)).toMatch(/^axe\.json: /);
+    expect(wordsOf(never)).toContain(
+      "Issues: 3; Critical: 1; Serious: 1; Moderate: 1; Minor: 0; Needs review: 1; Rules passed: 41.",
+    );
+  });
+
+  it("says nothing of axe for a card the model didn't make for it, as the page has no fold for it", async () => {
+    const model = await demoModel();
+    const without = withCard(model, 0, { axe: undefined });
+
+    expect(axePartOf(pageAt(without, 0))).toEqual([]);
+    expect(wordsOf(pageAt(without, 0))).not.toContain("What axe found");
+    expect(wordsOf(pageAt(without, 1))).toContain("What axe found");
+  });
+
+  it("changes nothing else: the verdict, the ring, the numbers, and What needs attention are as they are without axe's results, and so is every other block of a page", () => {
+    // The same pages, with a flag, a failure, and a skip, with axe's results and without them.
+    const pages = (withAxe: boolean): SharePageSpec[] => [
+      done("/", { flags: [LINK_FLAG], ...(withAxe ? { axe: aboutAxe().record } : {}) }),
+      done("/a", withAxe ? { axe: keptAxe({ passes: 30 }).record } : {}),
+      {
+        path: "/b",
+        status: "failed",
+        failedAttempts: [failedAttempt({ n: 1 })],
+        ...(withAxe ? { axe: aboutAxe().record } : {}),
+      },
+      { path: "/c", status: "skipped" },
+    ];
+    const [plain, checked] = [false, true].map((withAxe) =>
+      axeModelOf(axeRunOf(pages(withAxe))),
+    ) as [ShareModel, ShareModel];
+    const sections = (model: ShareModel) => partsAt(wordOutline(model), 1);
+
+    // The results are there: the pages that were checked have issues and a count of rules passed.
+    expect(checked.pages.map((card) => card.axe !== undefined && "view" in card.axe)).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
+    // At a glance and What needs attention, in the same order, word for word.
+    expect(outlineOf(wordOutline(checked)).slice(0, 4)).toEqual(
+      outlineOf(wordOutline(plain)).slice(0, 4),
+    );
+    expect(sections(checked).slice(0, 2)).toEqual(sections(plain).slice(0, 2));
+    expect(sections(plain)[1]?.[0]).toEqual(heading(1, "What needs attention"));
+    // Each page is the same but for what it says of axe.
+    for (const [index, card] of plain.pages.entries()) {
+      const apart = (part: Block[]) => part.filter((block) => !axePartOf(part).includes(block));
+
+      expect(axePartOf(pageAt(checked, index)).length, card.path).toBeGreaterThan(1);
+      expect(apart(pageAt(checked, index)), card.path).toEqual(apart(pageAt(plain, index)));
+    }
+  });
+
+  describe("writes why there's none", () => {
+    const CHANGED = "Not shown: axe.json isn't as the run recorded it; voicecap verify names it.";
+    const NOT_RESULTS =
+      "Not shown: axe.json is as the run recorded it, but it isn't axe's results as voicecap keeps them.";
+    const UNREADABLE = "Not shown: the run's record of this page's axe check couldn't be read.";
+    const NOT_READ = "Not checked: axe didn't check this page, since it wasn't read.";
+    const NO_DRIVER = "Not checked: this run's driver doesn't check pages with axe.";
+
+    it("under the label, in the card's words: a check axe couldn't make, a file the page can't show, a record it can't read, and a page that wasn't read", () => {
+      const clean = keptAxe({ passes: 2 });
+      const missing = { ...keptAxe({ passes: 1 }).record, sha256: "d".repeat(64) };
+      const text = '{"schemaVersion": 1, "note": "not axe"}\n';
+      const notAxe: AxeRecord = { ...clean.record, ...fileHash(text) };
+      const run = axeRunOf([
+        done("/ok", { axe: clean.record }),
+        done("/error", { axe: { error: "timed out after 20s", ranAt: AXE_RAN_AT } }),
+        done("/missing", { axe: missing }),
+        done("/not-axe", { axe: notAxe }),
+        done("/odd", { axe: null as unknown as AxeRecord }),
+        { path: "/pdf", status: "skipped" },
+      ]);
+      const files = new Map([
+        ...axeFilesOf([run]),
+        [`r1/${run.pages[3]?.slug}`, text] as [string, string],
+      ]);
+      const model = buildShareModel(inputOf([run], { axeFiles: files }));
+      const reasons = [
+        "axe couldn't check this page: timed out after 20s.",
+        CHANGED,
+        NOT_RESULTS,
+        UNREADABLE,
+        NOT_READ,
+      ];
+
+      // The page that was checked has results, not a reason.
+      expect(model.pages[0]?.axe).toHaveProperty("view");
+      expect(wordsAt(model, 0)[0]).toBe("What axe found");
+      expect(wordsAt(model, 0)).toContain("axe found no issues on this page.");
+      for (const [at, reason] of reasons.entries()) {
+        const index = at + 1;
+        const where = model.pages[index]?.path;
+
+        // The label in bold, and the card's reason as a paragraph under it: nothing else.
+        expect(axePartOf(pageAt(model, index)), where).toEqual([
+          leadIn({ text: "What axe found", bold: true }),
+          para(reason),
+        ]);
+        expect(reasonOf(model.pages[index]), where).toBe(reason);
+        // The fold says the same words.
+        expect(renderPages(model), where).toContain(`<p class="not-recorded">${esc(reason)}</p>`);
+      }
+    });
+
+    it("for a run from before voicecap checked pages with axe, as it says of every part such a run didn't record, and for a run whose driver checks none", () => {
+      for (const version of ["0.15.0", "0.11.0", "0.4.1"]) {
+        const older = axeModelOf(axeRunOf([done("/")], version));
+
+        expect(wordsAt(older), version).toEqual([
+          "What axe found",
+          `Not recorded: this run used voicecap ${version}.`,
+        ]);
+      }
+      expect(wordsAt(axeModelOf(axeRunOf([done("/"), done("/a")])), 1)).toEqual([
+        "What axe found",
+        NO_DRIVER,
+      ]);
+    });
+
+    it("with 'Not recorded' in front of a line that doesn't say it wasn't recorded, shown, or checked, so a gap never reads as a pass, as the page does", async () => {
+      const model = await demoModel();
+      const said = (notRecorded: string) =>
+        wordsAt(withCard(model, 0, { axe: { notRecorded } }), 0).at(-1);
+
+      expect(said("this run used voicecap 0.4.1.")).toBe(
+        "Not recorded: this run used voicecap 0.4.1.",
+      );
+      // A line that says so already is as it is.
+      for (const line of [NO_DRIVER, NOT_READ, CHANGED, "axe couldn't check this page."]) {
+        expect(said(line), line).toBe(line);
+      }
+      expect(renderPages(withCard(model, 0, { axe: { notRecorded: "gone" } }))).toContain(
+        '<p class="not-recorded">Not recorded: gone</p>',
+      );
+    });
+
+    it("on every page of the demo, whose runs are from before voicecap kept it", async () => {
+      const model = await demoModel();
+
+      expect(model.pages).toHaveLength(7);
+      for (const [index, card] of model.pages.entries()) {
+        expect(wordsAt(model, index), card.path).toEqual([
+          "What axe found",
+          "Not recorded: this run used voicecap 0.4.1.",
+        ]);
+      }
+    });
+  });
+
+  // Review Focus 3: the words axe supplies are text, whatever they hold.
+  describe("writes axe's HTML as text, and everything else axe supplies", () => {
+    const script = "<script>alert(1)</script>";
+    // Characters XML forbids, which a page's text can hold and a Word file can't.
+    const CONTROL = "<p>x\u0000y\u0001z\uD800</p>";
+    const hostile = () =>
+      keptAxe({
+        violations: [
+          rawRule(`x"><img src=x onerror=alert(1)>`, {
+            help: `Help ${script} & more`,
+            helpUrl: "javascript:alert(1)",
+            tags: ["wcag2a", "<b>tag</b>"],
+            nodes: [
+              rawNode(".a", {
+                html: `<div title="a & b">${script} &amp; &lt;</div>`,
+                target: [`div[title="${script}"]`],
+                failureSummary: `Fix any of the following:\n  ${script} & "quoted"`,
+              }),
+            ],
+          }),
+          rawRule("link-name", {
+            helpUrl: `${AXE_RULES}/x"><evil/>&a='1'`,
+            nodes: [
+              rawNode(".b"),
+              rawNode(".c", { failureSummary: `Fix all of the following:\n  ${script}` }),
+            ],
+          }),
+          rawRule("image-alt", { helpUrl: "", nodes: [rawNode(".d", { html: CONTROL })] }),
+        ],
+      });
+
+    it("as the words it is: the HTML of an element holding a script, its markup, quotes, and entities, never escaped", () => {
+      const model = axeModelOf(axeRunOf([done("/", { axe: hostile().record })]));
+      const axe = axePartOf(pageAt(model, 0));
+      const words = wordsOf(axe);
+
+      expect(words).toContain(`Help ${script} & more\nImpact: serious · WCAG 2.0 A`);
+      expect(words).toContain(
+        `How to fix the element listed, in axe's words:\nFix any of the following:\n– ${script} & "quoted"`,
+      );
+      expect(words).toContain(
+        `Element: div[title="${script}"]\nIts HTML: <div title="a & b">${script} &amp; &lt;</div>`,
+      );
+      expect(words).toContain(`Element: .d\nIts HTML: ${CONTROL}`);
+      expect(monoOf(axe)).toContain(`<div title="a & b">${script} &amp; &lt;</div>`);
+      expect(monoOf(axe)).toContain(`div[title="${script}"]`);
+      // Nothing is escaped: the document holds words, and the library sets each in a run of its own.
+      expect(words.join("\n")).not.toMatch(/&lt;script|&gt;|&quot;|&#39;/);
+      // An address that isn't axe's own page on a rule is never a link; one that is, is the link.
+      expect(hrefsOf(axe)).toEqual([`${AXE_RULES}/x"><evil/>&a='1'`]);
+    });
+
+    it("in the .docx: text in a run, a file that opens, and no link but axe's own pages", async () => {
+      const model = axeModelOf(axeRunOf([done("/", { axe: hostile().record })]));
+      const parts = await unzipDocx(await renderWordCopy(model));
+      const paragraphs = paragraphsOf(parts.document).map(({ text }) => text);
+
+      for (const name of ["document", "rels"] as const) {
+        expect(XMLValidator.validate(parts[name]), name).toBe(true);
+      }
+      // The script is XML text, read back as the words axe gave, and no element of the file.
+      expect(parts.document).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+      expect(parts.document).not.toContain("<script");
+      expect(parts.document).not.toContain("<img");
+      expect(parts.document).not.toContain("<evil");
+      expect(paragraphs).toContain(
+        `Element: div[title="${script}"]\nIts HTML: <div title="a & b">${script} &amp; &lt;</div>`,
+      );
+      expect(paragraphs).toContain(`Help ${script} & more\nImpact: serious · WCAG 2.0 A`);
+      expect(paragraphs).toContain(
+        `Element: .c\nIts HTML: <a href="/next/" class="c"></a>\nHow to fix it, in axe's words:\nFix all of the following:\n– ${script}`,
+      );
+      // A character XML forbids is shown as U+FFFD, so the file is XML and opens.
+      expect(parts.document).not.toMatch(FORBIDDEN);
+      expect(paragraphs).toContain("Element: .d\nIts HTML: <p>x\u{FFFD}y\u{FFFD}z\u{FFFD}</p>");
+      // Beyond the report's own four addresses, the file links to axe's page on a rule, read back
+      // whole, and to no other: not the rule whose address is a script.
+      expect(linksOf(parts).filter((link) => !REPORT_LINKS.has(link))).toEqual([
+        `${AXE_RULES}/x"><evil/>&a='1'`,
+      ]);
+      expect(linksOf(parts).join("\n")).not.toContain("javascript:");
+    });
+  });
+
+  it("says the words of the card's fold in the fold's order, unfolded: what axe is, its version, the counts, each issue and its elements, what needs review, and the fingerprint", () => {
+    // One rule's elements differ in their words on how to fix them, and another's share them (51
+    // of its elements, so 50 are kept and one is counted), so both ways of saying them are here.
+    const shared = "Fix any of the following:\n  Element does not have an alt attribute";
+    const kept = keptAxe({
+      violations: [
+        rawRule("button-name", {
+          impact: "critical",
+          tags: NAME_ROLE,
+          help: "Buttons must have discernible text",
+          nodes: [
+            rawNode("#menu", {
+              failureSummary:
+                "Fix any of the following:\n  Element has no inner text\n\nFix all of the following:\n  Element is in tab order",
+            }),
+            rawNode("#search"),
+          ],
+        }),
+        rawRule("image-alt", {
+          impact: "serious",
+          tags: ["cat.text-alternatives", "wcag2a", "wcag111"],
+          help: "Images must have alternative text",
+          nodes: Array.from({ length: 51 }, (_, at) =>
+            rawNode(`#img-${at}`, { html: `<img src="/${at}.jpg">`, failureSummary: shared }),
+          ),
+        }),
+        rawRule("region", { impact: "moderate", tags: BEST, help: "Use landmarks" }),
+      ],
+      incomplete: [
+        rawRule("color-contrast", { tags: CONTRAST, help: "Contrast needs a person to check" }),
+      ],
+      passes: 41,
+    });
+    const model = axeModelOf(axeRunOf([done("/about/", { axe: kept.record })]));
+    const [card = ""] = renderPages(model).split('<article class="card"').slice(1);
+    const fold = /<details class="fold axe-page"[^>]*>(.*?)<\/div><\/details>/s.exec(card)?.[1];
+    const shown = model.pages[0]?.axe;
+    if (fold === undefined) throw new Error("The card has no fold of what axe found.");
+    if (shown === undefined || "notRecorded" in shown) throw new Error("The card has no results.");
+    const anchors = anchorsOf(shown);
+
+    // Many words are checked, and in both places, in the same order: each is found after the one
+    // before it.
+    expect(anchors.length).toBeGreaterThan(60);
+    expect(anchors).toContain(AXE_TEXT.more(1));
+    expect(anchors).toContain(AXE_TEXT.fixShared(51));
+    expect(anchors).toContain(AXE_TEXT.fix);
+    const places = [
+      ["the fold", textOf(fold, "")],
+      ["the Word copy", wordsAt(model).join(" ").replace(/\s+/g, " ")],
+    ] as const;
+    for (const [name, text] of places) {
+      let from = 0;
+      for (const anchor of anchors) {
+        const words = anchor.replace(/\s+/g, " ");
+        const at = text.indexOf(words, from);
+
+        expect(at, `${name}: ${anchor}`).toBeGreaterThanOrEqual(0);
+        from = at + words.length;
+      }
+    }
+  });
+});
+
 describe("the section together", () => {
   /** A page whose address, label, title, and transcripts are all markup, and one never read. */
   const oddModel = (): ShareModel =>
@@ -1164,6 +2085,7 @@ describe("the section together", () => {
     ["no counted run", noRunModel()],
     ["no transcripts", modelOf([FAILED])],
     ["odd words", oddModel()],
+    ["axe's results", axeResultsModel()],
   ];
 
   it("sets its headings in order: one h1, an h2 for each page, and an h3 for each transcript", async () => {
@@ -1234,15 +2156,19 @@ describe("the section together", () => {
     }
   });
 
-  it("links to nothing, since the page's links go to its own parts, which this copy has in order", async () => {
+  it("links to nothing but axe's own page on a rule, since the page's other links go to its own parts, which this copy has in order", async () => {
     for (const [name, model] of await models()) {
-      expect(hrefsOf(wordPages(model)), name).toEqual([]);
-      for (const line of linesIn(wordPages(model))) {
-        expect(
-          line.filter((piece) => typeof piece !== "string" && piece.href !== undefined),
-          name,
-        ).toEqual([]);
-      }
+      const links = linesIn(wordPages(model)).flatMap((line) =>
+        line.flatMap((piece) =>
+          typeof piece !== "string" && piece.href !== undefined ? [piece.href] : [],
+        ),
+      );
+
+      expect(hrefsOf(wordPages(model)), name).toEqual(links);
+      for (const href of links)
+        expect(href.startsWith(AXE_TEXT.rulePages), `${name}: ${href}`).toBe(true);
+      // Only the model with axe's results has any.
+      expect(links.length > 0, name).toBe(name === "axe's results");
     }
   });
 
@@ -1294,6 +2220,25 @@ describe("the section together", () => {
     const [evidence, ...earlierEvidence] = base.evidence;
     const [first, second] = base.pages;
     if (!first || !second || !evidence) throw new Error("The fixture lost a page or a run.");
+    // What axe supplies: a rule's id and words, an element's selector and HTML, axe's words on how
+    // to fix it, and the words of what needs review.
+    const kept = keptAxe({
+      violations: [
+        rawRule(marked("axe-rule"), {
+          help: marked("axe-help"),
+          nodes: [
+            rawNode(".a", {
+              html: marked("axe-html"),
+              target: [marked("axe-selector")],
+              failureSummary: marked("axe-fix"),
+            }),
+          ],
+        }),
+      ],
+      incomplete: [rawRule("color-contrast", { help: marked("axe-review") })],
+    });
+    const view = axeViewOf(kept.text);
+    if (view === null) throw new Error("The fixture's axe results can't be read.");
     const home: PageCard = {
       ...first,
       name: marked("name-a"),
@@ -1308,6 +2253,14 @@ describe("the section together", () => {
       timeMs: { notRecorded: marked("time") },
       flags: [{ rule: marked("flag-a"), message: "m" }],
       heardFirst: [marked("first")],
+      axe: {
+        view,
+        text: kept.text,
+        bytes: 9,
+        sha256: marked("axe-sha"),
+        run: "r1",
+        slug: first.slug,
+      },
     };
     const other: PageCard = {
       ...second,
@@ -1317,6 +2270,7 @@ describe("the section together", () => {
       from: { run: marked("run"), date: marked("date") },
       title: { notRecorded: marked("untitled") },
       flags: [{ rule: marked("flag-b"), message: "m" }],
+      axe: { notRecorded: marked("axe-reason") },
     };
     return {
       ...base,
@@ -1365,6 +2319,8 @@ describe("the section together", () => {
       ...["name-a", "path-a", "title", "status", "review", "at", "reviewer", "shot", "failure"],
       ...["time", "flag-a", "first", "path-b", "run", "date", "untitled", "flag-b", "gone", "url"],
       ...["lastRun", "lastStatus", "words", "sha", "latest"],
+      ...["axe-rule", "axe-help", "axe-html", "axe-selector", "axe-fix", "axe-review", "axe-sha"],
+      "axe-reason",
     ];
 
     for (const field of fields) expect(words, field).toContain(marked(field));

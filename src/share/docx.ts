@@ -337,8 +337,9 @@ function nextWritten(blocks: Block[], index: number): Block | undefined {
  * A block as what the document holds: a paragraph or a table, or more than one, or none. `next` is
  * the block after it that writes something. A paragraph that a picture or a list follows is kept
  * with it, so a line that names the picture, or a label that leads into the list, is never left at
- * the foot of a page with what it names on the next. A table that a table follows has a small
- * paragraph after it (`gapOf`), so no two tables touch.
+ * the foot of a page with what it names on the next; so is a lead-in (`leadIn`), whatever follows
+ * it. A table that a table follows has a small paragraph after it (`gapOf`), so no two tables
+ * touch.
  */
 function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
   switch (block.kind) {
@@ -363,7 +364,10 @@ function blockOf(d: Docx, block: Block, next: Block | undefined): Child[] {
     case "para":
       return [
         new d.Paragraph({
-          keepNext: next?.kind === "image" || next?.kind === "list" ? true : undefined,
+          keepNext:
+            block.keepNext === true || next?.kind === "image" || next?.kind === "list"
+              ? true
+              : undefined,
           children: lineOf(d, block.line),
         }),
       ];

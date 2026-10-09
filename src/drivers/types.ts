@@ -3,6 +3,7 @@
  * src/drivers/ touches Guidepup or Playwright. The interface is expressed in actions, not
  * keystrokes; the core (src/passes/) decides when a pass stops, from what a driver returns.
  */
+import type { AxeSummary } from "../axe/results.js";
 import type { NewRunEvent } from "../model.js";
 
 /**
@@ -76,6 +77,20 @@ export interface ScreenReaderDriver {
    */
   openPage(url: string): Promise<PageInfo>;
 
+  /**
+   * Check the page that's open with axe-core, an automated checker, and give what voicecap keeps of
+   * its results, or the reason there are none. The core asks once a page, on its first load: after
+   * openPage, which has already pressed its own keys to put the screen reader at the top, and
+   * before the first pass's first key. The check moves no focus, scrolls nothing, and adds nothing
+   * to the page. One that fails gives the reason, and the page is read as usual. One that runs out
+   * of time and is still under way in the page says so too (`leftRunning`): the core opens the
+   * page again, and a later openPage must end the check, as a fresh browser for each load does.
+   * Neither fails the page; only a browser that's gone throws, as it would for any step.
+   *
+   * Optional: a driver that can't check a page leaves it out, and its run records no axe result.
+   */
+  checkWithAxe?(): Promise<AxeCapture>;
+
   /** Move to the next line in browse mode (NVDA: Down Arrow). */
   nextLine(): Promise<Speech>;
   /** Move to the next heading (NVDA: H). */
@@ -120,6 +135,18 @@ export interface PageInfo {
  * fails the page, so the reason is the answer, and the run records it.
  */
 export type PageScreenshot = { jpeg: Uint8Array } | { error: string };
+
+/**
+ * axe-core's check of a page: the text of the file the page keeps (axe.json) and what its record
+ * says of it, or the reason there's none. Not being able to check a page never fails it, so the
+ * reason is the answer, and the run records it.
+ *
+ * `leftRunning` is set only when the check ran out of its time (AXE_LIMIT_MS) and couldn't be
+ * stopped, so it's still under way in the page: the core then opens the page again before the first
+ * pass's first key, so no key is pressed in a page axe is holding up. Only the reason is recorded.
+ */
+export type AxeCapture =
+  { json: string; summary: AxeSummary } | { error: string; leftRunning?: true };
 
 export interface FocusedElement {
   /** Lowercase tag name, e.g. "a". */

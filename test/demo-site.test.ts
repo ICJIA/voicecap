@@ -23,7 +23,7 @@ import { footerInTwoWindows } from "./helpers/footer.js";
 const MISTAKES = "/common-mistakes/";
 const GOOD_PAGES = DEMO_PAGES.filter((page) => page !== MISTAKES);
 /** The demo's canonical address: its pages are published inside voicecap's website, at /demo-site/. */
-const CANONICAL = "https://voicecap.netlify.app/demo-site/";
+const CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /** The page the server gives for any address it has nothing at: it names no address of its own. */
 const NOT_FOUND = "404.html";
 
@@ -143,7 +143,7 @@ describe("the demo site", () => {
   });
 });
 
-// The demo's canonical address is https://voicecap.netlify.app/demo-site/: the website publishes
+// The demo's canonical address is https://voicecap.icjia.app/demo-site/: the website publishes
 // the demo's own pages there. Each page names its own address under it, so a run on the copy at
 // this computer learns the real name, and its links are relative, so the pages work at either
 // address.
@@ -169,13 +169,13 @@ describe("the demo site's addresses", () => {
     const tagOf = async (file: string) =>
       canonicalTags(await readFile(path.join(DEMO_SITE_DIR, file), "utf8"))[0];
     expect(await tagOf("index.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/" />',
     );
     expect(await tagOf("before-you-start/index.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/before-you-start/" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/before-you-start/" />',
     );
     expect(await tagOf("ask-a-question/sent.html")).toBe(
-      '<link rel="canonical" href="https://voicecap.netlify.app/demo-site/ask-a-question/sent.html" />',
+      '<link rel="canonical" href="https://voicecap.icjia.app/demo-site/ask-a-question/sent.html" />',
     );
   });
 
@@ -382,7 +382,11 @@ describe("the demo site's accessibility (axe-core in Chromium)", () => {
     const page = await open("/ask-a-question/");
     await page.fill("#question", "Does this go anywhere?");
     await page.click("button[type=submit]");
-    await page.waitForFunction(() => document.title.startsWith("Practice form"));
+    // The answer page's title is there once its head is read, before its stylesheet is in, and axe
+    // sizes its links from the page as drawn. So wait for the page itself to load.
+    await page.waitForURL(/\/ask-a-question\/sent\.html\?/);
+    await page.waitForLoadState("load");
+    expect(await page.title()).toBe("Practice form | voicecap demo");
     expect(await violations(page)).toEqual([]);
     await page.goto(`${server.origin}/no-such-page/`);
     expect(await page.title()).toBe("Page not found | voicecap demo");

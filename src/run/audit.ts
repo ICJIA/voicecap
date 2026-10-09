@@ -883,6 +883,9 @@ function applyOutcome(
   // The last attempt's, like the files: an earlier attempt's screenshot was moved aside with them.
   if (outcome.screenshot) page.screenshot = outcome.screenshot;
   else delete page.screenshot;
+  // The same for axe's results: an earlier attempt's axe.json was moved aside with the files.
+  if (outcome.axe) page.axe = outcome.axe;
+  else delete page.axe;
   page.errors = outcome.errors;
   page.flags = outcome.status === "done" ? evaluateFlags(outcome.results, config.flags) : [];
   if (outcome.finalUrl !== undefined) page.finalUrl = outcome.finalUrl;

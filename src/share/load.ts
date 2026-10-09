@@ -1,8 +1,9 @@
 /**
  * What the shareable page is made from, read from a site's folder in the transcripts home: its
- * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs and
- * the copies of NVDA's own log of the runs it draws on, and the screenshots it shows. Every read is
- * here; buildShareModel (./model.ts) works from what this gives it, and reads nothing itself.
+ * runs, reviews, and manual sessions, the transcripts the page shows or compares, the event logs
+ * and the copies of NVDA's own log of the runs it draws on, and the screenshots and axe results it
+ * shows. Every read is here; buildShareModel (./model.ts) works from what this gives it, and reads
+ * nothing itself.
  */
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
@@ -17,6 +18,7 @@ import {
 } from "../flags/evaluate.js";
 import { listManualSessions, type ManualSessionFile } from "../manual/list.js";
 import {
+  AXE_FILE,
   PASS_NAMES,
   SCREENSHOT_FILE,
   type FlagResult,
@@ -37,7 +39,7 @@ import { listRuns } from "../run/store.js";
 import { fileHash } from "../transcripts/write.js";
 import { UsageError } from "../util/errors.js";
 import { isoLocal } from "../util/time.js";
-import { isFileHash, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, isFileHash, screenshotRecordOf } from "./records.js";
 import type { GestureOf } from "./run-log-check.js";
 import { cardRecord, runBefore, standingOf, type Standing } from "./standing.js";
 
@@ -116,6 +118,15 @@ export interface ShareInput {
    */
   screenshots: Map<string, Uint8Array>;
   /**
+   * The text of the axe file (axe.json) of each page the page shows axe's results for, by run id
+   * and page slug, as `screenshots` holds a picture: the file of the record its card speaks for,
+   * only when its record lists one (from voicecap 0.16.0), and only as the record has it (its size
+   * and SHA-256). Its exact text: UTF-8, as the page carries it for its fingerprint check, which
+   * hashes it back to those bytes. A file that isn't UTF-8 text is held as "", which is no axe
+   * results, and the card says so.
+   */
+  axeFiles: Map<string, string>;
+  /**
    * The pages read here whose flags couldn't be computed afresh, since a JSON transcript of theirs
    * couldn't be read: each keeps the flags its record has, by run id and slug.
    */
@@ -185,14 +196,16 @@ export async function loadShareInput(options: {
   for (const { run, page } of pagesToRead(standing)) {
     read.set(storeKey(run.id, page.slug), await readPage(siteDir, run.id, page));
   }
-  const [reviews, manual, unreadableRuns, events, nvdaLogs, screenshots] = await Promise.all([
-    readReviews(siteDir),
-    listManualSessions(siteDir),
-    runsNotRead(siteDir, records),
-    eventLogsOf(siteDir, standing.drawnOn),
-    nvdaLogsOf(siteDir, standing.drawnOn),
-    screenshotsOf(siteDir, standing),
-  ]);
+  const [reviews, manual, unreadableRuns, events, nvdaLogs, screenshots, axeFiles] =
+    await Promise.all([
+      readReviews(siteDir),
+      listManualSessions(siteDir),
+      runsNotRead(siteDir, records),
+      eventLogsOf(siteDir, standing.drawnOn),
+      nvdaLogsOf(siteDir, standing.drawnOn),
+      screenshotsOf(siteDir, standing),
+      axeFilesOf(siteDir, standing),
+    ]);
   const gestureOf = options.gestureOf ?? null;
   // The steps of every page of a run that kept copies, which its copies are checked against: read
   // only when there is a check to make.
@@ -222,6 +235,7 @@ export async function loadShareInput(options: {
     nvdaLogs,
     gestureOf,
     screenshots,
+    axeFiles,
     siteName: config.report.siteName,
     flagRules: config.flags,
     flagRulesSha256: flagRulesSha256(config.flags),
@@ -412,6 +426,46 @@ async function screenshotsOf(
     }
   }
   return pictures;
+}
+
+/** Bytes as UTF-8 text, refusing any that aren't: text that encodes back to the same bytes. */
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+/**
+ * The axe file of each page, by run id and slug, as `screenshotsOf` reads a page's picture: the file
+ * of the record its card speaks for, when the record lists one (a record of why there's none lists
+ * no file, and neither does a record of no kind voicecap writes) and the file is there and is as the
+ * record has it. A file that isn't (missing, unreadable, or changed since its run's seal) is left
+ * out, and the card says so; `voicecap verify` names it. Its text is exactly its bytes, so the
+ * page's check hashes it back to them: bytes that aren't UTF-8 text are held as "", which is no axe
+ * results. They're read one at a time, as the screenshots are.
+ */
+async function axeFilesOf(siteDir: string, standing: Standing): Promise<ShareInput["axeFiles"]> {
+  const files: ShareInput["axeFiles"] = new Map();
+  for (const card of standing.pages) {
+    const source = cardRecord(card);
+    const recorded = source === null ? undefined : axeRecordOf(source.page);
+    if (source === null || recorded === undefined || recorded === "unreadable") continue;
+    if ("error" in recorded) continue;
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(
+        path.join(pageDir(siteDir, source.run.id, source.page.slug), AXE_FILE),
+      );
+    } catch {
+      continue;
+    }
+    const { sha256, bytes: size } = fileHash(bytes);
+    if (sha256 !== recorded.sha256 || size !== recorded.bytes) continue;
+    let text = "";
+    try {
+      text = UTF8.decode(bytes);
+    } catch {
+      // Not UTF-8 text, so no axe results as voicecap keeps them: "", and the card says so.
+    }
+    files.set(storeKey(source.run.id, source.page.slug), text);
+  }
+  return files;
 }
 
 /** A file's text, exactly: UTF-8, with a byte-order mark and line endings kept. */

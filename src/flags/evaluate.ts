@@ -13,6 +13,26 @@ import { speechItems } from "./speech.js";
 
 export type FlagRules = VoicecapConfig["flags"];
 
+/**
+ * The ids of voicecap's built-in rules, the one list of them, in the order evaluateFlags raises
+ * them: each is a flag's `rule`, and its settings are in the config's `flags` under its name in
+ * camelCase (generic-link-text's are `flags.genericLinkText`). The website's Technical details page
+ * takes its table of the rules, and how many there are, from it. A custom rule (`flags.custom`) is
+ * no built-in one: it raises its own id.
+ */
+export const BUILT_IN_RULES = [
+  "generic-link-text",
+  "unlabeled",
+  "read-not-finished",
+  "headings",
+  "tab-no-stops",
+  "tab-before-main",
+  "repeated-phrase",
+] as const;
+
+/** A built-in rule's id. */
+export type BuiltInRule = (typeof BUILT_IN_RULES)[number];
+
 /** The parts of a pass the rules look at. TranscriptJson and PassResult both fit. */
 export interface PassData {
   steps: StepRecord[];
@@ -243,8 +263,11 @@ function quotedSteps(steps: StepRecord[]): StepRecord[] {
 }
 
 /**
- * The steps that carry page content: without the read pass's Ctrl+End (it repeats the last line)
- * and its end-of-page repeats, the final "no next heading", or the step where focus left the page.
+ * The steps that carry page content: without the read pass's Ctrl+End steps (the one at its start,
+ * and the look at the end it makes when it's about to stop for the repeat limit: each says the last
+ * line again) and its end-of-page repeats, the final "no next heading", or the step where focus left
+ * the page. A read that ended "end-reached" ends in the page's last line, said once, whether that's
+ * the end the first Ctrl+End found or the end that moved as the page was read.
  */
 export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   if (pass === "read") {

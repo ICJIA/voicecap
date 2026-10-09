@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AXE_LIMIT_MS, axeScript, keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { VoicecapConfig } from "../src/config/schema.js";
 import {
@@ -19,7 +20,15 @@ import { openEventLog, readEventLog } from "../src/run/events.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { createMemoryLogger, type Logger } from "../src/util/log.js";
 import { isoLocalMs } from "../src/util/time.js";
-import { FakeDesktop, FakeNvda, FakeSession, Gate, type FakePage } from "./helpers/fake-desktop.js";
+import {
+  AXE_HANGS,
+  FakeDesktop,
+  FakeNvda,
+  FakeSession,
+  Gate,
+  type FakePage,
+} from "./helpers/fake-desktop.js";
+import { rawAxe, rawRule } from "./helpers/raw-axe.js";
 
 /** The account's home folder, which a cleaned copy of NVDA's log writes as %USERPROFILE%. */
 const HOME = "C:\\Users\\pat";
@@ -481,6 +490,128 @@ describe("opening a page", () => {
     expect(desktop.sessions).toHaveLength(2);
     expect(desktop.sessions[0]?.closed).toBe(true);
     expect(desktop.sessions[1]?.closed).toBe(false);
+  });
+});
+
+describe("checking the page with axe", () => {
+  /** Where the home page redirects. */
+  const FINAL = `${URL_HOME}home/`;
+
+  /** A started driver with the home page open, whose check with axe gives `axe`. */
+  async function opened(axe?: unknown) {
+    const made = setup({ pages: { [URL_HOME]: { finalUrl: FINAL, axe } } });
+    await made.driver.start();
+    await made.driver.openPage(URL_HOME);
+    return made;
+  }
+
+  it("checks the page it holds with axe-core's own script, only when asked, and keeps what axe found", async () => {
+    const raw = rawAxe({
+      violations: [rawRule("image-alt", { impact: "critical" })],
+      passes: 12,
+      inapplicable: 30,
+    });
+    const { driver, desktop } = await opened(raw);
+    // Opening a page doesn't check it: the run asks, once a page.
+    expect(desktop.events).not.toContain("axe");
+    // As voicecap keeps it, under the address the page ended up at.
+    expect(await driver.checkWithAxe()).toEqual(keptAxeResults(raw, FINAL));
+    expect(desktop.session.axeScripts).toEqual([await axeScript()]);
+  });
+
+  it("presses no key, and neither brings the window forward nor changes its title", async () => {
+    const { driver, desktop } = await opened();
+    const before = desktop.events.length;
+    await driver.checkWithAxe();
+    expect(desktop.events.slice(before)).toEqual(["axe"]);
+  });
+
+  it("gives an error, and keeps the page, when axe fails or takes too long", async () => {
+    const failure = new Error(
+      "TypeError: Cannot read properties of undefined (reading 'run')\n    at <anonymous>:3:16",
+    );
+    const failing = await opened(failure);
+    // Its first line: the reason goes into the sealed record and onto the shareable page.
+    expect(await failing.driver.checkWithAxe()).toEqual({
+      error: "TypeError: Cannot read properties of undefined (reading 'run')",
+    });
+    // The page is read as usual, in the browser it was opened in.
+    expect(await failing.driver.nextLine()).toBe("nextLine speech");
+    expect(failing.desktop.sessions).toHaveLength(1);
+    expect(failing.desktop.session.closed).toBe(false);
+
+    // What the page gave back isn't axe's results (a page's own script can see to that).
+    const garbled = await opened({ violations: "none" });
+    expect(await garbled.driver.checkWithAxe()).toEqual({
+      error: expect.stringMatching(/^axe's results couldn't be read/) as unknown,
+    });
+
+    const hanging = await opened(AXE_HANGS);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let settled = false;
+      const checking = hanging.driver.checkWithAxe();
+      checking.then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+      // axe-core's script is read from disk first: the limit starts once axe is under way.
+      while (!hanging.desktop.events.includes("axe")) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(AXE_LIMIT_MS - 1);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      // The check is still under way in the page: it says so, for the core to open the page again.
+      expect(await checking).toStrictEqual({ error: "timed out after 20s", leftRunning: true });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await hanging.driver.nextLine()).toBe("nextLine speech");
+  });
+
+  it("says a check that failed before its limit isn't under way any more", async () => {
+    const failing = await opened(new Error("axe is not defined"));
+    expect(await failing.driver.checkWithAxe()).toStrictEqual({ error: "axe is not defined" });
+    const garbled = await opened({ violations: "none" });
+    expect(await garbled.driver.checkWithAxe()).not.toHaveProperty("leftRunning");
+  });
+
+  it("closes the browser a check was left running in when the page is opened again", async () => {
+    const { driver, desktop } = await opened(AXE_HANGS);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const checking = driver.checkWithAxe();
+      while (!desktop.events.includes("axe")) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await vi.advanceTimersByTimeAsync(AXE_LIMIT_MS);
+      expect(await checking).toMatchObject({ leftRunning: true });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // The load after it is in a browser of its own, and the one the check was in is closed.
+    await driver.openPage(URL_HOME);
+    expect(desktop.sessions).toHaveLength(2);
+    expect(desktop.sessions[0]?.closed).toBe(true);
+    expect(desktop.sessions[1]?.closed).toBe(false);
+    expect(desktop.session.loaded).toEqual([URL_HOME]);
+  });
+
+  it("says the browser is gone as an environment error", async () => {
+    const gone = new EnvironmentError(
+      "Chrome closed while voicecap was using it: its window was closed, or it crashed.",
+      { failure: "browser" },
+    );
+    const { driver } = await opened(gone);
+    await expect(driver.checkWithAxe()).rejects.toBe(gone);
+  });
+
+  it("needs a page open first", async () => {
+    const { driver } = setup();
+    await driver.start();
+    await expect(driver.checkWithAxe()).rejects.toThrow("openPage() must be called first.");
   });
 });
 
@@ -1753,10 +1884,12 @@ describe("reporting to the run's event log", () => {
   });
 });
 
-// Another window taking the foreground is looked up once, and its program named: in the event log,
-// with the window's title, and on the error, by its name only. The lookup comes a moment after the
-// loss, so the window in front may be voicecap's own browser again: no program took the foreground
-// then, and the answer is "not known".
+// Another window taking the foreground is looked up as the loss is found, and its program named: in
+// the event log, with the window's title, and on the error, by its name only. A step's loss is looked
+// up once. A page that can't be brought to the front is looked up after each failed try, so Search or
+// the Start menu coming up on a later one is found, and recorded once for the failure, as ever. The
+// lookup comes a moment after the loss, so the window in front may be voicecap's own browser again:
+// no program took the foreground then, and the answer is "not known".
 describe("the program that took the foreground", () => {
   const OUTLOOK: NewRunEvent = {
     type: "foreground-lost",
@@ -1866,9 +1999,10 @@ describe("the program that took the foreground", () => {
     });
     await expect(open).rejects.not.toThrow(/Outlook|Inbox/);
     expect(only(recorder.events, "foreground-lost")).toEqual([OUTLOOK]);
-    // Once, though the browser was raised three times: the page is given up on after the last.
+    // Recorded once, though the browser was raised three times and the window in front looked up
+    // after each: the page is given up on after the last.
     expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
-    expect(lookups(desktop)).toBe(1);
+    expect(lookups(desktop)).toBe(3);
   });
 
   it("is named null when the lookup doesn't answer for a page that wouldn't come to the front", async () => {
@@ -2548,6 +2682,327 @@ describe("NVDA's own log", () => {
     expect(logged).toEqual([
       { type: "screen-reader-log", file: "nvda-log/1-1.txt", reason: null },
       { type: "screen-reader-log", file: "nvda-log/1-2.txt", reason: null },
+    ]);
+  });
+});
+
+// Windows Search (SearchHost.exe) came in front of the browser twice in a run of r3.illinois.gov, with
+// no one at the computer, and kept it from coming forward: every try failed, and after 5 pages the run
+// stopped. One Escape closed it each time. The Start menu (StartMenuExperienceHost.exe) does the same
+// when it opens. Only these two programs are closed, and only while the browser is brought forward.
+describe("Windows Search or the Start menu in front of the browser", () => {
+  const SEARCH = "SearchHost";
+  const START_MENU = "Windows Start Experience Host";
+  const LOST_SEARCH: NewRunEvent = { type: "foreground-lost", program: SEARCH, title: "Search" };
+  const ESCAPE_SEARCH: NewRunEvent = { type: "foreground-escape", program: SEARCH };
+
+  /**
+   * `program` has come in front of the browser, and keeps it from coming forward until it's closed,
+   * which Escape does when `closesOnEscape`.
+   */
+  function comesInFront(
+    desktop: FakeDesktop,
+    program: string,
+    title: string,
+    closesOnEscape = true,
+  ): void {
+    desktop.otherProgram = program;
+    desktop.otherTitle = title;
+    desktop.otherClosesOnEscape = closesOnEscape;
+    desktop.raiseWorks = false;
+    desktop.front = "other";
+  }
+
+  const foregroundEvents = (events: NewRunEvent[]) =>
+    only(events, "foreground-lost", "foreground-escape");
+
+  /**
+   * Runs `change` as the `nth` wait of the page's opening begins. Each try waits once after raising
+   * the browser, and the moment after an Escape is a wait too, so what's in front can change
+   * between tries.
+   */
+  function atWait(deps: GuidepupDriverDeps, nth: number, change: () => void): void {
+    const wait = deps.sleep;
+    let waits = 0;
+    deps.sleep = (ms, signal) => {
+      if (++waits === nth) change();
+      return wait(ms, signal);
+    };
+  }
+
+  it("closes Windows Search with one Escape, and goes on with the page", async () => {
+    const { driver, desktop, logger } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    const info = await driver.openPage(URL_HOME);
+
+    expect(info).toMatchObject({ finalUrl: URL_HOME, status: 200, title: "Fake page" });
+    expect(desktop.front).toBe("browser");
+    // The Escape went to Search, once, and nothing else reached it.
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    // It was raised, found behind Search, and raised again once Search was closed.
+    expect(desktop.events.filter((event) => ["raise", "other:closed"].includes(event))).toEqual([
+      "raise",
+      "other:closed",
+      "raise",
+    ]);
+    expect(lookups(desktop)).toBe(1);
+    // The page went on as any page does: out of focus mode, then to the top, in the browser.
+    expect(keysSent(desktop)).toEqual(["key:exitFocusMode", "key:toTop"]);
+    expect(logger.text("warn")).toBe("");
+  });
+
+  it("records that Search had come in front, and that voicecap pressed Escape for it, in that order", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    await driver.openPage(URL_HOME);
+
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, ESCAPE_SEARCH]);
+  });
+
+  it.each([
+    ["the Start menu, by its file's description", START_MENU, "Start"],
+    ["the Start menu, by its process", "StartMenuExperienceHost", "Start"],
+    ["Search, in another letter case", "searchhost", "Search"],
+    ["Search, by a process name that carries its .exe", "SearchHost.exe", "Search"],
+  ])("closes %s the same way", async (_which, program, title) => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, program, title);
+    await driver.openPage(URL_HOME);
+
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    expect(foregroundEvents(recorder.events)).toEqual([
+      { type: "foreground-lost", program, title },
+      { type: "foreground-escape", program },
+    ]);
+  });
+
+  it("names the program as the lookup does in the event, never the window's title", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search - salary review");
+    await driver.openPage(URL_HOME);
+
+    const escapes = only(recorder.events, "foreground-escape");
+    expect(escapes).toEqual([ESCAPE_SEARCH]);
+    expect(JSON.stringify(escapes)).not.toContain("salary");
+  });
+
+  it("asks nobody, and presses nothing, when the browser comes forward the first time", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    desktop.front = "other"; // something is in front, but raising the browser works
+    await driver.openPage(URL_HOME);
+
+    expect(lookups(desktop)).toBe(0);
+    expect(desktop.strayKeys).toEqual([]);
+    expect(foregroundEvents(recorder.events)).toEqual([]);
+  });
+
+  it("tries again within the three tries it always had", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    await driver.openPage(URL_HOME);
+
+    // Raised twice: once before Search was closed, and once after.
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(2);
+  });
+
+  it("closes Search again after another try, and fails as before when it stays", async () => {
+    const { driver, desktop, recorder, logger } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search", false);
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toBeInstanceOf(ForegroundError);
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program: SEARCH });
+    // Three tries, as ever. Each try but the last was followed by one Escape: after the last, there
+    // is no try to make, and nothing to close it for.
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
+    expect(desktop.strayKeys).toEqual(["exitFocusMode", "exitFocusMode"]);
+    expect(foregroundEvents(recorder.events)).toEqual([
+      LOST_SEARCH,
+      ESCAPE_SEARCH,
+      LOST_SEARCH,
+      ESCAPE_SEARCH,
+      LOST_SEARCH,
+    ]);
+    expect(lookups(desktop)).toBe(3);
+    expect(logger.text("warn")).toMatch(/NVDA reports this window in front: "Search"/);
+    expect(keysSent(desktop)).toEqual([]);
+  });
+
+  it("finds Search that arrives on the second try, and closes it then", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    // Outlook is in front for the first try, and keeps the browser back. It's gone, and Search is
+    // up, when the second try begins.
+    comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false);
+    atWait(deps, 2, () => comesInFront(desktop, SEARCH, "Search"));
+    const info = await driver.openPage(URL_HOME);
+
+    expect(info).toMatchObject({ finalUrl: URL_HOME, title: "Fake page" });
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    // Outlook, which passed, isn't recorded: the page didn't fail for it.
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH, ESCAPE_SEARCH]);
+    expect(lookups(desktop)).toBe(2);
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
+  });
+
+  it("finds Search that arrives on the last try, and presses nothing: no try is left", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false);
+    atWait(deps, 3, () => comesInFront(desktop, SEARCH, "Search"));
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program: SEARCH });
+    expect(desktop.strayKeys).toEqual([]);
+    // Found, and recorded as it was found: not again for the failure.
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH]);
+    expect(lookups(desktop)).toBe(3);
+  });
+
+  it("records the program that stays in front after Search was closed, once, for the failure", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    // The wait after Search's Escape ends with Outlook in front, which stays.
+    atWait(deps, 2, () => comesInFront(desktop, "Microsoft Outlook", "Inbox - Outlook", false));
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({
+      failure: "foreground",
+      program: "Microsoft Outlook",
+    });
+    // The one Escape was for Search. Outlook was asked about after each of its two tries, and
+    // recorded once, as the failure's.
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+    expect(foregroundEvents(recorder.events)).toEqual([
+      LOST_SEARCH,
+      ESCAPE_SEARCH,
+      { type: "foreground-lost", program: "Microsoft Outlook", title: "Inbox - Outlook" },
+    ]);
+    expect(lookups(desktop)).toBe(3);
+  });
+
+  it.each([
+    ["Microsoft Outlook", "Inbox - Outlook"],
+    ["Microsoft Teams", "Chat | Microsoft Teams"],
+    ["Windows Security", "Windows Security"],
+    // Programs with a name like Search's are no Search.
+    ["SearchApp", "Search"],
+    ["Windows Search Indexer", "Indexing Options"],
+    ["Microsoft Search", "Search"],
+    ["StartIsBack", "Start"],
+  ])("leaves %s alone: no Escape, and the page fails as before", async (program, title) => {
+    const { driver, desktop, recorder, logger } = recording();
+    await driver.start();
+    comesInFront(desktop, program, title);
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toBeInstanceOf(ForegroundError);
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program });
+    expect(desktop.strayKeys).toEqual([]);
+    expect(desktop.events.filter((event) => event === "raise")).toHaveLength(3);
+    expect(foregroundEvents(recorder.events)).toEqual([
+      { type: "foreground-lost", program, title },
+    ]);
+    // Asked after each of the three tries, and recorded once, for the failure.
+    expect(lookups(desktop)).toBe(3);
+    expect(logger.text("warn")).toContain("The browser couldn't be brought to the front");
+  });
+
+  it("presses no Escape when Windows doesn't say which program is in front", async () => {
+    for (const lookup of [
+      () => Promise.resolve(null),
+      () => Promise.reject(new Error("PowerShell didn't answer")),
+    ]) {
+      const { driver, desktop, deps, recorder } = recording();
+      deps.foregroundWindow = lookup;
+      await driver.start();
+      comesInFront(desktop, SEARCH, "Search");
+      const open = driver.openPage(URL_HOME);
+
+      await expect(open).rejects.toMatchObject({ failure: "foreground", program: null });
+      expect(desktop.strayKeys).toEqual([]);
+      expect(foregroundEvents(recorder.events)).toEqual([
+        { type: "foreground-lost", program: null, title: null },
+      ]);
+    }
+  });
+
+  it("presses no Escape when the window in front is the browser's own, whatever it's called", async () => {
+    const { driver, desktop, deps, recorder } = recording();
+    deps.foregroundWindow = () =>
+      Promise.resolve({ pid: desktop.session.pid, program: SEARCH, title: "Search" });
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    const open = driver.openPage(URL_HOME);
+
+    await expect(open).rejects.toMatchObject({ failure: "foreground", program: null });
+    expect(desktop.strayKeys).toEqual([]);
+    expect(only(recorder.events, "foreground-escape")).toEqual([]);
+  });
+
+  it("presses no Escape for a step that loses the foreground, only as the browser is brought forward", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    await driver.openPage(URL_HOME);
+    comesInFront(desktop, SEARCH, "Search");
+
+    await expect(driver.nextLine()).rejects.toMatchObject({
+      failure: "foreground",
+      program: SEARCH,
+    });
+    expect(desktop.strayKeys).toEqual([]);
+    expect(foregroundEvents(recorder.events)).toEqual([LOST_SEARCH]);
+  });
+
+  it("sends no Escape when the driver is stopped while it finds out which program is in front", async () => {
+    const { driver, desktop, deps } = setup();
+    const lookup = new Gate();
+    const look = deps.foregroundWindow;
+    deps.foregroundWindow = async () => {
+      await lookup.wait();
+      return look();
+    };
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    const open = driver.openPage(URL_HOME);
+    open.catch(() => {});
+    await until(() => lookup.waiting > 0);
+    await driver.stop();
+    lookup.open();
+
+    await expect(open).rejects.toThrow(/stopped/);
+    expect(desktop.strayKeys).toEqual([]);
+  });
+
+  it("works without a recorder", async () => {
+    const { driver, desktop } = setup();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+
+    await expect(driver.openPage(URL_HOME)).resolves.toMatchObject({ title: "Fake page" });
+    expect(desktop.strayKeys).toEqual(["exitFocusMode"]);
+  });
+
+  it("closes each page's Search or Start menu in the same way", async () => {
+    const { driver, desktop, recorder } = recording();
+    await driver.start();
+    comesInFront(desktop, SEARCH, "Search");
+    await driver.openPage(URL_HOME);
+    comesInFront(desktop, START_MENU, "Start");
+    await driver.openPage(URL_HOME);
+
+    expect(desktop.strayKeys).toEqual(["exitFocusMode", "exitFocusMode"]);
+    expect(only(recorder.events, "foreground-escape")).toEqual([
+      ESCAPE_SEARCH,
+      { type: "foreground-escape", program: START_MENU },
     ]);
   });
 });

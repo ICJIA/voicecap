@@ -14,25 +14,39 @@ import vm from "node:vm";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { keptAxeResults } from "../src/axe/results.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { ReviewEntry, ReviewsFile, ReviewStatus, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { runAudit } from "../src/run/audit.js";
+import {
+  axeCriteria,
+  axeFix,
+  axeImpacts,
+  axeSelector,
+  axeSharedFix,
+  axeViewOf,
+} from "../src/share/axe-view.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { renderSharePage } from "../src/share/html/document.js";
+import { renderPages } from "../src/share/html/pages.js";
 import { loadShareInput } from "../src/share/load.js";
 import { buildShareModel } from "../src/share/model.js";
+import { AXE_TEXT } from "../src/share/text.js";
 import { extractBody } from "../src/transcripts/format.js";
 import { canonicalJson, sealOf } from "../src/util/hash.js";
 import { launchBrowser } from "./helpers/axe.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
-import { options as runOptions, setup as setupSite, sitePages } from "./helpers/run-site.js";
+import { rawAxe, rawNode, rawRule } from "./helpers/raw-axe.js";
+import { options as runOptions, setup as setupSite, SITE, sitePages } from "./helpers/run-site.js";
 import { ScriptedDriver } from "./helpers/scripted-driver.js";
 import { DEMO_DAY, demoRun } from "./helpers/share-fixture.js";
+import { inputOf, keptAxe } from "./helpers/share-model.js";
 
 interface Checked {
   files: { label: string; ok: boolean }[];
   screenshots: { label: string; ok: boolean }[];
+  axe: { label: string; ok: boolean }[];
   runs: { id: string; ok: boolean }[];
   reviewProblems: string[];
   line: string;
@@ -46,6 +60,29 @@ type Shown = (file: CheckData["files"][number]) => string | null;
 /** The bytes of each copy of a screenshot the page shows, from its address: none for none shown. */
 type Pictures = (shot: CheckData["screenshots"][number]) => Uint8Array[];
 
+/**
+ * What a card's fold of what axe found shows, as the page's script reads it from the fold and its
+ * card: the counts as written, the card's chip (null when it has none), and each rule in the page's
+ * order, with its heading, its impact line (its impact, then its criteria; "" when it has none),
+ * its line of how many more elements there were (null when it has none), axe's words on how to fix
+ * its elements said once for the rule (none, or one list of lines), and each element's selector and
+ * HTML, and its own words on how to fix it.
+ */
+interface AxeShows {
+  counts: string[];
+  chip: string | null;
+  rules: {
+    heading: string;
+    impact: string;
+    more: string | null;
+    shared: string[][];
+    elements: { codes: string[]; fix: string[] }[];
+  }[];
+}
+
+/** What each fold that names one of the data's axe files shows: none, when no fold names it. */
+type AxeShown = (item: CheckData["axe"][number]) => AxeShows[];
+
 interface Library {
   sha256Hex: (bytes: Uint8Array) => string;
   canonicalJson: (value: unknown) => string;
@@ -55,6 +92,7 @@ interface Library {
     digest?: Digest,
     shown?: Shown,
     pictures?: Pictures,
+    axeShown?: AxeShown,
   ) => Promise<Checked>;
 }
 
@@ -85,9 +123,55 @@ async function check(
   digest: Digest = library.sha256Hex,
   shown?: Shown,
   pictures?: Pictures,
+  axeShown?: AxeShown,
 ): Promise<Checked> {
-  return plain(await library.checkAll(data, digest, shown, pictures));
+  return plain(await library.checkAll(data, digest, shown, pictures, axeShown));
 }
+
+/**
+ * What a card's fold shows of an axe file, worked out here as voicecap draws the fold, from the
+ * file's view and its words (src/share/axe-view.ts), and as the page's script reads it back: the
+ * counts written as the page writes a number, the chip's words, each rule's heading (its `help`, or
+ * its id), its impact line and its line of how many more elements there were, the words on how to
+ * fix its elements as lines (the leads and what's under each, in order), said once when every
+ * element shares them, and each element's selector and HTML.
+ */
+function foldShows(text: string): AxeShows {
+  const view = axeViewOf(text);
+  if (view === null) throw new Error("Not axe's results as voicecap keeps them.");
+  const impacts = axeImpacts(view);
+  const lines = (summary: string): string[] =>
+    axeFix(summary).flatMap(({ lead, items }) => [lead, ...items]);
+  return {
+    counts: [
+      view.violations.length,
+      impacts.critical,
+      impacts.serious,
+      impacts.moderate,
+      impacts.minor,
+      view.incomplete.length,
+      view.counts.passes,
+    ].map((value) => value.toLocaleString("en-US")),
+    chip: AXE_TEXT.chip(view.violations.length),
+    rules: [...view.violations, ...view.incomplete].map((rule) => {
+      const shared = axeSharedFix(rule);
+      const criteria = axeCriteria(rule.tags);
+      return {
+        heading: rule.help || rule.id,
+        impact: [AXE_TEXT.impact(rule.impact), ...(criteria === "" ? [] : [criteria])].join(" · "),
+        more: rule.moreNodes > 0 ? AXE_TEXT.more(rule.moreNodes) : null,
+        shared: shared === null || lines(shared).length === 0 ? [] : [lines(shared)],
+        elements: rule.nodes.map((node) => ({
+          codes: [axeSelector(node.target), node.html],
+          fix: shared === null ? lines(node.failureSummary) : [],
+        })),
+      };
+    }),
+  };
+}
+
+/** Each fold shows its file as voicecap draws it, once. */
+const asDrawn: AxeShown = (item) => [foldShows(item.text)];
 
 /** What a card's fold shows of each file: its body, the file without its header, as the page has it. */
 const asShown: Shown = (file) => extractBody(file.text).join("\n");
@@ -117,7 +201,7 @@ function demoData(): CheckData {
       files.push({ run: source.id, slug: page.slug, name, text });
     }
   }
-  return { runs: [earlier, latest], files, screenshots: [], reviews: null };
+  return { runs: [earlier, latest], files, screenshots: [], axe: [], reviews: null };
 }
 
 /** The demo's data with a screenshot of TINY_JPEG recorded for each of the pages of run 1402 named. */
@@ -135,6 +219,51 @@ function shotData(slugs: string[] = ["home", REPORT]): CheckData {
 
 /** Each screenshot of the page as the page shows it unchanged: once, as TINY_JPEG. */
 const asEmbedded: Pictures = () => [TINY_JPEG];
+
+/**
+ * What axe found on the first page axeData records: two issues, given in axe's order, the less
+ * severe first, and something to review. button-name found two elements whose words on how to fix
+ * them differ, and region one.
+ */
+const FIRST_AXE = {
+  violations: [
+    rawRule("region", {
+      impact: "moderate",
+      tags: ["cat.keyboard", "best-practice"],
+      help: "All page content should be contained by landmarks",
+    }),
+    rawRule("button-name", {
+      impact: "critical",
+      help: "Buttons must have discernible text",
+      nodes: [
+        rawNode("#menu", { html: '<button id="menu"></button>' }),
+        rawNode("#search", {
+          html: '<button id="search"><svg></svg></button>',
+          failureSummary: "Fix all of the following:\n  Element is in tab order and has no text",
+        }),
+      ],
+    }),
+  ],
+  incomplete: [rawRule("color-contrast", { tags: ["cat.color", "wcag2aa", "wcag143"] })],
+  passes: 30,
+};
+
+/**
+ * The demo's data (or `data`) with axe's results recorded for each of the pages of run 1402 named,
+ * and carried as the page carries them: each file's exact text, by its run, its page's slug, and its
+ * name. The first page's has issues (FIRST_AXE), and the others' none.
+ */
+function axeData(slugs: string[] = ["home", REPORT], data: CheckData = demoData()): CheckData {
+  const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+  for (const [at, slug] of slugs.entries()) {
+    const kept = keptAxe(at === 0 ? FIRST_AXE : { passes: 12 });
+    latest.pages.find((page) => page.slug === slug)!.axe = kept.record;
+    data.axe.push({ run: latest.id, slug, name: "axe.json", text: kept.text });
+  }
+  // The record has a new field, so it's sealed again, as voicecap sealed it with the field there.
+  latest.seal = sealOf(latest);
+  return data;
+}
 
 /** `text` with the character at `at` replaced by another one. */
 function changeOneCharacter(text: string, at: number): string {
@@ -526,18 +655,25 @@ describe("checkAll", () => {
     const data = demoData();
 
     const noTranscripts = await check({ ...data, files: [], reviews: null });
-    const onlyReviews = await check({ runs: [], files: [], screenshots: [], reviews: history() });
+    const onlyReviews = await check({
+      runs: [],
+      files: [],
+      screenshots: [],
+      axe: [],
+      reviews: history(),
+    });
 
     expect(noTranscripts.line).toBe("Both runs' seals check out");
     expect(onlyReviews.line).toBe("The review entries' seals and chain check out");
   });
 
   it("says so when the page holds nothing to check", async () => {
-    const result = await check({ runs: [], files: [], screenshots: [], reviews: null });
+    const result = await check({ runs: [], files: [], screenshots: [], axe: [], reviews: null });
 
     expect(result).toEqual({
       files: [],
       screenshots: [],
+      axe: [],
       runs: [],
       reviewProblems: [],
       line: "This page holds no transcripts or run records to check",
@@ -794,6 +930,421 @@ describe("checkAll, with the screenshots a page shows", () => {
   });
 });
 
+describe("checkAll, with the axe results a page carries", () => {
+  const HOME_LABEL = "Run 1402 · / · axe.json";
+  const REPORT_LABEL = "Run 1402 · /the-report/ · axe.json";
+
+  it("checks each axe file against its run's record, and counts them in words of their own", async () => {
+    const result = await check(axeData(), library.sha256Hex, asShown);
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.files).toHaveLength(21);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("names an axe file changed by one character, by its page, and says how many match", async () => {
+    const data = axeData();
+    const target = data.axe[1]!;
+    target.text = changeOneCharacter(target.text, 40);
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: false },
+    ]);
+    expect(result.files.every((file) => file.ok)).toBe(true);
+    expect(result.line).toBe(
+      `${REPORT_LABEL} doesn't match its fingerprint. ` +
+        "21 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it("checks an axe file's whole text, which has no header to leave out", async () => {
+    const data = axeData();
+    // A change in the file's first lines, where a transcript's header is, which a transcript's
+    // check of the text shown leaves out.
+    const target = data.axe[0]!;
+    target.text = target.text.replace('"axeVersion": "4.13.0"', '"axeVersion": "4.13.1"');
+
+    const result = await check(data, library.sha256Hex, asShown, undefined, asDrawn);
+
+    expect(result.axe.map(({ ok }) => ok)).toEqual([false, true]);
+    expect(result.line).toContain(`${HOME_LABEL} doesn't match its fingerprint.`);
+    expect((await check(axeData(), library.sha256Hex, asShown)).axe.every(({ ok }) => ok)).toBe(
+      true,
+    );
+  });
+
+  it("names an axe file its run's record doesn't list, or lists only the reason for, or a run the page doesn't carry", async () => {
+    const data = axeData();
+    const latest = data.runs[1]!;
+    // The page /ask-a-question/ has a record of why axe has no result, which has no fingerprint.
+    latest.pages.find((page) => page.slug === ASK)!.axe = {
+      error: "timed out after 20s",
+      ranAt: "2026-09-29T14:03:00.000-05:00",
+    };
+    latest.seal = sealOf(latest);
+    const text = data.axe[0]!.text;
+    data.axe.push({ run: latest.id, slug: ASK, name: "axe.json", text });
+    data.axe.push({ run: "2026-01-01_0000", slug: "home", name: "axe.json", text });
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe.slice(2)).toEqual([
+      { label: "Run 1402 · /ask-a-question/ · axe.json", ok: false },
+      { label: "Run 0000 · home · axe.json", ok: false },
+    ]);
+    expect(result.line).toContain("2 of 4 axe results match their fingerprints");
+  });
+
+  it("names a run whose record was changed to match a changed axe file, by its seal", async () => {
+    const data = axeData();
+    const changed = changeOneCharacter(data.axe[0]!.text, 40);
+    data.axe[0]!.text = changed;
+    // Whoever changed the file also puts its new fingerprint in the run's record: the file now
+    // matches the record, so only the run's seal gives it away.
+    const page = data.runs[1]!.pages.find((candidate) => candidate.slug === "home")!;
+    const recorded = page.axe;
+    if (recorded === undefined || "error" in recorded) throw new Error("No fingerprint to change.");
+    page.axe = { ...recorded, sha256: nodeHex(new TextEncoder().encode(changed)) };
+
+    const result = await check(data, library.sha256Hex, asShown);
+
+    expect(result.axe.map(({ ok }) => ok)).toEqual([true, true]);
+    expect(result.runs.map((run) => run.ok)).toEqual([true, false]);
+    expect(result.line).toContain("Run 1402's record doesn't match its seal.");
+  });
+
+  it("gives the same result with Web Crypto's digest, which is async", async () => {
+    const data = axeData();
+    data.axe[1]!.text = changeOneCharacter(data.axe[1]!.text, 7);
+
+    expect(await check(data, webCryptoHex, asShown)).toEqual(
+      await check(data, library.sha256Hex, asShown),
+    );
+  });
+
+  it("counts the axe results after the screenshots and before the seals", async () => {
+    // Both kinds on run 1402's pages, its record sealed again with both.
+    const data = axeData(["home", REPORT], shotData());
+
+    expect((await check(data, library.sha256Hex, asShown, asEmbedded)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 screenshots match their fingerprints, " +
+        "and 2 of 2 axe results match their fingerprints, and both runs' seals check out",
+    );
+  });
+
+  it("words one axe result in the singular, and none as nothing to say", async () => {
+    const one = axeData(["home"]);
+
+    expect((await check(one, library.sha256Hex, asShown)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 1 of 1 axe result matches its fingerprint, " +
+        "and both runs' seals check out",
+    );
+    one.axe[0]!.text += " ";
+    expect((await check(one, library.sha256Hex, asShown)).line).toContain(
+      "0 of 1 axe result matches its fingerprint",
+    );
+    // A page that carries none, and data from before it carried a list of them, say nothing of them.
+    const { axe: _list, ...older } = demoData();
+    for (const data of [demoData(), older as CheckData]) {
+      const result = await check(data, library.sha256Hex, asShown);
+      expect(result.axe).toEqual([]);
+      expect(result.line).toBe(
+        "21 of 21 transcripts match their fingerprints, and both runs' seals check out",
+      );
+    }
+  });
+});
+
+describe("checkAll, with what each card's fold of axe's results shows", () => {
+  const HOME_LABEL = "Run 1402 · / · axe.json";
+  const REPORT_LABEL = "Run 1402 · /the-report/ · axe.json";
+  /** What the check says of a file whose fold shows something else than the file. */
+  const SHOWS_OTHER = `${HOME_LABEL}: what its card shows doesn't match its file.`;
+  /** The rest of the line, with the home page's results not matching. */
+  const REST =
+    "21 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+    "and both runs' seals check out";
+
+  /** Each fold as voicecap draws it, but the home page's, changed by `change`. */
+  const homeChanged =
+    (change: (shows: AxeShows) => void): AxeShown =>
+    (item) => {
+      const shows = foldShows(item.text);
+      if (item.slug === "home") change(shows);
+      return [shows];
+    };
+
+  it("finds each fold showing its file as voicecap draws it: the counts, the chip, each rule's heading, impact, elements, and words on how to fix them", async () => {
+    const data = axeData();
+    const drawn = foldShows(data.axe[0]!.text);
+
+    // The home page's: the most severe first, button-name's two elements each with its own words,
+    // region's one element with its words said once for the rule.
+    expect(drawn).toEqual({
+      counts: ["2", "1", "0", "1", "0", "1", "30"],
+      chip: "axe: 2 issues",
+      rules: [
+        {
+          heading: "Buttons must have discernible text",
+          impact: "Impact: critical · WCAG 2.0 A 4.1.2",
+          more: null,
+          shared: [],
+          elements: [
+            {
+              codes: ["#menu", '<button id="menu"></button>'],
+              fix: [
+                "Fix any of the following:",
+                "Element does not have text that is visible to screen readers",
+              ],
+            },
+            {
+              codes: ["#search", '<button id="search"><svg></svg></button>'],
+              fix: ["Fix all of the following:", "Element is in tab order and has no text"],
+            },
+          ],
+        },
+        {
+          heading: "All page content should be contained by landmarks",
+          impact: "Impact: moderate · best practice",
+          more: null,
+          shared: [
+            [
+              "Fix any of the following:",
+              "Element does not have text that is visible to screen readers",
+            ],
+          ],
+          elements: [{ codes: [".region", '<a href="/next/" class="region"></a>'], fix: [] }],
+        },
+        {
+          heading: "The color-contrast rule's help",
+          impact: "Impact: serious · WCAG 2.0 AA 1.4.3",
+          more: null,
+          shared: [
+            [
+              "Fix any of the following:",
+              "Element does not have text that is visible to screen readers",
+            ],
+          ],
+          elements: [
+            { codes: [".color-contrast", '<a href="/next/" class="color-contrast"></a>'], fix: [] },
+          ],
+        },
+      ],
+    });
+    const result = await check(data, library.sha256Hex, asShown, undefined, asDrawn);
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: true },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  it.each<[what: string, change: (shows: AxeShows) => void]>([
+    ["an issue taken away", (shows) => void shows.rules.shift()],
+    ["the issues in another order", (shows) => void shows.rules.reverse()],
+    ["a rule's heading changed", (shows) => void (shows.rules[1]!.heading += ".")],
+    [
+      "a rule's impact changed",
+      (shows) => void (shows.rules[0]!.impact = "Impact: minor · WCAG 2.0 A 4.1.2"),
+    ],
+    ["a rule's impact line taken away", (shows) => void (shows.rules[0]!.impact = "")],
+    [
+      "more elements than its file counts",
+      (shows) => void (shows.rules[1]!.more = "and 3 more elements"),
+    ],
+    ["an element taken away", (shows) => void shows.rules[0]!.elements.pop()],
+    ["an element's HTML changed", (shows) => void (shows.rules[0]!.elements[0]!.codes[1] = "<b>")],
+    [
+      "an element's selector changed",
+      (shows) => void (shows.rules[0]!.elements[1]!.codes[0] = "#x"),
+    ],
+    ["a count changed", (shows) => void (shows.counts[1] = "0")],
+    ["the chip's number changed", (shows) => void (shows.chip = "axe: 3 issues")],
+    ["the chip saying no issues", (shows) => void (shows.chip = "axe: no issues")],
+    ["no chip on its card", (shows) => void (shows.chip = null)],
+    [
+      "an element's words on how to fix changed",
+      (shows) => void (shows.rules[0]!.elements[1]!.fix[1] = "Fine"),
+    ],
+    ["words said once changed", (shows) => void (shows.rules[1]!.shared[0]![1] = "Fine")],
+    [
+      "words said once said for each element instead",
+      (shows) => {
+        const [region] = shows.rules.slice(1);
+        region!.elements[0]!.fix = region!.shared.pop()!;
+      },
+    ],
+  ])("names a file whose fold shows %s, once", async (_, change) => {
+    const result = await check(
+      axeData(),
+      library.sha256Hex,
+      asShown,
+      undefined,
+      homeChanged(change),
+    );
+
+    expect(result.axe).toEqual([
+      { label: HOME_LABEL, ok: false },
+      { label: REPORT_LABEL, ok: true },
+    ]);
+    expect(result.line).toBe(`${SHOWS_OTHER} ${REST}`);
+  });
+
+  it("names a file no fold shows, and one a second fold shows otherwise, once each", async () => {
+    const none: AxeShown = (item) => (item.slug === "home" ? [] : [foldShows(item.text)]);
+    const second: AxeShown = (item) => {
+      const shows = [foldShows(item.text)];
+      if (item.slug !== "home") return shows;
+      const copy = foldShows(item.text);
+      copy.counts[6] = "31";
+      return [...shows, copy];
+    };
+
+    for (const axeShown of [none, second]) {
+      const result = await check(axeData(), library.sha256Hex, asShown, undefined, axeShown);
+      expect(result.line).toBe(`${SHOWS_OTHER} ${REST}`);
+    }
+  });
+
+  it("compares a fold only for a file that matches its fingerprint, which is named for that alone", async () => {
+    const data = axeData();
+    data.axe[0]!.text = changeOneCharacter(data.axe[0]!.text, 40);
+    const asked: string[] = [];
+    const axeShown: AxeShown = (item) => {
+      asked.push(item.slug);
+      return [foldShows(item.text)];
+    };
+
+    const result = await check(data, library.sha256Hex, asShown, undefined, axeShown);
+
+    expect(asked).toEqual([REPORT]);
+    expect(result.line).toBe(`${HOME_LABEL} doesn't match its fingerprint. ${REST}`);
+  });
+
+  it("reads a fold's words as a browser has them: line endings as one, no null characters, and an unpaired surrogate as the replacement character", async () => {
+    // An element's HTML and a rule's words as a page can give them: a browser reads the page's line
+    // endings as one, leaves out a null character, and the page as written has the replacement
+    // character where an unpaired surrogate was, since UTF-8 can't hold one.
+    const odd = "<p>a\r\nb\u0000c\uD800d</p>";
+    const kept = keptAxe({
+      violations: [
+        rawRule("label", {
+          help: `Form elements\r\nmust have labels \uDFFF`,
+          nodes: [rawNode(".odd", { html: odd, target: [".a\u0000b"] })],
+        }),
+      ],
+    });
+    const data = axeData();
+    const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+    latest.pages.find((page) => page.slug === "home")!.axe = kept.record;
+    latest.seal = sealOf(latest);
+    data.axe[0]!.text = kept.text;
+    const replacement = String.fromCharCode(0xfffd);
+    const asBrowser = (text: string): string =>
+      text
+        .replace(/\r\n?/g, "\n")
+        .replaceAll("\u0000", "")
+        .replace(/\p{Cs}/gu, replacement);
+    const axeShown: AxeShown = (item) => {
+      const shows = foldShows(item.text);
+      for (const rule of shows.rules) {
+        rule.heading = asBrowser(rule.heading);
+        for (const element of rule.elements) element.codes = element.codes.map(asBrowser);
+      }
+      return [shows];
+    };
+
+    expect(asBrowser(odd)).toBe(`<p>a\nbc${replacement}d</p>`);
+    expect((await check(data, library.sha256Hex, asShown, undefined, axeShown)).line).toBe(
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+        "and both runs' seals check out",
+    );
+  });
+
+  describe("a rule with more elements than its file keeps", () => {
+    /** The home page's results: one rule axe gave no impact, that found 53 elements, 50 kept. */
+    const MANY = keptAxe({
+      violations: [
+        rawRule("image-alt", {
+          impact: null,
+          help: "Images must have alternative text",
+          nodes: Array.from({ length: 53 }, (_, at) => rawNode(`#img-${at}`)),
+        }),
+      ],
+    });
+    /** axeData with the home page's results MANY, recorded and sealed as the run would have. */
+    function manyData(): CheckData {
+      const data = axeData();
+      const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+      latest.pages.find((page) => page.slug === "home")!.axe = MANY.record;
+      latest.seal = sealOf(latest);
+      data.axe[0]!.text = MANY.text;
+      return data;
+    }
+    const ALL_MATCH =
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+      "and both runs' seals check out";
+
+    it("finds its fold matching, with the number it doesn't keep, and an impact axe didn't give", async () => {
+      const [rule] = foldShows(MANY.text).rules;
+
+      expect(rule).toMatchObject({
+        impact: "Impact: not given · WCAG 2.0 A 4.1.2",
+        more: "and 3 more elements",
+      });
+      expect(rule?.elements).toHaveLength(50);
+      expect((await check(manyData(), library.sha256Hex, asShown, undefined, asDrawn)).line).toBe(
+        ALL_MATCH,
+      );
+    });
+
+    it.each<[what: string, more: string | null]>([
+      ["another number", "and 4 more elements"],
+      ["the number in words", "and three more elements"],
+      ["no line of them", null],
+    ])("names its file when the fold says %s", async (_, more) => {
+      const result = await check(manyData(), library.sha256Hex, asShown, undefined, (item) => {
+        const shows = foldShows(item.text);
+        if (item.slug === "home") shows.rules[0]!.more = more;
+        return [shows];
+      });
+
+      expect(result.line).toBe(`${SHOWS_OTHER} ${REST}`);
+    });
+
+    it("compares the impact the line begins with, and not the criteria after it", async () => {
+      const said =
+        (impact: string): AxeShown =>
+        (item) => {
+          const shows = foldShows(item.text);
+          if (item.slug === "home") shows.rules[0]!.impact = impact;
+          return [shows];
+        };
+
+      for (const impact of ["Impact: critical · WCAG 2.0 A 4.1.2", "Impact: not given"]) {
+        const result = await check(manyData(), library.sha256Hex, asShown, undefined, said(impact));
+        expect(result.line, impact).toBe(
+          impact === "Impact: not given" ? ALL_MATCH : `${SHOWS_OTHER} ${REST}`,
+        );
+      }
+    });
+  });
+});
+
 describe("checkDataJson", () => {
   it("keeps </script> and <!-- in a transcript intact through the page's data", async () => {
     // Text that would end or hide the data block if it went in as it is, and the two line
@@ -887,8 +1438,20 @@ function picturesIn(data: CheckData): string {
 }
 
 /**
+ * The cards of the pages whose axe results the data carries, as voicecap draws them from the same
+ * records and files: each with its chip and its fold of what axe found (a page's transcripts can't
+ * be read here, so its fold of them names no file).
+ */
+function axeCardsIn(data: CheckData): string {
+  if (data.axe.length === 0) return "";
+  const axeFiles = new Map(data.axe.map(({ run, slug, text }) => [`${run}/${slug}`, text]));
+  return renderPages(buildShareModel(inputOf(data.runs, { axeFiles })));
+}
+
+/**
  * A stand-in for the page's evidence section and its cards: the elements the check's wiring names,
- * its data, each transcript as a card's fold shows it, and each screenshot as the page shows it.
+ * its data, each transcript as a card's fold shows it, each screenshot as the page shows it, and the
+ * cards of the pages whose axe results it carries.
  */
 function checkPage(data: CheckData): string {
   return `<!doctype html>
@@ -902,6 +1465,7 @@ function checkPage(data: CheckData): string {
 <script type="application/json" id="fp-data">${checkDataJson(data)}</script>
 ${transcriptsIn(data)}
 ${picturesIn(data)}
+${axeCardsIn(data)}
 <script>${CHECK_SCRIPT}</script>
 </body></html>
 `;
@@ -909,20 +1473,42 @@ ${picturesIn(data)}
 
 /**
  * The page voicecap writes for a run of the scripted site, each of whose three pages took a
- * screenshot: written from the run's own records, as a reader gets it. Gives the folder the run's
- * home is in, to remove, and the page's file.
+ * screenshot (and, `withAxe`, was checked with axe, the home page with a critical issue on 52
+ * elements, of which its file keeps 50): written from the run's own records, as a reader gets it.
+ * Gives the folder the run's home is in, to remove, and the page's file.
  */
-async function generatedPage(folder: string): Promise<{ home: string; file: string }> {
+async function generatedPage(
+  folder: string,
+  withAxe = false,
+): Promise<{ home: string; file: string }> {
   const home = await setupSite(["/", "/about", "/resources"]);
-  const picture = { screenshot: { jpeg: TINY_JPEG } };
+  const page = (path: string, issues: number) => ({
+    screenshot: { jpeg: TINY_JPEG },
+    ...(withAxe
+      ? {
+          axe: keptAxeResults(
+            rawAxe({
+              violations: Array.from({ length: issues }, (_, at) =>
+                rawRule(`rule-${at}`, {
+                  impact: "critical",
+                  nodes: Array.from({ length: 52 }, (_, node) => rawNode(`.rule-${at}-${node}`)),
+                }),
+              ),
+              passes: 20,
+            }),
+            `${SITE}${path}`,
+          ),
+        }
+      : {}),
+  });
   const driver = new ScriptedDriver(
-    sitePages({ home: picture, about: picture, resources: picture }),
+    sitePages({ home: page("/", 1), about: page("/about", 0), resources: page("/resources", 0) }),
   );
   const ran = await runAudit(runOptions(home, driver, { now: () => new Date(2026, 8, 26, 14, 5) }));
   const model = buildShareModel(
     await loadShareInput({ siteDir: ran.siteDir, config: DEFAULT_CONFIG }),
   );
-  const file = path.join(folder, "generated.html");
+  const file = path.join(folder, withAxe ? "generated-axe.html" : "generated.html");
   await writeFile(file, renderSharePage(model, { fontCss: "" }));
   return { home, file };
 }
@@ -930,16 +1516,19 @@ async function generatedPage(folder: string): Promise<{ home: string; file: stri
 describe("the check in a browser", () => {
   let browser: Browser;
   let folder: string;
-  /** The home of the run the generated page was written for. */
-  let generatedHome: string;
+  /** The homes of the runs the generated pages were written for. */
+  let generatedHomes: string[];
   /**
-   * The page with the demo runs' transcripts, and the same with a review history besides, and with
-   * two screenshots; and a page as voicecap generates it, with three.
+   * The page with the demo runs' transcripts, and the same with a review history besides, with
+   * two screenshots, and with two axe results; and a page as voicecap generates it, with three
+   * screenshots, and the same with three axe results besides.
    */
   let pageUrl: string;
   let reviewsUrl: string;
   let shotsUrl: string;
+  let axeUrl: string;
   let generatedUrl: string;
+  let generatedAxeUrl: string;
   const contexts: BrowserContext[] = [];
 
   beforeAll(async () => {
@@ -948,15 +1537,20 @@ describe("the check in a browser", () => {
     const plain = path.join(folder, "check.html");
     const reviewed = path.join(folder, "check-reviews.html");
     const shots = path.join(folder, "check-shots.html");
+    const axe = path.join(folder, "check-axe.html");
     await writeFile(plain, checkPage(demoData()));
     await writeFile(reviewed, checkPage({ ...demoData(), reviews: history() }));
     await writeFile(shots, checkPage(shotData()));
+    await writeFile(axe, checkPage(axeData()));
     const generated = await generatedPage(folder);
-    generatedHome = generated.home;
+    const generatedAxe = await generatedPage(folder, true);
+    generatedHomes = [generated.home, generatedAxe.home];
     pageUrl = pathToFileURL(plain).href;
     reviewsUrl = pathToFileURL(reviewed).href;
     shotsUrl = pathToFileURL(shots).href;
+    axeUrl = pathToFileURL(axe).href;
     generatedUrl = pathToFileURL(generated.file).href;
+    generatedAxeUrl = pathToFileURL(generatedAxe.file).href;
   });
 
   afterEach(async () => {
@@ -966,12 +1560,12 @@ describe("the check in a browser", () => {
   afterAll(async () => {
     await browser.close();
     await rm(folder, { recursive: true, force: true });
-    await rm(generatedHome, { recursive: true, force: true });
+    for (const home of generatedHomes) await rm(home, { recursive: true, force: true });
   });
 
   /**
-   * The page, open: the demo's, or with `reviews`, `shots`, or `generated`, the one of those.
-   * `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
+   * The page, open: the demo's, or with `reviews`, `shots`, `axe`, `generated`, or `generatedAxe`,
+   * the one of those. `webCrypto: false` takes crypto.subtle away, as an insecure origin has it.
    */
   async function open(
     options: {
@@ -979,7 +1573,9 @@ describe("the check in a browser", () => {
       scripts?: boolean;
       reviews?: boolean;
       shots?: boolean;
+      axe?: boolean;
       generated?: boolean;
+      generatedAxe?: boolean;
     } = {},
   ): Promise<Page> {
     const context = await browser.newContext({ javaScriptEnabled: options.scripts ?? true });
@@ -1001,9 +1597,13 @@ describe("the check in a browser", () => {
       ? reviewsUrl
       : options.shots
         ? shotsUrl
-        : options.generated
-          ? generatedUrl
-          : pageUrl;
+        : options.axe
+          ? axeUrl
+          : options.generated
+            ? generatedUrl
+            : options.generatedAxe
+              ? generatedAxeUrl
+              : pageUrl;
     await page.goto(url);
     return page;
   }
@@ -1304,11 +1904,189 @@ describe("the check in a browser", () => {
     });
   });
 
+  describe("with the axe results a page carries", () => {
+    const AXE_MATCHING =
+      "Checked just now, in this browser. " +
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+      "and both runs' seals check out.";
+
+    it.each([true, false])(
+      "checks each axe file against its run's record, and lists each, with Web Crypto: %s",
+      async (webCrypto) => {
+        const page = await open({ axe: true, webCrypto });
+        await page.locator("#fp-run").click();
+
+        await expect.poll(() => result(page), { timeout: 10_000 }).toBe(AXE_MATCHING);
+
+        expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result good");
+        expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 0 not matching");
+        const rows = page.locator("#fp-rows tr");
+        // After the transcripts and before the seals, each with the fingerprint its run recorded.
+        const recorded = axeData().runs[1]!.pages.find((each) => each.slug === "home")!.axe;
+        const sha256 = recorded && "sha256" in recorded ? recorded.sha256 : "";
+        expect(await rows.nth(21).locator("td").allTextContents()).toEqual([
+          "Run 1402 · / · axe.json",
+          `${sha256.slice(0, 12)}…${sha256.slice(-6)}`,
+          "matches",
+        ]);
+        expect((await rows.nth(22).locator("td").allTextContents())[0]).toBe(
+          "Run 1402 · /the-report/ · axe.json",
+        );
+        expect((await rows.nth(23).locator("td").allTextContents())[0]).toBe(
+          "Run 1315 · its record's seal",
+        );
+      },
+    );
+
+    it("names an axe file changed in the page's own data", async () => {
+      const page = await open({ axe: true });
+      await page.evaluate(() => {
+        const element = document.getElementById("fp-data")!;
+        const data = JSON.parse(element.textContent ?? "") as { axe: { text: string }[] };
+        data.axe[1]!.text = data.axe[1]!.text.replace('"passes": 12', '"passes": 13');
+        element.textContent = JSON.stringify(data);
+      });
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1402 · /the-report/ · axe.json doesn't match its fingerprint. " +
+            "21 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 1 not matching");
+    });
+
+    it("shows a change being caught in a transcript and in an axe file, and leaves the page's data as it was", async () => {
+      const page = await open({ axe: true });
+      const before = await page.locator("#fp-data").textContent();
+      await page.locator("#fp-demo").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Demonstration, on a copy with one character changed in each of two files " +
+            "(the first character of Run 1402 · / · read.txt, “#” to “$”, and of Run 1402 · / · axe.json, “{” to “#”); " +
+            "the page itself is unchanged. " +
+            "Run 1402 · / · read.txt doesn't match its fingerprint. " +
+            "Run 1402 · / · axe.json doesn't match its fingerprint. " +
+            "20 of 21 transcripts match their fingerprints, and 1 of 2 axe results match their fingerprints, " +
+            "and both runs' seals check out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("25 checked, 2 not matching");
+      expect(await page.locator("#fp-data").textContent()).toBe(before);
+
+      await page.locator("#fp-run").click();
+      await expect.poll(() => result(page), { timeout: 10_000 }).toBe(AXE_MATCHING);
+    });
+  });
+
   describe("on a page as voicecap generates it", () => {
     const GENERATED_MATCHING =
       "Checked just now, in this browser. " +
       "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
       "and the run's seal checks out.";
+
+    it("checks each page's axe results, carried once in its data, with its transcripts and its screenshot", async () => {
+      const page = await open({ generatedAxe: true });
+
+      // Each page's results are in a fold of its card, and each file's text is in the page's data.
+      expect(await page.locator("#pg-home details#axe-home").count()).toBe(1);
+      expect(await page.locator("details.axe-page").count()).toBe(3);
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
+            "and 3 of 3 axe results match their fingerprints, and the run's seal checks out.",
+        );
+      expect(await page.locator("#fp-count").textContent()).toBe("16 checked, 0 not matching");
+      await page.locator("#fp-demo").click();
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toMatch(
+          /^Demonstration, on a copy with one character changed in each of two files \(the first character of Run 1405 · \/ · read\.txt, “#” to “\$”, and of Run 1405 · \/ · axe\.json, “\{” to “#”\); the page itself is unchanged\. Run 1405 · \/ · read\.txt doesn't match its fingerprint\. Run 1405 · \/ · axe\.json doesn't match its fingerprint\. 8 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, and 2 of 3 axe results match their fingerprints, and the run's seal checks out\.$/,
+        );
+    });
+
+    it.each<[what: string, change: () => void]>([
+      ["its issue taken away", () => document.querySelector("#axe-home .axe-rules > li")?.remove()],
+      [
+        "an element's HTML changed",
+        () => {
+          const [, html] = document.querySelectorAll("#axe-home .axe-node code");
+          if (html === undefined) throw new Error("The fold shows no element's HTML.");
+          html.textContent = `${html.textContent ?? ""} `;
+        },
+      ],
+      [
+        "its card's chip saying another number",
+        () => {
+          const chip = [...document.querySelectorAll("#pg-home .chip")].find((each) =>
+            (each.textContent ?? "").startsWith("axe:"),
+          );
+          if (chip === undefined) throw new Error("The card has no chip for axe.");
+          chip.textContent = "axe: 2 issues";
+        },
+      ],
+      [
+        "its words on how to fix changed",
+        () => {
+          const words = document.querySelector("#axe-home dd.axe-words li");
+          if (words === null) throw new Error("The fold shows no words on how to fix.");
+          words.textContent = "Nothing to fix";
+        },
+      ],
+      [
+        "a count changed",
+        () => {
+          const passed = [...document.querySelectorAll("#axe-home .axe-counts dd")].at(-1);
+          if (passed === undefined) throw new Error("The fold shows no counts.");
+          passed.textContent = "21";
+        },
+      ],
+      [
+        "its issue's impact edited from critical to minor",
+        () => {
+          const line = document.querySelector("#axe-home .axe-rules > li > h5 + p");
+          if (!(line?.textContent ?? "").startsWith("Impact: critical")) {
+            throw new Error("The fold shows no critical issue's impact.");
+          }
+          line!.textContent = (line!.textContent ?? "").replace("critical", "minor");
+        },
+      ],
+      [
+        "its number of elements it doesn't list changed",
+        () => {
+          const line = document.querySelector("#axe-home .axe-rules > li > .axe-nodes + p");
+          if ((line?.textContent ?? "") !== "and 2 more elements") {
+            throw new Error("The fold says of no elements it doesn't list.");
+          }
+          line!.textContent = "and 3 more elements";
+        },
+      ],
+    ])("names the file whose fold shows %s, and finds the rest matching", async (_, change) => {
+      const page = await open({ generatedAxe: true });
+      await page.evaluate(change);
+      await page.locator("#fp-run").click();
+
+      await expect
+        .poll(() => result(page), { timeout: 10_000 })
+        .toBe(
+          "Checked just now, in this browser. " +
+            "Run 1405 · / · axe.json: what its card shows doesn't match its file. " +
+            "9 of 9 transcripts match their fingerprints, and 3 of 3 screenshots match their fingerprints, " +
+            "and 2 of 3 axe results match their fingerprints, and the run's seal checks out.",
+        );
+      expect(await page.locator("#fp-result").getAttribute("class")).toBe("fp-result bad");
+      expect(await page.locator("#fp-count").textContent()).toBe("16 checked, 1 not matching");
+    });
 
     it("finds every transcript and screenshot matching, a page's picture on its card and its transcripts in the card's fold", async () => {
       const page = await open({ generated: true });

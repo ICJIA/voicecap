@@ -328,6 +328,64 @@ describe("the fixed text", () => {
     );
   });
 
+  it("words what axe found as the spec pins it: the chip, the fold's lines, and why a page has none", () => {
+    const { AXE_TEXT } = text;
+
+    expect(AXE_TEXT.title).toBe("What axe found");
+    // The chip counts issues: the rules axe found violated, never what needs review.
+    expect([0, 1, 3, 1204].map((issues) => AXE_TEXT.chip(issues))).toEqual([
+      "axe: no issues",
+      "axe: 1 issue",
+      "axe: 3 issues",
+      "axe: 1,204 issues",
+    ]);
+    // axe is called an automated checker; what it finds is said to be part of what can be found.
+    expect(AXE_TEXT.what).toBe(
+      "axe is an automated checker: it tests a page's code against rules, and finds what code can find. A person's review finds the rest.",
+    );
+    expect(AXE_TEXT.version("4.13.0", "WCAG 2.0 at level A")).toBe(
+      "axe-core 4.13.0, with its rules for WCAG 2.0 at level A.",
+    );
+    expect(AXE_TEXT.version("4.13.0", "")).toBe("axe-core 4.13.0.");
+    expect(AXE_TEXT.none).toBe("axe found no issues on this page.");
+    // axe's words on how to fix an element: each element's, or, said once for a rule whose kept
+    // elements all share them, words that claim no more than the elements listed.
+    expect(AXE_TEXT.fix).toBe("How to fix it, in axe's words");
+    expect(AXE_TEXT.fixShared(1)).toBe("How to fix the element listed, in axe's words");
+    expect(AXE_TEXT.fixShared(50)).toBe("How to fix each element listed, in axe's words");
+    expect(AXE_TEXT.reviewLead).toBe(
+      "axe couldn't decide these, so each needs a person to check it.",
+    );
+    // Why there's none, as a screenshot's place says it.
+    expect(AXE_TEXT.failed("timed out after 20s")).toBe(
+      "axe couldn't check this page: timed out after 20s.",
+    );
+    expect(AXE_TEXT.failed("")).toBe("axe couldn't check this page.");
+    expect(AXE_TEXT.noDriver).toBe("Not checked: this run's driver doesn't check pages with axe.");
+    expect(AXE_TEXT.notRead).toBe("Not checked: axe didn't check this page, since it wasn't read.");
+    expect(AXE_TEXT.changed).toBe(
+      "Not shown: axe.json isn't as the run recorded it; voicecap verify names it.",
+    );
+    // The line in How voicecap works: axe checks each page before NVDA reads it, from the version
+    // that began to, so it's true of a report whose runs are older, and its results are evidence
+    // beside the person's review, never its verdict.
+    expect(AXE_TEXT.how).toBe(
+      "From voicecap 0.16.0, each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
+    );
+  });
+
+  it("never has voicecap's own words call a page accessible or not, in what axe found", () => {
+    const said = leavesOf(text.AXE_TEXT).map((leaf) =>
+      typeof leaf === "function"
+        ? String((leaf as (...args: string[]) => unknown)(...SAMPLE))
+        : String(leaf),
+    );
+
+    // Read at all, so a check of nothing can't pass.
+    expect(said.length).toBeGreaterThan(10);
+    expect(said.filter((words) => /accessib|compliant|conform/i.test(words))).toEqual([]);
+  });
+
   it("words At a glance as the spec pins it: its heading, the ring's three parts, and the links' lead", () => {
     const { GLANCE_TEXT, DETAILS_TEXT, ATTENTION_TEXT, PAGES_TEXT } = text;
 

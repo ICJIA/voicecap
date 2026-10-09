@@ -1,9 +1,9 @@
 /**
- * The theme's rules, which come first among the rules of both the shareable page's style and the
- * website's (../../site/style.ts), so the two look alike and switch alike: the colors and the fonts
- * as variables, dark by default, light when the reader switches it (`data-theme="light"` on the
- * root), and light in print, where the theme's button (`.theme`) is left out. Both pages keep the
- * reader's choice under the same name, so a choice made on one carries to the other.
+ * The theme's rules, which come first among the rules of the shareable page's style: the colors and
+ * the fonts as variables, dark by default, light when the reader switches it (`data-theme="light"`
+ * on the root), and light in print, where the theme's button (`.theme`) is left out. The website
+ * has a look of its own (../../site/style.ts), and switches alike: both keep the reader's choice
+ * under the same name, so a choice made on one carries to the other.
  */
 export const THEME_CSS = `:root {
   --bg: #0b1015; --panel: #10171f; --panel-2: #151e28; --line: #243242;
@@ -86,6 +86,16 @@ export const THEME_CSS = `:root {
  *   each in a box of the list the how-it-works sample uses; and the page's full transcript, a fold
  *   at the card's end on the second color of the panels, whose transcripts (`.tx`) sit one under
  *   another, each under an `h4`;
+ * - what axe found, a fold before the card's full transcript (`.axe-page`): its counts, each in a
+ *   box with its label (`.axe-counts`), in columns that shrink to their box; each rule axe found,
+ *   in a box of its own under its list's `h4` (`.axe-rules`), with an amber edge for an issue and a
+ *   quiet one for what needs review (`.axe-review`), which only repeat their headings; a rule's
+ *   words an `h5`, axe's words on how to fix its elements under a small label, once for the rule
+ *   when they all share them (`.axe-fix`), and its elements a numbered list (`.axe-nodes`), each
+ *   part under a small label (`.axe-node`); an element's selector and HTML in the fixed-width font,
+ *   each in a box as wide as its words up to the line's width, keeping their spaces without letting
+ *   one hang past the box (`white-space: break-spaces`, as a quote of what NVDA said does), so axe
+ *   can tell what each letter is on, and breaking a word longer than the box;
  * - a problem's record (`table.logtable`): an entry of several lines, such as a traceback, is a line
  *   break after each line, and keeps its spaces (`white-space: break-spaces`, as the lines NVDA said
  *   do), so its indentation shows and no space hangs past the box;
@@ -273,6 +283,22 @@ dl.spec dt { color: var(--muted); }
 .fp { margin: 0 0 6px; font-size: 0.78rem; color: var(--muted); }
 .tx pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tx .scroll { max-height: 280px; overflow: auto; }
+/* what axe found, folded in a card before its full transcript: the counts in boxes, then each rule in a box of its own under its list's heading, with axe's words on how to fix its elements once when they all share them, and its elements numbered, each part under a small label. An element's selector and HTML are in the fixed-width font, each in a box as wide as its words up to the line's width, keeping their spaces without letting one hang past the box (break-spaces), and breaking a word longer than it. */
+.axe-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(96px, 100%), 1fr)); gap: 6px; margin: 0; }
+.axe-counts div { background: var(--panel); border-radius: 8px; padding: 6px 8px; }
+.axe-counts dt, .axe-node dt, .axe-fix dt { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.axe-counts dd { margin: 0; font: 600 0.95rem var(--display); font-variant-numeric: tabular-nums; }
+.axe-part { display: grid; gap: 8px; }
+.axe-part > h4 { margin: 0; font: 600 0.95rem var(--display); }
+.axe-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.axe-rules > li { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+.axe-rules.axe-review > li { border-left-color: var(--muted); }
+.axe-rules h5 { margin: 0; font: 600 0.95rem var(--display); }
+.axe-nodes { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+.axe-node, .axe-fix { margin: 0; display: grid; gap: 4px; }
+.axe-node dd, .axe-fix dd { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.axe-words > ul { margin: 0; padding-left: 18px; }
+.axe-node code { display: block; width: fit-content; max-width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; white-space: break-spaces; overflow-wrap: anywhere; }
 footer { color: var(--muted); font-size: 0.84rem; border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; }
 /* A line of the footer is no longer to read than the page's own text: 80 characters of its smaller text are as wide as the page's 72. */
 footer > * { max-width: 80ch; }

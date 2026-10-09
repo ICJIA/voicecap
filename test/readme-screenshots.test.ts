@@ -1,10 +1,10 @@
 /**
- * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its nine
- * files and no others, no shot may show an IP address or `localhost`, and a shot that would show one
- * stops the script before anything is written. Chromium draws the pages from a temporary home that
- * the script makes from the i2i v3 run of 6 October 2026 (fixture/i2i-v3-run): no screen reader
- * starts, and no person's own transcripts home is read. What the trust page's picture says of
- * voicecap is the script's own example (EXAMPLE_FACTS), so it comes out the same at every release.
+ * The script that makes the README's screenshots (scripts/readme-screenshots.ts): it writes its
+ * eleven files and no others, no shot may show an IP address or `localhost`, and a shot that would
+ * show one stops the script before anything is written. Chromium draws the pages from a temporary
+ * home that the script makes from the i2i v3 run of 6 October 2026 (fixture/i2i-v3-run): no screen
+ * reader starts, and no person's own transcripts home is read. What the website's pictures say of
+ * voicecap is the script's own example (EXAMPLE_FACTS), so they come out the same at every release.
  */
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
@@ -26,11 +26,11 @@ import {
   shooter,
 } from "../scripts/readme-screenshots.js";
 import { ciOf } from "../scripts/release-facts.mjs";
-import { parseChangelog } from "../src/site/facts.js";
+import { parseChangelog } from "../src/site/changelog.js";
 import { launchBrowser } from "./helpers/axe.js";
 
-/** The nine files the README names, in the order the script takes them. */
-const NINE = [
+/** The eleven files the README names, in the order the script takes them. */
+const ELEVEN = [
   "report-top.png",
   "report-heard.png",
   "report-attention.png",
@@ -40,6 +40,8 @@ const NINE = [
   "website-dark.png",
   "website-light.png",
   "website-trust.png",
+  "website-technical.png",
+  "website-whats-new.png",
 ];
 
 /** The i2i v3 run the shots are made from: a transcripts home with the one site's folder in it. */
@@ -142,8 +144,8 @@ describe("refuseLocalAddress", () => {
 
   it("lets through a site's name, a browser's version, and a time in brackets", () => {
     for (const text of [
-      "voicecap.netlify.app",
-      "Site address https://voicecap.netlify.app/demo-site/",
+      "voicecap.icjia.app",
+      "Site address https://voicecap.icjia.app/demo-site/",
       "Site address https://v3--i2i.netlify.app/",
       "Chrome 154.0.8037.58",
       "NVDA 2026.2 on Windows 11 Pro 25H2 (10.0.26200)",
@@ -305,7 +307,7 @@ describe("a shot of a page", () => {
   });
 });
 
-describe("the facts the trust page's picture states", () => {
+describe("the facts the website's pictures state", () => {
   /** A CHANGELOG's text as a release's own entry lands in it: a new entry under `[Unreleased]`. */
   function withEntry(changelog: string, entry: string): string {
     return changelog.replace(/## \[Unreleased\]\r?\n/, `## [Unreleased]\n\n${entry}\n`);
@@ -324,6 +326,13 @@ describe("the facts the trust page's picture states", () => {
           version: "0.13.2",
           date: "2026-10-09",
           headline: 'The website\'s "Can I trust this?" page',
+          // The example's own points, so What's New's first card lists some: no CHANGELOG entry is
+          // read for them.
+          items: [
+            ['A link to it, "Can I trust this?", ends the bar of every page of the website'],
+            ["Every number and date about voicecap on it is generated"],
+            [{ code: "buildSite" }, " takes ", { code: "voicecapFacts" }],
+          ],
         },
         ...real.slice(from),
       ],
@@ -334,6 +343,23 @@ describe("the facts the trust page's picture states", () => {
         ci: ciOf(await readFile(CI_WORKFLOW, "utf8")),
       },
     });
+  });
+
+  it("give the example release the points a CHANGELOG entry of the same bullets would give", () => {
+    // The example's headline and points are the script's own, but they are what `parseChangelog`
+    // makes of an entry written in the CHANGELOG's style: the bold words that begin a bullet, less
+    // the mark that closes them, with a code span in pieces. The picture of What's New draws them.
+    const entry = [
+      "## [0.13.2] - 2026-10-09",
+      "",
+      '- **The website\'s "Can I trust this?" page** for a manager.',
+      '  - **A link to it, "Can I trust this?", ends the bar of every page of the website.** The page.',
+      "  - **Every number and date about voicecap on it is generated,** and none is typed in.",
+      "  - **`buildSite` takes `voicecapFacts`,** what the page says of voicecap.",
+      "",
+    ].join("\n");
+
+    expect(parseChangelog(entry)).toEqual([EXAMPLE_FACTS.releases[0]]);
   });
 
   it("count the same releases when 0.13.2's own entry lands in the CHANGELOG, and when a later release does", async () => {
@@ -367,19 +393,19 @@ describe("the facts the trust page's picture states", () => {
 });
 
 describe("makeScreenshots", () => {
-  it("names the nine files the README shows, and no screenshot of the flags", () => {
-    expect([...SCREENSHOTS]).toEqual(NINE);
+  it("names the eleven files the README shows, and no screenshot of the flags", () => {
+    expect([...SCREENSHOTS]).toEqual(ELEVEN);
     expect(SCREENSHOTS).not.toContain("report-flags.png");
   });
 
-  it("writes its nine files and no others, each a PNG, at twice the window's size", async () => {
+  it("writes its eleven files and no others, each a PNG, at twice the window's size", async () => {
     const out = path.join(await newFolder(), "screenshots");
 
     const written = await makeScreenshots(out);
 
-    expect(written.map((file) => path.basename(file))).toEqual(NINE);
-    expect((await readdir(out)).sort()).toEqual([...NINE].sort());
-    for (const name of NINE) {
+    expect(written.map((file) => path.basename(file))).toEqual(ELEVEN);
+    expect((await readdir(out)).sort()).toEqual([...ELEVEN].sort());
+    for (const name of ELEVEN) {
       const { width, height } = sizeOf(await readFile(path.join(out, name)));
       // The page and the site are shot the window's width, 1200 pixels, at twice its size; a panel
       // or a section is a little narrower than that, by as much as the page's margins.

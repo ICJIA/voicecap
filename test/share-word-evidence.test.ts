@@ -61,10 +61,12 @@ import { FIRST_COPY, keptLogsRun, nvdaFixtureSite } from "./helpers/nvda-log.js"
 import { shareRun, type SharePageSpec } from "./helpers/share-data.js";
 import { foldsIn, rowsOf, termsOf, textOf } from "./helpers/share-html.js";
 import {
+  AXE_RAN_AT,
   DEMO_ROOT,
   demoModel,
   downloadOf,
   inputOf,
+  keptAxe,
   LINES,
   LOG_HASH,
   loggedModel,
@@ -604,6 +606,48 @@ describe("wordEvidence", () => {
         `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
         `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
       ]);
+    });
+
+    it("lists each axe.json in the fingerprints table, among the run's files, after the page's transcripts and its screenshot, as the page does", () => {
+      const kept = keptAxe({ passes: 3 });
+      const run = shareRun({
+        id: "r1",
+        voicecapVersion: "0.16.0",
+        pages: [
+          { path: "/", files: ["read.txt"], screenshot: TINY_RECORD, axe: kept.record },
+          { path: "/b", files: ["read.txt"], axe: { error: "timed out", ranAt: AXE_RAN_AT } },
+          { path: "/c", axe: kept.record },
+        ],
+      });
+      const model = buildShareModel(inputOf([run]));
+      const part = partOf(runParts(model), 0);
+      const files = tablesIn(part).find((table) => table.head[0] === "Page");
+      const row = `${byteCount(kept.record.bytes)} | ${kept.record.sha256}`;
+
+      // A record of why there's none lists no file, as the screenshot's doesn't.
+      expect(files && wordsOf([files])).toEqual([
+        "Page | File | Size | SHA-256",
+        `/ | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/ | screenshot.jpg | ${byteCount(TINY_RECORD.bytes)} | ${TINY_RECORD.sha256}`,
+        `/ | axe.json | ${row}`,
+        `/b | read.txt | ${byteCount(1)} | ${"0".repeat(64)}`,
+        `/c | axe.json | ${row}`,
+      ]);
+      // The fingerprint is in the fixed-width font, as every one is, and the rest is not.
+      const axeRows = files?.rows.filter((cells) => cellLines(cells[1]).includes("axe.json"));
+      expect(axeRows?.map((cells) => cells[3])).toEqual([
+        monoCell(kept.record.sha256),
+        monoCell(kept.record.sha256),
+      ]);
+      expect(axeRows?.flatMap((cells) => cells.slice(0, 3).map((cell) => cell.mono))).toEqual([
+        ...Array.from({ length: 6 }, () => undefined),
+      ]);
+      // The model lists the same files, and the copy says no more and no less.
+      expect(model.evidence[0]?.fingerprints.filter(({ file }) => file === "axe.json")).toEqual([
+        { page: "/", file: "axe.json", bytes: kept.record.bytes, sha256: kept.record.sha256 },
+        { page: "/c", file: "axe.json", bytes: kept.record.bytes, sha256: kept.record.sha256 },
+      ]);
+      expect(files?.rows).toHaveLength(model.evidence[0]?.fingerprints.length ?? -1);
     });
 
     it("lists the run's own files first, its event log as the run's, as the page does", () => {
@@ -1571,6 +1615,8 @@ describe("wordStory", () => {
         ["7 October"],
         ["8 October"],
         ["8 October"],
+        ["9 October"],
+        ["9 October"],
         ["Next"],
       ]);
       // Each day is what the page says: a date is read as the day it begins.
@@ -1602,7 +1648,7 @@ describe("wordStory", () => {
 
         expect(cellLines(rows[at]?.[0])).toEqual(["2 January 2027"]);
         expect(cellLines(rows[at]?.[1])).toEqual(["A line in the next year."]);
-        expect(cellLines(rows[at - 1]?.[0])).toEqual(["8 October"]);
+        expect(cellLines(rows[at - 1]?.[0])).toEqual(["9 October"]);
         expect(cellLines(rows.at(-1)?.[0])).toEqual(["Next"]);
       } finally {
         TIMELINE.splice(at, 1);

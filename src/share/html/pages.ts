@@ -2,15 +2,17 @@
  * The middle of the shareable page, in the approved mockup's markup and class names: "Every page", a
  * card for each page, and the pages no longer listed. It takes the model and returns HTML.
  *
- * A card holds what NVDA said first on its page and, folded at its end, the page's full transcript:
- * the read, headings, and Tab transcripts, word for word. That is the one place for a page's words,
- * since the page has no appendix of transcripts, and the card links to nothing: the fold's id
- * (`tx-…`) is for an address that points to it, which opens it and the fold of the quiet pages
- * around it.
+ * A card holds what NVDA said first on its page and, folded at its end, what axe found on the page
+ * and then the page's full transcript: the read, headings, and Tab transcripts, word for word. That
+ * is the one place for a page's words, since the page has no appendix of transcripts. The folds'
+ * ids (`axe-…`, `tx-…`) are for an address that points to them, which opens one and the fold of the
+ * quiet pages around it. A card's one kind of link is to axe's own page on each rule its fold names
+ * (`axeRulePage`), which leaves the page; the section has no link of its own.
  *
  * What the model or a record supplies goes through `esc`; so does the fixed text (../text.ts), which
  * is plain words, and so does each line worked out from the model (../words.ts), through
- * `lineHtml`. No `style` attribute is set, and the section has no link of its own.
+ * `lineHtml`. So does everything an axe file supplies: a rule's words, an element's selector and
+ * HTML, and axe's words on how to fix it are text, never markup. No `style` attribute is set.
  *
  * Most of this starts folded, as the design says: with more than 12 pages, the cards with nothing
  * to note; and, in every card, the page's transcripts. A section's heading is never in a fold, and a
@@ -20,17 +22,30 @@
  * title, its manual sessions, the run its transcripts come from, a pass that wasn't read, a
  * transcript that couldn't be read), the words are new, and use the mockup's own classes.
  */
-import { PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
+import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE, type PassName } from "../../model.js";
 import { esc, idFragment } from "../../report/html.js";
-import type { AppendixFile, PageCard, ShareModel } from "../model.js";
-import { APPENDIX_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
 import {
+  axeCriteria,
+  axeFix,
+  axeImpacts,
+  axeRulePage,
+  axeRulesRun,
+  axeSelector,
+  axeSharedFix,
+  type AxeView,
+  type AxeViewRule,
+} from "../axe-view.js";
+import type { AppendixFile, PageCard, ShareModel } from "../model.js";
+import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, PASS_TITLE } from "../text.js";
+import {
+  axeFingerprint,
   capturedOf,
   fileFingerprint,
   fromRun,
   heardFirstLine,
   lineCount,
   manualLine,
+  onPage,
   originOf,
   pagesGist,
   sentence,
@@ -121,11 +136,13 @@ function reviewKind(words: string): Kind {
 }
 
 /**
- * The result, the flags, and the review, each a chip that says it in words. The result is one chip
- * ("Transcribed", or what the latest run did); each rule that raised a flag is a chip of its own, or
- * "No flags" for a page with transcripts and none; a page with no transcripts has neither, since
- * nothing was read to flag. Flags that are the run's record's, not the current rules', say so
- * ("Flags as recorded").
+ * The result, the flags, the review, and what axe found, each a chip that says it in words. The
+ * result is one chip ("Transcribed", or what the latest run did); each rule that raised a flag is a
+ * chip of its own, or "No flags" for a page with transcripts and none; a page with no transcripts
+ * has neither, since nothing was read to flag. Flags that are the run's record's, not the current
+ * rules', say so ("Flags as recorded"). Last, apart from voicecap's own, how many issues axe found
+ * ("axe: 3 issues", amber, or "axe: no issues", quiet), when the card has axe's results; a card
+ * without them has no chip for axe, and its fold says why.
  */
 function chipsOf(card: PageCard): string {
   const rules = [...new Set(card.flags.map(({ rule }) => rule))];
@@ -140,7 +157,10 @@ function chipsOf(card: PageCard): string {
           ];
   const recorded = card.flagsAsRecorded ? [chip("quiet", PAGES_TEXT.flagsAsRecorded)] : [];
   const review = card.reviewChips.map((words) => chip(reviewKind(words), words));
-  return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...recorded, ...review].join("")}</div>`;
+  const issues =
+    card.axe !== undefined && "view" in card.axe ? card.axe.view.violations.length : null;
+  const axe = issues === null ? [] : [chip(issues > 0 ? "warn" : "quiet", AXE_TEXT.chip(issues))];
+  return `<div class="chips">${[chip(resultKind(card), card.statusText), ...flags, ...recorded, ...review, ...axe].join("")}</div>`;
 }
 
 /** What each pass captured, and the time, for a page with transcripts. */
@@ -176,9 +196,9 @@ function heardFirstOf({ heardFirst }: PageCard): string {
 /**
  * A page's card, in the spec's order: the picture, then the heading, the title, the chips, the
  * failure, the run its transcripts come from, and the manual sessions; what NVDA said first; what
- * each pass captured, and the strip; and last the page's full transcript, folded. `transcripts` is
- * the page's entry in the model's list of transcripts, and none for a page with none; a part a page
- * has nothing for is left out.
+ * each pass captured, and the strip; then what axe found, folded; and last the page's full
+ * transcript, folded. `transcripts` is the page's entry in the model's list of transcripts, and
+ * none for a page with none; a part a page has nothing for is left out.
  */
 function cardOf(
   card: PageCard,
@@ -199,6 +219,7 @@ function cardOf(
     heardFirstOf(card),
     passesOf(card),
     stripOf(card),
+    axeFold(card),
     transcripts === undefined ? "" : transcriptFold(card, transcripts, latest),
   ].filter((part) => part !== "");
   const parts = [picture, `<div class="card-body">\n    ${body.join("\n    ")}\n  </div>`];
@@ -255,6 +276,144 @@ export function renderPages(model: ShareModel): string {
     ...noLongerListed(model),
   ];
   return `<section id="pages" aria-labelledby="pages-h">\n  ${parts.join("\n  ")}\n</section>`;
+}
+
+// What axe found, folded in a card.
+
+/**
+ * The counts of what axe found, each in a box with its label: the issues (the rules the page
+ * broke), how many of them are of each impact, what needs review, and the rules passed.
+ */
+function axeCounts(view: AxeView): string {
+  const { counts: label } = AXE_TEXT;
+  const impacts = axeImpacts(view);
+  const boxes: [label: string, value: number][] = [
+    [label.issues, view.violations.length],
+    [label.critical, impacts.critical],
+    [label.serious, impacts.serious],
+    [label.moderate, impacts.moderate],
+    [label.minor, impacts.minor],
+    [label.incomplete, view.incomplete.length],
+    [label.passes, view.counts.passes],
+  ];
+  const items = boxes.map(
+    ([term, value]) => `<div><dt>${esc(term)}</dt><dd>${count(value)}</dd></div>`,
+  );
+  return `<dl class="axe-counts">${items.join("")}</dl>`;
+}
+
+/**
+ * axe's words on how to fix an element, or every element of a rule, as it lays them out: each lead,
+ * and a list of what's under it, in a term's place (`dd.axe-words`, which the page's fingerprint
+ * check reads back). "" for words that are none.
+ */
+function axeWordsOf(label: string, summary: string): string {
+  const said = axeFix(summary)
+    .map(({ lead, items }) => {
+      const list = items.map((item) => `<li>${esc(item)}</li>`).join("");
+      return `<p>${esc(lead)}</p>${list === "" ? "" : `<ul>${list}</ul>`}`;
+    })
+    .join("");
+  return said === "" ? "" : `<div><dt>${esc(label)}</dt><dd class="axe-words">${said}</dd></div>`;
+}
+
+/**
+ * An element a rule found, each part under its label: its selector and its HTML, in the fixed-width
+ * font, and, when its rule doesn't say them once for every element, axe's words on how to fix it,
+ * when axe gives any. All of it is text.
+ */
+function axeElement(
+  { target, html, failureSummary }: AxeViewRule["nodes"][number],
+  saidOnce: boolean,
+): string {
+  const part = (term: string, said: string): string =>
+    `<div><dt>${esc(term)}</dt><dd>${said}</dd></div>`;
+  return [
+    `<li><dl class="axe-node">`,
+    part(AXE_TEXT.element, `<code>${esc(axeSelector(target))}</code>`),
+    part(AXE_TEXT.html, `<code>${esc(html)}</code>`),
+    saidOnce ? "" : axeWordsOf(AXE_TEXT.fix, failureSummary),
+    `</dl></li>`,
+  ].join("");
+}
+
+/**
+ * A rule axe found the page broke, or that needs review: axe's words for it (its `help`) as its
+ * heading, an `h5` under its list's `h4`; its impact, and the WCAG success criteria it tests, or
+ * that it's a best practice (`.axe-impact`); axe's words on how to fix its elements, once, when
+ * every element listed shares them (`axeSharedFix`), under a label that claims no element not
+ * listed; the elements its file keeps, each with its own words when they differ, then how many
+ * more there were (`.axe-more`); and a link to axe's own page on the rule, which leaves the page,
+ * named for the rule so no two links say the same and go to different places. An address that
+ * isn't axe's page on a rule is no link. The page's fingerprint check reads the two lines by their
+ * classes.
+ */
+function axeRule(rule: AxeViewRule): string {
+  const criteria = axeCriteria(rule.tags);
+  const about = [AXE_TEXT.impact(rule.impact), ...(criteria === "" ? [] : [criteria])].join(" · ");
+  const shared = axeSharedFix(rule);
+  const once = shared === null ? "" : axeWordsOf(AXE_TEXT.fixShared(rule.nodes.length), shared);
+  const elements =
+    rule.nodes.length === 0
+      ? ""
+      : `<ol class="axe-nodes">${rule.nodes.map((node) => axeElement(node, shared !== null)).join("")}</ol>`;
+  const more =
+    rule.moreNodes > 0 ? `<p class="sub axe-more">${esc(AXE_TEXT.more(rule.moreNodes))}</p>` : "";
+  const address = axeRulePage(rule.helpUrl);
+  const link =
+    address === null
+      ? ""
+      : `<p><a href="${esc(address)}">${esc(AXE_TEXT.rulePage(rule.id))}</a></p>`;
+  return [
+    `<li><h5>${esc(rule.help || rule.id)}</h5><p class="sub axe-impact">${esc(about)}</p>`,
+    once === "" ? "" : `<dl class="axe-fix">${once}</dl>`,
+    `${elements}${more}${link}</li>`,
+  ].join("");
+}
+
+/**
+ * What axe found on a page, folded in its card after what NVDA said first, its numbers, and its
+ * strip, and before its full transcript. Its line says "What axe found", and, for a screen reader
+ * alone, which page it's on, as the transcript's fold does. Inside, in order: what axe is; its
+ * version and the rules it ran; the counts; the issues, most severe first, under their heading, or,
+ * with none, that axe found none; what needs review, under its own heading, when there is any; and
+ * last the file's size and fingerprint, as its run recorded them. Without results, the line that
+ * says why, as the screenshot's place says it. Every word of it comes from the file the page
+ * carries in its data, and the file itself is never shown. The fold names that file (`data-run`,
+ * `data-slug`, and `data-file`), as a transcript's section does, so the page's fingerprint check
+ * can hold what the fold shows, and the card's chip, to it; a fold that says why names none. The
+ * fold's id (`axe-…`) is what an address points to, to open it. A card that says nothing of axe has
+ * none.
+ */
+function axeFold(card: PageCard): string {
+  const { axe } = card;
+  if (axe === undefined) return "";
+  const ofPage = `<span class="sr"> ${esc(onPage(card.path))}</span>`;
+  const summary = `<span class="what">${esc(AXE_TEXT.title)}${ofPage}</span>`;
+  const options = { id: `axe-${idFragment(card.slug)}`, className: "axe-page" };
+  if ("notRecorded" in axe) return fold(summary, notRecorded(axe.notRecorded), options);
+  const { view } = axe;
+  const named = { ...options, data: { run: axe.run, slug: axe.slug, file: AXE_FILE } };
+  // What needs review is set apart from the issues by a quiet edge, as its heading sets it apart.
+  const rules = (list: AxeViewRule[], kind = ""): string =>
+    `<ol class="axe-rules${kind}" role="list">${list.map(axeRule).join("")}</ol>`;
+  const issues =
+    view.violations.length === 0
+      ? `<p>${esc(AXE_TEXT.none)}</p>`
+      : `<div class="axe-part"><h4>${esc(AXE_TEXT.issues.title)}${ofPage}${esc(AXE_TEXT.issues.after)}</h4>${rules(view.violations)}</div>`;
+  const review =
+    view.incomplete.length === 0
+      ? ""
+      : `<div class="axe-part"><h4>${esc(AXE_TEXT.review)}${ofPage}</h4><p>${esc(AXE_TEXT.reviewLead)}</p>${rules(view.incomplete, " axe-review")}</div>`;
+  const body = [
+    `<p>${esc(AXE_TEXT.what)}</p>`,
+    `<p class="sub">${esc(AXE_TEXT.version(view.axeVersion, axeRulesRun(view.tags)))}</p>`,
+    axeCounts(view),
+    issues,
+    review,
+    `<p class="fp">${lineHtml(axeFingerprint(axe))}</p>`,
+  ];
+  return fold(summary, body.join(""), named);
 }
 
 // A card's full transcript.

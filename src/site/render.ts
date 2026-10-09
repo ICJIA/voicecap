@@ -1,19 +1,23 @@
 /**
  * The website's own page, `index.html`, as a pure function of what's published: every report voicecap
- * has shared, by site and by date, with the demo's. It's in the shareable page's design (see
- * ../share/html/document.ts): one self-contained file, dark by default with a switch to light, with
- * one style block (the fonts, then SITE_CSS) and one script (SITE_SCRIPT), and nothing loaded from
- * outside it. The page sets no `style` attribute, since a Content Security Policy that hashes its
- * style block and its script allows nothing else.
+ * has shared, by site and by date, with the demo's. It's in the look of the audit tool,
+ * audit.icjia.app (see ./style.ts): one self-contained file, dark by default with a switch to light,
+ * with one style block (SITE_CSS) and one script (SITE_SCRIPT), and nothing loaded from outside it,
+ * not even a font. The page sets no `style` attribute, since a Content Security Policy that hashes
+ * its style block and its script allows nothing else.
  *
- * The head, the skip link, the bar, the footer, and the script are the website's frame (./frame.ts),
- * which its other page, the trust page, has too; this module draws what is between the bar and the
- * footer. In order: the head; a skip link to the main content; the bar, whose links go to the views
- * and, last, to the trust page, and which holds the theme button; `main`, with the page's heading
- * and lead, the views (the demo's, the sites', and, when two sites or more have reports, every
- * report by date), and what to know about a file's fingerprint and a walkthrough file; the footer;
- * and last, the script. What the model or a record supplies goes through `esc`, and so does the
- * fixed text (./text.ts), which is plain words.
+ * The head, the skip link, the two bars, and the script are the website's frame (./frame.ts), which
+ * its other pages, the trust page, What's New, and Technical details, have too; this module draws
+ * what is between the bars. In order: the head; a skip link to the main content; the top bar, whose
+ * name is this page; `main`, which opens with the banner of the newest release ("What's new", when
+ * the CHANGELOG records one), as the audit tool's front page opens with its own, above the page's
+ * heading; then the kicker, as the audit tool's trust page heads itself ("ICJIA · Built for Title II
+ * of the ADA · WCAG · Illinois IITAA", the law's three names marked), the page's heading and lead,
+ * "On this page", a row of links to the views that are there, the views (the demo's, the sites',
+ * and, when two sites or more have reports, every report by date), and what to know about a file's
+ * fingerprint and a walkthrough file; the bottom bar, which says the version of voicecap that built
+ * the page; and last, the script. What the model, a record, or the CHANGELOG supplies goes through
+ * `esc`, and so does the fixed text (./text.ts), which is plain words.
  *
  * A site leads with what a reader came for: its name, with a link to the site itself, then its
  * current report, with its verdict as a pill, a bar of the pages NVDA read, and links to open its
@@ -24,7 +28,8 @@
  *
  * The page is a page about accessibility, so it follows the report's rules: headings in order (the
  * page, then each view, then each site, then each report), landmarks, a skip link, visible keyboard
- * focus, and complete without JavaScript.
+ * focus, and complete without JavaScript. The banner above the heading has no heading of its own
+ * and is no landmark, so the page's outline is as it is without it: its first heading is the h1.
  */
 import type { ShareResult } from "../model.js";
 import { canonicalName, recordedCanonical } from "../pages/canonical.js";
@@ -33,9 +38,10 @@ import { folderSafe } from "../run/paths.js";
 import { count as countWords, sizeWords } from "../share/format.js";
 import { track } from "../share/html/parts.js";
 import { verdictOf } from "../share/verdict.js";
-import { listsByDate, siteBar, sitePage } from "./frame.js";
+import type { VoicecapFacts, VoicecapRelease } from "./facts.js";
+import { sitePage, WHATS_NEW_HREF } from "./frame.js";
 import { SITE_ICONS } from "./icons.js";
-import { SITE_TEXT, type Sentence } from "./text.js";
+import { type KickerPart, SITE_TEXT, type Sentence } from "./text.js";
 
 /** A file the site publishes. */
 export interface PublishedFile {
@@ -95,6 +101,15 @@ export function fileKind(name: string): PublishedFile["kind"] {
 
 /** The id of the heading that names a view's section, from the section's own id. */
 const headingId = (id: string): string => `heading-${id}`;
+
+/**
+ * Whether the page lists every report by date: only when two sites or more have reports. With one,
+ * the list would be that site's own again. The page has the view, and "On this page" a link to it,
+ * only then.
+ */
+function listsByDate(content: SiteContent): boolean {
+  return content.sites.length > 1;
+}
 
 /**
  * What each of the page's lists says it is. WebKit takes the semantics of a list from one whose
@@ -396,8 +411,8 @@ function sitesView(sites: SiteContent["sites"]): string {
  * The view of every report, across the sites (the demo isn't a site's), newest first by the moment
  * each names. Reports of the same moment stay in the order they were given. Each item has its time,
  * its site's name, who prepared it, and a link to its page, or says the page isn't here. It's on the
- * page only when two sites or more have reports (see listsByDate in ./frame.ts, which the bar's link
- * to it follows too).
+ * page only when two sites or more have reports (see listsByDate, which the link to it in "On this
+ * page" follows too).
  */
 function byDateView(sites: SiteContent["sites"]): string {
   const { title, lead } = SITE_TEXT.views.byDate;
@@ -423,25 +438,105 @@ function byDateView(sites: SiteContent["sites"]): string {
 }
 
 /**
- * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts)
- * with the bar of its own page. `fontCss` is the fonts' `@font-face` rules (fontFaceCss in
- * ../share/fonts.ts), which the page's style block holds ahead of its own styles. Pure.
+ * What sets two parts of the kicker apart: a comma for a screen reader, which a reader doesn't see
+ * (`.sr`), and a dot for the eye, which a screen reader doesn't read, after a space that doesn't
+ * break, so the dot ends a line rather than start one; then a space for both. A reader sees "ICJIA ·
+ * Built for", and a screen reader hears "ICJIA, Built for".
  */
-export function renderSiteIndex(content: SiteContent, assets: { fontCss: string }): string {
-  return sitePage(
-    {
-      title: SITE_TEXT.title,
-      bar: siteBar(content, "index"),
-      main: [
-        `<h1>${esc(SITE_TEXT.title)}</h1>`,
-        `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
-        ...(content.demo === null ? [] : [demoView(content.demo)]),
-        sitesView(content.sites),
-        ...(listsByDate(content) ? [byDateView(content.sites)] : []),
-        `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
-        `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
-      ],
-    },
-    assets,
-  );
+const KICKER_SEPARATOR = '<span class="sr">,</span><span aria-hidden="true">\u00a0·</span> ';
+
+/** What sets the day a release came out apart from the link after it, a dot that ends a line. */
+const DAY_SEPARATOR = `\u00a0${SEPARATOR} `;
+
+/**
+ * The kicker over the page's heading, from its parts (SITE_TEXT.kicker): each piece escaped, and
+ * each name that matters in it marked, for the style to draw in --act.
+ */
+function kicker(parts: readonly KickerPart[]): string {
+  const part = (pieces: KickerPart): string =>
+    pieces
+      .map((piece) =>
+        typeof piece === "string" ? esc(piece) : `<span class="act">${esc(piece.name)}</span>`,
+      )
+      .join("");
+  return `<p class="kicker">${parts.map(part).join(KICKER_SEPARATOR)}</p>`;
+}
+
+/**
+ * The banner of the newest release, the first the facts give, which opens the page's main part,
+ * above its kicker and its heading, as the audit tool's front page opens with its own: a card
+ * that's no landmark and has no heading, holding "What's new", as a kicker; the release's version,
+ * as a pill; its headline, when its entry has one; and the day it was released, in a `time` that
+ * holds the day it names, with the link to What's New, which has every release. Its words are the
+ * CHANGELOG's, escaped, so a line with markup in it is plain text here. Nothing, when the CHANGELOG
+ * is missing or records no release.
+ */
+function news(releases: readonly VoicecapRelease[]): string[] {
+  const [newest] = releases;
+  if (newest === undefined) return [];
+  const words = SITE_TEXT.news;
+  const { version, date, headline } = newest;
+  const day = `<time datetime="${esc(date)}">${esc(words.day(date))}</time>`;
+  return [
+    [
+      '<div class="news">',
+      `<p class="kicker">${esc(words.kicker)}</p>`,
+      `<span class="pill good">${esc(version)}</span>`,
+      // No paragraph with nothing in it.
+      ...(headline === "" ? [] : [`<p class="headline">${esc(headline)}</p>`]),
+      `<p class="released">${esc(words.released)} ${day}${DAY_SEPARATOR}<a href="${WHATS_NEW_HREF}">${esc(words.all)}</a></p>`,
+      "</div>",
+    ].join("\n"),
+  ];
+}
+
+/**
+ * "On this page": a navigation of the page's views that are there, the demo's, the sites', and
+ * every report by date, each a link to its view by the view's heading. Its name stands before its
+ * links for the eye too, hidden from a screen reader, which would otherwise hear it twice, as
+ * Technical details' "On this page" is (see ./technical.ts). The views were the bar's links before
+ * 0.15.0; the bar is the website's now, and the same on every page.
+ */
+function onThisPage(content: SiteContent): string {
+  const { views } = SITE_TEXT;
+  const links = [
+    ...(content.demo === null ? [] : [{ id: "demo", title: views.demo.title }]),
+    { id: "sites", title: views.sites.title },
+    ...(listsByDate(content) ? [{ id: "by-date", title: views.byDate.title }] : []),
+  ];
+  const name = esc(SITE_TEXT.onThisPage);
+  return [
+    `<nav class="jump" aria-label="${name}">`,
+    `<p class="kicker" aria-hidden="true">${name}</p>`,
+    `<ul${IS_A_LIST}>`,
+    ...links.map(({ id, title }) => `<li><a href="#${esc(id)}">${esc(title)}</a></li>`),
+    "</ul>",
+    "</nav>",
+  ].join("\n");
+}
+
+/**
+ * The page, from what's published: its main part, in the website's frame (sitePage in ./frame.ts),
+ * whose top bar says the page is the website's own, and whose bottom bar says the version of
+ * `voicecap`, the voicecap that built it; the banner that opens the main part, above its kicker, is
+ * the newest of its releases. Pure.
+ */
+export function renderSiteIndex(content: SiteContent, voicecap: VoicecapFacts): string {
+  return sitePage({
+    title: SITE_TEXT.title,
+    current: "index",
+    version: voicecap.version,
+    main: [
+      ...news(voicecap.releases),
+      kicker(SITE_TEXT.kicker),
+      `<h1>${esc(SITE_TEXT.title)}</h1>`,
+      `<p class="lead">${esc(SITE_TEXT.lead)}</p>`,
+      onThisPage(content),
+      ...(content.demo === null ? [] : [demoView(content.demo)]),
+      sitesView(content.sites),
+      ...(listsByDate(content) ? [byDateView(content.sites)] : []),
+      `<p class="note">${sentenceHtml(SITE_TEXT.fingerprint)}</p>`,
+      `<p class="note">${sentenceHtml(SITE_TEXT.walkthrough)}</p>`,
+    ],
+  });
 }

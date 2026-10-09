@@ -12,6 +12,7 @@ import { lineText } from "../src/share/line.js";
 import { buildShareModel, type ShareModel } from "../src/share/model.js";
 import type { Summary } from "../src/share/summary.js";
 import {
+  AXE_TEXT,
   HOW_LEAD,
   HOW_STEPS,
   HOW_TEXT,
@@ -123,7 +124,7 @@ describe("wordTop", () => {
     const top = wordTop(model);
 
     expect(top[0]).toEqual({ kind: "title", text: TOP_TEXT.eyebrow });
-    expect(top[1]).toEqual(para({ text: "voicecap.netlify.app", bold: true }));
+    expect(top[1]).toEqual(para({ text: "voicecap.icjia.app", bold: true }));
     expect(wordsOf(top)[2]).toBe(
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
     );
@@ -152,7 +153,7 @@ describe("wordTop", () => {
     expect(top.map(({ kind }) => kind)).toEqual(["title", "para", "para", "para", "para", "para"]);
     expect(wordsOf(top)).toEqual([
       "Screen reader test results",
-      "voicecap.netlify.app",
+      "voicecap.icjia.app",
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
       "How its pages read aloud with NVDA, a free screen reader, tested on 29 September 2026. voicecap took NVDA through every page, pressing its keys the way a person would. Every word shown here is what NVDA said.",
       "Made with voicecap.",
@@ -166,7 +167,7 @@ describe("wordTop", () => {
 
     expect(wordsOf(named).slice(0, 4)).toEqual([
       "Screen reader test results",
-      "voicecap.netlify.app",
+      "voicecap.icjia.app",
       "The voicecap demo",
       "Tested 29 September 2026, 14:02. This copy was made 30 September 2026.",
     ]);
@@ -191,10 +192,10 @@ describe("wordTop", () => {
 
     // Named by its canonical address, the name is its host, and the address last is its root.
     const canonical = wordTop(copyModel());
-    expect(wordsOf(canonical)[1]).toBe("voicecap.netlify.app");
+    expect(wordsOf(canonical)[1]).toBe("voicecap.icjia.app");
     expect(wordsOf(canonical).at(-1)).toBe(`Site address ${DEMO_ROOT}.`);
     expect(boldIn(canonical[1]?.kind === "para" ? canonical[1].line : [])).toEqual([
-      "voicecap.netlify.app",
+      "voicecap.icjia.app",
     ]);
   });
 
@@ -641,6 +642,12 @@ describe("wordHow", () => {
     expect(head).toEqual(heading(1, "How voicecap works"));
     expect(lead?.kind === "para" ? lineText(lead.line) : "").toBe(HOW_LEAD);
     expect(lead?.kind === "para" ? boldIn(lead.line) : []).toEqual([HOW_TEXT.leadBold]);
+  });
+
+  it("says, after the lead, that each page is checked with axe before NVDA reads it, as the page does", async () => {
+    const [, , axe] = wordHow(await demoModel());
+
+    expect(axe).toEqual(para(AXE_TEXT.how));
   });
 
   it("has the six steps as a numbered table, and the stages as four columns", async () => {

@@ -1,4 +1,5 @@
 import type {
+  AxeCapture,
   EnvironmentInfo,
   EventRecorder,
   FocusedElement,
@@ -27,10 +28,21 @@ export interface ScriptedPage {
    * screenshot, as a driver that takes none leaves it out).
    */
   screenshot?: PageScreenshot;
+  /**
+   * What checkWithAxe reports for the page: the results axe gave, kept as the Guidepup driver keeps
+   * them (`keptAxeResults`), or the reason there are none. A driver none of whose pages has one
+   * can't check a page, and has no checkWithAxe, as a driver that doesn't check leaves it out. In a
+   * driver that can, a page with none is reported as a check that failed: `{ error: "no axe results
+   * were scripted for this page" }`.
+   */
+  axe?: AxeCapture;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
-  /** What Ctrl+End says (default: the last line). */
-  bottom?: string;
+  /**
+   * What Ctrl+End says (default: the last line). A list is what each press says in turn, and the
+   * last of it again for every press after: a page whose last line changes as it's read.
+   */
+  bottom?: string | string[];
   /** What Down Arrow says when it arrives at the last line (default: the last line). */
   arrival?: string;
   headings?: string[];
@@ -46,6 +58,7 @@ export interface ScriptedPage {
 
 export type Command =
   | "openPage"
+  | "checkWithAxe"
   | "toTop"
   | "toBottom"
   | "nextLine"
@@ -75,12 +88,16 @@ export class ScriptedDriver implements ScreenReaderDriver {
   readonly calls: Command[] = [];
   /** The recorder the run gave this driver, null until it does. This driver records nothing. */
   recorder: EventRecorder | null = null;
+  /** Only a driver with a page that has axe results to report can check one: see ScriptedPage.axe. */
+  checkWithAxe?: () => Promise<AxeCapture>;
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
   private line = 0;
   private heading = 0;
   private stopIndex = 0;
+  /** Ctrl+End presses since the page opened. */
+  private bottoms = 0;
   private inDocument = true;
   private focused: FocusedElement | null = null;
   private callCount = 0;
@@ -92,6 +109,13 @@ export class ScriptedDriver implements ScreenReaderDriver {
     private readonly options: ScriptedOptions = {},
   ) {
     for (const page of pages) this.pages.set(canonicalKey(page.url), page);
+    if (pages.some((page) => page.axe !== undefined)) {
+      this.checkWithAxe = () =>
+        this.call(
+          "checkWithAxe",
+          () => this.page?.axe ?? { error: "no axe results were scripted for this page" },
+        );
+    }
   }
 
   setEventRecorder(recorder: EventRecorder): void {
@@ -143,6 +167,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
       this.line = 0;
       this.heading = 0;
       this.stopIndex = 0;
+      this.bottoms = 0;
       this.inDocument = true;
       this.focused = page.initialFocus ?? null;
       return {
@@ -160,7 +185,10 @@ export class ScriptedDriver implements ScreenReaderDriver {
     return this.call("toBottom", () => {
       const lines = this.lines();
       this.line = lines.length - 1;
-      return this.page?.bottom ?? lines.at(-1) ?? "";
+      const { bottom } = this.page ?? {};
+      const press = this.bottoms++;
+      const said = Array.isArray(bottom) ? (bottom[press] ?? bottom.at(-1)) : bottom;
+      return said ?? lines.at(-1) ?? "";
     });
   }
 

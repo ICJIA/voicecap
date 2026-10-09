@@ -5,6 +5,7 @@
  * works from records already read.
  */
 import {
+  AXE_FILE,
   SCREENSHOT_FILE,
   type EnvironmentRecord,
   type ListenerAnswer,
@@ -27,7 +28,7 @@ import { clock, dateAndTime, names, pagePath, type Shown } from "./format.js";
 import type { LogCheck } from "./log-check.js";
 import { nothingCheckedLine } from "./log-words.js";
 import { keepsEventLog, keepsNvdaLog } from "./problems.js";
-import { isFileHash, screenshotRecordOf } from "./records.js";
+import { axeRecordOf, isFileHash, screenshotRecordOf } from "./records.js";
 import { checkRunAgainstLog, type GestureOf, type NotChecked } from "./run-log-check.js";
 import { runBefore, type LeftOutReason, type Standing } from "./standing.js";
 import { EVIDENCE_TEXT, NVDA_LOG_TEXT, TIMELINE_TEXT } from "./text.js";
@@ -116,8 +117,8 @@ export interface RunEvidence {
   /**
    * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
    * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
-   * then page by page, a page's transcripts, then its screenshot, where its record has the file's
-   * fingerprint.
+   * then page by page, a page's transcripts, then its screenshot, then its axe results (from
+   * voicecap 0.16.0), each where its record has the file's fingerprint.
    */
   fingerprints: { page: string; file: string; bytes: number; sha256: string }[];
   /**
@@ -149,6 +150,16 @@ export function notRecordedBy(version: string | null): string {
  */
 export function keepsScreenshots(version: string | null): boolean {
   return keepsEventLog(version);
+}
+
+/**
+ * Whether a run's voicecap checks each page it reads with axe, when its driver can: 0.16.0 and
+ * later. A page of such a run with no axe check says why (AXE_TEXT), and a page of an earlier run
+ * says that run's voicecap didn't (`notRecordedBy`). An unknown version counts as an earlier one.
+ */
+export function keepsAxe(version: string | null): boolean {
+  const match = version === null ? null : /^(\d+)\.(\d+)\./.exec(version);
+  return match !== null && (Number(match[1]) > 0 || Number(match[2]) >= 16);
 }
 
 /** The voicecap version a session recorded, or null when it recorded no environment. */
@@ -246,6 +257,7 @@ export function evidenceOf(input: {
             sha256: hash.sha256,
           })),
           ...screenshotFile(page),
+          ...axeFile(page),
         ]),
       ],
       verify: formatCommand(["verify"]),
@@ -357,6 +369,18 @@ function screenshotFile(page: PageRecord): RunEvidence["fingerprints"] {
   return [
     { page: pagePath(page.url), file: SCREENSHOT_FILE, bytes: shot.bytes, sha256: shot.sha256 },
   ];
+}
+
+/**
+ * A page's axe results as one of its run's files, as its screenshot is: when the page's record has
+ * the file's fingerprint (a record of why there's none lists no file, and neither does one of no
+ * kind voicecap writes). The record keeps it apart from the page's transcripts, as it does the
+ * screenshot, so it's added to them here, after the screenshot.
+ */
+function axeFile(page: PageRecord): RunEvidence["fingerprints"] {
+  const axe = axeRecordOf(page);
+  if (axe === undefined || axe === "unreadable" || "error" in axe) return [];
+  return [{ page: pagePath(page.url), file: AXE_FILE, bytes: axe.bytes, sha256: axe.sha256 }];
 }
 
 /** Why the page can't show the event log of a run whose voicecap keeps one (TIMELINE_TEXT.gaps). */
