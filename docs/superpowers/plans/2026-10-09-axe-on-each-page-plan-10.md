@@ -23,7 +23,7 @@
   - never lead with an IP address.
 - **Apart from the verdict:** the verdict, the ring, the four numbers, and "What needs attention" are exactly as they are without axe.
 - **NVDA is untouched:** axe runs once a page, on the first load, after `openPage`, before the first pass's first key. It never moves focus, scrolls, or adds an element to the page.
-- **Never a failure:** axe has its own 20-second limit. Any error or timeout becomes `{ error }`, and the page is read as usual. Only a browser that's gone stays an environment error.
+- **Never a failure:** axe has its own 20-second limit. Any error or timeout becomes `{ error }`, and the page is read as usual. While the check runs, only a browser that's gone stays an environment error.
 - **The kept file:** `pages/<slug>/axe.json` holds `schemaVersion: 1`, at most 50 elements a rule, and at most 300 UTF-16 code units of each element's HTML (never splitting a character written with two). Its keys are sorted, with a 2-space indent and a final newline, so the same results give the same bytes.
 - **Sealed and verified like the screenshot:** a page record's `axe?` sits apart from `files`; `voicecap verify` checks the file; a run from before 0.16.0 passes.
 - **No `schemaVersion` bump,** no new run setting, and no change to walkthrough files.

@@ -76,7 +76,7 @@ export function para(...line: Inline[]): Block {
 /**
  * A paragraph that leads into what follows it, such as a label in bold: kept on the printed page
  * with the block after it, whatever that is, so it never ends a page alone. (A paragraph that a
- * picture or a list follows is kept with it anyway: see `docxOf`.)
+ * picture or a list follows is kept with it anyway: see `blockOf` in ../docx.ts.)
  */
 export function leadIn(...line: Inline[]): Block {
   return { kind: "para", line, keepNext: true };
