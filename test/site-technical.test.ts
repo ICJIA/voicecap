@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { BUILT_IN_RULES } from "../src/flags/evaluate.js";
-import { PASS_NAMES } from "../src/model.js";
+import { AXE_FILE, PASS_NAMES, SCREENSHOT_FILE } from "../src/model.js";
 import { count } from "../src/share/format.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import { recordFactsOf, type VoicecapFacts } from "../src/site/facts.js";
@@ -425,6 +425,29 @@ describe("renderTechnical", () => {
     );
   });
 
+  it("says axe-core checks each page during a run, as well as in voicecap's tests, from the package voicecap installs to run", () => {
+    const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const installed = JSON.parse(
+      readFileSync(path.join(packageRoot(), "node_modules", "axe-core", "package.json"), "utf8"),
+    ) as { version?: unknown };
+
+    // A run checks each page with axe-core's own script, from the installed package (axeScript, in
+    // src/axe/results.ts), before the first key of the page's first pass.
+    expect(bodyOf(tableOf(html, "toolchain")).find(([tool]) => tool === "axe-core")).toEqual([
+      "axe-core",
+      "An automated accessibility checker: during a run, it checks each page before NVDA reads it, and voicecap's tests run it on the shareable page and on this website, in both themes",
+      "MPL-2.0",
+      "A run, and voicecap's tests",
+    ]);
+    // So it's a dependency, which an install of voicecap brings, not one for its tests alone, and
+    // the version that checks the pages is the one voicecap's package.json pins.
+    expect(Object.keys(own.devDependencies)).not.toContain("axe-core");
+    expect(own.dependencies["axe-core"]).toBe(installed.version);
+  });
+
   it("links voicecap's own row to its page on npm, as each package's row links its own", () => {
     const own = JSON.parse(readFileSync(path.join(packageRoot(), "package.json"), "utf8")) as {
       name: string;
@@ -572,11 +595,16 @@ describe("renderTechnical", () => {
     // A part's words as a reader gets them, with a command in a sentence read in its place.
     const part = (id: string): string => textOf(partOf(html, id), "");
 
-    // A run's record holds the fingerprints of each page's transcripts and screenshot and of the
-    // event log, and nothing else of the run's: not of kept tries, its report, or its comparisons.
+    // A run's record holds the fingerprints of the event log and of each page's transcripts,
+    // screenshot, and axe results (PageRecord.files, .screenshot, and .axe), and nothing else of
+    // the run's: not of kept tries, its report, or its comparisons.
     const record = part("what-a-run-records");
     expect(record).toContain(
-      "the fingerprints of each page's transcripts and screenshot and of the event log",
+      "the fingerprints of the event log and of each page's transcripts, screenshot, and axe results",
+    );
+    // A page's folder holds its screenshot and its axe results, by the names a run gives them.
+    expect(record).toContain(
+      `(the key, the words, and their timing), ${SCREENSHOT_FILE}, and ${AXE_FILE}, what axe-core found on the page`,
     );
     // The tree is the home's main parts, not all of it (a site's report.html and compare/, say,
     // aren't in it), and a manual session's sealed record is one of them.
@@ -589,7 +617,7 @@ describe("renderTechnical", () => {
     }
     const evidence = part("fingerprints-and-seals");
     expect(evidence).toContain(
-      "A run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session.",
+      "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log, recorded at the end of each session.",
     );
     expect(evidence).toContain(
       "Earlier tries a run kept, its own report, and its comparisons have none.",
@@ -610,16 +638,20 @@ describe("renderTechnical", () => {
     ]) {
       expect(text, overstated).not.toContain(overstated);
     }
-    // A report's own check recomputes what the report carries: its transcripts' and screenshots'
-    // fingerprints, its runs' seals, and its review entries' seals and their chain, and nothing
-    // else of the home's, such as a manual session or a share. It shows only that the page agrees
-    // with itself (src/share/check.ts).
+    // A report's own check recomputes what the report carries: its transcripts', screenshots', and
+    // axe results' fingerprints, its runs' seals, and its review entries' seals and their chain,
+    // and nothing else of the home's, such as a manual session or a share. It shows only that the
+    // page agrees with itself (src/share/check.ts).
     expect(evidence).toContain(
-      "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries.",
+      "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries.",
     );
     expect(evidence).toContain(
       "It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
     );
+    // Of a card's fold of what axe found, the check compares some lines with the file and not the
+    // rest (its version line, each rule's criteria, its links, and the file's size and SHA-256), as
+    // the report's own "What the check proves" says, so this page claims nothing of the fold.
+    expect(evidence).not.toMatch(/\bfolds?\b/i);
 
     // The demo site's pages are published too, with a style sheet beside them and a policy of
     // their own: what's one file under a policy of its own bytes is each of the website's own pages

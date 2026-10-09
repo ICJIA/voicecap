@@ -388,7 +388,7 @@ export const TECHNICAL_TEXT = {
                     {
                       name: "run.json",
                       words: [
-                        "The run's record: its settings, each page and every failed try at it, the fingerprints of each page's transcripts and screenshot and of the event log, and, once it completes, its seal",
+                        "The run's record: its settings, each page and every failed try at it, the fingerprints of the event log and of each page's transcripts, screenshot, and axe results, and, once it completes, its seal",
                       ],
                     },
                     {
@@ -401,8 +401,11 @@ export const TECHNICAL_TEXT = {
                         ...codes(PASS_NAMES.map((pass) => `${pass}.txt`)),
                         ", each with its ",
                         { code: ".json" },
-                        " of every step (the key, the words, and their timing), and ",
+                        " of every step (the key, the words, and their timing), ",
                         { code: "screenshot.jpg" },
+                        ", and ",
+                        { code: "axe.json" },
+                        ", what axe-core found on the page",
                       ],
                     },
                     { name: "attempts/", words: ["The earlier tries at a page, kept"] },
@@ -475,7 +478,7 @@ export const TECHNICAL_TEXT = {
       heading: ["Fingerprints, seals, and ", { code: "voicecap verify" }] satisfies Sentence,
       points: [
         [
-          "A run's record holds the SHA-256 of each page's transcripts and screenshot, recorded as each is written, and of the event log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
+          "A run's record holds the SHA-256 of each page's transcripts, screenshot, and axe results, recorded as each is written, and of the event log, recorded at the end of each session. Earlier tries a run kept, its own report, and its comparisons have none. A run also records the SHA-256 of its page list, or of each sitemap it read, and of its config, and ",
           { code: "shares.json" },
           " records each shared copy's.",
         ],
@@ -490,7 +493,7 @@ export const TECHNICAL_TEXT = {
           ` checks every seal, every chain, and every file a sealed record lists in the home, but not the page list, sitemaps, or config, which voicecap doesn't keep in the home. A manual session's raw copy, which voicecap keeps out of Git, is checked when it's there. An incomplete run is listed, and its files aren't checked: they can change until it's sealed. It exits ${ExitCode.ok} when everything matches, ${ExitCode.verifyProblems} when something doesn't.`,
         ],
         [
-          "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
+          "Each report's \"Check the fingerprints\" checks, in the reader's browser and with nothing sent anywhere, the transcripts, screenshots, axe results, run seals, and review chain the report carries. It shows the page agrees with itself: whoever changed the page could have changed its fingerprints too.",
         ],
         [
           "What no check can catch: someone who edits a record and seals it, and every record after it, again; and someone who deletes the newest records, or a whole run. The Git history, pushed to a protected branch, shows both.",
@@ -902,9 +905,9 @@ export const TECHNICAL_TEXT = {
     },
     {
       tool: "axe-core",
-      job: "An automated accessibility checker, which voicecap's tests run on the shareable page and on this website, in both themes",
+      job: "An automated accessibility checker: during a run, it checks each page before NVDA reads it, and voicecap's tests run it on the shareable page and on this website, in both themes",
       license: "MPL-2.0",
-      where: "voicecap's tests",
+      where: "A run, and voicecap's tests",
       npm: "axe-core",
     },
     {

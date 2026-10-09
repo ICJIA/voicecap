@@ -234,7 +234,7 @@ export const TRUST_TEXT = {
     heading: "Every word can be checked.",
     sealed: {
       words: [
-        "Every transcript and screenshot has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
+        "Every transcript, screenshot, and axe result has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
       ] satisfies Line,
       link: { words: "The audit record", href: `${GITHUB}#the-audit-record` },
     },
