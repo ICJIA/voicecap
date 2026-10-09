@@ -465,8 +465,8 @@ function kicker(parts: readonly KickerPart[]): string {
  * landmark, holding "What's new", as a kicker; the release's version, as a pill; its headline,
  * when its entry has one; and the day it was released, in a `time` that holds the day it names,
  * with the link to What's New, which has every release. Its words are the CHANGELOG's, escaped, so
- * a line with markup in it is plain text here. Nothing, when the CHANGELOG records no release, as a
- * developer's build may not.
+ * a line with markup in it is plain text here. Nothing, when the CHANGELOG is missing or records
+ * no release.
  */
 function news(releases: readonly VoicecapRelease[]): string[] {
   const [newest] = releases;
