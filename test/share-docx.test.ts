@@ -506,7 +506,7 @@ describe("docxOf", () => {
       (each) => each.rows[0]?.[1] === "From" && each.rows[1]?.[2] === "Attempt 1 started",
     );
     const [, , entry] = record?.rows.find((cells) => cells[1] === "nvda-log") ?? [];
-    expect(entry).toBe(lines.join("\n"));
+    expect(entry).toBe(`ERROR: ${lines.join("\n")}`);
     // One paragraph in the fixed-width style, a line break after each line but the last.
     const paragraph =
       /<w:p>(?:(?!<\/w:p>).)*Error accepting connection(?:(?!<\/w:p>).)*<\/w:p>/s.exec(

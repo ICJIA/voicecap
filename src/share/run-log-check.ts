@@ -27,7 +27,7 @@ import {
   type RunJson,
   type StepRecord,
 } from "../model.js";
-import { checkAgainstLog, type LogCheck, type PassSteps } from "./log-check.js";
+import { CantCheckError, checkAgainstLog, type LogCheck, type PassSteps } from "./log-check.js";
 import { isEventTime } from "./timeline.js";
 
 /** The key a step's command presses, as the screen reader's own log names it (NVDA's). */
@@ -40,7 +40,7 @@ export type GestureOf = (command: DriverCommand) => string | null;
  * - `reason`: the log says why none was kept (`detail`);
  * - `altered`: the copy the log names isn't among those read: the run's record doesn't list it, or
  *   its file is missing or isn't as the record has it;
- * - `silent`: the copy has no speech in it (NVDA's logging level was below input and output);
+ * - `silent`: the copy has no speech in it (as when NVDA's logging level is below input and output);
  * - `initial`: the run kept only the first thing NVDA said for each step, so a step's line can't be
  *   compared with all that NVDA said;
  * - `times`: the times of the pages couldn't be read;
@@ -85,9 +85,6 @@ export interface RunLogInput {
   /** Replaces the home folder in what the page shows. */
   redact: (text: string) => string;
 }
-
-/** The start of what checkAgainstLog says when it can't place a window (its times can't be read). */
-const CANT_CHECK = "NVDA's log can't be checked:";
 
 /** What the event log shows of one of voicecap's NVDA sessions. */
 export interface NvdaSession {
@@ -351,8 +348,8 @@ export function checkRunAgainstLog(input: RunLogInput): RunLogCheck {
         }),
       );
     } catch (error) {
-      // A window whose times can't be read: the only thing the comparison refuses.
-      if (!(error instanceof Error) || !error.message.startsWith(CANT_CHECK)) throw error;
+      // A window whose times can't be read: the only thing the comparison refuses, told by its kind.
+      if (!(error instanceof CantCheckError)) throw error;
       skip("times");
     }
   }

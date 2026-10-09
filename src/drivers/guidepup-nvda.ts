@@ -47,8 +47,9 @@
  *   reads that log, cleans it (./guidepup/nvda-log.ts), and hands the copy to the run's recorder,
  *   before anything starts NVDA again: NVDA moves the last log aside to nvda-old.log whenever it
  *   starts, as the person's own NVDA does when the final stop starts it again. It reads nothing
- *   for a recorder that keeps no copies, and a log it can't have is recorded as no copy, with why,
- *   and the console is told, once for a driver: it never stops a stop.
+ *   for a recorder that keeps no copies, and a log it can't have (none, one it can't read, or one
+ *   older than the NVDA session, an earlier NVDA's) is recorded as no copy, with why, and the
+ *   console is told, once for a driver: it never stops a stop.
  */
 import { randomInt } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -63,7 +64,7 @@ import { acquireLockFile, isStale, readLockHolder } from "../util/lock-file.js";
 import type { Logger } from "../util/log.js";
 import { launchChrome } from "./guidepup/chrome.js";
 import { loadGuidepupNvda } from "./guidepup/nvda.js";
-import { cleanNvdaLog, withNvdaLog } from "./guidepup/nvda-log.js";
+import { beganWithSession, cleanNvdaLog, withNvdaLog } from "./guidepup/nvda-log.js";
 import {
   guidepupInstall,
   nvdaLockFile,
@@ -342,6 +343,11 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
   /** The process id of the NVDA voicecap started, for the event that says it stopped. */
   private nvdaPid: number | null = null;
   /**
+   * When voicecap last began to start its NVDA: a log it keeps a copy of must have begun since (see
+   * cleanedNvdaLog).
+   */
+  private nvdaBegan: Date | null = null;
+  /**
    * Whether the console has been told that a copy of NVDA's log wasn't kept: it's told once for a
    * driver, the first time, whichever copy it was and whatever the reason.
    */
@@ -483,6 +489,7 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     this.nvdaOwner = generation;
     this.setNvdaState("starting");
     const began = this.deps.now();
+    this.nvdaBegan = began;
     try {
       await nvda.start({
         capture: this.options.config.capture,
@@ -1083,14 +1090,15 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     if (!this.noCopyWarned) {
       this.noCopyWarned = true;
       this.options.logger.warn(
-        `NVDA's own log of one NVDA session wasn't kept: ${log.reason} The run goes on.`,
+        `NVDA's own log of one NVDA session wasn't kept: ${sentence(log.reason)} The run goes on.`,
       );
     }
   }
 
   /**
    * NVDA's log, read and cleaned, or why it can't be had: there is no file, or it's empty, or it
-   * can't be read (another program has it locked, say). Nothing is read when the account's home
+   * can't be read (another program has it locked, say), or it began before this NVDA session's
+   * start did, so it's an earlier NVDA's (beganWithSession). Nothing is read when the account's home
    * folder isn't known: a copy says it has the home folder written as %USERPROFILE%, and the
    * account's name in a path would stay in it. Never throws.
    */
@@ -1104,6 +1112,12 @@ export class GuidepupNvdaDriver implements ScreenReaderDriver {
     try {
       const raw = await this.deps.readNvdaLog();
       if (raw === null || raw.trim() === "") return { reason: "NVDA's log wasn't there." };
+      const began = this.nvdaBegan;
+      if (began !== null && !beganWithSession(raw, began, this.deps.now())) {
+        return {
+          reason: "NVDA's log is older than this NVDA session, so it isn't this session's.",
+        };
+      }
       return { cleaned: cleanNvdaLog(raw, { home, platform }) };
     } catch (error) {
       // The run keeps the reason, and a path in an error's message names the account.
@@ -1194,6 +1208,11 @@ function lostForeground(program: string | null): ForegroundError {
     "The browser lost the foreground to another window, so this step's keystroke and speech were discarded. Keep the computer free while voicecap runs.",
     { program },
   );
+}
+
+/** A reason as a sentence of its own: its words, with one full stop at the end. */
+function sentence(reason: string): string {
+  return `${reason.trim().replace(/[\s.]+$/, "")}.`;
 }
 
 function describeError(error: unknown): string {

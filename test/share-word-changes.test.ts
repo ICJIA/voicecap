@@ -1540,11 +1540,11 @@ describe("wordProblems", () => {
       const part = firstProblem(keptLogsModel([problemEntry("ERROR", "14:04:20.123", ...lines)]));
       const rows = tableAt(part, 1).rows.filter((row) => cellLines(row[1])[0] === "nvda-log");
 
-      // One row, the entry's lines joined with a newline, in the fixed-width font, with the time of
-      // day it was logged, and no heading of its own under the problem's.
+      // One row, the entry's level and lines joined with a newline, in the fixed-width font, with the
+      // time of day it was logged, and no heading of its own under the problem's.
       expect(rows).toHaveLength(1);
       expect(cellLines(rows[0]?.[0])).toEqual(["14:04:20.123"]);
-      expect(cellLines(rows[0]?.[2])).toEqual([lines.join("\n")]);
+      expect(cellLines(rows[0]?.[2])).toEqual([`ERROR: ${lines.join("\n")}`]);
       expect(rows[0]?.[2]?.mono).toBe(true);
       expect(outlineOf(part)).toEqual([
         "2 Run 2026-09-26_1402 · Apply",

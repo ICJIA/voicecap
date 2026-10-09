@@ -2717,12 +2717,16 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     return { events, unreadable: 0 };
   }
 
-  it("adds an ERROR entry with a traceback, inside the problem's window, as a row from nvda-log, with its time and its lines", () => {
+  it("adds an ERROR entry with a traceback, inside the problem's window, as a row from nvda-log, with its time, its level, and its lines", () => {
     const model = modelWith([entry("ERROR", "14:04:20.123", ...TRACEBACK)]);
     const [problem] = model.problems.problems;
 
     expect(fromNvda(problem)).toEqual([
-      { time: "2026-09-26T14:04:20.123-05:00", source: "nvda-log", entry: TRACEBACK.join("\n") },
+      {
+        time: "2026-09-26T14:04:20.123-05:00",
+        source: "nvda-log",
+        entry: `ERROR: ${TRACEBACK.join("\n")}`,
+      },
     ]);
   });
 
@@ -2772,11 +2776,11 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     expect(rowsOf(model.problems.problems[0])).toEqual([
       "14:03:56.000 | run.json | Attempt 1 started",
       "14:03:56.000 | events.jsonl | Page 2 started: Apply",
-      `14:04:20.123 | nvda-log | ${TRACEBACK.join("\n")}`,
+      `14:04:20.123 | nvda-log | ERROR: ${TRACEBACK.join("\n")}`,
       "14:04:41.250 | events.jsonl | Another window came to the front: Microsoft Teams",
       `14:04:41.300 | run.json | Failed: foreground: ${FOREGROUND}`,
       "14:04:41.300 | events.jsonl | Page 2 failed: another window took the screen",
-      "14:04:41.300 | nvda-log | As the attempt failed.",
+      "14:04:41.300 | nvda-log | WARNING: As the attempt failed.",
       "14:04:41.350 | events.jsonl | voicecap restarted NVDA: to try Apply again (attempt 2 of 5)",
       "14:04:43.900 | events.jsonl | voicecap's NVDA stopped: process 65720, to restart",
       "14:04:43.900 | events.jsonl | voicecap kept a copy of NVDA's own log: nvda-log/1-1.txt",
@@ -2797,8 +2801,8 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     ]);
 
     expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
-      "As it began.",
-      "A millisecond before the next.",
+      "WARNING: As it began.",
+      "WARNING: A millisecond before the next.",
     ]);
   });
 
@@ -2862,8 +2866,8 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
       const [problem] = modelOf(run, events, copy).problems.problems;
 
       expect(fromNvda(problem).map((row) => row.entry)).toEqual([
-        "As it began.",
-        "Ten seconds after it ended.",
+        "WARNING: As it began.",
+        "WARNING: Ten seconds after it ended.",
       ]);
       // The same window as the event log's rows: the last of them is the lock let go at that moment.
       expect(
@@ -2907,14 +2911,14 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
       const [problem] = modelOf(run, events, copy).problems.problems;
 
       expect(fromNvda(problem).map((row) => [row.time, row.entry])).toEqual([
-        [`${day}T23:59:59.500-05:00`, "Before midnight."],
-        [`${next}T00:00:00.500-05:00`, "After midnight."],
-        [`${next}T00:00:08.000-05:00`, "Ten seconds after it ended."],
+        [`${day}T23:59:59.500-05:00`, "WARNING: Before midnight."],
+        [`${next}T00:00:00.500-05:00`, "ERROR: After midnight."],
+        [`${next}T00:00:08.000-05:00`, "WARNING: Ten seconds after it ended."],
       ]);
     });
   });
 
-  it("takes only WARNING, ERROR, and CRITICAL entries, never the speech or the keys beside them", () => {
+  it("takes only WARNING, ERROR, and CRITICAL entries, each after its level, never the speech or the keys beside them", () => {
     const moment = timeOfDay("2026-09-26T14:04:20.000-05:00");
     const model = modelWith([
       keyAt(moment, "downArrow"),
@@ -2927,21 +2931,21 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     ]);
 
     expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
-      "A warning.",
-      "An error.",
-      "A critical entry.",
+      "WARNING: A warning.",
+      "ERROR: An error.",
+      "CRITICAL: A critical entry.",
     ]);
   });
 
-  it("shows an entry of one line, and an entry with no message by what the header says", () => {
+  it("shows an entry of one line after its level, and an entry with no message by its level and its code path", () => {
     const model = modelWith([
       entry("WARNING", "14:04:20.100", "Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices"),
       entry("ERROR", "14:04:20.200"),
     ]);
 
     expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
-      "Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices",
-      "ERROR - _remoteClient.server.LocalRelayServer.acceptNewConnection",
+      "WARNING: Invalid voice: HKEY_LOCAL_MACHINE\\SOFTWARE\\Voices",
+      "ERROR: _remoteClient.server.LocalRelayServer.acceptNewConnection",
     ]);
   });
 
@@ -2956,7 +2960,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     const model = modelWith([], { copies });
 
     expect(fromNvda(model.problems.problems[0]).map((row) => row.entry)).toEqual([
-      "In the attempt's session.",
+      "WARNING: In the attempt's session.",
     ]);
   });
 
@@ -2998,7 +3002,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
       {
         time: "2026-09-28T09:00:12.000-05:00",
         source: "nvda-log",
-        entry: "In Contact's session.",
+        entry: "WARNING: In Contact's session.",
       },
     ]);
   });
@@ -3012,7 +3016,7 @@ describe("problemsOf: NVDA's own warnings and errors in the record", () => {
     const replaced = process.platform === "win32" ? "%USERPROFILE%" : "~";
 
     expect(entries.join("\n")).not.toContain(home);
-    expect(entries[0]).toMatch(new RegExp(`^Failed to load ${escapeRegExp(replaced)}`));
+    expect(entries[0]).toMatch(new RegExp(`^ERROR: Failed to load ${escapeRegExp(replaced)}`));
   });
 
   describe("where the page has none of the attempt's NVDA session", () => {

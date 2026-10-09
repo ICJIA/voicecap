@@ -1445,12 +1445,41 @@ describe("renderEvidence", () => {
         expect(part).toContain(`<p class="not-recorded">${esc(words)}</p>`);
         expect(part).not.toContain('class="cross"');
       }
-      expect(partOfModel(await fixtureModel({ unlisted: true }))).toContain(
+      // A run whose record lists no copy, and whose event log names none, kept none.
+      const unlisted = await fixtureModel({
+        unlisted: true,
+        change: (parts) => {
+          parts.events = parts.events.filter((line) => !line.includes('"screen-reader-log"'));
+        },
+      });
+      expect(partOfModel(unlisted)).toContain(
         '<p class="not-recorded">Not recorded: this run kept no copy of NVDA&#39;s log.</p>',
+      );
+      // One whose event log names a copy that its record doesn't list: it isn't as recorded.
+      expect(partOfModel(await fixtureModel({ unlisted: true }))).toContain(
+        '<p class="not-recorded">Not shown: NVDA&#39;s log isn&#39;t as the run recorded it; voicecap verify names it.</p>',
       );
     });
 
-    it("escapes the words of a line, and sets no style", () => {
+    it("says, of a page made without NVDA's keys, that this page was made without them", () => {
+      const kept = keptLogsRun();
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, kept.log]]),
+          nvdaLogs: new Map([[kept.run.id, kept.copies]]),
+          gestureOf: null,
+        }),
+      );
+      const part = partOfModel(model);
+
+      expect(part).toContain(
+        `<p class="not-recorded">${esc("Not shown: this page was made without the keys voicecap presses for each step, which the check needs.")}</p>`,
+      );
+      expect(part).not.toContain('class="cross"');
+    });
+
+    it("escapes the words of a line, and of why steps weren't checked, and sets no style", () => {
       const hostile = '<b>bold</b> & "quoted" <script>alert(1)</script>';
       const html = renderEvidence(
         showing(
@@ -1459,6 +1488,10 @@ describe("renderEvidence", () => {
             agree: 11,
             onlyInLog: [{ page: "<i>page</i>", pass: "read", step: 1, text: hostile }],
             onlyInTranscripts: [{ page: "<i>page</i>", pass: "read", step: 1, text: hostile }],
+            // The reason a run's event log gives, in its own words.
+            notChecked: [
+              { steps: 2, from: null, why: "reason", detail: "<img src=x onerror=alert(1)>" },
+            ],
           }),
         ),
       );
@@ -1466,8 +1499,12 @@ describe("renderEvidence", () => {
 
       expect(part).toContain(`<code>“${esc(hostile)}”</code>`);
       expect(part).toContain("&lt;i&gt;page&lt;/i&gt;, Read pass, step 1:");
+      expect(part).toContain(
+        "<p>2 steps weren&#39;t checked: &lt;img src=x onerror=alert(1)&gt;.</p>",
+      );
       expect(part).not.toContain("<script>alert");
       expect(part).not.toContain("<i>page</i>");
+      expect(part).not.toContain("<img src=x");
       expect(html).not.toMatch(/\sstyle=/);
     });
 

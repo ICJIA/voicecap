@@ -1410,14 +1410,17 @@ describe("renderProblems", () => {
       "ssl.SSLEOFError: EOF occurred",
     ];
 
-    it("shows NVDA's own warning or error line by line, each line escaped, with its spaces kept", () => {
+    it("shows NVDA's own warning or error line by line, after its level, each line escaped, with its spaces kept", () => {
       const model = keptLogsModel([problemEntry("ERROR", "14:04:20.123", ...TRACEBACK)]);
       const [fold = ""] = foldsIn(renderProblems(model));
       const table = tableOf(fold, "logtable");
       const [cell] = cellsOf(table, "nvda-log");
+      const [first = "", ...rest] = TRACEBACK;
 
       // One code, a line break after each line but the last, and every character of each escaped.
-      expect(cell).toBe(`<td><code>${TRACEBACK.map(esc).join("<br>")}</code></td>`);
+      expect(cell).toBe(
+        `<td><code>${[`ERROR: ${first}`, ...rest].map(esc).join("<br>")}</code></td>`,
+      );
       expect(cell?.match(/<br>/g)).toHaveLength(TRACEBACK.length - 1);
       expect(cell).toContain("    &lt;img src=x onerror=alert(1)&gt; &amp; more");
       expect(cell).not.toContain("<img");

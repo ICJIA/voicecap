@@ -15,9 +15,10 @@
  *   day it falls on in the window, by the midnight rule `parseNvdaLog` goes by (`entryTimes` and
  *   `timeOnLog`, in ../manual/nvda-log.ts), and given the window's UTC offset, so the record can
  *   order it among its other rows. The time of day it shows is the entry's own.
- * - **The rows.** Each entry is its message and the lines after it (a traceback's), joined with a
- *   newline, with the home folder replaced again, since the copy was cleaned of it but is data
- *   (an entry with no message is shown by its level and its code path).
+ * - **The rows.** Each entry is its level ("ERROR: ", "WARNING: ", or "CRITICAL: "), then its
+ *   message and the lines after it (a traceback's), joined with a newline, with the home folder
+ *   replaced again, since the copy was cleaned of it but is data (an entry with no message is shown
+ *   by its level and its code path).
  *
  * Where the page doesn't have the session's copy, it says why (`PROBLEMS_TEXT.nvdaLog`), in the
  * order the reader can act on it: the screen reader isn't NVDA; the event log doesn't show which
@@ -107,9 +108,13 @@ function addDays(date: string, days: number): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(later) ? later : null;
 }
 
-/** What the record says of an entry: its message, or, where it has none, its level and code path. */
+/**
+ * What the record says of an entry: its level, so a warning is told from an error, then its message,
+ * or, where it has none, its code path ("ERROR: Error accepting connection", a traceback's lines
+ * after it).
+ */
 function textOf({ level, codepath, message }: Entry): string {
-  return message.trim() === "" ? `${level} - ${codepath}` : message;
+  return `${level}: ${message.trim() === "" ? codepath : message}`;
 }
 
 /**

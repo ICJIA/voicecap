@@ -6,11 +6,12 @@
  * run that reads one more page. The version that first keeps NVDA's log, and the path of a copy, are
  * here too.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { gestureOf } from "../src/drivers/guidepup/nvda-log.js";
 import { isCopyPath } from "../src/run/events.js";
 import type { PassName, RunEvent, RunJson, StepRecord } from "../src/model.js";
+import type * as LogCheckModule from "../src/share/log-check.js";
 import { KEEPS_NVDA_LOG_FROM, keepsNvdaLog } from "../src/share/problems.js";
 import { checkRunAgainstLog } from "../src/share/run-log-check.js";
 import { failedAttempt } from "./helpers/share-data.js";
@@ -42,9 +43,9 @@ const EVERY_STEP = {
 
 type Input = Parameters<typeof checkRunAgainstLog>[0];
 
-/** The run's check, with the parts a test changes. */
-function checkOf(kept: KeptLogs = keptLogsRun(), overrides: Partial<Input> = {}) {
-  return checkRunAgainstLog({
+/** What the run's check is given. */
+function inputFor(kept: KeptLogs): Input {
+  return {
     run: kept.run,
     events: kept.log.events,
     copies: kept.copies,
@@ -53,8 +54,39 @@ function checkOf(kept: KeptLogs = keptLogsRun(), overrides: Partial<Input> = {})
     gestureOf,
     pageName: (page) => page.label ?? page.url,
     redact: (text) => text.replaceAll("C:\\Users\\jane", "%USERPROFILE%"),
-    ...overrides,
+  };
+}
+
+/** The run's check, with the parts a test changes. */
+function checkOf(kept: KeptLogs = keptLogsRun(), overrides: Partial<Input> = {}) {
+  return checkRunAgainstLog({ ...inputFor(kept), ...overrides });
+}
+
+/**
+ * checkRunAgainstLog, with the comparison it calls throwing `error` for every session, and the
+ * module put back afterward.
+ */
+async function withComparisonThrowing<T>(
+  error: (module: typeof LogCheckModule) => Error,
+  use: (check: typeof checkRunAgainstLog) => T,
+): Promise<T> {
+  vi.resetModules();
+  vi.doMock("../src/share/log-check.js", async (importOriginal) => {
+    const actual = await importOriginal<typeof LogCheckModule>();
+    return {
+      ...actual,
+      checkAgainstLog: () => {
+        throw error(actual);
+      },
+    };
   });
+  try {
+    const { checkRunAgainstLog: check } = await import("../src/share/run-log-check.js");
+    return use(check);
+  } finally {
+    vi.doUnmock("../src/share/log-check.js");
+    vi.resetModules();
+  }
 }
 
 /** The events without the ones `gone` picks. */
@@ -262,6 +294,28 @@ describe("checkRunAgainstLog", () => {
 
     expect(result.notChecked).toEqual([{ steps: 8, from: STARTED[1], why: "times", detail: null }]);
     expect(result.check).toMatchObject({ transcriptLines: 16, agree: 16 });
+  });
+
+  it("knows the comparison's own refusal by its kind, whatever its words say", async () => {
+    // Words nothing like the comparison's own: each session is still counted as not checked.
+    const result = await withComparisonThrowing(
+      ({ CantCheckError }) => new CantCheckError("Reworded, with nothing of the words it had."),
+      (check) => check(inputFor(keptLogsRun())),
+    );
+
+    expect(result).toEqual({
+      check: null,
+      notChecked: STARTED.map((from) => ({ steps: 8, from, why: "times", detail: null })),
+    });
+  });
+
+  it("lets any other error out, even one in the words the comparison's own refusal uses", async () => {
+    const thrown = withComparisonThrowing(
+      () => new Error("NVDA's log can't be checked: but not by the comparison."),
+      (check) => check(inputFor(keptLogsRun())),
+    );
+
+    await expect(thrown).rejects.toThrow("NVDA's log can't be checked: but not by the comparison.");
   });
 
   it("lists a step that differs under its page, pass, and step, in both lists", () => {

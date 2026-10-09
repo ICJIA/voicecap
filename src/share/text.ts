@@ -730,7 +730,8 @@ export const NVDA_LOG_TEXT = {
   because: {
     none: "voicecap kept no copy of NVDA's log for that session",
     altered: "NVDA's log isn't as the run recorded it; voicecap verify names it",
-    silent: "NVDA's log has no speech in it, since NVDA's logging level was below input and output",
+    silent:
+      "NVDA's log has no speech in it, as when NVDA's logging level is below input and output",
     initial:
       "this run kept only the first thing NVDA said for each step, so a step can't be compared with all that NVDA's log has",
     times: "the times of the pages couldn't be read",
@@ -762,9 +763,13 @@ export const NVDA_LOG_TEXT = {
    */
   needsEventLog: (reason: string): string =>
     `${reason} NVDA's log is paired with the steps by the event log, so it can't be checked here.`,
-  /** The part of a page made without the keys a step presses, which the check goes by. */
+  /**
+   * The part of a page made without the keys voicecap presses for each step, which the check goes
+   * by. The Word copy says it of itself (`WORD_TEXT.evidence.noKeys`), since "this page", in a Word
+   * document, reads as the printed page.
+   */
   noKeys:
-    "Not shown: this copy was made without the keys NVDA presses for each step, which the check needs.",
+    "Not shown: this page was made without the keys voicecap presses for each step, which the check needs.",
 };
 
 /**
@@ -1203,7 +1208,7 @@ export const TIMELINE: TimelineRow[] = [
   {
     date: null,
     release: null,
-    pc: "A security review of everything voicecap does on a PC.",
+    pc: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
     mac: "Full runs with VoiceOver, with voicecap's VoiceOver driver.",
     both: null,
   },
@@ -1373,6 +1378,12 @@ export const WORD_TEXT = {
      * page's "on this page" (`EVIDENCE_TEXT.leftOut.lead`). The sentence that follows is the page's.
      */
     leftOutLead: "These runs aren't counted in any result in this report.",
+    /**
+     * What a run's check of NVDA's own log says in the Word copy when it was made without the keys
+     * voicecap presses for each step: the page's sentence (`NVDA_LOG_TEXT.noKeys`), of this copy.
+     */
+    noKeys:
+      "Not shown: this Word copy was made without the keys voicecap presses for each step, which the check needs.",
     /**
      * A run's walkthrough file, which the Word copy can't carry: how to get it, from the web page
      * or with a command (`lead`, then the command), and then (`then`) the command that repeats the

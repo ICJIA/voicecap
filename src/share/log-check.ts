@@ -494,8 +494,20 @@ function readCopy(log: string, thrownOut: readonly Window[]): Copy {
 }
 
 /**
+ * What checkAgainstLog throws when it can't place a window the run recorded: its times can't be
+ * read, or it ends before it begins. A caller tells it from any other error by its class, never by
+ * its words, so rewording it can't turn a session that can't be checked into a failed page.
+ */
+export class CantCheckError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CantCheckError";
+  }
+}
+
+/**
  * A window the run recorded, read: its start's time of day, and its length from its own two
- * times. One that can't be read, or that ends before it begins, is an error that names it.
+ * times. One that can't be read, or that ends before it begins, is a CantCheckError that names it.
  */
 function readWindow(window: { from: string; to: string }, of: string): Window {
   const from = localTime(window.from);
@@ -504,7 +516,9 @@ function readWindow(window: { from: string; to: string }, of: string): Window {
   if (from === null || !(length >= 0)) {
     const times = `${JSON.stringify(window.from)} to ${JSON.stringify(window.to)}`;
     const problem = length < 0 ? "ends before it begins" : "can't be read";
-    throw new Error(`NVDA's log can't be checked: the window of ${of} (${times}) ${problem}.`);
+    throw new CantCheckError(
+      `NVDA's log can't be checked: the window of ${of} (${times}) ${problem}.`,
+    );
   }
   return { timeOfDay: from.timeOfDay, length };
 }
@@ -559,14 +573,23 @@ function joinedText(utterances: readonly (readonly string[])[]): string {
 const WORD = /[\p{L}\p{M}\p{N}]/u;
 const LETTER = /[\p{L}\p{M}]/u;
 const SPACE = /\s/u;
-/** The most words NVDA's name for a symbol is taken to have ("plus or minus"). */
+/** The most words a symbol's name is taken to have ("plus or minus"). */
 const NAME_WORDS = 4;
+/**
+ * The most places spokenAsLogged searches: one for each pair of a place in the log's characters and
+ * a place in the transcript's, each a byte, so about 4 MB. A step's speech is a line or two, far
+ * under it (2,000 characters a side is about 4 million places); a longer one is compared as it is.
+ */
+const MOST_PLACES = 4_000_000;
 
 /**
  * One character of what NVDA logged, for spokenAsLogged: a character of an item, or a joiner
- * between items (", ") or between entries (". "), which must appear from `min` to `max` times.
+ * between items (", ") or between entries (". "), which must appear from `min` to `max` times. A
+ * character is a `tail` when it's a symbol that ends its item right after a letter or digit.
  */
-type Token = { joiner: false; ch: string } | { joiner: true; ch: string; min: number; max: number };
+type Token =
+  | { joiner: false; ch: string; tail: boolean }
+  | { joiner: true; ch: string; min: number; max: number };
 
 /**
  * Whether a transcript's line says what NVDA's log has it saying: the step's Speaking entries, each
@@ -575,21 +598,31 @@ type Token = { joiner: false; ch: string } | { joiner: true; ch: string; min: nu
  * its own as "dot") and leaving others out ("|", quotation marks), and its dictionary splits some
  * words ("macOS" as "mac OS"). The transcript has what NVDA said after that. So here:
  * - every letter and digit must be the same, in order;
- * - where an item has a symbol, the transcript can have the symbol, nothing, or a word or a few
- *   (its name, perhaps with the symbol after it);
+ * - where an item has a symbol, the transcript can have the symbol, nothing, or up to NAME_WORDS
+ *   whole words (a name, perhaps with the symbol after it). The words aren't compared with NVDA's
+ *   own names for symbols, which the comparison doesn't know: any one to four words can stand for
+ *   a symbol, so "Price: 10" agrees with "Price is not 10";
+ * - except a symbol that ends an item right after a letter or digit (a sentence's last mark, say):
+ *   it can be there or not, never said by name, so words after a line's last mark always differ.
+ *   That holds for one NVDA does say by name ("Up 5%" as "Up 5 percent"), which is then listed as a
+ *   difference, never taken to agree;
  * - the ", " between items and the ". " between entries come from voicecap's capture, not from
  *   NVDA, so each must be there, as it is. Only an entry with no text (NVDA's commands alone) may
  *   or may not have come through: the ". " beside it can be there or not;
  * - spaces don't count.
- * Nothing else is let through. One gap remains: a line that's only symbols agrees with an empty
- * line ("." and ""), though NVDA says a "." on its own as "dot": which symbols NVDA leaves out
- * depends on its symbol level, and the comparison lets any be left out.
+ * Two gaps remain: the words for a symbol inside an item, which can be any one to four; and a line
+ * that's only symbols, which agrees with an empty line ("." and ""), though NVDA says a "." on its
+ * own as "dot": which symbols NVDA leaves out depends on its symbol level, and the comparison lets
+ * any be left out. A step whose two sides would take more than MOST_PLACES places to search is
+ * compared as it is, which can only find a difference.
  */
 export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: string): boolean {
   if (normalizeSpeech(joinedText(logged)) === normalizeSpeech(spoken)) return true;
   const said = tokensOf(logged);
   const heard = Array.from(spoken);
   const width = heard.length + 1;
+  // The search keeps a byte for each place: a step too long for that differs, as it isn't the same.
+  if ((said.length + 1) * width > MOST_PLACES) return false;
   const seen = new Uint8Array((said.length + 1) * width);
   const todo = [0];
   const go = (i: number, j: number) => todo.push(i * width + j);
@@ -621,6 +654,7 @@ export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: s
     }
     go(i + 1, j); // left out
     if (heard[j] === ch) go(i + 1, j + 1); // kept
+    if (token.tail) continue; // a symbol that ends its item is never said by name
     for (const end of nameEnds(heard, j)) {
       go(i + 1, end); // said by name
       const after = pastSpaces(heard, end);
@@ -632,7 +666,8 @@ export function spokenAsLogged(logged: readonly (readonly string[])[], spoken: s
 
 /**
  * The characters of a step's entries, with the joiners voicecap's capture puts between them. An
- * entry with no text makes no characters, and the ". " it would bring may be there or not.
+ * entry with no text makes no characters, and the ". " it would bring may be there or not. A symbol
+ * that ends its item right after a letter or digit, with no space between, is the item's `tail`.
  */
 function tokensOf(utterances: readonly (readonly string[])[]): Token[] {
   const tokens: Token[] = [];
@@ -651,7 +686,13 @@ function tokensOf(utterances: readonly (readonly string[])[]): Token[] {
     empty = 0;
     items.forEach((item, k) => {
       if (k > 0) tokens.push({ joiner: true, ch: ",", min: 1, max: 1 });
-      for (const ch of Array.from(item)) if (!SPACE.test(ch)) tokens.push({ joiner: false, ch });
+      const chars = Array.from(item);
+      const end = chars.findLastIndex((ch) => !SPACE.test(ch));
+      chars.forEach((ch, at) => {
+        if (SPACE.test(ch)) return;
+        const tail = at === end && !WORD.test(ch) && WORD.test(chars[at - 1] ?? "");
+        tokens.push({ joiner: false, ch, tail });
+      });
     });
   }
   const trailing = begun ? empty : empty - 1;

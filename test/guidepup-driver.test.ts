@@ -133,12 +133,23 @@ function setup(options: Setup = {}) {
     // Waits end on the next turn of the event loop, after anything already settled.
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
     marker: () => "k3m9x2",
-    now: () => new Date(),
+    now: steppingClock(),
   };
   const config = { ...DEFAULT_CONFIG, ...options.config };
   const driver = new GuidepupNvdaDriver({ config, logger }, deps);
   drivers.push(driver);
   return { driver, desktop, nvda, logger: memory, deps, orphanCleanups, lockChecks, awake };
+}
+
+/**
+ * The driver's clock: `from` the first time it's read (08:50 on 6 October 2026, unless given another
+ * time), and ten minutes later each time after. The driver reads it as NVDA's start begins and as it
+ * finishes, and as it reads NVDA's log: so an NVDA session's start comes before its log's first entry
+ * (FIRST_LOG's, at 09:00; SECOND_LOG's, at 09:25, for the session after it), and the read after it.
+ */
+function steppingClock(from = new Date(2026, 9, 6, 8, 50)): () => Date {
+  let reads = 0;
+  return () => new Date(from.getTime() + 600_000 * reads++);
 }
 
 /** A recorder that keeps what it's given. */
@@ -2019,9 +2030,9 @@ describe("NVDA's own log", () => {
     "",
   ].join("\r\n");
   const SECOND_LOG = [
-    "IO - inputCore.InputManager.executeGesture (09:10:00.000) - winInputHook (5200):",
+    "IO - inputCore.InputManager.executeGesture (09:25:00.000) - winInputHook (5200):",
     "Input: kb(desktop):tab",
-    "IO - speech.speech.speak (09:10:00.100) - MainThread (4100):",
+    "IO - speech.speech.speak (09:25:00.100) - MainThread (4100):",
     "Speaking [LangChangeCommand ('en_US'), 'Skip to main content', 'link', CancellableSpeech (still valid)]",
     "",
   ].join("\r\n");
@@ -2253,6 +2264,11 @@ describe("NVDA's own log", () => {
       file: null,
       reason: "NVDA's log wasn't there.",
     };
+    const OLDER: NewRunEvent = {
+      type: "screen-reader-log",
+      file: null,
+      reason: "NVDA's log is older than this NVDA session, so it isn't this session's.",
+    };
 
     it("is recorded as no copy, saying it wasn't there, when there is no file", async () => {
       const { driver, desktop, recorder } = recordingLogs();
@@ -2291,6 +2307,49 @@ describe("NVDA's own log", () => {
           reason: String.raw`EBUSY: resource busy or locked, open '%USERPROFILE%\AppData\Local\Temp\nvda.log'`,
         },
       ]);
+    });
+
+    it("is recorded as no copy, saying why, when the log began before this NVDA session's start did", async () => {
+      // NVDA's log began at 09:00:00.100, and this session's start began at 09:05: the log is an
+      // earlier NVDA's, as when NVDA couldn't begin a log of its own, or wrote it in another folder.
+      const { driver, desktop, deps, recorder } = recordingLogs();
+      deps.now = steppingClock(new Date(2026, 9, 6, 9, 5));
+      desktop.nvdaLog = FIRST_LOG;
+      await driver.start();
+      await driver.stop();
+      expect(recorder.logs).toEqual([]);
+      expect(only(recorder.events, "screen-reader-log")).toEqual([OLDER]);
+    });
+
+    it("is recorded so at a restart whose NVDA couldn't begin a log of its own: the last session's is still there", async () => {
+      const { driver, desktop, recorder } = recordingLogs();
+      desktop.nvdaLog = FIRST_LOG;
+      await driver.start();
+      await driver.stop({ restarting: true });
+      // The restarted NVDA left the log as it was, so it's still the first session's.
+      await driver.start();
+      await driver.stop();
+      expect(recorder.logs).toEqual([cleaned(FIRST_LOG)]);
+      expect(only(recorder.events, "screen-reader-log")).toEqual([OLDER]);
+    });
+
+    it("allows for midnight: a session begun before it keeps a log begun after it, and not one from before it", async () => {
+      const afterMidnight = FIRST_LOG.replaceAll("(09:00:", "(00:00:");
+      const kept = recordingLogs();
+      kept.deps.now = steppingClock(new Date(2026, 9, 6, 23, 59, 50));
+      kept.desktop.nvdaLog = afterMidnight;
+      await kept.driver.start();
+      await kept.driver.stop();
+      expect(kept.recorder.logs).toEqual([cleaned(afterMidnight)]);
+
+      const beforeMidnight = FIRST_LOG.replaceAll("(09:00:", "(23:59:");
+      const older = recordingLogs();
+      older.deps.now = steppingClock(new Date(2026, 9, 7, 0, 0, 30));
+      older.desktop.nvdaLog = beforeMidnight;
+      await older.driver.start();
+      await older.driver.stop();
+      expect(older.recorder.logs).toEqual([]);
+      expect(only(older.recorder.events, "screen-reader-log")).toEqual([OLDER]);
     });
 
     it("is recorded as no copy, and not read, when the account's home folder isn't known", async () => {
@@ -2371,7 +2430,7 @@ describe("NVDA's own log", () => {
         expect(warnings(logger)).toEqual([WARNING("NVDA's log wasn't there.")]);
       });
 
-      it("says why, with the error's own words and the account's folder left out", async () => {
+      it("says why, with the error's own words and the account's folder left out, as a sentence that ends with its full stop", async () => {
         const { driver, desktop, logger } = recordingLogs();
         desktop.nvdaLog = new Error(
           String.raw`EBUSY: resource busy or locked, open 'C:\Users\pat\AppData\Local\Temp\nvda.log'`,
@@ -2380,8 +2439,19 @@ describe("NVDA's own log", () => {
         await driver.stop();
         expect(warnings(logger)).toEqual([
           WARNING(
-            String.raw`EBUSY: resource busy or locked, open '%USERPROFILE%\AppData\Local\Temp\nvda.log'`,
+            String.raw`EBUSY: resource busy or locked, open '%USERPROFILE%\AppData\Local\Temp\nvda.log'.`,
           ),
+        ]);
+      });
+
+      it("says why when the log is older than this NVDA session", async () => {
+        const { driver, desktop, deps, logger } = recordingLogs();
+        deps.now = steppingClock(new Date(2026, 9, 6, 9, 5));
+        desktop.nvdaLog = FIRST_LOG;
+        await driver.start();
+        await driver.stop();
+        expect(warnings(logger)).toEqual([
+          WARNING("NVDA's log is older than this NVDA session, so it isn't this session's."),
         ]);
       });
 

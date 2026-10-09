@@ -32,7 +32,7 @@ vi.mock("../src/util/version.js", async (importOriginal) => {
 
 /** What the part says in place of the check, for a page made without NVDA's keys. */
 const WITHOUT_KEYS =
-  "Not shown: this copy was made without the keys NVDA presses for each step, which the check needs.";
+  "Not shown: this page was made without the keys voicecap presses for each step, which the check needs.";
 
 /** Something the check's tiles say, which a page that shows the check has and no other does. */
 const TILE = "lines in voicecap&#39;s transcripts for this run";

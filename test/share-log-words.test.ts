@@ -23,7 +23,7 @@ describe("notCheckedLine", () => {
     ["altered", "NVDA's log isn't as the run recorded it; voicecap verify names it"],
     [
       "silent",
-      "NVDA's log has no speech in it, since NVDA's logging level was below input and output",
+      "NVDA's log has no speech in it, as when NVDA's logging level is below input and output",
     ],
     [
       "initial",

@@ -373,3 +373,47 @@ Real runs need the owner's OK and the warning every time: hands off the keyboard
 5. Once `npm view @icjia/voicecap@0.17 version` prints 0.17.0, wait a minute more. Then set the transcripts repo's `netlify.toml` to `@0.17`, and commit and push.
 6. Check the live site against a local build.
 7. Record the release in the handoff note.
+
+## After execution
+
+**How it was built (2026-10-06 to 2026-10-09):**
+- Built task by task, each task reviewed, with a scoped re-review of each round of fixes: one round for Task 1, one for Task 2, and two for Task 3. Tasks 4 to 6 needed none.
+- Paused after Task 2 on 2026-10-06, while plan 7 shipped as 0.12.0, and resumed on 2026-10-09 with main (0.14.0) merged in.
+- A final whole-branch review found 0 Critical, 2 Important, and 13 Minor. One round of fixes followed (R15, R16). Main is merged in again before the session at the PC (At the PC, step 0).
+
+**Rulings** (what, why where it isn't plain, and what it costs if wrong):
+- **R1:** the work stays on `plan-6c-nvda-log`, as plans 5, 5b, and 6 did: in place at first, and from 2026-10-09 in a worktree of its own. *If wrong:* none.
+- **R2:** how much care each task's building and review got: the most for Task 3 (the comparison's design, fitted to the real run), and for the final review and its fixes. *If wrong:* cost, or extra rounds.
+- **R3:** the cleaned copy keeps a Speaking entry only when the last key NVDA logged before it was one of voicecap's seven, or none came before it, so NVDA's spoken echo of what a person types goes with the key; the copy's first line says so (the Global Constraints' line). *If wrong:* speech after a person's key (an Alt+Tab's window name, say) is dropped too, which the page never lists anyway.
+- **R4:** the driver reads NVDA's log at the end of its own stop of NVDA (`shutDownNvda`), once that NVDA has quit, so a stop that quit no NVDA reads no log. *If wrong:* a quit outside `shutDownNvda` keeps no copy.
+- **R5:** a session's end also lists any copy of its own session or an earlier one that is in `nvda-log/` and not yet listed, so a killed session's copies are sealed by the session that completes the run. *If wrong:* a file put there under a copy's name before the run completes is sealed with it.
+- **R6:** copies are paired with their steps by NVDA session, through the `screen-reader-log` event after each session's stop, never by their numbers, and a session with no copy counts its steps as not checked, with why. *If wrong:* a grouping step the loader didn't need.
+- **R7:** the first version that keeps NVDA's log is one constant, `KEEPS_NVDA_LOG_FROM`, which NVDA's log's "Not recorded" lines go by, set again at Prepare if the release order changes. *If wrong:* one constant.
+- **R8:** each pass is checked only inside its kept attempt's window, from its `page-started` to its `page-finished` in the event log (the latest start before a finish that says the page was read in full), so another page's keys, and an attempt Ctrl+C stopped, are never paired with it. *If wrong:* one field.
+- **R9:** a keyless first step reaches back no further than its pass's start; an entry's items, and the joiners between them, are matched exactly; the gap a line of symbols alone leaves is named; and a window that can't be read fails closed, its session's steps not checked. *If wrong:* a few lines.
+- **R10:** a keyless first step may reach back 300 ms before its key's moment, never before its window, and windows have no slack at either end. *If wrong:* a run with margins under a second lists a step as differing, never agrees falsely.
+- **R11:** `ShareInput.nvdaLogs` holds each run's copies by their paths, `RunEvidence.nvdaLog` is the check or what stands in its place, and `gestureOf` reaches the model from the driver layer, which `src/share` never imports; a library caller of `shareReport` passes it. *If wrong:* one exported wrapper later.
+- **R12:** `nvdaGestureOf` is exported from the package, so that a library caller can pass it. *If wrong:* one export.
+- **R13:** a problem's NVDA rows come from the copy of the session its failed attempt began in, never from the restarted NVDA's start-up. *If wrong:* a failed restart's own warnings don't show in that problem's record.
+- **R14:** 6c ships as 0.17.0, before plan 11 (0.18.0), so `KEEPS_NVDA_LOG_FROM` is "0.17.0" and the release steps say 0.17.0. *If wrong:* one constant and the docs' version, swapped back at Prepare.
+- **R15:** the final review's fixes: the check's words when some steps weren't checked (Important 1), this plan at 0.17.0 with main merged first (Important 2), and Minors 3 to 11 and 14; Minors 12 and 13 wait. *If wrong:* those wait.
+- **R16:** the timeline's "Next" PC row names plan 11, the next work on the PC: "NVDA's voice: a recording of what NVDA said on each page, sealed with the run." It replaces Task 6's security review, which follows plans 11 and 13. *If wrong:* one row's words.
+
+**What the final review changed:**
+- **I1:** when some steps weren't checked, the part says them straight under its tiles, its first tile counts the lines that were checked, it says `Every line that was checked agrees.`, and its line on the speech outside the steps includes theirs.
+- **I2:** this plan at 0.17.0, and step 0 of At the PC: merge main first.
+- **M3:** a run whose record lists no copy gives each NVDA session's reason, from its event log.
+- **M4:** a symbol that ends an item right after a letter or digit is kept or left out, never named; the README, the spec, and the code say that a symbol's words are any one to four.
+- **M5:** each of a problem's NVDA rows starts with its level.
+- **M6:** a log older than its NVDA session's start is no copy, with why.
+- **M7:** the comparison's refusal is a `CantCheckError`, told by its class.
+- **M8:** the words for a page made without NVDA's keys (the Word copy says them of itself), and for a copy with no speech.
+- **M9, M10:** the README on the raw log NVDA leaves on disk, and on all a copy can still hold.
+- **M11:** a step too long to search is compared as it is.
+- **M14:** this After execution, and the README's, the CHANGELOG's, and the spec's wording.
+- The console's warning ends its reason with a full stop, and a test escapes a reason for steps not checked.
+
+**Carried, for later:**
+- No cap on the lists of lines that differ (Minor 12): a systematic mismatch lists every step twice. "And N more" past a few hundred, keeping the counts, would do.
+- A tab pass whose only step is the first Tab always differs (Minor 13): a false difference, never a false agreement.
+- What a problem's record says when NVDA's log has nothing in its window: the owner's wording.

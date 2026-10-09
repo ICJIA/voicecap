@@ -193,9 +193,11 @@ function eventLogBlocks({ timeline, unlogged }: RunEvidence): Block[] {
  * every line agrees, or each list of the lines that differ under a bold line of its own, and how many
  * lines NVDA spoke outside the steps. The part is under a heading 3, which the details set to a 4,
  * and a Word heading goes no lower, so the lists have no headings: each bold line is followed by its
- * list, which the document keeps with it. Where there is no check, why, as the model words it.
+ * list, which the document keeps with it. Where there is no check, why, as the model words it, or,
+ * for a copy made without NVDA's keys, that this Word copy was (the page says it of itself).
  */
 function nvdaLogBlocks({ nvdaLog }: RunEvidence): Block[] {
+  if ("withoutKeys" in nvdaLog) return [para(WORD_TEXT.evidence.noKeys)];
   if ("notRecorded" in nvdaLog) return [para(notRecordedLine(nvdaLog.notRecorded))];
   const words = nvdaLogWords(nvdaLog);
   return [

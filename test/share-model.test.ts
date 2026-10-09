@@ -2415,7 +2415,7 @@ describe("a run's NVDA log, checked against its transcripts", () => {
     );
     const log = latestEvidence(model).nvdaLog;
 
-    expect("notRecorded" in log ? [] : log.onlyInLog.map(({ page }) => page)).toEqual([
+    expect("onlyInLog" in log ? log.onlyInLog.map(({ page }) => page) : []).toEqual([
       "The home page",
     ]);
   });
@@ -2501,14 +2501,68 @@ describe("a run's NVDA log, checked against its transcripts", () => {
       }
     });
 
-    it("says a run of the voicecap that keeps NVDA's log, whose record lists no copy, kept none", async () => {
-      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual({
-        notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
-      });
-      const none = keptModel(() => ({ nvdaLogs: new Map() }), withoutListedCopies(keptLogsRun()));
+    it("says a run of the voicecap that keeps NVDA's log, whose record lists no copy, kept none, where its event log says no more", () => {
+      const kept = withoutListedCopies(keptLogsRun());
+      // Each NVDA session ended with no event of a copy.
+      const silent = kept.log.events.filter((event) => event.type !== "screen-reader-log");
+      const none = keptModel(
+        () => ({
+          nvdaLogs: new Map(),
+          events: new Map([[kept.run.id, { events: silent, unreadable: 0 }]]),
+        }),
+        kept,
+      );
       expect(logOf(none)).toEqual({
         notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
       });
+      // And where the page can't read the event log that would say why.
+      const unread = keptModel(() => ({ nvdaLogs: new Map(), events: new Map() }), kept);
+      expect(logOf(unread)).toEqual({
+        notRecorded: "Not recorded: this run kept no copy of NVDA's log.",
+      });
+    });
+
+    it("gives each NVDA session's reason from the event log, when the run's record lists no copy", () => {
+      const kept = withoutListedCopies(keptLogsRun());
+      // The first two sessions' logs couldn't be had, each for its reason; the third's stop has no
+      // event of its copy, so the log says nothing of it.
+      const reasons = new Map([
+        ["nvda-log/1-1.txt", "NVDA's log wasn't there."],
+        ["nvda-log/1-2.txt", "EBUSY: resource busy or locked"],
+      ]);
+      const events = kept.log.events.flatMap((event): RunEvent[] => {
+        if (event.type !== "screen-reader-log" || event.file === null) return [event];
+        const reason = reasons.get(event.file);
+        return reason === undefined ? [] : [{ ...event, file: null, reason }];
+      });
+      const said = {
+        notRecorded:
+          "Not shown: no step could be checked. " +
+          "8 steps from the NVDA session that started 26 September 2026, 14:02 weren't checked: NVDA's log wasn't there. " +
+          "8 steps from the NVDA session that started 26 September 2026, 14:04 weren't checked: EBUSY: resource busy or locked. " +
+          "8 steps from the NVDA session that started 28 September 2026, 09:00 weren't checked: voicecap kept no copy of NVDA's log for that session.",
+      };
+      const input =
+        (keys: Partial<ShareInput> = {}) =>
+        () => ({
+          nvdaLogs: new Map(),
+          events: new Map([[kept.run.id, { events, unreadable: 0 }]]),
+          ...keys,
+        });
+
+      expect(logOf(keptModel(input(), kept))).toEqual(said);
+      // The reasons don't need NVDA's keys, which only a copy is checked by.
+      expect(logOf(keptModel(input({ gestureOf: null }), kept))).toEqual(said);
+    });
+
+    it("says a copy the event log names, which the run's record doesn't list, isn't as the run recorded it", async () => {
+      const altered = {
+        notRecorded:
+          "Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it.",
+      };
+      expect(logOf(await fixtureModel({ unlisted: true }))).toEqual(altered);
+      const none = keptModel(() => ({ nvdaLogs: new Map() }), withoutListedCopies(keptLogsRun()));
+      expect(logOf(none)).toEqual(altered);
     });
 
     it("says a run's copy that isn't as the run recorded it isn't shown", async () => {
@@ -2574,7 +2628,7 @@ describe("a run's NVDA log, checked against its transcripts", () => {
 
       expect(logOf(model)).toEqual({
         notRecorded:
-          "Not shown: NVDA's log has no speech in it, since NVDA's logging level was below input and output.",
+          "Not shown: NVDA's log has no speech in it, as when NVDA's logging level is below input and output.",
       });
     });
 
@@ -2598,11 +2652,8 @@ describe("a run's NVDA log, checked against its transcripts", () => {
       });
     });
 
-    it("says a page made without NVDA's keys can't make the check", () => {
-      expect(logOf(keptModel(() => ({ gestureOf: null })))).toEqual({
-        notRecorded:
-          "Not shown: this copy was made without the keys NVDA presses for each step, which the check needs.",
-      });
+    it("says a page made without NVDA's keys can't make the check, which each copy says of itself", () => {
+      expect(logOf(keptModel(() => ({ gestureOf: null })))).toEqual({ withoutKeys: true });
     });
 
     it("says a run with no steps has nothing to check against", () => {

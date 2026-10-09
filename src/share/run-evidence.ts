@@ -108,10 +108,11 @@ export interface RunEvidence {
    * Evidence C, NVDA's own log checked against the transcripts (from voicecap 0.17.0): the check,
    * or what the page says in its place: that the run's voicecap kept no copy (`notRecordedBy`, for
    * an earlier one), or its screen reader isn't NVDA, or the check can't be shown or made, as
-   * NVDA_LOG_TEXT words it. It is the evidence's alone: nothing the verdict, the ring, or What needs
-   * attention goes by draws on it.
+   * NVDA_LOG_TEXT words it; or, for a page made without NVDA's keys, `withoutKeys`, which each copy
+   * says of itself (the page of "this page", the Word copy of "this Word copy"). It is the
+   * evidence's alone: nothing the verdict, the ring, or What needs attention goes by draws on it.
    */
-  nvdaLog: NvdaLogChecked | { notRecorded: string };
+  nvdaLog: NvdaLogChecked | { notRecorded: string } | { withoutKeys: true };
   /**
    * Every file the run's record lists, with its size and SHA-256: first the run's own, beside its
    * pages (its event log, from voicecap 0.11.0), whose page is "The run" (EVIDENCE_TEXT.theRun);
@@ -281,8 +282,11 @@ export function otherScreenReader(run: RunJson): boolean {
  * can act on it:
  * - the run's screen reader isn't NVDA, which keeps this log;
  * - the run's voicecap is from before NVDA's log was kept (`notRecordedBy`);
- * - its record lists no copy, so it kept none;
- * - the page was made without NVDA's keys, which the check goes by;
+ * - its record lists no copy, so it kept none: with why, for each NVDA session, where the page can
+ *   read the run's event log and a session's event says (`nothingCheckedLine`, which says only that
+ *   it kept none where no event says more);
+ * - the page was made without NVDA's keys, which the check goes by (`withoutKeys`: each copy says
+ *   so of itself);
  * - the page can't show the run's event log, which pairs each copy with its steps (the event log's
  *   own reason, which `eventLogGap` gives, and what it means here);
  * - no session could be checked (`nothingCheckedLine`).
@@ -296,21 +300,30 @@ function nvdaLogOf(
   if (otherScreenReader(run)) return { notRecorded: NVDA_LOG_TEXT.notNvda };
   const version = versionOf(run);
   if (!keepsNvdaLog(version)) return { notRecorded: notRecordedBy(version) };
-  if (!listsCopies(run)) return { notRecorded: NVDA_LOG_TEXT.noCopy };
-  if (source.gestureOf === null) return { notRecorded: NVDA_LOG_TEXT.noKeys };
   // A voicecap that keeps NVDA's log keeps the event log, so a page without it has its reason.
   const gap = eventLogGap(run, log);
-  if (log === null || gap !== null) {
+  const events = log === null || gap !== null ? null : log.events;
+  const given = { run, steps: source.steps, pageName: source.pageName, redact };
+  if (!listsCopies(run)) {
+    if (events === null) return { notRecorded: NVDA_LOG_TEXT.noCopy };
+    // No copy to check, so no key to check by: each session's event says why it kept none.
+    const { notChecked } = checkRunAgainstLog({
+      ...given,
+      events,
+      copies: new Map(),
+      gestureOf: () => null,
+    });
+    return { notRecorded: nothingCheckedLine(notChecked) };
+  }
+  if (source.gestureOf === null) return { withoutKeys: true };
+  if (events === null) {
     return { notRecorded: NVDA_LOG_TEXT.needsEventLog(TIMELINE_TEXT.gaps[gap ?? "unlisted"].part) };
   }
   const { check, notChecked } = checkRunAgainstLog({
-    run,
-    events: log.events,
+    ...given,
+    events,
     copies: source.copies,
-    steps: source.steps,
     gestureOf: source.gestureOf,
-    pageName: source.pageName,
-    redact,
   });
   return check === null
     ? { notRecorded: nothingCheckedLine(notChecked) }

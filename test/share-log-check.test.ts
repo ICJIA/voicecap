@@ -17,7 +17,12 @@ import type {
   StepRecord,
   TranscriptJson,
 } from "../src/model.js";
-import { type PassSteps, checkAgainstLog, spokenAsLogged } from "../src/share/log-check.js";
+import {
+  CantCheckError,
+  type PassSteps,
+  checkAgainstLog,
+  spokenAsLogged,
+} from "../src/share/log-check.js";
 
 const DAY = 86_400_000;
 const T0 = 8 * 3_600_000; // 08:00:00.000
@@ -799,6 +804,24 @@ describe("checkAgainstLog on made-up logs", () => {
     );
   });
 
+  it("says it can't check with an error of its own kind, which a caller tells apart by its class, not its words", () => {
+    const pass = passAt(T0, HOME, "read", READ);
+    const unreadable = { ...pass, record: { ...pass.record, within: { from: "?", to: "?" } } };
+    const backwards = {
+      ...pass,
+      record: { ...pass.record, within: { from: iso(pass.end), to: iso(T0) } },
+    };
+    for (const [steps, thrownOut] of [
+      [[unreadable], []],
+      [[backwards], []],
+      [[pass], [{ from: "yesterday", to: "today" }]],
+    ] as const) {
+      const attempt = () => check([copyOf(...pass.entries)], [...steps], [...thrownOut]);
+      expect(attempt).toThrow(CantCheckError);
+      expect(attempt).toThrow(expect.objectContaining({ name: "CantCheckError" }));
+    }
+  });
+
   it("can't check a pass whose attempt's times can't be read, or end before they begin", () => {
     const pass = passAt(T0, HOME, "read", READ);
     const unreadable = {
@@ -840,8 +863,19 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     [[['says only "edit".']], "says only edit .", "quotation marks left out, the period kept"],
     [[["click here", "."]], "click here, dot", "an item that's only a '.', said by name"],
     [[["the permissions macOS asks for."]], "the permissions mac OS asks for.", "a word split"],
-    [[["Done!"]], "Done bang!", "a symbol said by name, and kept"],
-    [[["Up 5%"]], "Up 5 percent", "a symbol after a digit, said by name"],
+    [[["Done! Next"]], "Done bang! Next", "a symbol said by name, and kept"],
+    [[["Up 5% today"]], "Up 5 percent today", "a symbol after a digit, said by name"],
+    [[["Read the guide."]], "Read the guide.", "a symbol that ends an item, kept"],
+    [[["Read the guide."]], "Read the guide", "a symbol that ends an item, left out"],
+    [
+      [["Read the guide ."]],
+      "Read the guide dot",
+      "a symbol that ends an item after a space, said by name",
+    ],
+    // The words for a symbol inside an item are any one to four whole words: they aren't compared
+    // with NVDA's own names for it, so these agree though NVDA never says them.
+    [[["Price: 10"]], "Price is not 10", "a symbol inside an item, as any few words"],
+    [[["Hello - World"]], "Hello not World", "a symbol inside an item, as any word"],
     [[["Next"], ["•"]], "Next. bullet", "an entry that's only a symbol, said by name"],
     [[["Two   spaces"]], "Two spaces", "spaces"],
     [[["A"], []], "A.", "an entry with no text, come through"],
@@ -873,7 +907,46 @@ describe("spokenAsLogged: what NVDA logged (its entries' items), against the tra
     [[["A", "", "B"]], "A, X, B", "a word for an empty item"],
     [[["Next"], ["•"]], "Next", "an entry that's only a symbol, gone"],
     [[["A"], [], ["B"]], "A B", "no joiner at all between two entries"],
+    // A symbol that ends an item right after a letter or digit is kept or left out, never said by
+    // name: words after a line's last mark are words the log doesn't have. NVDA's own name for one
+    // is no exception, so such a line is listed as a difference, never taken to agree.
+    [[["Read the guide."]], "Read the guide now please", "words after an item's last mark"],
+    [[["Read the guide."]], "Read the guide now", "a word after an item's last mark"],
+    [
+      [["Read the guide.", "link"]],
+      "Read the guide now, link",
+      "a word after a mark, then an item",
+    ],
+    [[["Done!"]], "Done bang!", "a symbol that ends an item, said by name and kept"],
+    [[["Up 5%"]], "Up 5 percent", "a symbol that ends an item after a digit, said by name"],
+    [[["Hello - World"]], "Hello one two three four five World", "five words for one symbol"],
   ])("differs: %j and %j (%s)", (logged, spoken) => {
     expect(spokenAsLogged(logged, spoken)).toBe(false);
+  });
+
+  describe("a step too long to search", () => {
+    /** A line of `n` file names, and the same as NVDA says it: each "." by name. */
+    const names = (n: number): [string[][], string] => [
+      [[Array.from({ length: n }, (_, k) => `read${k % 10}.txt`).join(" ")]],
+      Array.from({ length: n }, (_, k) => `read${k % 10} dot txt`).join(" "),
+    ];
+
+    it("agrees as NVDA says its symbols while it's short enough to search", () => {
+      expect(spokenAsLogged(...names(100))).toBe(true);
+    });
+
+    it("agrees only as it is once its two sides would take over 4 million places to search", () => {
+      // 400 names: 3,600 characters of the log's, spaces aside, against 5,599 of the transcript's.
+      expect(spokenAsLogged(...names(400))).toBe(false);
+      const [logged] = names(400);
+      expect(spokenAsLogged(logged, logged[0]![0]!)).toBe(true);
+    });
+
+    it("lists a very long step that differs as a difference, without a search as long as its square", () => {
+      const words = Array.from({ length: 4000 }, (_, k) => `word${k % 10}.`).join(" ");
+      const spoken = `${words.slice(0, -20)} and a different end`;
+
+      expect(spokenAsLogged([[words]], spoken)).toBe(false);
+    });
   });
 });

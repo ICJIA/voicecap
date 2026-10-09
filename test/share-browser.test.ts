@@ -336,7 +336,7 @@ async function nvdaLogModel(differing: boolean): Promise<ShareModel> {
     await loadShareInput({ siteDir, config: DEFAULT_CONFIG, gestureOf }),
   );
   const [first, ...rest] = model.evidence;
-  if (!differing || first === undefined || "notRecorded" in first.nvdaLog) return model;
+  if (!differing || first === undefined || !("agree" in first.nvdaLog)) return model;
   const notChecked = [
     {
       steps: 8,
@@ -897,8 +897,12 @@ describe("axe, in Chromium", () => {
 
     expect(drawn.whiteSpace).toBe("break-spaces");
     expect(drawn.breaks).toBe(TRACEBACK.length - 1);
-    // The words as written, markup and all, each line in order, and the blank line between.
-    expect(drawn.lines.map(({ text }) => text)).toEqual(TRACEBACK.filter((line) => line !== ""));
+    // The words as written, markup and all, each line in order, the first after the entry's level,
+    // and the blank line between.
+    const [message = "", ...traceback] = TRACEBACK;
+    expect(drawn.lines.map(({ text }) => text)).toEqual(
+      [`ERROR: ${message}`, ...traceback].filter((line) => line !== ""),
+    );
     const [first, second, indented, deeper, last] = drawn.lines.map(({ indent }) => indent);
     expect([first, second, last].map((indent) => Math.round(indent ?? NaN))).toEqual([0, 0, 0]);
     // Two spaces, then four: each drawn as wide as it is, not collapsed to nothing.

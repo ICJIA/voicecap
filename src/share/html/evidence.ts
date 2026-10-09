@@ -42,6 +42,7 @@ import {
   COVERAGE_TEXT,
   EVIDENCE_TEXT,
   FOOTER_TEXT,
+  NVDA_LOG_TEXT,
   STORY,
   STORY_TEXT,
   TIMELINE,
@@ -242,10 +243,12 @@ function timelinePart({ run, timeline, unlogged, screenReader }: RunEvidence): s
  * weren't checked, straight under them (so nothing after them reads as speaking for those steps),
  * that every line agrees or the lists of the lines that differ (each under a heading of its own,
  * which sits one level under the part's), and how many lines NVDA spoke outside the steps. Where
- * there is no check, why, as the model words it. A line's words are text, whatever they hold, in the
- * box the cards of what needs attention use for what NVDA said.
+ * there is no check, why, as the model words it, or, for a page made without NVDA's keys, that this
+ * page was. A line's words are text, whatever they hold, in the box the cards of what needs
+ * attention use for what NVDA said.
  */
 function nvdaLogPart({ nvdaLog }: RunEvidence): string {
+  if ("withoutKeys" in nvdaLog) return notRecorded(NVDA_LOG_TEXT.noKeys);
   if ("notRecorded" in nvdaLog) return notRecorded(nvdaLog.notRecorded);
   const words = nvdaLogWords(nvdaLog);
   const tiles = words.tiles.map(

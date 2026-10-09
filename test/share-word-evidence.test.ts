@@ -1125,8 +1125,36 @@ describe("wordEvidence", () => {
       ]) {
         expect(logOf(showing(await fixtureModel(), { notRecorded: words }))).toEqual([para(words)]);
       }
+      // A run whose record lists no copy, and whose event log names none, kept none.
+      const unlisted = await fixtureModel({
+        unlisted: true,
+        change: (parts) => {
+          parts.events = parts.events.filter((line) => !line.includes('"screen-reader-log"'));
+        },
+      });
+      expect(logOf(unlisted)).toEqual([para("Not recorded: this run kept no copy of NVDA's log.")]);
+      // One whose event log names a copy that its record doesn't list: it isn't as recorded.
       expect(logOf(await fixtureModel({ unlisted: true }))).toEqual([
-        para("Not recorded: this run kept no copy of NVDA's log."),
+        para("Not shown: NVDA's log isn't as the run recorded it; voicecap verify names it."),
+      ]);
+    });
+
+    it("says, of a Word copy made without NVDA's keys, that this Word copy was made without them", () => {
+      const kept = keptLogsRun();
+      const model = buildShareModel(
+        inputOf([kept.run], {
+          transcripts: kept.transcripts,
+          events: new Map([[kept.run.id, kept.log]]),
+          nvdaLogs: new Map([[kept.run.id, kept.copies]]),
+          gestureOf: null,
+        }),
+      );
+
+      // "This page", in a Word document, would read as the printed page.
+      expect(logOf(model)).toEqual([
+        para(
+          "Not shown: this Word copy was made without the keys voicecap presses for each step, which the check needs.",
+        ),
       ]);
     });
 
@@ -1630,7 +1658,7 @@ describe("wordStory", () => {
       const { rows } = tableAt(wordStory(await demoModel()), 0);
 
       expect(cellLines(rows.at(-1)?.[1])).toEqual([
-        "Windows PC, with NVDA: A security review of everything voicecap does on a PC.",
+        "Windows PC, with NVDA: NVDA's voice: a recording of what NVDA said on each page, sealed with the run.",
         "Mac, with VoiceOver: Full runs with VoiceOver, with voicecap's VoiceOver driver.",
       ]);
     });

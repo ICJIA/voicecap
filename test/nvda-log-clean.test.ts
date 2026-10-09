@@ -10,6 +10,7 @@ import { GuidepupNvda } from "../src/drivers/guidepup/nvda.js";
 import {
   NVDA_LOG_FILE,
   VOICECAP_GESTURES,
+  beganWithSession,
   cleanNvdaLog,
   gestureOf,
   withNvdaLog,
@@ -365,6 +366,61 @@ describe("cleanNvdaLog: the copy", () => {
 describe("NVDA's log file", () => {
   it("is named nvda.log", () => {
     expect(NVDA_LOG_FILE).toBe("nvda.log");
+  });
+});
+
+// NVDA begins a log as it starts, and moves the last one aside. One that couldn't (a lock), or that
+// logs to another temp folder, leaves the log voicecap reads as an earlier NVDA's: the person's own,
+// say, with their speech in it. The log has times of day and no dates.
+describe("beganWithSession: whether NVDA's log is the one this NVDA session began", () => {
+  /**
+   * A raw log whose first entry was logged at `time`, then a key of voicecap's and what NVDA said:
+   * only the first entry tells, whatever the times of the others.
+   */
+  const logFrom = (time: string): string =>
+    [
+      ...entry("INFO", "__main__", time, MAIN, "Starting NVDA version 2026.2 AMD64"),
+      ...entry("IO", KEY_CODEPATH, "09:20:00.000", HOOK, "Input: kb(desktop):downArrow"),
+      ...entry("IO", SPEECH_CODEPATH, "09:20:00.040", MAIN, "Speaking ['Welcome']"),
+      "",
+    ].join("\r\n");
+  /** A moment on a day of October 2026, local time. */
+  const on = (day: number, hours: number, minutes: number, seconds = 0) =>
+    new Date(2026, 9, day, hours, minutes, seconds);
+
+  it("is, when its first entry was logged once the session's start began, and before now", () => {
+    expect(beganWithSession(logFrom("09:00:01.250"), on(6, 9, 0), on(6, 9, 40))).toBe(true);
+    expect(beganWithSession(logFrom("09:00:00.000"), on(6, 9, 0), on(6, 9, 40))).toBe(true);
+    expect(beganWithSession(logFrom("09:40:00.000"), on(6, 9, 0), on(6, 9, 40))).toBe(true);
+  });
+
+  it("isn't, when its first entry was logged before the session's start began: an earlier NVDA's log", () => {
+    expect(beganWithSession(logFrom("08:59:59.999"), on(6, 9, 0), on(6, 9, 40))).toBe(false);
+    // The computer's own NVDA, started that morning, more than half a day before the run.
+    expect(beganWithSession(logFrom("07:12:00.000"), on(6, 21, 0), on(6, 21, 30))).toBe(false);
+  });
+
+  it("isn't, when its first entry's time of day is later than now's: it was logged on an earlier day", () => {
+    expect(beganWithSession(logFrom("09:40:00.001"), on(6, 9, 0), on(6, 9, 40))).toBe(false);
+    expect(beganWithSession(logFrom("15:00:00.000"), on(6, 9, 0), on(6, 9, 40))).toBe(false);
+  });
+
+  it("allows for midnight: a session that began before it has a log begun on either side of it", () => {
+    const began = on(6, 23, 59, 50);
+    const now = on(7, 0, 20);
+    expect(beganWithSession(logFrom("23:59:55.000"), began, now)).toBe(true);
+    expect(beganWithSession(logFrom("00:00:02.000"), began, now)).toBe(true);
+    expect(beganWithSession(logFrom("23:59:40.000"), began, now)).toBe(false);
+    expect(beganWithSession(logFrom("00:20:00.001"), began, now)).toBe(false);
+    // A session that began after midnight, and a log from before it.
+    expect(beganWithSession(logFrom("23:59:58.000"), on(7, 0, 0, 5), on(7, 0, 30))).toBe(false);
+  });
+
+  it("can't tell, so takes it as the session's, for a log with no entry, or a session as long as a day", () => {
+    expect(beganWithSession("Not NVDA's log.\r\n", on(6, 9, 0), on(6, 9, 40))).toBe(true);
+    expect(beganWithSession(logFrom("08:00:00.000"), on(6, 9, 0), on(7, 9, 0))).toBe(true);
+    // A clock that went back while NVDA ran says nothing either.
+    expect(beganWithSession(logFrom("08:00:00.000"), on(6, 9, 0), on(6, 8, 30))).toBe(true);
   });
 });
 

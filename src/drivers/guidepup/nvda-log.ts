@@ -30,6 +30,32 @@ import { redactHome } from "../../run/failure.js";
  */
 export const NVDA_LOG_FILE = "nvda.log";
 
+const DAY_MS = 86_400_000;
+
+/** A moment's local time of day, in milliseconds since midnight: the clock NVDA's log is on. */
+function timeOfDay(moment: Date): number {
+  const seconds = (moment.getHours() * 60 + moment.getMinutes()) * 60 + moment.getSeconds();
+  return seconds * 1000 + moment.getMilliseconds();
+}
+
+/**
+ * Whether NVDA's log is the one this NVDA session began: its first entry was logged between the
+ * moment the session's start began (`began`) and now, by its time of day, since NVDA's log has no
+ * dates. A session that ran past midnight takes a first entry on either side of it. NVDA begins a
+ * new log as it starts, moving the last one aside, but one that couldn't (another program had the
+ * file open, say), or that logs to another temp folder, leaves the log voicecap reads as an earlier
+ * NVDA's: the person's own, perhaps, with their speech in it. A log with no entry, and a session as
+ * long as a day or one whose clock went back, can't be told apart, and count as the session's.
+ */
+export function beganWithSession(raw: string, began: Date, now: Date): boolean {
+  const [first] = splitLogEntries(raw);
+  const lasted = now.getTime() - began.getTime();
+  if (first === undefined || !(lasted >= 0 && lasted < DAY_MS)) return true;
+  // How long after the start's time of day the entry's comes, going round past midnight.
+  const after = (((first.timeMs - timeOfDay(began)) % DAY_MS) + DAY_MS) % DAY_MS;
+  return after <= lasted;
+}
+
 /**
  * The gestures the NVDA driver presses, as NVDA logs them after `kb(desktop):` or `kb(laptop):`: a
  * key for each command of a pass's steps, and NVDA+T and Escape, which the driver presses itself to
