@@ -38,8 +38,11 @@ export interface ScriptedPage {
   axe?: AxeCapture;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
-  /** What Ctrl+End says (default: the last line). */
-  bottom?: string;
+  /**
+   * What Ctrl+End says (default: the last line). A list is what each press says in turn, and the
+   * last of it again for every press after: a page whose last line changes as it's read.
+   */
+  bottom?: string | string[];
   /** What Down Arrow says when it arrives at the last line (default: the last line). */
   arrival?: string;
   headings?: string[];
@@ -93,6 +96,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   private line = 0;
   private heading = 0;
   private stopIndex = 0;
+  /** Ctrl+End presses since the page opened. */
+  private bottoms = 0;
   private inDocument = true;
   private focused: FocusedElement | null = null;
   private callCount = 0;
@@ -162,6 +167,7 @@ export class ScriptedDriver implements ScreenReaderDriver {
       this.line = 0;
       this.heading = 0;
       this.stopIndex = 0;
+      this.bottoms = 0;
       this.inDocument = true;
       this.focused = page.initialFocus ?? null;
       return {
@@ -179,7 +185,10 @@ export class ScriptedDriver implements ScreenReaderDriver {
     return this.call("toBottom", () => {
       const lines = this.lines();
       this.line = lines.length - 1;
-      return this.page?.bottom ?? lines.at(-1) ?? "";
+      const { bottom } = this.page ?? {};
+      const press = this.bottoms++;
+      const said = Array.isArray(bottom) ? (bottom[press] ?? bottom.at(-1)) : bottom;
+      return said ?? lines.at(-1) ?? "";
     });
   }
 

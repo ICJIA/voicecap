@@ -382,7 +382,11 @@ describe("the demo site's accessibility (axe-core in Chromium)", () => {
     const page = await open("/ask-a-question/");
     await page.fill("#question", "Does this go anywhere?");
     await page.click("button[type=submit]");
-    await page.waitForFunction(() => document.title.startsWith("Practice form"));
+    // The answer page's title is there once its head is read, before its stylesheet is in, and axe
+    // sizes its links from the page as drawn. So wait for the page itself to load.
+    await page.waitForURL(/\/ask-a-question\/sent\.html\?/);
+    await page.waitForLoadState("load");
+    expect(await page.title()).toBe("Practice form | voicecap demo");
     expect(await violations(page)).toEqual([]);
     await page.goto(`${server.origin}/no-such-page/`);
     expect(await page.title()).toBe("Page not found | voicecap demo");

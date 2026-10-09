@@ -263,8 +263,11 @@ function quotedSteps(steps: StepRecord[]): StepRecord[] {
 }
 
 /**
- * The steps that carry page content: without the read pass's Ctrl+End (it repeats the last line)
- * and its end-of-page repeats, the final "no next heading", or the step where focus left the page.
+ * The steps that carry page content: without the read pass's Ctrl+End steps (the one at its start,
+ * and the look at the end it makes when it's about to stop for the repeat limit: each says the last
+ * line again) and its end-of-page repeats, the final "no next heading", or the step where focus left
+ * the page. A read that ended "end-reached" ends in the page's last line, said once, whether that's
+ * the end the first Ctrl+End found or the end that moved as the page was read.
  */
 export function contentSteps(pass: PassName, data: PassData): StepRecord[] {
   if (pass === "read") {
