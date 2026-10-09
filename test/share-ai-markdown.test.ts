@@ -380,23 +380,47 @@ function axeModel(violations: RawAxeRule[], pages: number, html?: string): Share
   );
 }
 
+/** A rule, which `- - -` is as well as `---`. */
+const RULE = /^ {0,3}(?:[-*_] ?){3,}$/;
+
+/** A mark that holds blocks of its own: a quote's, or a list's item's (a bullet, or a number). */
+const CONTAINER = /^ {0,3}(?:>|[-+*](?= |$)|\d{1,9}[.)](?= |$))/;
+
+/**
+ * A mark that begins a block holding none: a heading, a fence, a table's row, an underline, HTML. A
+ * fence of backticks has no backtick after it on its line, or it begins a span of code.
+ */
+const LEAF = /^ {0,3}(?:#{1,6}(?= |$)|`{3,}(?=[^`]*$)|~{3,}|\||={2,}$|<)/;
+
+/**
+ * The marks that begin a block at the start of a line, one after another through the blocks that
+ * hold blocks (a quote, a list's item): "-" is an item, "- #" an item that is a heading, "1. >" a
+ * quote in a numbered item, and "- ```" a fence in an item. A chain ends with a block that holds
+ * none.
+ */
+function marksOf(line: string): string {
+  const marks: string[] = [];
+  let rest = line;
+  for (;;) {
+    const container = RULE.test(rest) ? null : CONTAINER.exec(rest);
+    if (container === null) {
+      const leaf = RULE.exec(rest) ?? LEAF.exec(rest);
+      return [...marks, ...(leaf === null ? [] : [leaf[0].trim()])].join(" ");
+    }
+    marks.push(container[0].trim());
+    rest = rest.slice(container[0].length).trimStart();
+  }
+}
+
 /**
  * What each line of a Markdown text outside its fences begins as, for the lines that begin a block:
- * a heading, a quote, a list's item, a table's row, a rule, or HTML; and the kind of each fenced
- * block. The text of two models of the same shape has the same lines of the same kinds, whatever
- * words they hold.
+ * a heading, a quote, a list's item, a table's row, a rule, or HTML, and each block that begins in
+ * those that hold blocks (`marksOf`); and the kind of each fenced block. The text of two models of
+ * the same shape has the same lines of the same kinds, whatever words they hold.
  */
 const shapeOf = (markdown: string): string[] => {
   const { prose, blocks } = read(markdown);
-  return [
-    ...prose.map(
-      (line) =>
-        /^ {0,3}(?:#{1,6}(?= |$)|>|[-+*](?= |$)|\d{1,9}[.)](?= |$)|\||~{3,}|(?:[-*_] ?){3,}$|={2,}$|<)/.exec(
-          line,
-        )?.[0] ?? "",
-    ),
-    ...blocks.map((block) => `fence ${block.info}`),
-  ];
+  return [...prose.map(marksOf), ...blocks.map((block) => `fence ${block.info}`)];
 };
 
 // Words at every place a record or a website supplies them.
@@ -647,6 +671,33 @@ function wordsOf(text: (field: string) => string, route: (field: string) => stri
     newSpeech: text("newSpeech"),
   };
 }
+
+/**
+ * What begins a block when it begins a line: a heading, a quote, an item (a bullet, a number), a
+ * table's row, a fence, a rule, an underline, HTML, a reference, and math.
+ */
+const BLOCK_MARKS = [
+  "#",
+  "######",
+  ">",
+  "-",
+  "+",
+  "*",
+  "1.",
+  "1)",
+  "23.",
+  "|",
+  "```",
+  "````",
+  "~~~",
+  "---",
+  "***",
+  "___",
+  "===",
+  "<div>",
+  "[ref]:",
+  "$$",
+];
 
 /** Every place's words hold every sort of Markdown there is. */
 const HOSTILE_WORDS = wordsOf(
@@ -1818,6 +1869,8 @@ describe("renderAiMarkdown", () => {
     const pieces = [..."#-+*>|`~_[]()<!=:.&;$\\/ab1", "```", "~~", "<b>", "</b>", "\n", "\t"];
     const addresses = ["https://", "http://", "HTTPS://", "ftp://", "www.", "WWW.", "x.example"];
     const paths = [..."*_[]|~$()!:-=+ab", "&amp;", ...addresses];
+    // Words that begin with the mark of a block about as often as not.
+    const starts = [...BLOCK_MARKS, ...BLOCK_MARKS.map(() => "")];
     const join = (from: string[], most: number): string =>
       Array.from({ length: 1 + Math.floor(next() * most) }, () => {
         const piece = from[Math.floor(next() * from.length)] ?? "a";
@@ -1825,9 +1878,13 @@ describe("renderAiMarkdown", () => {
       })
         .join("")
         .replace(/ {2,}/g, " ");
+    const begin = (): string => {
+      const mark = starts[Math.floor(next() * starts.length)] ?? "";
+      return mark === "" ? "" : `${mark} `;
+    };
     for (let sample = 0; sample < 100; sample += 1) {
       const given = wordsOf(
-        (field) => marked(field, join([...pieces, ...addresses], 14)),
+        (field) => `${begin()}${marked(field, join([...pieces, ...addresses], 14))}`,
         (field) => markedPath(field, join(paths, 8).replace(/ /g, "")),
       );
       const markdown = renderAiMarkdown(hostileReport(given));
@@ -1840,6 +1897,101 @@ describe("renderAiMarkdown", () => {
       expect(looseFences(markdown), JSON.stringify(given)).toEqual([]);
       expect(shapeOf(markdown), JSON.stringify(given)).toEqual(shape);
     }
+  });
+
+  it("makes no block of words that begin with the mark of one, at any place the file says them", () => {
+    // The blocks of the report whose words begin with nothing are the file's own.
+    const shape = shapeOf(renderAiMarkdown(hostileReport(HOSTILE_WORDS)));
+
+    for (const mark of BLOCK_MARKS) {
+      // Every place's words begin with the mark. A page's path begins with a slash, as a path does.
+      const given = wordsOf(
+        (field) => `${mark} ${marked(field)}`,
+        (field) => markedPath(field),
+      );
+      const markdown = renderAiMarkdown(hostileReport(given));
+
+      // No line of the file, in an item or a quote or alone, begins a block that the words made.
+      expect(shapeOf(markdown), mark).toEqual(shape);
+      expect(looseFences(markdown), mark).toEqual([]);
+      for (const field of FIELDS) {
+        expect(placesOf(markdown, field, given[field]).bad, `${mark} ${field}`).toEqual([]);
+      }
+    }
+  });
+
+  it("says a page no longer listed by its label, whatever mark the label begins with", () => {
+    // The label, and how the item says it: the mark that would begin a block escaped.
+    const labels: [string, string][] = [
+      ["Old page", "Old page"],
+      ["# Heading", "\\# Heading"],
+      ["###### Six", "\\###### Six"],
+      ["> quote", "\\> quote"],
+      ["- item", "\\- item"],
+      ["+ item", "\\+ item"],
+      ["* item", "\\* item"],
+      ["1. Home", "1\\. Home"],
+      ["23) Home", "23\\) Home"],
+      ["| a | b |", "\\| a \\| b \\|"],
+      ["```js", "\\`\\`\\`js"],
+      ["~~~", "\\~\\~\\~"],
+      ["---", "\\---"],
+      ["=== two", "\\=== two"],
+    ];
+    const gone = (label: string): string => {
+      const first = shareRun({
+        id: "r1",
+        createdAt: "2026-09-26T14:05:00-05:00",
+        pages: [
+          { path: "/", files: TRANSCRIPTS, passes: LINES },
+          { path: "/old/", label, files: TRANSCRIPTS, passes: LINES },
+        ],
+      });
+      const second = shareRun({
+        id: "r2",
+        createdAt: "2026-09-27T14:05:00-05:00",
+        pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES }],
+      });
+      return renderAiMarkdown(
+        buildShareModel(inputOf([first, second], { transcripts: storeOf(), generatedAt: MADE })),
+      );
+    };
+    const shape = shapeOf(gone("Old page"));
+
+    for (const [label, said] of labels) {
+      const markdown = gone(label);
+
+      expect(sectionOf(markdown, 3, "No longer listed"), label).toContain(
+        `\n- ${said} (\`https://example.illinois.gov/old/\`). Last run that had it: r1. What it recorded: Transcribed.`,
+      );
+      // An item that is an item and nothing else, as the item of any label is.
+      expect(shapeOf(markdown), label).toEqual(shape);
+    }
+  });
+
+  it("names a card's page that the file has no section for, whatever mark its name begins with", () => {
+    const [logo] = i2i.attention;
+    if (logo === undefined) throw new Error("i2i has no card.");
+    const names: [string, string][] = [
+      ["# Heading", "\\# Heading"],
+      ["> quote", "\\> quote"],
+      ["- item", "\\- item"],
+      ["+ item", "\\+ item"],
+      ["1. Home", "1\\. Home"],
+      ["2) Home", "2\\) Home"],
+      ["Plain name", "Plain name"],
+    ];
+    // A page the card names that has no section under Every page has no number to lead with, so its
+    // name begins the item.
+    const lastItem = (name: string): string => {
+      const page = { slug: "no-such-page", name, path: "/x/", detail: "> quote" };
+      const markdown = renderAiMarkdown(withCards(i2i, [{ ...logo, pages: [page] }]));
+      const card = sectionOf(markdown, 3, /^1\. /).trimEnd();
+
+      return card.split("\n").at(-1) ?? "";
+    };
+
+    for (const [name, said] of names) expect(lastItem(name), name).toBe(`- ${said}: > quote`);
   });
 
   it("says what changed since the last run as the page does: the tools, the passes, the pages that differ line by line, and the pages in only one run", () => {
@@ -2019,6 +2171,46 @@ describe("renderAiMarkdown", () => {
     // Every issue lists ten elements and counts the 40 more.
     expect(markdown.match(/^and 40 more elements$/gm)).toHaveLength(32 * 8);
     expect(markdown.match(/^Element: /gm)).toHaveLength(32 * 8 * MOST_ELEMENTS);
+  });
+});
+
+describe("the shape of a text", () => {
+  it("sees the block that begins after the mark of an item or a quote, as well as one at the start of a line", () => {
+    const text = [
+      "# Title",
+      "- # a heading in an item",
+      "1. > a quote in a numbered item",
+      "> - an item in a quote",
+      "- plain item",
+      "  - a nested item",
+      "- ```js",
+      "- | a | b |",
+      "- <div>",
+      "---",
+      "- - -",
+      "**bold** words",
+      "words",
+      "```text",
+      "code",
+      "```",
+    ].join("\n");
+
+    expect(shapeOf(text)).toEqual([
+      "#",
+      "- #",
+      "1. >",
+      "> -",
+      "-",
+      "-",
+      "- ```",
+      "- |",
+      "- <",
+      "---",
+      "- - -",
+      "",
+      "",
+      "fence text",
+    ]);
   });
 });
 

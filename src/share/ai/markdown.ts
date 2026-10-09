@@ -158,8 +158,14 @@ const labelled = (words: string, said: string): Block =>
 /** An item of a list, its words escaped. */
 const item = (words: string, depth = 0): string => `${"  ".repeat(depth)}- ${markdownText(words)}`;
 
-/** An item of a list whose words are already Markdown: the words escaped, a name or address in code. */
-const markupItem = (markup: string, depth = 0): string => `${"  ".repeat(depth)}- ${markup}`;
+/**
+ * An item of a list whose words are already Markdown: the words escaped, a name or address in code.
+ * What would begin a block at its start is escaped as well (`escapeLeading`, as `item` does for
+ * words), since an item that begins with a label is no place for the label's "#", ">", or "1." to
+ * make a heading, a quote, or a list of its own: `markdownInline` leaves a line's start alone.
+ */
+const markupItem = (markup: string, depth = 0): string =>
+  `${"  ".repeat(depth)}- ${escapeLeading(markup)}`;
 
 /** A list, an item for each of the words. */
 const bullets = (list: readonly string[]): Block => list.map((words) => item(words)).join("\n");
