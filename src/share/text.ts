@@ -421,8 +421,12 @@ export const AXE_TEXT = {
   notResults:
     "Not shown: axe.json is as the run recorded it, but it isn't axe's results as voicecap keeps them.",
   unreadable: "Not shown: the run's record of this page's axe check couldn't be read.",
-  /** The line in "How voicecap works", after its lead. */
-  how: "Each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
+  /**
+   * The line in "How voicecap works", after its lead. It names the version that began to check
+   * pages with axe, so it's true of a report whose runs are older, whose cards say axe's results
+   * weren't recorded.
+   */
+  how: "From voicecap 0.16.0, each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
 };
 
 /**
@@ -674,10 +678,12 @@ export const EVIDENCE_TEXT = {
    * What the check proves, and what it can't, with the two stronger checks: the file's own
    * fingerprint against the one its sender recorded (`voicecap share` prints it, for the email that
    * sends the file), and `verify`, the command that checks the originals on the transcripts folder.
+   * Of each card's results from axe, it names what the check holds to the file (see CHECK_LIBRARY
+   * in ./check.ts), and what it doesn't compare, so a reader of the page alone knows.
    */
   proves: (verify: string): Line => [
     { text: "What the check proves:", bold: true },
-    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
+    " this page is consistent with itself, so the transcripts shown are exactly the ones the sealed records list, and where a card shows axe's results, its chip and its fold of what axe found show its axe file's counts, and each rule's heading, impact, elements, words on how to fix them, and number of elements not listed. The rest of that fold isn't compared: its version line, each rule's criteria, its links, and the line with the file's size and SHA-256. It can't prove the page itself wasn't changed, since whoever changed it could change the fingerprints too. For that, compare this file's own fingerprint with the one its sender recorded: ",
     { text: SHARE_COMMAND, mono: true },
     " prints it, ready for the email that sends the file, and ",
     { text: POWERSHELL_HASH, mono: true },

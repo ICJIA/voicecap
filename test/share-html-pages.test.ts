@@ -1664,10 +1664,10 @@ describe("what axe found, on a page's card", () => {
     const [button = "", contrast = "", region = ""] = inside.split("<h5>").slice(1);
 
     expect(button).toMatch(
-      /^Buttons must have discernible text<\/h5><p class="sub">Impact: critical · WCAG 2\.0 A 4\.1\.2<\/p><ol class="axe-nodes">/,
+      /^Buttons must have discernible text<\/h5><p class="sub axe-impact">Impact: critical · WCAG 2\.0 A 4\.1\.2<\/p><ol class="axe-nodes">/,
     );
-    expect(contrast).toContain('<p class="sub">Impact: serious · WCAG 2.0 AA 1.4.3</p>');
-    expect(region).toContain('<p class="sub">Impact: moderate · best practice</p>');
+    expect(contrast).toContain('<p class="sub axe-impact">Impact: serious · WCAG 2.0 AA 1.4.3</p>');
+    expect(region).toContain('<p class="sub axe-impact">Impact: moderate · best practice</p>');
     // Each element: its selector and its HTML in the fixed-width font, and axe's words on how to
     // fix it, each lead with what's under it (the two elements' words differ, so each has its own).
     expect(button).toContain(
@@ -1696,7 +1696,7 @@ describe("what axe found, on a page's card", () => {
     ]);
     const review = inside.slice(inside.indexOf("<h4>Needs review"));
     expect(review).toContain(
-      '<h5>Elements must meet minimum color contrast ratio thresholds</h5><p class="sub">Impact: serious · WCAG 2.0 AA 1.4.3</p>',
+      '<h5>Elements must meet minimum color contrast ratio thresholds</h5><p class="sub axe-impact">Impact: serious · WCAG 2.0 AA 1.4.3</p>',
     );
     expect(review).toContain("<dt>Element</dt><dd><code>.hero h2</code></dd>");
   });
@@ -1781,7 +1781,7 @@ describe("what axe found, on a page's card", () => {
       const inside = insideWith(SHARED, SHARED, SHARED);
 
       expect(inside).toContain(
-        '<h5>Images must have alt</h5><p class="sub">Impact: critical · WCAG 2.0 A 4.1.2</p>' +
+        '<h5>Images must have alt</h5><p class="sub axe-impact">Impact: critical · WCAG 2.0 A 4.1.2</p>' +
           '<dl class="axe-fix"><div><dt>How to fix each element listed, in axe&#39;s words</dt>' +
           `<dd class="axe-words">${SHARED_HTML}</dd></div></dl>` +
           `<ol class="axe-nodes">${[0, 1, 2].map(plainElement).join("")}</ol>`,
@@ -1829,7 +1829,9 @@ describe("what axe found, on a page's card", () => {
       expect(inside.match(/<dl class="axe-node">/g)).toHaveLength(MAX_NODES);
       expect(inside.match(/How to fix/g)).toEqual(["How to fix"]);
       expect(inside).toContain("How to fix each element listed, in axe&#39;s words");
-      expect(inside).toContain(`${plainElement(49)}</ol><p class="sub">and 350 more elements</p>`);
+      expect(inside).toContain(
+        `${plainElement(49)}</ol><p class="sub axe-more">and 350 more elements</p>`,
+      );
     });
   });
 
@@ -1885,13 +1887,15 @@ describe("what axe found, on a page's card", () => {
     expect(inside.match(/<dl class="axe-node">/g)).toHaveLength(MAX_NODES);
     expect(inside).toContain("<code>#b-49</code>");
     expect(inside).not.toContain("<code>#b-50</code>");
-    expect(inside).toContain('</ol><p class="sub">and 350 more elements</p>');
+    expect(inside).toContain('</ol><p class="sub axe-more">and 350 more elements</p>');
     // One more is said in the singular.
     const oneMore = Array.from({ length: 51 }, (_, index) => rawNode(`#c-${index}`));
     const single = runOf([
       done("/", { axe: keptAxe({ violations: [rawRule("label", { nodes: oneMore })] }).record }),
     ]);
-    expect(insideOf(cardsOf(single)[0] ?? "")).toContain('<p class="sub">and 1 more element</p>');
+    expect(insideOf(cardsOf(single)[0] ?? "")).toContain(
+      '<p class="sub axe-more">and 1 more element</p>',
+    );
   });
 
   it("heads a rule axe gave no words for by its id", () => {

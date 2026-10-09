@@ -90,7 +90,7 @@ During a run, voicecap checks each page with axe-core, the open-source accessibi
     - "Not recorded: this run used voicecap 0.15.0.";
     - "axe couldn't check this page: <reason>.";
     - "Not checked: this run's driver doesn't check pages with axe."
-- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold is drawn from the same text, and the check holds what the fold shows to it: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them. So a passing check vouches for those parts of the fold, and not for the rest, which is drawn from the same text but isn't compared: among it the version line, each rule's impact and criteria lines, the "and N more elements" line, the line with the file's size and SHA-256, and the links. The result line adds "and N of M axe results match their fingerprints".
+- **"Check the fingerprints"** covers each `axe.json`. The page carries each file's exact text in its data block, as it does each transcript's, and checks it against the run's record. The fold is drawn from the same text, but for the line with the file's size and SHA-256, which is the run's record's, and the check holds what the fold shows to the text: the counts, the number on the card's chip, each rule's heading and impact, each element's selector and HTML, axe's words on how to fix them, and the number in each rule's "and N more elements" line. So a passing check vouches for those parts of the fold, and not for the rest, which isn't compared: the version line, each rule's criteria, and the links, drawn from the same text, and the line with the file's size and SHA-256, from the record. The page's "What the check proves" names both. The result line adds "and N of M axe results match their fingerprints".
 - **The fingerprints table** gains a row for each `axe.json`.
 - **The details, for reviewers and auditors:** one line in "How voicecap works" says each page is checked with axe before NVDA reads it, and that axe's results are evidence beside the person's review, never its verdict.
 - **The page's size:** each `axe.json` is carried once, in the data block, and its words once, in the fold. The share's 20 MB warning stays as it is.
@@ -140,7 +140,7 @@ The files and fingerprints table gains the `axe.json` rows.
   - the fold's parts and order;
   - the reason lines for each kind of missing result;
   - escaping of everything axe supplies (an element's HTML holding `<script>` comes out as text);
-  - "Check the fingerprints" checks the axe files, and what each card's fold shows of them (the counts, the chip's number, each rule's heading, each element, and axe's words on how to fix them), and catches a changed file, or a fold that shows otherwise ("Show a change being caught" changes an axe file);
+  - "Check the fingerprints" checks the axe files, and what each card's fold shows of them (the counts, the chip's number, each rule's heading and impact, each element, axe's words on how to fix them, and the number of elements not listed), and catches a changed file, or a fold that shows otherwise ("Show a change being caught" changes an axe file);
   - the verdict, the ring, and "What needs attention" are the same with and without axe results;
   - axe has no violations on the page itself, in both themes, at 1280, 390, and 320 pixels, with the folds open.
 - **The Word copy:** the axe part, and the fingerprints rows.

@@ -61,6 +61,7 @@ import {
   cell,
   heading,
   image,
+  leadIn,
   list,
   mono,
   para,
@@ -243,7 +244,8 @@ function axeElement(
 /**
  * A rule axe found the page broke, or that needs review, as the fold has it, in its order: a
  * paragraph of axe's words for it (its `help`, or its id when axe gave none) in bold, and under it
- * its impact and the WCAG success criteria it tests, or that it's a best practice; axe's words on
+ * its impact and the WCAG success criteria it tests, or that it's a best practice, kept with what
+ * follows it on the printed page (`leadIn`), so it never ends a page apart from it; axe's words on
  * how to fix its elements, once, when every element listed shares them (`axeSharedFix`), under a
  * label that claims no element not listed; the list of the elements its file keeps, each with its
  * own words when they differ; how many more there were; and a link to axe's own page on the rule,
@@ -257,7 +259,7 @@ function axeRule(rule: AxeViewRule): Block[] {
   const once = shared === null ? [] : axeFixLines(AXE_TEXT.fixShared(rule.nodes.length), shared);
   const address = axeRulePage(rule.helpUrl);
   return [
-    para({ text: rule.help || rule.id, bold: true }, `\n${about}`),
+    leadIn({ text: rule.help || rule.id, bold: true }, `\n${about}`),
     ...(once.length === 0 ? [] : [para(once.join("\n"))]),
     ...(rule.nodes.length === 0
       ? []
@@ -274,26 +276,28 @@ function axeRule(rule: AxeViewRule): Block[] {
  * needs review under its own label and the line that says a person checks it, when there is any,
  * and last the file's size and fingerprint, as its run recorded them. Without results, the card's
  * reason under the label: a line that says nothing was recorded or shown never reads as a pass.
- * None for a card that says nothing of axe, as the page has no fold for it.
+ * Each label, and the line under the label of what needs review, is kept with what follows it on
+ * the printed page (`leadIn`), so none ends a page alone. None for a card that says nothing of axe,
+ * as the page has no fold for it.
  */
 function axeBlocks({ axe }: PageCard): Block[] {
   if (axe === undefined) return [];
-  const label = para({ text: AXE_TEXT.title, bold: true });
+  const label = leadIn({ text: AXE_TEXT.title, bold: true });
   if ("notRecorded" in axe) return [label, para(notRecordedLine(axe.notRecorded))];
   const { view } = axe;
   const issues =
     view.violations.length === 0
       ? [para(AXE_TEXT.none)]
       : [
-          para({ text: `${AXE_TEXT.issues.title}${AXE_TEXT.issues.after}`, bold: true }),
+          leadIn({ text: `${AXE_TEXT.issues.title}${AXE_TEXT.issues.after}`, bold: true }),
           ...view.violations.flatMap(axeRule),
         ];
   const review =
     view.incomplete.length === 0
       ? []
       : [
-          para({ text: AXE_TEXT.review, bold: true }),
-          para(AXE_TEXT.reviewLead),
+          leadIn({ text: AXE_TEXT.review, bold: true }),
+          leadIn(AXE_TEXT.reviewLead),
           ...view.incomplete.flatMap(axeRule),
         ];
   return [

@@ -1212,7 +1212,7 @@ describe("a check with axe's DevTools commands", () => {
     ]);
   });
 
-  it("throws what the page's world threw, from axe-core's script or from axe", async () => {
+  it("throws what axe's world threw, from axe-core's script or from axe", async () => {
     const atLoad = withDevTools({
       "Runtime.evaluate": threw("Uncaught", {
         type: "object",

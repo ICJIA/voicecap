@@ -15,9 +15,11 @@
  * carries, whole, as a transcript's (an axe file has no header to leave out), against its run's
  * record, then compares what the card's fold of what axe found shows with that file: the counts,
  * the number on the card's chip, and each rule's heading, in the order the fold sorts them, its
- * elements' selectors and HTML, and axe's words on how to fix them (said once for the rule, or with
- * each element), as voicecap draws them from the file. The page carries each file once, in its
- * data, and never shows it as it is. It uses the browser's own SHA-256 (Web Crypto) where there is
+ * impact, its elements' selectors and HTML, axe's words on how to fix them (said once for the rule,
+ * or with each element), and how many more elements there were, as voicecap draws them from the
+ * file. It doesn't compare the rest of the fold: the version line, each rule's criteria (the rest
+ * of its impact line), the links, and the line with the file's size and SHA-256, which is the run's
+ * record's. The page carries each file once, in its data, and never shows it as it is. It uses the browser's own SHA-256 (Web Crypto) where there is
  * one, and a small one of its own where there isn't (a page opened from an address that isn't
  * secure).
  *
@@ -110,15 +112,18 @@ export function checkDataJson(data: CheckData): string {
  * `axeShown(item)` gives what each fold of what axe found that names one of the data's axe files
  * shows (an empty list when none does): `{ counts, chip, rules }`, with the counts' words in order,
  * the words of its card's chip for axe (null when it has none), and for each rule, in the fold's
- * order (the issues, then what needs review), its heading, the lines of the words on how to fix its
- * elements said once for it (none, or one list), and each element's selector and HTML (`codes`) and
- * the lines of its own words (`fix`). What a fold shows matches when it's what voicecap draws of the
- * file: the counts as the page writes a number, the chip's number of issues, each list most severe
- * first, the words said once when every element shares them, and every word read as a browser has
- * it, with line endings as one, no null character, and the replacement character for an unpaired
- * surrogate (UTF-8 can't hold one, so the page as written has that). The file must have a fold, and
- * every fold that names it must match. It's compared only for a file that matches its fingerprint,
- * and without `axeShown`, never.
+ * order (the issues, then what needs review), its heading, its impact line (`impact`: "" for none),
+ * its line of how many more elements there were (`more`: "" or null for none), the lines of the
+ * words on how to fix its elements said once for it (none, or one list), and each element's
+ * selector and HTML (`codes`) and the lines of its own words (`fix`). What a fold shows matches
+ * when it's what voicecap draws of the file: the counts as the page writes a number, the chip's
+ * number of issues, each list most severe first, each rule's impact as the start of its impact
+ * line, up to the " · " before its criteria (which aren't compared), the number in its line of
+ * more elements (none being 0), the words said once when every element shares them, and every word
+ * read as a browser has it, with line endings as one, no null character, and the replacement
+ * character for an unpaired surrogate (UTF-8 can't hold one, so the page as written has that). The
+ * file must have a fold, and every fold that names it must match. It's compared only for a file
+ * that matches its fingerprint, and without `axeShown`, never.
  */
 export const CHECK_LIBRARY = String.raw`
 function sha256Hex(bytes) {
@@ -286,6 +291,7 @@ var AXE_IMPACTS = ["critical", "serious", "moderate", "minor"];
 function axeBySeverity(rules) {
   function rank(rule) {
     var at = AXE_IMPACTS.indexOf(rule && rule.impact);
+    // No impact (null, or one axe doesn't name) ranks after the four impacts, 0 to 3.
     return at < 0 ? 4 : at;
   }
   return (Array.isArray(rules) ? rules : [])
@@ -306,16 +312,24 @@ function axePlain(text) {
     .replace(/\p{Cs}/gu, String.fromCharCode(65533));
 }
 
+// The number a line says in figures ("and 1,204 more elements"): 0 for no line.
+function axeNumber(text) {
+  return Number(String(text || "").replace(/[^0-9]/g, "") || 0);
+}
+
 function axeWords(counts, rules) {
   function plain(list) { return (list || []).map(axePlain); }
   return JSON.stringify([plain(counts), (rules || []).map(function (rule) {
-    return [axePlain(rule.heading), (rule.shared || []).map(plain),
+    // Of a rule's impact line, its impact: the criteria after it aren't compared.
+    return [axePlain(rule.heading), axePlain(String(rule.impact || "").split(" · ")[0]),
+      axeNumber(rule.more), (rule.shared || []).map(plain),
       (rule.elements || []).map(function (each) { return [plain(each.codes), plain(each.fix)]; })];
   })]);
 }
 
 // Whether every fold that names an axe file, one at least, shows its counts, its chip's number, and
-// each rule's heading, words on how to fix (once, when every element shares them), and elements.
+// each rule's heading, impact, number of elements not kept, words on how to fix (once, when every
+// element shares them), and elements.
 function axeShowsFile(shown, text) {
   var kept;
   try { kept = JSON.parse(text); } catch (error) { return false; }
@@ -334,9 +348,12 @@ function axeShowsFile(shown, text) {
     }) ? axeLines(nodes[0].failureSummary) : null;
     return {
       heading: rule.help || rule.id,
+      impact: "Impact: " + (rule.impact || "not given"),
+      more: rule.moreNodes,
       shared: shared && shared.length > 0 ? [shared] : [],
       elements: nodes.map(function (node) {
         var codes = [(node.target || []).join(" "), node.html];
+        // An element's own words only when its rule doesn't say them once for all of them.
         return { codes: codes, fix: shared ? [] : axeLines(node.failureSummary) };
       })
     };
@@ -539,9 +556,10 @@ async function checkAll(data, digest, shown, pictures, axeShown) {
  * hashed. Each axe file's fold of what axe found is a `details` that names its file (`data-run`,
  * `data-slug`, and `data-file`), found wherever it is on the page, open or not: the script reads
  * its counts (`.axe-counts dd`), its card's chip for axe (the `.chip` whose words begin "axe:"),
- * and each rule (`.axe-rules > li`): its `h5`, the words said once for its elements (its own
- * `.axe-fix`), and each element (`.axe-node`): its two `code` texts, and its own words
- * (`dd.axe-words`), each words a lead's `p` and the items' `li`s. "Show a change being caught"
+ * and each rule (`.axe-rules > li`): its `h5`, its impact line (its own `.axe-impact`), its line of
+ * more elements (its own `.axe-more`), the words said once for its elements (its own `.axe-fix`),
+ * and each element (`.axe-node`): its two `code` texts, and its own words (`dd.axe-words`), each
+ * words a lead's `p` and the items' `li`s. "Show a change being caught"
  * runs the same check on a copy with the first character of the first transcript changed, and of
  * the first axe file too when the page carries one, in memory only: the page's own data is never
  * changed.
@@ -665,9 +683,14 @@ export const CHECK_SCRIPT =
         counts: textsOf(fold.querySelectorAll(".axe-counts dd")),
         chip: chips.length === 1 ? chips[0] : null,
         rules: map(fold.querySelectorAll(".axe-rules > li"), function (rule) {
-          var heading = rule.querySelector("h5");
+          var said = function (selector) {
+            var line = rule.querySelector(selector);
+            return line ? line.textContent : "";
+          };
           return {
-            heading: heading ? heading.textContent : "",
+            heading: said("h5"),
+            impact: said(":scope > .axe-impact"),
+            more: said(":scope > .axe-more"),
             shared: map(rule.querySelectorAll(":scope > .axe-fix dd.axe-words"), lines),
             elements: map(rule.querySelectorAll(".axe-node"), function (node) {
               var codes = textsOf(node.querySelectorAll("code"));

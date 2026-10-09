@@ -363,10 +363,11 @@ describe("the fixed text", () => {
     expect(AXE_TEXT.changed).toBe(
       "Not shown: axe.json isn't as the run recorded it; voicecap verify names it.",
     );
-    // The line in How voicecap works: axe checks each page before NVDA reads it, and its results
-    // are evidence beside the person's review, never its verdict.
+    // The line in How voicecap works: axe checks each page before NVDA reads it, from the version
+    // that began to, so it's true of a report whose runs are older, and its results are evidence
+    // beside the person's review, never its verdict.
     expect(AXE_TEXT.how).toBe(
-      "Each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
+      "From voicecap 0.16.0, each page is also checked with axe, an automated checker, before NVDA reads it. What axe finds is shown on the page's card, as evidence beside the person's review, never its verdict.",
     );
   });
 

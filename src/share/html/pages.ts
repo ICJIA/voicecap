@@ -340,12 +340,13 @@ function axeElement(
 /**
  * A rule axe found the page broke, or that needs review: axe's words for it (its `help`) as its
  * heading, an `h5` under its list's `h4`; its impact, and the WCAG success criteria it tests, or
- * that it's a best practice; axe's words on how to fix its elements, once, when every element
- * listed shares them (`axeSharedFix`), under a label that claims no element not listed; the
- * elements its file keeps, each with its own words when they differ, then how many more there
- * were; and a link to axe's own page on the rule, which leaves the page, named for the rule so no
- * two links say the same and go to different places. An address that isn't axe's page on a rule
- * is no link.
+ * that it's a best practice (`.axe-impact`); axe's words on how to fix its elements, once, when
+ * every element listed shares them (`axeSharedFix`), under a label that claims no element not
+ * listed; the elements its file keeps, each with its own words when they differ, then how many
+ * more there were (`.axe-more`); and a link to axe's own page on the rule, which leaves the page,
+ * named for the rule so no two links say the same and go to different places. An address that
+ * isn't axe's page on a rule is no link. The page's fingerprint check reads the two lines by their
+ * classes.
  */
 function axeRule(rule: AxeViewRule): string {
   const criteria = axeCriteria(rule.tags);
@@ -356,14 +357,15 @@ function axeRule(rule: AxeViewRule): string {
     rule.nodes.length === 0
       ? ""
       : `<ol class="axe-nodes">${rule.nodes.map((node) => axeElement(node, shared !== null)).join("")}</ol>`;
-  const more = rule.moreNodes > 0 ? `<p class="sub">${esc(AXE_TEXT.more(rule.moreNodes))}</p>` : "";
+  const more =
+    rule.moreNodes > 0 ? `<p class="sub axe-more">${esc(AXE_TEXT.more(rule.moreNodes))}</p>` : "";
   const address = axeRulePage(rule.helpUrl);
   const link =
     address === null
       ? ""
       : `<p><a href="${esc(address)}">${esc(AXE_TEXT.rulePage(rule.id))}</a></p>`;
   return [
-    `<li><h5>${esc(rule.help || rule.id)}</h5><p class="sub">${esc(about)}</p>`,
+    `<li><h5>${esc(rule.help || rule.id)}</h5><p class="sub axe-impact">${esc(about)}</p>`,
     once === "" ? "" : `<dl class="axe-fix">${once}</dl>`,
     `${elements}${more}${link}</li>`,
   ].join("");

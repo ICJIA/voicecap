@@ -27,7 +27,8 @@ export interface Cell {
 export type Block =
   | { kind: "title"; text: string }
   | { kind: "heading"; level: 1 | 2 | 3 | 4; text: string }
-  | { kind: "para"; line: Line }
+  /** `keepNext`: kept on the printed page with the block after it (see `leadIn`). */
+  | { kind: "para"; line: Line; keepNext?: true }
   | { kind: "list"; items: Line[] }
   | { kind: "table"; head: string[]; rows: Cell[][]; widths?: number[] }
   /** Lines in the fixed-width font, as one paragraph with a line break after each. */
@@ -70,6 +71,15 @@ export function demoted(blocks: Block[]): Block[] {
 /** A paragraph of one line, made of pieces of words. */
 export function para(...line: Inline[]): Block {
   return { kind: "para", line };
+}
+
+/**
+ * A paragraph that leads into what follows it, such as a label in bold: kept on the printed page
+ * with the block after it, whatever that is, so it never ends a page alone. (A paragraph that a
+ * picture or a list follows is kept with it anyway: see `docxOf`.)
+ */
+export function leadIn(...line: Inline[]): Block {
+  return { kind: "para", line, keepNext: true };
 }
 
 /** A bulleted list, an item for each line (or plain words). */

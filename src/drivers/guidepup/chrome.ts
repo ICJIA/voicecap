@@ -598,8 +598,9 @@ export class ChromeSession implements BrowserSession {
    * not its scripts' globals.
    * - Nothing is added to the page's own world: no `axe`, none of axe's listeners, and no module
    *   registered with a loader of the page's.
-   * - The page's own scripts can't break axe there, by changing what JavaScript's built-ins do or
-   *   holding the name `axe`.
+   * - The page's own scripts can't change the built-ins axe uses there, or take the name `axe`. A
+   *   page can still hold up the thread it shares with axe, or answer axe's messages to its frames
+   *   from a frame of its own origin.
    * - `script`, axe-core's own, is the expression DevTools runs, not a `<script>` added to the page
    *   or a string evaluated in it, so neither a Content Security Policy nor Trusted Types stops it.
    *
@@ -607,8 +608,8 @@ export class ChromeSession implements BrowserSession {
    * what needs review, and at most one for each rule that passed or didn't apply, which voicecap
    * only counts. axe reads the page: it moves no focus, scrolls nothing, and adds no element.
    *
-   * A script that throws, and an axe whose promise is rejected, fail with what the page's world
-   * said. There's no time limit here: the driver gives axe its own.
+   * A script that throws, and an axe whose promise is rejected, fail with what axe's world said.
+   * There's no time limit here: the driver gives axe its own.
    */
   runAxe(script: string): Promise<unknown> {
     return this.onPage(async () => {

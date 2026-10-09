@@ -29,12 +29,21 @@ import type { ShareInput } from "../src/share/load.js";
 import { buildShareModel, type PageCard, type ShareModel } from "../src/share/model.js";
 import { APPENDIX_TEXT, AXE_TEXT, PAGES_TEXT, STORY, WORD_TEXT } from "../src/share/text.js";
 import { axeFingerprint, byteCount, fileFingerprint, pagesGist } from "../src/share/words.js";
-import { heading, image, list, mono, para, wordsOf, type Block } from "../src/share/word/blocks.js";
+import {
+  heading,
+  image,
+  leadIn,
+  list,
+  mono,
+  para,
+  wordsOf,
+  type Block,
+} from "../src/share/word/blocks.js";
 import { wordOutline } from "../src/share/word/outline.js";
 import { wordPages } from "../src/share/word/pages.js";
 import { NO_SPEECH } from "../src/transcripts/format.js";
 import { fileHash } from "../src/transcripts/write.js";
-import { linksOf, paragraphsOf, unzipDocx } from "./helpers/docx.js";
+import { keptWithNext, linksOf, paragraphsOf, unzipDocx } from "./helpers/docx.js";
 import { TINY_JPEG, TINY_RECORD } from "./helpers/jpeg.js";
 import { rawNode, rawRule } from "./helpers/raw-axe.js";
 import { failedAttempt, shareRun, type SharePageSpec } from "./helpers/share-data.js";
@@ -444,7 +453,7 @@ describe("wordPages", () => {
     expect(home?.[5]).toEqual(list((model.pages[0]?.heardFirst ?? []).map((line) => `“${line}”`)));
     // Then what axe found, after them: a bold label, and, for a run from before voicecap checked
     // pages with axe, why there's nothing.
-    expect(home?.[6]).toEqual(para({ text: "What axe found", bold: true }));
+    expect(home?.[6]).toEqual(leadIn({ text: "What axe found", bold: true }));
     expect(home?.[7]).toEqual(para("Not recorded: this run used voicecap 0.11.0."));
     // Then the run its transcripts are from, and the three transcripts: the read pass first, each a
     // heading 3, the file's fingerprint, and its lines as one fixed-width block.
@@ -1450,6 +1459,40 @@ describe("a page's axe results", () => {
     expect(last?.kind === "para" ? monoIn(last.line) : []).toEqual([kept.record.sha256]);
   });
 
+  it("keeps each bold label, each issue's bold line, and the line that leads into what needs review with what follows it in the file, so none ends a printed page alone", async () => {
+    const kept = aboutAxe();
+    const model = axeModelOf(axeRunOf([done("/about/", { axe: kept.record })]));
+    const { document } = await unzipDocx(await renderWordCopy(model));
+    const together = keptWithNext(document);
+    const CONTRAST_LINE =
+      "Elements must meet minimum color contrast ratio thresholds\nImpact: serious · WCAG 2.0 AA 1.4.3";
+
+    for (const label of ["What axe found", "Issues, most severe first", "Needs review"]) {
+      expect(
+        together.filter((text) => text === label),
+        label,
+      ).toHaveLength(1);
+    }
+    expect(together).toContain(
+      "Buttons must have discernible text\nImpact: critical · WCAG 2.0 A 4.1.2",
+    );
+    expect(together).toContain(
+      "All page content should be contained by landmarks\nImpact: moderate · best practice",
+    );
+    // color-contrast is an issue, and something to review too.
+    expect(together.filter((text) => text === CONTRAST_LINE)).toHaveLength(2);
+    expect(together).toContain(AXE_TEXT.reviewLead);
+    // What leads into nothing stays as it was: what axe is, its counts, a link, the fingerprint.
+    for (const line of [
+      AXE_TEXT.what,
+      "Issues: 3; Critical: 1; Serious: 1; Moderate: 1; Minor: 0; Needs review: 1; Rules passed: 41.",
+      "axe's page on button-name",
+      `axe.json: ${byteCount(kept.record.bytes)}, SHA-256 ${kept.record.sha256}`,
+    ]) {
+      expect(together, line).not.toContain(line);
+    }
+  });
+
   it("links to axe's own page on each rule, by the rule's name, as the fold does, and to no other address", () => {
     const model = axeModelOf(
       axeRunOf([
@@ -1809,7 +1852,7 @@ describe("a page's axe results", () => {
 
         // The label in bold, and the card's reason as a paragraph under it: nothing else.
         expect(axePartOf(pageAt(model, index)), where).toEqual([
-          para({ text: "What axe found", bold: true }),
+          leadIn({ text: "What axe found", bold: true }),
           para(reason),
         ]);
         expect(reasonOf(model.pages[index]), where).toBe(reason);

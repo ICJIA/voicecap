@@ -44,7 +44,7 @@
 ## Decisions this plan makes
 
 - **D1, one module for axe's settings and the kept JSON:** `src/axe/results.ts` imports nothing from Playwright. Its tests run without a browser.
-- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text, and the check holds what the fold shows to it, so a passing check vouches for those parts of what's shown: the counts, the number on the card's chip, each rule's heading, each element's selector and HTML, and axe's words on how to fix them (said once for a rule when every element listed shares them). It doesn't vouch for the rest, which is drawn from the same text but isn't compared: among it the version line, each rule's impact and criteria lines, the "and N more elements" line, the line with the file's size and SHA-256, and the links.
+- **D2, the fold's words and the check read one text:** the shareable page carries each `axe.json`'s exact text in its data block. "Check the fingerprints" checks that text, and the fold is drawn from the same text (but for its line with the file's size and SHA-256), and the check holds what the fold shows to it, so a passing check vouches for those parts of what's shown: the counts, the number on the card's chip, each rule's heading and impact, each element's selector and HTML, axe's words on how to fix them (said once for a rule when every element listed shares them), and the number in each rule's "and N more elements" line. It doesn't vouch for the rest, which isn't compared: the version line, each rule's criteria, and the links, drawn from the same text, and the line with the file's size and SHA-256, which is the run's record's.
 - **D3, a strict Content Security Policy in the browser test** comes from a `<meta http-equiv="Content-Security-Policy">` in a page the test writes, so the fixture server needs no change.
 - **D4, the README's card picture is shot again** (`report-pages.png`), since every card now has the fold.
 
@@ -197,7 +197,7 @@
   - **The card's `axe`:** the view comes from `axeViewOf(text)`. The reasons follow `screenshotOf`'s cases, with the version rule `keepsAxe(version)` (voicecap ≥ 0.16.0).
   - **The words** go in `AXE_TEXT`.
   - **The fold** reuses `fold(...)`, with `id: "axe-<slug>"`.
-  - **The check script** checks `axe` like `files`. It doesn't apply `bodyOf`, since an axe file has no transcript header. It also holds what each fold shows to the file, as D2 says: the fold names its file (`data-run`, `data-slug`, and `data-file`), and the script compares the counts, the chip's number, each rule's heading, each element's selector and HTML, and axe's words on how to fix them.
+  - **The check script** checks `axe` like `files`. It doesn't apply `bodyOf`, since an axe file has no transcript header. It also holds what each fold shows to the file, as D2 says: the fold names its file (`data-run`, `data-slug`, and `data-file`), and the script compares the counts, the chip's number, each rule's heading and impact, each element's selector and HTML, axe's words on how to fix them, and the number in each rule's "and N more elements" line.
   - **The fingerprints rows** follow the screenshot's.
 - [ ] **Step 4:** Run `pnpm lint && pnpm typecheck && pnpm test`. Expected: PASS.
 - [ ] **Step 5:** Commit: `Show what axe found on each page's card, in a fold beside what NVDA said, checked with the page's other fingerprints`.

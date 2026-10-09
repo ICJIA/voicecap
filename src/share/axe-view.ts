@@ -3,16 +3,17 @@
  * (`axeViewOf`), and the words worked out from it, which both copies say alike. axe-core is an
  * automated checker; what it found is evidence beside the person's review, never its verdict.
  *
- * The page reads the file it carries, never the page's record of it: the record's fingerprint names
- * the file, and the fold is drawn from the file's text. The page's fingerprint check holds that text
- * to the record, then holds what the fold shows to the text, as the fold draws it with these rules:
- * the counts, the card's chip, and each rule's heading, most severe first, its elements' selectors
- * and HTML, and axe's words on how to fix them, said once when every element shares them
- * (`axeSharedFix`). So a check that passes vouches for those. The rest of the fold is drawn from the
- * same text, and not compared: among it the version, a rule's impact and criteria, the "and N more
- * elements" line, the line with the file's size and SHA-256, and the links. A file is data, as a
- * record is: one that isn't axe's results as voicecap keeps them (src/axe/results.ts) is read as
- * none, and the card says so rather than stop. Pure.
+ * The page reads the results from the file it carries, never from the page's record of it: the
+ * record's fingerprint names the file, and the fold is drawn from the file's text, but for its line
+ * with the file's size and SHA-256, which is the record's. The page's fingerprint check holds that
+ * text to the record, then holds what the fold shows to the text, as the fold draws it with these
+ * rules: the counts, the card's chip, and each rule's heading, most severe first, its impact, its
+ * elements' selectors and HTML, axe's words on how to fix them, said once when every element shares
+ * them (`axeSharedFix`), and the number in its "and N more elements" line. So a check that passes
+ * vouches for those. The rest of the fold isn't compared: the version and a rule's criteria, drawn
+ * from the same text, the links, and the line with the file's size and SHA-256, from the record. A
+ * file is data, as a record is: one that isn't axe's results as voicecap keeps them
+ * (src/axe/results.ts) is read as none, and the card says so rather than stop. Pure.
  */
 import { z } from "zod";
 

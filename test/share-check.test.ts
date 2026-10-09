@@ -19,7 +19,14 @@ import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { ReviewEntry, ReviewsFile, ReviewStatus, RunJson } from "../src/model.js";
 import { esc } from "../src/report/html.js";
 import { runAudit } from "../src/run/audit.js";
-import { axeFix, axeImpacts, axeSelector, axeSharedFix, axeViewOf } from "../src/share/axe-view.js";
+import {
+  axeCriteria,
+  axeFix,
+  axeImpacts,
+  axeSelector,
+  axeSharedFix,
+  axeViewOf,
+} from "../src/share/axe-view.js";
 import { CHECK_LIBRARY, CHECK_SCRIPT, checkDataJson, type CheckData } from "../src/share/check.js";
 import { renderSharePage } from "../src/share/html/document.js";
 import { renderPages } from "../src/share/html/pages.js";
@@ -56,13 +63,21 @@ type Pictures = (shot: CheckData["screenshots"][number]) => Uint8Array[];
 /**
  * What a card's fold of what axe found shows, as the page's script reads it from the fold and its
  * card: the counts as written, the card's chip (null when it has none), and each rule in the page's
- * order, with its heading, axe's words on how to fix its elements said once for the rule (none, or
- * one list of lines), and each element's selector and HTML, and its own words on how to fix it.
+ * order, with its heading, its impact line (its impact, then its criteria; "" when it has none),
+ * its line of how many more elements there were (null when it has none), axe's words on how to fix
+ * its elements said once for the rule (none, or one list of lines), and each element's selector and
+ * HTML, and its own words on how to fix it.
  */
 interface AxeShows {
   counts: string[];
   chip: string | null;
-  rules: { heading: string; shared: string[][]; elements: { codes: string[]; fix: string[] }[] }[];
+  rules: {
+    heading: string;
+    impact: string;
+    more: string | null;
+    shared: string[][];
+    elements: { codes: string[]; fix: string[] }[];
+  }[];
 }
 
 /** What each fold that names one of the data's axe files shows: none, when no fold names it. */
@@ -117,8 +132,9 @@ async function check(
  * What a card's fold shows of an axe file, worked out here as voicecap draws the fold, from the
  * file's view and its words (src/share/axe-view.ts), and as the page's script reads it back: the
  * counts written as the page writes a number, the chip's words, each rule's heading (its `help`, or
- * its id), the words on how to fix its elements as lines (the leads and what's under each, in
- * order), said once when every element shares them, and each element's selector and HTML.
+ * its id), its impact line and its line of how many more elements there were, the words on how to
+ * fix its elements as lines (the leads and what's under each, in order), said once when every
+ * element shares them, and each element's selector and HTML.
  */
 function foldShows(text: string): AxeShows {
   const view = axeViewOf(text);
@@ -139,8 +155,11 @@ function foldShows(text: string): AxeShows {
     chip: AXE_TEXT.chip(view.violations.length),
     rules: [...view.violations, ...view.incomplete].map((rule) => {
       const shared = axeSharedFix(rule);
+      const criteria = axeCriteria(rule.tags);
       return {
         heading: rule.help || rule.id,
+        impact: [AXE_TEXT.impact(rule.impact), ...(criteria === "" ? [] : [criteria])].join(" · "),
+        more: rule.moreNodes > 0 ? AXE_TEXT.more(rule.moreNodes) : null,
         shared: shared === null || lines(shared).length === 0 ? [] : [lines(shared)],
         elements: rule.nodes.map((node) => ({
           codes: [axeSelector(node.target), node.html],
@@ -1065,7 +1084,7 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
       return [shows];
     };
 
-  it("finds each fold showing its file as voicecap draws it: the counts, the chip, each rule's heading, elements, and words on how to fix them", async () => {
+  it("finds each fold showing its file as voicecap draws it: the counts, the chip, each rule's heading, impact, elements, and words on how to fix them", async () => {
     const data = axeData();
     const drawn = foldShows(data.axe[0]!.text);
 
@@ -1077,6 +1096,8 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
       rules: [
         {
           heading: "Buttons must have discernible text",
+          impact: "Impact: critical · WCAG 2.0 A 4.1.2",
+          more: null,
           shared: [],
           elements: [
             {
@@ -1094,6 +1115,8 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
         },
         {
           heading: "All page content should be contained by landmarks",
+          impact: "Impact: moderate · best practice",
+          more: null,
           shared: [
             [
               "Fix any of the following:",
@@ -1104,6 +1127,8 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
         },
         {
           heading: "The color-contrast rule's help",
+          impact: "Impact: serious · WCAG 2.0 AA 1.4.3",
+          more: null,
           shared: [
             [
               "Fix any of the following:",
@@ -1132,6 +1157,15 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
     ["an issue taken away", (shows) => void shows.rules.shift()],
     ["the issues in another order", (shows) => void shows.rules.reverse()],
     ["a rule's heading changed", (shows) => void (shows.rules[1]!.heading += ".")],
+    [
+      "a rule's impact changed",
+      (shows) => void (shows.rules[0]!.impact = "Impact: minor · WCAG 2.0 A 4.1.2"),
+    ],
+    ["a rule's impact line taken away", (shows) => void (shows.rules[0]!.impact = "")],
+    [
+      "more elements than its file counts",
+      (shows) => void (shows.rules[1]!.more = "and 3 more elements"),
+    ],
     ["an element taken away", (shows) => void shows.rules[0]!.elements.pop()],
     ["an element's HTML changed", (shows) => void (shows.rules[0]!.elements[0]!.codes[1] = "<b>")],
     [
@@ -1239,6 +1273,75 @@ describe("checkAll, with what each card's fold of axe's results shows", () => {
       "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
         "and both runs' seals check out",
     );
+  });
+
+  describe("a rule with more elements than its file keeps", () => {
+    /** The home page's results: one rule axe gave no impact, that found 53 elements, 50 kept. */
+    const MANY = keptAxe({
+      violations: [
+        rawRule("image-alt", {
+          impact: null,
+          help: "Images must have alternative text",
+          nodes: Array.from({ length: 53 }, (_, at) => rawNode(`#img-${at}`)),
+        }),
+      ],
+    });
+    /** axeData with the home page's results MANY, recorded and sealed as the run would have. */
+    function manyData(): CheckData {
+      const data = axeData();
+      const latest = data.runs.find((run) => run.id === "2026-09-29_1402")!;
+      latest.pages.find((page) => page.slug === "home")!.axe = MANY.record;
+      latest.seal = sealOf(latest);
+      data.axe[0]!.text = MANY.text;
+      return data;
+    }
+    const ALL_MATCH =
+      "21 of 21 transcripts match their fingerprints, and 2 of 2 axe results match their fingerprints, " +
+      "and both runs' seals check out";
+
+    it("finds its fold matching, with the number it doesn't keep, and an impact axe didn't give", async () => {
+      const [rule] = foldShows(MANY.text).rules;
+
+      expect(rule).toMatchObject({
+        impact: "Impact: not given · WCAG 2.0 A 4.1.2",
+        more: "and 3 more elements",
+      });
+      expect(rule?.elements).toHaveLength(50);
+      expect((await check(manyData(), library.sha256Hex, asShown, undefined, asDrawn)).line).toBe(
+        ALL_MATCH,
+      );
+    });
+
+    it.each<[what: string, more: string | null]>([
+      ["another number", "and 4 more elements"],
+      ["the number in words", "and three more elements"],
+      ["no line of them", null],
+    ])("names its file when the fold says %s", async (_, more) => {
+      const result = await check(manyData(), library.sha256Hex, asShown, undefined, (item) => {
+        const shows = foldShows(item.text);
+        if (item.slug === "home") shows.rules[0]!.more = more;
+        return [shows];
+      });
+
+      expect(result.line).toBe(`${SHOWS_OTHER} ${REST}`);
+    });
+
+    it("compares the impact the line begins with, and not the criteria after it", async () => {
+      const said =
+        (impact: string): AxeShown =>
+        (item) => {
+          const shows = foldShows(item.text);
+          if (item.slug === "home") shows.rules[0]!.impact = impact;
+          return [shows];
+        };
+
+      for (const impact of ["Impact: critical · WCAG 2.0 A 4.1.2", "Impact: not given"]) {
+        const result = await check(manyData(), library.sha256Hex, asShown, undefined, said(impact));
+        expect(result.line, impact).toBe(
+          impact === "Impact: not given" ? ALL_MATCH : `${SHOWS_OTHER} ${REST}`,
+        );
+      }
+    });
   });
 });
 
@@ -1370,9 +1473,9 @@ ${axeCardsIn(data)}
 
 /**
  * The page voicecap writes for a run of the scripted site, each of whose three pages took a
- * screenshot (and, `withAxe`, was checked with axe, the home page with an issue): written from the
- * run's own records, as a reader gets it. Gives the folder the run's home is in, to remove, and the
- * page's file.
+ * screenshot (and, `withAxe`, was checked with axe, the home page with a critical issue on 52
+ * elements, of which its file keeps 50): written from the run's own records, as a reader gets it.
+ * Gives the folder the run's home is in, to remove, and the page's file.
  */
 async function generatedPage(
   folder: string,
@@ -1385,7 +1488,12 @@ async function generatedPage(
       ? {
           axe: keptAxeResults(
             rawAxe({
-              violations: Array.from({ length: issues }, (_, at) => rawRule(`rule-${at}`)),
+              violations: Array.from({ length: issues }, (_, at) =>
+                rawRule(`rule-${at}`, {
+                  impact: "critical",
+                  nodes: Array.from({ length: 52 }, (_, node) => rawNode(`.rule-${at}-${node}`)),
+                }),
+              ),
               passes: 20,
             }),
             `${SITE}${path}`,
@@ -1941,6 +2049,26 @@ describe("the check in a browser", () => {
           const passed = [...document.querySelectorAll("#axe-home .axe-counts dd")].at(-1);
           if (passed === undefined) throw new Error("The fold shows no counts.");
           passed.textContent = "21";
+        },
+      ],
+      [
+        "its issue's impact edited from critical to minor",
+        () => {
+          const line = document.querySelector("#axe-home .axe-rules > li > h5 + p");
+          if (!(line?.textContent ?? "").startsWith("Impact: critical")) {
+            throw new Error("The fold shows no critical issue's impact.");
+          }
+          line!.textContent = (line!.textContent ?? "").replace("critical", "minor");
+        },
+      ],
+      [
+        "its number of elements it doesn't list changed",
+        () => {
+          const line = document.querySelector("#axe-home .axe-rules > li > .axe-nodes + p");
+          if ((line?.textContent ?? "") !== "and 2 more elements") {
+            throw new Error("The fold says of no elements it doesn't list.");
+          }
+          line!.textContent = "and 3 more elements";
         },
       ],
     ])("names the file whose fold shows %s, and finds the rest matching", async (_, change) => {
