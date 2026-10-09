@@ -12,8 +12,9 @@
  * The two bars are checked whole at 200% and 400% text, on all four pages, in a wide window and a
  * phone's: nothing in them overlaps or leaves the window, and focus shows on each of their links
  * and on the button. And a version 40 characters long fits the bottom bar at 320 pixels. The front
- * page's kicker is heard with commas where it shows dots, and its What's New banner is a card with
- * its version's pill at its left, at any width, its words as long as words can be too.
+ * page's kicker is heard with commas where it shows dots, and its What's New banner, which opens
+ * the main part, above the kicker and the heading, is a card with its version's pill at its left,
+ * at any width, its words as long as words can be too.
  *
  * The trust page (renderTrustPage) is checked the same ways, with its facts and with none: axe in
  * both themes at 1280, 390, and 320 pixels, its fit at 320, its landmarks, what has focus never
@@ -847,11 +848,15 @@ describe("the site's page", () => {
           return { left, right, top, bottom };
         };
         return {
+          bar: boxOf("header.bar"),
           card: boxOf(".news"),
           pill: boxOf(".news > .pill"),
           kicker: boxOf(".news > .kicker"),
           headline: boxOf(".news > .headline"),
           released: boxOf(".news > .released"),
+          // The page's own kicker, heading, and lead, and the row: all after the card.
+          pageKicker: boxOf("main > p.kicker"),
+          heading: boxOf("main > h1"),
           lead: boxOf("main > .lead"),
           row: boxOf("nav.jump"),
         };
@@ -867,15 +872,22 @@ describe("the site's page", () => {
       expect(headline.bottom, where).toBeLessThanOrEqual(released.top);
       expect(headline.left, where).toBe(kicker.left);
       expect(released.left, where).toBe(kicker.left);
-      // Each inside the card, the card inside the window, after the lead and before the row.
+      // Each inside the card, and the card inside the window.
       for (const [name, part] of Object.entries({ pill, kicker, headline, released })) {
         expect(part.left, `${where}: ${name}`).toBeGreaterThanOrEqual(card.left);
         expect(part.right, `${where}: ${name}`).toBeLessThanOrEqual(card.right);
         expect(part.bottom, `${where}: ${name}`).toBeLessThanOrEqual(card.bottom);
       }
       expect(card.right, where).toBeLessThanOrEqual(width);
-      expect(card.top, where).toBeGreaterThan(layout.lead.bottom);
-      expect(layout.row.top, where).toBeGreaterThan(card.bottom);
+      // The card opens the main part, as the audit tool's banner does its page: under the top bar,
+      // the main part's 48 pixels of padding from it, as any page's first part is; and above the
+      // page's own kicker, its heading, its lead, and the row, in that order, with a clear gap of
+      // 28 pixels between the card and the kicker.
+      expect(card.top - layout.bar.bottom, where).toBe(48);
+      expect(layout.pageKicker.top - card.bottom, where).toBe(28);
+      expect(layout.pageKicker.bottom, where).toBeLessThanOrEqual(layout.heading.top);
+      expect(layout.heading.bottom, where).toBeLessThanOrEqual(layout.lead.top);
+      expect(layout.lead.bottom, where).toBeLessThanOrEqual(layout.row.top);
     }
 
     // The card's look, and its words' colors, in both themes: a version's pill in --good on its

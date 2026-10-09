@@ -62,10 +62,10 @@ export const SITE_TEXT = {
   title: SITE_TITLE,
   lead: "Each report is a person's review of a website with a real screen reader, sped up by voicecap. Every transcript in a report is what the screen reader said, word for word, and every decision in it is a person's.",
   /**
-   * The banner under the lead, of the newest release the CHANGELOG records: a kicker that says
-   * what it is; then, after the release's version and its headline, which are the CHANGELOG's,
-   * the day it was released, "Released 9 October 2026", and the link to What's New, which has
-   * every release.
+   * The banner that opens the page, above its kicker and its heading, of the newest release the
+   * CHANGELOG records: a kicker that says what it is; then, after the release's version and its
+   * headline, which are the CHANGELOG's, the day it was released, "Released 9 October 2026", and
+   * the link to What's New, which has every release.
    */
   news: {
     kicker: "What's new",

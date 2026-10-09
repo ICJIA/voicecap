@@ -4,6 +4,12 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **The What's New banner opens the website's front page,** above its kicker and heading, as the audit tool's front page has it. It was under the lead.
+  - **It's the first thing under the top bar,** with a clear gap before the kicker. The banner has no heading and is no landmark, so the page's outline is as it was: its first heading is still the page's `h1`. It still can't be dismissed, and a build whose CHANGELOG records no release still has no banner, so the page then opens with its kicker.
+  - **The README describes the front page in the new order,** and its two pictures of the front page are drawn again to show it.
+
 ## [0.16.0] - 2026-10-09
 
 Each page's card now shows what axe, an open-source accessibility checker, found on the page, beside what NVDA said, sealed with the run.
