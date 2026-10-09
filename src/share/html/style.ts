@@ -1,9 +1,9 @@
 /**
- * The theme's rules, which come first among the rules of both the shareable page's style and the
- * website's (../../site/style.ts), so the two look alike and switch alike: the colors and the fonts
- * as variables, dark by default, light when the reader switches it (`data-theme="light"` on the
- * root), and light in print, where the theme's button (`.theme`) is left out. Both pages keep the
- * reader's choice under the same name, so a choice made on one carries to the other.
+ * The theme's rules, which come first among the rules of the shareable page's style: the colors and
+ * the fonts as variables, dark by default, light when the reader switches it (`data-theme="light"`
+ * on the root), and light in print, where the theme's button (`.theme`) is left out. The website
+ * has a look of its own (../../site/style.ts), and switches alike: both keep the reader's choice
+ * under the same name, so a choice made on one carries to the other.
  */
 export const THEME_CSS = `:root {
   --bg: #0b1015; --panel: #10171f; --panel-2: #151e28; --line: #243242;

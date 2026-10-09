@@ -104,7 +104,7 @@ export async function checkSite(
  * page's address as the root. The run weighs its inner pages' tags before the home page's (see
  * `chooseCanonicalRoot`), so init leaves a root with a path to it, and offers it to the person
  * when it asks for the address people visit: they can tell the demo's
- * `https://voicecap.netlify.app/demo-site/` from another page's address. A page that ended at
+ * `https://voicecap.icjia.app/demo-site/` from another page's address. A page that ended at
  * another path, such as `/en/`, has to match that path, which is stronger, so its root counts.
  */
 async function namedRoots(

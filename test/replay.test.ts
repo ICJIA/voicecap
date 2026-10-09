@@ -1,13 +1,15 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { resolveConfig } from "../src/config/load.js";
 import { ReplayDriver } from "../src/drivers/replay.js";
-import type { RunJson } from "../src/model.js";
+import type { DriverCommand, RunJson, StopReason } from "../src/model.js";
+import { canonicalKey } from "../src/pages/url.js";
+import { runPass, type PassSettings } from "../src/passes/index.js";
 import { runAudit, type RunAuditOptions } from "../src/run/audit.js";
 import { pageDir, siteFolder } from "../src/run/paths.js";
 import { readRunJson } from "../src/run/store.js";
@@ -229,5 +231,112 @@ describe("ReplayDriver", () => {
     await expect(new ReplayDriver(path.join(ROOT, "no-such-folder")).start()).rejects.toThrow(
       /doesn't exist/,
     );
+  });
+});
+
+// A run from before the read pass looked at the page's end again (voicecap 0.16.1 and earlier) has
+// no such step. Its read passes that stopped at the repeat limit replay with one more step, the look,
+// since the pass makes it when it's about to stop for the repeat limit: past the recording, the driver
+// answers a Ctrl+End with the first one's words, so the look finds nothing new and the pass stops at
+// the repeat limit, as the run did. A recording made with the look replays as recorded.
+describe("replaying a read pass that stopped at the repeat limit", () => {
+  const MOVED = `${SITE}/moved/`;
+  const FIRST_END = "Site footer, content info landmark, link, Contact";
+  const BUTTON = "button, Scroll to top";
+  type Step = [DriverCommand, string];
+
+  /** r3.illinois.gov's pages as an earlier voicecap recorded them: no look, ten of the button. */
+  const earlier: Step[] = [
+    ["toBottom", FIRST_END],
+    ["toTop", "banner landmark, link, Home"],
+    ["nextLine", "heading, level 1, Meetings"],
+    ["nextLine", "link, Contact"],
+    ...Array.from({ length: 10 }, (): Step => ["nextLine", BUTTON]),
+  ];
+
+  const settings: PassSettings = {
+    cap: 400,
+    repeatLimit: 10,
+    endConfirmations: 1,
+    noNextHeading: /^no next heading$/i,
+    stepTimeoutMs: 1000,
+  };
+
+  const folders: string[] = [];
+  afterEach(async () => {
+    for (const folder of folders.splice(0)) await rm(folder, { recursive: true, force: true });
+  });
+
+  /** A run folder with one recorded read pass of /moved/: these steps, and how the pass stopped. */
+  async function recorded(steps: Step[], stopReason: StopReason): Promise<string> {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "voicecap-replay-read-"));
+    folders.push(dir);
+    const slug = path.join(dir, "pages", "moved");
+    await mkdir(slug, { recursive: true });
+    const transcript = {
+      schemaVersion: 1,
+      voicecap: "0.16.1",
+      replayed: false,
+      run: "2026-10-09_1030",
+      pass: "read",
+      page: { url: MOVED, key: canonicalKey(MOVED), slug: "moved", finalUrl: MOVED },
+      capturedAt: "2026-10-09T10:38:21-05:00",
+      durationMs: steps.length,
+      stepCount: steps.length,
+      stopReason,
+      warnings: [],
+      errors: [],
+      environment: {},
+      steps: steps.map(([command, spoken], index) => ({
+        n: index + 1,
+        command,
+        spoken,
+        durationMs: 1,
+        offsetMs: index + 1,
+      })),
+    };
+    await writeFile(path.join(slug, "read.json"), JSON.stringify(transcript));
+    return dir;
+  }
+
+  /** The read pass, run on the recording in `dir`. */
+  async function replayed(dir: string) {
+    const driver = new ReplayDriver(dir, "the recording");
+    await driver.start();
+    await driver.openPage(MOVED);
+    return runPass("read", driver, settings);
+  }
+
+  const asRecorded = (result: Awaited<ReturnType<typeof replayed>>): Step[] =>
+    result.steps.map(({ command, spoken }) => [command, spoken]);
+
+  it("takes one step more than the earlier run recorded, the look, and stops at the repeat limit as it did", async () => {
+    const result = await replayed(await recorded(earlier, "repeat-limit"));
+
+    expect(result.stopReason).toBe("repeat-limit");
+    expect(result.steps).toHaveLength(earlier.length + 1);
+    // Every step as recorded, then the look: a Ctrl+End with the words of the first one.
+    expect(asRecorded(result).slice(0, earlier.length)).toEqual(earlier);
+    expect(result.steps.at(-1)).toMatchObject({
+      n: earlier.length + 1,
+      command: "toBottom",
+      spoken: FIRST_END,
+    });
+  });
+
+  it("replays a read pass recorded with the look as it was recorded: it ended 'end reached'", async () => {
+    const withLook: Step[] = [...earlier, ["toBottom", BUTTON]];
+    const result = await replayed(await recorded(withLook, "end-reached"));
+
+    expect(result.stopReason).toBe("end-reached");
+    expect(asRecorded(result)).toEqual(withLook);
+  });
+
+  it("replays a read pass recorded with a look that found another end as it was recorded: it stopped at the repeat limit", async () => {
+    const withLook: Step[] = [...earlier, ["toBottom", "link, Privacy"]];
+    const result = await replayed(await recorded(withLook, "repeat-limit"));
+
+    expect(result.stopReason).toBe("repeat-limit");
+    expect(asRecorded(result)).toEqual(withLook);
   });
 });

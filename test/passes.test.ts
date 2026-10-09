@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import { ForegroundError } from "../src/drivers/types.js";
-import { runPass, type PassSettings } from "../src/passes/index.js";
+import { evaluateFlags } from "../src/flags/evaluate.js";
+import { runPass, type PassResult, type PassSettings } from "../src/passes/index.js";
 import { lineMatches } from "../src/passes/read.js";
 import { InterruptedError, StepRecorder } from "../src/passes/steps.js";
+import { stepLine } from "../src/transcripts/format.js";
 import { EnvironmentError } from "../src/util/errors.js";
 import { element, ScriptedDriver, type ScriptedPage } from "./helpers/scripted-driver.js";
 
@@ -129,6 +132,209 @@ describe("read pass: end-of-page detection", () => {
       expect(step.durationMs).toBeGreaterThanOrEqual(0);
       expect(step.offsetMs).toBeGreaterThanOrEqual(step.durationMs);
     }
+  });
+});
+
+// r3.illinois.gov adds a "Scroll to top" button at the very end of its pages, hidden until the page
+// is scrolled 400 px down. Ctrl+End, pressed from the top, finds "link, Contact"; as NVDA reads down,
+// the button shows, and NVDA ends on it, repeating "button, Scroll to top". The pass looks at the
+// end again, once, only when it's about to stop for the repeat limit.
+describe("read pass: a page whose last line changes as it's read", () => {
+  const lines = [
+    "banner landmark, link, Home",
+    "heading, level 1, Meetings",
+    "link, Contact",
+    "button, Scroll to top",
+  ];
+  const END_MOVES = { lines, bottom: ["link, Contact", "button, Scroll to top"] };
+
+  /** run(), with the driver kept, to see which keys the pass pressed. */
+  async function readPage(page: Omit<ScriptedPage, "url">, overrides: Partial<PassSettings> = {}) {
+    const driver = new ScriptedDriver([{ url: URL_, ...page }]);
+    await driver.openPage(URL_);
+    const result = await runPass("read", driver, { ...settings, ...overrides });
+    return { driver, result };
+  }
+
+  const commands = (result: PassResult) => result.steps.map((step) => step.command);
+  const ctrlEnds = (driver: ScriptedDriver) => driver.calls.filter((call) => call === "toBottom");
+  const flagsOf = (result: PassResult) =>
+    evaluateFlags({ read: result }, DEFAULT_CONFIG.flags).map((flag) => flag.rule);
+
+  it("ends 'end-reached' when Ctrl+End, pressed again at the repeat limit, says the repeated line", async () => {
+    const { driver, result } = await readPage(END_MOVES);
+
+    expect(result.stopReason).toBe("end-reached");
+    // Ctrl+End, Ctrl+Home, the 12 lines to the tenth "Scroll to top", and the look.
+    expect(commands(result)).toEqual([
+      "toBottom",
+      "toTop",
+      ...Array.from({ length: 12 }, () => "nextLine"),
+      "toBottom",
+    ]);
+    expect(ctrlEnds(driver)).toHaveLength(2);
+    expect(result.steps.map((step) => step.n)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
+    expect(result.steps.slice(-11).map((step) => step.spoken)).toEqual(
+      Array.from({ length: 11 }, () => "button, Scroll to top"),
+    );
+  });
+
+  it("records the look as a step, as the transcript writes any Ctrl+End", async () => {
+    const { result } = await readPage(END_MOVES);
+
+    expect(result.steps.at(-1)).toMatchObject({
+      n: 15,
+      command: "toBottom",
+      spoken: "button, Scroll to top",
+    });
+    expect(stepLine(result.steps.at(-1)!, "read")).toBe("[to bottom] button, Scroll to top");
+    expect(stepLine(result.steps[0]!, "read")).toBe("[to bottom] link, Contact");
+  });
+
+  it("raises neither flag for a read that ended at the page's moved end", async () => {
+    const { result } = await readPage(END_MOVES);
+
+    expect(flagsOf(result)).not.toContain("read-not-finished");
+    expect(flagsOf(result)).not.toContain("repeated-phrase");
+  });
+
+  it("takes the fresh Ctrl+End's speech for the repeated line when it adds the containers it enters", async () => {
+    const { result } = await readPage({
+      lines,
+      bottom: [
+        "site footer, content info landmark, link, Contact",
+        "out of list, button, Scroll to top",
+      ],
+    });
+
+    expect(result.stopReason).toBe("end-reached");
+    expect(result.steps.at(-1)?.command).toBe("toBottom");
+  });
+
+  it("ends 'repeat-limit' when the page's end is something else, and both flags fire", async () => {
+    // Twelve identical lines in a row, mid-page: the end of the page is still the footer.
+    const stuck = [
+      "heading, level 1, Meetings",
+      ...Array.from({ length: 12 }, () => "link, Read more"),
+      "© 2026 Agency",
+    ];
+    const { driver, result } = await readPage({ lines: stuck });
+
+    expect(result.stopReason).toBe("repeat-limit");
+    // The pass looked, and the end wasn't the repeated line: it stops where it did, as before.
+    expect(commands(result)).toEqual([
+      "toBottom",
+      "toTop",
+      ...Array.from({ length: 10 }, () => "nextLine"),
+      "toBottom",
+    ]);
+    expect(result.steps.at(-1)?.spoken).toBe("© 2026 Agency");
+    expect(ctrlEnds(driver)).toHaveLength(2);
+    expect(flagsOf(result)).toContain("read-not-finished");
+    expect(flagsOf(result)).toContain("repeated-phrase");
+  });
+
+  it("looks once: a fresh Ctrl+End that isn't the repeated line doesn't send it back to reading", async () => {
+    const { driver, result } = await readPage({
+      lines,
+      bottom: ["link, Contact", "link, Contact"],
+    });
+
+    expect(result.stopReason).toBe("repeat-limit");
+    expect(ctrlEnds(driver)).toHaveLength(2);
+    expect(commands(result).at(-1)).toBe("toBottom");
+    expect(result.steps.filter((step) => step.command === "nextLine")).toHaveLength(12);
+  });
+
+  it("never jumps to the end before the repeat limit, however many identical lines come in a row", async () => {
+    const readMore = Array.from({ length: 5 }, () => "link, Read more");
+    const { driver, result } = await readPage({
+      lines: ["Intro", ...readMore, "Middle", "© 2026 Agency"],
+    });
+
+    expect(result.stopReason).toBe("end-reached");
+    // The same steps as ever: Ctrl+End once, at the start, and no look.
+    expect(commands(result)).toEqual([
+      "toBottom",
+      "toTop",
+      ...Array.from({ length: 9 }, () => "nextLine"),
+    ]);
+    expect(ctrlEnds(driver)).toHaveLength(1);
+    expect(result.steps.map((step) => step.spoken)).toContain("Middle");
+  });
+
+  it("leaves a page that reaches its first end alone: no look", async () => {
+    const { driver, result } = await readPage({
+      lines: ["banner landmark, link, Home", "heading, level 1, Welcome", "© 2026 Agency"],
+    });
+
+    expect(result.stopReason).toBe("end-reached");
+    expect(commands(result)).toEqual([
+      "toBottom",
+      "toTop",
+      "nextLine",
+      "nextLine",
+      "nextLine",
+      "nextLine",
+    ]);
+    expect(ctrlEnds(driver)).toHaveLength(1);
+  });
+
+  it("raises neither flag for a run of the last line that ends a read at its first end", async () => {
+    const { result } = await readPage({ lines: [...lines.slice(0, 3)], bottom: "link, Contact" });
+
+    expect(result.stopReason).toBe("end-reached");
+    expect(flagsOf(result)).toEqual([]);
+  });
+
+  it("lets the step cap win: it takes no look beyond the cap", async () => {
+    // The pass has made 14 steps when the repeat limit is reached: the cap stops it there, with no
+    // Ctrl+End to look.
+    const capped = await readPage(END_MOVES, { cap: 14 });
+    expect(capped.result.stopReason).toBe("step-cap");
+    expect(capped.result.steps).toHaveLength(14);
+    expect(ctrlEnds(capped.driver)).toHaveLength(1);
+
+    // With one step to spare, the look is the cap's last step.
+    const spared = await readPage(END_MOVES, { cap: 15 });
+    expect(spared.result.stopReason).toBe("end-reached");
+    expect(spared.result.steps).toHaveLength(15);
+    expect(ctrlEnds(spared.driver)).toHaveLength(2);
+  });
+
+  it("fails like any step when the look can't be made", async () => {
+    // Call 1 opened the page and call 2 was the first Ctrl+End: the second one fails.
+    const driver = new ScriptedDriver([{ url: URL_, ...END_MOVES }], {
+      fail: (command, _url, call) =>
+        command === "toBottom" && call > 2 ? new ForegroundError("Another window came up.") : null,
+    });
+    await driver.openPage(URL_);
+    const result = await runPass("read", driver, settings);
+
+    expect(result.stopReason).toBe("error");
+    expect(result.steps).toHaveLength(14);
+    expect(result.failure).toMatchObject({ cause: "foreground", step: 15, command: "toBottom" });
+  });
+
+  it("leaves the headings and tab passes as they were: no look at the end", async () => {
+    const same = Array.from({ length: 30 }, () => "heading, level 2, Same");
+    const headings = new ScriptedDriver([{ url: URL_, headings: same }]);
+    await headings.openPage(URL_);
+    const byHeadings = await runPass("headings", headings, settings);
+    expect(byHeadings.stopReason).toBe("repeat-limit");
+    expect(byHeadings.steps).toHaveLength(10);
+    expect(headings.calls).not.toContain("toBottom");
+
+    const trap = Array.from({ length: 50 }, () => ({
+      spoken: "Close, button",
+      focused: element("Close", { tag: "button", role: "button" }),
+    }));
+    const tab = new ScriptedDriver([{ url: URL_, stops: trap }]);
+    await tab.openPage(URL_);
+    const byTab = await runPass("tab", tab, settings);
+    expect(byTab.stopReason).toBe("repeat-limit");
+    expect(byTab.steps).toHaveLength(10);
+    expect(tab.calls).not.toContain("toBottom");
   });
 });
 

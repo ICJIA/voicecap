@@ -949,6 +949,14 @@ export const EVENT_TEXT = {
   /** Another window took the screen: the program's name, when Windows said it. Never the title. */
   foreground: (program: string | null): string =>
     `Another window came to the front${program === null ? "" : `: ${program}`}`,
+  /**
+   * voicecap pressed Escape to close a program that had come in front of the browser: what it was
+   * ("Windows Search", "the Start menu"; any other program, by its name, which no voicecap presses
+   * Escape for). It says the key was pressed, never that the program closed: the log records the key
+   * sent, and the try after it shows whether the program went.
+   */
+  foregroundEscape: (closed: string): string =>
+    `voicecap pressed Escape to close ${closed}, which had come in front of the browser`,
 };
 
 /**
@@ -1315,6 +1323,20 @@ export const TIMELINE: TimelineRow[] = [
     pc: null,
     mac: null,
     both: "<b>0.14.0</b>: the review replay: <code>voicecap review --replay</code> reads each page's saved transcript aloud at a normal speed, line by line, with keys to jump to a flagged line and to the other transcripts, and records each decision.",
+  },
+  {
+    date: "2026-10-09",
+    release: "0.15.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.15.0</b>: the website in the look of the audit tool (audit.icjia.app): a top bar and a bottom bar on each of its own pages, a banner of the newest release on the front page, and two new pages, Technical details and What's New.",
+  },
+  {
+    date: "2026-10-09",
+    release: "0.16.0",
+    pc: null,
+    mac: null,
+    both: "<b>0.16.0</b>: axe on each page: what axe, an open-source accessibility checker, found on the page, in a fold on its card, beside what NVDA said, and sealed with the run.",
   },
   {
     date: null,

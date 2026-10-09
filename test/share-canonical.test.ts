@@ -7,7 +7,7 @@
  *
  * The demo runs of 29 September 2026 (voicecap 0.4.1, in test/fixtures/share/) are the real case:
  * read on a copy at http://127.0.0.1:4848, whose canonical address is the demo's,
- * https://voicecap.netlify.app/demo-site/. Runs built in memory cover what the demo has none of: a
+ * https://voicecap.icjia.app/demo-site/. Runs built in memory cover what the demo has none of: a
  * page no longer listed, a label, a page that sounds different, a failure, a page on another site,
  * and runs that recorded their own canonical root.
  */
@@ -54,7 +54,7 @@ import {
 const READ = "http://127.0.0.1:4848";
 
 /** What the demo's canonical address makes of it. */
-const NAME = "voicecap.netlify.app";
+const NAME = "voicecap.icjia.app";
 
 /** The address of a page of the demo, on its canonical address. */
 const on = (path: string): string => `${DEMO_ROOT}${path}`;

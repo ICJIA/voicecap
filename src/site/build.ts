@@ -47,13 +47,17 @@
  * Besides each report's files, a build writes the demo's own pages in demo-site/ (the demo site
  * that comes with voicecap, copied byte for byte, but for its 404 page, with a sitemap of its
  * pages at their canonical address: see DEMO_CANONICAL), the site's page (index.html), the trust
- * page (trust.html: see ./trust.ts), robots.txt, _redirects, and _headers, which gives each page
- * its Content Security Policy, made from the hashes of that page's own bytes (the site's page at
- * "/" and "/index.html", and the trust page at "/trust.html" and "/trust"), the demo's pages
- * theirs at each address they answer at (see demoSiteRules), and each download its
- * Content-Disposition. In the home it writes .gitattributes and .gitignore when they aren't there,
- * as a run does, so a home's first build keeps _site/ out of Git with the rest of what voicecap
- * keeps out, then netlify.toml and .nvmrc the first time. None of them is ever written again.
+ * page (trust.html: see ./trust.ts), What's New (whats-new.html: see ./whats-new.ts), Technical
+ * details (technical-details.html: see ./technical.ts), robots.txt, _redirects, and _headers, which
+ * gives each page its Content Security Policy, made from the hashes of that page's own bytes (the
+ * site's page at "/" and "/index.html", the trust page at "/trust.html" and "/trust", What's New
+ * at "/whats-new.html" and "/whats-new", and Technical details at "/technical-details.html" and
+ * "/technical-details", whose policies allow no font, since they embed none, where a report's
+ * allows the fonts it embeds), the demo's pages theirs at each address they answer at (see
+ * demoSiteRules), and each download its Content-Disposition. In the home it writes .gitattributes
+ * and .gitignore when they aren't there, as a run does, so a home's first build keeps _site/ out of
+ * Git with the rest of what voicecap keeps out, then netlify.toml and .nvmrc the first time. None
+ * of them is ever written again.
  */
 import type { Dirent } from "node:fs";
 import {
@@ -77,7 +81,6 @@ import { plural } from "../report/html.js";
 import { ensureGitFiles } from "../run/git-files.js";
 import { linkPath, resolveHome } from "../run/paths.js";
 import { siteFolders } from "../run/site-dir.js";
-import { fontFaceCss } from "../share/fonts.js";
 import { UsageError } from "../util/errors.js";
 import { resolveUserPath } from "../util/git-bash.js";
 import { sha256 } from "../util/hash.js";
@@ -106,7 +109,9 @@ import {
   type PublishedReport,
   type SiteContent,
 } from "./render.js";
+import { renderTechnical } from "./technical.js";
 import { renderTrustPage } from "./trust.js";
+import { renderWhatsNew } from "./whats-new.js";
 
 export interface BuildSiteOptions {
   /** The transcripts home. Default: VOICECAP_TRANSCRIPTS, else "transcripts". */
@@ -117,12 +122,13 @@ export interface BuildSiteOptions {
   env?: NodeJS.ProcessEnv;
   logger?: Logger;
   /**
-   * What the trust page says of voicecap: its version, its releases, and what its release recorded
-   * of itself (see ./facts.ts). Default: what the package that runs the build says of itself
-   * (readVoicecapFacts), read with the records, before the folder is emptied. Given, these are all
-   * the page says of voicecap, and the package's own package.json, CHANGELOG, and
-   * release-facts.json aren't read for them: only the facts come from outside, and the page is
-   * still drawn by the voicecap that runs the build.
+   * What the website's pages say of voicecap: its version, which every page's bottom bar says, and,
+   * on the trust page, What's New, and Technical details, its releases and what its release
+   * recorded of itself (see ./facts.ts). Default: what the package that runs the build says of
+   * itself (readVoicecapFacts), read with the records, before the folder is emptied. Given, these
+   * are all the pages say of voicecap, and the package's own package.json,
+   * CHANGELOG, and release-facts.json aren't read for them: only the facts come from outside, and
+   * the pages are still drawn by the voicecap that runs the build.
    */
   voicecapFacts?: VoicecapFacts;
 }
@@ -165,17 +171,27 @@ const TRUST_FILE = "trust.html";
  * Netlify serves a page too (see rulesFor).
  */
 const TRUST_SHORT = TRUST_FILE.slice(0, -".html".length);
+/** What's New's file, beside the others (see ./whats-new.ts), and its other address. */
+const WHATS_NEW_FILE = "whats-new.html";
+const WHATS_NEW_SHORT = WHATS_NEW_FILE.slice(0, -".html".length);
+/** Technical details' file, beside the others (see ./technical.ts), and its other address. */
+const TECHNICAL_FILE = "technical-details.html";
+const TECHNICAL_SHORT = TECHNICAL_FILE.slice(0, -".html".length);
 /**
  * The site's own files and folders at its top, which a site folder of the same name would take the
  * place of. The demo's pages are one: a site folder named so would be published among them, and a
  * file of one name would take another's place. The trust page is two names: a folder named for its
  * file would take its place, and one named for its short address would be served where the page
- * itself is.
+ * itself is. So are What's New and Technical details.
  */
 const OWN_FILES: ReadonlySet<string> = new Set([
   "index.html",
   TRUST_FILE,
   TRUST_SHORT,
+  WHATS_NEW_FILE,
+  WHATS_NEW_SHORT,
+  TECHNICAL_FILE,
+  TECHNICAL_SHORT,
   "robots.txt",
   HEADERS_FILE,
   REDIRECTS_FILE,
@@ -217,11 +233,11 @@ function unreadable(error: unknown): Unpublished {
 /**
  * Build the site of the transcripts home: refuse a folder it mustn't empty, empty it, publish each
  * file of each site's newest shares that still matches its record, and write the site's page, the
- * trust page, robots.txt, _redirects, and _headers beside them, then .gitattributes, .gitignore,
- * netlify.toml, and .nvmrc in the home when they aren't there. Each thing left out is warned of,
- * each site's older shares are counted, and the last line says what was built. Refuses with a
- * UsageError when the home isn't a folder, and when the folder to build in is one that must not be
- * emptied (see the top of this file).
+ * trust page, What's New, Technical details, robots.txt, _redirects, and _headers beside them, then
+ * .gitattributes, .gitignore, netlify.toml, and .nvmrc in the home when they aren't there. Each
+ * thing left out is warned of, each site's older shares are counted, and the last line says what
+ * was built. Refuses with a UsageError when the home isn't a folder, and when the folder to build in
+ * is one that must not be emptied (see the top of this file).
  */
 export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSiteResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -249,10 +265,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
     );
   }
 
-  // What can fail for want of a record, a font, a version, or the package's own facts is read
-  // before the folder is emptied. Facts that are given are never read for: they are the facts.
+  // What can fail for want of a record, a version, or the package's own facts is read before the
+  // folder is emptied. Facts that are given are never read for: they are the facts.
   const records = await readSiteRecords(home);
-  const fontCss = await fontFaceCss();
   const version = voicecapVersion();
   const voicecap = options.voicecapFacts ?? (await readVoicecapFacts());
 
@@ -341,14 +356,23 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   const content: SiteContent = { demo, sites };
   await publishDemoSite(out, demoFiles);
 
-  const index = renderSiteIndex(content, { fontCss });
-  // The trust page counts the records' facts from what was just published, so it's drawn after it.
-  const trust = renderTrustPage(
-    { voicecap, records: recordFactsOf(content), content },
-    { fontCss },
-  );
+  // Every page's bottom bar says the version of voicecap the facts are of: the one that runs the
+  // build, unless facts were given.
+  const index = renderSiteIndex(content, voicecap);
+  // The trust page and Technical details count the records' facts from what was just published, so
+  // they're drawn after it. Technical details is told how many shares a site keeps.
+  const recordFacts = recordFactsOf(content);
+  const trust = renderTrustPage({ voicecap, records: recordFacts });
+  const whatsNew = renderWhatsNew({ voicecap });
+  const technical = renderTechnical({
+    voicecap,
+    records: recordFacts,
+    keptPerSite: KEPT_PER_SITE,
+  });
   await writeFile(path.join(out, "index.html"), index);
   await writeFile(path.join(out, TRUST_FILE), trust);
+  await writeFile(path.join(out, WHATS_NEW_FILE), whatsNew);
+  await writeFile(path.join(out, TECHNICAL_FILE), technical);
   await writeFile(path.join(out, "robots.txt"), ROBOTS_TXT);
   await writeFile(path.join(out, REDIRECTS_FILE), redirectsFile(redirectRules(kept, sites)));
   // The demo's own pages' rules are made from the files just published, so that none is left out.
@@ -358,7 +382,9 @@ export async function buildSite(options: BuildSiteOptions = {}): Promise<BuildSi
   );
   await writeFile(
     path.join(out, HEADERS_FILE),
-    headersFile(headerRules(content, { index, trust }, demoRules, publishing.rulesOf)),
+    headersFile(
+      headerRules(content, { index, trust, whatsNew, technical }, demoRules, publishing.rulesOf),
+    ),
   );
   // A home that has no .gitignore gets voicecap's now, with _site/ in it, so the check below warns
   // only of a .gitignore that was there and doesn't keep the site out.
@@ -961,25 +987,33 @@ function rulesFor(file: PublishedFile, bytes: Buffer): HeaderRule[] {
 }
 
 /**
- * The rules of _headers: the index at both its addresses, the trust page at both its own, each with
- * the policy of that page's own bytes (`pages`, the text of each), the demo's own pages' rules
- * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at), then each
+ * The rules of _headers: the index at both its addresses, the trust page, What's New, and Technical
+ * details at both their own, each with the policy of that page's own bytes (`pages`, the text of
+ * each), which allows no font, since the website's own pages embed none; the demo's own pages' rules
+ * (`demoRules`, made by demoSiteRules: a rule for each address a page answers at); then each
  * published file's, in the order the site lists them (the demo's report first, then each site's
- * reports as they're shown). A path has one rule, however many reports list its file.
+ * reports as they're shown), a report's page allowing the fonts it embeds. A path has one rule,
+ * however many reports list its file.
  */
 function headerRules(
   content: SiteContent,
-  pages: { index: string; trust: string },
+  pages: { index: string; trust: string; whatsNew: string; technical: string },
   demoRules: readonly HeaderRule[],
   rulesOf: ReadonlyMap<PublishedFile, HeaderRule[]>,
 ): HeaderRule[] {
-  const indexPolicy = contentSecurityPolicy(inlineHashes(pages.index));
-  const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust));
+  const indexPolicy = contentSecurityPolicy(inlineHashes(pages.index), { fonts: false });
+  const trustPolicy = contentSecurityPolicy(inlineHashes(pages.trust), { fonts: false });
+  const whatsNewPolicy = contentSecurityPolicy(inlineHashes(pages.whatsNew), { fonts: false });
+  const technicalPolicy = contentSecurityPolicy(inlineHashes(pages.technical), { fonts: false });
   const rules: HeaderRule[] = [
     { path: "/", headers: [[POLICY_HEADER, indexPolicy]] },
     { path: "/index.html", headers: [[POLICY_HEADER, indexPolicy]] },
     { path: `/${TRUST_FILE}`, headers: [[POLICY_HEADER, trustPolicy]] },
     { path: `/${TRUST_SHORT}`, headers: [[POLICY_HEADER, trustPolicy]] },
+    { path: `/${WHATS_NEW_FILE}`, headers: [[POLICY_HEADER, whatsNewPolicy]] },
+    { path: `/${WHATS_NEW_SHORT}`, headers: [[POLICY_HEADER, whatsNewPolicy]] },
+    { path: `/${TECHNICAL_FILE}`, headers: [[POLICY_HEADER, technicalPolicy]] },
+    { path: `/${TECHNICAL_SHORT}`, headers: [[POLICY_HEADER, technicalPolicy]] },
     ...demoRules,
   ];
   const seen = new Set(rules.map((rule) => rule.path));

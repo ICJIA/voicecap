@@ -31,7 +31,7 @@ export const DEMO_SITE_DIR = fileURLToPath(new URL("../../demo/site/", import.me
  * website. Each page's `<link rel="canonical">` names its own address under it, so a run on the copy
  * at this computer learns the site's real name.
  */
-export const DEMO_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+export const DEMO_CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /**
  * The demo site's pages, in the tour's order: what /sitemap.xml lists. ask-a-question/sent.html,
  * which the question form goes to, is a page of the site too, but it's reached by the form, not the
@@ -116,7 +116,7 @@ function listen(server: Server, port: number): Promise<number> {
 /**
  * The sitemap: a <urlset> of the demo's pages, each at `base`, the address they're served at with
  * no slash on the end: the origin being served, or, for the website's copy, its origin and the
- * path the pages are under (`https://voicecap.netlify.app/demo-site`).
+ * path the pages are under (`https://voicecap.icjia.app/demo-site`).
  */
 export function sitemapXml(base: string): string {
   const urls = DEMO_PAGES.map((page) => `  <url><loc>${base}${page}</loc></url>`);

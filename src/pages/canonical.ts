@@ -35,7 +35,7 @@ export function recordedCanonical(recorded: unknown): string | null {
 /**
  * Whether `value` is the root of a web site as a share's record gives it: text that is an http or
  * https address written as `URL` writes one, with a path that ends in `/` and no query, hash, or
- * credentials (`https://dvfr.illinois.gov/`, `https://voicecap.netlify.app/demo-site/`). It is what
+ * credentials (`https://dvfr.illinois.gov/`, `https://voicecap.icjia.app/demo-site/`). It is what
  * `normalizeCanonical` gives, except that its host may be an IP address or a local address: a share
  * of a site with no canonical address records the address voicecap read (`http://127.0.0.1:4848/`),
  * which no reader knows the site by, but which is a root all the same.
@@ -89,8 +89,8 @@ export function normalizeCanonical(input: string): string {
  * be an absolute http(s) URL (null for a page with no tag). The tag's path has to end with the
  * page's own path, and its host has to be one people visit (not an `isLocalHost` one). The root is
  * the tag's address up to the page's path, with a `/` on the end: `http://127.0.0.1:4848/about/`
- * with the tag `https://voicecap.netlify.app/demo-site/about/` gives
- * `https://voicecap.netlify.app/demo-site/`. A tag that names another page gives null, and the
+ * with the tag `https://voicecap.icjia.app/demo-site/about/` gives
+ * `https://voicecap.icjia.app/demo-site/`. A tag that names another page gives null, and the
  * tag's query and hash don't count.
  */
 export function canonicalRootFrom(pageUrl: string, declared: string | null): string | null {

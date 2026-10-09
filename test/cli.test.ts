@@ -2115,7 +2115,7 @@ describe("--site takes a site's canonical address", () => {
     await mkdir(named);
     await writeFile(
       path.join(named, "voicecap.config.json"),
-      '{ "report": { "canonical": "https://voicecap.netlify.app/demo-site/" } }\n',
+      '{ "report": { "canonical": "https://voicecap.icjia.app/demo-site/" } }\n',
     );
     const share = await cli(["share", "--out", home, "--reviewer", "Pat Lee"], named);
     expect(share.err).toBe("");
@@ -2123,7 +2123,7 @@ describe("--site takes a site's canonical address", () => {
     const siteDir = path.join(home, "127.0.0.1_4848");
     const { shares } = JSON.parse(await readFile(sharesPath(siteDir), "utf8")) as SharesFile;
     const word = shares[0]!.files[1]!;
-    expect(word.name).toMatch(/^voicecap\.netlify\.app_\d{4}-\d{2}-\d{2}\.docx$/);
+    expect(word.name).toMatch(/^voicecap\.icjia\.app_\d{4}-\d{2}-\d{2}\.docx$/);
 
     // The commands, as the Word copy prints them: one for each run the copy draws on, the latest
     // first.
@@ -2134,7 +2134,7 @@ describe("--site takes a site's canonical address", () => {
     expect(commands).toEqual(
       ["2026-09-29_1402", "2026-09-29_1315"].map(
         (run) =>
-          `npx @icjia/voicecap walkthrough --site https://voicecap.netlify.app/demo-site/ --run ${run} voicecap.netlify.app_${run}_walkthrough.json`,
+          `npx @icjia/voicecap walkthrough --site https://voicecap.icjia.app/demo-site/ --run ${run} voicecap.icjia.app_${run}_walkthrough.json`,
       ),
     );
 
@@ -2152,7 +2152,7 @@ describe("--site takes a site's canonical address", () => {
       expect(parseWalkthrough(await readFile(file, "utf8"), file).original.run).toBe(run);
     }
     // Nothing was made in the folder the canonical name would have.
-    expect(existsSync(path.join(home, "voicecap.netlify.app"))).toBe(false);
+    expect(existsSync(path.join(home, "voicecap.icjia.app"))).toBe(false);
   });
 
   it("finds the folder to check, for verify", async () => {
@@ -2194,10 +2194,10 @@ describe("--site takes a site's canonical address", () => {
   });
 
   it("finds a root with a path by what its run recorded, though a folder is named after its host", async () => {
-    const root = "https://voicecap.netlify.app/demo-site/";
+    const root = "https://voicecap.icjia.app/demo-site/";
     const cwd = await homeOfTheCopy(root);
     // The website itself was run once: its folder holds records, and folders are named by host.
-    await mkdir(path.join(cwd, "transcripts", "voicecap.netlify.app", "2026-09-28"), {
+    await mkdir(path.join(cwd, "transcripts", "voicecap.icjia.app", "2026-09-28"), {
       recursive: true,
     });
     const runId = (
@@ -2348,7 +2348,7 @@ describe("voicecap site", () => {
 
   /** What the command is for, as the help says it. */
   const WHAT_IT_DOES =
-    "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, each report's files, robots.txt, _headers, and _redirects";
+    "build the website of each site's newest shared reports, for Netlify: index.html, trust.html, technical-details.html, whats-new.html, each report's files, robots.txt, _headers, and _redirects";
 
   /** What a build says it made of the home homeWithShares makes: its reports, its sites, and the demo. */
   const BUILT = "3 reports from 2 sites, and the demo's.";

@@ -12,7 +12,6 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { fontFaceCss } from "../src/share/fonts.js";
 import { SITE_SCRIPT } from "../src/site/client.js";
 import {
   recordFactsOf,
@@ -20,16 +19,14 @@ import {
   type ReleaseFacts,
   type VoicecapFacts,
 } from "../src/site/facts.js";
-import { siteFooter } from "../src/site/frame.js";
+import { backLink, siteBar, siteFooter } from "../src/site/frame.js";
 import { inlineHashes } from "../src/site/headers.js";
 import type { SiteContent } from "../src/site/render.js";
 import { SITE_CSS } from "../src/site/style.js";
 import { renderTrustPage, type TrustInput } from "../src/site/trust.js";
 import { decode, textOf } from "./helpers/share-html.js";
-import { CONTENT, DEMO_REPORT, DVFR, DVFR_NEWEST } from "./helpers/site-content.js";
-import { EARLIER_RELEASES, FACTS, RECORDS, RESULTS_CONTENT } from "./helpers/trust-facts.js";
-
-const NO_FONTS = { fontCss: "" };
+import { CONTENT, DEMO_REPORT, DVFR_NEWEST } from "./helpers/site-content.js";
+import { EARLIER_RELEASES, FACTS, RECORDS } from "./helpers/trust-facts.js";
 
 const GITHUB = "https://github.com/ICJIA/voicecap";
 const CHANGELOG = "https://github.com/ICJIA/voicecap/blob/main/CHANGELOG.md";
@@ -53,11 +50,11 @@ const SECTIONS = ["does", "nvda", "law", "evidence", "tested", "limits", "builde
 const NOT_RECORDED = "not recorded in this build of voicecap";
 
 /** The page the tests mostly read: FACTS, and the records of the tests' content with results. */
-const INPUT: TrustInput = { voicecap: FACTS, records: RECORDS, content: RESULTS_CONTENT };
+const INPUT: TrustInput = { voicecap: FACTS, records: RECORDS };
 
 /** The page, with some of its input changed. */
 function pageWith(changes: Partial<TrustInput> = {}): string {
-  return renderTrustPage({ ...INPUT, ...changes }, NO_FONTS);
+  return renderTrustPage({ ...INPUT, ...changes });
 }
 
 /** The release facts of FACTS, which the tests change a part of. */
@@ -78,11 +75,6 @@ const NO_REPORTS: RecordFacts = recordFactsOf({ demo: null, sites: [] });
 /** How a policy names the hash of `text`: 'sha256-' and its SHA-256 as base64, in single quotes. */
 function hashOf(text: string): string {
   return `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
-}
-
-/** The page with its fonts' data left out: base64 is letters, and could spell anything. */
-function withoutFontData(html: string): string {
-  return html.replace(/data:font\/woff2;base64,[A-Za-z0-9+/=]+/g, "data:font/woff2;base64,");
 }
 
 /** The page's markup, with what its style and script elements hold left out. */
@@ -124,6 +116,10 @@ function headingsOf(html: string): [number, string][] {
   );
 }
 
+/** The bottom bar, which every page of the website ends with. */
+const bottomBarOf = (markup: string): string =>
+  /<footer>[\s\S]*?<\/footer>/.exec(markup)?.[0] ?? "";
+
 /** A section's markup, by its id. The page's sections hold no section. */
 function sectionOf(html: string, id: string): string {
   const found = new RegExp(`<section\\b[^>]*\\bid="${id}"[^>]*>[\\s\\S]*?</section>`).exec(html);
@@ -155,15 +151,21 @@ function tileOf(html: string, index: number): Tile {
   return tile;
 }
 
-/** The stamp under the page's lead, as a reader gets it. */
-function stampOf(html: string): string {
-  return textOf(/<p class="stamp">([\s\S]*?)<\/p>/.exec(html)?.[1] ?? "", "");
+/**
+ * The stamp under the page's lead, in its box, as a reader gets it: its label (`source`), which says
+ * where the counts come from, and the records' date.
+ */
+function stampOf(html: string): { label: string; date: string } {
+  const stamp = /<div class="stamp">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? "";
+  const side = (name: string): string =>
+    textOf(new RegExp(`<p class="${name}">([\\s\\S]*?)</p>`).exec(stamp)?.[1] ?? "", "");
+  return { label: side("source"), date: side("date") };
 }
 
 /** Each item of a section's list of points: its words, and its link, when it has one. */
 function pointsOf(section: string): { words: string; link?: { href: string; words: string } }[] {
   const list = /<ul class="points"[^>]*>([\s\S]*?)<\/ul>/.exec(section)?.[1] ?? "";
-  return [...list.matchAll(/<li>([\s\S]*?)<\/li>/g)].map(([, item = ""]) => {
+  return [...list.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map(([, item = ""]) => {
     const [link] = linksOf(item.replace(/<p>[\s\S]*?<\/p>/g, ""));
     return { words: textsOf(item, "p").join(" "), ...(link === undefined ? {} : { link }) };
   });
@@ -195,9 +197,14 @@ function releasesIn(html: string): string[][] {
   );
 }
 
-/** The versions of the releases in some markup's lists of releases, in order. */
+/** The versions of the releases in some markup's lists of releases, in order: each one's pill. */
 function versionsIn(html: string): string[] {
-  return releasesIn(html).map(([line = ""]) => line.split(" · ")[0] ?? "");
+  return [...html.matchAll(/<ol class="releases"[^>]*>([\s\S]*?)<\/ol>/g)].flatMap(
+    ([, list = ""]) =>
+      [...list.matchAll(/<p class="on"><span class="pill good">([^<]*)<\/span>/g)].map(
+        ([, version = ""]) => decode(version),
+      ),
+  );
 }
 
 /** The names of the elements, and of the attributes, that some markup has. */
@@ -224,53 +231,46 @@ function numbersIn(text: string): string[] {
 describe("renderTrustPage", () => {
   const html = pageWith();
 
-  it("is one file, under its own policy: one style block, one script last, no style attribute, nothing from outside", async () => {
-    const fontCss = await fontFaceCss();
-    const page = renderTrustPage(INPUT, { fontCss });
-    const plain = withoutFontData(page);
-
-    expect(plain.match(/<style\b/g)).toHaveLength(1);
-    expect(plain.match(/<script\b/g)).toHaveLength(1);
+  it("is one file, under its own policy: one style block, one script last, no style attribute, nothing from outside", () => {
+    expect(html.match(/<style\b/g)).toHaveLength(1);
+    expect(html.match(/<script\b/g)).toHaveLength(1);
     // The script is the last thing in the page.
-    expect(page).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
-    expect(plain).not.toMatch(/\sstyle\s*=/i);
-    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url(http"]) {
-      expect(plain, outside).not.toContain(outside);
+    expect(html).toMatch(/<\/script>\n<\/body>\n<\/html>\n$/);
+    expect(html).not.toMatch(/\sstyle\s*=/i);
+    // Nothing is loaded, linked, or framed, and no font is in the page, not even as data: its words
+    // are in the system's own fonts.
+    for (const outside of ["src=", "srcset", "<link", "<iframe", "@import", "url(", "@font-face"]) {
+      expect(html, outside).not.toContain(outside);
     }
     // Its own code is what a Content Security Policy hashes: the one style block, and the script.
-    expect(inlineHashes(page)).toEqual({
-      styles: [hashOf(`\n${fontCss}\n${SITE_CSS}`)],
+    expect(inlineHashes(html)).toEqual({
+      styles: [hashOf(`\n${SITE_CSS}`)],
       scripts: [hashOf(SITE_SCRIPT)],
     });
   });
 
-  it("has its own title, the bar of the trust page, and the website's footer", () => {
+  it("has its own title, and the two bars of the trust page, whose link to it is the page the reader is on", () => {
     expect(html).toMatch(/^<!doctype html>\n<html lang="en">\n<head>\n/);
     expect(html).toContain("<title>Can I trust this? · Screen reader test results</title>");
-    // The bar's views are on the website's own page, and the link to this page is the current one.
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+    // The top bar: the website's name, then its three pages, of which this is the current one.
+    const bar = /<header class="bar">[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(linksOf(bar)).toEqual([
-      { href: "index.html#demo", words: "The demo" },
-      { href: "index.html#sites", words: "The sites" },
-      { href: "index.html#by-date", words: "Every report, by date" },
+      { href: "index.html", words: "ICJIA Screen Reader Tests" },
       { href: "trust.html", words: "Can I trust this?" },
+      { href: "whats-new.html", words: "What's New" },
+      { href: "technical-details.html", words: "Technical details" },
     ]);
     expect(bar).toContain('<a href="trust.html" aria-current="page">');
-    expect(html).toContain(siteFooter());
+    expect(html).toContain(`\n${siteBar("trust")}\n`);
+    // The bottom bar, with the version of the facts, and its link to this page the current one.
+    const footer = siteFooter("trust", FACTS.version);
+    expect(html).toContain(`\n${footer}\n`);
+    expect(footer).toContain('<a href="trust.html" aria-current="page">');
+    expect(footer).toContain('<span class="sr">voicecap version 0.13.2</span>');
   });
 
-  it("takes the bar's views from the content it's given, and nothing else from it", () => {
-    // One site and no demo: the bar has no link to the demo, and none to the list by date.
-    const oneSite: SiteContent = {
-      demo: null,
-      sites: [{ name: DVFR, folders: [DVFR], reports: [] }],
-    };
-    const page = pageWith({ content: oneSite });
-
-    const bar = /<nav\b[\s\S]*?<\/nav>/.exec(page)?.[0] ?? "";
-    expect(linksOf(bar).map(({ href }) => href)).toEqual(["index.html#sites", "trust.html"]);
-    // What the page says of the records is the records' facts, not the content's.
-    expect(page.replace(bar, "")).toBe(html.replace(/<nav\b[\s\S]*?<\/nav>/, ""));
+  it("opens its main part with the way back to the test results", () => {
+    expect(html).toContain(`<main id="main">\n${backLink()}\n<div class="hero">`);
   });
 
   it("puts its headings in order", () => {
@@ -327,24 +327,70 @@ describe("renderTrustPage", () => {
     }
   });
 
-  it("puts its heading in the website's banner, with its picture, and its kicker, lead, stamp, and four big numbers after it", () => {
+  it("heads the page as the audit tool's trust page: its kicker over its headline, then the lead, the stamp, and four big numbers", () => {
     const main = /<main id="main">([\s\S]*?)<\/main>/.exec(html)?.[1] ?? "";
-    const banner = /<div class="view-head"><div class="title">(<svg[\s\S]*?<\/svg>)<h1>/.exec(main);
+    const head = /<div class="hero">[\s\S]*?<\/ul>\n<\/div>/.exec(main)?.[0] ?? "";
 
-    // The picture, which a screen reader skips, is a shield with a check mark.
-    expect(banner?.[1]).toMatch(/^<svg class="icon" [^>]*aria-hidden="true">/);
     const places = [
-      '<div class="view-head">',
-      "<h1>",
+      '<div class="hero">',
       '<p class="kicker">voicecap · a human review, sped up</p>',
+      "<h1>",
       '<p class="lead">',
-      '<p class="stamp">',
+      '<div class="stamp">',
       '<ul class="tiles"',
       '<section class="part" id="does"',
     ].map((part) => main.indexOf(part));
     expect(places.every((place) => place >= 0)).toBe(true);
     expect(places).toEqual([...places].sort((a, b) => a - b));
+    // The kicker is right over the headline, as on the website's other pages: the heading is the
+    // page's headline, with no picture and no card.
+    expect(head).toMatch(/^<div class="hero">\n<p class="kicker">[^<]*<\/p>\n<h1>/);
+    expect(head).not.toContain("<svg");
+    expect(head).not.toContain("view-head");
     expect(tilesOf(html)).toHaveLength(4);
+  });
+
+  it("heads the trust page in two lines", () => {
+    // The first sentence in the headline's color, and the second, on a line of its own, in the
+    // color of what's good, as the audit tool's; one heading, read as the two sentences it is.
+    expect(/<h1>([\s\S]*?)<\/h1>/.exec(html)?.[1]).toBe(
+      'Built to be checked. <span class="good">See for yourself.</span>',
+    );
+    expect(textsOf(html, "h1")).toEqual(["Built to be checked. See for yourself."]);
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+  });
+
+  it("puts the stamp in the audit tool's box: where the numbers come from, then the records' date", () => {
+    // One box, its label first and the records' date after it, each words alone.
+    expect(html).toMatch(
+      /\n<div class="stamp"><p class="source">[^<]*<\/p><p class="date">[^<]*<\/p><\/div>\n/,
+    );
+    // The date dates the records alone, as 0.13.2's stamp said it: the counts of voicecap's own
+    // (its tests, its releases) are its release's, of the day the label gives, which is often after
+    // the newest report. One big date that read "As of" would date every count below, falsely.
+    expect(stampOf(html)).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
+      date: "Records as of 3 October 2026, 14:05",
+    });
+    // With no report, the date's side says so, and the label reads as well before it.
+    expect(stampOf(pageWith({ records: NO_REPORTS }))).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
+      date: "No report has been shared yet.",
+    });
+    // The label takes the version and its day from the facts, the date the newest share's.
+    const other = stampOf(
+      pageWith({
+        voicecap: { ...FACTS, version: "9.8.7", released: "2025-03-03" },
+        records: { ...RECORDS, newest: "2025-03-04T08:09:00-06:00" },
+      }),
+    );
+    expect(other).toEqual({
+      label:
+        "The counts below come from voicecap 9.8.7, released 3 March 2025, and from this website's records",
+      date: "Records as of 4 March 2025, 08:09",
+    });
   });
 
   it("says every number from the facts it's given", () => {
@@ -396,8 +442,8 @@ describe("renderTrustPage", () => {
       version: "9.8.7",
       released: "2025-03-03",
       releases: [
-        { version: "9.8.7", date: "2025-03-03", headline: "Another release" },
-        { version: "9.8.6", date: "2025-02-02", headline: "The one before" },
+        { version: "9.8.7", date: "2025-03-03", headline: "Another release", items: [] },
+        { version: "9.8.6", date: "2025-02-02", headline: "The one before", items: [] },
       ],
       release: {
         tests: { passed: 4321, skipped: 1007, files: 1098, system: "Linux" },
@@ -455,9 +501,11 @@ describe("renderTrustPage", () => {
   });
 
   it("stamps the version, its release date, and the newest share", () => {
-    expect(stampOf(html)).toBe(
-      "voicecap 0.13.2, released 9 October 2026 · records as of 3 October 2026, 14:05",
-    );
+    expect(stampOf(html)).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
+      date: "Records as of 3 October 2026, 14:05",
+    });
     // The newest share of every report shown, the demo's too.
     expect(RECORDS.newest).toBe(DVFR_NEWEST.at);
   });
@@ -495,15 +543,27 @@ describe("renderTrustPage", () => {
     ]);
 
     // No release date, as for a version the CHANGELOG has no entry for.
-    expect(stampOf(pageWith({ voicecap: { ...FACTS, released: null } }))).toBe(
-      "voicecap 0.13.2, whose release date isn't recorded in this build · records as of 3 October 2026, 14:05",
-    );
+    expect(stampOf(pageWith({ voicecap: { ...FACTS, released: null } }))).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, whose release date isn't recorded in this build, and from this website's records",
+      date: "Records as of 3 October 2026, 14:05",
+    });
 
     // No report at all, not even the demo's. With no file, there is nothing to say "each" of.
-    const empty = pageWith({ records: NO_REPORTS, content: { demo: null, sites: [] } });
-    expect(stampOf(empty)).toBe(
-      "voicecap 0.13.2, released 9 October 2026 · no report has been shared yet",
-    );
+    const empty = pageWith({ records: NO_REPORTS });
+    expect(stampOf(empty)).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, released 9 October 2026, and from this website's records",
+      date: "No report has been shared yet.",
+    });
+    // Neither a release date nor a report: each side says what it doesn't have.
+    expect(
+      stampOf(pageWith({ voicecap: { ...FACTS, released: null }, records: NO_REPORTS })),
+    ).toEqual({
+      label:
+        "The counts below come from voicecap 0.13.2, whose release date isn't recorded in this build, and from this website's records",
+      date: "No report has been shared yet.",
+    });
     expect(tileOf(empty, 1)).toMatchObject({
       looks: "—",
       heard: "not recorded",
@@ -524,11 +584,9 @@ describe("renderTrustPage", () => {
       newest: DEMO_REPORT.at,
     });
 
-    const page = pageWith({ records, content: demoOnly });
+    const page = pageWith({ records });
 
-    expect(stampOf(page)).toBe(
-      "voicecap 0.13.2, released 9 October 2026 · records as of 29 September 2026, 15:40",
-    );
+    expect(stampOf(page).date).toBe("Records as of 29 September 2026, 15:40");
     expect(tileOf(page, 1)).toEqual({
       looks: "—",
       heard: "not recorded",
@@ -546,7 +604,7 @@ describe("renderTrustPage", () => {
     const records = recordFactsOf(CONTENT);
     expect(records).toMatchObject({ reports: 3, reading: null });
 
-    expect(tileOf(pageWith({ records, content: CONTENT }), 1)).toEqual({
+    expect(tileOf(pageWith({ records }), 1)).toEqual({
       looks: "—",
       heard: "not recorded",
       line: "pages NVDA read in the current reports: not recorded in the shares on this website",
@@ -665,8 +723,40 @@ describe("renderTrustPage", () => {
     expect(tilesOf(html).map(({ link }) => link)).toEqual([
       { href: "#tested", words: "How it's tested" },
       { href: "index.html#sites", words: "See the reports" },
-      { href: "#evidence", words: "How to check a copy" },
+      { href: "#check", words: "How to check a copy" },
       { href: "#releases", words: "How it got here" },
+    ]);
+  });
+
+  it("colors the big numbers as the audit tool's tiles: two in --good, one in --act, one in --warn", () => {
+    const colorsOf = (page: string): string[] =>
+      [...page.matchAll(/<li class="tile"><p class="([^"]*)">/g)].map(([, names = ""]) => names);
+
+    expect(colorsOf(html)).toEqual(["n good", "n good", "n act", "n warn"]);
+    // A number that isn't recorded is a dash, in no color of its own; the others keep theirs.
+    const bare = pageWith({ voicecap: { ...FACTS, release: null }, records: NO_REPORTS });
+    expect(colorsOf(bare)).toEqual(["n none", "n none", "n act", "n warn"]);
+    expect(colorsOf(pageWith({ voicecap: { ...FACTS, releases: [] } }))[3]).toBe("n none");
+  });
+
+  it("links the files tile to how a copy is checked", () => {
+    const evidence = sectionOf(html, "evidence");
+    const check = /<li id="check">([\s\S]*?)<\/li>/.exec(evidence)?.[1] ?? "";
+
+    expect(tileOf(html, 2).link).toEqual({ href: "#check", words: "How to check a copy" });
+    // The point it goes to is the evidence part's, and the page's only element of that id.
+    expect(html.match(/\sid="check"/g)).toHaveLength(1);
+    expect(sectionOf(html, "evidence")).toContain('<li id="check">');
+    // Its steps: the two commands, PowerShell's and the Mac's, in the fixed-width font, and what to
+    // compare what they give with.
+    expect(check).toContain("<code>Get-FileHash &lt;file&gt;</code>");
+    expect(check).toContain("<code>shasum -a 256 &lt;file&gt;</code>");
+    expect(textsOf(check, "p")).toEqual([
+      "To check a copy you downloaded, run Get-FileHash <file> in PowerShell on Windows, or shasum -a 256 <file> on a Mac, and compare the fingerprint it gives with the one listed for the file on the test results page. If they match, the copy hasn't changed since it was shared. PowerShell shows the same letters in capitals.",
+    ]);
+    // And a link to where the files and their fingerprints are listed.
+    expect(linksOf(check)).toEqual([
+      { href: "index.html#sites", words: "The files and their fingerprints" },
     ]);
   });
 
@@ -688,12 +778,21 @@ describe("renderTrustPage", () => {
   it("says what it does, and that the screen reader is the real one, in the words the design gives them", () => {
     expect(textsOf(sectionOf(html, "does"), "p")).toEqual([
       "what it does",
-      "Many people who are blind or can't see well use a screen reader: software that reads what's on the screen out loud. voicecap has a real screen reader, NVDA, read every page of a website three ways (line by line, heading by heading, and control by control) and saves every word it says. A person then reads what it said, and decides what each page needs. It's a human review, sped up.",
+      "Many people who are blind or can't see well use a screen reader: software that reads what's on the screen out loud. voicecap has a real screen reader, NVDA, read each page of a website three ways (line by line, heading by heading, and control by control) and saves every word it says. A person then reads what it said, and decides what each page needs. It's a human review, sped up.",
     ]);
     expect(textsOf(sectionOf(html, "nvda"), "p")).toEqual([
       "the screen reader",
       "voicecap drives NVDA, the free screen reader many blind people use on Windows, and records exactly what it says on each page. Every transcript is NVDA's own words, so what you read is what a screen reader user hears.",
     ]);
+  });
+
+  it("says each page of a website", () => {
+    // A run reads the pages it's given, and --limit, --page, --include, and --exclude give it fewer
+    // than every page a website has: each page it reads, then, and never "every page".
+    const does = textOf(sectionOf(html, "does"));
+
+    expect(does).toContain("read each page of a website three ways");
+    expect(does).not.toMatch(/every page/i);
   });
 
   it("names the builder, and the law with its sources", () => {
@@ -735,14 +834,17 @@ describe("renderTrustPage", () => {
     expect(law).toContain(`<h3><a href="${LAW[0]}">Title II of the ADA</a></h3>`);
   });
 
-  it("says how every word can be checked, with where four of its five points are shown or described", () => {
+  it("says how every word can be checked, with where five of its six points are shown or described", () => {
     const evidence = sectionOf(html, "evidence");
 
     expect(textsOf(evidence, "p")[0]).toBe("the evidence");
     expect(pointsOf(evidence)).toEqual([
       {
+        // A run's record has the fingerprints of each page's transcripts, its screenshot, and its
+        // axe results (PageRecord.files, .screenshot, and .axe), and a report's check counts the
+        // last in those words ("9 of 9 axe results match their fingerprints").
         words:
-          "Every transcript and screenshot has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
+          "Every transcript, screenshot, and axe result has a SHA-256 fingerprint. Every run's record is sealed, and every share and every review is chained to the one before it.",
         link: { href: README.auditRecord, words: "The audit record" },
       },
       {
@@ -759,14 +861,21 @@ describe("renderTrustPage", () => {
           "Of the files shared with its reports, this website publishes only those that still match the fingerprints recorded when they were shared: 11 today, and 2 left out.",
       },
       {
+        // How to check a copy of one of them: the files tile links here.
+        words:
+          "To check a copy you downloaded, run Get-FileHash <file> in PowerShell on Windows, or shasum -a 256 <file> on a Mac, and compare the fingerprint it gives with the one listed for the file on the test results page. If they match, the copy hasn't changed since it was shared. PowerShell shows the same letters in capitals.",
+        link: { href: "index.html#sites", words: "The files and their fingerprints" },
+      },
+      {
         words:
           // A report shared with 0.7.0 offers none, so the point is of each one a report offers.
           "Each walkthrough file a report offers repeats its run, page for page, so anyone can run it again and compare.",
         link: { href: README.walkthrough, words: "The walkthrough file" },
       },
     ]);
-    // The command is in the fixed-width font.
+    // The commands are in the fixed-width font.
     expect(evidence).toContain("<code>voicecap verify</code> checks a whole audit record");
+    expect(evidence).toContain("run <code>Get-FileHash &lt;file&gt;</code> in PowerShell");
   });
 
   it("says how it's tested, from what the release recorded", () => {
@@ -787,7 +896,7 @@ describe("renderTrustPage", () => {
       },
       {
         // Only the pages whose tests run axe in both themes and at a phone's width: the shareable
-        // page (test/share-browser.test.ts) and this website's two pages
+        // page (test/share-browser.test.ts) and each of this website's own pages
         // (test/site-page-browser.test.ts). A run's own report and the demo site's pages aren't
         // checked that way, so they aren't named.
         words:
@@ -879,26 +988,28 @@ describe("renderTrustPage", () => {
 
     expect(textsOf(releases, "p")[0]).toBe("the record");
     expect(releasesIn(releases)).toEqual([
-      ["0.13.2 · 9 October 2026", "A page that shows how voicecap can be checked"],
+      ["0.13.2 9 October 2026", "A page that shows how voicecap can be checked"],
       [
-        "0.13.1 · 8 October 2026",
+        "0.13.1 8 October 2026",
         "The website's headings say more at a glance, and each site links to the site itself",
       ],
-      [
-        "0.13.0 · 8 October 2026",
-        "The shareable page has a new order, and its Word copy follows it",
-      ],
+      ["0.13.0 8 October 2026", "The shareable page has a new order, and its Word copy follows it"],
     ]);
-    // Each date is a time, which holds the day it names.
-    expect(releases).toContain('<time datetime="2026-10-09">9 October 2026</time>');
-    // Three is fewer than five: nothing is folded.
+    // Each version is a pill in --good, as on What's New, and each date a time, which holds the day
+    // it names.
+    expect(releases).toContain(
+      '<p class="on"><span class="pill good">0.13.2</span> <time datetime="2026-10-09">9 October 2026</time></p>',
+    );
+    expect(versionsIn(releases)).toEqual(["0.13.2", "0.13.1", "0.13.0"]);
+    // Three is fewer than five: nothing is left for What's New to show, so the CHANGELOG is the one
+    // link.
     expect(releases).not.toContain("<details");
     expect(linksOf(releases)).toEqual([{ href: CHANGELOG, words: "The full CHANGELOG" }]);
   });
 
   it("says nothing after a release's date when its entry has no headline", () => {
     const releases = [
-      { version: "0.13.2", date: "2026-10-09", headline: "" },
+      { version: "0.13.2", date: "2026-10-09", headline: "", items: [] },
       ...FACTS.releases.slice(1),
     ];
 
@@ -906,58 +1017,62 @@ describe("renderTrustPage", () => {
       sectionOf(pageWith({ voicecap: { ...FACTS, releases } }), "releases"),
     );
 
-    expect(listed[0]).toEqual(["0.13.2 · 9 October 2026"]);
+    expect(listed[0]).toEqual(["0.13.2 9 October 2026"]);
     expect(listed[1]).toHaveLength(2);
   });
 
-  it("shows the newest five releases, and folds the rest", () => {
+  it("lists the newest five releases, then a link to the rest", () => {
     const seven = [...FACTS.releases, ...EARLIER_RELEASES];
-    const section = sectionOf(pageWith({ voicecap: { ...FACTS, releases: seven } }), "releases");
-    const fold = /<details class="fold">([\s\S]*?)<\/details>/.exec(section)?.[0] ?? "";
+    const sectionWith = (releases: typeof seven): string =>
+      sectionOf(pageWith({ voicecap: { ...FACTS, releases } }), "releases");
+    const section = sectionWith(seven);
 
-    expect(versionsIn(section.replace(fold, ""))).toEqual([
-      "0.13.2",
-      "0.13.1",
-      "0.13.0",
-      "0.12.3",
-      "0.12.2",
+    // The newest five, and no fold: the rest are on What's New, which the link after them says how
+    // many releases it has, before the link to the CHANGELOG.
+    expect(versionsIn(section)).toEqual(["0.13.2", "0.13.1", "0.13.0", "0.12.3", "0.12.2"]);
+    expect(section.match(/<li>/g)).toHaveLength(5);
+    expect(section).not.toContain("<details");
+    expect(section).not.toContain("<summary");
+    expect(linksOf(section)).toEqual([
+      { href: "whats-new.html", words: "See all 7 releases" },
+      { href: CHANGELOG, words: "The full CHANGELOG" },
     ]);
-    expect(versionsIn(fold)).toEqual(["0.12.1", "0.12.0"]);
-    expect(textsOf(fold, "summary")).toEqual(["Every earlier release (2)"]);
-    // The fold is closed until a reader opens it, and comes before the link to the CHANGELOG.
-    expect(fold).toMatch(/^<details class="fold">\n?<summary>/);
-    expect(section.indexOf(fold)).toBeLessThan(section.indexOf(CHANGELOG));
+    // The two links are a line after the list, set apart by a dot a screen reader skips, after a
+    // space that doesn't break, so the dot ends a line rather than start one.
+    expect(section).toContain(
+      `</ol>\n<p class="more"><a href="whats-new.html">See all 7 releases</a>\u00a0<span class="sep" aria-hidden="true">·</span> <a href="${CHANGELOG}">The full CHANGELOG</a></p>`,
+    );
+    // Its count is the releases'.
+    expect(linksOf(sectionWith(seven.slice(0, 6)))[0]).toEqual({
+      href: "whats-new.html",
+      words: "See all 6 releases",
+    });
 
-    // Five are shown with nothing folded, and a sixth is folded alone.
-    const five = sectionOf(
-      pageWith({ voicecap: { ...FACTS, releases: seven.slice(0, 5) } }),
-      "releases",
-    );
-    expect(five).not.toContain("<details");
-    expect(versionsIn(five)).toHaveLength(5);
-    const six = sectionOf(
-      pageWith({ voicecap: { ...FACTS, releases: seven.slice(0, 6) } }),
-      "releases",
-    );
-    expect(textsOf(six, "summary")).toEqual(["Every earlier release (1)"]);
+    // With five or fewer, every one is listed, and there's no link to the rest.
+    for (const shown of [5, 3, 1]) {
+      const fewer = sectionWith(seven.slice(0, shown));
+      expect(versionsIn(fewer), `${shown}`).toHaveLength(shown);
+      expect(linksOf(fewer), `${shown}`).toEqual([
+        { href: CHANGELOG, words: "The full CHANGELOG" },
+      ]);
+      expect(fewer, `${shown}`).not.toContain("whats-new.html");
+    }
   });
 
-  it("ends its main part with a line of links to voicecap and its version, above the footer", () => {
-    const main = /<main id="main">([\s\S]*?)<\/main>/.exec(html)?.[1] ?? "";
-    const line = /<p class="links">([\s\S]*?)<\/p>\s*$/.exec(main)?.[1] ?? "";
+  it("ends its main part with how it got here, and leaves GitHub, the CHANGELOG, and the version to the bottom bar", () => {
+    const main = /<main id="main">\n([\s\S]*?)\n<\/main>/.exec(html)?.[1] ?? "";
 
-    expect(linksOf(line)).toEqual([
-      { href: GITHUB, words: "voicecap on GitHub" },
-      { href: CHANGELOG, words: "The CHANGELOG" },
-      { href: NPM, words: "voicecap on npm" },
-    ]);
-    // A reader sees a dot between each two, which a screen reader skips; the version ends the line.
-    expect(seen(line)).toBe(
-      "voicecap on GitHub · The CHANGELOG · voicecap on npm · voicecap 0.13.2",
+    // The last part is the releases', and no line of links follows it: the bottom bar, on every page,
+    // links to voicecap on GitHub and to its CHANGELOG, and says the version.
+    expect(main.endsWith("</section>")).toBe(true);
+    expect(main.lastIndexOf("<section")).toBe(main.indexOf('<section class="part" id="releases"'));
+    expect(main).not.toContain('class="links"');
+    expect(textOf(markupOf(main))).not.toContain("voicecap on npm");
+    const footer = bottomBarOf(html);
+    expect(linksOf(footer).map(({ href }) => href)).toEqual(
+      expect.arrayContaining([GITHUB, CHANGELOG]),
     );
-    expect(textOf(line.replace(/<span class="sep" aria-hidden="true">·<\/span>/g, ""))).toBe(
-      "voicecap on GitHub The CHANGELOG voicecap on npm voicecap 0.13.2",
-    );
+    expect(heard(footer)).toContain("voicecap version 0.13.2");
   });
 
   it("links only where it says", () => {
@@ -968,15 +1083,15 @@ describe("renderTrustPage", () => {
     const allowed = new Set([
       "#main",
       "#tested",
-      "#evidence",
+      "#check",
       "#releases",
-      "index.html#demo",
+      "index.html",
       "index.html#sites",
-      "index.html#by-date",
       "trust.html",
+      "whats-new.html",
+      "technical-details.html",
       GITHUB,
       CHANGELOG,
-      NPM,
       ...Object.values(README),
       ...LAW,
     ]);
@@ -984,9 +1099,13 @@ describe("renderTrustPage", () => {
     for (const page of pages) {
       const hrefs = linksOf(page).map(({ href }) => href);
       expect(hrefs.filter((href) => !allowed.has(href))).toEqual([]);
-      // And it links to each of them: the bar's views (a demo and two sites), its own parts, the
-      // README's, the law's sources, GitHub, the CHANGELOG, and npm.
+      // And it links to each of them: the website's pages, from its bars and its way back, and
+      // What's New from its releases too, when it has more than five; the reports on the front
+      // page; its own parts, the README's, the law's sources, GitHub, and the CHANGELOG. voicecap's
+      // page on npm isn't among them: its line of links went with 0.15.0, and Technical details'
+      // toolchain table links it, in voicecap's own row.
       expect(new Set(hrefs)).toEqual(allowed);
+      expect(hrefs).not.toContain(NPM);
       // Each of its own anchors lands on something in the page.
       for (const href of hrefs.filter((each) => each.startsWith("#"))) {
         expect(page, href).toContain(`id="${href.slice(1)}"`);
@@ -998,8 +1117,8 @@ describe("renderTrustPage", () => {
     const pages = [
       html,
       pageWith({ voicecap: { ...FACTS, release: null, released: null } }),
-      pageWith({ records: NO_REPORTS, content: { demo: null, sites: [] } }),
-      pageWith({ records: recordFactsOf(CONTENT), content: CONTENT }),
+      pageWith({ records: NO_REPORTS }),
+      pageWith({ records: recordFactsOf(CONTENT) }),
       pageWith({ voicecap: { ...FACTS, releases: [] } }),
     ];
 
@@ -1021,7 +1140,7 @@ describe("renderTrustPage", () => {
         ...FACTS,
         version: "0.13.2<i>x</i>",
         releases: [
-          { version: "0.13.2<u>x</u>", date: "2026-10-09", headline: hostile },
+          { version: "0.13.2<u>x</u>", date: "2026-10-09", headline: hostile, items: [] },
           ...FACTS.releases.slice(1),
         ],
         release: {

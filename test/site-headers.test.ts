@@ -349,6 +349,18 @@ describe("contentSecurityPolicy", () => {
     );
   });
 
+  it("allows fonts as data: by default, and none when asked", () => {
+    const hashes = { styles: [STYLE], scripts: [SCRIPT_ONE] };
+
+    // A shared report embeds its fonts, as data: URIs. The website's own pages embed none.
+    expect(contentSecurityPolicy(hashes)).toContain("; font-src data:;");
+    expect(contentSecurityPolicy(hashes, { fonts: true })).toBe(contentSecurityPolicy(hashes));
+    expect(contentSecurityPolicy(hashes, {})).toBe(contentSecurityPolicy(hashes));
+    expect(contentSecurityPolicy(hashes, { fonts: false })).toBe(
+      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; font-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    );
+  });
+
   it("allows the code of the shareable page by its own hashes", async () => {
     const page = renderSharePage(await demoModel(), { fontCss: "" });
     const policy = contentSecurityPolicy(inlineHashes(page));

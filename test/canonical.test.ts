@@ -15,7 +15,7 @@ import {
 import { UsageError, errorMessage } from "../src/util/errors.js";
 
 /** The demo's canonical address, and the address its runs read it at. */
-const demoRoot = "https://voicecap.netlify.app/demo-site/";
+const demoRoot = "https://voicecap.icjia.app/demo-site/";
 const demoOrigin = "http://127.0.0.1:4848";
 
 /** What `normalizeCanonical` throws for `input`. The test fails when it doesn't throw. */
@@ -212,7 +212,7 @@ describe("canonicalRootFrom", () => {
     expect(
       canonicalRootFrom(
         "http://127.0.0.1:4848/before-you-start/",
-        "https://voicecap.netlify.app/demo-site/before-you-start/",
+        "https://voicecap.icjia.app/demo-site/before-you-start/",
       ),
     ).toBe(demoRoot);
   });
@@ -389,7 +389,7 @@ describe("toCanonical", () => {
   it("keeps a page's path and query on the root, and drops its hash", () => {
     expect(
       toCanonical("http://127.0.0.1:4848/before-you-start/?q=1#top", demoOrigin, demoRoot),
-    ).toBe("https://voicecap.netlify.app/demo-site/before-you-start/?q=1");
+    ).toBe("https://voicecap.icjia.app/demo-site/before-you-start/?q=1");
   });
 
   it("leaves an address on another origin as it was", () => {
@@ -413,7 +413,7 @@ describe("toCanonical", () => {
 
   it("takes the read origin with a trailing slash too", () => {
     expect(toCanonical("http://127.0.0.1:4848/a/", `${demoOrigin}/`, demoRoot)).toBe(
-      "https://voicecap.netlify.app/demo-site/a/",
+      "https://voicecap.icjia.app/demo-site/a/",
     );
   });
 
@@ -465,18 +465,18 @@ describe("toCanonical", () => {
 
     it("puts the page of a copy that has its own paths under the root, as the demo's are", () => {
       expect(toCanonical("http://127.0.0.1:4848/before-you-start/", demoOrigin, demoRoot)).toBe(
-        "https://voicecap.netlify.app/demo-site/before-you-start/",
+        "https://voicecap.icjia.app/demo-site/before-you-start/",
       );
     });
 
     it("keeps the published demo's pages as they are when it was read itself", () => {
       expect(
         toCanonical(
-          "https://voicecap.netlify.app/demo-site/before-you-start/",
-          "https://voicecap.netlify.app",
+          "https://voicecap.icjia.app/demo-site/before-you-start/",
+          "https://voicecap.icjia.app",
           demoRoot,
         ),
-      ).toBe("https://voicecap.netlify.app/demo-site/before-you-start/");
+      ).toBe("https://voicecap.icjia.app/demo-site/before-you-start/");
     });
 
     it("puts a page whose path only starts with the same letters under the root", () => {
@@ -489,7 +489,7 @@ describe("toCanonical", () => {
 
 describe("canonicalName", () => {
   it("is a plain host", () => {
-    expect(canonicalName(demoRoot)).toBe("voicecap.netlify.app");
+    expect(canonicalName(demoRoot)).toBe("voicecap.icjia.app");
   });
 
   it("keeps a port", () => {
@@ -513,7 +513,7 @@ describe("isLocalHost", () => {
   });
 
   it("is false for the names people visit", () => {
-    for (const host of ["dvfr.illinois.gov", "voicecap.netlify.app", "localhost.example.org"]) {
+    for (const host of ["dvfr.illinois.gov", "voicecap.icjia.app", "localhost.example.org"]) {
       expect(isLocalHost(host), host).toBe(false);
     }
   });
@@ -559,7 +559,7 @@ describe("readLocation", () => {
 
   it("is same when the run read the canonical site itself", () => {
     expect(readLocation("https://dvfr.illinois.gov", dvfr)).toBe("same");
-    expect(readLocation("https://voicecap.netlify.app", demoRoot)).toBe("same");
+    expect(readLocation("https://voicecap.icjia.app", demoRoot)).toBe("same");
   });
 
   // Ruling P20: the sentence the page says of a copy has to be true. The site over http, or with or
@@ -571,7 +571,7 @@ describe("readLocation", () => {
     expect(readLocation("https://dvfr.illinois.gov", "https://www.dvfr.illinois.gov/")).toBe(
       "same",
     );
-    expect(readLocation("http://voicecap.netlify.app", demoRoot)).toBe("same");
+    expect(readLocation("http://voicecap.icjia.app", demoRoot)).toBe("same");
   });
 
   it("is elsewhere when the port, or more than a www. of the host, differs", () => {

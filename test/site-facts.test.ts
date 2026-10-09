@@ -1,10 +1,11 @@
 /**
- * The facts the website's "Can I trust this?" page states (src/site/facts.ts). Of voicecap: its
- * version, from its package.json; each release with its date and first line, from its CHANGELOG;
- * and the facts its release recorded (the release's own count of tests passed, the commits behind
- * it, and where CI runs), from release-facts.json. Of the records: how many sites and reports the
- * website shows, how many pages NVDA read in their current reports, how many files it publishes
- * and leaves out, and when the newest was shared.
+ * The facts the website's "Can I trust this?" page and its What's New page state (src/site/facts.ts).
+ * Of voicecap: its version, from its package.json; each release with its date, first line, and
+ * points, from its CHANGELOG (how that is read is in test/site-changelog.test.ts); and the facts its
+ * release recorded (the release's own count of tests passed, the commits behind it, and where CI
+ * runs), from release-facts.json. Of the records: how many sites and reports the website shows, how
+ * many pages NVDA read in their current reports, how many files it publishes and leaves out, and
+ * when the newest was shared.
  *
  * Every fact is read or counted, never typed, and one that isn't there is null, never a guess: a
  * release-facts.json that is missing, or isn't in the form publish.sh writes, gives "not recorded",
@@ -21,7 +22,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { ShareResult } from "../src/model.js";
 import {
-  parseChangelog,
   parseReleaseFacts,
   readVoicecapFacts,
   recordFactsOf,
@@ -45,8 +45,9 @@ import {
   published,
 } from "./helpers/site-content.js";
 
-/** The module under test, as a file to copy (see `readFrom`). */
+/** The module under test, and the CHANGELOG's reader it imports, as files to copy (see `readFrom`). */
 const MODULE = fileURLToPath(new URL("../src/site/facts.ts", import.meta.url));
+const CHANGELOG_MODULE = fileURLToPath(new URL("../src/site/changelog.ts", import.meta.url));
 
 /** A CHANGELOG as voicecap keeps one: the unreleased heading, then each release, newest first. */
 const CHANGELOG = [
@@ -78,174 +79,27 @@ const CHANGELOG = [
   "",
 ].join("\n");
 
-/** What `CHANGELOG` comes to. */
+/** What `CHANGELOG` comes to: how it's read is in test/site-changelog.test.ts. */
 const RELEASES: VoicecapRelease[] = [
   {
     version: "0.13.1",
     date: "2026-10-08",
     headline: "The website's headings say more at a glance, and each site links to the site itself",
+    items: [['Each site\'s name has "Visit the site" beside it']],
   },
-  { version: "0.10.0", date: "2026-10-05", headline: "Canonical site names" },
-  { version: "0.4.1", date: "2026-09-29", headline: "--sitemap takes a sitemap's name or path" },
+  {
+    version: "0.10.0",
+    date: "2026-10-05",
+    headline: "Canonical site names",
+    items: [["Another thing"]],
+  },
+  {
+    version: "0.4.1",
+    date: "2026-09-29",
+    headline: "--sitemap takes a sitemap's name or path",
+    items: [],
+  },
 ];
-
-/** A CHANGELOG of one release, `body` being what is under its heading. */
-function changelogOf(body: string): string {
-  return `## [1.0.0] - 2026-01-01\n\n${body}\n`;
-}
-
-/** The headline of the one release that `changelogOf(body)` makes. */
-function headlineOf(body: string): string | undefined {
-  return parseChangelog(changelogOf(body))[0]?.headline;
-}
-
-describe("parseChangelog", () => {
-  it("reads each dated release, newest first, with its first line", () => {
-    expect(parseChangelog(CHANGELOG)).toEqual(RELEASES);
-  });
-
-  it("reads a CHANGELOG written with Windows line endings the same", () => {
-    expect(parseChangelog(CHANGELOG.replace(/\n/g, "\r\n"))).toEqual(RELEASES);
-  });
-
-  it("reads the real CHANGELOG", async () => {
-    const text = await readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8");
-    const { version } = JSON.parse(
-      await readFile(new URL("../package.json", import.meta.url), "utf8"),
-    ) as { version: string };
-    const releases = parseChangelog(text);
-    // Between "Prepare x.y.z" and "Release vx.y.z" the CHANGELOG's newest entry is a version ahead
-    // of package.json, so the installed version is one of the entries, not always the first.
-    expect(releases.map((release) => release.version)).toContain(version);
-    for (const { version, date, headline } of releases) {
-      expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(headline).not.toBe("");
-      // Plain text: no code marks, no bold, and no link markup left in it.
-      expect(headline).not.toMatch(/`|\*\*|\]\(/);
-      // The trust page prints each headline, so none may name Guidepup or say a person listened.
-      expect(headline, version).not.toMatch(/guidepup|listen/i);
-    }
-  });
-
-  it("skips what isn't a dated release", () => {
-    expect(
-      parseChangelog("## [0.14.0]\n\n- **Soon.**\n\n## [Unreleased]\n\n- **Later.**\n"),
-    ).toEqual([]);
-  });
-
-  it.each([
-    ["a version with no date", "## [0.14.0]"],
-    ["a date that isn't one", "## [0.14.0] - soon"],
-    ["a date written another way", "## [0.14.0] - 2026-10-9"],
-    ["a month the calendar doesn't have", "## [0.14.0] - 2026-13-01"],
-    ["a day the calendar doesn't have", "## [0.14.0] - 2026-02-30"],
-    ["a version of two numbers", "## [0.14] - 2026-10-08"],
-    ["a version with no brackets", "## 0.14.0 - 2026-10-08"],
-    ["a heading of another level", "### [0.14.0] - 2026-10-08"],
-    ["a heading that doesn't start its line", " ## [0.14.0] - 2026-10-08"],
-    ["a heading with more after the date", "## [0.14.0] - 2026-10-08 [YANKED]"],
-  ])("skips %s", (_name, heading) => {
-    expect(parseChangelog(`${heading}\n\n- **Words.**\n`)).toEqual([]);
-  });
-
-  it("ends a release at the next heading, whatever it is", () => {
-    const text = [
-      "## [0.3.0] - 2026-09-28",
-      "",
-      "## [Unreleased]",
-      "",
-      "- **Soon.**",
-      "",
-      "## [0.2.0] - 2026-09-27",
-      "",
-      "## [0.1.0] - 2026-09-26",
-      "",
-      "Phase A: everything.",
-      "",
-    ].join("\n");
-    // A release with nothing under its heading is still a release, with no first line to give.
-    expect(parseChangelog(text)).toEqual([
-      { version: "0.3.0", date: "2026-09-28", headline: "" },
-      { version: "0.2.0", date: "2026-09-27", headline: "" },
-      { version: "0.1.0", date: "2026-09-26", headline: "Phase A" },
-    ]);
-  });
-
-  it("gives nothing for a CHANGELOG with no release in it", () => {
-    expect(parseChangelog("")).toEqual([]);
-    expect(parseChangelog("# Changelog\n\nNothing yet.\n")).toEqual([]);
-  });
-
-  describe("words a headline as plain text", () => {
-    it.each([
-      [
-        "a bold bullet's words, less the comma that closes them",
-        "- **It has a new order,** so a manager meets the result first.",
-        "It has a new order",
-      ],
-      [
-        "a bold bullet's words, less the period that closes them",
-        "- **It has a new order.** The README says so.",
-        "It has a new order",
-      ],
-      [
-        "a bold bullet's words alone, when a colon follows them",
-        "- **A preflight check at the start of `init`**: before any question, it shows details.",
-        "A preflight check at the start of init",
-      ],
-      [
-        "a bold bullet's words, with a link as its words",
-        "- **See [the README](README.md#the-website) for it.** More.",
-        "See the README for it",
-      ],
-      [
-        "a bullet that isn't bold, up to its first colon",
-        "- Plain bullet: with detail.",
-        "Plain bullet",
-      ],
-      ["a bullet marked with a star", "* **Starred bullet.** With detail.", "Starred bullet"],
-      [
-        "a paragraph that starts with bold words, as a bold bullet does",
-        "**Phase C.** The Mac comes later.",
-        "Phase C",
-      ],
-      [
-        "a paragraph, up to its first colon",
-        "Phase B: the real NVDA driver, checked with NVDA 2026.2.",
-        "Phase B",
-      ],
-      [
-        "a paragraph, up to its first period and space",
-        "Each run records an event log. The page shows it: minute by minute.",
-        "Each run records an event log",
-      ],
-      ["a paragraph, up to whichever of the two comes first", "It works. Then: more.", "It works"],
-      [
-        "a paragraph, with code and a link as plain words",
-        "The [website](https://example.org/): `voicecap site` writes a site. Later.",
-        "The website",
-      ],
-      [
-        "a paragraph with no colon or period and space, all of it",
-        "One thing only",
-        "One thing only",
-      ],
-      [
-        "a paragraph whose points are in a number, not at a sentence's end",
-        "NVDA 2026.2 on Windows 11",
-        "NVDA 2026.2 on Windows 11",
-      ],
-    ])("takes %s", (_name, body, headline) => {
-      expect(headlineOf(body)).toBe(headline);
-    });
-
-    it("takes the first line that isn't blank or a heading, and no later one", () => {
-      // A line of only spaces or a tab is as blank as an empty one.
-      const body = "  \n\t\n### Added\n\n### Changed\n\nFirst: line.\nSecond: line.";
-      expect(headlineOf(body)).toBe("First");
-    });
-  });
-});
 
 /** The facts publish.sh records, as release-facts.json holds them. */
 const FILE_FACTS = {
@@ -423,8 +277,8 @@ describe("voicecapFactsOf", () => {
       version: "0.13.2",
       released: "2026-10-09",
       releases: [
-        { version: "0.13.2", date: "2026-10-09", headline: "The trust page" },
-        { version: "0.13.1", date: "2026-10-08", headline: "Banners" },
+        { version: "0.13.2", date: "2026-10-09", headline: "The trust page", items: [] },
+        { version: "0.13.1", date: "2026-10-08", headline: "Banners", items: [] },
       ],
       release: RELEASE_FACTS,
     });
@@ -507,7 +361,8 @@ describe("readVoicecapFacts", () => {
      * published package keeps the module at dist/site/facts.js, package.json and CHANGELOG.md at
      * its root, and the release's facts at dist/release-facts.json, beside dist/site/, and the
      * module reads the files beside it. No test builds a package, so this lays one out, with a
-     * copy of the module (which imports only types, so it stands alone) to read it.
+     * copy of the module and of the CHANGELOG's reader beside it (which import only types and each
+     * other, so the two stand alone) to read it.
      */
     async function readFrom(layout: Record<string, string | null>): Promise<VoicecapFacts> {
       packages += 1;
@@ -520,6 +375,10 @@ describe("readVoicecapFacts", () => {
       const copy = path.join(root, "dist", "site", "facts.ts");
       await mkdir(path.dirname(copy), { recursive: true });
       await copyFile(MODULE, copy);
+      await copyFile(CHANGELOG_MODULE, path.join(path.dirname(copy), "changelog.ts"));
+      // Vite reads the nearest package.json when it resolves the module's import of its neighbor,
+      // and the package's own may be broken on purpose (the module never reads this one).
+      await writeFile(path.join(path.dirname(copy), "package.json"), "{}\n");
       const built = (await import(
         /* @vite-ignore */ pathToFileURL(copy).href
       )) as typeof FactsModule;

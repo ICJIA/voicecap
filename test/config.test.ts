@@ -99,8 +99,8 @@ describe("loadConfig", () => {
     expect(root("https://dvfr.illinois.gov/")).toBe("https://dvfr.illinois.gov/");
     // Written the short way, or without its closing slash, or with more than a root: the root.
     expect(root("dvfr.illinois.gov")).toBe("https://dvfr.illinois.gov/");
-    expect(root("https://voicecap.netlify.app/demo-site")).toBe(
-      "https://voicecap.netlify.app/demo-site/",
+    expect(root("https://voicecap.icjia.app/demo-site")).toBe(
+      "https://voicecap.icjia.app/demo-site/",
     );
     expect(root("https://dvfr.illinois.gov/about/?x=1#top")).toBe(
       "https://dvfr.illinois.gov/about/",

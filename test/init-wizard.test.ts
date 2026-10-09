@@ -905,11 +905,11 @@ describe("runWizard, for the site's canonical address", () => {
     expect(result.command).toBe(`${LOCAL} --canonical https://dvfr.illinois.gov/ ${LOCAL_PAGE}`);
   });
 
-  // Ruling P21. The demo's home page names https://voicecap.netlify.app/demo-site/, which init sets
+  // Ruling P21. The demo's home page names https://voicecap.icjia.app/demo-site/, which init sets
   // aside (a root with a path) but offers: an answer of the host alone would beat the inner pages'
   // tags, and name every page on the wrong path.
   describe("when the home page names a root with a path", () => {
-    const DEMO_ROOT = "https://voicecap.netlify.app/demo-site/";
+    const DEMO_ROOT = "https://voicecap.icjia.app/demo-site/";
     const OFFER = `${CANONICAL_QUESTION} Its home page names ${DEMO_ROOT}: press Enter to use that. [${DEMO_ROOT}]: `;
     const demoCopy = () => copyAt("http://localhost:3000", tag(DEMO_ROOT));
 
@@ -1037,12 +1037,12 @@ describe("runWizard, for the site's canonical address", () => {
 
   it("writes the root with its path, as the command gives it", async () => {
     const { result } = await session(
-      ["http://localhost:3000", "voicecap.netlify.app/demo-site", "", "", "", ""],
+      ["http://localhost:3000", "voicecap.icjia.app/demo-site", "", "", "", ""],
       { fetch: copyAt("http://localhost:3000") },
     );
 
     expect(result.command).toBe(
-      `${LOCAL} --canonical https://voicecap.netlify.app/demo-site/ ${LOCAL_PAGE}`,
+      `${LOCAL} --canonical https://voicecap.icjia.app/demo-site/ ${LOCAL_PAGE}`,
     );
   });
 

@@ -28,12 +28,12 @@ export const FIXTURE_FOLDER = "127.0.0.1_4848";
 /** The address the fixture's runs read: the site that `voicecap share` is asked to share. */
 export const FIXTURE_SITE = "http://127.0.0.1:4848";
 /** The demo's canonical address, which each share names the fixture's site by. */
-export const FIXTURE_CANONICAL = "https://voicecap.netlify.app/demo-site/";
+export const FIXTURE_CANONICAL = "https://voicecap.icjia.app/demo-site/";
 /**
  * The fixture site's canonical name: what its shares name their files after, and the website heads
  * its reports with.
  */
-export const FIXTURE_NAME = "voicecap.netlify.app";
+export const FIXTURE_NAME = "voicecap.icjia.app";
 /** The site whose one report is written by hand. */
 export const EXAMPLE_FOLDER = "example.illinois.gov";
 /** The name its page and its Word copy have, without the extension. */
@@ -110,7 +110,7 @@ function namingTheDemo(): LoadedConfig {
  * and the folder it's in is the caller's.
  *
  * - The fixture site's folder, shared twice on the same day, named by the demo's canonical address
- *   (`voicecap.netlify.app_2027-01-15` and `voicecap.netlify.app_2027-01-15-2`), each share a page,
+ *   (`voicecap.icjia.app_2027-01-15` and `voicecap.icjia.app_2027-01-15-2`), each share a page,
  *   its Word copy, and the walkthrough file of each of the two runs that count.
  * - `example.illinois.gov/`, with a date folder, and a record sealed by hand of one report made on
  *   13 January: a small page and a Word copy, which are in its share/ folder.

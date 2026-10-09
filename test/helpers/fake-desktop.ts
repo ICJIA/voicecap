@@ -54,6 +54,11 @@ export class FakeDesktop {
   /** Whether asking the browser window to come forward works. */
   raiseWorks = true;
   /**
+   * The other window closes when it gets Escape, as Windows Search and the Start menu do: the
+   * browser, which was behind it, is in front again, and can be raised.
+   */
+  otherClosesOnEscape = false;
+  /**
    * The other window keeps changing (a terminal with a spinner, say), so NVDA keeps talking while
    * it's in front, and Guidepup, which waits for silence before each captured command, hangs.
    */
@@ -190,6 +195,11 @@ export class FakeDesktop {
     this.beforeKey?.(key);
     if (this.front !== "browser") {
       this.strayKeys.push(key);
+      if (key === "exitFocusMode" && this.otherClosesOnEscape) {
+        this.events.push("other:closed");
+        this.raiseWorks = true;
+        this.front = "browser";
+      }
       return `${this.otherTitle} reacts to ${key}`;
     }
     this.events.push(`key:${key}`);

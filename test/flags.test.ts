@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { FocusedElement } from "../src/drivers/types.js";
 import {
+  BUILT_IN_RULES,
   contentSteps,
   evaluateFlags,
   flagItemLines,
@@ -73,6 +74,23 @@ function tab(stops: { spoken: string; focused: FocusedElement }[]): PassData {
 
 const rulesOf = (flags: ReturnType<typeof evaluateFlags>) =>
   flags.map((flag) => `${flag.rule}:${flag.pass}`);
+
+describe("the built-in rules", () => {
+  it("lists every built-in rule once, and each has its settings", () => {
+    // A rule's id in camelCase is the name of its settings in the config: generic-link-text's are
+    // flags.genericLinkText. The config's flags hold the built-in rules' settings, and the custom
+    // rules, which are no built-in rule.
+    const camelCase = (id: string): string =>
+      id.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
+
+    expect(new Set(BUILT_IN_RULES).size).toBe(BUILT_IN_RULES.length);
+    expect(BUILT_IN_RULES.map(camelCase).sort()).toEqual(
+      Object.keys(DEFAULT_CONFIG.flags)
+        .filter((key) => key !== "custom")
+        .sort(),
+    );
+  });
+});
 
 describe("generic link text", () => {
   it("flags repeated generic links in browse and focus phrasing", () => {
@@ -408,6 +426,112 @@ describe("repeated phrases", () => {
       "out of list, content info landmark, © 2026",
     ]);
     expect(evaluateFlags({ read: data }, rules)).toEqual([]);
+  });
+});
+
+// A read pass that stopped for the repeat limit presses Ctrl+End once more, as a step of its own (see
+// readPass), and ends "end-reached" when the page's end moved as it was read: r3.illinois.gov's
+// "Scroll to top" button, shown at the very end once the page is scrolled down.
+describe("a read pass that looked at the end of the page again", () => {
+  const scrollToTop = Array.from({ length: 10 }, () => "button, Scroll to top");
+
+  /**
+   * A read: what Ctrl+End said first, the lines read, and what a second Ctrl+End said (null: the pass
+   * pressed none), with the pass's stop reason.
+   */
+  function looked(
+    first: string,
+    lines: string[],
+    second: string | null,
+    stopReason: StopReason,
+  ): PassData {
+    return {
+      stopReason,
+      steps: [
+        ...steps("toBottom", [first]),
+        ...steps("toTop", [lines[0] ?? ""]),
+        ...steps("nextLine", lines.slice(1)),
+        ...(second === null ? [] : steps("toBottom", [second])),
+      ],
+    };
+  }
+
+  const FOOTER = "site footer, content info landmark, link, Contact";
+  const moved = looked(
+    FOOTER,
+    ["banner landmark, link, Home", "heading, level 1, Meetings", "link, Contact", ...scrollToTop],
+    "button, Scroll to top",
+    "end-reached",
+  );
+
+  it("raises no read-not-finished, and no repeated-phrase for the run of the page's last line", () => {
+    expect(evaluateFlags({ read: moved }, rules)).toEqual([]);
+  });
+
+  it("leaves out both Ctrl+End steps and the repeats, and keeps the last line once", () => {
+    expect(contentSteps("read", moved).map((step) => step.spoken)).toEqual([
+      "banner landmark, link, Home",
+      "heading, level 1, Meetings",
+      "link, Contact",
+      "button, Scroll to top",
+    ]);
+  });
+
+  it("raises neither flag for the run of the last line at the first end, where no look is made", () => {
+    const first = looked(
+      "link, Contact",
+      ["link, Home", "link, Contact", "link, Contact", "link, Contact"],
+      null,
+      "end-reached",
+    );
+
+    expect(evaluateFlags({ read: first }, rules)).toEqual([]);
+  });
+
+  it("still raises a repeat elsewhere on the page, at the first end or the moved one", () => {
+    const skips = Array.from({ length: 5 }, () => "link, Skip");
+    const lines = ["banner landmark, link, Home", ...skips, "link, Contact"];
+    const atFirstEnd = looked(
+      "link, Contact",
+      [...lines, "link, Contact", "link, Contact"],
+      null,
+      "end-reached",
+    );
+    const atMovedEnd = looked(
+      FOOTER,
+      [...lines, ...scrollToTop],
+      "button, Scroll to top",
+      "end-reached",
+    );
+
+    for (const read of [atFirstEnd, atMovedEnd]) {
+      const flags = evaluateFlags({ read }, rules);
+      expect(rulesOf(flags)).toContain("repeated-phrase:read");
+      expect(flags.find((flag) => flag.rule === "repeated-phrase")?.count).toBe(5);
+      expect(rulesOf(flags)).not.toContain("read-not-finished:read");
+    }
+  });
+
+  it("raises both flags for a read that ended at the repeat limit, whatever the look said", () => {
+    const stuck = looked(
+      "© 2026 Agency",
+      ["heading, level 1, Meetings", ...Array.from({ length: 10 }, () => "link, Read more")],
+      "© 2026 Agency",
+      "repeat-limit",
+    );
+    const passes = { read: stuck };
+    const flags = evaluateFlags(passes, rules);
+
+    expect(rulesOf(flags)).toContain("read-not-finished:read");
+    const repeated = flags.find((flag) => flag.rule === "repeated-phrase")!;
+    expect(repeated.count).toBe(10);
+    expect(repeated.message).toBe(
+      '"link, Read more" repeated 10 times in a row in the read pass (possible focus trap or duplicated content).',
+    );
+    // The line the pass stopped on is the last one read, never what the second Ctrl+End said.
+    const notFinished = flags.find((flag) => flag.rule === "read-not-finished")!;
+    expect(flagQuotes(passes, rules, notFinished)).toEqual(["link, Read more"]);
+    expect(flagQuotes(passes, rules, repeated)).toEqual(["link, Read more"]);
   });
 });
 

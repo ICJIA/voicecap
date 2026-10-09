@@ -863,23 +863,29 @@ describe("renderSharePage", () => {
   });
 
   it("adds no line, and no change, for a run from before 0.18.0", async () => {
-    // The shareable page and the Word copy's blocks as they were with voicecap's last change before
-    // the voice page was linked (the voice page's own commit), for three models of runs from before
-    // voicecap recorded NVDA's voice: i2i's 32 pages, the demo's two runs, and a run with its log.
-    // Each is its length and SHA-256, the page without its fonts, the blocks as JSON. A change to
-    // either, for such a run, fails here: plan 11 adds to a report only where a run recorded.
+    // The shareable page and the Word copy's blocks for three models of runs from before voicecap
+    // recorded NVDA's voice: i2i's 32 pages, the demo's two runs, and a run with its log. Each is
+    // its length and SHA-256: the page as renderSharePage(model, { fontCss: "" }) gives it, without
+    // its fonts, and the blocks as JSON.stringify(wordOutline(model)) gives them. They were made
+    // with voicecap's last change before the voice page was linked (the voice page's own commit). The
+    // merge of main (0.16.1 and the fixes after it) re-pinned them from the merged code, since main's
+    // TIMELINE gained the rows of 0.15.0 and 0.16.0, which the story on every page and in every Word
+    // copy shows: each page grew by 564 characters, and each copy's blocks by 567. With those two
+    // rows taken out, the merged code gives the values pinned before it, exactly. A change to either,
+    // for such a run, fails here: plan 11 adds to a report only where a run recorded. A change meant
+    // for every report, such as a release's row of the timeline, re-pins them, and says so here.
     const before = {
       i2i: {
-        page: [217_001, "5a9f427cfee97781cf894e4ebef7e923378e379b233be6194382a6d7d3ae87be"],
-        word: [59_130, "1194232ba594f35f037b7e67749e9a8a7c986fec37fe1ba994c49fdcf77f1767"],
+        page: [217_565, "efb20f2a24405c4d9df5c10585a02f616d8bf5c902c780975b81f50e37cbe33a"],
+        word: [59_697, "af3d85676afb0d7b743a7ed24b8677773529ca0064f217708130334171d43a39"],
       },
       demo: {
-        page: [251_437, "f0f27da07c6c8df4943ec00aa386b2ead5001c88811ca610c1c9c2bcb3918990"],
-        word: [81_862, "4574dd494c9f1e2d0227e17e673664b9703b7f09e6e91634f9e25a7c8dc6863f"],
+        page: [252_001, "9a714838b59107bbfd96ced7acb48190ccccb3335bdb8326ed8254e1a2bd3877"],
+        word: [82_429, "da2845fc837fb8361bfc79108cba0e0168528b04965a2d1395ae96a8c55359ca"],
       },
       logged: {
-        page: [133_931, "415d5941b20b03336c4bb87fbacc8608c24b4be0078ba8fcec04f0d00c3a2bdc"],
-        word: [40_632, "4b60fdca28c160ddc10932e15b96573bb60a11bb108dd0d8cd8b7b76507cf04b"],
+        page: [134_495, "92899550c3408156b849bb0822924095605ad4eacb65740ddfcde48a6ad5ea48"],
+        word: [41_199, "ad325426125c3d259f6e19251ba401f9c0d7c7b02b444d78339b67360f777eec"],
       },
     };
     const models = { i2i: i2iModel(), demo: await demoModel(), logged: loggedModel() };
@@ -1402,6 +1408,23 @@ describe("the page's script, in Chromium", () => {
   const background = (page: Page): Promise<string> =>
     page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
+  /**
+   * Reload until the page opens in the colors of the theme the reader chose. The choice is kept in
+   * the browser's storage, which Chromium can finish writing a moment after the click, so a reload
+   * straight after it can open the page as it was on a slow computer, as CI's macOS once showed for
+   * the website's pages. A reader can't reload that fast; a choice never kept fails after 5 seconds.
+   */
+  const reloadUntilBackground = (page: Page, color: string): Promise<void> =>
+    expect
+      .poll(
+        async () => {
+          await page.reload();
+          return background(page);
+        },
+        { timeout: 5_000 },
+      )
+      .toBe(color);
+
   /** How many of the page's folds are closed. */
   const closedFolds = (page: Page): Promise<number> =>
     page.evaluate(
@@ -1431,13 +1454,11 @@ describe("the page's script, in Chromium", () => {
     await toggle.click();
     expect(await background(page)).toBe(LIGHT);
     expect(await toggle.textContent()).toBe("Dark version");
-    await page.reload();
-    expect(await background(page)).toBe(LIGHT);
+    await reloadUntilBackground(page, LIGHT);
     expect(await page.locator("#theme-toggle").textContent()).toBe("Dark version");
 
     await page.locator("#theme-toggle").click();
-    await page.reload();
-    expect(await background(page)).toBe(DARK);
+    await reloadUntilBackground(page, DARK);
     expect(problems.get(page)).toEqual([]);
   });
 
