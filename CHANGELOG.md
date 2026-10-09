@@ -4,11 +4,15 @@ All notable changes to voicecap are recorded here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-09
+
+The What's New banner now opens the website's front page, above its heading, as the audit tool's front page has it.
+
 ### Changed
 
 - **The What's New banner opens the website's front page,** above its kicker and heading, as the audit tool's front page has it. It was under the lead.
   - **It's the first thing under the top bar,** with a clear gap before the kicker. The banner has no heading and is no landmark, so the page's outline is as it was: its first heading is still the page's `h1`. It still can't be dismissed, and a build whose CHANGELOG records no release still has no banner, so the page then opens with its kicker.
-  - **The README describes the front page in the new order,** and its two pictures of the front page are drawn again to show it.
+  - **The README describes the front page in the new order,** and its two pictures of the front page are drawn again to show it. Its picture of the report's fingerprint check is drawn again too, since what the check proves now names axe's results.
 
 ## [0.16.0] - 2026-10-09
 
@@ -610,7 +614,8 @@ Phase A: everything except the real NVDA driver, working on Windows, macOS, and 
 
 - The Guidepup NVDA driver, `voicecap setup`, and `voicecap doctor` (Phase B, on Windows).
 
-[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/ICJIA/voicecap/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/ICJIA/voicecap/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/ICJIA/voicecap/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/ICJIA/voicecap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/ICJIA/voicecap/compare/v0.13.2...v0.14.0
