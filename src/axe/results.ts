@@ -102,9 +102,13 @@ export interface KeptAxeResults {
   incomplete: KeptRule[];
 }
 
-/** The parts of axe's results voicecap reads, as axe-core 4.13 gives them; the rest is left out. */
+/**
+ * The parts of axe's results voicecap reads, as axe-core 4.13 gives them; the rest is left out.
+ * axe names every rule, and the shareable page reads back no rule without a name (axeViewOf), so
+ * none is kept.
+ */
 const ruleSchema = z.object({
-  id: z.string(),
+  id: z.string().min(1),
   impact: z.enum(IMPACTS).nullish(),
   help: z.string(),
   helpUrl: z.string(),

@@ -285,6 +285,19 @@ describe("what voicecap keeps of axe's results", () => {
       );
     }
   });
+
+  it("refuses a rule with no id, which the shareable page couldn't read back", () => {
+    // axe names every rule; a file with a rule of no id is one the page refuses (axeViewOf), so it
+    // is never written.
+    for (const raw of [
+      rawAxe({ violations: [rawRule("")] }),
+      rawAxe({ incomplete: [rawRule("color-contrast"), rawRule("")] }),
+    ]) {
+      expect(() => keptAxeResults(raw, URL_HOME)).toThrow(
+        /^axe's results couldn't be read \((?:violations|incomplete)\.\d+\.id: /,
+      );
+    }
+  });
 });
 
 describe("why a page has no result from axe", () => {
