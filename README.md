@@ -3,6 +3,7 @@
 # voicecap
 
 [![CI](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml/badge.svg)](https://github.com/ICJIA/voicecap/actions/workflows/ci.yml)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/791ca8e6-fa5d-4721-a2ab-d42c82f53b4b/deploy-status)](https://app.netlify.com/projects/voicecap/deploys)
 [![npm](https://img.shields.io/npm/v/@icjia/voicecap)](https://www.npmjs.com/package/@icjia/voicecap)
 [![Node](https://img.shields.io/node/v/@icjia/voicecap)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
