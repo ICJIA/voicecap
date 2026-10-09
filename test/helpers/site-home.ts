@@ -6,19 +6,29 @@
  * at an IP address and recorded no canonical address, so each share names it by report.canonical,
  * as a config would: with no name, voicecap would refuse to share it. Nothing here reads the
  * machine's own transcripts home, Git name, or config.
+ *
+ * And a home with one share that has a voice page (homeWithVoiceShare): a scripted run whose pages
+ * each have a recording of NVDA's voice, shared by the real `voicecap share`. The sounds are numbers
+ * the encoder turns into files, and nothing here plays one.
  */
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { expect } from "vitest";
+
 import { resolveConfig, type LoadedConfig } from "../../src/config/load.js";
 import { DEMO_OUT } from "../../src/demo/words.js";
 import type { SharedFile } from "../../src/model.js";
-import { shareDir, sharesPath } from "../../src/run/paths.js";
+import { runAudit } from "../../src/run/audit.js";
+import { shareDir, sharesPath, siteFolder } from "../../src/run/paths.js";
 import { shareReport } from "../../src/share/share.js";
 import { hashJson, sealOf, sha256 } from "../../src/util/hash.js";
 import { silentLogger } from "../../src/util/log.js";
+import { options as runOptions, setup, SITE, sitePages } from "./run-site.js";
+import { ScriptedDriver } from "./scripted-driver.js";
+import { busySound, speechAndPauses } from "./voice-signal.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const FIXTURE_HOME = path.join(ROOT, "test", "fixtures", "share", "demo-2026-09-29");
@@ -162,5 +172,45 @@ export async function homeWithShares(at?: string): Promise<string> {
   });
   await share(demo, DEMO_SHARED_ON, "Demo Reviewer");
 
+  return home;
+}
+
+/**
+ * The site folder, and the name of the pair's page without its extension, of the share that
+ * `homeWithVoiceShare` makes: the scripted site's host, then the day it's shared on.
+ */
+export const VOICE_FOLDER = siteFolder(SITE);
+export const VOICE_STEM = `${VOICE_FOLDER}_2027-01-15`;
+/** The voice page's name beside that pair, as `voicecap share` gives it. */
+export const VOICE_PAGE = `${VOICE_STEM}.voice.html`;
+
+/**
+ * A new home with one share that has a voice page: a completed, sealed, live run of the scripted
+ * site's three pages, each with a recording of NVDA's voice (the scripted driver gives each its
+ * sound, which the run encodes and keeps as voice.webm; the sounds are numbers, and nothing plays),
+ * shared by `voicecap share` on a fixed day, so it has the page, its Word copy, the voice page, and
+ * the run's walkthrough file. The home is `transcripts` in a folder of its own that this makes in
+ * the machine's temporary folder: the caller takes `path.dirname(home)` away.
+ */
+export async function homeWithVoiceShare(): Promise<string> {
+  const dir = await setup();
+  const pages = sitePages({
+    home: { voice: { samples: speechAndPauses() } },
+    about: { voice: { samples: busySound(1.5, 3) } },
+    resources: { voice: { samples: busySound(1.5, 4) } },
+  });
+  const run = await runAudit(runOptions(dir, new ScriptedDriver(pages)));
+  expect(run.outcome).toBe("completed");
+  const home = path.join(dir, "transcripts");
+  await shareReport({
+    out: home,
+    site: SITE,
+    reviewer: "Test Reviewer",
+    now: SHARED_ON,
+    logger: silentLogger,
+    // No config file is read, nor any environment.
+    cwd: dir,
+    env: {},
+  });
   return home;
 }

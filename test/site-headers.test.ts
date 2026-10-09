@@ -1,7 +1,9 @@
 /**
  * What Netlify reads of each page the website serves: the hashes of a page's own code, the Content
  * Security Policy made from them, and the text of _headers and robots.txt. The shareable page is
- * the real one, from the demo's runs. The other pages are small ones, with only what a case needs.
+ * the real one, from the demo's runs, and the voice page is the real one, from a run in memory with
+ * a recording of NVDA's voice (nothing plays it). The other pages are small ones, with only what a
+ * case needs.
  */
 import { createHash } from "node:crypto";
 
@@ -10,7 +12,9 @@ import { describe, expect, it } from "vitest";
 import { CHECK_SCRIPT } from "../src/share/check.js";
 import { SHARE_SCRIPT } from "../src/share/html/client.js";
 import { renderSharePage } from "../src/share/html/document.js";
-import { SHARE_CSS } from "../src/share/html/style.js";
+import { SHARE_CSS, VOICE_CSS } from "../src/share/html/style.js";
+import { buildShareModel } from "../src/share/model.js";
+import { renderVoicePage, VOICE_SCRIPT } from "../src/share/voice-page.js";
 import {
   contentSecurityPolicy,
   DEMO_SITE_POLICY,
@@ -24,11 +28,41 @@ import {
   type RedirectRule,
   ROBOTS_TXT,
 } from "../src/site/headers.js";
-import { demoModel } from "./helpers/share-model.js";
+import { shareRun } from "./helpers/share-data.js";
+import {
+  demoModel,
+  inputOf,
+  LINES,
+  recordedVoice,
+  recordingsOf,
+  storeOf,
+  TRANSCRIPTS,
+} from "./helpers/share-model.js";
+import { speechAndPauses } from "./helpers/voice-signal.js";
 
 /** How a policy names the hash of `text`: 'sha256-' and its SHA-256 as base64, in single quotes. */
 function hashOf(text: string): string {
   return `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
+}
+
+/**
+ * The voice page `voicecap share` writes, from a run in memory whose one page has a recording of
+ * NVDA's voice: the WebM Opus file the encoder makes of two seconds of made-up sound, in the page as
+ * a data: address. Made with no fonts, as most of these tests read it. Nothing plays it.
+ */
+async function voicePage(): Promise<string> {
+  const { record } = await recordedVoice(speechAndPauses());
+  const run = shareRun({
+    id: "2026-09-29_1402",
+    createdAt: "2026-09-29T14:02:51-05:00",
+    voicecapVersion: "0.18.0",
+    sessions: [{ reviewer: "Pat Lee" }],
+    pages: [{ path: "/", files: TRANSCRIPTS, passes: LINES, voice: record }],
+  });
+  const model = buildShareModel(inputOf([run], { transcripts: storeOf() }));
+  const html = renderVoicePage(model, recordingsOf([run]), { fontCss: "" });
+  if (html === null) throw new Error("No voice page was made.");
+  return html;
 }
 
 /** What a page with no code of its own has. */
@@ -54,6 +88,19 @@ describe("inlineHashes", () => {
     expect(inlineHashes(page)).toEqual({
       styles: [hashOf(`\n\n${SHARE_CSS}`)],
       scripts: [hashOf(SHARE_SCRIPT + CHECK_SCRIPT)],
+    });
+  });
+
+  it("hashes the voice page's one style block and one script, and neither its data nor its recordings", async () => {
+    const page = await voicePage();
+    // The page holds its data too, in a block that a browser never runs, and a recording in each
+    // player's address: a player's address is no code.
+    expect(page).toContain('<script type="application/json" id="fp-data">');
+    expect(page).toContain('<audio controls preload="none" src="data:audio/webm;base64,');
+
+    expect(inlineHashes(page)).toEqual({
+      styles: [hashOf(`\n\n${SHARE_CSS}${VOICE_CSS}`)],
+      scripts: [hashOf(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)],
     });
   });
 
@@ -367,6 +414,40 @@ describe("contentSecurityPolicy", () => {
 
     expect(policy).toContain(`script-src ${hashOf(SHARE_SCRIPT + CHECK_SCRIPT)};`);
     expect(policy).toContain(`style-src ${hashOf(`\n\n${SHARE_CSS}`)};`);
+  });
+
+  it("allows media as data: only when asked, and adds nothing else", () => {
+    const hashes = { styles: [STYLE], scripts: [SCRIPT_ONE] };
+    const plain = contentSecurityPolicy(hashes);
+
+    // A page that plays no sound has no media-src of its own, so it can play none: its
+    // default-src is 'none'.
+    expect(plain).not.toContain("media-src");
+    expect(contentSecurityPolicy(hashes, { media: false })).toBe(plain);
+    expect(contentSecurityPolicy(hashes, { fonts: false })).not.toContain("media-src");
+    // Asked for, it's one directive more, after the images: media from data: addresses alone.
+    const withMedia = contentSecurityPolicy(hashes, { media: true });
+    expect(withMedia).toBe(
+      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    );
+    expect(withMedia.replace("media-src data:; ", "")).toBe(plain);
+    // Beside the fonts' choice, the two are independent.
+    expect(contentSecurityPolicy(hashes, { media: true, fonts: false })).toBe(
+      `default-src 'none'; script-src ${SCRIPT_ONE}; style-src ${STYLE}; img-src data:; media-src data:; font-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    );
+    // Whatever it's given, nothing may connect, so a recording is never fetched from anywhere.
+    expect(withMedia).toContain("; connect-src 'none';");
+  });
+
+  it("allows the code of the voice page by its own hashes, and the recordings it holds, as data: addresses", async () => {
+    const page = await voicePage();
+    const policy = contentSecurityPolicy(inlineHashes(page), { media: true });
+
+    expect(policy).toContain(`script-src ${hashOf(SHARE_SCRIPT + CHECK_SCRIPT + VOICE_SCRIPT)};`);
+    expect(policy).toContain(`style-src ${hashOf(`\n\n${SHARE_CSS}${VOICE_CSS}`)};`);
+    expect(policy).toContain("; img-src data:; media-src data:; font-src data:;");
+    // The page's players hold their sound in their own addresses, and nowhere else is it fetched.
+    expect(policy).toContain("; connect-src 'none';");
   });
 });
 

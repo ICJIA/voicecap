@@ -1,9 +1,9 @@
 /**
  * buildSite, which `voicecap site` runs: the website of every report voicecap has shared, built from
  * the transcripts home's records of what was shared. Each test builds from its own home, made by
- * homeWithShares (test/helpers/site-home.ts) or small and made here, in a folder of its own that is
- * taken away after: no test deletes anything outside a folder it made. Nothing here starts a screen
- * reader, a browser, or Word.
+ * homeWithShares or homeWithVoiceShare (test/helpers/site-home.ts) or small and made here, in a
+ * folder of its own that is taken away after: no test deletes anything outside a folder it made.
+ * Nothing here starts a screen reader, a browser, or Word, or plays a sound.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -80,9 +80,13 @@ import {
   FIXTURE_NAME,
   FIXTURE_SITE,
   homeWithShares,
+  homeWithVoiceShare,
   recordOf,
   sealedEntry,
   SHARED_ON,
+  VOICE_FOLDER,
+  VOICE_PAGE,
+  VOICE_STEM,
   writeRecord,
 } from "./helpers/site-home.js";
 import { filesOf } from "./helpers/site-content.js";
@@ -125,14 +129,20 @@ const roots: string[] = [];
 
 /** A home from homeWithShares, made once for the file: each test builds from a copy of it. */
 let template: string;
+/**
+ * A home from homeWithVoiceShare, made once too: one share that has a voice page, from a scripted
+ * run with a recording of NVDA's voice on each of its pages.
+ */
+let voiceTemplate: string;
 
 beforeAll(async () => {
-  template = await homeWithShares();
+  [template, voiceTemplate] = await Promise.all([homeWithShares(), homeWithVoiceShare()]);
 });
 
 afterAll(async () => {
-  // The folder homeWithShares made: the home is in a folder of its own.
+  // The folders homeWithShares and homeWithVoiceShare made: each home is in a folder of its own.
   await rm(path.dirname(template), { recursive: true, force: true });
+  await rm(path.dirname(voiceTemplate), { recursive: true, force: true });
 });
 
 afterEach(async () => {
@@ -235,6 +245,19 @@ async function newHome(): Promise<string> {
   await cp(template, home, {
     recursive: true,
     filter: (source) => !A_RUNS_RECORD.test(path.relative(template, source)),
+  });
+  return home;
+}
+
+/**
+ * A new home, a copy of the one homeWithVoiceShare made, the same way: in a folder of its own that is
+ * taken away after the test, without the run's records, which the site never reads.
+ */
+async function newVoiceHome(): Promise<string> {
+  const home = path.join(await newFolder(), "transcripts");
+  await cp(voiceTemplate, home, {
+    recursive: true,
+    filter: (source) => !A_RUNS_RECORD.test(path.relative(voiceTemplate, source)),
   });
   return home;
 }
@@ -3304,6 +3327,50 @@ describe("buildSite", () => {
       );
     });
 
+    it("sends an older report's page to the current report's page, never to a voice page, which isn't sent on either", async () => {
+      const home = await homeWithSites({ [DVFR]: DAYS });
+      const siteDir = path.join(home, DVFR);
+      // The oldest and the newest share also have a voice page, which their record lists before
+      // their page. The oldest isn't on the site, and the newest is its current report.
+      const voice = (seq: number): Buffer =>
+        Buffer.from(`<!doctype html><title>The voice page of ${seq}</title>`);
+      const { shares } = await readShares(siteDir);
+      const listed = (seq: number): SharedFile[] => [
+        recordOf(`${DVFR}_${seq}.voice.html`, voice(seq)),
+        ...(shares[seq - 1] as { files: SharedFile[] }).files,
+      ];
+      for (const seq of [1, 5]) {
+        await writeFile(path.join(siteDir, "share", `${DVFR}_${seq}.voice.html`), voice(seq));
+      }
+      await writeRecord(siteDir, [
+        sealedEntry(1, DAYS[0] ?? "", listed(1)),
+        ...shares.slice(1, 4),
+        sealedEntry(5, DAYS[4] ?? "", listed(5)),
+      ]);
+
+      const { out, content } = await build(home);
+
+      // The current report lists its voice page first, and its page is still the page.
+      expect(content.sites[0]?.reports[0]?.files.map(({ kind }) => kind)).toEqual([
+        "voice",
+        "page",
+      ]);
+      expect(existsSync(path.join(out, DVFR, `${DVFR}_5.voice.html`))).toBe(true);
+      expect(existsSync(path.join(out, DVFR, `${DVFR}_1.voice.html`))).toBe(false);
+      // Each older page is sent to the current report's page. Neither the oldest report's voice page,
+      // which is gone with its report, nor the current one's, which is published, is sent anywhere.
+      expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
+        [
+          REDIRECTS_FIRST_LINE,
+          `/${DVFR}/${DVFR}_2.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_2 /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1.html /${DVFR}/${DVFR}_5.html 302`,
+          `/${DVFR}/${DVFR}_1 /${DVFR}/${DVFR}_5.html 302`,
+          "",
+        ].join("\n"),
+      );
+    });
+
     // 0.12.3: the card of a site's current report says what its copies say of the site.
     it("gives each report the result its entry records, for its card, and none to one that records none", async () => {
       const nothing = { pages: 9, read: 9, problems: 0, problemPages: 0 };
@@ -3341,6 +3408,199 @@ describe("buildSite", () => {
       expect(await readFile(path.join(out, "_redirects"), "utf8")).toBe(
         `${REDIRECTS_FIRST_LINE}\n`,
       );
+    });
+  });
+
+  // Added in 0.18.0. When a page of a run has a recording of NVDA's voice, `voicecap share` writes a
+  // voice page beside the pair, named for it (the pair's name with ".voice.html"), which plays the
+  // recordings it holds. The site publishes it as one more file of the share, lists it in the
+  // report's files as NVDA's voice, and gives it the shareable page's policy of its own bytes with
+  // one more directive, so that it can play what it holds.
+  describe("a share's voice page", () => {
+    const VOICE_ADDRESS = `/${VOICE_FOLDER}/${VOICE_PAGE}`;
+    /** Where a page is served without ".html", which is how Netlify serves it too. */
+    const withoutHtml = (address: string): string => address.replace(/\.html$/, "");
+
+    it("publishes a share's voice page, and lists it as NVDA's voice in the report's files", async () => {
+      const home = await newVoiceHome();
+      const recorded = await namedIn(path.join(home, VOICE_FOLDER));
+      // The share's four files, as `voicecap share` records them: the page, its Word copy, the voice
+      // page, and the run's walkthrough file.
+      expect(recorded).toHaveLength(4);
+      expect(recorded.slice(0, 3)).toEqual([
+        `${VOICE_STEM}.html`,
+        `${VOICE_STEM}.docx`,
+        VOICE_PAGE,
+      ]);
+
+      const { out, content, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([]);
+      expect(content.sites.map(({ name }) => name)).toEqual([VOICE_FOLDER]);
+      const [report] = content.sites[0]?.reports ?? [];
+      expect(report?.files.map(({ kind, name, href }) => ({ kind, name, href }))).toEqual(
+        recorded.map((name, index) => ({
+          kind: (["page", "word", "voice", "walkthrough"] as const)[index],
+          name,
+          href: `${VOICE_FOLDER}/${name}`,
+        })),
+      );
+      expect(report?.notPublished).toEqual([]);
+      // Every file of the share is published byte for byte, with the recorded size and SHA-256, and
+      // the voice page, which is no walkthrough file, is of no run.
+      for (const file of report?.files ?? []) {
+        const [copy, original] = [
+          await readFile(path.join(out, file.href)),
+          await readFile(path.join(home, VOICE_FOLDER, "share", file.name)),
+        ];
+        expect(copy, file.name).toEqual(original);
+        expect(file, file.name).toMatchObject({ bytes: original.length, sha256: sha256(original) });
+      }
+      expect(report?.files[2]?.run).toBeNull();
+      expect(report?.files[3]?.run).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\d_\d{4}$/));
+      expect(await filesUnder(path.join(out, VOICE_FOLDER))).toEqual([...recorded].sort());
+    });
+
+    it("lists it on the site's page as NVDA's voice, which opens in the browser, and leads the report with its page", async () => {
+      const home = await newVoiceHome();
+
+      const { out, content } = await build(home);
+
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      const [report] = content.sites[0]?.reports ?? [];
+      const [page, word, voice] = report?.files ?? [];
+      // In the report's fold: its label, its link (it opens in the browser, and is no download),
+      // its size, and its SHA-256.
+      expect(index).toContain(
+        `<li><span class="kind">NVDA&#39;s voice</span> <a href="${voice?.href}">${voice?.name}</a> <span class="meta">`,
+      );
+      expect(index).toContain(`<code>${voice?.sha256}</code>`);
+      // The report's own links are its page, which opens, and its Word copy, which downloads: the
+      // voice page is never the page, though its name ends in .html as the page's does.
+      expect(page?.kind).toBe("page");
+      expect(index).toContain(
+        `<a class="action" href="${page?.href}">Open the report<span class="sr"> of ${VOICE_FOLDER}, `,
+      );
+      expect(index).toContain(`<a class="action" href="${word?.href}" download>`);
+      expect(index.match(new RegExp(`href="${voice?.href}"`, "g"))).toHaveLength(1);
+      expect(index).not.toContain(`href="${voice?.href}" download`);
+    });
+
+    it("gives only the voice page media-src data:, at both its addresses, and leaves every other page's policy unchanged", async () => {
+      const home = await newVoiceHome();
+
+      const { out, content } = await build(home);
+
+      const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+      const bytesOf = async (file: string): Promise<string> =>
+        readFile(path.join(out, file), "utf8");
+      const policyOf = async (
+        file: string,
+        options: { fonts?: boolean; media?: boolean } = {},
+      ): Promise<string> => contentSecurityPolicy(inlineHashes(await bytesOf(file)), options);
+      // The website's own pages have no font; a share's pages have the fonts they embed.
+      const own = async (file: string): Promise<[[string, string]]> => [
+        [CSP, await policyOf(file, { fonts: false })],
+      ];
+      const expected: [string, [string, string][]][] = [
+        ["/", await own("index.html")],
+        ["/index.html", await own("index.html")],
+        ["/trust.html", await own("trust.html")],
+        ["/trust", await own("trust.html")],
+        ["/whats-new.html", await own("whats-new.html")],
+        ["/whats-new", await own("whats-new.html")],
+        ["/technical-details.html", await own("technical-details.html")],
+        ["/technical-details", await own("technical-details.html")],
+        ...DEMO_RULES,
+      ];
+      for (const file of filesOf(content)) {
+        if (file.kind === "page" || file.kind === "voice") {
+          const policy = await policyOf(file.href, { media: file.kind === "voice" });
+          expected.push(
+            [`/${file.href}`, [[CSP, policy]]],
+            [withoutHtml(`/${file.href}`), [[CSP, policy]]],
+          );
+        } else {
+          expected.push([`/${file.href}`, [["Content-Disposition", "attachment"]]]);
+        }
+      }
+      expect(rules).toEqual(expected);
+
+      // Only the voice page's two rules allow media. It's the policy its own bytes make, the
+      // shareable page's, with one directive more, after the images, and still no connection.
+      const playing = rules.filter(([, headers]) =>
+        headers.some(([, value]) => value.includes("media-src")),
+      );
+      expect(playing.map(([address]) => address)).toEqual([
+        VOICE_ADDRESS,
+        withoutHtml(VOICE_ADDRESS),
+      ]);
+      const plain = contentSecurityPolicy(
+        inlineHashes(await bytesOf(`${VOICE_FOLDER}/${VOICE_PAGE}`)),
+      );
+      expect(plain).not.toContain("media-src");
+      for (const [, headers] of playing) {
+        expect(headers).toEqual([
+          [CSP, plain.replace("; img-src data:;", "; img-src data:; media-src data:;")],
+        ]);
+        expect(headers[0]?.[1]).toContain("; media-src data:; font-src data:; connect-src 'none';");
+      }
+      // The report's own page, which plays nothing, has none, nor has any other page's policy.
+      const page = content.sites[0]?.reports[0]?.files[0];
+      const pageRule = rules.find(([address]) => address === `/${page?.href}`);
+      expect(pageRule?.[1][0]?.[1]).not.toContain("media-src");
+      expect(pageRule?.[1][0]?.[1]).toContain("font-src data:");
+    });
+
+    it("leaves out a voice page changed since it was shared, names it, and publishes the rest of its report", async () => {
+      const home = await newVoiceHome();
+      const changed = path.join(home, VOICE_FOLDER, "share", VOICE_PAGE);
+      await changeAByte(changed);
+
+      const { out, content, leftOut } = await build(home);
+
+      expect(leftOut).toEqual([
+        `${VOICE_FOLDER}/share/${VOICE_PAGE}: not published: it no longer matches its fingerprint`,
+      ]);
+      const [report] = content.sites[0]?.reports ?? [];
+      expect(report?.files.map(({ kind }) => kind)).toEqual(["page", "word", "walkthrough"]);
+      expect(report?.notPublished).toEqual([{ name: VOICE_PAGE, reason: "changed" }]);
+      expect(existsSync(path.join(out, VOICE_FOLDER, VOICE_PAGE))).toBe(false);
+      // It has no rule, and the page's card says nothing of it: the fold says it isn't here.
+      const { rules } = readHeaders(await readFile(path.join(out, "_headers"), "utf8"));
+      expect(rules.map(([address]) => address)).not.toContain(VOICE_ADDRESS);
+      expect(rules.map(([address]) => address)).not.toContain(withoutHtml(VOICE_ADDRESS));
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).toContain(`<p class="gone">${goneLine(VOICE_PAGE, "changed")}</p>`);
+      expect(index.match(/class="gone"/g)).toHaveLength(1);
+    });
+
+    it("is never taken for the report's page, whichever file of the share its record lists first", async () => {
+      const home = await newVoiceHome();
+      // The record lists the voice page before the page, as a record made by hand might.
+      const siteDir = path.join(home, VOICE_FOLDER);
+      const { shares } = await readShares(siteDir);
+      const entry = shares[0] as { files: SharedFile[]; at: string; runs: string[] };
+      const [page, word, voice, walkthrough] = entry.files;
+      await writeRecord(siteDir, [
+        sealedEntry(1, entry.at, [voice!, page!, word!, walkthrough!], { runs: entry.runs }),
+      ]);
+
+      const { out, content } = await build(home);
+
+      const [report] = content.sites[0]?.reports ?? [];
+      expect(report?.files.map(({ kind }) => kind)).toEqual([
+        "voice",
+        "page",
+        "word",
+        "walkthrough",
+      ]);
+      // The report's one page is the pair's, and the current report opens it.
+      const index = await readFile(path.join(out, "index.html"), "utf8");
+      expect(index).toContain(
+        `<a class="action" href="${VOICE_FOLDER}/${VOICE_STEM}.html">Open the report`,
+      );
+      expect(index).not.toContain(`<a class="action" href="${VOICE_FOLDER}/${VOICE_PAGE}"`);
     });
   });
 

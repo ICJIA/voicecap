@@ -4,6 +4,8 @@
  * line each, every report's files in a fold, what isn't there, and every report by date when two
  * sites or more have reports. The content is small (test/helpers/site-content.ts): a demo, two
  * sites with three reports, a Word copy that isn't published, and a report with no walkthrough file.
+ * A share's voice page, which plays NVDA's recordings, is a file of its report that is never taken
+ * for the report's page: its tests make their own content from those reports.
  *
  * The frame that every page of the website shares (src/site/frame.ts) is here too: the top bar, with
  * the website's name, its three pages, and the theme button; the bottom bar, with GitHub, the
@@ -1243,6 +1245,179 @@ describe("renderSiteIndex", () => {
     expect(textOf(item?.[1] ?? "")).toContain("its page isn't here");
   });
 
+  // From 0.18.0 a share has a voice page beside its page, when a page has a recording of NVDA's
+  // voice: the pair's name with ".voice.html". It's a page that plays sound, not the report's page.
+  describe("a share's voice page", () => {
+    const VOICE = `${DVFR}_2026-10-03.voice.html`;
+    const [PAGE, WORD] = [`${DVFR}/${DVFR}_2026-10-03.html`, `${DVFR}/${DVFR}_2026-10-03.docx`];
+    /** DVFR_NEWEST with its voice page between its Word copy and its walkthrough file, as a share lists them. */
+    const withVoice: PublishedReport = {
+      ...DVFR_NEWEST,
+      files: [
+        ...DVFR_NEWEST.files.slice(0, 2),
+        published("voice", DVFR, VOICE, 900),
+        ...DVFR_NEWEST.files.slice(2),
+      ],
+    };
+    /** The front page of one site that has these reports, the first its current one. */
+    const pageOf = (...reports: PublishedReport[]): string =>
+      frontPage({ demo: null, sites: [{ name: DVFR, folders: [DVFR], reports }] });
+    const of = ` of ${DVFR}, 3 October 2026, 14:05`;
+
+    it("is NVDA's voice in the report's files, with its size and fingerprint, where the share lists it", () => {
+      const [block] = sharedBlocksOf(pageOf(withVoice));
+      const item = (label: string, name: string, size: string) =>
+        `${label} ${name} ${size}, SHA-256 ${fingerprintOf(name)}`;
+
+      expect(SITE_TEXT.files.voice).toBe("NVDA's voice");
+      expect(filesIn(block ?? "")).toEqual([
+        item("The report, to open", `${DVFR}_2026-10-03.html`, "324 KB"),
+        item("The Word copy", `${DVFR}_2026-10-03.docx`, "51 KB"),
+        item("NVDA's voice", VOICE, "900 KB"),
+        item(
+          "The walkthrough file of run 2026-10-03_1330",
+          `${DVFR}_2026-10-03_2026-10-03_1330_walkthrough.json`,
+          "5 KB",
+        ),
+      ]);
+      // Linked by its name, as every file is, to its address in its site's folder.
+      expect(textsOf(block ?? "", "a")).toEqual(withVoice.files.map(({ name }) => name));
+      expect([...(block ?? "").matchAll(/<code>(.*?)<\/code>/g)].map(([, code]) => code)).toEqual(
+        withVoice.files.map(({ sha256 }) => sha256),
+      );
+    });
+
+    it("opens in the browser, as the report's page does, and is never a download", () => {
+      const links = linksOf(sectionOf(pageOf(withVoice), `site-${DVFR}`));
+
+      // Linked once, in the fold: the report's own links are to its page and its Word copy.
+      expect(links.filter(({ href }) => href === `${DVFR}/${VOICE}`)).toEqual([
+        { href: `${DVFR}/${VOICE}`, download: false },
+      ]);
+      expect(
+        links.filter(({ href }) => href.endsWith(".html")).map(({ download }) => download),
+      ).toEqual([false, false, false]);
+      expect(
+        links.filter(({ href }) => href.endsWith(".docx")).map(({ download }) => download),
+      ).toEqual([true, true]);
+    });
+
+    it("leads no report with it: the current report's links, an earlier report's line, and the list by date are of its page", () => {
+      const older: PublishedReport = {
+        ...DVFR_OLDEST,
+        files: [
+          published("page", DVFR, `${DVFR}_2026-09-29.html`, 296),
+          published("voice", DVFR, `${DVFR}_2026-09-29.voice.html`, 400),
+        ],
+        notPublished: [],
+      };
+      const page = frontPage({
+        demo: null,
+        // Two sites, so that there's a list by date.
+        sites: [
+          { name: DVFR, folders: [DVFR], reports: [withVoice, older] },
+          ...CONTENT.sites.slice(1),
+        ],
+      });
+
+      // The current report: its page and its Word copy, and not the voice page.
+      const article = articleOf(page, withVoice.id);
+      expect(linksOf(article)).toEqual([
+        { href: PAGE, download: false },
+        { href: WORD, download: true },
+      ]);
+      expect(article).not.toContain(".voice.html");
+      expect(textsOf(withoutHidden(article), "a")).toEqual([
+        "Open the report",
+        "Download the Word copy",
+      ]);
+      // An earlier report's line: its page, and not its voice page.
+      const [line = ""] = earlierItemsOf(sectionOf(page, `site-${DVFR}`));
+      expect(line).toContain(`<a href="${DVFR}/${DVFR}_2026-09-29.html">Open the report`);
+      expect(line).not.toContain(".voice.html");
+      // The list by date: each report's page, never its voice page.
+      const dated = sectionOf(page, "by-date");
+      expect(dated).not.toContain(".voice.html");
+      expect(linksOf(dated).map(({ href }) => href)).toEqual([
+        PAGE,
+        `${EXAMPLE}/${EXAMPLE}_2026-10-02.html`,
+        `${DVFR}/${DVFR}_2026-09-29.html`,
+      ]);
+    });
+
+    it("is never taken for the report's page: a report whose page isn't here says so, and the voice page doesn't take its place", () => {
+      const voiceOnly: PublishedReport = {
+        ...withVoice,
+        files: withVoice.files.filter(({ kind }) => kind === "voice" || kind === "word"),
+        notPublished: [{ name: `${DVFR}_2026-10-03.html`, reason: "missing" }],
+      };
+      const page = frontPage({
+        demo: null,
+        sites: [{ name: DVFR, folders: [DVFR], reports: [voiceOnly] }, ...CONTENT.sites.slice(1)],
+      });
+
+      // The current report says its page isn't here, and links its Word copy alone.
+      const article = articleOf(page, voiceOnly.id);
+      expect(textsOf(article, "p")).toEqual([
+        "Prepared by Pat Lee",
+        `Download the Word copy${of}`,
+        `${DVFR}_2026-10-03.html isn't here: the file is missing.`,
+      ]);
+      expect(linksOf(article)).toEqual([{ href: WORD, download: true }]);
+      // In its place by date too.
+      const [item] = [...sectionOf(page, "by-date").matchAll(/<li>([\s\S]*?)<\/li>/g)];
+      expect(item?.[1]).toBe(
+        `<time datetime="2026-10-03T14:05:00-05:00">3 October 2026, 14:05</time>, ${DVFR}, prepared by Pat Lee: its page isn&#39;t here`,
+      );
+      // And as an earlier report: no page's link, and no voice page's.
+      const earlier = pageOf(DVFR_NEWEST, {
+        ...voiceOnly,
+        id: `report-${DVFR}-1`,
+        at: "2026-09-29T16:20:00-05:00",
+      });
+      const [line = ""] = earlierItemsOf(sectionOf(earlier, `site-${DVFR}`));
+      expect(textOf(withoutHidden(line), "")).toBe(
+        "29 September 2026, 16:20, prepared by Pat Lee: its page isn't here · Word copy",
+      );
+      expect(line).not.toContain(".voice.html");
+    });
+
+    it("says a voice page that isn't here in the fold alone: it's no part of what the report's card says", () => {
+      const missing: PublishedReport = {
+        ...DVFR_NEWEST,
+        notPublished: [{ name: VOICE, reason: "changed" }],
+      };
+      const page = pageOf(missing);
+
+      // The card has its two links and nothing of the missing file.
+      expect(textsOf(articleOf(page, missing.id), "p")).toEqual([
+        "Prepared by Pat Lee",
+        `Open the report${of} Download the Word copy${of}`,
+      ]);
+      // The fold says which file isn't here, and why.
+      expect(textsOf(sharedBlocksOf(page)[0] ?? "", "p")).toEqual([
+        "3 October 2026, 14:05, prepared by Pat Lee",
+        `${VOICE} isn't here: it no longer matches the fingerprint recorded when it was shared.`,
+      ]);
+    });
+
+    it("gives a share whose only published file is its voice page no link in its card, and lists the voice page in its fold", () => {
+      const alone: PublishedReport = {
+        ...DVFR_NEWEST,
+        files: [published("voice", DVFR, VOICE, 900)],
+        notPublished: [],
+      };
+      const page = pageOf(alone);
+
+      expect(filesIn(sharedBlocksOf(page)[0] ?? "")).toEqual([
+        `NVDA's voice ${VOICE} 900 KB, SHA-256 ${fingerprintOf(VOICE)}`,
+      ]);
+      // No link of the report's own, and no paragraph of them with nothing in it.
+      expect(articleOf(page, alone.id)).not.toContain('class="actions"');
+      expect(articleOf(page, alone.id)).not.toContain("<a ");
+    });
+  });
+
   it("links the demo view to the demo's own pages, with a relative link named by their address", () => {
     const demo = sectionOf(html, "demo");
     const [lead] = [...demo.matchAll(/<p>([\s\S]*?)<\/p>/g)];
@@ -1950,6 +2125,40 @@ describe("fileKind", () => {
       "json",
       "",
     ]) {
+      expect(fileKind(name), name).toBe("other");
+    }
+  });
+
+  it("calls a name that ends .voice.html the voice page, which is no report's page", () => {
+    // The names voicecap share gives: the pair's, and its number on a day it shares again.
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.voice.html")).toBe("voice");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.voice.html")).toBe("voice");
+    expect(fileKind("127.0.0.1_4848_2026-09-29.voice.html")).toBe("voice");
+    // The pair's page, whose name ends with its day or its number, is still the page.
+    expect(fileKind("dvfr.illinois.gov_2026-10-03.html")).toBe("page");
+    expect(fileKind("dvfr.illinois.gov_2026-10-03-2.html")).toBe("page");
+    // A site's name that has "voice" in it makes no page a voice page.
+    expect(fileKind("voice.example.gov_2026-10-03.html")).toBe("page");
+    expect(fileKind("example.voice_2026-10-03.html")).toBe("page");
+  });
+
+  it("takes the whole ending: only a name that ends .voice.html, in lower case, is the voice page", () => {
+    // A page with a dot in its name, no dot before voice, and the ending in another case: pages,
+    // which are given the policy of a page that plays no sound.
+    for (const name of [
+      "voice.html",
+      "x_voice.html",
+      "x.Voice.html",
+      "x.voice.HTML",
+      "x.voice.htm",
+    ]) {
+      expect(fileKind(name), name).not.toBe("voice");
+    }
+    for (const name of ["voice.html", "x_voice.html", "x.Voice.html"]) {
+      expect(fileKind(name), name).toBe("page");
+    }
+    // Something after the ending, or another extension, is other, as for any file.
+    for (const name of ["x.voice.html.zip", "x.voice.html.bak", "x.voice", "x.voice.webm"]) {
       expect(fileKind(name), name).toBe("other");
     }
   });

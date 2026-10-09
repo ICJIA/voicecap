@@ -165,9 +165,14 @@ export const SITE_TEXT = {
    * after its site (in the list by date): "prepared by Pat Lee".
    */
   listedBy: (by: string): string => `prepared by ${by}`,
-  /** What each kind of file is called. A walkthrough file is of a run, when the record says which. */
+  /**
+   * What each kind of file is called. A walkthrough file is of a run, when the record says which.
+   * A share's voice page, the page that plays what NVDA said aloud on each page, is called what it
+   * plays, as the voice page calls itself.
+   */
   files: {
     page: "The report, to open",
+    voice: "NVDA's voice",
     word: "The Word copy",
     walkthrough: (run: string | null): string =>
       run === null ? "A walkthrough file" : `The walkthrough file of run ${run}`,

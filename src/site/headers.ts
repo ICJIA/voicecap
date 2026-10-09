@@ -7,7 +7,9 @@
  * Each page was written by the voicecap version that shared it, so each is hashed from its own
  * bytes. A page holds one style block and one script, and no inline style attribute (see
  * src/share/html/document.ts), so its hashes are all its policy needs, with its fonts: a shared
- * report embeds them, and the website's own pages embed none.
+ * report embeds them, and the website's own pages embed none. A share's voice page (see
+ * src/share/voice-page.ts) keeps those rules too, and its policy adds the media it plays: its
+ * recordings, which it holds as data: addresses.
  */
 import { createHash } from "node:crypto";
 
@@ -72,10 +74,15 @@ export function inlineHashes(html: string): { styles: string[]; scripts: string[
  *
  * Fonts are allowed as data: URIs, as a shared report embeds its own, unless `fonts` is false: the
  * website's own pages are in the system's fonts and embed none, so theirs allows no font at all.
+ *
+ * Audio and video are allowed as nothing, unless `media` is true, which adds `media-src data:`: a
+ * share's voice page holds each recording of NVDA's voice in its player's address, as a data: URI,
+ * and plays it from there, and it is the one page that does. With `default-src 'none'`, a page that
+ * plays sound, as the policy stands for every other page, would have each recording refused.
  */
 export function contentSecurityPolicy(
   hashes: { styles: string[]; scripts: string[] },
-  options: { fonts?: boolean } = {},
+  options: { fonts?: boolean; media?: boolean } = {},
 ): string {
   const sources = (list: string[]) => (list.length === 0 ? "'none'" : list.join(" "));
   return [
@@ -83,6 +90,7 @@ export function contentSecurityPolicy(
     `script-src ${sources(hashes.scripts)}`,
     `style-src ${sources(hashes.styles)}`,
     "img-src data:",
+    ...(options.media === true ? ["media-src data:"] : []),
     options.fonts === false ? "font-src 'none'" : "font-src data:",
     "connect-src 'none'",
     "base-uri 'none'",
