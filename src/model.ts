@@ -2,6 +2,7 @@
  * The files voicecap writes: run.json, transcript JSON, reviews.json, and manual sessions.
  * Each carries a schemaVersion so later versions can read older output.
  */
+import type { AxeSummary } from "./axe/results.js";
 import type { CaptureMode, EnvironmentInfo, FocusedElement } from "./drivers/types.js";
 
 export type { CaptureMode };
@@ -221,6 +222,19 @@ export type ScreenshotRecord =
   | (FileHash & { takenAt: string; width: number; height: number })
   | { error: string; takenAt: string };
 
+/** A page's axe-core results, in the page's folder (pages/<slug>/). */
+export const AXE_FILE = "axe.json";
+
+/**
+ * A page's axe-core check, as the page's record keeps it, beside its screenshot's. Results that were
+ * kept have the file's SHA-256 and size, and what they come to (see AxeSummary): axe's version, how
+ * many rules found violations, needed review, passed, and didn't apply, and the violations by
+ * impact. A check that couldn't be made has the reason, and no file. Both have when the run
+ * recorded it (a local ISO time to the millisecond), a moment after the driver ran axe, or tried to.
+ */
+export type AxeRecord =
+  (FileHash & AxeSummary & { ranAt: string }) | { error: string; ranAt: string };
+
 export interface PassSummary {
   steps: number;
   stopReason: StopReason;
@@ -368,6 +382,15 @@ export interface PageRecord extends PageRef {
    * error), it's pending, or the run is from before voicecap 0.11.0.
    */
   screenshot?: ScreenshotRecord;
+  /**
+   * What axe-core found on the page, checked as it first loaded in its last attempt, before the
+   * screen reader read it. Kept apart from `files` for the screenshot's reason: a review copies
+   * those to find a page that changed since it was reviewed, and axe's results aren't what the
+   * screen reader said. Absent when the page has none: the driver can't check a page, the page
+   * wasn't read (it was skipped, or the site answered with an HTTP error), it's pending, or the run
+   * is from before voicecap 0.16.0.
+   */
+  axe?: AxeRecord;
   flags: FlagResult[];
   errors: string[];
 }

@@ -1,4 +1,5 @@
 import type {
+  AxeCapture,
   EnvironmentInfo,
   EventRecorder,
   FocusedElement,
@@ -27,6 +28,14 @@ export interface ScriptedPage {
    * screenshot, as a driver that takes none leaves it out).
    */
   screenshot?: PageScreenshot;
+  /**
+   * What checkWithAxe reports for the page: the results axe gave, kept as the Guidepup driver keeps
+   * them (`keptAxeResults`), or the reason there are none. A driver none of whose pages has one
+   * can't check a page, and has no checkWithAxe, as a driver that doesn't check leaves it out. In a
+   * driver that can, a page with none is reported as a check that failed: `{ error: "no axe results
+   * were scripted for this page" }`.
+   */
+  axe?: AxeCapture;
   /** Browse-mode lines, top to bottom. */
   lines?: string[];
   /** What Ctrl+End says (default: the last line). */
@@ -46,6 +55,7 @@ export interface ScriptedPage {
 
 export type Command =
   | "openPage"
+  | "checkWithAxe"
   | "toTop"
   | "toBottom"
   | "nextLine"
@@ -75,6 +85,8 @@ export class ScriptedDriver implements ScreenReaderDriver {
   readonly calls: Command[] = [];
   /** The recorder the run gave this driver, null until it does. This driver records nothing. */
   recorder: EventRecorder | null = null;
+  /** Only a driver with a page that has axe results to report can check one: see ScriptedPage.axe. */
+  checkWithAxe?: () => Promise<AxeCapture>;
 
   private readonly pages = new Map<string, ScriptedPage>();
   private page: ScriptedPage | null = null;
@@ -92,6 +104,13 @@ export class ScriptedDriver implements ScreenReaderDriver {
     private readonly options: ScriptedOptions = {},
   ) {
     for (const page of pages) this.pages.set(canonicalKey(page.url), page);
+    if (pages.some((page) => page.axe !== undefined)) {
+      this.checkWithAxe = () =>
+        this.call(
+          "checkWithAxe",
+          () => this.page?.axe ?? { error: "no axe results were scripted for this page" },
+        );
+    }
   }
 
   setEventRecorder(recorder: EventRecorder): void {

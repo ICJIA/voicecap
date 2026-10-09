@@ -1,9 +1,11 @@
 import path from "node:path";
 
-import type { EventRecorder, PageInfo, PageScreenshot } from "../drivers/types.js";
+import type { AxeCapture, EventRecorder, PageInfo, PageScreenshot } from "../drivers/types.js";
 import {
+  AXE_FILE,
   SCREENSHOT_FILE,
   type AttemptRecord,
+  type AxeRecord,
   type EnvironmentRecord,
   type FailureKind,
   type FileHash,
@@ -94,6 +96,12 @@ export interface PageOutcome {
    * didn't read (it was skipped, or the site answered with an HTTP error).
    */
   screenshot?: ScreenshotRecord;
+  /**
+   * The axe-core results the last attempt kept in the page's folder, or why it has none: checked as
+   * the page first loaded, like its screenshot. Left out when the driver can't check a page, and for
+   * a page the attempt didn't read (it was skipped, or the site answered with an HTTP error).
+   */
+  axe?: AxeRecord;
   skip?: SkippedRecord;
 }
 
@@ -116,6 +124,8 @@ interface Loaded {
   canonical?: string | null;
   /** From the attempt's first load too, once the page is to be read: its screenshot, if any. */
   screenshot?: ScreenshotRecord;
+  /** And the check of the page with axe, if the driver makes one. */
+  axe?: AxeRecord;
 }
 
 /** Why an attempt failed, and what the page's record keeps of it. */
@@ -185,6 +195,7 @@ export async function processPage(ctx: PageContext): Promise<PageOutcome> {
     ...(result.title !== undefined ? { title: result.title } : {}),
     ...(status === "done" && result.canonical !== undefined ? { canonical: result.canonical } : {}),
     ...(result.screenshot !== undefined ? { screenshot: result.screenshot } : {}),
+    ...(result.axe !== undefined ? { axe: result.axe } : {}),
     ...(result.kind === "skipped" ? { skip: result.skip } : {}),
   });
   for (let attempt = 1; ; attempt++) {
@@ -308,6 +319,27 @@ async function runAttempt(ctx: PageContext): Promise<Attempt> {
         // the passes after this one are of the same page, and their pictures aren't kept.
         const screenshot = await keepScreenshot(ctx, dir, info.screenshot);
         if (screenshot) loaded.screenshot = screenshot;
+        // And have the driver check it with axe, if it can: once a page, on this load, before the
+        // first key of the first pass, whichever pass that is. The driver has put the screen reader
+        // at the top already, and the check moves nothing in the page.
+        let checked: AxeCapture | undefined;
+        try {
+          checked = await checkWithAxe(ctx, signal);
+        } catch (error) {
+          // Only a browser that's gone: a check that fails or runs out of time is the answer.
+          if (error instanceof InterruptedError) throw error;
+          return {
+            ...loaded,
+            kind: "retry",
+            failure: "environment",
+            restart: true,
+            error: `Could not check the page with axe for the ${pass} pass: ${errorMessage(error)}`,
+            // The page was still being opened for the pass: no step of it had begun.
+            ...failedWith(problemOf(pass, failureOf(error), "openPage")),
+          };
+        }
+        const axe = await keepAxe(ctx, dir, checked);
+        if (axe) loaded.axe = axe;
       } else if (info.finalUrl !== loaded.finalUrl) {
         warnings.push(
           `This load ended at ${info.finalUrl}; the page's first load ended at ${loaded.finalUrl ?? "?"}.`,
@@ -362,6 +394,50 @@ async function keepScreenshot(
   if (size === null) return { error: "the picture wasn't a JPEG voicecap could read", takenAt };
   await writeFileAtomic(path.join(dir, SCREENSHOT_FILE), screenshot.jpeg);
   return { ...fileHash(screenshot.jpeg), takenAt, ...size };
+}
+
+/**
+ * Have the driver check the page it has open with axe, when it can; undefined when it can't. Raced
+ * against Ctrl+C and the whole page's time, as every call to a driver is. The driver bounds the
+ * check itself, and a check that fails or runs out of time is its answer, not an error, so a call
+ * that throws is a browser that's gone.
+ */
+function checkWithAxe(ctx: PageContext, signal: AbortSignal): Promise<AxeCapture | undefined> {
+  const { driver } = ctx.session;
+  const check = driver.checkWithAxe?.bind(driver);
+  if (check === undefined) return Promise.resolve(undefined);
+  return withTimeout(
+    "Checking the page with axe",
+    check,
+    ctx.pageTimeoutMs,
+    signal,
+    "page-timeout",
+  );
+}
+
+/**
+ * Keep the results a driver gave of checking a page with axe: the file in the page's folder
+ * (axe.json), and its record, with when. A check the driver couldn't make is recorded as the
+ * reason, with no file. Null when the driver can't check a page.
+ */
+async function keepAxe(
+  ctx: PageContext,
+  dir: string,
+  axe: AxeCapture | undefined,
+): Promise<AxeRecord | null> {
+  if (axe === undefined) return null;
+  const ranAt = isoLocalMs(ctx.now());
+  if ("error" in axe) return { error: axe.error, ranAt };
+  await writeFileAtomic(path.join(dir, AXE_FILE), axe.json);
+  // Field by field: the record has the shape AxeRecord gives it, and no object of the driver's.
+  const { axeVersion, counts, impacts } = axe.summary;
+  return {
+    ...fileHash(axe.json),
+    ranAt,
+    axeVersion,
+    counts: { ...counts },
+    impacts: { ...impacts },
+  };
 }
 
 /**
