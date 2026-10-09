@@ -20,7 +20,8 @@
  *    the real run of 6 October 2026, a page's first key came 2.4 s or more after its attempt began,
  *    its last step's speech 2.5 s before it ended, and its last key 1.0 s before).
  * 3. **Stretches.** The driver presses keys of its own as it opens a page for a pass (NVDA's: NVDA+T
- *    to check the window, Escape to leave focus mode), and no step presses them. They split each
+ *    to check the window, Escape to leave focus mode, and Escape to close Windows Search or the
+ *    Start menu when one comes in front of the browser), and no step presses them. They split each
  *    copy into stretches of the steps' keys. Inside a page's window, its passes are lined up with its
  *    stretches in order, each taking the first after its page's last that it fits (see stretchFor).
  *    A stretch no pass takes, such as a page voicecap opened and then skipped (an off-site

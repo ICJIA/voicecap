@@ -59,7 +59,8 @@ export function beganWithSession(raw: string, began: Date, now: Date): boolean {
 /**
  * The gestures the NVDA driver presses, as NVDA logs them after `kb(desktop):` or `kb(laptop):`: a
  * key for each command of a pass's steps, and NVDA+T and Escape, which the driver presses itself to
- * check the window and to leave focus mode. A test ties the list to the driver's key map.
+ * check the window, to leave focus mode, and to close Windows Search or the Start menu when one
+ * comes in front of the browser. A test ties the list to the driver's key map.
  */
 export const VOICECAP_GESTURES: readonly string[] = [
   "downArrow",
