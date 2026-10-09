@@ -1389,22 +1389,27 @@ describe("the trust page", () => {
     }
   });
 
-  it("puts its four big numbers one a row at 320 pixels, and four across at 1280, with their links in a line", async () => {
+  it("puts its four big numbers one a row at 320 pixels, and four across at 1280, with their links ending on one line", async () => {
     for (const [width, rows] of [
       [320, 4],
       [1280, 1],
     ] as const) {
       const page = await open(files.trust, { width });
-      const topsOf = (selector: string): Promise<number[]> =>
+      const edgesOf = (selector: string, edge: "top" | "bottom"): Promise<number[]> =>
         page
           .locator(selector)
-          .evaluateAll((all) => all.map((each) => Math.round(each.getBoundingClientRect().top)));
+          .evaluateAll(
+            (all, side) => all.map((each) => Math.round(each.getBoundingClientRect()[side])),
+            edge,
+          );
 
-      const tops = await topsOf(".tile");
+      const tops = await edgesOf(".tile", "top");
       expect(tops, `${width} px`).toHaveLength(4);
       expect(new Set(tops).size, `${width} px`).toBe(rows);
-      // A row's links line up, however long each line above them is.
-      expect(new Set(await topsOf(".tile > a")).size, `${width} px`).toBe(rows);
+      // A row's links end on one line, however long each line above them is, and however many
+      // lines a link takes in the reader's font: in Segoe UI each takes one, and in a wider face,
+      // such as Verdana or DejaVu Sans, "How to check a copy" takes two.
+      expect(new Set(await edgesOf(".tile > a", "bottom")).size, `${width} px`).toBe(rows);
     }
   });
 
