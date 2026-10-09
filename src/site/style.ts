@@ -23,11 +23,13 @@
  *   at most 64 characters a line; a page's h1 `clamp(2.125rem, 6vw, 3.875rem)`, and a part's h2
  *   `clamp(1.625rem, 4.2vw, 2.5rem)`, both at weight 900, which is Segoe UI Black on Windows;
  * - a kicker is 0.8125rem, at weight 700, spaced out (0.14em), in the quieter color, and in
- *   capitals set by the style: it's written in ordinary case, so the page's own text is words. The
- *   words that matter in it are in `--act`. Chromium gives a screen reader the text as the style
- *   draws it, capitals and all (its accessibility tree has "NOTHING NEEDS ATTENTION" for a
- *   verdict), so the style sets capitals only where the audit tool does: a kicker, a pill, and a
- *   table's header row. A label that's part of a heading is in ordinary case;
+ *   capitals set by the style: it's written in ordinary case, so a screen reader reads words, not
+ *   letters. The words that matter in it are in `--act`. The style's capitals are small capitals
+ *   (`font-variant-caps: all-small-caps`), which are only how the letters are drawn, so a screen
+ *   reader gets the words as they're written. `text-transform: uppercase` would change the words
+ *   themselves: Chromium hands a screen reader the text it makes, so a verdict would reach it as
+ *   "1 PROBLEM NEEDS ATTENTION, ON 32 PAGES". The parts in capitals are the audit tool's: a kicker,
+ *   a pill, and a table's header row. A label that's part of a heading is in ordinary case;
  * - the bars run the window's width, with what's in them in a column of 72rem, and the main part is
  *   a column of 56rem (the audit tool's `max-w-6xl` and `max-w-4xl`). The gutter is 16 pixels on a
  *   phone and 24 from 40em, which is 640 pixels at the browser's own text size: an em in a media
@@ -49,16 +51,16 @@
  *     header, is on `--panel-2`;
  *   - a part of a page (`.part`) has 44 pixels above and below it, and a line between it and the
  *     part before;
- *   - a pill is small, in capitals, at weight 700, in its color on its color's tint, with corners
- *     of 6 pixels;
+ *   - a pill is small, in small capitals, at weight 700, in its color on its color's tint, with
+ *     corners of 6 pixels;
  *   - a big number (`.n`) is at weight 900, in the fixed-width font with figures of one width, in a
  *     color of its own (`--good` unless it says), and sized to its card, not the window
  *     (`clamp(1.5rem, 17cqi, 2.375rem)` in a card that's a container, with
  *     `container-type: inline-size`), so a long number never runs out of its card;
- *   - a table's header row is small, in capitals, in the quieter color, on `--panel-2`, and lines
- *     divide its rows. A table is in a box of its own (`.scroll`), which scrolls when the table is
- *     wider than the window, so the page itself is never wider than 320 pixels; the page gives the
- *     box its focus and its name, and the style shows its focus as a link's;
+ *   - a table's header row is small, in small capitals, in the quieter color, on `--panel-2`, and
+ *     lines divide its rows. A table is in a box of its own (`.scroll`), which scrolls when the
+ *     table is wider than the window, so the page itself is never wider than 320 pixels; the page
+ *     gives the box its focus and its name, and the style shows its focus as a link's;
  *   - a button, such as a report's "Open the report" or a site's "Visit the site", is an outline in
  *     the line's color, with words in the headline's on the panel;
  * - the front page: each view's heading is a card, with its picture in a circle (which only repeats
@@ -129,8 +131,8 @@ p { margin: 0; }
 code { font-family: var(--mono); font-size: 0.88em; overflow-wrap: anywhere; }
 /* A name is a whole address, a host or a file's name, and a fingerprint is one long word: break them where they must, rather than run out of the box or the window. */
 main :where(h1, h2, h3, h4, p, li, a, span, code), footer :where(p, a) { overflow-wrap: anywhere; }
-/* a kicker: a few words that say what follows, small, bold, spaced out, and in capitals that the style sets, in lines of an even length where it wraps; the words that matter in it are in --act */
-.kicker { font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); text-wrap: balance; }
+/* a kicker: a few words that say what follows, small, bold, spaced out, and in small capitals, which leave its words as they're written for a screen reader, in lines of an even length where it wraps; the words that matter in it are in --act */
+.kicker { font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.14em; font-variant-caps: all-small-caps; color: var(--muted); text-wrap: balance; }
 .kicker .act { color: var(--act); }
 /* a lead: quieter than the words, and no more than 64 characters a line */
 .lead { font-size: clamp(1rem, 2vw, 1.1875rem); color: var(--muted); max-width: 64ch; }
@@ -154,8 +156,8 @@ main > .lead { margin-bottom: 8px; }
 /* a card: the panel behind it, a thin line around it, round corners, and 22 by 20 pixels inside; its words in --text-2 */
 .card { display: grid; gap: 10px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .card > * { min-width: 0; }
-/* a pill: small, bold, in capitals, in its color on its color's tint; a law's tag is one, in --act, and so is a verdict (below) */
-.pill, .verdict, .tag { display: inline-flex; justify-self: start; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 6px; font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; }
+/* a pill: small, bold, in small capitals, in its color on its color's tint; a law's tag is one, in --act, and so is a verdict (below) */
+.pill, .verdict, .tag { display: inline-flex; justify-self: start; align-items: baseline; gap: 6px; padding: 3px 10px; border-radius: 6px; font-size: 0.8125rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.06em; font-variant-caps: all-small-caps; }
 .pill.good, .verdict.ok { color: var(--good); background: var(--good-tint); }
 .pill.warn, .verdict.warn { color: var(--warn); background: var(--warn-tint); }
 .pill.bad, .verdict.bad { color: var(--bad); background: var(--bad-tint); }
@@ -163,12 +165,12 @@ main > .lead { margin-bottom: 8px; }
 /* a big number: heavy, in the fixed-width font with figures of one width, in a color of its own, and sized to its card (a container), so a long number never runs out of it */
 .n { margin: 0; font-family: var(--mono); font-weight: 900; font-size: clamp(1.5rem, 17cqi, 2.375rem); line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--good); }
 .n.good { color: var(--good); } .n.warn { color: var(--warn); } .n.bad { color: var(--bad); } .n.act { color: var(--act); }
-/* a table, in a box of its own that scrolls when the table is wider than the window: the page gives the box its focus and its name. Its header row is small, in capitals, and quieter, on the second panel, and lines divide its rows. */
+/* a table, in a box of its own that scrolls when the table is wider than the window: the page gives the box its focus and its name. Its header row is small, in small capitals, and quieter, on the second panel, and lines divide its rows. */
 .scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
 .scroll:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
 th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-th { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+th { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; font-variant-caps: all-small-caps; color: var(--muted); background: var(--panel-2); }
 td { color: var(--text-2); }
 tbody tr:last-child > * { border-bottom: 0; }
 /* a button: an outline in the line's color, with words in the headline's on the panel */
@@ -204,7 +206,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 .report { display: grid; gap: 12px; align-content: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; }
 .report > * { min-width: 0; }
 .report > h3, .report > h4 { font-size: 1.25rem; font-weight: 800; }
-/* what a report's heading says it is, small, bold, and quieter: in ordinary case, since it's part of a heading, and Chromium gives a screen reader what the style draws */
+/* what a report's heading says it is: small, bold, and quieter, in ordinary case, as the rest of its heading is */
 .label { display: block; margin-bottom: 2px; color: var(--muted); font-size: 0.875rem; font-weight: 700; }
 .report > .by { color: var(--muted); }
 /* the verdict, a pill in its color (above), after a sign that only repeats its words, which a screen reader doesn't read */

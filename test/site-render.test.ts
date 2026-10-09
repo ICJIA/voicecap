@@ -1665,16 +1665,29 @@ describe("SITE_CSS", () => {
       ]),
     );
     // A kicker is written in ordinary case, so a screen reader reads words, not letters: the
-    // capitals are the style's.
+    // capitals are the style's, drawn as small capitals, which leave the words as they're written.
     expect(declarationsFor(SITE_CSS, ".kicker")).toEqual(
       expect.arrayContaining([
         "font-size: 0.8125rem",
         "font-weight: 700",
         "letter-spacing: 0.14em",
-        "text-transform: uppercase",
+        "font-variant-caps: all-small-caps",
         "color: var(--muted)",
       ]),
     );
+  });
+
+  it("draws every capital it sets as a small capital, and never changes the words themselves", () => {
+    // Chromium gives a screen reader the words as `text-transform` makes them, in capitals, letter
+    // for letter. A small capital is only how a letter is drawn: the words reach a screen reader as
+    // they're written. A kicker, a pill (a verdict and a law's tag are pills), and a table's
+    // header row are the parts in capitals.
+    expect(SITE_CSS).not.toMatch(/text-transform:\s*uppercase/);
+    for (const selector of [".kicker", ".pill", ".verdict", ".tag", "th"]) {
+      expect(declarationsFor(SITE_CSS, selector), selector).toContain(
+        "font-variant-caps: all-small-caps",
+      );
+    }
   });
 
   it("sets the words at the audit tool's sizes, in the system's fonts", () => {
@@ -1719,11 +1732,12 @@ describe("SITE_CSS", () => {
     expect(declarationsFor(SITE_CSS, ".part")).toEqual(
       expect.arrayContaining(["padding-block: 44px", "border-top: 1px solid var(--line)"]),
     );
-    // A pill: small, in capitals, at 700, in its color on its color's tint, corners of 6 pixels.
+    // A pill: small, in small capitals, at 700, in its color on its color's tint, corners of 6
+    // pixels.
     expect(declarationsFor(SITE_CSS, ".pill")).toEqual(
       expect.arrayContaining([
         "font-weight: 700",
-        "text-transform: uppercase",
+        "font-variant-caps: all-small-caps",
         "border-radius: 6px",
       ]),
     );
@@ -1747,11 +1761,12 @@ describe("SITE_CSS", () => {
       ]),
     );
     expect(declarationsFor(SITE_CSS, ".tile")).toContain("container-type: inline-size");
-    // A table scrolls in its own box, and its header row is small, in capitals, on the second panel.
+    // A table scrolls in its own box, and its header row is small, in small capitals, on the second
+    // panel.
     expect(declarationsFor(SITE_CSS, ".scroll")).toContain("overflow-x: auto");
     expect(declarationsFor(SITE_CSS, "th")).toEqual(
       expect.arrayContaining([
-        "text-transform: uppercase",
+        "font-variant-caps: all-small-caps",
         "color: var(--muted)",
         "background: var(--panel-2)",
       ]),

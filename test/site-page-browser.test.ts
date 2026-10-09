@@ -25,6 +25,7 @@ import { recordFactsOf } from "../src/site/facts.js";
 import { siteBar, sitePage } from "../src/site/frame.js";
 import { type PublishedReport, renderSiteIndex, type SiteContent } from "../src/site/render.js";
 import { renderTrustPage } from "../src/site/trust.js";
+import { TRUST_TEXT } from "../src/site/trust-text.js";
 import { identicalLinks, launchBrowser, violations } from "./helpers/axe.js";
 import { footerInTwoWindows } from "./helpers/footer.js";
 import { CONTENT, DEMO_REPORT, filesOf, published, reportsOf } from "./helpers/site-content.js";
@@ -378,6 +379,23 @@ async function landmarksOf(page: Page): Promise<Landmark[]> {
   }
 }
 
+/**
+ * The words Chromium's accessibility tree gives a screen reader, in order: the name of each piece of
+ * text (`StaticText`), as the browser hands it on, whatever the style draws.
+ */
+async function spokenTexts(page: Page): Promise<string[]> {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = await client.send("Accessibility.getFullAXTree");
+    return nodes
+      .filter((node) => node.role?.value === "StaticText")
+      .map((node): unknown => node.name?.value)
+      .filter((name): name is string => typeof name === "string");
+  } finally {
+    await client.detach();
+  }
+}
+
 /** Axe over a page as tall as its content takes a while, more on a slow computer. */
 const AXE_TIMEOUT = 120_000;
 
@@ -479,25 +497,15 @@ describe("the site's page", () => {
       if (theme === "dark") await page.locator("#theme-toggle").click();
     }
     // What Chromium's accessibility tree gives a screen reader for each line: its words alone, with no
-    // sign. A verdict is a pill, in capitals that the style sets, and Chromium gives a screen reader
-    // the words as they're drawn, in those capitals, as it does a kicker's.
-    const client = await page.context().newCDPSession(page);
-    try {
-      const { nodes } = await client.send("Accessibility.getFullAXTree");
-      const texts = nodes
-        .filter((node) => node.role?.value === "StaticText")
-        .map((node): unknown => node.name?.value)
-        .filter((name): name is string => typeof name === "string")
-        .filter((name) => /needs? attention/i.test(name));
-      expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
-      expect(texts).toEqual([
-        "NOTHING NEEDS ATTENTION",
-        "1 PROBLEM NEEDS ATTENTION, ON 32 PAGES",
-        "2 PROBLEMS NEED ATTENTION, ON 2 PAGES",
-      ]);
-    } finally {
-      await client.detach();
-    }
+    // sign, and as they're written. A verdict is a pill, in small capitals, which are only how its
+    // letters are drawn.
+    const texts = (await spokenTexts(page)).filter((name) => /needs? attention/i.test(name));
+    expect(texts.some((name) => /[✓⚠]/.test(name))).toBe(false);
+    expect(texts).toEqual([
+      "Nothing needs attention",
+      "1 problem needs attention, on 32 pages",
+      "2 problems need attention, on 2 pages",
+    ]);
   });
 
   it.each([
@@ -1071,6 +1079,26 @@ describe("the trust page", () => {
     expect(look).toEqual({ weight: "700", line: "underline" });
     // Its line is 0.15 of its text's size thick, so it stays the heavier as the text grows.
     expect(thickness).toBeCloseTo(0.15, 3);
+  });
+
+  it("gives a screen reader its kickers' words and its law's tags as they're written, not in the capitals they're drawn in", async () => {
+    const page = await open(files.trust);
+
+    const texts = await spokenTexts(page);
+
+    // The banner's kicker, two parts' kickers, and the law's three tags: each is drawn in small
+    // capitals, and each reaches a screen reader in ordinary case, so it reads words, not letters.
+    const written = [
+      TRUST_TEXT.hero.kicker,
+      TRUST_TEXT.does.kicker,
+      TRUST_TEXT.law.kicker,
+      ...TRUST_TEXT.law.cards.map(({ tag }) => tag),
+    ];
+    expect(written).toHaveLength(6);
+    for (const words of written) {
+      expect(texts, words).toContain(words);
+      expect(texts, words).not.toContain(words.toUpperCase());
+    }
   });
 
   it("draws its parts in the audit tool's colors, in both themes: a law's tag in --act, and a card's heading, its link, and a big number in --good", async () => {
